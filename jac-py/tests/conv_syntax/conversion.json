@@ -1,0 +1,350 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "51c50b53f314dd1313d2a0894ead79a61f9ceb77",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_syntax.py",
+    "-o",
+    "/var/tmp/sp3-out/test_syntax",
+    "--name",
+    "conv_syntax"
+  ],
+  "generated_at": "2026-08-24T13:45:42",
+  "hashes": {
+    "pins_jac": "9796a51cc357e6bdb8f93145ba4332f5df8df856037cda207b3c64948328c77d"
+  },
+  "source_file": "reference/cpython/Lib/test/test_syntax.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "syntax",
+  "pins_file": "conv_syntax_pins.jac",
+  "pins": [
+    {
+      "ident": "SyntaxErrorTestCase.test_expression_with_assignment",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error(\"print(end1 + end2 = ' ')\", 'expression cannot contain assignment, perhaps you meant \"==\"?', offset=7)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_curly_brace_after_primary_raises_immediately",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('f{}', 'invalid syntax', mode='single')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_assign_call",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('f() = 1', 'assign')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_assign_del",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('del (,)', 'invalid syntax')\n    _check_error('del 1', 'cannot delete literal')\n    _check_error('del (1, 2)', 'cannot delete literal')\n    _check_error('del None', 'cannot delete None')\n    _check_error('del *x', 'cannot delete starred')\n    _check_error('del (*x)', 'cannot use starred expression')\n    _check_error('del (*x,)', 'cannot delete starred')\n    _check_error('del [*x,]', 'cannot delete starred')\n    _check_error('del f()', 'cannot delete function call')\n    _check_error('del f(a, b)', 'cannot delete function call')\n    _check_error('del o.f()', 'cannot delete function call')\n    _check_error('del a[0]()', 'cannot delete function call')\n    _check_error('del x, f()', 'cannot delete function call')\n    _check_error('del f(), x', 'cannot delete function call')\n    _check_error('del [a, b, ((c), (d,), e.f())]', 'cannot delete function call')\n    _check_error('del (a if True else b)', 'cannot delete conditional')\n    _check_error('del +a', 'cannot delete expression')\n    _check_error('del a, +b', 'cannot delete expression')\n    _check_error('del a + b', 'cannot delete expression')\n    _check_error('del (a + b, c)', 'cannot delete expression')\n    _check_error('del (c[0], a + b)', 'cannot delete expression')\n    _check_error('del a.b.c + 2', 'cannot delete expression')\n    _check_error('del a.b.c[0] + 2', 'cannot delete expression')\n    _check_error('del (a, b, (c, d.e.f + 2))', 'cannot delete expression')\n    _check_error('del [a, b, (c, d.e.f[0] + 2)]', 'cannot delete expression')\n    _check_error('del (a := 5)', 'cannot delete named expression')\n    _check_error('del a += b', 'invalid syntax')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_global_param_err_first",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    source = 'if 1:\\n            def error(a):\\n                global a  # SyntaxError\\n            def error2():\\n                b = 1\\n                global b  # SyntaxError\\n            '\n    _check_error(source, 'parameter and global', lineno=3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_nonlocal_param_err_first",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    source = 'if 1:\\n            def error(a):\\n                nonlocal a  # SyntaxError\\n            def error2():\\n                b = 1\\n                global b  # SyntaxError\\n            '\n    _check_error(source, 'parameter and nonlocal', lineno=3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_yield_outside_function",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('if 0: yield', 'outside function')\n    _check_error('if 0: yield\\nelse:  x=1', 'outside function')\n    _check_error('if 1: pass\\nelse: yield', 'outside function')\n    _check_error('while 0: yield', 'outside function')\n    _check_error('while 0: yield\\nelse:  x=1', 'outside function')\n    _check_error('class C:\\n  if 0: yield', 'outside function')\n    _check_error('class C:\\n  if 1: pass\\n  else: yield', 'outside function')\n    _check_error('class C:\\n  while 0: yield', 'outside function')\n    _check_error('class C:\\n  while 0: yield\\n  else:  x = 1', 'outside function')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_return_outside_function",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('if 0: return', 'outside function')\n    _check_error('if 0: return\\nelse:  x=1', 'outside function')\n    _check_error('if 1: pass\\nelse: return', 'outside function')\n    _check_error('while 0: return', 'outside function')\n    _check_error('class C:\\n  if 0: return', 'outside function')\n    _check_error('class C:\\n  while 0: return', 'outside function')\n    _check_error('class C:\\n  while 0: return\\n  else:  x=1', 'outside function')\n    _check_error('class C:\\n  if 0: return\\n  else: x= 1', 'outside function')\n    _check_error('class C:\\n  if 1: pass\\n  else: return', 'outside function')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_break_outside_loop",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    msg = 'outside loop'\n    _check_error('break', msg, lineno=1)\n    _check_error('if 0: break', msg, lineno=1)\n    _check_error('if 0: break\\nelse:  x=1', msg, lineno=1)\n    _check_error('if 1: pass\\nelse: break', msg, lineno=2)\n    _check_error('class C:\\n  if 0: break', msg, lineno=2)\n    _check_error('class C:\\n  if 1: pass\\n  else: break', msg, lineno=3)\n    _check_error('with object() as obj:\\n break', msg, lineno=2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_continue_outside_loop",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    msg = 'not properly in loop'\n    _check_error('if 0: continue', msg, lineno=1)\n    _check_error('if 0: continue\\nelse:  x=1', msg, lineno=1)\n    _check_error('if 1: pass\\nelse: continue', msg, lineno=2)\n    _check_error('class C:\\n  if 0: continue', msg, lineno=2)\n    _check_error('class C:\\n  if 1: pass\\n  else: continue', msg, lineno=3)\n    _check_error('with object() as obj:\\n    continue', msg, lineno=2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_unexpected_indent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('foo()\\n bar()\\n', 'unexpected indent', subclass=IndentationError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_no_indent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('if 1:\\nfoo()', 'expected an indented block', subclass=IndentationError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_bad_outdent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('if 1:\\n  foo()\\n bar()', 'unindent does not match .* level', subclass=IndentationError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_kwargs_last",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error(\"int(base=10, '2')\", 'positional argument follows keyword argument')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_kwargs_last2",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error(\"int(**{'base': 10}, '2')\", 'positional argument follows keyword argument unpacking')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_kwargs_last3",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error(\"int(**{'base': 10}, *['2'])\", 'iterable argument unpacking follows keyword argument unpacking')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_generator_in_function_call",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('foo(x,    y for y in range(3) for z in range(2) if z    , p)', 'Generator expression must be parenthesized', lineno=1, end_lineno=1, offset=11, end_offset=53)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_except_then_except_star",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('try: pass\\nexcept ValueError: pass\\nexcept* TypeError: pass', \"cannot have both 'except' and 'except\\\\*' on the same 'try'\", lineno=3, end_lineno=3, offset=1, end_offset=8)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_except_star_then_except",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('try: pass\\nexcept* ValueError: pass\\nexcept TypeError: pass', \"cannot have both 'except' and 'except\\\\*' on the same 'try'\", lineno=3, end_lineno=3, offset=1, end_offset=7)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_empty_line_after_linecont",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    s = '\\\\\\npass\\n        \\\\\\n\\npass\\n'\n    try:\n        compile(s, '<string>', 'exec')\n    except SyntaxError:\n        raise AssertionError('Empty line after a line continuation character is valid.')\n    s1 = \"\\\\\\ndef fib(n):\\n    \\\\\\n'''Print a Fibonacci series up to n.'''\\n    \\\\\\na, b = 0, 1\\n\"\n    s2 = \"\\\\\\ndef fib(n):\\n    '''Print a Fibonacci series up to n.'''\\n    a, b = 0, 1\\n\"\n    try:\n        compile(s1, '<string>', 'exec')\n        compile(s2, '<string>', 'exec')\n    except SyntaxError:\n        raise AssertionError('Indented statement over multiple lines is valid')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_continuation_bad_indentation",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    code = '\\\\\\nif x:\\n    y = 1\\n  \\\\\\n  foo = 1\\n        '\n    try:\n        exec(*(code,))\n    except IndentationError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_barry_as_flufl_with_syntax_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    code = '\\ndef func1():\\n    if a != b:\\n        raise ValueError\\n\\ndef func2():\\n    try\\n        return 1\\n    finally:\\n        pass\\n'\n    _check_error(code, \"expected ':'\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_invalid_line_continuation_error_position",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('a = 3 \\\\ 4', 'unexpected character after line continuation character', lineno=1, offset=8)\n    _check_error('1,\\\\#\\n2', 'unexpected character after line continuation character', lineno=1, offset=4)\n    _check_error('\\nfgdfgf\\n1,\\\\#\\n2\\n', 'unexpected character after line continuation character', lineno=3, offset=4)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_invalid_line_continuation_left_recursive",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('A.\u018a\\\\ ', 'unexpected character after line continuation character')\n    _check_error('A.\u03bc\\\\\\n', 'unexpected EOF while parsing')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_error_parenthesis",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    for paren in '([{':\n        _check_error(paren + '1 + 2', f\"\\\\{paren}' was never closed\")\n    for paren in '([{':\n        _check_error(f'a = {paren} 1, 2, 3\\nb=3', f\"\\\\{paren}' was never closed\")\n    for paren in ')]}':\n        _check_error(paren + '1 + 2', f\"unmatched '\\\\{paren}'\")\n    code = 'func(\\n    a=[\"unclosed], # Need a quote in this comment: \"\\n    b=2,\\n)\\n'\n    _check_error(code, \"parenthesis '\\\\)' does not match opening parenthesis '\\\\['\")\n    _check_error('match y:\\n case e(e=v,v,', ' was never closed')\n    s = b'# coding=latin\\n(aaaaaaaaaaaaaaaaa\\naaaaaaaaaaa\\xb5'\n    _check_error(s, \"'\\\\(' was never closed\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_error_string_literal",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error(\"'blech\", 'unterminated string literal \\\\(.*\\\\)$')\n    _check_error('\"blech', 'unterminated string literal \\\\(.*\\\\)$')\n    _check_error('\"blech\\\\\"', 'unterminated string literal \\\\(.*\\\\); perhaps you escaped the end quote')\n    _check_error('r\"blech\\\\\"', 'unterminated string literal \\\\(.*\\\\); perhaps you escaped the end quote')\n    _check_error(\"'''blech\", 'unterminated triple-quoted string literal')\n    _check_error('\"\"\"blech', 'unterminated triple-quoted string literal')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_invisible_characters",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('print\\x17(\"Hello\")', 'invalid non-printable character')\n    _check_error(b'with(0,,):\\n\\x01', 'invalid non-printable character')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_match_call_does_not_raise_syntax_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    code = '\\ndef match(x):\\n    return 1+1\\n\\nmatch(34)\\n'\n    compile(code, '<string>', 'exec')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_case_call_does_not_raise_syntax_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    code = '\\ndef case(x):\\n    return 1+1\\n\\ncase(34)\\n'\n    compile(code, '<string>', 'exec')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_multiline_compiler_error_points_to_the_end",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error('call(\\na=1,\\na=1\\n)', 'keyword argument repeated', lineno=3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_except_stmt_invalid_as_expr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nimport textwrap\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error(textwrap.dedent('\\n                try:\\n                    pass\\n                except ValueError as obj.attr:\\n                    pass\\n                '), errtext='cannot use except statement with attribute', lineno=4, end_lineno=4, offset=22, end_offset=22 + len('obj.attr'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_match_stmt_invalid_as_expr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nimport textwrap\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    _check_error(textwrap.dedent('\\n                match 1:\\n                    case x as obj.attr:\\n                        ...\\n                '), errtext='cannot use attribute as pattern target', lineno=3, end_lineno=3, offset=15, end_offset=15 + len('obj.attr'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_ifexp_else_stmt",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    msg = \"expected expression after 'else', but statement is given\"\n    for stmt in ['pass', 'return', 'return 2', \"raise Exception('a')\", 'del a', 'yield 2', 'assert False', 'break', 'continue', 'import', 'import ast', 'from', 'from ast import *']:\n        _check_error(f'x = 1 if 1 else {stmt}', msg)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_ifexp_body_stmt_else_expression",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    msg = \"expected expression before 'if', but statement is given\"\n    for stmt in ['pass', 'break', 'continue']:\n        _check_error(f'x = {stmt} if 1 else 1', msg)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_ifexp_body_stmt_else_stmt",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _check_error(code, errtext, filename='<testcase>', mode='exec', subclass=None, lineno=None, offset=None, end_lineno=None, end_offset=None):\n    \"\"\"Check that compiling code raises SyntaxError with errtext.\n\n        errtest is a regular expression that must be present in the\n        text of the exception raised.  If subclass is specified it\n        is the expected subclass of SyntaxError (e.g. IndentationError).\n        \"\"\"\n    try:\n        compile(code, filename, mode)\n    except SyntaxError as err:\n        if subclass and (not isinstance(err, subclass)):\n            raise AssertionError('SyntaxError is not a %s' % subclass.__name__)\n        mo = re.search(errtext, str(err))\n        if mo is None:\n            raise AssertionError('SyntaxError did not contain %r' % (errtext,))\n        assert err.filename == filename, ('assertEqual', err.filename, filename)\n        if lineno is not None:\n            assert err.lineno == lineno, ('assertEqual', err.lineno, lineno)\n        if offset is not None:\n            assert err.offset == offset, ('assertEqual', err.offset, offset)\n        if end_lineno is not None:\n            assert err.end_lineno == end_lineno, ('assertEqual', err.end_lineno, end_lineno)\n        if end_offset is not None:\n            assert err.end_offset == end_offset, ('assertEqual', err.end_offset, end_offset)\n    else:\n        raise AssertionError('compile() did not raise SyntaxError')\n\ndef _t():\n    msg = \"expected expression before 'if', but statement is given\"\n    for lhs_stmt, rhs_stmt in [('pass', 'pass'), ('break', 'pass'), ('continue', 'import ast')]:\n        _check_error(f'x = {lhs_stmt} if 1 else {rhs_stmt}', msg)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "SyntaxErrorTestCase.test_disallowed_type_param_names",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_nested_named_except_blocks",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_with_statement_many_context_managers",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_async_with_statement_many_context_managers",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_syntax_error_on_deeply_nested_blocks",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_error_on_parser_stack_overflow",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "SyntaxErrorTestCase.test_deep_invalid_rule",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "SyntaxWarningTest.test_return_in_finally",
+      "reason": "helper:check_warning(uses-self.assertWarnsRegex)"
+    },
+    {
+      "ident": "SyntaxWarningTest.test_break_and_continue_in_finally",
+      "reason": "helper:check_warning(uses-self.assertWarnsRegex)"
+    }
+  ],
+  "counts": {
+    "extracted": 44,
+    "pinned": 35,
+    "quarantined": 9
+  }
+}

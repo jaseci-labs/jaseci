@@ -1,0 +1,215 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "7463dec2cb62b466595d495d2dab9f96b38465be",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp3-out/test_syntax/conv_syntax_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:40:10",
+  "hashes": {
+    "pins_jac": "9796a51cc357e6bdb8f93145ba4332f5df8df856037cda207b3c64948328c77d",
+    "conversion_json": "f08ecd27a3d42fd51592993bd569afeaed16893043d55c036d9c6cc278a5ec78",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "syntax",
+  "counts": {
+    "converted": 44,
+    "runnable": 35,
+    "green": 34,
+    "quarantined": 9
+  },
+  "pins": [
+    {
+      "id": "SyntaxErrorTestCase.test_expression_with_assignment",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_curly_brace_after_primary_raises_immediately",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_assign_call",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_assign_del",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_global_param_err_first",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_nonlocal_param_err_first",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_yield_outside_function",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_return_outside_function",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_break_outside_loop",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_continue_outside_loop",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_unexpected_indent",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_no_indent",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_bad_outdent",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_kwargs_last",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_kwargs_last2",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_kwargs_last3",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_generator_in_function_call",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_except_then_except_star",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_except_star_then_except",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_empty_line_after_linecont",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_continuation_bad_indentation",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_barry_as_flufl_with_syntax_errors",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_invalid_line_continuation_error_position",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_invalid_line_continuation_left_recursive",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_error_parenthesis",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_error_string_literal",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_invisible_characters",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_match_call_does_not_raise_syntax_error",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_case_call_does_not_raise_syntax_error",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_multiline_compiler_error_points_to_the_end",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_except_stmt_invalid_as_expr",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_match_stmt_invalid_as_expr",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_ifexp_else_stmt",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_ifexp_body_stmt_else_expression",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_ifexp_body_stmt_else_stmt",
+      "status": "pass"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_disallowed_type_param_names",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_nested_named_except_blocks",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_with_statement_many_context_managers",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_async_with_statement_many_context_managers",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_syntax_error_on_deeply_nested_blocks",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_error_on_parser_stack_overflow",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "SyntaxErrorTestCase.test_deep_invalid_rule",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "SyntaxWarningTest.test_return_in_finally",
+      "status": "quarantined",
+      "reason": "helper:check_warning(uses-self.assertWarnsRegex)"
+    },
+    {
+      "id": "SyntaxWarningTest.test_break_and_continue_in_finally",
+      "status": "quarantined",
+      "reason": "helper:check_warning(uses-self.assertWarnsRegex)"
+    }
+  ]
+}
