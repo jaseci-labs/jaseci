@@ -1141,6 +1141,7 @@ import from exceptions_core {
     baseexception_str,
     baseexception_repr,
     prep_reraise_star,
+    registered_exc_base,
 }
 import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
