@@ -1,0 +1,267 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_int.py",
+    "-o",
+    "/var/tmp/laneb-out/test_int",
+    "--name",
+    "conv_int"
+  ],
+  "generated_at": "2026-08-24T11:07:22",
+  "hashes": {
+    "pins_jac": "2d2ba6d02f6f619c93269cb3112636bf60297e27a7fa3fe7c1d79bdb55ba1f30"
+  },
+  "source_file": "reference/cpython/Lib/test/test_int.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "int",
+  "pins_file": "conv_int_pins.jac",
+  "pins": [
+    {
+      "ident": "IntTestCases.test_basic",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nL = [('0', 0), ('1', 1), ('9', 9), ('10', 10), ('99', 99), ('100', 100), ('314', 314), (' 314', 314), ('314 ', 314), ('  \\t\\t  314  \\t\\t  ', 314), (repr(sys.maxsize), sys.maxsize), ('  1x', ValueError), ('  1  ', 1), ('  1\\x02  ', ValueError), ('', ValueError), (' ', ValueError), ('  \\t\\t  ', ValueError), ('\u0200', ValueError)]\n\ndef _t():\n    assert int(314) == 314, ('assertEqual', int(314), 314)\n    assert int(3.14) == 3, ('assertEqual', int(3.14), 3)\n    assert int(-3.14) == -3, ('assertEqual', int(-3.14), -3)\n    assert int(3.9) == 3, ('assertEqual', int(3.9), 3)\n    assert int(-3.9) == -3, ('assertEqual', int(-3.9), -3)\n    assert int(3.5) == 3, ('assertEqual', int(3.5), 3)\n    assert int(-3.5) == -3, ('assertEqual', int(-3.5), -3)\n    assert int('-3') == -3, ('assertEqual', int('-3'), -3)\n    assert int(' -3 ') == -3, ('assertEqual', int(' -3 '), -3)\n    assert int('\\u2003-3\\u2002') == -3, ('assertEqual', int('\\u2003-3\\u2002'), -3)\n    assert int('10', 16) == 16, ('assertEqual', int('10', 16), 16)\n    for s, v in L:\n        for sign in ('', '+', '-'):\n            for prefix in ('', ' ', '\\t', '  \\t\\t  '):\n                ss = prefix + sign + s\n                vv = v\n                if sign == '-' and v is not ValueError:\n                    vv = -v\n                try:\n                    assert int(ss) == vv, ('assertEqual', int(ss), vv)\n                except ValueError:\n                    pass\n    s = repr(-1 - sys.maxsize)\n    x = int(s)\n    assert x + 1 == -sys.maxsize, ('assertEqual', x + 1, -sys.maxsize)\n    assert isinstance(x, int), ('assertIsInstance', x, int)\n    assert int(s[1:]) == sys.maxsize + 1, ('assertEqual', int(s[1:]), sys.maxsize + 1)\n    x = int(1e+100)\n    assert isinstance(x, int), ('assertIsInstance', x, int)\n    x = int(-1e+100)\n    assert isinstance(x, int), ('assertIsInstance', x, int)\n    x = -1 - sys.maxsize\n    assert x >> 1 == x // 2, ('assertEqual', x >> 1, x // 2)\n    x = int('1' * 600)\n    assert isinstance(x, int), ('assertIsInstance', x, int)\n    try:\n        int(*(1, 12))\n    except TypeError:\n        pass\n    try:\n        int(*('10', 2, 1))\n    except TypeError:\n        pass\n    assert int('0o123', 0) == 83, ('assertEqual', int('0o123', 0), 83)\n    assert int('0x123', 16) == 291, ('assertEqual', int('0x123', 16), 291)\n    try:\n        int(*('0x', 16))\n    except ValueError:\n        pass\n    try:\n        int(*('0x', 0))\n    except ValueError:\n        pass\n    try:\n        int(*('0o', 8))\n    except ValueError:\n        pass\n    try:\n        int(*('0o', 0))\n    except ValueError:\n        pass\n    try:\n        int(*('0b', 2))\n    except ValueError:\n        pass\n    try:\n        int(*('0b', 0))\n    except ValueError:\n        pass\n    assert int('100000000000000000000000000000000', 2) == 4294967296, ('assertEqual', int('100000000000000000000000000000000', 2), 4294967296)\n    assert int('102002022201221111211', 3) == 4294967296, ('assertEqual', int('102002022201221111211', 3), 4294967296)\n    assert int('10000000000000000', 4) == 4294967296, ('assertEqual', int('10000000000000000', 4), 4294967296)\n    assert int('32244002423141', 5) == 4294967296, ('assertEqual', int('32244002423141', 5), 4294967296)\n    assert int('1550104015504', 6) == 4294967296, ('assertEqual', int('1550104015504', 6), 4294967296)\n    assert int('211301422354', 7) == 4294967296, ('assertEqual', int('211301422354', 7), 4294967296)\n    assert int('40000000000', 8) == 4294967296, ('assertEqual', int('40000000000', 8), 4294967296)\n    assert int('12068657454', 9) == 4294967296, ('assertEqual', int('12068657454', 9), 4294967296)\n    assert int('4294967296', 10) == 4294967296, ('assertEqual', int('4294967296', 10), 4294967296)\n    assert int('1904440554', 11) == 4294967296, ('assertEqual', int('1904440554', 11), 4294967296)\n    assert int('9ba461594', 12) == 4294967296, ('assertEqual', int('9ba461594', 12), 4294967296)\n    assert int('535a79889', 13) == 4294967296, ('assertEqual', int('535a79889', 13), 4294967296)\n    assert int('2ca5b7464', 14) == 4294967296, ('assertEqual', int('2ca5b7464', 14), 4294967296)\n    assert int('1a20dcd81', 15) == 4294967296, ('assertEqual', int('1a20dcd81', 15), 4294967296)\n    assert int('100000000', 16) == 4294967296, ('assertEqual', int('100000000', 16), 4294967296)\n    assert int('a7ffda91', 17) == 4294967296, ('assertEqual', int('a7ffda91', 17), 4294967296)\n    assert int('704he7g4', 18) == 4294967296, ('assertEqual', int('704he7g4', 18), 4294967296)\n    assert int('4f5aff66', 19) == 4294967296, ('assertEqual', int('4f5aff66', 19), 4294967296)\n    assert int('3723ai4g', 20) == 4294967296, ('assertEqual', int('3723ai4g', 20), 4294967296)\n    assert int('281d55i4', 21) == 4294967296, ('assertEqual', int('281d55i4', 21), 4294967296)\n    assert int('1fj8b184', 22) == 4294967296, ('assertEqual', int('1fj8b184', 22), 4294967296)\n    assert int('1606k7ic', 23) == 4294967296, ('assertEqual', int('1606k7ic', 23), 4294967296)\n    assert int('mb994ag', 24) == 4294967296, ('assertEqual', int('mb994ag', 24), 4294967296)\n    assert int('hek2mgl', 25) == 4294967296, ('assertEqual', int('hek2mgl', 25), 4294967296)\n    assert int('dnchbnm', 26) == 4294967296, ('assertEqual', int('dnchbnm', 26), 4294967296)\n    assert int('b28jpdm', 27) == 4294967296, ('assertEqual', int('b28jpdm', 27), 4294967296)\n    assert int('8pfgih4', 28) == 4294967296, ('assertEqual', int('8pfgih4', 28), 4294967296)\n    assert int('76beigg', 29) == 4294967296, ('assertEqual', int('76beigg', 29), 4294967296)\n    assert int('5qmcpqg', 30) == 4294967296, ('assertEqual', int('5qmcpqg', 30), 4294967296)\n    assert int('4q0jto4', 31) == 4294967296, ('assertEqual', int('4q0jto4', 31), 4294967296)\n    assert int('4000000', 32) == 4294967296, ('assertEqual', int('4000000', 32), 4294967296)\n    assert int('3aokq94', 33) == 4294967296, ('assertEqual', int('3aokq94', 33), 4294967296)\n    assert int('2qhxjli', 34) == 4294967296, ('assertEqual', int('2qhxjli', 34), 4294967296)\n    assert int('2br45qb', 35) == 4294967296, ('assertEqual', int('2br45qb', 35), 4294967296)\n    assert int('1z141z4', 36) == 4294967296, ('assertEqual', int('1z141z4', 36), 4294967296)\n    assert int(' 0o123  ', 0) == 83, ('assertEqual', int(' 0o123  ', 0), 83)\n    assert int(' 0o123  ', 0) == 83, ('assertEqual', int(' 0o123  ', 0), 83)\n    assert int('000', 0) == 0, ('assertEqual', int('000', 0), 0)\n    assert int('0o123', 0) == 83, ('assertEqual', int('0o123', 0), 83)\n    assert int('0x123', 0) == 291, ('assertEqual', int('0x123', 0), 291)\n    assert int('0b100', 0) == 4, ('assertEqual', int('0b100', 0), 4)\n    assert int(' 0O123   ', 0) == 83, ('assertEqual', int(' 0O123   ', 0), 83)\n    assert int(' 0X123  ', 0) == 291, ('assertEqual', int(' 0X123  ', 0), 291)\n    assert int(' 0B100 ', 0) == 4, ('assertEqual', int(' 0B100 ', 0), 4)\n    try:\n        int('010', 0)\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    assert int('0123') == 123, ('assertEqual', int('0123'), 123)\n    assert int('0123', 10) == 123, ('assertEqual', int('0123', 10), 123)\n    assert int('0x123', 16) == 291, ('assertEqual', int('0x123', 16), 291)\n    assert int('0o123', 8) == 83, ('assertEqual', int('0o123', 8), 83)\n    assert int('0b100', 2) == 4, ('assertEqual', int('0b100', 2), 4)\n    assert int('0X123', 16) == 291, ('assertEqual', int('0X123', 16), 291)\n    assert int('0O123', 8) == 83, ('assertEqual', int('0O123', 8), 83)\n    assert int('0B100', 2) == 4, ('assertEqual', int('0B100', 2), 4)\n    try:\n        int(*('0b2', 2))\n    except ValueError:\n        pass\n    try:\n        int(*('0b02', 2))\n    except ValueError:\n        pass\n    try:\n        int(*('0B2', 2))\n    except ValueError:\n        pass\n    try:\n        int(*('0B02', 2))\n    except ValueError:\n        pass\n    try:\n        int(*('0o8', 8))\n    except ValueError:\n        pass\n    try:\n        int(*('0o08', 8))\n    except ValueError:\n        pass\n    try:\n        int(*('0O8', 8))\n    except ValueError:\n        pass\n    try:\n        int(*('0O08', 8))\n    except ValueError:\n        pass\n    try:\n        int(*('0xg', 16))\n    except ValueError:\n        pass\n    try:\n        int(*('0x0g', 16))\n    except ValueError:\n        pass\n    try:\n        int(*('0Xg', 16))\n    except ValueError:\n        pass\n    try:\n        int(*('0X0g', 16))\n    except ValueError:\n        pass\n    assert int('100000000000000000000000000000001', 2) == 4294967297, ('assertEqual', int('100000000000000000000000000000001', 2), 4294967297)\n    assert int('102002022201221111212', 3) == 4294967297, ('assertEqual', int('102002022201221111212', 3), 4294967297)\n    assert int('10000000000000001', 4) == 4294967297, ('assertEqual', int('10000000000000001', 4), 4294967297)\n    assert int('32244002423142', 5) == 4294967297, ('assertEqual', int('32244002423142', 5), 4294967297)\n    assert int('1550104015505', 6) == 4294967297, ('assertEqual', int('1550104015505', 6), 4294967297)\n    assert int('211301422355', 7) == 4294967297, ('assertEqual', int('211301422355', 7), 4294967297)\n    assert int('40000000001', 8) == 4294967297, ('assertEqual', int('40000000001', 8), 4294967297)\n    assert int('12068657455', 9) == 4294967297, ('assertEqual', int('12068657455', 9), 4294967297)\n    assert int('4294967297', 10) == 4294967297, ('assertEqual', int('4294967297', 10), 4294967297)\n    assert int('1904440555', 11) == 4294967297, ('assertEqual', int('1904440555', 11), 4294967297)\n    assert int('9ba461595', 12) == 4294967297, ('assertEqual', int('9ba461595', 12), 4294967297)\n    assert int('535a7988a', 13) == 4294967297, ('assertEqual', int('535a7988a', 13), 4294967297)\n    assert int('2ca5b7465', 14) == 4294967297, ('assertEqual', int('2ca5b7465', 14), 4294967297)\n    assert int('1a20dcd82', 15) == 4294967297, ('assertEqual', int('1a20dcd82', 15), 4294967297)\n    assert int('100000001', 16) == 4294967297, ('assertEqual', int('100000001', 16), 4294967297)\n    assert int('a7ffda92', 17) == 4294967297, ('assertEqual', int('a7ffda92', 17), 4294967297)\n    assert int('704he7g5', 18) == 4294967297, ('assertEqual', int('704he7g5', 18), 4294967297)\n    assert int('4f5aff67', 19) == 4294967297, ('assertEqual', int('4f5aff67', 19), 4294967297)\n    assert int('3723ai4h', 20) == 4294967297, ('assertEqual', int('3723ai4h', 20), 4294967297)\n    assert int('281d55i5', 21) == 4294967297, ('assertEqual', int('281d55i5', 21), 4294967297)\n    assert int('1fj8b185', 22) == 4294967297, ('assertEqual', int('1fj8b185', 22), 4294967297)\n    assert int('1606k7id', 23) == 4294967297, ('assertEqual', int('1606k7id', 23), 4294967297)\n    assert int('mb994ah', 24) == 4294967297, ('assertEqual', int('mb994ah', 24), 4294967297)\n    assert int('hek2mgm', 25) == 4294967297, ('assertEqual', int('hek2mgm', 25), 4294967297)\n    assert int('dnchbnn', 26) == 4294967297, ('assertEqual', int('dnchbnn', 26), 4294967297)\n    assert int('b28jpdn', 27) == 4294967297, ('assertEqual', int('b28jpdn', 27), 4294967297)\n    assert int('8pfgih5', 28) == 4294967297, ('assertEqual', int('8pfgih5', 28), 4294967297)\n    assert int('76beigh', 29) == 4294967297, ('assertEqual', int('76beigh', 29), 4294967297)\n    assert int('5qmcpqh', 30) == 4294967297, ('assertEqual', int('5qmcpqh', 30), 4294967297)\n    assert int('4q0jto5', 31) == 4294967297, ('assertEqual', int('4q0jto5', 31), 4294967297)\n    assert int('4000001', 32) == 4294967297, ('assertEqual', int('4000001', 32), 4294967297)\n    assert int('3aokq95', 33) == 4294967297, ('assertEqual', int('3aokq95', 33), 4294967297)\n    assert int('2qhxjlj', 34) == 4294967297, ('assertEqual', int('2qhxjlj', 34), 4294967297)\n    assert int('2br45qc', 35) == 4294967297, ('assertEqual', int('2br45qc', 35), 4294967297)\n    assert int('1z141z5', 36) == 4294967297, ('assertEqual', int('1z141z5', 36), 4294967297)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_invalid_signs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        int('+')\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int('-')\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int('- 1')\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int('+ 1')\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int(' + 1 ')\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_unicode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert int('\u0967\u0968\u0969\u096a\u096b\u096c\u096d\u096e\u096f\u09661234567890') == 12345678901234567890, ('assertEqual', int('\u0967\u0968\u0969\u096a\u096b\u096c\u096d\u096e\u096f\u09661234567890'), 12345678901234567890)\n    assert int('\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669\u0660') == 1234567890, ('assertEqual', int('\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669\u0660'), 1234567890)\n    assert int('\u0967\u0968\u0969\u096a\u096b\u096c\u096d\u096e\u096f\u09661234567890', 0) == 12345678901234567890, ('assertEqual', int('\u0967\u0968\u0969\u096a\u096b\u096c\u096d\u096e\u096f\u09661234567890', 0), 12345678901234567890)\n    assert int('\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669\u0660', 0) == 1234567890, ('assertEqual', int('\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669\u0660', 0), 1234567890)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_underscores",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.numbers import VALID_UNDERSCORE_LITERALS, INVALID_UNDERSCORE_LITERALS\n\ndef _t():\n    for lit in VALID_UNDERSCORE_LITERALS:\n        if any((ch in lit for ch in '.eEjJ')):\n            continue\n        assert int(lit, 0) == eval(lit), ('assertEqual', int(lit, 0), eval(lit))\n        assert int(lit, 0) == int(lit.replace('_', ''), 0), ('assertEqual', int(lit, 0), int(lit.replace('_', ''), 0))\n    for lit in INVALID_UNDERSCORE_LITERALS:\n        if any((ch in lit for ch in '.eEjJ')):\n            continue\n        try:\n            int(*(lit, 0))\n        except ValueError:\n            pass\n    assert int('1_00', 3) == 9, ('assertEqual', int('1_00', 3), 9)\n    assert int('0_100') == 100, ('assertEqual', int('0_100'), 100)\n    assert int(b'1_00') == 100, ('assertEqual', int(b'1_00'), 100)\n    try:\n        int(*('_100',))\n    except ValueError:\n        pass\n    try:\n        int(*('+_100',))\n    except ValueError:\n        pass\n    try:\n        int(*('1__00',))\n    except ValueError:\n        pass\n    try:\n        int(*('100_',))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_no_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert int() == 0, ('assertEqual', int(), 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_keyword_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    assert int('100', base=2) == 4, ('assertEqual', int('100', base=2), 4)\n    try:\n        int(x=1.2)\n    except TypeError as _exc:\n        assert _re.search('keyword argument', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int(x='100', base=2)\n    except TypeError as _exc:\n        assert _re.search('keyword argument', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int(base=10)\n    except TypeError:\n        pass\n    try:\n        int(base=0)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_int_base_limits",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"Testing the supported limits of the int() base parameter.\"\"\"\n    assert int('0', 5) == 0, ('assertEqual', int('0', 5), 0)\n    try:\n        int('0', 1)\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int('0', 37)\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int('0', -909)\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int('0', base=0 - 2 ** 234)\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int('0', base=2 ** 234)\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    for base in range(2, 37):\n        assert int('0', base=base) == 0, ('assertEqual', int('0', base=base), 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_int_base_bad_types",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"Not integer types are not valid bases; issue16772.\"\"\"\n    try:\n        int('0', 5.5)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int('0', 5.0)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_int_memoryview",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert int(memoryview(b'123')[1:3]) == 23, ('assertEqual', int(memoryview(b'123')[1:3]), 23)\n    assert int(memoryview(b'123\\x00')[1:3]) == 23, ('assertEqual', int(memoryview(b'123\\x00')[1:3]), 23)\n    assert int(memoryview(b'123 ')[1:3]) == 23, ('assertEqual', int(memoryview(b'123 ')[1:3]), 23)\n    assert int(memoryview(b'123A')[1:3]) == 23, ('assertEqual', int(memoryview(b'123A')[1:3]), 23)\n    assert int(memoryview(b'1234')[1:3]) == 23, ('assertEqual', int(memoryview(b'1234')[1:3]), 23)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_string_float",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        int(*('1.2',))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_intconversion",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class ClassicMissingMethods:\n        pass\n    try:\n        int(*(ClassicMissingMethods(),))\n    except TypeError:\n        pass\n\n    class MissingMethods(object):\n        pass\n    try:\n        int(*(MissingMethods(),))\n    except TypeError:\n        pass\n\n    class Foo0:\n\n        def __int__(self):\n            return 42\n    assert int(Foo0()) == 42, ('assertEqual', int(Foo0()), 42)\n\n    class Classic:\n        pass\n    for base in (object, Classic):\n\n        class IntOverridesTrunc(base):\n\n            def __int__(self):\n                return 42\n\n            def __trunc__(self):\n                return -12\n        assert int(IntOverridesTrunc()) == 42, ('assertEqual', int(IntOverridesTrunc()), 42)\n\n        class JustTrunc(base):\n\n            def __trunc__(self):\n                return 42\n        try:\n            int(JustTrunc())\n        except TypeError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_int_subclass_with_index",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class MyIndex(int):\n\n        def __index__(self):\n            return 42\n\n    class BadIndex(int):\n\n        def __index__(self):\n            return 42.0\n    my_int = MyIndex(7)\n    assert my_int == 7, ('assertEqual', my_int, 7)\n    assert int(my_int) == 7, ('assertEqual', int(my_int), 7)\n    assert int(BadIndex()) == 0, ('assertEqual', int(BadIndex()), 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_int_subclass_with_int",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class MyInt(int):\n\n        def __int__(self):\n            return 42\n\n    class BadInt(int):\n\n        def __int__(self):\n            return 42.0\n    my_int = MyInt(7)\n    assert my_int == 7, ('assertEqual', my_int, 7)\n    assert int(my_int) == 42, ('assertEqual', int(my_int), 42)\n    my_int = BadInt(7)\n    assert my_int == 7, ('assertEqual', my_int, 7)\n    try:\n        int(*(my_int,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCases.test_issue31619",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert int('1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1', 2) == 1431655765, ('assertEqual', int('1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1', 2), 1431655765)\n    assert int('1_2_3_4_5_6_7_0_1_2_3', 8) == 1402433619, ('assertEqual', int('1_2_3_4_5_6_7_0_1_2_3', 8), 1402433619)\n    assert int('1_2_3_4_5_6_7_8_9', 16) == 4886718345, ('assertEqual', int('1_2_3_4_5_6_7_8_9', 16), 4886718345)\n    assert int('1_2_3_4_5_6_7', 32) == 1144132807, ('assertEqual', int('1_2_3_4_5_6_7', 32), 1144132807)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_int_max_str_digits_is_per_interpreter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nfrom test import support\n\ndef _t():\n    code = \"if 1:\\n        # Subinterpreters maintain and enforce their own limit\\n        import sys\\n        sys.set_int_max_str_digits(2323)\\n        try:\\n            int('3'*3333)\\n        except ValueError:\\n            pass\\n        else:\\n            raise AssertionError('Expected a int max str digits ValueError.')\\n        \"\n    with support.adjust_int_max_str_digits(4000):\n        before_value = sys.get_int_max_str_digits()\n        assert support.run_in_subinterp(code) == 0, ('assertEqual', support.run_in_subinterp(code), 0)\n        after_value = sys.get_int_max_str_digits()\n        assert before_value == after_value, ('assertEqual', before_value, after_value)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_int_divmod",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    n = 1 << 100000\n    a, b = divmod(n * 3 + 1, n)\n    assert a == 3 and b == 1\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_str_to_int",
+      "status": "quarantined",
+      "reason": "host-raised:ValueError: Exceeds the limit (4300 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "IntTestCases.test_small_ints",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "IntTestCases.test_round_with_none_arg_direct_call",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_int_to_decimal_2",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_int_divmod_crash",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_misbehavior_error_path_to_str",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_misbehavior_error_path_from_str",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_roundtrip_huge",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "ident": "PyLongModuleTests.test_whitebox_dec_str_to_int_inner_failsafe",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "ident": "PyLongModuleTests.test_whitebox_dec_str_to_int_inner_monster",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_compute_powers",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "IntTestCases.test_int_base_indexable",
+      "reason": "uses-self.value"
+    },
+    {
+      "ident": "IntTestCases.test_non_numeric_input_types",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "IntTestCases.test_int_returns_int_subclass",
+      "reason": "uses-self.assertWarns"
+    },
+    {
+      "ident": "IntTestCases.test_error_message",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_disabled_limit",
+      "reason": "uses-self.int_class"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_max_str_digits_edge_cases",
+      "reason": "uses-self.int_class"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_max_str_digits",
+      "reason": "self.check"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_denial_of_service_prevented_int_to_str",
+      "reason": "uses-self.assertRaises"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_denial_of_service_prevented_str_to_int",
+      "reason": "uses-self.assertRaises"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_power_of_two_bases_unlimited",
+      "reason": "self.int_class"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_underscores_ignored",
+      "reason": "self.int_class"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_sign_not_counted",
+      "reason": "uses-self.int_class"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_int_from_other_bases",
+      "reason": "self._other_base_helper"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_int_to_decimal",
+      "reason": "self._test_pylong_int_to_decimal"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_roundtrip",
+      "reason": "self.assertNotStartsWith"
+    }
+  ],
+  "counts": {
+    "extracted": 42,
+    "pinned": 16,
+    "quarantined": 26
+  }
+}

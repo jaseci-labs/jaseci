@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_userlist.py",
+    "-o",
+    "/var/tmp/laneb-out/test_userlist",
+    "--name",
+    "conv_userlist"
+  ],
+  "generated_at": "2026-08-24T11:07:25",
+  "hashes": {
+    "pins_jac": "cfabfc3e6d936a6c7e6e92a4ce088e95557b5f98506694688c2a0166df58a23c"
+  },
+  "source_file": "reference/cpython/Lib/test/test_userlist.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "userlist",
+  "pins_file": "conv_userlist_pins.jac",
+  "pins": [
+    {
+      "ident": "UserListTest.test_data",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserList\n\ndef _t():\n    u = UserList()\n    assert u.data == [], ('assertEqual', u.data, [])\n    assert type(u.data) is list, ('assertIs', type(u.data), list)\n    a = [1, 2]\n    u = UserList(a)\n    assert u.data == a, ('assertEqual', u.data, a)\n    assert u.data is not a, ('assertIsNot', u.data, a)\n    assert type(u.data) is list, ('assertIs', type(u.data), list)\n    u = UserList(u)\n    assert u.data == a, ('assertEqual', u.data, a)\n    assert type(u.data) is list, ('assertIs', type(u.data), list)\n    u = UserList('spam')\n    assert u.data == list('spam'), ('assertEqual', u.data, list('spam'))\n    assert type(u.data) is list, ('assertIs', type(u.data), list)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UserListTest.test_slice_type",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserList\n\ndef _t():\n    l = [0, 1, 2, 3, 4]\n    u = UserList(l)\n    assert isinstance(u[:], u.__class__), ('assertIsInstance', u[:], u.__class__)\n    assert u[:] == u, ('assertEqual', u[:], u)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UserListTest.test_implementation",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserList\nfrom test import support\n\ndef _t():\n    u = UserList([1])\n    with support.swap_attr(UserList, '__len__', None), support.swap_attr(UserList, 'insert', None):\n        u.append(2)\n    assert u == [1, 2], ('assertEqual', u, [1, 2])\n    with support.swap_attr(UserList, 'append', None):\n        u.extend([3, 4])\n    assert u == [1, 2, 3, 4], ('assertEqual', u, [1, 2, 3, 4])\n    with support.swap_attr(UserList, 'append', None):\n        u.extend(UserList([3, 4]))\n    assert u == [1, 2, 3, 4, 3, 4], ('assertEqual', u, [1, 2, 3, 4, 3, 4])\n    with support.swap_attr(UserList, '__iter__', None):\n        c = u.count(3)\n    assert c == 2, ('assertEqual', c, 2)\n    with support.swap_attr(UserList, '__iter__', None), support.swap_attr(UserList, '__getitem__', None):\n        i = u.index(4)\n    assert i == 3, ('assertEqual', i, 3)\n    with support.swap_attr(UserList, 'index', None), support.swap_attr(UserList, '__getitem__', None):\n        u.remove(3)\n    assert u == [1, 2, 4, 3, 4], ('assertEqual', u, [1, 2, 4, 3, 4])\n    with support.swap_attr(UserList, '__getitem__', None), support.swap_attr(UserList, '__delitem__', None):\n        u.pop()\n    assert u == [1, 2, 4, 3], ('assertEqual', u, [1, 2, 4, 3])\n    with support.swap_attr(UserList, '__len__', None), support.swap_attr(UserList, '__getitem__', None), support.swap_attr(UserList, '__setitem__', None):\n        u.reverse()\n    assert u == [3, 4, 2, 1], ('assertEqual', u, [3, 4, 2, 1])\n    with support.swap_attr(UserList, '__len__', None), support.swap_attr(UserList, 'pop', None):\n        u.clear()\n    assert u == [], ('assertEqual', u, [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "UserListTest.test_getslice",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "UserListTest.test_mixed_add",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "UserListTest.test_mixed_iadd",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "UserListTest.test_mixed_cmp",
+      "reason": "self._assert_cmp"
+    },
+    {
+      "ident": "UserListTest.test_getitemoverwriteiter",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "UserListTest.test_userlist_copy",
+      "reason": "uses-self.type2test"
+    }
+  ],
+  "counts": {
+    "extracted": 9,
+    "pinned": 3,
+    "quarantined": 6
+  }
+}

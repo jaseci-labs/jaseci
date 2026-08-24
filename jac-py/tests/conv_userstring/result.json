@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_userstring/conv_userstring_pins.jac"
+  ],
+  "generated_at": "2026-08-24T11:07:54",
+  "hashes": {
+    "pins_jac": "d0d1ffc0b940cec6742ac6efed718659003f1315b43e2c99d1178474a832cf2e",
+    "conversion_json": "799da50283ba89046aec4d68b1289a46ebac3713e651e0d43a32c351948c3c3f",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "userstring",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 8,
+    "runnable": 3,
+    "green": 2,
+    "quarantined": 5,
+    "failed": 1,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "UserStringTest.test_implementation",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'swap_attr'\">"
+    }
+  ]
+}

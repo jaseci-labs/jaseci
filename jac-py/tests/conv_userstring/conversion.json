@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_userstring.py",
+    "-o",
+    "/var/tmp/laneb-out/test_userstring",
+    "--name",
+    "conv_userstring"
+  ],
+  "generated_at": "2026-08-24T11:07:26",
+  "hashes": {
+    "pins_jac": "d0d1ffc0b940cec6742ac6efed718659003f1315b43e2c99d1178474a832cf2e"
+  },
+  "source_file": "reference/cpython/Lib/test/test_userstring.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "userstring",
+  "pins_file": "conv_userstring_pins.jac",
+  "pins": [
+    {
+      "ident": "UserStringTest.test_data",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserString\n\ndef _t():\n    u = UserString('spam')\n    assert u.data == 'spam', ('assertEqual', u.data, 'spam')\n    assert type(u.data) is str, ('assertIs', type(u.data), str)\n    u = UserString(u)\n    assert u.data == 'spam', ('assertEqual', u.data, 'spam')\n    assert type(u.data) is str, ('assertIs', type(u.data), str)\n    u = UserString(42)\n    assert u.data == '42', ('assertEqual', u.data, '42')\n    assert type(u.data) is str, ('assertIs', type(u.data), str)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UserStringTest.test_rmod",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserString\n\ndef _t():\n\n    class ustr2(UserString):\n        pass\n\n    class ustr3(ustr2):\n\n        def __rmod__(self, other):\n            return super().__rmod__(other)\n    fmt2 = ustr2('value is %s')\n    str3 = ustr3('TEST')\n    assert fmt2 % str3 == 'value is TEST', ('assertEqual', fmt2 % str3, 'value is TEST')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UserStringTest.test_implementation",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nfrom collections import UserString\n\ndef _t():\n    s = UserString('ababahalamaha')\n    with support.swap_attr(UserString, '__iter__', None):\n        c = s.count('a')\n        c2 = s.count(UserString('a'))\n    assert c == 7, ('assertEqual', c, 7)\n    assert c2 == 7, ('assertEqual', c2, 7)\n    with support.swap_attr(UserString, '__iter__', None), support.swap_attr(UserString, '__getitem__', None):\n        i = s.index('h')\n        i2 = s.index(UserString('h'))\n    assert i == 5, ('assertEqual', i, 5)\n    assert i2 == 5, ('assertEqual', i2, 5)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "UserStringTest.test_mixed_add",
+      "reason": "unresolved-name:UserStringSubclass"
+    },
+    {
+      "ident": "UserStringTest.test_mixed_iadd",
+      "reason": "unresolved-name:UserStringSubclass"
+    },
+    {
+      "ident": "UserStringTest.test_mixed_cmp",
+      "reason": "self._assert_cmp"
+    },
+    {
+      "ident": "UserStringTest.test_encode_default_args",
+      "reason": "self.checkequal"
+    },
+    {
+      "ident": "UserStringTest.test_encode_explicit_none_args",
+      "reason": "self.checkequal"
+    }
+  ],
+  "counts": {
+    "extracted": 8,
+    "pinned": 3,
+    "quarantined": 5
+  }
+}

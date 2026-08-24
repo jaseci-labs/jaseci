@@ -1,0 +1,1224 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_codecs.py",
+    "-o",
+    "/var/tmp/laneb-out/test_codecs",
+    "--name",
+    "conv_codecs"
+  ],
+  "generated_at": "2026-08-24T11:07:26",
+  "hashes": {
+    "pins_jac": "4b97d4e3fe3c24bead4f17d738aa34709747af34f457ce57772f59a5ef11c4ab"
+  },
+  "source_file": "reference/cpython/Lib/test/test_codecs.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "codecs",
+  "pins_file": "conv_codecs_pins.jac",
+  "pins": [
+    {
+      "ident": "UTF32Test.test_handlers",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert ('\ufffd', 1) == codecs.utf_32_decode(b'\\x01', 'replace', True), ('assertEqual', ('\ufffd', 1), codecs.utf_32_decode(b'\\x01', 'replace', True))\n    assert ('', 1) == codecs.utf_32_decode(b'\\x01', 'ignore', True), ('assertEqual', ('', 1), codecs.utf_32_decode(b'\\x01', 'ignore', True))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF32Test.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.utf_32_decode(*(b'\\xff', 'strict', True))\n    except UnicodeDecodeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF32Test.test_issue8941",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    encoded_le = b'\\xff\\xfe\\x00\\x00' + b'\\x00\\x00\\x01\\x00' * 1024\n    assert '\ud800\udc00' * 1024 == codecs.utf_32_decode(encoded_le)[0], ('assertEqual', '\ud800\udc00' * 1024, codecs.utf_32_decode(encoded_le)[0])\n    encoded_be = b'\\x00\\x00\\xfe\\xff' + b'\\x00\\x01\\x00\\x00' * 1024\n    assert '\ud800\udc00' * 1024 == codecs.utf_32_decode(encoded_be)[0], ('assertEqual', '\ud800\udc00' * 1024, codecs.utf_32_decode(encoded_be)[0])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF32LETest.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.utf_32_le_decode(*(b'\\xff', 'strict', True))\n    except UnicodeDecodeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF32LETest.test_issue8941",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    encoded = b'\\x00\\x00\\x01\\x00' * 1024\n    assert '\ud800\udc00' * 1024 == codecs.utf_32_le_decode(encoded)[0], ('assertEqual', '\ud800\udc00' * 1024, codecs.utf_32_le_decode(encoded)[0])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF32BETest.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.utf_32_be_decode(*(b'\\xff', 'strict', True))\n    except UnicodeDecodeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF32BETest.test_issue8941",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    encoded = b'\\x00\\x01\\x00\\x00' * 1024\n    assert '\ud800\udc00' * 1024 == codecs.utf_32_be_decode(encoded)[0], ('assertEqual', '\ud800\udc00' * 1024, codecs.utf_32_be_decode(encoded)[0])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF16Test.test_handlers",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert ('\ufffd', 1) == codecs.utf_16_decode(b'\\x01', 'replace', True), ('assertEqual', ('\ufffd', 1), codecs.utf_16_decode(b'\\x01', 'replace', True))\n    assert ('', 1) == codecs.utf_16_decode(b'\\x01', 'ignore', True), ('assertEqual', ('', 1), codecs.utf_16_decode(b'\\x01', 'ignore', True))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF16Test.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.utf_16_decode(*(b'\\xff', 'strict', True))\n    except UnicodeDecodeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF16LETest.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    tests = [(b'\\xff', '\ufffd'), (b'A\\x00Z', 'A\ufffd'), (b'A\\x00B\\x00C\\x00D\\x00Z', 'ABCD\ufffd'), (b'\\x00\\xd8', '\ufffd'), (b'\\x00\\xd8A', '\ufffd'), (b'\\x00\\xd8A\\x00', '\ufffdA'), (b'\\x00\\xdcA\\x00', '\ufffdA')]\n    for raw, expected in tests:\n        try:\n            codecs.utf_16_le_decode(*(raw, 'strict', True))\n        except UnicodeDecodeError:\n            pass\n        assert raw.decode('utf-16le', 'replace') == expected, ('assertEqual', raw.decode('utf-16le', 'replace'), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF16BETest.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    tests = [(b'\\xff', '\ufffd'), (b'\\x00A\\xff', 'A\ufffd'), (b'\\x00A\\x00B\\x00C\\x00DZ', 'ABCD\ufffd'), (b'\\xd8\\x00', '\ufffd'), (b'\\xd8\\x00\\xdc', '\ufffd'), (b'\\xd8\\x00\\x00A', '\ufffdA'), (b'\\xdc\\x00\\x00A', '\ufffdA')]\n    for raw, expected in tests:\n        try:\n            codecs.utf_16_be_decode(*(raw, 'strict', True))\n        except UnicodeDecodeError:\n            pass\n        assert raw.decode('utf-16be', 'replace') == expected, ('assertEqual', raw.decode('utf-16be', 'replace'), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF16ExTest.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.utf_16_ex_decode(*(b'\\xff', 'strict', 0, True))\n    except UnicodeDecodeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF16ExTest.test_bad_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.utf_16_ex_decode()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReadBufferTest.test_array",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    import array\n    assert codecs.readbuffer_encode(array.array('b', b'spam')) == (b'spam', 4), ('assertEqual', codecs.readbuffer_encode(array.array('b', b'spam')), (b'spam', 4))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReadBufferTest.test_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert codecs.readbuffer_encode('') == (b'', 0), ('assertEqual', codecs.readbuffer_encode(''), (b'', 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReadBufferTest.test_bad_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.readbuffer_encode()\n    except TypeError:\n        pass\n    try:\n        codecs.readbuffer_encode(*(42,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF8SigTest.test_bug1601501",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert str(b'\\xef\\xbb\\xbf', 'utf-8-sig') == '', ('assertEqual', str(b'\\xef\\xbb\\xbf', 'utf-8-sig'), '')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF8SigTest.test_bom",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    d = codecs.getincrementaldecoder('utf-8-sig')()\n    s = 'spam'\n    assert d.decode(s.encode('utf-8-sig')) == s, ('assertEqual', d.decode(s.encode('utf-8-sig')), s)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF8SigTest.test_stream_bom",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\n\ndef _t():\n    unistring = 'ABC\u00a1\u2200XYZ'\n    bytestring = codecs.BOM_UTF8 + b'ABC\\xc2\\xa1\\xe2\\x88\\x80XYZ'\n    reader = codecs.getreader('utf-8-sig')\n    for sizehint in [None] + list(range(1, 11)) + [64, 128, 256, 512, 1024]:\n        istream = reader(io.BytesIO(bytestring))\n        ostream = io.StringIO()\n        while 1:\n            if sizehint is not None:\n                data = istream.read(sizehint)\n            else:\n                data = istream.read()\n            if not data:\n                break\n            ostream.write(data)\n        got = ostream.getvalue()\n        assert got == unistring, ('assertEqual', got, unistring)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UTF8SigTest.test_stream_bare",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\n\ndef _t():\n    unistring = 'ABC\u00a1\u2200XYZ'\n    bytestring = b'ABC\\xc2\\xa1\\xe2\\x88\\x80XYZ'\n    reader = codecs.getreader('utf-8-sig')\n    for sizehint in [None] + list(range(1, 11)) + [64, 128, 256, 512, 1024]:\n        istream = reader(io.BytesIO(bytestring))\n        ostream = io.StringIO()\n        while 1:\n            if sizehint is not None:\n                data = istream.read(sizehint)\n            else:\n                data = istream.read()\n            if not data:\n                break\n            ostream.write(data)\n        got = ostream.getvalue()\n        assert got == unistring, ('assertEqual', got, unistring)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "EscapeDecodeTest.test_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert codecs.escape_decode(b'') == (b'', 0), ('assertEqual', codecs.escape_decode(b''), (b'', 0))\n    assert codecs.escape_decode(bytearray()) == (b'', 0), ('assertEqual', codecs.escape_decode(bytearray()), (b'', 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "EscapeDecodeTest.test_raw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    decode = codecs.escape_decode\n    for b in range(256):\n        b = bytes([b])\n        if b != b'\\\\':\n            assert decode(b + b'0') == (b + b'0', 2), ('assertEqual', decode(b + b'0'), (b + b'0', 2))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "EscapeDecodeTest.test_escape",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "EscapeDecodeTest.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    decode = codecs.escape_decode\n    try:\n        decode(*(b'\\\\x',))\n    except ValueError:\n        pass\n    try:\n        decode(*(b'[\\\\x]',))\n    except ValueError:\n        pass\n    assert decode(b'[\\\\x]\\\\x', 'ignore') == (b'[]', 6), ('assertEqual', decode(b'[\\\\x]\\\\x', 'ignore'), (b'[]', 6))\n    assert decode(b'[\\\\x]\\\\x', 'replace') == (b'[?]?', 6), ('assertEqual', decode(b'[\\\\x]\\\\x', 'replace'), (b'[?]?', 6))\n    try:\n        decode(*(b'\\\\x0',))\n    except ValueError:\n        pass\n    try:\n        decode(*(b'[\\\\x0]',))\n    except ValueError:\n        pass\n    assert decode(b'[\\\\x0]\\\\x0', 'ignore') == (b'[]', 8), ('assertEqual', decode(b'[\\\\x0]\\\\x0', 'ignore'), (b'[]', 8))\n    assert decode(b'[\\\\x0]\\\\x0', 'replace') == (b'[?]?', 8), ('assertEqual', decode(b'[\\\\x0]\\\\x0', 'replace'), (b'[?]?', 8))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PunycodeTest.test_encode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "punycode_testcases = [('\u0644\u064a\u0647\u0645\u0627\u0628\u062a\u0643\u0644\u0645\u0648\u0634\u0639\u0631\u0628\u064a\u061f', b'egbpdaj6bu4bxfgehfvwxn'), ('\u4ed6\u4eec\u4e3a\u4ec0\u4e48\u4e0d\u8bf4\u4e2d\u6587', b'ihqwcrb4cv8a8dqg056pqjye'), ('\u4ed6\u5011\u7232\u4ec0\u9ebd\u4e0d\u8aaa\u4e2d\u6587', b'ihqwctvzc91f659drss3x8bo0yb'), ('Pro\u010dprost\u011bnemluv\u00ed\u010desky', b'Proprostnemluvesky-uyb24dma41a'), ('\u05dc\u05de\u05d4\u05d4\u05dd\u05e4\u05e9\u05d5\u05d8\u05dc\u05d0\u05de\u05d3\u05d1\u05e8\u05d9\u05dd\u05e2\u05d1\u05e8\u05d9\u05ea', b'4dbcagdahymbxekheh6e0a7fei0b'), ('\u092f\u0939\u0932\u094b\u0917\u0939\u093f\u0928\u094d\u0926\u0940\u0915\u094d\u092f\u094b\u0902\u0928\u0939\u0940\u0902\u092c\u094b\u0932\u0938\u0915\u0924\u0947\u0939\u0948\u0902', b'i1baa7eci9glrd9b2ae1bj0hfcgg6iyaf8o0a1dig0cd'), ('\u306a\u305c\u307f\u3093\u306a\u65e5\u672c\u8a9e\u3092\u8a71\u3057\u3066\u304f\u308c\u306a\u3044\u306e\u304b', b'n8jok5ay5dzabd5bym9f0cm5685rrjetr6pdxa'), ('\uc138\uacc4\uc758\ubaa8\ub4e0\uc0ac\ub78c\ub4e4\uc774\ud55c\uad6d\uc5b4\ub97c\uc774\ud574\ud55c\ub2e4\uba74\uc5bc\ub9c8\ub098\uc88b\uc744\uae4c', b'989aomsvi5e83db1d2a355cv1e0vak1dwrv93d5xbh15a0dt30a5jpsd879ccm6fea98c'), ('\u043f\u043e\u0447\u0435\u043c\u0443\u0436\u0435\u043e\u043d\u0438\u043d\u0435\u0433\u043e\u0432\u043e\u0440\u044f\u0442\u043f\u043e\u0440\u0443\u0441\u0441\u043a\u0438', b'b1abfaaepdrnnbgefbaDotcwatmq2g4l'), ('Porqu\u00e9nopuedensimplementehablarenEspa\u00f1ol', b'PorqunopuedensimplementehablarenEspaol-fmd56a'), ('T\u1ea1isaoh\u1ecdkh\u00f4ngth\u1ec3ch\u1ec9n\u00f3iti\u1ebfngVi\u1ec7t', b'TisaohkhngthchnitingVit-kjcr8268qyxafd2f1b9g'), ('3\u5e74B\u7d44\u91d1\u516b\u5148\u751f', b'3B-ww4c5e180e575a65lsy2b'), ('\u5b89\u5ba4\u5948\u7f8e\u6075-with-SUPER-MONKEYS', b'-with-SUPER-MONKEYS-pc58ag80a8qai00g7n9n'), ('Hello-Another-Way-\u305d\u308c\u305e\u308c\u306e\u5834\u6240', b'Hello-Another-Way--fc4qua05auwb3674vfr0b'), ('\u3072\u3068\u3064\u5c4b\u6839\u306e\u4e0b2', b'2-u9tlzr9756bt3uc0v'), ('Maji\u3067Koi\u3059\u308b5\u79d2\u524d', b'MajiKoi5-783gue6qz075azm5e'), ('\u30d1\u30d5\u30a3\u30fcde\u30eb\u30f3\u30d0', b'de-jg4avhby1noc0d'), ('\u305d\u306e\u30b9\u30d4\u30fc\u30c9\u3067', b'd9juau41awczczp'), ('-> $1.00 <-', b'-> $1.00 <--')]\n\ndef _t():\n    for uni, puny in punycode_testcases:\n        assert str(uni.encode('punycode'), 'ascii').lower() == str(puny, 'ascii').lower(), ('assertEqual', str(uni.encode('punycode'), 'ascii').lower(), str(puny, 'ascii').lower())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PunycodeTest.test_decode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "punycode_testcases = [('\u0644\u064a\u0647\u0645\u0627\u0628\u062a\u0643\u0644\u0645\u0648\u0634\u0639\u0631\u0628\u064a\u061f', b'egbpdaj6bu4bxfgehfvwxn'), ('\u4ed6\u4eec\u4e3a\u4ec0\u4e48\u4e0d\u8bf4\u4e2d\u6587', b'ihqwcrb4cv8a8dqg056pqjye'), ('\u4ed6\u5011\u7232\u4ec0\u9ebd\u4e0d\u8aaa\u4e2d\u6587', b'ihqwctvzc91f659drss3x8bo0yb'), ('Pro\u010dprost\u011bnemluv\u00ed\u010desky', b'Proprostnemluvesky-uyb24dma41a'), ('\u05dc\u05de\u05d4\u05d4\u05dd\u05e4\u05e9\u05d5\u05d8\u05dc\u05d0\u05de\u05d3\u05d1\u05e8\u05d9\u05dd\u05e2\u05d1\u05e8\u05d9\u05ea', b'4dbcagdahymbxekheh6e0a7fei0b'), ('\u092f\u0939\u0932\u094b\u0917\u0939\u093f\u0928\u094d\u0926\u0940\u0915\u094d\u092f\u094b\u0902\u0928\u0939\u0940\u0902\u092c\u094b\u0932\u0938\u0915\u0924\u0947\u0939\u0948\u0902', b'i1baa7eci9glrd9b2ae1bj0hfcgg6iyaf8o0a1dig0cd'), ('\u306a\u305c\u307f\u3093\u306a\u65e5\u672c\u8a9e\u3092\u8a71\u3057\u3066\u304f\u308c\u306a\u3044\u306e\u304b', b'n8jok5ay5dzabd5bym9f0cm5685rrjetr6pdxa'), ('\uc138\uacc4\uc758\ubaa8\ub4e0\uc0ac\ub78c\ub4e4\uc774\ud55c\uad6d\uc5b4\ub97c\uc774\ud574\ud55c\ub2e4\uba74\uc5bc\ub9c8\ub098\uc88b\uc744\uae4c', b'989aomsvi5e83db1d2a355cv1e0vak1dwrv93d5xbh15a0dt30a5jpsd879ccm6fea98c'), ('\u043f\u043e\u0447\u0435\u043c\u0443\u0436\u0435\u043e\u043d\u0438\u043d\u0435\u0433\u043e\u0432\u043e\u0440\u044f\u0442\u043f\u043e\u0440\u0443\u0441\u0441\u043a\u0438', b'b1abfaaepdrnnbgefbaDotcwatmq2g4l'), ('Porqu\u00e9nopuedensimplementehablarenEspa\u00f1ol', b'PorqunopuedensimplementehablarenEspaol-fmd56a'), ('T\u1ea1isaoh\u1ecdkh\u00f4ngth\u1ec3ch\u1ec9n\u00f3iti\u1ebfngVi\u1ec7t', b'TisaohkhngthchnitingVit-kjcr8268qyxafd2f1b9g'), ('3\u5e74B\u7d44\u91d1\u516b\u5148\u751f', b'3B-ww4c5e180e575a65lsy2b'), ('\u5b89\u5ba4\u5948\u7f8e\u6075-with-SUPER-MONKEYS', b'-with-SUPER-MONKEYS-pc58ag80a8qai00g7n9n'), ('Hello-Another-Way-\u305d\u308c\u305e\u308c\u306e\u5834\u6240', b'Hello-Another-Way--fc4qua05auwb3674vfr0b'), ('\u3072\u3068\u3064\u5c4b\u6839\u306e\u4e0b2', b'2-u9tlzr9756bt3uc0v'), ('Maji\u3067Koi\u3059\u308b5\u79d2\u524d', b'MajiKoi5-783gue6qz075azm5e'), ('\u30d1\u30d5\u30a3\u30fcde\u30eb\u30f3\u30d0', b'de-jg4avhby1noc0d'), ('\u305d\u306e\u30b9\u30d4\u30fc\u30c9\u3067', b'd9juau41awczczp'), ('-> $1.00 <-', b'-> $1.00 <--')]\n\ndef _t():\n    for uni, puny in punycode_testcases:\n        assert uni == puny.decode('punycode'), ('assertEqual', uni, puny.decode('punycode'))\n        puny = puny.decode('ascii').encode('ascii')\n        assert uni == puny.decode('punycode'), ('assertEqual', uni, puny.decode('punycode'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "NameprepTest.test_nameprep",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nnameprep_tests = [(b'foo\\xc2\\xad\\xcd\\x8f\\xe1\\xa0\\x86\\xe1\\xa0\\x8bbar\\xe2\\x80\\x8b\\xe2\\x81\\xa0baz\\xef\\xb8\\x80\\xef\\xb8\\x88\\xef\\xb8\\x8f\\xef\\xbb\\xbf', b'foobarbaz'), (b'CAFE', b'cafe'), (b'\\xc3\\x9f', b'ss'), (b'\\xc4\\xb0', b'i\\xcc\\x87'), (b'\\xc5\\x83\\xcd\\xba', b'\\xc5\\x84 \\xce\\xb9'), (None, None), (b'j\\xcc\\x8c\\xc2\\xa0\\xc2\\xaa', b'\\xc7\\xb0 a'), (b'\\xe1\\xbe\\xb7', b'\\xe1\\xbe\\xb6\\xce\\xb9'), (b'\\xc7\\xb0', b'\\xc7\\xb0'), (b'\\xce\\x90', b'\\xce\\x90'), (b'\\xce\\xb0', b'\\xce\\xb0'), (b'\\xe1\\xba\\x96', b'\\xe1\\xba\\x96'), (b'\\xe1\\xbd\\x96', b'\\xe1\\xbd\\x96'), (b' ', b' '), (b'\\xc2\\xa0', b' '), (b'\\xe1\\x9a\\x80', None), (b'\\xe2\\x80\\x80', b' '), (b'\\xe2\\x80\\x8b', b''), (b'\\xe3\\x80\\x80', b' '), (b'\\x10\\x7f', b'\\x10\\x7f'), (b'\\xc2\\x85', None), (b'\\xe1\\xa0\\x8e', None), (b'\\xef\\xbb\\xbf', b''), (b'\\xf0\\x9d\\x85\\xb5', None), (b'\\xef\\x84\\xa3', None), (b'\\xf3\\xb1\\x88\\xb4', None), (b'\\xf4\\x8f\\x88\\xb4', None), (b'\\xf2\\x8f\\xbf\\xbe', None), (b'\\xf4\\x8f\\xbf\\xbf', None), (b'\\xed\\xbd\\x82', None), (b'\\xef\\xbf\\xbd', None), (b'\\xe2\\xbf\\xb5', None), (b'\\xcd\\x81', b'\\xcc\\x81'), (b'\\xe2\\x80\\x8e', None), (b'\\xe2\\x80\\xaa', None), (b'\\xf3\\xa0\\x80\\x81', None), (b'\\xf3\\xa0\\x81\\x82', None), (b'foo\\xd6\\xbebar', None), (b'foo\\xef\\xb5\\x90bar', None), (b'foo\\xef\\xb9\\xb6bar', b'foo \\xd9\\x8ebar'), (b'\\xd8\\xa71', None), (b'\\xd8\\xa71\\xd8\\xa8', b'\\xd8\\xa71\\xd8\\xa8'), (None, None), (b'X\\xc2\\xad\\xc3\\x9f\\xc4\\xb0\\xe2\\x84\\xa1j\\xcc\\x8c\\xc2\\xa0\\xc2\\xaa\\xce\\xb0\\xe2\\x80\\x80', b'xssi\\xcc\\x87tel\\xc7\\xb0 a\\xce\\xb0 '), (b'X\\xc3\\x9f\\xe3\\x8c\\x96\\xc4\\xb0\\xe2\\x84\\xa1\\xe2\\x92\\x9f\\xe3\\x8c\\x80', b'xss\\xe3\\x82\\xad\\xe3\\x83\\xad\\xe3\\x83\\xa1\\xe3\\x83\\xbc\\xe3\\x83\\x88\\xe3\\x83\\xabi\\xcc\\x87tel(d)\\xe3\\x82\\xa2\\xe3\\x83\\x91\\xe3\\x83\\xbc\\xe3\\x83\\x88')]\n\ndef _t():\n    from encodings.idna import nameprep\n    for pos, (orig, prepped) in enumerate(nameprep_tests):\n        if orig is None:\n            continue\n        orig = str(orig, 'utf-8', 'surrogatepass')\n        if prepped is None:\n            try:\n                nameprep(*(orig,))\n            except UnicodeEncodeError:\n                pass\n        else:\n            prepped = str(prepped, 'utf-8', 'surrogatepass')\n            try:\n                assert nameprep(orig) == prepped, ('assertEqual', nameprep(orig), prepped)\n            except Exception as e:\n                raise support.TestFailed('Test 3.%d: %s' % (pos + 1, str(e)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IDNACodecTest.test_builtin_decode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert str(b'python.org', 'idna') == 'python.org', ('assertEqual', str(b'python.org', 'idna'), 'python.org')\n    assert str(b'python.org.', 'idna') == 'python.org.', ('assertEqual', str(b'python.org.', 'idna'), 'python.org.')\n    assert str(b'xn--pythn-mua.org', 'idna') == 'pyth\u00f6n.org', ('assertEqual', str(b'xn--pythn-mua.org', 'idna'), 'pyth\u00f6n.org')\n    assert str(b'xn--pythn-mua.org.', 'idna') == 'pyth\u00f6n.org.', ('assertEqual', str(b'xn--pythn-mua.org.', 'idna'), 'pyth\u00f6n.org.')\n    assert str(b'XN--pythn-mua.org.', 'idna') == 'pyth\u00f6n.org.', ('assertEqual', str(b'XN--pythn-mua.org.', 'idna'), 'pyth\u00f6n.org.')\n    assert str(b'xN--pythn-mua.org.', 'idna') == 'pyth\u00f6n.org.', ('assertEqual', str(b'xN--pythn-mua.org.', 'idna'), 'pyth\u00f6n.org.')\n    assert str(b'Xn--pythn-mua.org.', 'idna') == 'pyth\u00f6n.org.', ('assertEqual', str(b'Xn--pythn-mua.org.', 'idna'), 'pyth\u00f6n.org.')\n    assert str(b'bugs.xn--pythn-mua.org.', 'idna') == 'bugs.pyth\u00f6n.org.', ('assertEqual', str(b'bugs.xn--pythn-mua.org.', 'idna'), 'bugs.pyth\u00f6n.org.')\n    assert str(b'bugs.XN--pythn-mua.org.', 'idna') == 'bugs.pyth\u00f6n.org.', ('assertEqual', str(b'bugs.XN--pythn-mua.org.', 'idna'), 'bugs.pyth\u00f6n.org.')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IDNACodecTest.test_builtin_encode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert 'python.org'.encode('idna') == b'python.org', ('assertEqual', 'python.org'.encode('idna'), b'python.org')\n    assert 'python.org.'.encode('idna') == b'python.org.', ('assertEqual', 'python.org.'.encode('idna'), b'python.org.')\n    assert 'pyth\u00f6n.org'.encode('idna') == b'xn--pythn-mua.org', ('assertEqual', 'pyth\u00f6n.org'.encode('idna'), b'xn--pythn-mua.org')\n    assert 'pyth\u00f6n.org.'.encode('idna') == b'xn--pythn-mua.org.', ('assertEqual', 'pyth\u00f6n.org.'.encode('idna'), b'xn--pythn-mua.org.')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IDNACodecTest.test_builtin_decode_length_limit",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    try:\n        (b'xn--016c' + b'a' * 1100).decode('idna')\n    except UnicodeDecodeError as _exc:\n        assert _re.search('way too long', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        (b'xn--016c' + b'a' * 70).decode('idna')\n    except UnicodeDecodeError as _exc:\n        assert _re.search('too long', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IDNACodecTest.test_stream",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\n\ndef _t():\n    r = codecs.getreader('idna')(io.BytesIO(b'abc'))\n    r.read(3)\n    assert r.read() == '', ('assertEqual', r.read(), '')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IDNACodecTest.test_incremental_decode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert ''.join(codecs.iterdecode((bytes([c]) for c in b'python.org'), 'idna')) == 'python.org', ('assertEqual', ''.join(codecs.iterdecode((bytes([c]) for c in b'python.org'), 'idna')), 'python.org')\n    assert ''.join(codecs.iterdecode((bytes([c]) for c in b'python.org.'), 'idna')) == 'python.org.', ('assertEqual', ''.join(codecs.iterdecode((bytes([c]) for c in b'python.org.'), 'idna')), 'python.org.')\n    assert ''.join(codecs.iterdecode((bytes([c]) for c in b'xn--pythn-mua.org.'), 'idna')) == 'pyth\u00f6n.org.', ('assertEqual', ''.join(codecs.iterdecode((bytes([c]) for c in b'xn--pythn-mua.org.'), 'idna')), 'pyth\u00f6n.org.')\n    assert ''.join(codecs.iterdecode((bytes([c]) for c in b'xn--pythn-mua.org.'), 'idna')) == 'pyth\u00f6n.org.', ('assertEqual', ''.join(codecs.iterdecode((bytes([c]) for c in b'xn--pythn-mua.org.'), 'idna')), 'pyth\u00f6n.org.')\n    decoder = codecs.getincrementaldecoder('idna')()\n    assert decoder.decode(b'xn--xam') == '', ('assertEqual', decoder.decode(b'xn--xam'), '')\n    assert decoder.decode(b'ple-9ta.o') == '\u00e4xample.', ('assertEqual', decoder.decode(b'ple-9ta.o'), '\u00e4xample.')\n    assert decoder.decode(b'rg') == '', ('assertEqual', decoder.decode(b'rg'), '')\n    assert decoder.decode(b'', True) == 'org', ('assertEqual', decoder.decode(b'', True), 'org')\n    decoder.reset()\n    assert decoder.decode(b'xn--xam') == '', ('assertEqual', decoder.decode(b'xn--xam'), '')\n    assert decoder.decode(b'ple-9ta.o') == '\u00e4xample.', ('assertEqual', decoder.decode(b'ple-9ta.o'), '\u00e4xample.')\n    assert decoder.decode(b'rg.') == 'org.', ('assertEqual', decoder.decode(b'rg.'), 'org.')\n    assert decoder.decode(b'', True) == '', ('assertEqual', decoder.decode(b'', True), '')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IDNACodecTest.test_incremental_encode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert b''.join(codecs.iterencode('python.org', 'idna')) == b'python.org', ('assertEqual', b''.join(codecs.iterencode('python.org', 'idna')), b'python.org')\n    assert b''.join(codecs.iterencode('python.org.', 'idna')) == b'python.org.', ('assertEqual', b''.join(codecs.iterencode('python.org.', 'idna')), b'python.org.')\n    assert b''.join(codecs.iterencode('pyth\u00f6n.org.', 'idna')) == b'xn--pythn-mua.org.', ('assertEqual', b''.join(codecs.iterencode('pyth\u00f6n.org.', 'idna')), b'xn--pythn-mua.org.')\n    assert b''.join(codecs.iterencode('pyth\u00f6n.org.', 'idna')) == b'xn--pythn-mua.org.', ('assertEqual', b''.join(codecs.iterencode('pyth\u00f6n.org.', 'idna')), b'xn--pythn-mua.org.')\n    encoder = codecs.getincrementalencoder('idna')()\n    assert encoder.encode('\u00e4x') == b'', ('assertEqual', encoder.encode('\u00e4x'), b'')\n    assert encoder.encode('ample.org') == b'xn--xample-9ta.', ('assertEqual', encoder.encode('ample.org'), b'xn--xample-9ta.')\n    assert encoder.encode('', True) == b'org', ('assertEqual', encoder.encode('', True), b'org')\n    encoder.reset()\n    assert encoder.encode('\u00e4x') == b'', ('assertEqual', encoder.encode('\u00e4x'), b'')\n    assert encoder.encode('ample.org.') == b'xn--xample-9ta.org.', ('assertEqual', encoder.encode('ample.org.'), b'xn--xample-9ta.org.')\n    assert encoder.encode('', True) == b'', ('assertEqual', encoder.encode('', True), b'')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IDNACodecTest.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"Only supports \"strict\" error handler\"\"\"\n    'python.org'.encode('idna', 'strict')\n    b'python.org'.decode('idna', 'strict')\n    for errors in ('ignore', 'replace', 'backslashreplace', 'surrogateescape'):\n        try:\n            'python.org'.encode(*('idna', errors))\n        except Exception:\n            pass\n        try:\n            b'python.org'.decode(*('idna', errors))\n        except Exception:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_decode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert codecs.decode(b'\\xe4\\xf6\\xfc', 'latin-1') == '\u00e4\u00f6\u00fc', ('assertEqual', codecs.decode(b'\\xe4\\xf6\\xfc', 'latin-1'), '\u00e4\u00f6\u00fc')\n    try:\n        codecs.decode()\n    except TypeError:\n        pass\n    assert codecs.decode(b'abc') == 'abc', ('assertEqual', codecs.decode(b'abc'), 'abc')\n    try:\n        codecs.decode(*(b'\\xff', 'ascii'))\n    except UnicodeDecodeError:\n        pass\n    assert codecs.decode(obj=b'\\xe4\\xf6\\xfc', encoding='latin-1') == '\u00e4\u00f6\u00fc', ('assertEqual', codecs.decode(obj=b'\\xe4\\xf6\\xfc', encoding='latin-1'), '\u00e4\u00f6\u00fc')\n    assert codecs.decode(b'[\\xff]', 'ascii', errors='ignore') == '[]', ('assertEqual', codecs.decode(b'[\\xff]', 'ascii', errors='ignore'), '[]')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_encode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert codecs.encode('\u00e4\u00f6\u00fc', 'latin-1') == b'\\xe4\\xf6\\xfc', ('assertEqual', codecs.encode('\u00e4\u00f6\u00fc', 'latin-1'), b'\\xe4\\xf6\\xfc')\n    try:\n        codecs.encode()\n    except TypeError:\n        pass\n    try:\n        codecs.encode(*('foo', '__spam__'))\n    except LookupError:\n        pass\n    assert codecs.encode('abc') == b'abc', ('assertEqual', codecs.encode('abc'), b'abc')\n    try:\n        codecs.encode(*('\u00ffff', 'ascii'))\n    except UnicodeEncodeError:\n        pass\n    assert codecs.encode(obj='\u00e4\u00f6\u00fc', encoding='latin-1') == b'\\xe4\\xf6\\xfc', ('assertEqual', codecs.encode(obj='\u00e4\u00f6\u00fc', encoding='latin-1'), b'\\xe4\\xf6\\xfc')\n    assert codecs.encode('[\u00ff]', 'ascii', errors='ignore') == b'[]', ('assertEqual', codecs.encode('[\u00ff]', 'ascii', errors='ignore'), b'[]')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_register",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.register()\n    except TypeError:\n        pass\n    try:\n        codecs.register(*(42,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_unregister",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nfrom unittest import mock\n\ndef _t():\n    name = 'nonexistent_codec_name'\n    search_function = mock.Mock()\n    codecs.register(search_function)\n    try:\n        codecs.lookup(*(name,))\n    except TypeError:\n        pass\n    search_function.assert_called_with(name)\n    search_function.reset_mock()\n    codecs.unregister(search_function)\n    try:\n        codecs.lookup(*(name,))\n    except LookupError:\n        pass\n    search_function.assert_not_called()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_lookup",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.lookup()\n    except TypeError:\n        pass\n    try:\n        codecs.lookup(*('__spam__',))\n    except LookupError:\n        pass\n    try:\n        codecs.lookup(*(' ',))\n    except LookupError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_getencoder",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.getencoder()\n    except TypeError:\n        pass\n    try:\n        codecs.getencoder(*('__spam__',))\n    except LookupError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_getdecoder",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.getdecoder()\n    except TypeError:\n        pass\n    try:\n        codecs.getdecoder(*('__spam__',))\n    except LookupError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_getreader",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.getreader()\n    except TypeError:\n        pass\n    try:\n        codecs.getreader(*('__spam__',))\n    except LookupError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_getwriter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.getwriter()\n    except TypeError:\n        pass\n    try:\n        codecs.getwriter(*('__spam__',))\n    except LookupError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_all",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    api = ('encode', 'decode', 'register', 'CodecInfo', 'Codec', 'IncrementalEncoder', 'IncrementalDecoder', 'StreamReader', 'StreamWriter', 'lookup', 'getencoder', 'getdecoder', 'getincrementalencoder', 'getincrementaldecoder', 'getreader', 'getwriter', 'register_error', 'lookup_error', 'strict_errors', 'replace_errors', 'ignore_errors', 'xmlcharrefreplace_errors', 'backslashreplace_errors', 'namereplace_errors', 'open', 'EncodedFile', 'iterencode', 'iterdecode', 'BOM', 'BOM_BE', 'BOM_LE', 'BOM_UTF8', 'BOM_UTF16', 'BOM_UTF16_BE', 'BOM_UTF16_LE', 'BOM_UTF32', 'BOM_UTF32_BE', 'BOM_UTF32_LE', 'BOM32_BE', 'BOM32_LE', 'BOM64_BE', 'BOM64_LE', 'StreamReaderWriter', 'StreamRecoder')\n    assert sorted(api, key=repr) == sorted(codecs.__all__, key=repr), ('assertCountEqual', api, codecs.__all__)\n    for api in codecs.__all__:\n        getattr(codecs, api)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_undefined",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.encode(*('abc', 'undefined'))\n    except UnicodeError:\n        pass\n    try:\n        codecs.decode(*(b'abc', 'undefined'))\n    except UnicodeError:\n        pass\n    try:\n        codecs.encode(*('', 'undefined'))\n    except UnicodeError:\n        pass\n    try:\n        codecs.decode(*(b'', 'undefined'))\n    except UnicodeError:\n        pass\n    for errors in ('strict', 'ignore', 'replace', 'backslashreplace'):\n        try:\n            codecs.encode(*('abc', 'undefined', errors))\n        except UnicodeError:\n            pass\n        try:\n            codecs.decode(*(b'abc', 'undefined', errors))\n        except UnicodeError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_file_closes_if_lookup_error_raised",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nfrom unittest import mock\nimport warnings\nfrom test.support import os_helper\n\ndef codecs_open_no_warn(*args, **kwargs):\n    \"\"\"Call codecs.open(*args, **kwargs) ignoring DeprecationWarning.\"\"\"\n    with warnings.catch_warnings():\n        warnings.simplefilter('ignore')\n        return codecs.open(*args, **kwargs)\n\ndef _t():\n    mock_open = mock.mock_open()\n    with mock.patch('builtins.open', mock_open) as file:\n        try:\n            codecs_open_no_warn(os_helper.TESTFN, 'wt', 'invalid-encoding')\n        except LookupError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        file().close.assert_called()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_copy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport copy\n\ndef _t():\n    orig = codecs.lookup('utf-8')\n    dup = copy.copy(orig)\n    assert dup is not orig, ('assertIsNot', dup, orig)\n    assert dup == orig, ('assertEqual', dup, orig)\n    assert orig._is_text_encoding, ('assertTrue', orig._is_text_encoding)\n    assert dup.encode == orig.encode, ('assertEqual', dup.encode, orig.encode)\n    assert dup.name == orig.name, ('assertEqual', dup.name, orig.name)\n    assert dup.incrementalencoder == orig.incrementalencoder, ('assertEqual', dup.incrementalencoder, orig.incrementalencoder)\n    orig = codecs.lookup('base64')\n    dup = copy.copy(orig)\n    assert dup is not orig, ('assertIsNot', dup, orig)\n    assert dup == orig, ('assertEqual', dup, orig)\n    assert not orig._is_text_encoding, ('assertFalse', orig._is_text_encoding)\n    assert dup.encode == orig.encode, ('assertEqual', dup.encode, orig.encode)\n    assert dup.name == orig.name, ('assertEqual', dup.name, orig.name)\n    assert dup.incrementalencoder == orig.incrementalencoder, ('assertEqual', dup.incrementalencoder, orig.incrementalencoder)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecsModuleTest.test_deepcopy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport copy\n\ndef _t():\n    orig = codecs.lookup('utf-8')\n    dup = copy.deepcopy(orig)\n    assert dup is not orig, ('assertIsNot', dup, orig)\n    assert dup == orig, ('assertEqual', dup, orig)\n    assert orig._is_text_encoding, ('assertTrue', orig._is_text_encoding)\n    assert dup.encode == orig.encode, ('assertEqual', dup.encode, orig.encode)\n    assert dup.name == orig.name, ('assertEqual', dup.name, orig.name)\n    assert dup.incrementalencoder == orig.incrementalencoder, ('assertEqual', dup.incrementalencoder, orig.incrementalencoder)\n    orig = codecs.lookup('base64')\n    dup = copy.deepcopy(orig)\n    assert dup is not orig, ('assertIsNot', dup, orig)\n    assert dup == orig, ('assertEqual', dup, orig)\n    assert not orig._is_text_encoding, ('assertFalse', orig._is_text_encoding)\n    assert dup.encode == orig.encode, ('assertEqual', dup.encode, orig.encode)\n    assert dup.name == orig.name, ('assertEqual', dup.name, orig.name)\n    assert dup.incrementalencoder == orig.incrementalencoder, ('assertEqual', dup.incrementalencoder, orig.incrementalencoder)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "EncodedFileTest.test_basic",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\n\ndef _t():\n    f = io.BytesIO(b'\\xed\\x95\\x9c\\n\\xea\\xb8\\x80')\n    ef = codecs.EncodedFile(f, 'utf-16-le', 'utf-8')\n    assert ef.read() == b'\\\\\\xd5\\n\\x00\\x00\\xae', ('assertEqual', ef.read(), b'\\\\\\xd5\\n\\x00\\x00\\xae')\n    f = io.BytesIO()\n    ef = codecs.EncodedFile(f, 'utf-8', 'latin-1')\n    ef.write(b'\\xc3\\xbc')\n    assert f.getvalue() == b'\\xfc', ('assertEqual', f.getvalue(), b'\\xfc')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BasicUnicodeTest.test_seek",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\nall_unicode_encodings = ['ascii', 'big5', 'big5hkscs', 'charmap', 'cp037', 'cp1006', 'cp1026', 'cp1125', 'cp1140', 'cp1250', 'cp1251', 'cp1252', 'cp1253', 'cp1254', 'cp1255', 'cp1256', 'cp1257', 'cp1258', 'cp424', 'cp437', 'cp500', 'cp720', 'cp737', 'cp775', 'cp850', 'cp852', 'cp855', 'cp856', 'cp857', 'cp858', 'cp860', 'cp861', 'cp862', 'cp863', 'cp864', 'cp865', 'cp866', 'cp869', 'cp874', 'cp875', 'cp932', 'cp949', 'cp950', 'euc_jis_2004', 'euc_jisx0213', 'euc_jp', 'euc_kr', 'gb18030', 'gb2312', 'gbk', 'hp_roman8', 'hz', 'idna', 'iso2022_jp', 'iso2022_jp_1', 'iso2022_jp_2', 'iso2022_jp_2004', 'iso2022_jp_3', 'iso2022_jp_ext', 'iso2022_kr', 'iso8859_1', 'iso8859_10', 'iso8859_11', 'iso8859_13', 'iso8859_14', 'iso8859_15', 'iso8859_16', 'iso8859_2', 'iso8859_3', 'iso8859_4', 'iso8859_5', 'iso8859_6', 'iso8859_7', 'iso8859_8', 'iso8859_9', 'johab', 'koi8_r', 'koi8_t', 'koi8_u', 'kz1048', 'latin_1', 'mac_cyrillic', 'mac_greek', 'mac_iceland', 'mac_latin2', 'mac_roman', 'mac_turkish', 'palmos', 'ptcp154', 'punycode', 'raw_unicode_escape', 'shift_jis', 'shift_jis_2004', 'shift_jisx0213', 'tis_620', 'unicode_escape', 'utf_16', 'utf_16_be', 'utf_16_le', 'utf_7', 'utf_8']\nbroken_unicode_with_stateful = ['punycode']\n\ndef _t():\n    s = '%s\\n%s\\n' % (100 * 'abc123', 100 * 'def456')\n    for encoding in all_unicode_encodings:\n        if encoding == 'idna':\n            continue\n        if encoding in broken_unicode_with_stateful:\n            continue\n        reader = codecs.getreader(encoding)(io.BytesIO(s.encode(encoding)))\n        for t in range(5):\n            reader.seek(0, 0)\n            data = reader.read()\n            assert s == data, ('assertEqual', s, data)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BasicUnicodeTest.test_bad_decode_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nall_unicode_encodings = ['ascii', 'big5', 'big5hkscs', 'charmap', 'cp037', 'cp1006', 'cp1026', 'cp1125', 'cp1140', 'cp1250', 'cp1251', 'cp1252', 'cp1253', 'cp1254', 'cp1255', 'cp1256', 'cp1257', 'cp1258', 'cp424', 'cp437', 'cp500', 'cp720', 'cp737', 'cp775', 'cp850', 'cp852', 'cp855', 'cp856', 'cp857', 'cp858', 'cp860', 'cp861', 'cp862', 'cp863', 'cp864', 'cp865', 'cp866', 'cp869', 'cp874', 'cp875', 'cp932', 'cp949', 'cp950', 'euc_jis_2004', 'euc_jisx0213', 'euc_jp', 'euc_kr', 'gb18030', 'gb2312', 'gbk', 'hp_roman8', 'hz', 'idna', 'iso2022_jp', 'iso2022_jp_1', 'iso2022_jp_2', 'iso2022_jp_2004', 'iso2022_jp_3', 'iso2022_jp_ext', 'iso2022_kr', 'iso8859_1', 'iso8859_10', 'iso8859_11', 'iso8859_13', 'iso8859_14', 'iso8859_15', 'iso8859_16', 'iso8859_2', 'iso8859_3', 'iso8859_4', 'iso8859_5', 'iso8859_6', 'iso8859_7', 'iso8859_8', 'iso8859_9', 'johab', 'koi8_r', 'koi8_t', 'koi8_u', 'kz1048', 'latin_1', 'mac_cyrillic', 'mac_greek', 'mac_iceland', 'mac_latin2', 'mac_roman', 'mac_turkish', 'palmos', 'ptcp154', 'punycode', 'raw_unicode_escape', 'shift_jis', 'shift_jis_2004', 'shift_jisx0213', 'tis_620', 'unicode_escape', 'utf_16', 'utf_16_be', 'utf_16_le', 'utf_7', 'utf_8']\n\ndef _t():\n    for encoding in all_unicode_encodings:\n        decoder = codecs.getdecoder(encoding)\n        try:\n            decoder()\n        except TypeError:\n            pass\n        if encoding not in ('idna', 'punycode'):\n            try:\n                decoder(*(42,))\n            except TypeError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BasicUnicodeTest.test_bad_encode_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nall_unicode_encodings = ['ascii', 'big5', 'big5hkscs', 'charmap', 'cp037', 'cp1006', 'cp1026', 'cp1125', 'cp1140', 'cp1250', 'cp1251', 'cp1252', 'cp1253', 'cp1254', 'cp1255', 'cp1256', 'cp1257', 'cp1258', 'cp424', 'cp437', 'cp500', 'cp720', 'cp737', 'cp775', 'cp850', 'cp852', 'cp855', 'cp856', 'cp857', 'cp858', 'cp860', 'cp861', 'cp862', 'cp863', 'cp864', 'cp865', 'cp866', 'cp869', 'cp874', 'cp875', 'cp932', 'cp949', 'cp950', 'euc_jis_2004', 'euc_jisx0213', 'euc_jp', 'euc_kr', 'gb18030', 'gb2312', 'gbk', 'hp_roman8', 'hz', 'idna', 'iso2022_jp', 'iso2022_jp_1', 'iso2022_jp_2', 'iso2022_jp_2004', 'iso2022_jp_3', 'iso2022_jp_ext', 'iso2022_kr', 'iso8859_1', 'iso8859_10', 'iso8859_11', 'iso8859_13', 'iso8859_14', 'iso8859_15', 'iso8859_16', 'iso8859_2', 'iso8859_3', 'iso8859_4', 'iso8859_5', 'iso8859_6', 'iso8859_7', 'iso8859_8', 'iso8859_9', 'johab', 'koi8_r', 'koi8_t', 'koi8_u', 'kz1048', 'latin_1', 'mac_cyrillic', 'mac_greek', 'mac_iceland', 'mac_latin2', 'mac_roman', 'mac_turkish', 'palmos', 'ptcp154', 'punycode', 'raw_unicode_escape', 'shift_jis', 'shift_jis_2004', 'shift_jisx0213', 'tis_620', 'unicode_escape', 'utf_16', 'utf_16_be', 'utf_16_le', 'utf_7', 'utf_8']\n\ndef _t():\n    for encoding in all_unicode_encodings:\n        encoder = codecs.getencoder(encoding)\n        try:\n            encoder()\n        except TypeError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BasicUnicodeTest.test_encoding_map_type_initialized",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    from encodings import cp1140\n    table_type = type(cp1140.encoding_table)\n    assert table_type == table_type, ('assertEqual', table_type, table_type)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CharmapTest.test_decode_with_string_map",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'strict', 'abc') == ('abc', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'strict', 'abc'), ('abc', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'strict', '\\U0010ffffbc') == ('\\U0010ffffbc', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'strict', '\\U0010ffffbc'), ('\\U0010ffffbc', 3))\n    try:\n        codecs.charmap_decode(*(b'\\x00\\x01\\x02', 'strict', 'ab'))\n    except UnicodeDecodeError:\n        pass\n    try:\n        codecs.charmap_decode(*(b'\\x00\\x01\\x02', 'strict', 'ab\\ufffe'))\n    except UnicodeDecodeError:\n        pass\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'replace', 'ab') == ('ab\ufffd', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'replace', 'ab'), ('ab\ufffd', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'replace', 'ab\\ufffe') == ('ab\ufffd', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'replace', 'ab\\ufffe'), ('ab\ufffd', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'backslashreplace', 'ab') == ('ab\\\\x02', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'backslashreplace', 'ab'), ('ab\\\\x02', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'backslashreplace', 'ab\\ufffe') == ('ab\\\\x02', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'backslashreplace', 'ab\\ufffe'), ('ab\\\\x02', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'ignore', 'ab') == ('ab', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'ignore', 'ab'), ('ab', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'ignore', 'ab\\ufffe') == ('ab', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'ignore', 'ab\\ufffe'), ('ab', 3))\n    allbytes = bytes(range(256))\n    assert codecs.charmap_decode(allbytes, 'ignore', '') == ('', len(allbytes)), ('assertEqual', codecs.charmap_decode(allbytes, 'ignore', ''), ('', len(allbytes)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CharmapTest.test_decode_with_int2int_map",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport sys\n\ndef _t():\n    a = ord('a')\n    b = ord('b')\n    c = ord('c')\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'strict', {0: a, 1: b, 2: c}) == ('abc', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'strict', {0: a, 1: b, 2: c}), ('abc', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'strict', {0: 1114111, 1: b, 2: c}) == ('\\U0010ffffbc', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'strict', {0: 1114111, 1: b, 2: c}), ('\\U0010ffffbc', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'strict', {0: sys.maxunicode, 1: b, 2: c}) == (chr(sys.maxunicode) + 'bc', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'strict', {0: sys.maxunicode, 1: b, 2: c}), (chr(sys.maxunicode) + 'bc', 3))\n    try:\n        codecs.charmap_decode(*(b'\\x00\\x01\\x02', 'strict', {0: sys.maxunicode + 1, 1: b, 2: c}))\n    except TypeError:\n        pass\n    try:\n        codecs.charmap_decode(*(b'\\x00\\x01\\x02', 'strict', {0: a, 1: b}))\n    except UnicodeDecodeError:\n        pass\n    try:\n        codecs.charmap_decode(*(b'\\x00\\x01\\x02', 'strict', {0: a, 1: b, 2: 65534}))\n    except UnicodeDecodeError:\n        pass\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'replace', {0: a, 1: b}) == ('ab\ufffd', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'replace', {0: a, 1: b}), ('ab\ufffd', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'replace', {0: a, 1: b, 2: 65534}) == ('ab\ufffd', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'replace', {0: a, 1: b, 2: 65534}), ('ab\ufffd', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'backslashreplace', {0: a, 1: b}) == ('ab\\\\x02', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'backslashreplace', {0: a, 1: b}), ('ab\\\\x02', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'backslashreplace', {0: a, 1: b, 2: 65534}) == ('ab\\\\x02', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'backslashreplace', {0: a, 1: b, 2: 65534}), ('ab\\\\x02', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'ignore', {0: a, 1: b}) == ('ab', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'ignore', {0: a, 1: b}), ('ab', 3))\n    assert codecs.charmap_decode(b'\\x00\\x01\\x02', 'ignore', {0: a, 1: b, 2: 65534}) == ('ab', 3), ('assertEqual', codecs.charmap_decode(b'\\x00\\x01\\x02', 'ignore', {0: a, 1: b, 2: 65534}), ('ab', 3))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WithStmtTest.test_encodedfile",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\n\ndef _t():\n    f = io.BytesIO(b'\\xc3\\xbc')\n    with codecs.EncodedFile(f, 'latin-1', 'utf-8') as ef:\n        assert ef.read() == b'\\xfc', ('assertEqual', ef.read(), b'\\xfc')\n    assert f.closed, ('assertTrue', f.closed)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WithStmtTest.test_streamreaderwriter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\n\ndef is_code_page_present(cp):\n    from ctypes import POINTER, WINFUNCTYPE, WinDLL, Structure\n    from ctypes.wintypes import BOOL, BYTE, WCHAR, UINT, DWORD\n    MAX_LEADBYTES = 12\n    MAX_DEFAULTCHAR = 2\n    MAX_PATH = 260\n\n    class CPINFOEXW(Structure):\n        _fields_ = [('MaxCharSize', UINT), ('DefaultChar', BYTE * MAX_DEFAULTCHAR), ('LeadByte', BYTE * MAX_LEADBYTES), ('UnicodeDefaultChar', WCHAR), ('CodePage', UINT), ('CodePageName', WCHAR * MAX_PATH)]\n    prototype = WINFUNCTYPE(BOOL, UINT, DWORD, POINTER(CPINFOEXW))\n    GetCPInfoEx = prototype(('GetCPInfoExW', WinDLL('kernel32')))\n    info = CPINFOEXW()\n    return GetCPInfoEx(cp, 0, info)\n\ndef _t():\n    f = io.BytesIO(b'\\xc3\\xbc')\n    info = codecs.lookup('utf-8')\n    with codecs.StreamReaderWriter(f, info.streamreader, info.streamwriter, 'strict') as srw:\n        assert srw.read() == '\u00fc', ('assertEqual', srw.read(), '\u00fc')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TypesTest.test_decode_unicode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    decoders = [codecs.utf_7_decode, codecs.utf_8_decode, codecs.utf_16_le_decode, codecs.utf_16_be_decode, codecs.utf_16_ex_decode, codecs.utf_32_decode, codecs.utf_32_le_decode, codecs.utf_32_be_decode, codecs.utf_32_ex_decode, codecs.latin_1_decode, codecs.ascii_decode, codecs.charmap_decode]\n    if hasattr(codecs, 'mbcs_decode'):\n        decoders.append(codecs.mbcs_decode)\n    for decoder in decoders:\n        try:\n            decoder(*('xxx',))\n        except TypeError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TypesTest.test_unicode_escape",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert codecs.unicode_escape_decode('\\\\u1234') == ('\u1234', 6), ('assertEqual', codecs.unicode_escape_decode('\\\\u1234'), ('\u1234', 6))\n    assert codecs.unicode_escape_decode(b'\\\\u1234') == ('\u1234', 6), ('assertEqual', codecs.unicode_escape_decode(b'\\\\u1234'), ('\u1234', 6))\n    assert codecs.raw_unicode_escape_decode('\\\\u1234') == ('\u1234', 6), ('assertEqual', codecs.raw_unicode_escape_decode('\\\\u1234'), ('\u1234', 6))\n    assert codecs.raw_unicode_escape_decode(b'\\\\u1234') == ('\u1234', 6), ('assertEqual', codecs.raw_unicode_escape_decode(b'\\\\u1234'), ('\u1234', 6))\n    try:\n        codecs.unicode_escape_decode(*(b'\\\\U00110000',))\n    except UnicodeDecodeError:\n        pass\n    assert codecs.unicode_escape_decode('\\\\U00110000', 'replace') == ('\ufffd', 10), ('assertEqual', codecs.unicode_escape_decode('\\\\U00110000', 'replace'), ('\ufffd', 10))\n    assert codecs.unicode_escape_decode('\\\\U00110000', 'backslashreplace') == ('\\\\x5c\\\\x55\\\\x30\\\\x30\\\\x31\\\\x31\\\\x30\\\\x30\\\\x30\\\\x30', 10), ('assertEqual', codecs.unicode_escape_decode('\\\\U00110000', 'backslashreplace'), ('\\\\x5c\\\\x55\\\\x30\\\\x30\\\\x31\\\\x31\\\\x30\\\\x30\\\\x30\\\\x30', 10))\n    try:\n        codecs.raw_unicode_escape_decode(*(b'\\\\U00110000',))\n    except UnicodeDecodeError:\n        pass\n    assert codecs.raw_unicode_escape_decode('\\\\U00110000', 'replace') == ('\ufffd', 10), ('assertEqual', codecs.raw_unicode_escape_decode('\\\\U00110000', 'replace'), ('\ufffd', 10))\n    assert codecs.raw_unicode_escape_decode('\\\\U00110000', 'backslashreplace') == ('\\\\x5c\\\\x55\\\\x30\\\\x30\\\\x31\\\\x31\\\\x30\\\\x30\\\\x30\\\\x30', 10), ('assertEqual', codecs.raw_unicode_escape_decode('\\\\U00110000', 'backslashreplace'), ('\\\\x5c\\\\x55\\\\x30\\\\x30\\\\x31\\\\x31\\\\x30\\\\x30\\\\x30\\\\x30', 10))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UnicodeEscapeTest.test_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert codecs.unicode_escape_encode('') == (b'', 0), ('assertEqual', codecs.unicode_escape_encode(''), (b'', 0))\n    assert codecs.unicode_escape_decode(b'') == ('', 0), ('assertEqual', codecs.unicode_escape_decode(b''), ('', 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UnicodeEscapeTest.test_raw_encode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    encode = codecs.unicode_escape_encode\n    for b in range(32, 127):\n        if b != b'\\\\'[0]:\n            assert encode(chr(b)) == (bytes([b]), 1), ('assertEqual', encode(chr(b)), (bytes([b]), 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UnicodeEscapeTest.test_raw_decode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    decode = codecs.unicode_escape_decode\n    for b in range(256):\n        if b != b'\\\\'[0]:\n            assert decode(bytes([b]) + b'0') == (chr(b) + '0', 2), ('assertEqual', decode(bytes([b]) + b'0'), (chr(b) + '0', 2))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UnicodeEscapeTest.test_escape_encode",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "UnicodeEscapeTest.test_escape_decode",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "UnicodeEscapeTest.test_decode_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    decode = codecs.unicode_escape_decode\n    for c, d in ((b'x', 2), (b'u', 4), (b'U', 4)):\n        for i in range(d):\n            try:\n                decode(*(b'\\\\' + c + b'0' * i,))\n            except UnicodeDecodeError:\n                pass\n            try:\n                decode(*(b'[\\\\' + c + b'0' * i + b']',))\n            except UnicodeDecodeError:\n                pass\n            data = b'[\\\\' + c + b'0' * i + b']\\\\' + c + b'0' * i\n            assert decode(data, 'ignore') == ('[]', len(data)), ('assertEqual', decode(data, 'ignore'), ('[]', len(data)))\n            assert decode(data, 'replace') == ('[\ufffd]\ufffd', len(data)), ('assertEqual', decode(data, 'replace'), ('[\ufffd]\ufffd', len(data)))\n    try:\n        decode(*(b'\\\\U00110000',))\n    except UnicodeDecodeError:\n        pass\n    assert decode(b'\\\\U00110000', 'ignore') == ('', 10), ('assertEqual', decode(b'\\\\U00110000', 'ignore'), ('', 10))\n    assert decode(b'\\\\U00110000', 'replace') == ('\ufffd', 10), ('assertEqual', decode(b'\\\\U00110000', 'replace'), ('\ufffd', 10))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "RawUnicodeEscapeTest.test_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    assert codecs.raw_unicode_escape_encode('') == (b'', 0), ('assertEqual', codecs.raw_unicode_escape_encode(''), (b'', 0))\n    assert codecs.raw_unicode_escape_decode(b'') == ('', 0), ('assertEqual', codecs.raw_unicode_escape_decode(b''), ('', 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "RawUnicodeEscapeTest.test_raw_encode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    encode = codecs.raw_unicode_escape_encode\n    for b in range(256):\n        assert encode(chr(b)) == (bytes([b]), 1), ('assertEqual', encode(chr(b)), (bytes([b]), 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "RawUnicodeEscapeTest.test_raw_decode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    decode = codecs.raw_unicode_escape_decode\n    for b in range(256):\n        assert decode(bytes([b]) + b'0') == (chr(b) + '0', 2), ('assertEqual', decode(bytes([b]) + b'0'), (chr(b) + '0', 2))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "RawUnicodeEscapeTest.test_escape_encode",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "RawUnicodeEscapeTest.test_escape_decode",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "RawUnicodeEscapeTest.test_decode_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    decode = codecs.raw_unicode_escape_decode\n    for c, d in ((b'u', 4), (b'U', 4)):\n        for i in range(d):\n            try:\n                decode(*(b'\\\\' + c + b'0' * i,))\n            except UnicodeDecodeError:\n                pass\n            try:\n                decode(*(b'[\\\\' + c + b'0' * i + b']',))\n            except UnicodeDecodeError:\n                pass\n            data = b'[\\\\' + c + b'0' * i + b']\\\\' + c + b'0' * i\n            assert decode(data, 'ignore') == ('[]', len(data)), ('assertEqual', decode(data, 'ignore'), ('[]', len(data)))\n            assert decode(data, 'replace') == ('[\ufffd]\ufffd', len(data)), ('assertEqual', decode(data, 'replace'), ('[\ufffd]\ufffd', len(data)))\n    try:\n        decode(*(b'\\\\U00110000',))\n    except UnicodeDecodeError:\n        pass\n    assert decode(b'\\\\U00110000', 'ignore') == ('', 10), ('assertEqual', decode(b'\\\\U00110000', 'ignore'), ('', 10))\n    assert decode(b'\\\\U00110000', 'replace') == ('\ufffd', 10), ('assertEqual', decode(b'\\\\U00110000', 'replace'), ('\ufffd', 10))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SurrogateEscapeTest.test_utf8",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert b'foo\\x80bar'.decode('utf-8', 'surrogateescape') == 'foo\\udc80bar', ('assertEqual', b'foo\\x80bar'.decode('utf-8', 'surrogateescape'), 'foo\\udc80bar')\n    assert 'foo\\udc80bar'.encode('utf-8', 'surrogateescape') == b'foo\\x80bar', ('assertEqual', 'foo\\udc80bar'.encode('utf-8', 'surrogateescape'), b'foo\\x80bar')\n    assert b'\\xed\\xb0\\x80'.decode('utf-8', 'surrogateescape') == '\\udced\\udcb0\\udc80', ('assertEqual', b'\\xed\\xb0\\x80'.decode('utf-8', 'surrogateescape'), '\\udced\\udcb0\\udc80')\n    assert '\\udced\\udcb0\\udc80'.encode('utf-8', 'surrogateescape') == b'\\xed\\xb0\\x80', ('assertEqual', '\\udced\\udcb0\\udc80'.encode('utf-8', 'surrogateescape'), b'\\xed\\xb0\\x80')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SurrogateEscapeTest.test_ascii",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert b'foo\\x80bar'.decode('ascii', 'surrogateescape') == 'foo\\udc80bar', ('assertEqual', b'foo\\x80bar'.decode('ascii', 'surrogateescape'), 'foo\\udc80bar')\n    assert 'foo\\udc80bar'.encode('ascii', 'surrogateescape') == b'foo\\x80bar', ('assertEqual', 'foo\\udc80bar'.encode('ascii', 'surrogateescape'), b'foo\\x80bar')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SurrogateEscapeTest.test_charmap",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert b'foo\\xa5bar'.decode('iso-8859-3', 'surrogateescape') == 'foo\\udca5bar', ('assertEqual', b'foo\\xa5bar'.decode('iso-8859-3', 'surrogateescape'), 'foo\\udca5bar')\n    assert 'foo\\udca5bar'.encode('iso-8859-3', 'surrogateescape') == b'foo\\xa5bar', ('assertEqual', 'foo\\udca5bar'.encode('iso-8859-3', 'surrogateescape'), b'foo\\xa5bar')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SurrogateEscapeTest.test_latin1",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert '\\udce4\\udceb\\udcef\\udcf6\\udcfc'.encode('latin-1', 'surrogateescape') == b'\\xe4\\xeb\\xef\\xf6\\xfc', ('assertEqual', '\\udce4\\udceb\\udcef\\udcf6\\udcfc'.encode('latin-1', 'surrogateescape'), b'\\xe4\\xeb\\xef\\xf6\\xfc')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TransformCodecTest.test_text_to_binary_denylists_text_transforms",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    msg = \"^'rot_13' is not a text encoding; use codecs.encode\\\\(\\\\) to handle arbitrary codecs\"\n    try:\n        'just an example message'.encode('rot_13')\n    except LookupError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TransformCodecTest.test_alias_modules_exist",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: module 'importlib' has no attribute 'util'"
+    },
+    {
+      "ident": "TransformCodecTest.test_quopri_stateless",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    encoded = codecs.encode(b'space tab\\teol \\n', 'quopri-codec')\n    assert encoded == b'space=20tab=09eol=20\\n', ('assertEqual', encoded, b'space=20tab=09eol=20\\n')\n    unescaped = b'space tab eol\\n'\n    assert codecs.decode(unescaped, 'quopri-codec') == unescaped, ('assertEqual', codecs.decode(unescaped, 'quopri-codec'), unescaped)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TransformCodecTest.test_uu_invalid",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    try:\n        codecs.decode(*(b'', 'uu-codec'))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ASCIITest.test_encode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert 'abc123'.encode('ascii') == b'abc123', ('assertEqual', 'abc123'.encode('ascii'), b'abc123')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ASCIITest.test_encode_surrogateescape_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        '\\udc80\u00ff'.encode('ascii', 'surrogateescape')\n    except UnicodeEncodeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ASCIITest.test_decode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert b'abc'.decode('ascii') == 'abc', ('assertEqual', b'abc'.decode('ascii'), 'abc')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Latin1Test.test_encode_surrogateescape_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        '\\udc80\u20ac'.encode('latin1', 'surrogateescape')\n    except UnicodeEncodeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StreamRecoderTest.test_writelines",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\nimport encodings\n\ndef _t():\n    bio = io.BytesIO()\n    codec = codecs.lookup('ascii')\n    sr = codecs.StreamRecoder(bio, codec.encode, codec.decode, encodings.ascii.StreamReader, encodings.ascii.StreamWriter)\n    sr.writelines([b'a', b'b'])\n    assert bio.getvalue() == b'ab', ('assertEqual', bio.getvalue(), b'ab')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StreamRecoderTest.test_write",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\nimport encodings\n\ndef _t():\n    bio = io.BytesIO()\n    codec = codecs.lookup('latin1')\n    sr = codecs.StreamRecoder(bio, codec.encode, codec.decode, encodings.utf_8.StreamReader, encodings.utf_8.StreamWriter)\n    text = '\u00e0\u00f1\u00e9'\n    sr.write(text.encode('latin1'))\n    assert bio.getvalue() == text.encode('utf-8'), ('assertEqual', bio.getvalue(), text.encode('utf-8'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StreamRecoderTest.test_seeking_read",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\n\ndef _t():\n    bio = io.BytesIO('line1\\nline2\\nline3\\n'.encode('utf-16-le'))\n    sr = codecs.EncodedFile(bio, 'utf-8', 'utf-16-le')\n    assert sr.readline() == b'line1\\n', ('assertEqual', sr.readline(), b'line1\\n')\n    sr.seek(0)\n    assert sr.readline() == b'line1\\n', ('assertEqual', sr.readline(), b'line1\\n')\n    assert sr.readline() == b'line2\\n', ('assertEqual', sr.readline(), b'line2\\n')\n    assert sr.readline() == b'line3\\n', ('assertEqual', sr.readline(), b'line3\\n')\n    assert sr.readline() == b'', ('assertEqual', sr.readline(), b'')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StreamRecoderTest.test_seeking_write",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\nimport io\n\ndef _t():\n    bio = io.BytesIO('123456789\\n'.encode('utf-16-le'))\n    sr = codecs.EncodedFile(bio, 'utf-8', 'utf-16-le')\n    sr.seek(2)\n    sr.write(b'\\nabc\\n')\n    assert sr.readline() == b'789\\n', ('assertEqual', sr.readline(), b'789\\n')\n    sr.seek(0)\n    assert sr.readline() == b'1\\n', ('assertEqual', sr.readline(), b'1\\n')\n    assert sr.readline() == b'abc\\n', ('assertEqual', sr.readline(), b'abc\\n')\n    assert sr.readline() == b'789\\n', ('assertEqual', sr.readline(), b'789\\n')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StreamRecoderTest.test_copy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport codecs\nimport copy\nimport io\nimport encodings\n\ndef _t():\n    bio = io.BytesIO()\n    codec = codecs.lookup('ascii')\n    sr = codecs.StreamRecoder(bio, codec.encode, codec.decode, encodings.ascii.StreamReader, encodings.ascii.StreamWriter)\n    try:\n        copy.copy(sr)\n    except TypeError as _exc:\n        assert _re.search('StreamRecoder', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        copy.deepcopy(sr)\n    except TypeError as _exc:\n        assert _re.search('StreamRecoder', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Rot13Test.test_encode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    ciphertext = codecs.encode('Caesar liked ciphers', 'rot-13')\n    assert ciphertext == 'Pnrfne yvxrq pvcuref', ('assertEqual', ciphertext, 'Pnrfne yvxrq pvcuref')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Rot13Test.test_decode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    plaintext = codecs.decode('Rg gh, Oehgr?', 'rot-13')\n    assert plaintext == 'Et tu, Brute?', ('assertEqual', plaintext, 'Et tu, Brute?')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Rot13Test.test_incremental_encode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    encoder = codecs.getincrementalencoder('rot-13')()\n    ciphertext = encoder.encode('ABBA nag Cheryl Baker')\n    assert ciphertext == 'NOON ant Purely Onxre', ('assertEqual', ciphertext, 'NOON ant Purely Onxre')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Rot13Test.test_incremental_decode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import codecs\n\ndef _t():\n    decoder = codecs.getincrementaldecoder('rot-13')()\n    plaintext = decoder.decode('terra Ares envy tha')\n    assert plaintext == 'green Nerf rail gun', ('assertEqual', plaintext, 'green Nerf rail gun')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Rot13UtilTest.test_rot13_func",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import io\n\ndef _t():\n    from encodings.rot_13 import rot13\n    infile = io.StringIO('Gb or, be abg gb or, gung vf gur dhrfgvba')\n    outfile = io.StringIO()\n    rot13(infile, outfile)\n    outfile.seek(0)\n    plain_text = outfile.read()\n    assert plain_text == 'To be, or not to be, that is the question', ('assertEqual', plain_text, 'To be, or not to be, that is the question')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecNameNormalizationTest.test_encodings_normalize_encoding",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import encodings\n\ndef _t():\n    normalize = encodings.normalize_encoding\n    assert normalize('utf_8') == 'utf_8', ('assertEqual', normalize('utf_8'), 'utf_8')\n    assert normalize('utf\u00e9\u20ac\\U0010ffff-8') == 'utf_8', ('assertEqual', normalize('utf\u00e9\u20ac\\U0010ffff-8'), 'utf_8')\n    assert normalize('utf   8') == 'utf_8', ('assertEqual', normalize('utf   8'), 'utf_8')\n    assert normalize('UTF 8') == 'UTF_8', ('assertEqual', normalize('UTF 8'), 'UTF_8')\n    assert normalize('utf.8') == 'utf.8', ('assertEqual', normalize('utf.8'), 'utf.8')\n    assert normalize('utf...8') == 'utf...8', ('assertEqual', normalize('utf...8'), 'utf...8')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodecCacheTest.test_cache_bounded",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import encodings\n\ndef _t():\n    for i in range(encodings._MAXCACHE + 1000):\n        try:\n            b'x'.decode(f'nonexist_{i}')\n        except LookupError:\n            pass\n    assert len(encodings._cache) <= encodings._MAXCACHE, ('assertLessEqual', len(encodings._cache), encodings._MAXCACHE)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "CodecsModuleTest.test_lookup_issue1813",
+      "reason": "decorator:support.run_with_locale"
+    },
+    {
+      "ident": "BasicUnicodeTest.test_basics_capi",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "TransformCodecTest.test_custom_zlib_error_is_noted",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_invalid_code_page",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_code_page_name",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_cp932",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_cp1252",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_cp708",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_cp20106",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_cp_utf7",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_multibyte_encoding",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_code_page_decode_flags",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_incremental",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_mbcs_code_page",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_large_input",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodePageTest.test_large_utf8_input",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "LocaleCodecTest.test_encode_strict",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LocaleCodecTest.test_encode_surrogateescape",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LocaleCodecTest.test_encode_surrogatepass",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LocaleCodecTest.test_encode_unsupported_error_handler",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LocaleCodecTest.test_decode_strict",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LocaleCodecTest.test_decode_surrogateescape",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LocaleCodecTest.test_decode_surrogatepass",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LocaleCodecTest.test_decode_unsupported_error_handler",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "ReadTest.test_readline",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "ReadTest.test_mixed_readline_and_read",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "ReadTest.test_bug1175396",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "ReadTest.test_readlinequeue",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "ReadTest.test_bug1098990_a",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "ReadTest.test_bug1098990_b",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "ReadTest.test_lone_surrogates",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "ReadTest.test_incremental_surrogatepass",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF32Test.test_only_one_bom",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF32Test.test_badbom",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF32Test.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "UTF32Test.test_decoder_state",
+      "reason": "self.check_state_handling_decode"
+    },
+    {
+      "ident": "UTF32LETest.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "UTF32LETest.test_simple",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF32BETest.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "UTF32BETest.test_simple",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF16Test.test_only_one_bom",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF16Test.test_badbom",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF16Test.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "UTF16Test.test_decoder_state",
+      "reason": "self.check_state_handling_decode"
+    },
+    {
+      "ident": "UTF16Test.test_bug691291",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "UTF16Test.test_invalid_modes",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF16LETest.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "UTF16LETest.test_nonbmp",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF16BETest.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "UTF16BETest.test_nonbmp",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF8Test.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "UTF8Test.test_decoder_state",
+      "reason": "self.check_state_handling_decode"
+    },
+    {
+      "ident": "UTF8Test.test_decode_error",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "UTF8Test.test_lone_surrogates",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF8Test.test_surrogatepass_handler",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF8Test.test_incremental_errors",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "UTF7Test.test_ascii",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF7Test.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "UTF7Test.test_errors",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "UTF7Test.test_nonbmp",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "ident": "UTF7Test.test_lone_surrogates",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "UTF8SigTest.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "EscapeDecodeTest.test_warnings",
+      "reason": "uses-self.assertWarnsRegex"
+    },
+    {
+      "ident": "PunycodeTest.test_decode_invalid",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "IDNACodecTest.test_builtin_decode_invalid",
+      "reason": "uses-self.invalid_decode_testcases"
+    },
+    {
+      "ident": "IDNACodecTest.test_builtin_encode_invalid",
+      "reason": "uses-self.invalid_encode_testcases"
+    },
+    {
+      "ident": "IDNACodecTest.test_incremental_decode_invalid",
+      "reason": "uses-self.invalid_decode_testcases"
+    },
+    {
+      "ident": "IDNACodecTest.test_incremental_encode_invalid",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "CodecsModuleTest.test_open",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "CodecsModuleTest.test_pickle",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "StreamReaderTest.test_readlines",
+      "reason": "uses-self.reader"
+    },
+    {
+      "ident": "StreamReaderTest.test_copy",
+      "reason": "uses-self.reader"
+    },
+    {
+      "ident": "StreamReaderTest.test_pickle",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "StreamWriterTest.test_copy",
+      "reason": "uses-self.writer"
+    },
+    {
+      "ident": "StreamWriterTest.test_pickle",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "StreamReaderWriterTest.test_copy",
+      "reason": "uses-self.reader"
+    },
+    {
+      "ident": "StreamReaderWriterTest.test_pickle",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "BasicUnicodeTest.test_basics",
+      "reason": "unresolved-name:Queue"
+    },
+    {
+      "ident": "BasicUnicodeTest.test_decoder_state",
+      "reason": "self.check_state_handling_decode"
+    },
+    {
+      "ident": "CharmapTest.test_decode_with_int2str_map",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "UnicodeEscapeTest.test_decode_warnings",
+      "reason": "uses-self.assertWarnsRegex"
+    },
+    {
+      "ident": "UnicodeEscapeTest.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "RawUnicodeEscapeTest.test_partial",
+      "reason": "self.check_partial"
+    },
+    {
+      "ident": "EscapeEncodeTest.test_escape_encode",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "BomTest.test_seek0",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "TransformCodecTest.test_basics",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "TransformCodecTest.test_read",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "TransformCodecTest.test_readline",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "TransformCodecTest.test_buffer_api_usage",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "TransformCodecTest.test_text_to_binary_denylists_binary_transforms",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "TransformCodecTest.test_binary_to_text_denylists_binary_transforms",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "TransformCodecTest.test_binary_to_text_denylists_text_transforms",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "TransformCodecTest.test_custom_hex_error_is_noted",
+      "reason": "unresolved-name:failure"
+    },
+    {
+      "ident": "TransformCodecTest.test_aliases",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_raise_by_type",
+      "reason": "self.check_note"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_raise_by_value",
+      "reason": "self.check_note"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_raise_grandchild_subclass_exact_size",
+      "reason": "self.check_note"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_raise_subclass_with_weakref_support",
+      "reason": "self.check_note"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_init_override",
+      "reason": "self.check_note"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_new_override",
+      "reason": "self.check_note"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_instance_attribute",
+      "reason": "self.check_note"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_non_str_arg",
+      "reason": "self.check_note"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_multiple_args",
+      "reason": "self.check_note"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_codec_lookup_failure",
+      "reason": "uses-self.codec_name"
+    },
+    {
+      "ident": "ExceptionNotesTest.test_unflagged_non_text_codec_handling",
+      "reason": "self.set_codec"
+    },
+    {
+      "ident": "ASCIITest.test_encode_error",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "ASCIITest.test_decode_error",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "Latin1Test.test_encode",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "Latin1Test.test_encode_errors",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "Latin1Test.test_decode",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "StreamRecoderTest.test_pickle",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "CodecNameNormalizationTest.test_codecs_lookup",
+      "reason": "self.addCleanup"
+    }
+  ],
+  "counts": {
+    "extracted": 207,
+    "pinned": 89,
+    "quarantined": 118
+  }
+}
