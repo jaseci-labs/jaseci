@@ -318,123 +318,6 @@ obj P2SupportSortdictFn(PyObj) {
     }
 }
 
-obj P2LibtestJsonDumpsFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(args) < 1 {
-            return py_error("TypeError", "dumps expected at least 1 argument, got 0");
-        }
-        try {
-            encoded = dumps(
-            to_host(args[0]),
-            _p2_json_kwbool(kwargs, "skipkeys", False),
-            _p2_json_kwbool(kwargs, "ensure_ascii", True),
-            _p2_json_kwbool(kwargs, "check_circular", True),
-            _p2_json_kwbool(kwargs, "allow_nan", True),
-            to_host(_p2_json_kwarg(kwargs, "indent")),
-            to_host(_p2_json_kwarg(kwargs, "separators")),
-            to_host(_p2_json_kwarg(kwargs, "default")),
-            _p2_json_kwbool(kwargs, "sort_keys", False),
-        );
-            return PyStr(t="str", val=encoded);
-        } except ValueError as e {
-            return py_error("ValueError", str(e));
-        } except TypeError as e {
-            return py_error("TypeError", str(e));
-        }
-    }
-}
-
-obj P2LibtestJsonLoadsFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(args) < 1 {
-            return py_error("TypeError", "loads expected at least 1 argument, got 0");
-        }
-        try {
-            decoded = loads(
-                to_host(args[0]),
-                to_host(_p2_json_kwarg(kwargs, "object_hook")),
-                to_host(_p2_json_kwarg(kwargs, "parse_float")),
-                to_host(_p2_json_kwarg(kwargs, "parse_int")),
-                to_host(_p2_json_kwarg(kwargs, "parse_constant")),
-                to_host(_p2_json_kwarg(kwargs, "object_pairs_hook")),
-            );
-        } except ValueError as e {
-            return py_error("ValueError", str(e));
-        } except TypeError as e {
-            return py_error("TypeError", str(e));
-        }
-        return from_host(decoded);
-    }
-}
-
-obj P2LibtestCollectionsCtor(PyObj) {
-    # Builds a native collections object and hands the VM a proxy around it;
-    # every subsequent method/subscript/repr routes back through the facade.
-    has kind: str;
-
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if self.kind == "deque" {
-            iterable: any = None;
-            if len(args) > 0 and args[0].t != "none" {
-                iterable = to_host(args[0]);
-            }
-            maxlen: any = None;
-            if "maxlen" in kwargs and kwargs["maxlen"].t != "none" {
-                maxlen = to_host(kwargs["maxlen"]);
-            }
-            return from_host(_p2_deque(iterable, maxlen));
-        }
-        if self.kind == "defaultdict" {
-            factory: any = None;
-            if len(args) > 0 and args[0].t != "none" {
-                factory = to_host(args[0]);
-            }
-            initial: any = None;
-            if len(args) > 1 {
-                initial = to_host(args[1]);
-            }
-            return from_host(_p2_defaultdict(factory, initial));
-        }
-        if self.kind == "Counter" or self.kind == "OrderedDict" {
-            initial: any = None;
-            if len(args) > 0 and args[0].t != "none" {
-                initial = to_host(args[0]);
-            }
-            # Keyword counts/entries share the mapping-update path.
-            kw: dict[str, any] = {};
-            for k in kwargs.keys() {
-                kw[k] = to_host(kwargs[k]);
-            }
-            if self.kind == "Counter" {
-                built: any = _p2_counter(initial);
-                if len(kw) > 0 {
-                    built.update(kw);
-                }
-            } else {
-                built = _p2_ordereddict(initial);
-                if len(kw) > 0 {
-                    built.update(kw);
-                }
-            }
-            return from_host(built);
-        }
-        # namedtuple(typename, field_names, rename=..., defaults=...)
-        typename = to_host(args[0]);
-        field_names = to_host(args[1]);
-        rename: bool = False;
-        defaults: any = None;
-        if "rename" in kwargs and kwargs["rename"].t == "bool" {
-            rename = (kwargs["rename"] as PyBool).val;
-        }
-        if "defaults" in kwargs and kwargs["defaults"].t != "none" {
-            defaults = to_host(kwargs["defaults"]);
-        }
-        return from_host(
-            _p2_namedtuple(typename, field_names, rename, defaults));
-    }
-}
-
-
 obj P2LibtestBisectRightFn(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) < 2 {
@@ -517,33 +400,6 @@ obj P2LibtestInsortLeftFn(PyObj) {
     }
 }
 
-obj P2LibtestHeappushFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(args) < 2 {
-            return py_error("TypeError", "missing arguments");
-        }
-        heap = args[0] as PyList;
-        item = args[1];
-        host_heap = to_host(heap);
-        _p2_heappush(host_heap, to_host(item));
-        _p2_sync_pylist_from_host(heap, host_heap);
-        return py_none();
-    }
-}
-
-obj P2LibtestHeappopFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(args) < 1 {
-            return py_error("TypeError", "missing arguments");
-        }
-        heap = args[0] as PyList;
-        host_heap = to_host(heap);
-        got = _p2_heappop(host_heap);
-        _p2_sync_pylist_from_host(heap, host_heap);
-        return from_host(got);
-    }
-}
-
 # heapq.nlargest(n, iterable, key=None): CPython documents the result as
 # equivalent to sorted(iterable, key=key, reverse=True)[:n], which is exactly
 # what libtest snippets need (difflib.get_close_matches consumes it).
@@ -586,114 +442,11 @@ obj P2LibtestNlargestFn(PyObj) {
     }
 }
 
-obj P2LibtestHeapifyFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(args) < 1 {
-            return py_error("TypeError", "missing arguments");
-        }
-        heap = args[0] as PyList;
-        host_heap = to_host(heap);
-        _p2_heapify(host_heap);
-        _p2_sync_pylist_from_host(heap, host_heap);
-        return py_none();
-    }
-}
-
 def _p2_single_int_arg(args: list[PyObj]) -> PyObj {
     if len(args) != 1 or not isinstance(args[0], PyInt) {
         return py_error("TypeError", "expected exactly one int argument");
     }
     return args[0];
-}
-
-obj P2StatSIsDirFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        arg: PyObj = _p2_single_int_arg(args);
-        if is_error(arg) { return arg; }
-        got: bool = _p2_S_ISDIR((arg as PyInt).val);
-        return PyBool(t="bool", val=got);
-    }
-}
-
-obj P2StatSIsChrFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        arg: PyObj = _p2_single_int_arg(args);
-        if is_error(arg) { return arg; }
-        got: bool = _p2_S_ISCHR((arg as PyInt).val);
-        return PyBool(t="bool", val=got);
-    }
-}
-
-obj P2StatSIsBlkFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        arg: PyObj = _p2_single_int_arg(args);
-        if is_error(arg) { return arg; }
-        got: bool = _p2_S_ISBLK((arg as PyInt).val);
-        return PyBool(t="bool", val=got);
-    }
-}
-
-obj P2StatSIsRegFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        arg: PyObj = _p2_single_int_arg(args);
-        if is_error(arg) { return arg; }
-        got: bool = _p2_S_ISREG((arg as PyInt).val);
-        return PyBool(t="bool", val=got);
-    }
-}
-
-obj P2StatSIsFifoFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        arg: PyObj = _p2_single_int_arg(args);
-        if is_error(arg) { return arg; }
-        got: bool = _p2_S_ISFIFO((arg as PyInt).val);
-        return PyBool(t="bool", val=got);
-    }
-}
-
-obj P2StatSIsLnkFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        arg: PyObj = _p2_single_int_arg(args);
-        if is_error(arg) { return arg; }
-        got: bool = _p2_S_ISLNK((arg as PyInt).val);
-        return PyBool(t="bool", val=got);
-    }
-}
-
-obj P2StatSIsSockFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        arg: PyObj = _p2_single_int_arg(args);
-        if is_error(arg) { return arg; }
-        got: bool = _p2_S_ISSOCK((arg as PyInt).val);
-        return PyBool(t="bool", val=got);
-    }
-}
-
-obj P2StatSImodeFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        arg: PyObj = _p2_single_int_arg(args);
-        if is_error(arg) { return arg; }
-        got: int = _p2_S_IMODE((arg as PyInt).val);
-        return PyInt(t="int", val=got);
-    }
-}
-
-obj P2StatSIfmtFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        arg: PyObj = _p2_single_int_arg(args);
-        if is_error(arg) { return arg; }
-        got: int = _p2_S_IFMT((arg as PyInt).val);
-        return PyInt(t="int", val=got);
-    }
-}
-
-obj P2StatFilemodeFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        arg: PyObj = _p2_single_int_arg(args);
-        if is_error(arg) { return arg; }
-        got: str = _p2_filemode((arg as PyInt).val);
-        return PyStr(t="str", val=got);
-    }
 }
 
 # ---- wave 20: functools facade shims ---------------------------------------
@@ -706,89 +459,6 @@ obj P2StatFilemodeFn(PyObj) {
 # which the VM cannot mint yet (call_user_dunder binds only real functions).
 # The itertools facade is likewise parity-suite-gated only: its lazy (often
 # infinite) iterators cannot survive GET_ITER's eager host drain.
-
-obj P2LibReduceFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(kwargs) > 0 {
-            return py_error("TypeError", "reduce() takes no keyword arguments");
-        }
-        if len(args) < 2 {
-            return py_error(
-                "TypeError",
-                "reduce expected at least 2 arguments, got " + str(len(args)),
-            );
-        }
-        if len(args) > 3 {
-            return py_error(
-                "TypeError",
-                "reduce expected at most 3 arguments, got " + str(len(args)),
-            );
-        }
-        fn_h: any = to_host(args[0]);
-        seq_h: any = to_host(args[1]);
-        try {
-            if len(args) == 3 {
-                got: any = _p2_reduce(fn_h, seq_h, to_host(args[2]));
-            } else {
-                got = _p2_reduce(fn_h, seq_h);
-            }
-        } except TypeError as e {
-            return py_error("TypeError", str(e));
-        }
-        return from_host(got);
-    }
-}
-
-obj P2LibPartialFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(args) == 0 {
-            return py_error("TypeError", "partial expected at least 1 argument, got 0");
-        }
-        pos_h: list = [];
-        for i in range(1, len(args)) {
-            pos_h.append(to_host(args[i]));
-        }
-        kw_h: dict = {};
-        for key in kwargs {
-            kw_h[key] = to_host(kwargs[key]);
-        }
-        made = _p2_partial(to_host(args[0]), tuple(pos_h), kw_h);
-        return from_host(made);
-    }
-}
-
-obj P2LibLruCacheFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        typed_h: any = False;
-        if "typed" in kwargs {
-            tv: PyObj = kwargs["typed"];
-            typed_h = to_host(tv);
-        }
-        if len(args) == 1 {
-            # Single positional: function (apply now) or maxsize (decorator).
-            made = _p2_lru_cache(to_host(args[0]), typed_h);
-            return from_host(made);
-        }
-        maxsize_h: any = 128;
-        if len(args) == 2 {
-            maxsize_h = to_host(args[0]);
-        } elif "maxsize" in kwargs {
-            maxsize_h = to_host(kwargs["maxsize"]);
-        }
-        deco = _p2_lru_cache(maxsize_h, typed_h);
-        return from_host(deco);
-    }
-}
-
-obj P2LibCmpToKeyFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(args) != 1 {
-            return py_error("TypeError", "cmp_to_key expected exactly 1 argument");
-        }
-        made = _p2_cmp_to_key(to_host(args[0]));
-        return from_host(made);
-    }
-}
 
 # Native update_wrapper over PyObj: copies WRAPPER_ASSIGNMENTS that exist on
 # the wrapped object, merges __dict__, sets __wrapped__ last.
@@ -828,15 +498,6 @@ def _p2_lib_native_update_wrapper(wrapper: PyObj, wrapped: PyObj) -> PyObj {
     return wrapper;
 }
 
-obj P2LibUpdateWrapperFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(args) != 2 {
-            return py_error("TypeError", "update_wrapper expected 2 arguments");
-        }
-        return _p2_lib_native_update_wrapper(args[0], args[1]);
-    }
-}
-
 obj P2LibWrapsDecorator(PyObj) {
     has wrapped: PyObj;
 
@@ -845,16 +506,6 @@ obj P2LibWrapsDecorator(PyObj) {
             return py_error("TypeError", "wraps() expects one wrapper function");
         }
         return _p2_lib_native_update_wrapper(args[0], self.wrapped);
-    }
-}
-
-obj P2LibWrapsFn(PyObj) {
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(args) != 1 {
-            return py_error("TypeError", "wraps expected exactly 1 argument");
-        }
-        deco = P2LibWrapsDecorator(t="function", wrapped=args[0]);
-        return deco;
     }
 }
 
@@ -1113,62 +764,6 @@ def p2_libtest_reset {
     register_shim_module(
         "test", PyModule(t="module", name="test", attrs={"support": support_mod})
     );
-    heapq_attrs: dict[str, PyObj] = {
-        "heappush": P2LibtestHeappushFn(t="function"),
-        "heappop": P2LibtestHeappopFn(t="function"),
-        "heapify": P2LibtestHeapifyFn(t="function"),
-        "nlargest": P2LibtestNlargestFn(t="function"),
-    };
-    register_shim_module(
-        "heapq", PyModule(t="module", name="heapq", attrs=heapq_attrs)
-    );
-    json_attrs: dict[str, PyObj] = {
-        "dumps": P2LibtestJsonDumpsFn(t="function"),
-        "loads": P2LibtestJsonLoadsFn(t="function"),
-    };
-    register_shim_module(
-        "json", PyModule(t="module", name="json", attrs=json_attrs)
-    );
-    collections_attrs: dict[str, PyObj] = {
-        "deque": P2LibtestCollectionsCtor(t="function", kind="deque"),
-        "defaultdict": P2LibtestCollectionsCtor(
-            t="function", kind="defaultdict"
-        ),
-        "Counter": P2LibtestCollectionsCtor(t="function", kind="Counter"),
-        "OrderedDict": P2LibtestCollectionsCtor(
-            t="function", kind="OrderedDict"
-        ),
-        "namedtuple": P2LibtestCollectionsCtor(
-            t="function", kind="namedtuple"
-        ),
-    };
-    register_shim_module(
-        "collections",
-        PyModule(t="module", name="collections", attrs=collections_attrs),
-    );
-    stat_attrs: dict[str, PyObj] = {
-        "S_ISDIR": P2StatSIsDirFn(t="function"),
-        "S_ISCHR": P2StatSIsChrFn(t="function"),
-        "S_ISBLK": P2StatSIsBlkFn(t="function"),
-        "S_ISREG": P2StatSIsRegFn(t="function"),
-        "S_ISFIFO": P2StatSIsFifoFn(t="function"),
-        "S_ISLNK": P2StatSIsLnkFn(t="function"),
-        "S_ISSOCK": P2StatSIsSockFn(t="function"),
-        "S_IMODE": P2StatSImodeFn(t="function"),
-        "S_IFMT": P2StatSIfmtFn(t="function"),
-        "filemode": P2StatFilemodeFn(t="function"),
-        "S_IFMT_": PyInt(t="int", val=0o170000),
-        "S_IFDIR": PyInt(t="int", val=S_IFDIR),
-        "S_IFCHR": PyInt(t="int", val=S_IFCHR),
-        "S_IFBLK": PyInt(t="int", val=S_IFBLK),
-        "S_IFREG": PyInt(t="int", val=S_IFREG),
-        "S_IFIFO": PyInt(t="int", val=S_IFIFO),
-        "S_IFLNK": PyInt(t="int", val=S_IFLNK),
-        "S_IFSOCK": PyInt(t="int", val=S_IFSOCK),
-    };
-    register_shim_module(
-        "stat", PyModule(t="module", name="stat", attrs=stat_attrs)
-    );
     opcode_attrs: dict[str, PyObj] = {
         "stack_effect": P2OpcodeStackEffectFn(t="function"),
         "is_valid": P2OpcodeIsValidFn(t="function"),
@@ -1189,17 +784,6 @@ def p2_libtest_reset {
     };
     register_shim_module(
         "_opcode", PyModule(t="module", name="_opcode", attrs=opcode_attrs)
-    );
-    functools_attrs: dict[str, PyObj] = {
-        "reduce": P2LibReduceFn(t="function"),
-        "partial": P2LibPartialFn(t="function"),
-        "lru_cache": P2LibLruCacheFn(t="function"),
-        "cmp_to_key": P2LibCmpToKeyFn(t="function"),
-        "wraps": P2LibWrapsFn(t="function"),
-        "update_wrapper": P2LibUpdateWrapperFn(t="function"),
-    };
-    register_shim_module(
-        "functools", PyModule(t="module", name="functools", attrs=functools_attrs)
     );
     _p2_warn_state_reset();
     register_shim_module(
