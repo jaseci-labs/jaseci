@@ -12,7 +12,8 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts {
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     cond_is_data_dependent,
     defining_assignment,
-    is_side_effect_name
+    is_side_effect_name,
+    symbol_is_builtin
 }
 
 impl GraphBreakDetectPass.before_pass -> None {
@@ -167,6 +168,9 @@ impl GraphBreakDetectPass._is_user_defined(nd: uni.FuncCall, name: str) -> bool 
         return False;
     }
     sym = st.lookup(name, deep=True);
+    if (sym is not None) and symbol_is_builtin(sym) {
+        return False;
+    }
     return bool(sym and sym.defn);
 }
 

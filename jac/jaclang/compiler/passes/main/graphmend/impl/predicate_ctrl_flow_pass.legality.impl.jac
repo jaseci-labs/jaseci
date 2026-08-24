@@ -12,6 +12,9 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts {
     self_attr_name,
     wrapping_classes
 }
+import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    symbol_is_builtin
+}
 import from jaclang.jac0core.constant { SymbolType }
 import from jaclang.jac0core.passes.sym_resolve { symbol_ability }
 
@@ -623,7 +626,8 @@ impl PredicateCtrlFlowPass._pure_callee(t: (uni.Expr | None)) -> bool {
         return False;
     }
     if isinstance(t, uni.Name) {
-        return (t.value in _PURE_BUILTINS) and (t.sym is None);
+        return (t.value in _PURE_BUILTINS)
+            and ((t.sym is None) or symbol_is_builtin(t.sym));
     }
     if isinstance(t, uni.AtomTrailer) {
         base = t.target;

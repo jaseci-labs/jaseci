@@ -38,6 +38,10 @@ glob DYNAMIC_TORCH_ATTRS: set[str] = {
      OPTIM_RECEIVER_PATTERNS: list[str] = ['optim', 'sched'],
      GRAD_OFF_CTX_ATTRS: set[str] = {'no_grad', 'inference_mode'};
 
+def symbol_is_builtin(sym: uni.Symbol) -> bool {
+    return (sym?.parent_tab?.scope_name or '') == 'builtins';
+}
+
 def cond_is_data_dependent(cond: uni.Expr) -> bool {
     return cond_traces_attr(cond, DYNAMIC_TORCH_ATTRS, False);
 }
@@ -57,6 +61,9 @@ def cond_traces_attr(cond: uni.Expr, attrs: set[str], on_exhaust: bool) -> bool 
     visited: set[str] = set();
     for nm in cond.get_all_sub_nodes(uni.Name) {
         sym = st.lookup(nm.value, deep=True);
+        if (sym is not None) and symbol_is_builtin(sym) {
+            continue;
+        }
         if sym and trace_symbol_attr(sym, attrs, visited, 0, on_exhaust) {
             return True;
         }

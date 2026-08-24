@@ -20,7 +20,8 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts {
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     defining_assignment,
     has_torch_compile_decorator,
-    is_torch_attr_target
+    is_torch_attr_target,
+    symbol_is_builtin
 }
 
 impl TrapLoweringPass.exit_assignment(nd: uni.Assignment) -> None {
@@ -191,7 +192,7 @@ impl TrapLoweringPass._exception_type_name(rs: uni.RaiseStmt) -> (str | None) {
     if not isinstance(target, uni.Name) {
         return None;
     }
-    if target.sym is not None {
+    if (target.sym is not None) and not symbol_is_builtin(target.sym) {
         return None;
     }
     cls = getattr(builtins, target.value, None);
