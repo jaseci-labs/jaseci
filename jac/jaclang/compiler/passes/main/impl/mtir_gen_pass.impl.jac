@@ -38,6 +38,14 @@ impl MTIRGenPass._is_primitive_type(type_expr: Expr | None) -> bool {
     return False;
 }
 
+impl MTIRGenPass._doc_text(doc: String | None) -> str | None {
+    if doc is None {
+        return None;
+    }
+    lit = doc.lit_value;
+    return lit if isinstance(lit, str) else None;
+}
+
 impl MTIRGenPass._parse_type_expr(
     type_expr: Expr | None, scope: UniScopeNode
 ) -> ClassInfo | EnumInfo | str | tuple | None {
@@ -96,8 +104,8 @@ impl MTIRGenPass._parse_type_expr(
         ;
     }
     sym = self._extract_type_symbol(type_expr, scope);
-    if sym {
-        if sym and sym.sym_type.value == 'enum' {
+    if sym is not None {
+        if sym.sym_type.value == 'enum' {
             enum_info = self._extract_enum_info(sym);
             return enum_info;
         } else {
@@ -141,7 +149,7 @@ impl MTIRGenPass._extract_enum_info(symbol: Symbol) -> EnumInfo {
             if isinstance(enum_stmt, Assignment) and enum_stmt.is_enum_stmt {
                 if enum_stmt.target and len(enum_stmt.target) > 0 {
                     target = enum_stmt.target[0];
-                    if isinstance(target, NameAtom) or isinstance(target, Name) {
+                    if isinstance(target, Name) {
                         member_name = target.value;
 
                         type_info = None;
@@ -178,7 +186,7 @@ impl MTIRGenPass._extract_enum_info(symbol: Symbol) -> EnumInfo {
                         members.append(field_info);
                     }
                 }
-            } elif isinstance(enum_stmt, NameAtom) and enum_stmt.is_enum_stmt {
+            } elif isinstance(enum_stmt, Name) and enum_stmt.is_enum_stmt {
                 member_name = enum_stmt.value;
                 semstr_val = None;
                 if enum_stmt?.sym and enum_stmt.sym {
@@ -193,7 +201,9 @@ impl MTIRGenPass._extract_enum_info(symbol: Symbol) -> EnumInfo {
     }
     return EnumInfo(
         name=enum_node.name.value,
-        semstr=symbol.semstr or enum_node.doc.lit_value if enum_node.doc else None,
+        semstr=symbol.semstr or self._doc_text(enum_node.doc)
+            if enum_node.doc
+            else None,
         members=members
     );
 }
@@ -211,7 +221,9 @@ impl MTIRGenPass._extract_class_info(symbol: Symbol) -> ClassInfo | None {
     class_name = arch_node.name.value;
     placeholder = ClassInfo(
         name=class_name,
-        semstr=symbol.semstr or arch_node.doc.lit_value if arch_node.doc else None,
+        semstr=symbol.semstr or self._doc_text(arch_node.doc)
+            if arch_node.doc
+            else None,
         fields=[],
         base_classes=[],
         methods=[]
@@ -235,15 +247,28 @@ impl MTIRGenPass._extract_class_info(symbol: Symbol) -> ClassInfo | None {
             } else {
                 base_name = str(base);
             }
-            base_classes.append(ClassInfo(name=base_name, semstr=None));
+            base_classes.append(
+                ClassInfo(
+                    name=base_name, semstr=None, fields=[], base_classes=[], methods=[]
+                )
+            );
         }
     }
     fields: list[FieldInfo] = [];
     for var in arch_node.get_has_vars() {
         type_annotation = var.type_tag.tag if var.type_tag else None;
-        parsed_type = self._parse_type_expr(type_annotation, arch_node);
-        type_symbol_obj = self._extract_type_symbol(parsed_type, arch_node);
-        semstr_val = type_symbol_obj.semstr if type_symbol_obj else var.sym.semstr;
+        parsed_type: (ClassInfo | EnumInfo | str | tuple | None) = self._parse_type_expr(
+            type_annotation, arch_node
+        );
+        parsed_expr = parsed_type;
+        type_symbol_obj: (Symbol | None) = None;
+        if isinstance(parsed_expr, Expr) {
+            type_symbol_obj = self._extract_type_symbol(parsed_expr, arch_node);
+        }
+        var_sym = var.sym;
+        semstr_val = type_symbol_obj.semstr
+            if type_symbol_obj
+            else (var_sym.semstr if var_sym else None);
         field_info = FieldInfo(
             name=var.name.value, semstr=semstr_val, type_info=parsed_type
         );
@@ -281,7 +306,7 @@ impl MTIRGenPass._extract_function_info(nd: Ability) -> FunctionInfo {
             parameters.append(param_info);
         }
     }
-    return_type: str | ClassInfo | tuple | None = None;
+    return_type: str | ClassInfo | EnumInfo | tuple | None = None;
     if nd.signature and isinstance(nd.signature, FuncSignature) {
         return_type_annotation = nd.signature.return_type;
         parsed_return = self._parse_type_expr(return_type_annotation, nd);
@@ -290,7 +315,9 @@ impl MTIRGenPass._extract_function_info(nd: Ability) -> FunctionInfo {
     tools: list[FunctionInfo] = [];
     if nd.is_genai_ability {
         by_expr = nd.body;
-        tools = self._extract_tools_from_expr(by_expr, nd);
+        if isinstance(by_expr, Expr) {
+            tools = self._extract_tools_from_expr(by_expr, nd);
+        }
     }
     return FunctionInfo(
         name=function_name,
@@ -306,11 +333,18 @@ impl MTIRGenPass._extract_method_info(
 ) -> MethodInfo {
     func_info = self._extract_function_info(nd=nd);
     parent_arch = nd.find_parent_of_type(Archetype);
-    parent_class_info = None;
-    if parent_arch and parent_arch.name?.sym and parent_arch.name.sym and by_call {
-        parent_class_info = self._extract_class_info(parent_arch.name.sym);
-    } else {
-        parent_class_info = parent_arch.name.sym;
+    parent_sym = parent_arch.name.sym if parent_arch else None;
+    parent_class_info: (ClassInfo | None) = None;
+    if parent_sym is not None and by_call {
+        parent_class_info = self._extract_class_info(parent_sym);
+    } elif parent_sym is not None {
+        parent_class_info = ClassInfo(
+            name=parent_sym.sym_name,
+            semstr=parent_sym.semstr,
+            fields=[],
+            base_classes=[],
+            methods=[]
+        );
     }
     return MethodInfo(
         name=func_info.name,
@@ -356,15 +390,16 @@ impl MTIRGenPass._extract_tools_from_expr(
 ) -> list[FunctionInfo] {
     tools: list[FunctionInfo] = [];
 
-    params_to_check: list = [];
+    params_to_check: list[Expr | KWPair] = [];
 
     if isinstance(expr, FuncCall) and expr?.params {
-        params_to_check = expr.params;
+        params_to_check = list(expr.params or []);
     } elif isinstance(expr, AtomTrailer) {
         current = expr;
         while current {
-            if isinstance(current.right, FuncCall) and current.right?.params {
-                params_to_check = current.right.params;
+            right = current.right;
+            if isinstance(right, FuncCall) and right?.params {
+                params_to_check = list(right.params or []);
                 break;
             }
 
@@ -377,18 +412,21 @@ impl MTIRGenPass._extract_tools_from_expr(
     }
 
     for param in params_to_check {
-        if isinstance(param, KWPair) and param?.key and param.key.value == 'tools' {
-            if param.value?.values {
-                for tool in param.value.values {
+        if isinstance(param, KWPair)
+            and isinstance(param.key, Name)
+            and (param.key.value == 'tools') {
+            tools_arg = param.value;
+            if isinstance(tools_arg, (ListVal, TupleVal)) {
+                for tool in tools_arg.values {
                     try {
-                        tool_sym = None;
-                        if isinstance(tool, NameAtom) {
+                        tool_sym: (Symbol | None) = None;
+                        if isinstance(tool, Name) {
                             tool_sym = scope.lookup(tool.value, deep=True);
                         } elif isinstance(tool, AtomTrailer)
-                            and isinstance(tool.right, NameAtom) {
+                            and isinstance(tool.right, Name) {
                             tool_sym = scope.lookup(tool.right.value, deep=True);
-                        } elif tool?.symbol_table {
-                            tool_sym = tool.symbol_table;
+                        } elif isinstance(tool, AstSymbolNode) {
+                            tool_sym = tool.sym;
                         }
 
                         if tool_sym {
@@ -396,13 +434,11 @@ impl MTIRGenPass._extract_tools_from_expr(
                                 if tool_sym.decl
                                 else None;
                             if tool_ability and isinstance(tool_ability, Ability) {
-                                if tool_ability.is_method {
-                                    tool_info = self._extract_method_info(tool_ability);
-                                } else {
-                                    tool_info = self._extract_function_info(
-                                        tool_ability
-                                    );
-                                }
+                                tool_info: FunctionInfo = (
+                                    self._extract_method_info(tool_ability)
+                                        if tool_ability.is_method
+                                        else self._extract_function_info(tool_ability)
+                                );
                                 tools.append(tool_info);
                             }
                         }
@@ -420,21 +456,22 @@ impl MTIRGenPass._process_ability(nd: Ability) -> None {
     if not nd.is_genai_ability {
         return;
     }
-    if nd.is_method {
-        func_info = self._extract_method_info(nd=nd, by_call=True);
+    func_info: FunctionInfo = (
+        self._extract_method_info(nd=nd, by_call=True)
+            if nd.is_method
+            else self._extract_function_info(nd=nd)
+    );
+    if isinstance(func_info, MethodInfo) {
+        parent_class = func_info.parent_class;
         if (
             isinstance(func_info.return_type, str)
-            and func_info.parent_class
-            and (func_info.return_type == func_info.parent_class.name)
+            and parent_class
+            and (func_info.return_type == parent_class.name)
         ) {
-            func_info.return_type = func_info.parent_class;
-            parent_name = func_info.parent_class.name
-                if func_info.parent_class
-                else None;
+            func_info.return_type = parent_class;
+            parent_name = parent_class.name;
             ret_str = type_to_str(func_info.return_type);
         }
-    } else {
-        func_info = self._extract_function_info(nd=nd);
     }
     scope = self._get_scope_str(nd);
     Jac.add_mtir_to_map(scope, func_info);
@@ -446,9 +483,11 @@ impl MTIRGenPass._collect_routing_archetypes(ir_in: Module) -> list[Archetype] {
     saw_routing = False;
     for vs in ir_in.get_all_sub_nodes(VisitStmt) {
         tgt = vs.target;
-        if not (
-            isinstance(tgt, BinaryExpr) and tgt?.op and (tgt.op.name == Tok.KW_BY)
-        ) {
+        if not isinstance(tgt, BinaryExpr) {
+            continue;
+        }
+        tgt_op = tgt.op;
+        if not (isinstance(tgt_op, Token) and (tgt_op.name == Tok.KW_BY)) {
             continue;
         }
         saw_routing = True;
@@ -574,7 +613,7 @@ impl MTIRGenPass._register_archetype_light(nd: Archetype) -> None {
     }
     class_info = ClassInfo(
         name=nd.name.value,
-        semstr=class_sym.semstr or (nd.doc.lit_value if nd?.doc else None),
+        semstr=class_sym.semstr or (self._doc_text(nd.doc) if nd?.doc else None),
         fields=fields,
         base_classes=[],
         methods=methods

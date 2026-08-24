@@ -68,6 +68,28 @@ impl JacAccessValidation.allow_root(
     }
 }
 
+impl JacAccessValidation.allow_group(
+    archetype: Archetype, group_id: UUID, level: (AccessLevel | int | str | None) = None
+) -> None {
+    if (level is None) {
+        level = AccessLevel.READ;
+    }
+    level = access_level_cast(level);
+    (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    access = anchor.access.groups;
+    _group_id = str(group_id);
+    if (level != access.anchors.get(_group_id, AccessLevel.NO_ACCESS)) {
+        access.anchors[_group_id] = level;
+        jctx.mem.put(anchor);
+    }
+}
+
+impl JacAccessValidation.disallow_group(archetype: Archetype, group_id: UUID) -> None {
+    (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    anchor.access.groups.anchors.pop(str(group_id), None);
+    jctx.mem.put(anchor);
+}
+
 impl JacAccessValidation.disallow_root(
     archetype: Archetype, root_id: UUID, level: (AccessLevel | int | str | None) = None
 ) -> None {
@@ -139,7 +161,7 @@ impl JacAccessValidation.check_access_level(
     ) {
         return access_level_cast(custom_level);
     }
-    access_level = AccessLevel.NO_ACCESS;
+    access_level: AccessLevel = AccessLevel.NO_ACCESS;
     if ((to_access := to.access).all.value > AccessLevel.NO_ACCESS.value) {
         access_level = to_access.all;
     }
@@ -154,7 +176,26 @@ impl JacAccessValidation.check_access_level(
     if ((level := to_access.roots.check(str(jroot.id))) is not None) {
         access_level = level;
     }
+    if to_access.groups.anchors {
+        for gid in JacAccessValidation._groups_of(jroot) {
+            if ((glevel := to_access.groups.check(gid)) is not None)
+                and glevel.value > access_level.value {
+                access_level = glevel;
+            }
+        }
+    }
     return access_level;
+}
+
+
+impl JacAccessValidation._groups_of(jroot: NodeAnchor) -> list[str] {
+    import from jaclang.jac0core.osp_graph_sv { sv_live_edges, sv_register_hydrated }
+    sv_register_hydrated(jroot, fetch_stubs=True);
+    out: list[str] = [];
+    for grp in sv_live_edges(jroot, EdgeDir.OUT.value, None, False) {
+        out.append(str(grp.id));
+    }
+    return out;
 }
 
 impl JacWalker.`visit(
@@ -198,7 +239,8 @@ impl JacWalker.spawn_call(
     import from jaclang.jac0core.osp_kernel { osp_spawn }
     import from jaclang.jac0core.osp_kernel_sv { desc_for, make_sv_runtime }
     warch = `walker.archetype;
-    osp_spawn(make_sv_runtime(), warch, desc_for(`type(warch)), `list(`walker.next));
+    starts: list = `list(`walker.next);
+    osp_spawn(make_sv_runtime(), warch, desc_for(`type(warch)), starts);
     return warch;
 }
 
@@ -377,20 +419,6 @@ impl JacBuiltin.printgraph(
 }
 
 
-impl JacCmd.run_ai_agent(req: object) -> int {
-    try {
-        import from jaclang.cli.ai_agent { run_agent }
-    } except ImportError {
-        import from jaclang.cli.console { console }
-        console.error(
-            "`jac ai` needs the byLLM plugin, which is not installed.",
-            hint="Install it with:  pip install byllm"
-        );
-        return 1;
-    }
-    return run_agent(req);
-}
-
 impl JacContext.get_context -> ExecutionContext {
     ctx = _request_context.get();
     if ctx is not None {
@@ -532,12 +560,61 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
             cls.__annotations__ = {};
         }
         cls.__annotations__['reports'] = list;
-        cls.reports = dataclasses.field(
-            default_factory=`list, init=False, repr=False, compare=False
+        setattr(
+            cls,
+            'reports',
+            dataclasses.field(
+                default_factory=`list, init=False, repr=False, compare=False
+            )
         );
     }
-    if cls.__dict__.get('__annotations__', {}) {
-        dataclass(eq=False)(cls);
+    _own_anns = cls.__dict__.get('__annotations__', {});
+    if _own_anns {
+        _pre_attrs = dict(cls.__dict__);
+        try {
+            dataclass(eq=False)(cls);
+        } except TypeError {
+            for _rname in _own_anns {
+                if _rname in _pre_attrs and _rname not in cls.__dict__ {
+                    setattr(cls, _rname, _pre_attrs[_rname]);
+                }
+            }
+
+            _seen_default = False;
+            for _base in reversed(cls.__mro__[1:]) {
+                for _bf in getattr(_base, '__dataclass_fields__', {}).values() {
+                    if _bf.`default is not dataclasses.MISSING
+                        or _bf.default_factory is not dataclasses.MISSING {
+                        _seen_default = True;
+                    }
+                }
+            }
+            for (_fname, _fann) in _own_anns.items() {
+                if "ClassVar" in str(_fann) or "InitVar" in str(_fann) {
+                    continue;
+                }
+                _own_val = _pre_attrs.get(_fname, dataclasses.MISSING);
+                _has_default = _own_val is not dataclasses.MISSING;
+                if _has_default
+                    and isinstance(_own_val, dataclasses.Field)
+                    and _own_val.`default is dataclasses.MISSING
+                    and _own_val.default_factory is dataclasses.MISSING {
+                    _has_default = False;
+                }
+                if _has_default {
+                    _seen_default = True;
+                } elif _seen_default {
+                    if isinstance(_own_val, dataclasses.Field) {
+                        if _own_val.init {
+                            _own_val.kw_only = True;
+                        }
+                    } else {
+                        setattr(cls, _fname, dataclasses.field(kw_only=True));
+                    }
+                }
+            }
+            dataclass(eq=False)(cls);
+        }
     } else {
         dataclass(eq=False, init=False)(cls);
     }
@@ -1017,27 +1094,43 @@ impl JacBuiltin.trap_guard(fn: any) -> any {
 }
 
 impl JacGraph.refs(
-    path: GraphQuery | NodeArchetype | list[NodeArchetype], slc: (slice | None) = None
+    path: GraphQuery | NodeArchetype | list[NodeArchetype],
+    slc: (slice | None) = None,
+    lazy: bool = False
 ) -> list[NodeArchetype] | list[EdgeArchetype] | list[(NodeArchetype | EdgeArchetype)] {
     if not isinstance(path, GraphQuery) {
         path = GraphQuery(path, hops=[QHop(dir=EdgeDir.OUT.value)]);
     }
-    import from jaclang.runtimelib.query_planner { resolve_query, resolve_query_edges }
+    import from jaclang.runtimelib.query_planner {
+        LazyRefs,
+        resolve_query,
+        resolve_query_edges
+    }
     ctx = JacRuntimeInterface.get_context();
     ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
     if slc is not None and path.slc is None {
         path.slc = slc;
     }
-    planned = (
-        resolve_query_edges(ctx.mem, path)
-            if path.edges_only
-            else resolve_query(ctx.mem, path)
-    );
-    return [
-        a.archetype
-        for a in planned
-        if a.archetype is not None
-    ];
+
+    def _run(q: GraphQuery) -> list {
+        planned = (
+            resolve_query_edges(ctx.mem, q)
+                if q.edges_only
+                else resolve_query(ctx.mem, q)
+        );
+        out: list[(NodeArchetype | EdgeArchetype)] = [];
+        for a in planned {
+            arch = a.archetype;
+            if isinstance(arch, (NodeArchetype, EdgeArchetype)) {
+                out.append(arch);
+            }
+        }
+        return out;
+    }
+    if lazy and path.slc is None and ctx.mem?.store is not None {
+        return LazyRefs(_run, path);
+    }
+    return _run(path);
 }
 
 impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {
@@ -1065,7 +1158,7 @@ impl JacGraph.connect(
 ) -> (NodeArchetype | list[NodeArchetype] | list[EdgeArchetype]) {
     left = [left] if isinstance(left, NodeArchetype) else left;
     right_is_node = isinstance(right, NodeArchetype);
-    right = [right] if right_is_node else right;
+    right = [right] if isinstance(right, NodeArchetype) else right;
     edges = [];
     for i in left {
         _left = i.__jac__;
@@ -1212,7 +1305,7 @@ impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
     jctx = JacRuntimeInterface.get_context();
     if (not anchor.persistent and not anchor.root) {
         anchor.persistent = True;
-        anchor.root = jctx.user_root.id;
+        anchor.`root = jctx.user_root.id;
     }
     jctx.mem.put(anchor);
     match anchor {
@@ -1333,6 +1426,7 @@ impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
     import os;
     import time;
     import urllib.request;
+    import from http.client { HTTPResponse }
     import from jaclang.runtimelib { sv_client }
     import from jaclang.runtimelib.server { JacAPIServer as CoreJacAPIServer }
     import from jaclang.runtimelib.serving.server { ServingServer }
@@ -1358,7 +1452,10 @@ impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
     healthy = False;
     while time.time() < deadline {
         try {
-            with urllib.request.urlopen(f"{base_url}/functions", timeout=1) as resp {
+            probe: HTTPResponse = urllib.request.urlopen(
+                f"{base_url}/functions", timeout=1
+            );
+            with probe as resp {
                 if resp.status < 500 {
                     healthy = True;
                     break;
@@ -1455,7 +1552,7 @@ impl JacServe.sv_walker_call(
             try {
                 instance.reports = reports;
             } except Exception {
-                pass;
+                ;
             }
         }
         return instance;
@@ -1575,7 +1672,7 @@ impl JacLLM.by_operator(lhs: any, rhs: any) -> any {
 
 impl JacLLM.default_llm -> LLMModel {
     import os;
-    _cache = JacLLM?._default_llm_instance;
+    _cache = JacLLM._default_llm_instance;
     if (_cache is not None) {
         return _cache;
     }
@@ -1737,18 +1834,20 @@ impl JacModule.create_archetype_from_source(
     cachable: bool = False,
     keep_temporary_files: bool = False
 ) -> (types.ModuleType | None) {
-    if not base_path {
-        base_path = JacRuntime.get_base_path_dir() or os.getcwd();
-    }
-    if (base_path and not os.path.exists(base_path)) {
-        os.makedirs(base_path);
+    resolved_base: str = base_path or JacRuntime.get_base_path_dir() or os.getcwd();
+    if not os.path.exists(resolved_base) {
+        os.makedirs(resolved_base);
     }
     if not module_name {
         module_name = f"_dynamic_module_{len(JacRuntime.loaded_modules)}";
     }
     import tempfile;
     with tempfile.NamedTemporaryFile(
-        mode='w', suffix='.jac', prefix=(module_name + '_'), dir=base_path, delete=False
+        mode='w',
+        suffix='.jac',
+        prefix=(module_name + '_'),
+        dir=resolved_base,
+        delete=False
     ) as tmp_file {
         tmp_file_path = tmp_file.name;
         tmp_file.write(source_code);
@@ -1758,7 +1857,7 @@ impl JacModule.create_archetype_from_source(
         (tmp_module_name, _) = os.path.splitext(tmp_file_basename);
         result = JacRuntimeInterface.jac_import(
             target=tmp_module_name,
-            base_path=base_path,
+            base_path=resolved_base,
             override_name=module_name,
             lng='jac'
         );

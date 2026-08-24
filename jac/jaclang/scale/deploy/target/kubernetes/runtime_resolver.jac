@@ -44,7 +44,7 @@ obj K8sRuntimeServiceResolver(ServiceDeployer) {
     def deploy_service(name: str) -> bool {
         logger.warning(
             f"K8sRuntimeServiceResolver.deploy_service({name}): admin op "
-            "not yet wired. Use `jac start --scale` for deployment."
+            "not yet wired. Use `jac scale deploy <file.jac>` for deployment."
         );
         return False;
     }
@@ -89,7 +89,7 @@ obj K8sRuntimeServiceResolver(ServiceDeployer) {
 
     def deploy_all -> bool {
         logger.warning(
-            "K8sRuntimeServiceResolver.deploy_all: use `jac start --scale` instead."
+            "K8sRuntimeServiceResolver.deploy_all: use `jac scale deploy <file.jac>` instead."
         );
         return False;
     }

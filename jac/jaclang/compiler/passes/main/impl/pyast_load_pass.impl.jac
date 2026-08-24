@@ -28,11 +28,11 @@ impl PyastBuildPass.proc_withitem(nd: py_ast.withitem) -> ExprAsItem {
         isinstance(context_expr, Expr)
         and (isinstance(optional_vars, Expr) or (optional_vars is None))
     ) {
-        return ExprAsItem(
-            expr=context_expr,
-            alias=optional_vars or None,
-            kid=[context_expr, optional_vars] if optional_vars else [context_expr]
-        );
+        kid: list[UniNode] = [context_expr];
+        if optional_vars is not None {
+            kid.append(optional_vars);
+        }
+        return ExprAsItem(expr=context_expr, alias=optional_vars or None, kid=kid);
     } else {
         raise RuntimeError(self.ice());
     }
@@ -51,12 +51,12 @@ impl PyastBuildPass.proc_match_case(nd: py_ast.match_case) -> MatchCase {
         isinstance(pattern, MatchPattern)
         and (isinstance(guard, Expr) or (guard is None))
     ) {
-        return MatchCase(
-            pattern=pattern,
-            guard=guard,
-            body=valid,
-            kid=[pattern, guard, *valid] if guard else [pattern, *valid]
-        );
+        kid: list[UniNode] = [pattern];
+        if guard is not None {
+            kid.append(guard);
+        }
+        kid.extend(valid);
+        return MatchCase(pattern=pattern, guard=guard, body=valid, kid=kid);
     } else {
         raise RuntimeError(self.ice());
     }
@@ -78,6 +78,7 @@ impl PyastBuildPass.proc_keyword(nd: py_ast.keyword) -> KWPair {
 impl PyastBuildPass.proc_comprehension(nd: py_ast.comprehension) -> InnerCompr {
     target = self.convert(nd.target);
     iter = self.convert(nd.iter);
+    valid: (list[Expr] | None) = None;
     if (len(nd.ifs) != 0) {
         ifs_list = [self.convert(ifs) for ifs in nd.ifs];
         valid = [
@@ -90,12 +91,15 @@ impl PyastBuildPass.proc_comprehension(nd: py_ast.comprehension) -> InnerCompr {
     }
     is_async = nd.is_async > 0;
     if (isinstance(target, Expr) and isinstance(iter, Expr)) {
+        kid: list[UniNode] = [target, iter];
+        conds: list[Expr] = valid or [];
+        kid.extend(conds);
         return InnerCompr(
             is_async=is_async,
             target=target,
             collection=iter,
             conditional=valid,
-            kid=[target, iter, *valid] if valid else [target, iter]
+            kid=kid
         );
     } else {
         raise RuntimeError(self.ice());
@@ -432,6 +436,8 @@ impl PyastBuildPass.proc_try(nd: (py_ast.Try | py_ast.TryStar)) -> TryStmt {
     } else {
         excepts = [];
     }
+    else_body: (list[CodeBlockStmt] | None) = None;
+    elsestmt: (ElseStmt | None) = None;
     if (len(nd.orelse) != 0) {
         orelse = [self.convert(i) for i in nd.orelse];
         valid_orelse = [
@@ -443,8 +449,8 @@ impl PyastBuildPass.proc_try(nd: (py_ast.Try | py_ast.TryStar)) -> TryStmt {
             raise RuntimeError(self.ice('Length mismatch in try orelse'));
         }
         else_body = valid_orelse;
-        elsestmt = ElseStmt(body=else_body, kid=else_body);
-        kid.extend(else_body);
+        elsestmt = ElseStmt(body=valid_orelse, kid=valid_orelse);
+        kid.extend(valid_orelse);
     } else {
         else_body = None;
     }
@@ -745,6 +751,8 @@ impl PyastBuildPass.proc_match_class(nd: py_ast.MatchClass) -> MatchArch {
     cls = self.convert(nd.cls);
     self.in_match_pattern = False;
     kid = [cls];
+    patterns_list: (list[MatchPattern] | None) = None;
+    kw_patterns_list: (list[MatchKVPair] | None) = None;
     if (len(nd.patterns) != 0) {
         patterns = [self.convert(i) for i in nd.patterns];
         valid_patterns = [
@@ -1027,17 +1035,18 @@ impl PyastBuildPass.proc_import(nd: py_ast.Import) -> Import {
             isinstance(name.expr, Name)
             and (isinstance(name.alias, Name) or (name.alias is None))
         ) {
+            segments: list[Name] = [
+                self.name_node(nd, part) for part in name.expr.value.split(".")
+            ];
+            if not segments {
+                segments = [name.expr];
+            }
+            seg_kid: list[UniNode] = list(segments);
+            if name.alias {
+                seg_kid.append(name.alias);
+            }
             paths.append(
-                ModulePath(
-                    path=[name.expr],
-                    level=0,
-                    alias=name.alias,
-                    kid=[
-                        i
-                        for i in name.kid
-                        if i
-                    ]
-                )
+                ModulePath(path=segments, level=0, alias=name.alias, kid=seg_kid)
             );
         } else {
             raise RuntimeError(self.ice());
@@ -1082,7 +1091,7 @@ impl PyastBuildPass.proc_formatted_value(nd: py_ast.FormattedValue) -> Formatted
     value = self.convert(nd.value);
     self.in_fstring_expr = prev_in_fstring;
 
-    fmt_spec = None;
+    fmt_spec: (Expr | None) = None;
     if nd.format_spec {
         if isinstance(nd.format_spec, py_ast.JoinedStr) {
             fmt_parts: list[str] = [];
@@ -1116,11 +1125,12 @@ impl PyastBuildPass.proc_formatted_value(nd: py_ast.FormattedValue) -> Formatted
         }
     }
     if isinstance(value, Expr) {
+        kid: list[UniNode] = [value];
+        if fmt_spec is not None {
+            kid.append(fmt_spec);
+        }
         ret = FormattedValue(
-            format_part=value,
-            conversion=nd.conversion,
-            format_spec=fmt_spec,
-            kid=[value, fmt_spec] if fmt_spec else [value]
+            format_part=value, conversion=nd.conversion, format_spec=fmt_spec, kid=kid
         );
     } else {
         raise RuntimeError(self.ice());
@@ -1234,7 +1244,7 @@ impl PyastBuildPass.proc_continue(nd: py_ast.Continue) -> CtrlStmt {
 }
 
 impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> Literal {
-    type_mapping = {
+    type_mapping: dict[type, type[Literal]] = {
         int: Int,
         float: Float,
         str: String,
@@ -1460,9 +1470,11 @@ impl PyastBuildPass.proc_assert(nd: py_ast.Assert) -> AssertStmt {
     `test = self.convert(nd.`test);
     msg = self.convert(nd.msg) if nd.msg else None;
     if (isinstance(`test, Expr) and (isinstance(msg, Expr) or (msg is None))) {
-        return AssertStmt(
-            condition=`test, error_msg=msg, kid=[`test, msg] if msg else [`test]
-        );
+        kid: list[UniNode] = [`test];
+        if msg is not None {
+            kid.append(msg);
+        }
+        return AssertStmt(condition=`test, error_msg=msg, kid=kid);
     } else {
         raise RuntimeError(self.ice());
     }
@@ -1485,7 +1497,7 @@ impl PyastBuildPass.proc_raise(nd: py_ast.Raise) -> RaiseStmt {
         (isinstance(cause, Expr) or (cause is None))
         and (isinstance(exc, Expr) or (exc is None))
     ) {
-        if (exc and not nd.cause) {
+        if (isinstance(exc, Expr) and not nd.cause) {
             return RaiseStmt(
                 cause=exc,
                 from_target=None,
@@ -1587,12 +1599,11 @@ impl PyastBuildPass.proc_if(nd: py_ast.If) -> IfStmt {
         else_body = None;
     }
     if isinstance(`test, Expr) {
-        ret = IfStmt(
-            condition=`test,
-            body=body2,
-            else_body=else_body,
-            kid=[`test, *body2, else_body] if else_body else [`test, *body2]
-        );
+        kid: list[UniNode] = [`test, *body2];
+        if else_body is not None {
+            kid.append(else_body);
+        }
+        ret = IfStmt(condition=`test, body=body2, else_body=else_body, kid=kid);
     } else {
         raise RuntimeError(self.ice());
     }
@@ -1727,14 +1738,17 @@ impl PyastBuildPass.proc_ann_assign(nd: py_ast.AnnAssign) -> Assignment {
         and isinstance(annotation, Expr)
         and isinstance(target, Expr)
     ) {
+        assign_value = value if isinstance(value, (Expr, YieldExpr)) else None;
+        kid: list[UniNode] = [target, annotation_subtag];
+        if assign_value is not None {
+            kid.append(assign_value);
+        }
         return Assignment(
             target=[target],
-            value=value if isinstance(value, (Expr, YieldExpr)) else None,
+            value=assign_value,
             type_tag=annotation_subtag,
             mutable=False,
-            kid=[target, annotation_subtag, value]
-                if value
-                else [target, annotation_subtag]
+            kid=kid
         );
     } else {
         raise RuntimeError(self.ice());
@@ -1932,6 +1946,7 @@ impl PyastBuildPass.proc_function_def(
     if (len(valid) != len(body)) {
         raise RuntimeError(self.ice('Length mismatch in function body'));
     }
+    doc: (String | None) = None;
     if (
         len(valid)
         and isinstance(valid[0], ExprStmt)
@@ -2031,11 +2046,10 @@ impl PyastBuildPass.proc_module(nd: py_ast.Module) -> Module {
         if (isinstance(elements[0], ExprStmt) and isinstance(elements[0].expr, String))
         else elements[0];
     doc_str_list = [elements[0]] if isinstance(elements[0], String) else [];
-    valid = (
-        doc_str_list + self.extract_with_entry(elements[1:], (ElementStmt, EmptyToken))
-    )
+    top_level: tuple[type[ElementStmt], type[EmptyToken]] = (ElementStmt, EmptyToken);
+    valid = (doc_str_list + self.extract_with_entry(elements[1:], top_level))
         if doc_str_list
-        else self.extract_with_entry(elements[:], (ElementStmt, EmptyToken));
+        else self.extract_with_entry(elements[:], top_level);
     doc_str = elements[0] if isinstance(elements[0], String) else None;
     self.convert_to_doc(doc_str) if doc_str else None;
     ret = Module(
@@ -2083,7 +2097,11 @@ impl PyastBuildPass.extract_with_entry(
 }
 
 impl PyastBuildPass.transform(ir_in: PythonModuleAst) -> Module {
-    self.ir_out: Module = self.proc_module(ir_in.ast);
+    py_mod = ir_in.ast;
+    if not isinstance(py_mod, py_ast.Module) {
+        raise RuntimeError(self.ice('Expected a Python module AST root'));
+    }
+    self.ir_out: Module = self.proc_module(py_mod);
     return self.ir_out;
 }
 

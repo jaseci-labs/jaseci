@@ -137,9 +137,8 @@ def compile_and_check(fixture_name: str) -> JacProgram {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, fixture_name),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
-    run_pass(TypeCheckPass, mod, program);
     return program;
 }
 
@@ -193,27 +192,29 @@ test "bug_3_list_element_type_first_only" {
 # Buggy DFS gives: [D, B, A, object, C] (A appears before C)
 # =========================================================================
 test "bug_6_mro_not_c3_diamond" {
-    # Build a diamond hierarchy manually to check MRO order
+    # Build a diamond hierarchy manually to check MRO order; these hand-built
+    # classes deliberately carry no symbol table.
+    _no_symtab: any = None;
     a_shared = ClassDetailsShared(
-        class_name="A", symbol_table=None, mro=[], base_classes=[]
+        class_name="A", symbol_table=_no_symtab, mro=[], base_classes=[]
     );
     a_type = ClassType(_shared=a_shared, flags=TypeFlags.Instantiable);
     a_type.shared.mro = [a_type];
 
     b_shared = ClassDetailsShared(
-        class_name="B", symbol_table=None, mro=[], base_classes=[a_type]
+        class_name="B", symbol_table=_no_symtab, mro=[], base_classes=[a_type]
     );
     b_type = ClassType(_shared=b_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(b_type);
 
     c_shared = ClassDetailsShared(
-        class_name="C", symbol_table=None, mro=[], base_classes=[a_type]
+        class_name="C", symbol_table=_no_symtab, mro=[], base_classes=[a_type]
     );
     c_type = ClassType(_shared=c_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(c_type);
 
     d_shared = ClassDetailsShared(
-        class_name="D", symbol_table=None, mro=[], base_classes=[b_type, c_type]
+        class_name="D", symbol_table=_no_symtab, mro=[], base_classes=[b_type, c_type]
     );
     d_type = ClassType(_shared=d_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(d_type);
@@ -238,9 +239,11 @@ test "bug_6_mro_not_c3_diamond" {
 # to a best-effort MRO. The fix adds an in-progress guard keyed on the class.
 # =========================================================================
 test "cyclic_heritage_mro_does_not_recurse" {
+    # Hand-built classes deliberately carry no symbol table.
+    _no_symtab: any = None;
     # Self-referential: A lists itself as a base.
     a_shared = ClassDetailsShared(
-        class_name="A", symbol_table=None, mro=[], base_classes=[]
+        class_name="A", symbol_table=_no_symtab, mro=[], base_classes=[]
     );
     a_type = ClassType(_shared=a_shared, flags=TypeFlags.Instantiable);
     a_type.shared.base_classes = [a_type];
@@ -249,11 +252,11 @@ test "cyclic_heritage_mro_does_not_recurse" {
 
     # Mutual cycle: B -> C -> B.
     b_shared = ClassDetailsShared(
-        class_name="B", symbol_table=None, mro=[], base_classes=[]
+        class_name="B", symbol_table=_no_symtab, mro=[], base_classes=[]
     );
     b_type = ClassType(_shared=b_shared, flags=TypeFlags.Instantiable);
     c_shared = ClassDetailsShared(
-        class_name="C", symbol_table=None, mro=[], base_classes=[]
+        class_name="C", symbol_table=_no_symtab, mro=[], base_classes=[]
     );
     c_type = ClassType(_shared=c_shared, flags=TypeFlags.Instantiable);
     b_type.shared.base_classes = [c_type];
@@ -653,9 +656,7 @@ test "bug_impl1_has_var_shadow_in_impl_body" {
         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
     );
     program = JacProgram();
-    program.compile(
-        os.path.join(fixture_dir, "impl_has_var_reassign.jac"), type_check=True
-    );
+    program.compile(os.path.join(fixture_dir, "impl_has_var_reassign.jac"));
 
     # Expected after fix: 0 errors. The impl body should type-check cleanly:
     #   - `tasks + [task]` resolves via list[dict].__add__
@@ -1276,9 +1277,8 @@ test "bug_cyctaint1_settling_cycle_checks_clean_and_resolves" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
-    run_pass(TypeCheckPass, mod, program);
 
     assert program.errors_had == [] , (
         "Bug #CYCLE-TAINT-1: a symbol-resolution cycle whose types settle "
@@ -1327,9 +1327,8 @@ test "bug_cycprec1_genuine_error_in_cycle_window_still_fires" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_cycle_precision_main.jac"),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
-    run_pass(TypeCheckPass, mod, program);
 
     oops_errors = [
         e
@@ -1371,7 +1370,7 @@ test "bug_cycprec1_node_type_never_stores_incomplete_result" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
     evaluator = program.get_type_evaluator();
     config_sym = mod.names_in_scope.get("CONFIG");
@@ -1383,7 +1382,8 @@ test "bug_cycprec1_node_type_never_stores_incomplete_result" {
     reg_mod = evaluator._import_module_from_path(reg_path);
     registry_sym = reg_mod.names_in_scope.get("REGISTRY");
     assert registry_sym is not None , "REGISTRY symbol missing from reg module";
-    config_use = registry_sym.decl.name_of.parent.value.condition.expr.left;
+    _reg_assign: any = registry_sym.decl.name_of.parent;
+    config_use: any = _reg_assign.value.condition.expr.left;
     assert config_use.value == "CONFIG" , (
         f"fixture navigation broke: expected the CONFIG use, got {config_use}"
     );

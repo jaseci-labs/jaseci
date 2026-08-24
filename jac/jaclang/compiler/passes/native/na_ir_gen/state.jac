@@ -3,12 +3,12 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 
 obj NaIRGenState(ModuleCodegenPass) {
-    has llvm_module: ir.Module postinit,
-        type_map: dict[str, ir.Type] postinit,
-        complex_struct_type: object postinit,
-        range_struct_type: object postinit,
-        slice_struct_type: object postinit,
-        jacval_type: object postinit,
+    has _llvm_module: (ir.Module | None) = None,
+        _type_map: (dict[str, ir.Type] | None) = None,
+        _complex_struct_type: (ir.Type | None) = None,
+        _range_struct_type: (ir.Type | None) = None,
+        _slice_struct_type: (ir.Type | None) = None,
+        _jacval_type: (ir.Type | None) = None,
         _builder: (ir.IRBuilder | None) = None,
         func_symtab: dict[str, ir.Function] = {},
         local_vars: dict[str, ir.AllocaInstr] = {},
@@ -31,6 +31,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _foreign_fns_nmods: int = -1,
         clib_fn_abi: dict[str, dict] = {},
         clib_vtable_structs: set[str] = set(),
+        clib_fnptr_str_ret: dict[str, set[str]] = {},
         clib_trampoline_funcs: dict[str, ir.Function] = {},
         enum_values: dict[str, ir.Constant] = {},
         enum_types: dict[str, ir.IntType] = {},
@@ -46,7 +47,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _loop_coll_seq: int = 0,
         _iter_owned_srcs: (list | None) = None,
         _str_count: int = 0,
-        struct_types: dict[str, object] = {},
+        struct_types: dict[str, ir.Type] = {},
         struct_field_indices: dict[str, dict] = {},
         struct_field_order: dict[str, list] = {},
         struct_field_types: dict[str, dict] = {},
@@ -62,7 +63,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         static_field_types: dict[str, object] = {},
         func_ret_type_key: dict[str, str] = {},
         func_ret_elem_keys: dict[str, list] = {},
-        list_types: dict[str, object] = {},
+        list_types: dict[str, ir.Type] = {},
         list_helpers: dict[str, dict] = {},
         var_list_elem_struct: dict[str, object] = {},
         _pending_list_elem_struct: (object | None) = None,
@@ -74,6 +75,8 @@ obj NaIRGenState(ModuleCodegenPass) {
         vtable_globals: dict[str, ir.GlobalVariable] = {},
         _non_overridden_methods: dict[str, set[str]] = {},
         _struct_source_mod: dict[str, str] = {},
+        _struct_source_name: dict[str, str] = {},
+        _enum_source_name: dict[str, str] = {},
         _native_skipped_methods: set[str] = set(),
         _capability_demotions: dict[int, list] = {},
         _claimed_capability_demotions: set[int] = set(),
@@ -100,12 +103,12 @@ obj NaIRGenState(ModuleCodegenPass) {
         _osp_filter_fn: (object | None) = None,
         _osp_h2i_fn: (object | None) = None,
         _osp_is_a_fn: (object | None) = None,
-        tuple_types: dict[str, object] = {},
+        tuple_types: dict[str, ir.LiteralStructType] = {},
         global_vars: dict[str, ir.GlobalVariable] = {},
         global_var_types: dict[str, ir.Type] = {},
-        dict_types: dict[str, object] = {},
+        dict_types: dict[str, ir.Type] = {},
         dict_helpers: dict[str, dict] = {},
-        set_types: dict[str, object] = {},
+        set_types: dict[str, ir.Type] = {},
         set_helpers: dict[str, dict] = {},
         _peer_container_ty: (object | None) = None,
         _exc_state_type: (object | None) = None,
@@ -244,4 +247,10 @@ obj NaIRGenState(ModuleCodegenPass) {
         _loop_rebind_memo: dict[tuple, bool] = {};
 
     has builder: ir.IRBuilder { getter; }
+    has llvm_module: ir.Module { getter; }
+    has type_map: dict[str, ir.Type] { getter; }
+    has complex_struct_type: ir.Type { getter; }
+    has range_struct_type: ir.Type { getter; }
+    has slice_struct_type: ir.Type { getter; }
+    has jacval_type: ir.Type { getter; }
 }

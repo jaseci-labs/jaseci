@@ -328,7 +328,7 @@ impl LanguageServer.lsp.getter -> LanguageServer {
 }
 
 impl LanguageServer.feature(method: str, options: any = None) -> Callable {
-    def decorator(func: Callable) -> Callable {
+    def decorator(func: Callable[[any, any], any]) -> Callable {
         self._features[method] = func;
         if options is not None {
             self._feature_options[method] = options;
@@ -405,12 +405,15 @@ impl LanguageServer.start_io -> None {
                 typed_params = params;
             }
 
+            active_handler: Callable[[any, any], any] = handler;
             try {
                 import inspect;
-                if inspect.iscoroutinefunction(handler) {
-                    result = loop.run_until_complete(handler(self, typed_params));
+                if inspect.iscoroutinefunction(active_handler) {
+                    result = loop.run_until_complete(
+                        active_handler(self, typed_params)
+                    );
                 } else {
-                    result = handler(self, typed_params);
+                    result = active_handler(self, typed_params);
                 }
             } except Exception as e {
                 logger.exception(f"Handler error for {method}: {e}");

@@ -24,6 +24,9 @@ obj NaIRGenTypes(NaIRGenState) {
     def _stack_entry_alloca(var_type: ir.Type, name: str) -> ir.Value;
     def _abi_sizeof(t: ir.Type) -> int;
     def _resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type;
+    def _lower_type_by_name(name: (str | None)) -> (ir.Type | None);
+    def _lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None);
+    def _lower_list_for_elem(elem_llvm: ir.Type) -> ir.Type;
     def _resolve_decl_type(
         type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
     ) -> ir.Type;
@@ -78,16 +81,28 @@ obj NaIRGenTypes(NaIRGenState) {
     def _coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _promote_to_float(
+        left: ir.Value, right: ir.Value, unsigned: bool = False
+    ) -> tuple[(ir.Value, ir.Value)];
+
+    def _emit_binary_op(
+        op: str,
+        left: ir.Value,
+        right: ir.Value,
+        unsigned: bool = False,
+        checked: bool = False
+    ) -> (ir.Value | None);
+
+    def _unify_int_widths(
         left: ir.Value, right: ir.Value
     ) -> tuple[(ir.Value, ir.Value)];
 
-    def _emit_binary_op(op: str, left: ir.Value, right: ir.Value) -> (ir.Value | None);
+    def _to_float_type(val: ir.Value, target: ir.Type, unsigned: bool) -> ir.Value;
     def _emit_arch_dunder_binop(
         op: str, left: ir.Value, right: ir.Value
     ) -> (ir.Value | None);
 
     def _emit_comparison(
-        op: str, left: ir.Value, right: ir.Value, is_float: bool
+        op: str, left: ir.Value, right: ir.Value, is_float: bool, unsigned: bool = False
     ) -> (ir.Value | None);
 
     def _is_jacval_ty(t: ir.Type) -> bool;

@@ -104,7 +104,7 @@ test "kind native-lib -> build shared via nacompile" {
 test "kind service -> serve headless" {
     p = _plan("kind = \"service\"\nentry-point = \"api.sv.jac\"\n", "api.sv.jac");
     assert p.action == "serve";
-    assert p.verb == "start";
+    assert p.verb == "run";
     assert p.flags.get("no_client") == True;
     assert "--no-client" in p.command_line();
     # default port is not carried (keeps --show clean)
@@ -126,7 +126,7 @@ test "kind service-mesh -> serve consumer" {
         "consumer.sv.jac"
     );
     assert p.action == "serve";
-    assert p.verb == "start";
+    assert p.verb == "run";
 }
 
 test "kind py-package -> build wheel via build --as" {
@@ -148,7 +148,7 @@ test "kind js-package -> build npm via build --as" {
 test "kind web-app -> serve dev (client framework is core)" {
     p = _plan("kind = \"web-app\"\nentry-point = \"app.jac\"\n", "app.jac");
     assert p.action == "serve";
-    assert p.verb == "start";
+    assert p.verb == "run";
     assert p.flags.get("dev") == True;
     # A web-app serves the default web client, so it carries no --client flag.
     assert "client" not in p.flags;
@@ -157,16 +157,16 @@ test "kind web-app -> serve dev (client framework is core)" {
 test "kind web-static -> serve (client framework is core)" {
     p = _plan("kind = \"web-static\"\nentry-point = \"page.jac\"\n", "page.jac");
     assert p.action == "serve";
-    assert p.verb == "start";
+    assert p.verb == "run";
     assert "client" not in p.flags;
 }
 
 test "kind desktop -> serve the desktop client target (core)" {
     p = _plan("kind = \"desktop\"\nentry-point = \"app.jac\"\n", "app.jac");
     assert p.action == "serve";
-    assert p.verb == "start";
-    # The desktop target is a core client target -- it must reach `start`,
-    # not be turned away as a missing plugin.
+    assert p.verb == "run";
+    # The desktop target is a core client target -- it must reach the serve
+    # path, not be turned away as a missing plugin.
     assert p.flags.get("client") == "desktop";
     assert "--client desktop" in p.command_line();
 }
@@ -229,6 +229,7 @@ test "stale entry-point resolves by stem to the real language file" {
 test "missing entry yields no plan for runnable kinds" {
     d = _mk_project("kind = \"cli\"\nentry-point = \"nope.jac\"\n", "");
     cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
     assert plan_project_run(cfg, d) is None;
 }
 
@@ -250,7 +251,7 @@ test "KIND_SPECS is the single source of truth for every kind" {
         # The table key and the spec's own name can never drift apart.
         assert spec.name == kname;
         assert spec.action in ["execute", "build", "serve"];
-        assert spec.verb in ["run", "start", "nacompile", "build"];
+        assert spec.verb in ["run", "nacompile", "build"];
         assert spec.description;
         assert spec.`entry;
         # kind_entry() reads the table rather than a second hardcoded list.
@@ -394,185 +395,187 @@ test "unknown explicit kind is reported by jac run" {
     _cleanup();
 }
 
-"""An entry GraphMend engages on: the torch import is never executed."""
-glob TORCH_ENTRY = "import from jaclang.jac0core.compile_options { CompileOptions }\n"
-         + "def _unused -> None {\n    import torch;\n}\n"
-         + "with entry { print(f\"GM={CompileOptions().graphmend}\"); }",
-     PLAIN_ENTRY = "import from jaclang.jac0core.compile_options { CompileOptions }\n"
-         + "with entry { print(f\"GM={CompileOptions().graphmend}\"); }";
-
-glob _dispatch_calls: list[str] = [];
-
-def _fake_run_jab(filename: str, port: any, args: list, serve_only: bool) -> int {
-    _dispatch_calls.append("jab");
-    return 0;
-}
-
-glob _serve_gm: list = [],
-     _serve_defer: list = [];
-
-def _fake_start(**kwargs: any) -> int {
-    import from jaclang.jac0core.compile_options { CompileOptions, defer_declines_here }
-    _dispatch_calls.append("start");
-    _serve_gm.append(CompileOptions(type_check=False).graphmend);
-    _serve_defer.append(defer_declines_here());
-    return 0;
-}
-
-def _fake_debug(**kwargs: any) -> int {
-    _dispatch_calls.append("debug");
-    return 0;
-}
-
-test "the graphmend off switch survives every jac run mode" {
-    # Each mode discovers the project config, so each binds the switch itself;
-    # only `false` proves discovery, since on is the default.
+# ---------------------------------------------------------------------------
+# The merged `jac run`: explicit-file kind resolution and flag gating
+# ---------------------------------------------------------------------------
+test "an explicitly named file resolves the project kind, not a bare execute" {
     d = _mk_project(
-        "kind = \"cli\"\n\n[run]\ngraphmend = false\n", "main.jac", PLAIN_ENTRY
+        "kind = \"service\"\nentry-point = \"main.jac\"\n",
+        "main.jac",
+        entry_body="with entry { }"
     );
-    import from importlib.machinery { SourceFileLoader }
-    hooked_before = getattr(SourceFileLoader, "_jac_graphmend_hooked", False);
-    old = os.getcwd();
-    os.chdir(d);
-    captured = io.StringIO();
-    sys.stdout = captured;
-    try {
-        rc_project = execution.run(filename="");
-        rc_file = execution.run(filename="main.jac");
-        rc_entry = execution.run(filename="");
-    } finally {
-        sys.stdout = sys.__stdout__;
-        os.chdir(old);
-    }
-    out = captured.getvalue();
-    assert rc_project == 0 and rc_file == 0 and rc_entry == 0;
-    assert out.count("GM=False") == 3 , f"expected 3 disabled runs, got: {out}";
-    # None of these runs loads torch, so none of them may patch the stdlib
-    # loader; the hook waits for torch to enter the process.
-    hooked_now = getattr(SourceFileLoader, "_jac_graphmend_hooked", False);
-    assert hooked_now == hooked_before , "a torch-free run installed the hook";
-    _cleanup();
+    cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
+    plan = plan_project_run(cfg, d, entry_override=os.path.join(d, "main.jac"));
+    assert plan is not None;
+    # `jac run main.jac` in a service project serves, exactly as bare `jac run`
+    # does -- the pre-merge asymmetry (file => execute) is gone.
+    assert plan.action == "serve";
+    assert plan.entry_path == os.path.join(d, "main.jac");
 }
 
-test "a run with the switch absent leaves graphmend on" {
-    d = _mk_project("kind = \"cli\"\n", "main.jac", PLAIN_ENTRY);
-    old = os.getcwd();
-    os.chdir(d);
-    captured = io.StringIO();
-    sys.stdout = captured;
-    try {
-        rc = execution.run(filename="main.jac");
-    } finally {
-        sys.stdout = sys.__stdout__;
-        os.chdir(old);
-    }
-    assert rc == 0;
-    assert "GM=True" in captured.getvalue();
-    _cleanup();
-}
-
-test "a cli-native project graphmend engages on runs the python backend" {
-    # GraphMend transforms the python backend, so an entry it can engage on
-    # skips the native fast path instead of losing the transform.
-    d = _mk_project("kind = \"cli-native\"\n", "main.jac", TORCH_ENTRY);
-    old = os.getcwd();
-    os.chdir(d);
-    captured = io.StringIO();
-    sys.stdout = captured;
-    try {
-        rc = execution.run(filename="main.jac");
-    } finally {
-        sys.stdout = sys.__stdout__;
-        os.chdir(old);
-    }
-    assert rc == 0;
-    assert "GM=True" in captured.getvalue();
-    _cleanup();
-}
-
-test "a prebuilt .jab runs instead of being refused over graphmend" {
-    # GraphMend is a gate, not a request, so it never blocks a run mode that
-    # cannot carry it; a sealed bundle just runs as built.
-    import jaclang.project.config as config_mod;
-    old_config = config_mod._config;
-    old_jab = execution._run_jab;
-    _dispatch_calls.clear();
-    captured = io.StringIO();
-    sys.stderr = captured;
-    try {
-        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = true\n");
-        execution._run_jab = _fake_run_jab;
-        rc = execution.run(filename="app.jab");
-    } finally {
-        sys.stderr = sys.__stderr__;
-        execution._run_jab = old_jab;
-        config_mod._config = old_config;
-    }
-    assert rc == 0;
-    assert _dispatch_calls == ["jab"];
-    assert "cannot be combined" not in captured.getvalue();
-}
-
-test "a serve plan runs unrefused and marks the process serving" {
-    # Serve marks the process so the defer transform declines while its buffers
-    # are process-global; the other transforms are untouched.
+test "a named file executes in a build kind; only a bare run builds" {
     d = _mk_project(
-        "kind = \"service\"\nentry-point = \"api.sv.jac\"\n\n"
-            + "[run]\ngraphmend = true\n",
-        "api.sv.jac"
+        "kind = \"mobile\"\nentry-point = \"main.jac\"\n",
+        "main.jac",
+        entry_body="with entry { }"
     );
-    old = os.getcwd();
-    old_start = execution.start;
-    _dispatch_calls.clear();
-    _serve_gm.clear();
-    _serve_defer.clear();
-    os.chdir(d);
-    captured = io.StringIO();
-    sys.stderr = captured;
-    import jaclang.jac0core.compile_options as opt_mod;
-    saved_serving = dict(opt_mod._serving_probe);
+    saved = os.getcwd();
     try {
-        execution.start = _fake_start;
-        rc = execution.run(filename="");
+        os.chdir(d);
+        # A bare `jac run` builds the mobile app shell; naming the file runs it.
+        # Without this split, `jac run main.jac` would shell out to gradle.
+        rc = execution.run(filename="main.jac", show=True);
     } finally {
-        sys.stderr = sys.__stderr__;
-        execution.start = old_start;
-        os.chdir(old);
-        opt_mod._serving_probe.clear();
-        opt_mod._serving_probe.update(saved_serving);
+        os.chdir(saved);
     }
     assert rc == 0;
-    assert _dispatch_calls == ["start"];
-    assert "cannot be combined" not in captured.getvalue();
-    assert _serve_gm == [True] , (
-        f"serve must leave graphmend on for trap and where, saw {_serve_gm}"
-    );
-    assert _serve_defer == [True] , (
-        f"serve must make the defer transform decline, saw {_serve_defer}"
-    );
     _cleanup();
 }
 
-test "jac run --debug runs instead of being refused over graphmend" {
-    d = _mk_project(
-        "kind = \"cli\"\n\n[run]\ngraphmend = true\n", "main.jac", PLAIN_ENTRY
+test "entry_override keeps a named file for kinds that plan without one" {
+    d = _mk_project("kind = \"py-package\"\n", "lib.jac");
+    cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
+    bare = plan_project_run(cfg, d);
+    assert bare is not None and bare.entry_path == "";
+    named = plan_project_run(cfg, d, entry_override=os.path.join(d, "lib.jac"));
+    assert named is not None;
+    assert named.entry_path == os.path.join(d, "lib.jac");
+}
+
+test "serve flags are recognised only when they were actually typed" {
+    over = execution._serve_overrides(
+        None, None, None, None, None, None, None, None, None, None
     );
-    old = os.getcwd();
-    old_debug = execution.debug;
-    _dispatch_calls.clear();
-    os.chdir(d);
-    captured = io.StringIO();
-    sys.stderr = captured;
+    assert over == {};
+    over = execution._serve_overrides(
+        None, True, None, None, None, None, None, None, None, None
+    );
+    assert over == {"dev": True};
+    # --no-client is a real choice, not an absence: False must survive.
+    over = execution._serve_overrides(
+        None, None, None, False, None, None, None, None, None, None
+    );
+    assert over == {"no_client": False};
+}
+
+test "a [serve] port from jac.toml is not mistaken for a typed --port" {
+    d = _mk_project(
+        "kind = \"cli\"\nentry-point = \"main.jac\"\n\n[serve]\nport = 3000\n",
+        "main.jac"
+    );
+    cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
+    # Bridged from config: not an override, so it must not force the serve path
+    # (and must not trip the "serve flag on a non-serving kind" error).
+    assert not execution._port_is_explicit(3000, cfg);
+    assert execution._port_is_explicit(9999, cfg);
+    # With no config at all, any port is the user's own.
+    assert execution._port_is_explicit(3000, None);
+    assert not execution._port_is_explicit(None, None);
+}
+
+test "entry-only flags are reported by their CLI spelling" {
+    assert execution._entry_flags_used("", "", "", False) == [];
+    assert execution._entry_flags_used("w", "", "", False) == ["--entry"];
+    assert execution._entry_flags_used("w", "n1", "r1", True)
+        == ["--entry", "--node", "--root", "--debug"];
+}
+
+test "--port on a cli-kind project is a hard error, not a silent no-op" {
+    d = _mk_project("kind = \"cli\"\nentry-point = \"main.jac\"\n", "main.jac");
+    saved = os.getcwd();
     try {
-        execution.debug = _fake_debug;
-        rc = execution.run(filename="main.jac", debug_mode=True);
+        os.chdir(d);
+        rc = execution.run(filename="main.jac", show=True, port=3000);
     } finally {
-        sys.stderr = sys.__stderr__;
-        execution.debug = old_debug;
-        os.chdir(old);
+        os.chdir(saved);
+    }
+    assert rc == 1;
+}
+
+test "--serve overrides a non-serving kind instead of erroring" {
+    d = _mk_project("kind = \"cli\"\nentry-point = \"main.jac\"\n", "main.jac");
+    saved = os.getcwd();
+    try {
+        os.chdir(d);
+        rc = execution.run(filename="main.jac", show=True, serve_mode=True, port=3000);
+    } finally {
+        os.chdir(saved);
     }
     assert rc == 0;
-    assert _dispatch_calls == ["debug"];
-    assert "cannot be combined" not in captured.getvalue();
+}
+
+test "--entry against a serving kind is a hard error" {
+    d = _mk_project("kind = \"service\"\nentry-point = \"main.jac\"\n", "main.jac");
+    saved = os.getcwd();
+    try {
+        os.chdir(d);
+        rc = execution.run(filename="main.jac", show=True, entry_name="walk");
+    } finally {
+        os.chdir(saved);
+    }
+    assert rc == 1;
+}
+
+test "--no-serve forces execution of a serving kind" {
+    d = _mk_project("kind = \"service\"\nentry-point = \"main.jac\"\n", "main.jac");
+    saved = os.getcwd();
+    try {
+        os.chdir(d);
+        rc = execution.run(filename="main.jac", show=True, serve_mode=False);
+    } finally {
+        os.chdir(saved);
+    }
+    assert rc == 0;
+}
+
+test "temp projects from the merged-dispatch cases are removed" {
+    _cleanup();
+    assert _tmp_dirs == [];
+}
+
+test "a client build kind still accepts serve flags (mobile dev server)" {
+    d = _mk_project("kind = \"mobile\"\nentry-point = \"main.jac\"\n", "main.jac");
+    saved = os.getcwd();
+    try {
+        os.chdir(d);
+        # `mobile` plans as a *build*, but its client target has a dev server:
+        # --dev must reach it rather than be refused as a serve-only flag.
+        rc = execution.run(filename="main.jac", show=True, dev=True);
+    } finally {
+        os.chdir(saved);
+    }
+    assert rc == 0;
+    _cleanup();
+}
+
+test "a library build kind refuses serve flags" {
+    d = _mk_project("kind = \"py-package\"\n", "lib.jac");
+    saved = os.getcwd();
+    try {
+        os.chdir(d);
+        rc = execution.run(filename="lib.jac", show=True, port=3000);
+    } finally {
+        os.chdir(saved);
+    }
+    assert rc == 1;
+    _cleanup();
+}
+
+test "--serve is a plain serve: the kind's dev default does not ride along" {
+    d = _mk_project("kind = \"web-app\"\nentry-point = \"main.jac\"\n", "main.jac");
+    cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
+    plan = plan_project_run(cfg, d);
+    assert plan is not None and plan.flags.get("dev") == True;
+    # Bare `jac run` takes the kind's default (the dev loop)...
+    assert execution._kind_serve_flags(plan, True, None).get("dev") == True;
+    # ...but `--serve`, the successor to `jac run --serve`, serves plainly.
+    assert "dev" not in execution._kind_serve_flags(plan, True, True);
+    # Kind properties other than the dev default still ride along.
+    svc = _plan("kind = \"service\"\nentry-point = \"api.jac\"\n", "api.jac");
+    assert execution._kind_serve_flags(svc, True, True).get("no_client") == True;
     _cleanup();
 }

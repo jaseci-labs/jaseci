@@ -725,7 +725,7 @@ def _compile_for_facts(prog: JacProgram, path: str) -> (uni.Module | None) {
     }
     _saved_opts = prog._compile_options;
     try {
-        return prog.compile(file_path=path, no_cgen=True, type_check=False);
+        return prog.compile(file_path=path, no_cgen=True);
     } except Exception {
         return None;
     } finally {

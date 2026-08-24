@@ -1,20 +1,20 @@
 """Driver-orchestration coverage: pass units own no compile-driver seams.
 
-`SymTabBuildPass` and `JacAnnexPass` are tree/symbol transformations. Resolving
-import paths (importlib / sys.path / pathlib), walking the filesystem for annex
+`SymTabBuildPass` is a tree/symbol transformation. Resolving
+import paths (importlib / sys.path / pathlib), walking the filesystem for sibling
 files, reading source files, re-entering the parser, and triggering dependency
 compiles are compile-driver responsibilities (`JacCompiler` / `JacProgram`),
 and a pass that reaches for them can never seal: unlike a backend gap, such a
-seam is reachable on ANY input that contains an import or has an annex file, so
+seam is reachable on ANY input that contains an import, so
 it is unwaivable -- a sealed pass would abort on the first real module.
 
 This coverage compiles each pass unit natively, the same measurement
 `test_unitree_seal_baseline.jac` takes for unitree, and pins the unit's own seam
 inventory. The driver hands each pass its inputs as data instead of letting the
 pass fetch them: the resolved module of an absorb import arrives on
-`Import.absorbed_mod` (stamped by `JacCompiler.resolve_absorb_imports`), and
-pre-parsed annex trees arrive on `Module.annex_mods` (stamped by
-`JacCompiler.load_annex_modules`). Backend gaps -- constructs the native
+`Import.absorbed_mod` (stamped by `JacCompiler.resolve_absorb_imports`). The
+annex weave used to arrive the same way, on `Module.annex_mods`; it is part of
+producing a module now, so no pass sees it. Backend gaps -- constructs the native
 backend cannot lower yet -- remain legal seams and are waived one at a time
 below; a seam that names a driver entry point fails regardless of waivers.
 
@@ -95,7 +95,6 @@ def _pass_coverage(pass_file: str) -> tuple {
             file_path=str(PASSES_DIR / pass_file),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',
@@ -180,43 +179,5 @@ test "sym_tab_build's remaining seams are exactly the waived backend gaps" {
     assert not stale , (
         "waived sym_tab_build seams that no longer demote -- drop them:\n"
         + "\n".join(f"  {k}: {SYM_TAB_SEAM_WAIVERS[k]}" for k in stale)
-    );
-}
-
-
-test "annex_pass unit produces native IR" {
-    (_coverage, ir) = _pass_coverage("annex_pass.jac");
-    assert ir is not None and ir.gen.llvm_ir is not None , (
-        "no LLVM IR for annex_pass.jac -- the compile aborted before codegen, "
-        "so an empty seam list would mean 'not reached', not 'clean'"
-    );
-}
-
-
-test "annex_pass owns no seam at all and the merge lowers" {
-    seams = _own_seams("annex_pass.jac");
-    assert not seams , (
-        f"{len(seams)} seam(s) in the annex_pass unit -- annex discovery and "
-        "parsing belong to the driver, which hands the pass pre-parsed trees "
-        "on `Module.annex_mods`, and the merge itself lowers:\n"
-        + "\n".join(f"  {k}: {v}" for (k, v) in sorted(seams.items()))
-    );
-    (_coverage, ir) = _pass_coverage("annex_pass.jac");
-    layout = ir.gen.native_layout;
-    assert layout is not None , "annex_pass produced no native layout";
-    for method in ("JacAnnexPass.transform", "JacAnnexPass._merge_annex") {
-        assert method in layout.methods , (
-            f"{method} fell out of the native layout -- the merge must stay "
-            "a pure, lowerable tree transformation"
-        );
-    }
-}
-
-
-test "annex_pass no longer imports the annex-discovery driver" {
-    import jaclang.jac0core.passes.annex_pass as annex_unit;
-    assert not hasattr(annex_unit, "discover_annex_files") , (
-        "annex_pass binds `discover_annex_files` at module scope -- the "
-        "bccache filesystem walk is the driver's, not the pass unit's"
     );
 }

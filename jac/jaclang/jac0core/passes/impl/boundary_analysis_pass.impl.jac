@@ -761,7 +761,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
     for mod in search_mods {
         sym = mod.sym_tab.lookup(type_name, deep=True) if mod.sym_tab else None;
         if sym and sym.defn {
-            candidate = sym.defn[0];
+            candidate: (UniNode | None) = sym.defn[0];
             if isinstance(candidate, NameAtom) and candidate.parent {
                 candidate = candidate.parent;
             }
@@ -968,22 +968,10 @@ impl BoundaryAnalysisPass._literal_default(
 
 impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
     import from jaclang.jac0core.diagnostics { E5093 }
+    import from jaclang.jac0core.scalars { sized_scalar_names }
     manifest = self.ir_in.gen.interop_manifest;
 
-    ctypes_wire: set = {
-        'int',
-        'float',
-        'bool',
-        'str',
-        'i8',
-        'i16',
-        'i32',
-        'i64',
-        'u8',
-        'u16',
-        'u32',
-        'u64'
-    };
+    ctypes_wire: set = {'int', 'float', 'bool', 'str'} | set(sized_scalar_names());
     for binding in manifest.bindings.values() {
         crosses_ctypes = (
             binding.source_context == InteropContext.SERVER

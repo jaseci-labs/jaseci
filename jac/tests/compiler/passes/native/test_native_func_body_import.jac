@@ -14,30 +14,15 @@ import ctypes;
 import importlib;
 import os;
 import sys;
-import from tests.support { TESTS_DIR, native_force_opts }
+import from tests.support { TESTS_DIR, compile_native, native_force_opts }
 import from jaclang.jac0core.program { JacProgram }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
 
-"""Compile a .jac fixture natively and return the JIT engine."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
 """Import the fixture on the sv/bytecode pathway and hand back its module."""
-def sv_module(stem: str) -> object {
+def sv_module(stem: str) -> any {
     added = False;
     if FIXTURES not in sys.path {
         sys.path.insert(0, FIXTURES);
@@ -114,6 +99,7 @@ test "an unsupported body-scoped import demotes its function, callers stay loud"
     assert not prog.errors_had , f"a function-owned import violation must demote, got: {[
         str(e) for e in prog.errors_had
     ]}";
+    assert ir.gen.native_layout is not None;
     assert "use" not in ir.gen.native_layout.functions , (
         "the function with the Python-only import must leave the native layout"
     );
@@ -158,11 +144,10 @@ test "nested imports are harvested only from native-context elements" {
     # server, so its body-scoped import is server-context.
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "clib_ctx_gated_lib.jac"),
-        options=CompileOptions(type_check=False, no_cgen=True)
+        options=CompileOptions(no_cgen=True)
     );
-    placements = [
-        stmt.code_context for stmt in ModuleCodegenPass.iter_context_stmts(ir)
-    ];
+    _stmts: list = list(ModuleCodegenPass.iter_context_stmts(ir));
+    placements = [stmt.code_context for stmt in _stmts];
     assert CodeContext.NATIVE not in placements , (
         f"fixture no longer exercises server placement: {placements}"
     );

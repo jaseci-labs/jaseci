@@ -1,7 +1,6 @@
 import from ctypes {
     POINTER,
     byref,
-    cast,
     c_char_p,
     c_double,
     c_int,
@@ -9,7 +8,9 @@ import from ctypes {
     c_uint,
     c_uint64,
     c_bool,
-    c_void_p
+    c_void_p,
+    sizeof,
+    string_at
 }
 import enum;
 import from jaclang.compiler.passes.native.llvm.binding { ffi }
@@ -406,9 +407,9 @@ class ValueRef(ffi.ObjectRef) {
         }
         if (self.value_kind == ValueKind.constant_int) {
             little_endian = c_bool(False);
-            words = ffi.lib.LLVMPY_GetConstantIntNumWords(self);
+            words = int(ffi.lib.LLVMPY_GetConstantIntNumWords(self));
             ptr = ffi.lib.LLVMPY_GetConstantIntRawValue(self, byref(little_endian));
-            asbytes = `bytes(cast(ptr, POINTER((c_uint64 * words))).contents);
+            asbytes = string_at(ptr, (words * sizeof(c_uint64)));
             return int.from_bytes(
                 asbytes, 'little' if little_endian.value else 'big', signed=signed_int
             );
@@ -443,6 +444,10 @@ class _ValueIterator(ffi.ObjectRef) {
         }
     }
 
+    def _next(self: _ValueIterator) -> object {
+        raise NotImplementedError;
+    }
+
     def __next__(self: _ValueIterator) -> object {
         vp = self._next();
         if vp {
@@ -462,6 +467,10 @@ class _ValueIterator(ffi.ObjectRef) {
 }
 
 class _AttributeIterator(ffi.ObjectRef) {
+    def _next(self: _AttributeIterator) -> object {
+        raise NotImplementedError;
+    }
+
     def __next__(self: _AttributeIterator) -> object {
         vp = self._next();
         if vp {

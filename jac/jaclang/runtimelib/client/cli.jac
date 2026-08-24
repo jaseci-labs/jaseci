@@ -208,7 +208,7 @@ def run_client_start(
 
     entry_file = filename or config.project.entry_point;
     if not entry_file {
-        console.error("No entry file specified. Use: jac start <file>");
+        console.error("No entry file specified. Use: jac run --serve <file>");
         return 1;
     }
     entry_path = Path(entry_file);
@@ -365,6 +365,7 @@ def run_npm_add_global(packages: list, dev: bool) -> int {
         return 1;
     }
     dest = node_root("global");
+    assert dest is not None , "the global npm root is always resolvable";
     dest.mkdir(parents=True, exist_ok=True);
     pkg_json = dest / "package.json";
     if not pkg_json.exists() {
