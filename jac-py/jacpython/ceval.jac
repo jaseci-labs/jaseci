@@ -3638,7 +3638,14 @@ def to_host(value: PyObj) -> any {
             return _jac_make_host_trampoline(value);
 
         case PyNativeBuiltin():
+            # NB: Jac match has NO grouped/stacked case labels -- `case A():
+            # case B(): body` gives ONLY B the body and silently drops A.
+            # Each callable kind therefore carries its own (shared) arm.
+            return _jac_make_host_trampoline(value);
+
         case PyBoundMethod():
+            return _jac_make_host_trampoline(value);
+
         case PyGenMethod():
             # Native builtins/bound methods crossing to the host become
             # trampolines too (same round-trip as PyFunction): host code can
@@ -3646,9 +3653,27 @@ def to_host(value: PyObj) -> any {
             return _jac_make_host_trampoline(value);
 
         case PyListMethod():
+            return _jac_make_host_trampoline(value);
+
         case PyDictMethod():
+            return _jac_make_host_trampoline(value);
+
         case PySetMethod():
+            return _jac_make_host_trampoline(value);
+
         case PyStrMethod():
+            return _jac_make_host_trampoline(value);
+
+        case PyClassMethodCtor():
+            # The classmethod/staticmethod/property builtin objects themselves
+            # crossing to the host: trampoline replays their tp_call so the
+            # host sees working descriptor factories.
+            return _jac_make_host_trampoline(value);
+
+        case PyStaticMethodCtor():
+            return _jac_make_host_trampoline(value);
+
+        case PyPropertyCtor():
             return _jac_make_host_trampoline(value);
 
         case PyNativeNew():
@@ -3675,7 +3700,28 @@ def to_host(value: PyObj) -> any {
             # LAZY_ITER: a lazy host iterator sharing position with the guest
             # object -- no silent draining, and partial host consumption leaves
             # the remaining items for the guest (CPython iterator semantics).
+            # One arm per iterator kind: seqiter/rangeiter/dictiter/calliter
+            # are distinct obj types, and grouped labels would drop them all
+            # but the last (see note at PyNativeBuiltin).
             return _jac_make_host_iterator(value);
+
+        case PySeqIter():
+            return _jac_make_host_iterator(value);
+
+        case PyRangeIter():
+            return _jac_make_host_iterator(value);
+
+        case PyDictIter():
+            return _jac_make_host_iterator(value);
+
+        case PyCallableIter():
+            return _jac_make_host_iterator(value);
+
+        case PyClass():
+            # STANDIN for the guest class object itself: a cached name-faithful
+            # host class whose back-reference recovers the original on
+            # round-trip (json/type()/isinstance machinery see a real type).
+            return _jac_standin_class(value);
 
         case PyHostProxy():
             return value.val;
