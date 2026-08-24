@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "7021ff79e4a5341a1ce8942c45111261e345dfc1",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,26 +10,20 @@
     "diff_runner.py",
     "jac-py/tests/conv_getopt/conv_getopt_pins.jac"
   ],
-  "generated_at": "2026-08-24T10:02:31",
+  "generated_at": "2026-08-24T14:33:21",
   "hashes": {
-    "pins_jac": "b014708a58c420132c926fc2026248ada6b917204fd6b08fb656a8d7df571fdb",
-    "conversion_json": "7d4155d086780d5ccffd574a80904d137e1ae527113f247890f0063a05740f46",
+    "pins_jac": "6aa1ffe290ba7b04304e545f2a0129007bab759a75d1753391d0c5e9f169f342",
+    "conversion_json": "96a8af59ca5095c187e50b38118a8bb85daeddc51a005e828c37df4a600f0067",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "getopt",
   "counts": {
     "converted": 9,
-    "runnable": 2,
+    "runnable": 1,
     "green": 1,
-    "quarantined": 7
+    "quarantined": 8
   },
   "pins": [
-    {
-      "id": "GetoptTests.test_issue4629",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'globals\\' has policy BridgePolicy.FAIL but no to_host conversion arm\"'>"
-    },
     {
       "id": "test_libref_examples",
       "status": "pass"
@@ -37,32 +31,37 @@
     {
       "id": "GetoptTests.test_short_has_arg",
       "status": "quarantined",
-      "reason": "self.assertError"
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "id": "GetoptTests.test_long_has_args",
       "status": "quarantined",
-      "reason": "self.assertError"
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "id": "GetoptTests.test_do_shorts",
       "status": "quarantined",
-      "reason": "self.assertError"
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "id": "GetoptTests.test_do_longs",
       "status": "quarantined",
-      "reason": "self.assertError"
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "id": "GetoptTests.test_getopt",
       "status": "quarantined",
-      "reason": "self.assertError"
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "id": "GetoptTests.test_gnu_getopt",
       "status": "quarantined",
-      "reason": "uses-self.env"
+      "reason": "helper:setUp(uses-self.enterContext)"
+    },
+    {
+      "id": "GetoptTests.test_issue4629",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "id": "TestTranslations.test_translations",

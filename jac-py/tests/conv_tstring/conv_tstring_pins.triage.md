@@ -1,6 +1,6 @@
 # Triage report: `conv_tstring_pins.jac`
 
-- source: reference/cpython/Lib/test/test_tstring.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_tstring.py
 - guest leg: 0/3 marks
 - pins: **1 passed** / 3 run (+9 quarantined of 12 extracted)
 
@@ -20,7 +20,7 @@
 | TestTString.test_debug_specifier | self.assertTStringEqual |
 | TestTString.test_raw_tstrings | self.assertTStringEqual |
 | TestTString.test_template_concatenation | self.assertTStringEqual |
-| TestTString.test_syntax_errors | uses-self.subTest |
+| TestTString.test_syntax_errors | uses-self.assertRaisesRegex |
 | TestTString.test_literal_concatenation | self.assertTStringEqual |
 | TestTString.test_triple_quoted | self.assertTStringEqual |
 

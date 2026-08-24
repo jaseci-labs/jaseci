@@ -253,6 +253,12 @@ test "MathTests.test_nextafter" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "MathTests.test_issue39871" {
+    (ok, detail) = p2_libtest_run_snippet("import math\nx, y = (1e+16, 2.9999)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def __float__(self):\n            self.converted = True\n            1 / 0\n    for func in (math.atan2, math.copysign, math.remainder):\n        y = F()\n        try:\n            func('not a number', y)\n        except TypeError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        assert not getattr(y, 'converted', False), ('assertFalse', getattr(y, 'converted', False))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "MathTests.test_input_exceptions" {
     (ok, detail) = p2_libtest_run_snippet("import math\n\ndef _t():\n    try:\n        math.exp(*('spam',))\n    except TypeError:\n        pass\n    try:\n        math.erf(*('spam',))\n    except TypeError:\n        pass\n    try:\n        math.atan2(*('spam', 1.0))\n    except TypeError:\n        pass\n    try:\n        math.atan2(*(1.0, 'spam'))\n    except TypeError:\n        pass\n    try:\n        math.atan2(*(1.0,))\n    except TypeError:\n        pass\n    try:\n        math.atan2(*(1.0, 2.0, 3.0))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "fd4c8b36fdafb9259707f53f361b63d62fcfd882",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/sp1-out/test_bytes/conv_bytes_pins.jac"
+    "jac-py/tests/conv_bytes/conv_bytes_pins.jac"
   ],
-  "generated_at": "2026-08-24T13:47:26",
+  "generated_at": "2026-08-24T14:30:37",
   "hashes": {
-    "pins_jac": "68dc92de0031482e5d8d436d3f37a2ff89422fcc500cc67db119c84b2ef388c7",
-    "conversion_json": "c964a9324442364ab14e983809c2935037b2c4e76f81dbcf4363bafb10e0e852",
+    "pins_jac": "92b579c0950342e484e4c79e4915f3954f1d47c55dc7c6f183e77d1ff4f351a5",
+    "conversion_json": "6caa1514089055db1b6bce8aed5409d693757b2ac95cd12998f928a827a446df",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "bytes",
   "counts": {
     "converted": 143,
-    "runnable": 44,
+    "runnable": 43,
     "green": 18,
-    "quarantined": 99
+    "quarantined": 100
   },
   "pins": [
     {
@@ -29,6 +29,26 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC TypeError \"\\'X\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
+      "id": "BaseBytesTest.test_check_encoding_errors",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test'"
+    },
+    {
+      "id": "BaseBytesTest.test_maketrans",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test'"
+    },
+    {
+      "id": "BaseBytesTest.test_free_after_iterating",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test'"
+    },
+    {
+      "id": "BytesTest.test__bytes__",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test'"
     },
     {
       "id": "BytesTest.test_getitem_error",
@@ -44,7 +64,7 @@
       "id": "BytesTest.test_repeat_id_preserving",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 139705238531312, 139705238530448)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 139790988259504, 139790988258640)\"'>"
     },
     {
       "id": "ByteArrayTest.test_getitem_error",
@@ -176,15 +196,14 @@
     },
     {
       "id": "ByteArrayTest.test_obsolete_write_lock",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+      "status": "quarantined",
+      "reason": "host-raised:SkipTest: No module named '_testcapi'"
     },
     {
       "id": "ByteArrayTest.test_iterator_pickling2",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f0fa9392980>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f23a02df1c0>\"'>"
     },
     {
       "id": "ByteArrayTest.test_iterator_length_hint",
@@ -247,10 +266,15 @@
       "detail": "GOT<'ORACLE_EXC NameError \"name \\'val\\' is not defined\"'>"
     },
     {
+      "id": "SubclassTest.test_fromhex",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test'"
+    },
+    {
       "id": "ByteArraySubclassTest.test_init_override",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <__main__.subclass object at 0x7f0fa9387150>, b\\'abcd\\')\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <__main__.subclass object at 0x7f23a03c1050>, b\\'abcd\\')\"'>"
     },
     {
       "id": "AssortedBytesTest.test_doc",
@@ -378,11 +402,6 @@
       "reason": "uses-self.type2test"
     },
     {
-      "id": "BaseBytesTest.test_check_encoding_errors",
-      "status": "quarantined",
-      "reason": "uses-self.type2test"
-    },
-    {
       "id": "BaseBytesTest.test_from_int",
       "status": "quarantined",
       "reason": "uses-self.type2test"
@@ -410,7 +429,7 @@
     {
       "id": "BaseBytesTest.test_fromhex",
       "status": "quarantined",
-      "reason": "uses-self.type2test"
+      "reason": "uses-self.subTest"
     },
     {
       "id": "BaseBytesTest.test_hex",
@@ -420,7 +439,7 @@
     {
       "id": "BaseBytesTest.test_hex_separator_basics",
       "status": "quarantined",
-      "reason": "uses-self.type2test"
+      "reason": "uses-self.subTest"
     },
     {
       "id": "BaseBytesTest.test_hex_separator_five_bytes",
@@ -593,11 +612,6 @@
       "reason": "uses-self.type2test"
     },
     {
-      "id": "BaseBytesTest.test_maketrans",
-      "status": "quarantined",
-      "reason": "uses-self.type2test"
-    },
-    {
       "id": "BaseBytesTest.test_none_arguments",
       "status": "quarantined",
       "reason": "uses-self.type2test"
@@ -613,22 +627,12 @@
       "reason": "assertRaisesRegex call form"
     },
     {
-      "id": "BaseBytesTest.test_free_after_iterating",
-      "status": "quarantined",
-      "reason": "uses-self.type2test"
-    },
-    {
       "id": "BaseBytesTest.test_translate",
       "status": "quarantined",
       "reason": "uses-self.type2test"
     },
     {
       "id": "BaseBytesTest.test_sq_item",
-      "status": "quarantined",
-      "reason": "uses-self.type2test"
-    },
-    {
-      "id": "BytesTest.test__bytes__",
       "status": "quarantined",
       "reason": "uses-self.type2test"
     },
@@ -640,7 +644,7 @@
     {
       "id": "BytesTest.test_custom",
       "status": "quarantined",
-      "reason": "uses-self.value"
+      "reason": "unresolved-name:BytesSubclass"
     },
     {
       "id": "BytesTest.test_from_format",
@@ -690,12 +694,12 @@
     {
       "id": "ByteArrayTest.test_mutating_index_inbounds",
       "status": "quarantined",
-      "reason": "uses-self.ba"
+      "reason": "uses-self.subTest"
     },
     {
       "id": "ByteArrayTest.test_search_methods_reentrancy_raises_buffererror",
       "status": "quarantined",
-      "reason": "uses-self.ba"
+      "reason": "uses-self.subTest"
     },
     {
       "id": "AssortedBytesTest.test_bytes_repr",
@@ -730,7 +734,7 @@
     {
       "id": "SubclassTest.test_join",
       "status": "quarantined",
-      "reason": "uses-self.type2test"
+      "reason": "uses-self.basetype"
     },
     {
       "id": "SubclassTest.test_pickle",
@@ -741,11 +745,6 @@
       "id": "SubclassTest.test_copy",
       "status": "quarantined",
       "reason": "self.assertNotHasAttr"
-    },
-    {
-      "id": "SubclassTest.test_fromhex",
-      "status": "quarantined",
-      "reason": "uses-self.basetype"
     }
   ]
 }

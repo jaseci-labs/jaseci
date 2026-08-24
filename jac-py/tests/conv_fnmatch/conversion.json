@@ -1,28 +1,38 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_fnmatch.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_fnmatch.py",
     "-o",
-    "/var/tmp/laneb-out/test_fnmatch",
+    "/var/tmp/lane8/jac-py/tests/conv_fnmatch",
     "--name",
     "conv_fnmatch"
   ],
-  "generated_at": "2026-08-24T10:30:53",
+  "generated_at": "2026-08-24T14:32:49",
   "hashes": {
-    "pins_jac": "cfe1f362dfc1837f4da3053d490b365559a60ad867073ccd8280e6701b9e3d7d"
+    "pins_jac": "e3df61c0add2a2054ce1cac45eb9b56fb1bc6c5acd5815d1de02c0a3d5572cd6"
   },
-  "source_file": "reference/cpython/Lib/test/test_fnmatch.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_fnmatch.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "fnmatch",
   "pins_file": "conv_fnmatch_pins.jac",
   "pins": [
+    {
+      "ident": "FnmatchTestCase.test_fnmatch",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_match'"
+    },
+    {
+      "ident": "FnmatchTestCase.test_slow_fnmatch",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_match'"
+    },
     {
       "ident": "FnmatchTestCase.test_mix_bytes_str",
       "status": "pinned",
@@ -30,6 +40,54 @@
         "status": "ok"
       },
       "snippet": "from fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\n\ndef _t():\n    try:\n        fnmatch(*('test', b'*'))\n    except TypeError:\n        pass\n    try:\n        fnmatch(*(b'test', '*'))\n    except TypeError:\n        pass\n    try:\n        fnmatchcase(*('test', b'*'))\n    except TypeError:\n        pass\n    try:\n        fnmatchcase(*(b'test', '*'))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FnmatchTestCase.test_fnmatchcase",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_match'"
+    },
+    {
+      "ident": "FnmatchTestCase.test_bytes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\n\ndef check_match(filename, pattern, should_match=True, fn=fnmatch):\n    if should_match:\n        assert fn(filename, pattern), ('assertTrue', fn(filename, pattern))\n    else:\n        assert not fn(filename, pattern), ('assertFalse', fn(filename, pattern))\n\ndef _t():\n    check_match(b'test', b'te*')\n    check_match(b'test\\xff', b'te*\\xff')\n    check_match(b'foo\\nbar', b'foo*')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FnmatchTestCase.test_case",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_match'"
+    },
+    {
+      "ident": "FnmatchTestCase.test_sep",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_match'"
+    },
+    {
+      "ident": "FnmatchTestCase.test_char_set",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_match'"
+    },
+    {
+      "ident": "FnmatchTestCase.test_range",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_match'"
+    },
+    {
+      "ident": "FnmatchTestCase.test_sep_in_char_set",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_match'"
+    },
+    {
+      "ident": "FnmatchTestCase.test_sep_in_range",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_match'"
+    },
+    {
+      "ident": "FnmatchTestCase.test_warnings",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_match'"
     },
     {
       "ident": "TranslateTestCase.test_translate",
@@ -114,50 +172,6 @@
   ],
   "quarantined": [
     {
-      "ident": "FnmatchTestCase.test_fnmatch",
-      "reason": "uses-self.check_match"
-    },
-    {
-      "ident": "FnmatchTestCase.test_slow_fnmatch",
-      "reason": "uses-self.check_match"
-    },
-    {
-      "ident": "FnmatchTestCase.test_fnmatchcase",
-      "reason": "uses-self.check_match"
-    },
-    {
-      "ident": "FnmatchTestCase.test_bytes",
-      "reason": "self.check_match"
-    },
-    {
-      "ident": "FnmatchTestCase.test_case",
-      "reason": "uses-self.check_match"
-    },
-    {
-      "ident": "FnmatchTestCase.test_sep",
-      "reason": "uses-self.check_match"
-    },
-    {
-      "ident": "FnmatchTestCase.test_char_set",
-      "reason": "uses-self.check_match"
-    },
-    {
-      "ident": "FnmatchTestCase.test_range",
-      "reason": "uses-self.check_match"
-    },
-    {
-      "ident": "FnmatchTestCase.test_sep_in_char_set",
-      "reason": "uses-self.check_match"
-    },
-    {
-      "ident": "FnmatchTestCase.test_sep_in_range",
-      "reason": "uses-self.check_match"
-    },
-    {
-      "ident": "FnmatchTestCase.test_warnings",
-      "reason": "uses-self.check_match"
-    },
-    {
       "ident": "TranslateTestCase.test_translate_wildcards",
       "reason": "uses-self.subTest"
     },
@@ -168,7 +182,7 @@
   ],
   "counts": {
     "extracted": 24,
-    "pinned": 11,
-    "quarantined": 13
+    "pinned": 12,
+    "quarantined": 12
   }
 }

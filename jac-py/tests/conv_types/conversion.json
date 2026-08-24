@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_types.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_types.py",
     "-o",
-    "/var/tmp/laneb-out/test_types",
+    "/var/tmp/lane8/jac-py/tests/conv_types",
     "--name",
     "conv_types"
   ],
-  "generated_at": "2026-08-24T10:30:56",
+  "generated_at": "2026-08-24T14:41:55",
   "hashes": {
     "pins_jac": "29d348c7b83943fb617886fd6d28d014f22cece8eb9ded03cfbc253edbd4e3eb"
   },
-  "source_file": "reference/cpython/Lib/test/test_types.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_types.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "types",
   "pins_file": "conv_types_pins.jac",
@@ -413,6 +413,16 @@
       "snippet": "import types\n\ndef _t():\n    C = types.new_class('C')\n    assert C.__name__ == 'C', ('assertEqual', C.__name__, 'C')\n    assert C.__bases__ == (object,), ('assertEqual', C.__bases__, (object,))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "ClassCreationTests.test_new_class_meta",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'Meta'"
+    },
+    {
+      "ident": "ClassCreationTests.test_new_class_exec_body",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'Meta'"
+    },
+    {
       "ident": "ClassCreationTests.test_new_class_metaclass_keywords",
       "status": "pinned",
       "oracle": {
@@ -523,6 +533,11 @@
         "status": "ok"
       },
       "snippet": "import types\n\ndef _t():\n    new_calls = []\n\n    class AMeta(type):\n\n        def __new__(mcls, name, bases, ns):\n            new_calls.append('AMeta')\n            return super().__new__(mcls, name, bases, ns)\n\n        @classmethod\n        def __prepare__(mcls, name, bases):\n            return {}\n\n    class BMeta(AMeta):\n\n        def __new__(mcls, name, bases, ns):\n            new_calls.append('BMeta')\n            return super().__new__(mcls, name, bases, ns)\n\n        @classmethod\n        def __prepare__(mcls, name, bases):\n            ns = super().__prepare__(name, bases)\n            ns['BMeta_was_here'] = True\n            return ns\n    A = types.new_class('A', (), {'metaclass': AMeta})\n    assert new_calls == ['AMeta'], ('assertEqual', new_calls, ['AMeta'])\n    new_calls.clear()\n    B = types.new_class('B', (), {'metaclass': BMeta})\n    assert new_calls == ['BMeta', 'AMeta'], ('assertEqual', new_calls, ['BMeta', 'AMeta'])\n    new_calls.clear()\n    C = types.new_class('C', (A, B))\n    assert new_calls == ['BMeta', 'AMeta'], ('assertEqual', new_calls, ['BMeta', 'AMeta'])\n    new_calls.clear()\n    assert 'BMeta_was_here' in C.__dict__, ('assertIn', 'BMeta_was_here', C.__dict__)\n    C2 = types.new_class('C2', (B, A))\n    assert new_calls == ['BMeta', 'AMeta'], ('assertEqual', new_calls, ['BMeta', 'AMeta'])\n    new_calls.clear()\n    assert 'BMeta_was_here' in C2.__dict__, ('assertIn', 'BMeta_was_here', C2.__dict__)\n    D = types.new_class('D', (C,), {'metaclass': type})\n    assert new_calls == ['BMeta', 'AMeta'], ('assertEqual', new_calls, ['BMeta', 'AMeta'])\n    new_calls.clear()\n    assert 'BMeta_was_here' in D.__dict__, ('assertIn', 'BMeta_was_here', D.__dict__)\n    E = types.new_class('E', (C,), {'metaclass': AMeta})\n    assert new_calls == ['BMeta', 'AMeta'], ('assertEqual', new_calls, ['BMeta', 'AMeta'])\n    new_calls.clear()\n    assert 'BMeta_was_here' in E.__dict__, ('assertIn', 'BMeta_was_here', E.__dict__)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ClassCreationTests.test_metaclass_override_function",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'Meta'"
     },
     {
       "ident": "ClassCreationTests.test_metaclass_override_callable",
@@ -891,20 +906,8 @@
       "reason": "self.assertIsSubclass"
     },
     {
-      "ident": "ClassCreationTests.test_new_class_meta",
-      "reason": "uses-self.Meta"
-    },
-    {
-      "ident": "ClassCreationTests.test_new_class_exec_body",
-      "reason": "uses-self.Meta"
-    },
-    {
       "ident": "ClassCreationTests.test_new_class_meta_with_base",
       "reason": "self.assertIsSubclass"
-    },
-    {
-      "ident": "ClassCreationTests.test_metaclass_override_function",
-      "reason": "uses-self.Meta"
     },
     {
       "ident": "ClassCreationTests.test_one_argument_type",
@@ -916,11 +919,11 @@
     },
     {
       "ident": "CoroutineTests.test_duck_functional_gen",
-      "reason": "uses-self._i"
+      "reason": "uses-self.send"
     },
     {
       "ident": "SubinterpreterTests.test_static_types_inherited_slots",
-      "reason": "uses-self.maxDiff"
+      "reason": "uses-self.create_channel"
     }
   ],
   "counts": {

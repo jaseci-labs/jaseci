@@ -12,3 +12,33 @@ test "ExceptionClassTests.test_setstate_refcount_no_crash" {
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
+
+test "UsageTests.test_raise_new_style_non_exception" {
+    (ok, detail) = p2_libtest_run_snippet("def raise_fails(object_):\n    \"\"\"Make sure that raising 'object_' triggers a TypeError.\"\"\"\n    try:\n        raise object_\n    except TypeError:\n        return\n    raise AssertionError('TypeError expected for raising %s' % type(object_))\n\ndef _t():\n\n    class NewStyleClass(object):\n        pass\n    raise_fails(NewStyleClass)\n    raise_fails(NewStyleClass())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "UsageTests.test_raise_string" {
+    (ok, detail) = p2_libtest_run_snippet("def raise_fails(object_):\n    \"\"\"Make sure that raising 'object_' triggers a TypeError.\"\"\"\n    try:\n        raise object_\n    except TypeError:\n        return\n    raise AssertionError('TypeError expected for raising %s' % type(object_))\n\ndef _t():\n    raise_fails('spam')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "UsageTests.test_catch_non_BaseException" {
+    (ok, detail) = p2_libtest_run_snippet("def catch_fails(object_):\n    \"\"\"Catching 'object_' should raise a TypeError.\"\"\"\n    try:\n        try:\n            raise Exception\n        except object_:\n            pass\n    except TypeError:\n        pass\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s' % type(object_))\n    try:\n        try:\n            raise Exception\n        except (object_,):\n            pass\n    except TypeError:\n        return\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s as specified in a tuple' % type(object_))\n\ndef _t():\n\n    class NonBaseException(object):\n        pass\n    catch_fails(NonBaseException)\n    catch_fails(NonBaseException())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "UsageTests.test_catch_BaseException_instance" {
+    (ok, detail) = p2_libtest_run_snippet("def catch_fails(object_):\n    \"\"\"Catching 'object_' should raise a TypeError.\"\"\"\n    try:\n        try:\n            raise Exception\n        except object_:\n            pass\n    except TypeError:\n        pass\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s' % type(object_))\n    try:\n        try:\n            raise Exception\n        except (object_,):\n            pass\n    except TypeError:\n        return\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s as specified in a tuple' % type(object_))\n\ndef _t():\n    catch_fails(BaseException())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "UsageTests.test_catch_string" {
+    (ok, detail) = p2_libtest_run_snippet("def catch_fails(object_):\n    \"\"\"Catching 'object_' should raise a TypeError.\"\"\"\n    try:\n        try:\n            raise Exception\n        except object_:\n            pass\n    except TypeError:\n        pass\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s' % type(object_))\n    try:\n        try:\n            raise Exception\n        except (object_,):\n            pass\n    except TypeError:\n        return\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s as specified in a tuple' % type(object_))\n\ndef _t():\n    catch_fails('spam')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}

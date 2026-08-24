@@ -7,8 +7,20 @@ import from layer_p2_libtest { p2_libtest_run_snippet }
 
 # Source: test_keywordonlyarg.py
 
+test "KeywordOnlyArgTestCase.testSyntaxErrorForFunctionDefinition" {
+    (ok, detail) = p2_libtest_run_snippet("def assertRaisesSyntaxError(codestr):\n\n    def shouldRaiseSyntaxError(s):\n        compile(s, '<test>', 'single')\n    try:\n        shouldRaiseSyntaxError(*(codestr,))\n    except SyntaxError:\n        pass\n\ndef _t():\n    assertRaisesSyntaxError('def f(p, *):\\n  pass\\n')\n    assertRaisesSyntaxError('def f(p1, *, p1=100):\\n  pass\\n')\n    assertRaisesSyntaxError('def f(p1, *k1, k1=100):\\n  pass\\n')\n    assertRaisesSyntaxError('def f(p1, *, k1, k1=100):\\n  pass\\n')\n    assertRaisesSyntaxError('def f(p1, *, **k1):\\n  pass\\n')\n    assertRaisesSyntaxError('def f(p1, *, k1, **k1):\\n  pass\\n')\n    assertRaisesSyntaxError('def f(p1, *, None, **k1):\\n  pass\\n')\n    assertRaisesSyntaxError('def f(p, *, (k1, k2), **kw):\\n  pass\\n')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "KeywordOnlyArgTestCase.testSyntaxForManyArguments" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    fundef = 'def f(%s):\\n  pass\\n' % ', '.join(('i%d' % i for i in range(300)))\n    compile(fundef, '<test>', 'single')\n    fundef = 'def f(*, %s):\\n  pass\\n' % ', '.join(('i%d' % i for i in range(300)))\n    compile(fundef, '<test>', 'single')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "KeywordOnlyArgTestCase.testSyntaxErrorForFunctionCall" {
+    (ok, detail) = p2_libtest_run_snippet("def assertRaisesSyntaxError(codestr):\n\n    def shouldRaiseSyntaxError(s):\n        compile(s, '<test>', 'single')\n    try:\n        shouldRaiseSyntaxError(*(codestr,))\n    except SyntaxError:\n        pass\n\ndef _t():\n    assertRaisesSyntaxError('f(p, k=1, p2)')\n    assertRaisesSyntaxError('f(p, k1=50, *(1,2), k1=100)')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

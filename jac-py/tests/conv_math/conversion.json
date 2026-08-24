@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_math.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_math.py",
     "-o",
-    "/var/tmp/laneb-out/test_math",
+    "/var/tmp/lane8/jac-py/tests/conv_math",
     "--name",
     "conv_math"
   ],
-  "generated_at": "2026-08-24T13:38:25",
+  "generated_at": "2026-08-24T14:34:04",
   "hashes": {
-    "pins_jac": "d752ca152c273ce3cdfa54707cf7f4c34697048cb1fc0e9ccec5f1c6655da564"
+    "pins_jac": "83ee4e39d57e230493aed34143f977a96730e13053138c4d05e5838629506653"
   },
-  "source_file": "reference/cpython/Lib/test/test_math.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_math.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "math",
   "pins_file": "conv_math_pins.jac",
@@ -362,6 +362,14 @@
       "snippet": "import math\nimport struct\nimport sys\nNAN = float('nan')\nINF = float('inf')\nx, y = (1e+16, 2.9999)\n\ndef to_ulps(x):\n    \"\"\"Convert a non-NaN float x to an integer, in such a way that\n    adjacent floats are converted to adjacent integers.  Then\n    abs(ulps(x) - ulps(y)) gives the difference in ulps between two\n    floats.\n\n    The results from this function will only make sense on platforms\n    where native doubles are represented in IEEE 754 binary64 format.\n\n    Note: 0.0 and -0.0 are converted to 0 and -1, respectively.\n    \"\"\"\n    n = struct.unpack('<q', struct.pack('<d', x))[0]\n    if n < 0:\n        n = ~(n + 2 ** 63)\n    return n\n\ndef count_set_bits(n):\n    \"\"\"Number of '1' bits in binary expansion of a nonnnegative integer.\"\"\"\n    return 1 + count_set_bits(n & n - 1) if n else 0\n\ndef partial_product(start, stop):\n    \"\"\"Product of integers in range(start, stop, 2), computed recursively.\n    start and stop should both be odd, with start <= stop.\n\n    \"\"\"\n    numfactors = stop - start >> 1\n    if not numfactors:\n        return 1\n    elif numfactors == 1:\n        return start\n    else:\n        mid = start + numfactors | 1\n        return partial_product(start, mid) * partial_product(mid, stop)\n\ndef py_factorial(n):\n    \"\"\"Factorial of nonnegative integer n, via \"Binary Split Factorial Formula\"\n    described at http://www.luschny.de/math/factorial/binarysplitfact.html\n\n    \"\"\"\n    inner = outer = 1\n    for i in reversed(range(n.bit_length())):\n        inner *= partial_product((n >> i + 1) + 1 | 1, (n >> i) + 1 | 1)\n        outer *= inner\n    return outer << n - count_set_bits(n)\n\ndef assertEqualSign(x, y):\n    \"\"\"Similar to assertEqual(), but compare also the sign with copysign().\n\n        Function useful to compare signed zeros.\n        \"\"\"\n    assert x == y, ('assertEqual', x, y)\n    assert math.copysign(1.0, x) == math.copysign(1.0, y), ('assertEqual', math.copysign(1.0, x), math.copysign(1.0, y))\n\ndef assertIsNaN(value):\n    if not math.isnan(value):\n        raise AssertionError('Expected a NaN, got {!r}.'.format(value))\n\ndef _t():\n    assert math.nextafter(4503599627370496.0, -INF) == 4503599627370495.5, ('assertEqual', math.nextafter(4503599627370496.0, -INF), 4503599627370495.5)\n    assert math.nextafter(4503599627370496.0, INF) == 4503599627370497.0, ('assertEqual', math.nextafter(4503599627370496.0, INF), 4503599627370497.0)\n    assert math.nextafter(9.223372036854776e+18, 0.0) == 9.223372036854775e+18, ('assertEqual', math.nextafter(9.223372036854776e+18, 0.0), 9.223372036854775e+18)\n    assert math.nextafter(-9.223372036854776e+18, 0.0) == -9.223372036854775e+18, ('assertEqual', math.nextafter(-9.223372036854776e+18, 0.0), -9.223372036854775e+18)\n    assert math.nextafter(1.0, -INF) == float.fromhex('0x1.fffffffffffffp-1'), ('assertEqual', math.nextafter(1.0, -INF), float.fromhex('0x1.fffffffffffffp-1'))\n    assert math.nextafter(1.0, INF) == float.fromhex('0x1.0000000000001p+0'), ('assertEqual', math.nextafter(1.0, INF), float.fromhex('0x1.0000000000001p+0'))\n    assert math.nextafter(1.0, -INF, steps=1) == float.fromhex('0x1.fffffffffffffp-1'), ('assertEqual', math.nextafter(1.0, -INF, steps=1), float.fromhex('0x1.fffffffffffffp-1'))\n    assert math.nextafter(1.0, INF, steps=1) == float.fromhex('0x1.0000000000001p+0'), ('assertEqual', math.nextafter(1.0, INF, steps=1), float.fromhex('0x1.0000000000001p+0'))\n    assert math.nextafter(1.0, -INF, steps=3) == float.fromhex('0x1.ffffffffffffdp-1'), ('assertEqual', math.nextafter(1.0, -INF, steps=3), float.fromhex('0x1.ffffffffffffdp-1'))\n    assert math.nextafter(1.0, INF, steps=3) == float.fromhex('0x1.0000000000003p+0'), ('assertEqual', math.nextafter(1.0, INF, steps=3), float.fromhex('0x1.0000000000003p+0'))\n    for steps in range(1, 5):\n        assert math.nextafter(2.0, 2.0, steps=steps) == 2.0, ('assertEqual', math.nextafter(2.0, 2.0, steps=steps), 2.0)\n        assertEqualSign(math.nextafter(-0.0, +0.0, steps=steps), +0.0)\n        assertEqualSign(math.nextafter(+0.0, -0.0, steps=steps), -0.0)\n    smallest_subnormal = sys.float_info.min * sys.float_info.epsilon\n    assert math.nextafter(+0.0, INF) == smallest_subnormal, ('assertEqual', math.nextafter(+0.0, INF), smallest_subnormal)\n    assert math.nextafter(-0.0, INF) == smallest_subnormal, ('assertEqual', math.nextafter(-0.0, INF), smallest_subnormal)\n    assert math.nextafter(+0.0, -INF) == -smallest_subnormal, ('assertEqual', math.nextafter(+0.0, -INF), -smallest_subnormal)\n    assert math.nextafter(-0.0, -INF) == -smallest_subnormal, ('assertEqual', math.nextafter(-0.0, -INF), -smallest_subnormal)\n    assertEqualSign(math.nextafter(smallest_subnormal, +0.0), +0.0)\n    assertEqualSign(math.nextafter(-smallest_subnormal, +0.0), -0.0)\n    assertEqualSign(math.nextafter(smallest_subnormal, -0.0), +0.0)\n    assertEqualSign(math.nextafter(-smallest_subnormal, -0.0), -0.0)\n    largest_normal = sys.float_info.max\n    assert math.nextafter(INF, 0.0) == largest_normal, ('assertEqual', math.nextafter(INF, 0.0), largest_normal)\n    assert math.nextafter(-INF, 0.0) == -largest_normal, ('assertEqual', math.nextafter(-INF, 0.0), -largest_normal)\n    assert math.nextafter(largest_normal, INF) == INF, ('assertEqual', math.nextafter(largest_normal, INF), INF)\n    assert math.nextafter(-largest_normal, -INF) == -INF, ('assertEqual', math.nextafter(-largest_normal, -INF), -INF)\n    assertIsNaN(math.nextafter(NAN, 1.0))\n    assertIsNaN(math.nextafter(1.0, NAN))\n    assertIsNaN(math.nextafter(NAN, NAN))\n    assert 1.0 == math.nextafter(1.0, INF, steps=0), ('assertEqual', 1.0, math.nextafter(1.0, INF, steps=0))\n    try:\n        math.nextafter(1.0, INF, steps=-1)\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "MathTests.test_issue39871",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import math\nx, y = (1e+16, 2.9999)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def __float__(self):\n            self.converted = True\n            1 / 0\n    for func in (math.atan2, math.copysign, math.remainder):\n        y = F()\n        try:\n            func('not a number', y)\n        except TypeError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        assert not getattr(y, 'converted', False), ('assertFalse', getattr(y, 'converted', False))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "MathTests.test_input_exceptions",
       "status": "pinned",
       "oracle": {
@@ -469,7 +477,7 @@
     },
     {
       "ident": "MathTests.testIsqrt",
-      "reason": "uses-self.value"
+      "reason": "uses-self.subTest"
     },
     {
       "ident": "MathTests.test_lcm",
@@ -498,10 +506,6 @@
     {
       "ident": "MathTests.test_ulp",
       "reason": "uses-self.subTest"
-    },
-    {
-      "ident": "MathTests.test_issue39871",
-      "reason": "uses-self.converted"
     },
     {
       "ident": "IsCloseTests.test_negative_tolerances",
@@ -562,7 +566,7 @@
   ],
   "counts": {
     "extracted": 88,
-    "pinned": 45,
-    "quarantined": 43
+    "pinned": 46,
+    "quarantined": 42
   }
 }

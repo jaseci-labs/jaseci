@@ -31,6 +31,12 @@ test "GeneralFloatCases.test_keyword_args" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "GeneralFloatCases.test_keywords_in_subclass" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class subclass(float):\n        pass\n    u = subclass(2.5)\n    assert type(u) is subclass, ('assertIs', type(u), subclass)\n    assert float(u) == 2.5, ('assertEqual', float(u), 2.5)\n    try:\n        subclass(x=0)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    class subclass_with_init(float):\n\n        def __init__(self, arg, newarg=None):\n            self.newarg = newarg\n    u = subclass_with_init(2.5, newarg=3)\n    assert type(u) is subclass_with_init, ('assertIs', type(u), subclass_with_init)\n    assert float(u) == 2.5, ('assertEqual', float(u), 2.5)\n    assert u.newarg == 3, ('assertEqual', u.newarg, 3)\n\n    class subclass_with_new(float):\n\n        def __new__(cls, arg, newarg=None):\n            self = super().__new__(cls, arg)\n            self.newarg = newarg\n            return self\n    u = subclass_with_new(2.5, newarg=3)\n    assert type(u) is subclass_with_new, ('assertIs', type(u), subclass_with_new)\n    assert float(u) == 2.5, ('assertEqual', float(u), 2.5)\n    assert u.newarg == 3, ('assertEqual', u.newarg, 3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "GeneralFloatCases.test_is_integer" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    assert not 1.1.is_integer(), ('assertFalse', 1.1.is_integer())\n    assert 1.0.is_integer(), ('assertTrue', 1.0.is_integer())\n    assert not float('nan').is_integer(), ('assertFalse', float('nan').is_integer())\n    assert not float('inf').is_integer(), ('assertFalse', float('inf').is_integer())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -135,6 +141,12 @@ test "InfNanTest.test_nan_signs" {
 
 test "HexFloatTestCase.test_invalid_inputs" {
     (ok, detail) = p2_libtest_run_snippet("fromHex = float.fromhex\n\ndef _t():\n    invalid_inputs = ['infi', '-Infinit', '++inf', '-+Inf', '--nan', '+-NaN', 'snan', 'NaNs', 'nna', 'an', 'nf', 'nfinity', 'inity', 'iinity', '0xnan', '', ' ', 'x1.0p0', '0xX1.0p0', '+ 0x1.0p0', '- 0x1.0p0', '0 x1.0p0', '0x 1.0p0', '0x1 2.0p0', '+0x1 .0p0', '0x1. 0p0', '-0x1.0 1p0', '-0x1.0 p0', '+0x1.0p +0', '0x1.0p -0', '0x1.0p 0', '+0x1.0p+ 0', '-0x1.0p- 0', '++0x1.0p-0', '--0x1.0p0', '+-0x1.0p+0', '-+0x1.0p0', '0x1.0p++0', '+0x1.0p+-0', '-0x1.0p-+0', '0x1.0p--0', '0x1.0.p0', '0x.p0', '0x1,p0', '0x1pa', '0x1p\uff10', '\uff10x1p0', '0x\uff11p0', '0x1.\uff10p0', '0x1p0 \\n 0x2p0', '0x1p0\\x00 0x1p0']\n    for x in invalid_inputs:\n        try:\n            result = fromHex(x)\n        except ValueError:\n            pass\n        else:\n            raise AssertionError('Expected float.fromhex(%r) to raise ValueError; got %r instead' % (x, result))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "HexFloatTestCase.test_subclass" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F(float):\n\n        def __new__(cls, value):\n            return float.__new__(cls, value + 1)\n    f = F.fromhex(1.5.hex())\n    assert type(f) is F, ('assertIs', type(f), F)\n    assert f == 2.5, ('assertEqual', f, 2.5)\n\n    class F2(float):\n\n        def __init__(self, value):\n            self.foo = 'bar'\n    f = F2.fromhex(1.5.hex())\n    assert type(f) is F2, ('assertIs', type(f), F2)\n    assert f == 1.5, ('assertEqual', f, 1.5)\n    assert getattr(f, 'foo', 'none') == 'bar', ('assertEqual', getattr(f, 'foo', 'none'), 'bar')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

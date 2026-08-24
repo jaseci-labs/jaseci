@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "896753ce7d06545219072fd3d5524dd8cd7983cd",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_tstring.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_tstring.py",
     "-o",
-    "/var/tmp/wp4-mech/out/convL_tstring",
+    "/var/tmp/lane8/jac-py/tests/conv_tstring",
     "--name",
     "conv_tstring"
   ],
-  "generated_at": "2026-08-24T01:12:53",
+  "generated_at": "2026-08-24T14:41:47",
   "hashes": {
     "pins_jac": "61f9c1b574619b10a9add4c1bcfcf7b2a1968980bbb4d29f2211a47fc9826878"
   },
-  "source_file": "reference/cpython/Lib/test/test_tstring.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_tstring.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "tstring",
   "pins_file": "conv_tstring_pins.jac",
@@ -75,7 +75,7 @@
     },
     {
       "ident": "TestTString.test_syntax_errors",
-      "reason": "uses-self.subTest"
+      "reason": "uses-self.assertRaisesRegex"
     },
     {
       "ident": "TestTString.test_literal_concatenation",

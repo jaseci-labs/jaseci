@@ -1,13 +1,14 @@
 # Triage report: `conv_posixpath_pins.jac`
 
-- source: reference/cpython/Lib/test/test_posixpath.py
-- guest leg: 0/22 marks
-- pins: **16 passed** / 22 run (+42 quarantined of 64 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_posixpath.py
+- guest leg: 0/23 marks
+- pins: **16 passed** / 23 run (+41 quarantined of 64 extracted)
 
 | pin | result | got |
 |---|---|---|
 | PosixPathTest.test_join | PASS | |
 | PosixPathTest.test_split | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'/foo\', b\'bar\'), (b\'/foo\', b\'bar\'))"'> |
+| PosixPathTest.test_splitext | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'foo\', b\'.bar\'), (b\'foo\', b\'.bar\'))"'> |
 | PosixPathTest.test_splitroot | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'\', b\'\', b\'\'), (b\'\', b\'\', b\'\'))"'> |
 | PosixPathTest.test_isabs | PASS | |
 | PosixPathTest.test_basename | PASS | |
@@ -40,10 +41,9 @@
 | PosixPathTest.test_expanduser_pwd2 | decorator:unittest.skipIf |
 | PosixPathTest.test_realpath_unreadable_symlink | decorator:unittest.skipIf |
 | PosixPathTest.test_realpath_unreadable_symlink_strict | decorator:unittest.skipIf |
-| PosixPathTest.test_splitext | self.splitextTest |
 | PosixPathTest.test_islink | self.addCleanup |
 | PosixPathTest.test_expanduser_home_envvar | uses-self.subTest |
-| PosixPathTest.test_normpath | uses-self.NORMPATH_CASES |
+| PosixPathTest.test_normpath | uses-self.subTest |
 | PosixPathTest.test_realpath_curdir | unresolved-name:kwargs |
 | PosixPathTest.test_realpath_pardir | unresolved-name:kwargs |
 | PosixPathTest.test_realpath_basic | unresolved-name:kwargs |
@@ -56,25 +56,25 @@
 | PosixPathTest.test_realpath_resolve_before_normalizing | unresolved-name:kwargs |
 | PosixPathTest.test_realpath_resolve_first | unresolved-name:kwargs |
 | PosixPathTest.test_realpath_unreadable_directory | self.skipTest |
-| PathLikeTests.test_path_normcase | self.assertPathEqual |
-| PathLikeTests.test_path_isabs | self.assertPathEqual |
-| PathLikeTests.test_path_join | uses-self.path |
-| PathLikeTests.test_path_split | self.assertPathEqual |
-| PathLikeTests.test_path_splitext | self.assertPathEqual |
-| PathLikeTests.test_path_splitdrive | self.assertPathEqual |
-| PathLikeTests.test_path_splitroot | self.assertPathEqual |
-| PathLikeTests.test_path_basename | self.assertPathEqual |
-| PathLikeTests.test_path_dirname | self.assertPathEqual |
-| PathLikeTests.test_path_islink | self.assertPathEqual |
-| PathLikeTests.test_path_lexists | self.assertPathEqual |
-| PathLikeTests.test_path_ismount | self.assertPathEqual |
-| PathLikeTests.test_path_expanduser | self.assertPathEqual |
-| PathLikeTests.test_path_expandvars | self.assertPathEqual |
-| PathLikeTests.test_path_normpath | self.assertPathEqual |
-| PathLikeTests.test_path_abspath | self.assertPathEqual |
-| PathLikeTests.test_path_realpath | self.assertPathEqual |
-| PathLikeTests.test_path_relpath | self.assertPathEqual |
-| PathLikeTests.test_path_commonpath | uses-self.file_name |
+| PathLikeTests.test_path_normcase | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_isabs | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_join | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_split | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_splitext | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_splitdrive | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_splitroot | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_basename | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_dirname | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_islink | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_lexists | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_ismount | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_expanduser | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_expandvars | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_normpath | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_abspath | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_realpath | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_relpath | helper:setUp(self.addCleanup) |
+| PathLikeTests.test_path_commonpath | helper:setUp(self.addCleanup) |
 
 ## Expected vs got
 
@@ -102,6 +102,11 @@
 
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'/foo\', b\'bar\'), (b\'/foo\', b\'bar\'))"'>
+
+### PosixPathTest.test_splitext (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'foo\', b\'.bar\'), (b\'foo\', b\'.bar\'))"'>
 
 ### PosixPathTest.test_splitroot (GUEST-WRONG-OUTPUT)
 

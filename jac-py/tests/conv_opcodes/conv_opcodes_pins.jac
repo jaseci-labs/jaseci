@@ -13,6 +13,12 @@ test "OpcodeTest.test_try_inside_for_loop" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "OpcodeTest.test_setup_annotations_line" {
+    (ok, detail) = p2_libtest_run_snippet("from test.typinganndata import ann_module\n\ndef _t():\n    try:\n        with open(ann_module.__file__, encoding='utf-8') as f:\n            txt = f.read()\n        co = compile(txt, ann_module.__file__, 'exec')\n        assert co.co_firstlineno == 1, ('assertEqual', co.co_firstlineno, 1)\n    except OSError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "OpcodeTest.test_default_annotations_exist" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class C:\n        pass\n    assert C.__annotations__ == {}, ('assertEqual', C.__annotations__, {})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -21,6 +27,12 @@ test "OpcodeTest.test_default_annotations_exist" {
 
 test "OpcodeTest.test_use_existing_annotations" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    ns = {'__annotations__': {1: 2}}\n    exec('x: int', ns)\n    assert ns['__annotations__'] == {1: 2}, ('assertEqual', ns['__annotations__'], {1: 2})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "OpcodeTest.test_do_not_recreate_annotations" {
+    (ok, detail) = p2_libtest_run_snippet("from test import support\n\ndef _t():\n    with support.swap_item(globals(), '__annotations__', {}):\n        globals().pop('__annotations__', None)\n\n        class C:\n            try:\n                del __annotations__\n            except NameError:\n                pass\n            x: int\n        assert C.__annotations__ == {'x': int}, ('assertEqual', C.__annotations__, {'x': int})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

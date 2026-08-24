@@ -1,12 +1,12 @@
 # Triage report: `conv_property_pins.jac`
 
-- source: reference/cpython/Lib/test/test_property.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_property.py
 - guest leg: 0/5 marks
 - pins: **1 passed** / 5 run (+23 quarantined of 28 extracted)
 
 | pin | result | got |
 |---|---|---|
-| PropertyTests.test_property___isabstractmethod__descriptor | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError '**isabstractmethod**'"> |
+| PropertyTests.test_property___isabstractmethod__descriptor | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIs\', False, True)"'> |
 | PropertyTests.test_property_name | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError '**name**'"> |
 | PropertyTests.test_property_set_name_incorrect_args | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError '**set_name**'"> |
 | PropertyTests.test_property_setname_on_property_subclass | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError '**set_name**'"> |
@@ -36,16 +36,16 @@
 | PropertyTests.test_property_decorator_subclass | unresolved-name:PropertyDel |
 | PropertyTests.test_property_decorator_doc | unresolved-name:PropertyDocBase |
 | PropertySubclassTests.test_property_no_doc_on_getter | unresolved-name:PropertySub |
-| _PropertyUnreachableAttribute.test_get_property | uses-self.obj |
-| _PropertyUnreachableAttribute.test_set_property | uses-self.obj |
-| _PropertyUnreachableAttribute.test_del_property | uses-self.obj |
+| _PropertyUnreachableAttribute.test_get_property | host-raised:NameError: name 'self' is not defined |
+| _PropertyUnreachableAttribute.test_set_property | host-raised:NameError: name 'self' is not defined |
+| _PropertyUnreachableAttribute.test_del_property | host-raised:NameError: name 'self' is not defined |
 
 ## Expected vs got
 
 ### PropertyTests.test_property___isabstractmethod__descriptor (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC AttributeError '**isabstractmethod**'">
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIs\', False, True)"'>
 
 ### PropertyTests.test_property_name (GUEST-WRONG-OUTPUT)
 

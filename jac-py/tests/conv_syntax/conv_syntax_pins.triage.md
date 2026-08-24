@@ -1,6 +1,6 @@
 # Triage report: `conv_syntax_pins.jac`
 
-- source: reference/cpython/Lib/test/test_syntax.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_syntax.py
 - guest leg: 0/35 marks
 - pins: **34 passed** / 35 run (+9 quarantined of 44 extracted)
 

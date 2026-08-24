@@ -1,6 +1,6 @@
 # Triage report: `conv_marshal_pins.jac`
 
-- source: reference/cpython/Lib/test/test_marshal.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_marshal.py
 - guest leg: 0/36 marks
 - pins: **16 passed** / 36 run (+39 quarantined of 75 extracted)
 
@@ -65,27 +65,27 @@
 | CodeTestCase.test_many_codeobjects | unresolved-name:ExceptionTestCase |
 | CodeTestCase.test_no_allow_code | unresolved-name:ExceptionTestCase |
 | CodeTestCase.test_minimal_linetable_with_no_debug_ranges | unresolved-name:ExceptionTestCase |
-| ContainerTestCase.test_dict | uses-self.d |
-| ContainerTestCase.test_list | uses-self.d |
-| ContainerTestCase.test_tuple | uses-self.d |
-| ContainerTestCase.test_sets | uses-self.d |
 | BugsTestCase.test_reference_loop_code | self.addCleanup |
 | BugsTestCase.test_loads_abnormal_reference_loops | uses-self.subTest |
 | BugsTestCase.test_deterministic_sets | uses-self.subTest |
 | BugsTestCase.test_unmarshallable | uses-self.subTest |
-| InstancingTestCase.testList | uses-self.keys |
-| InstancingTestCase.testTuple | uses-self.keys |
-| InstancingTestCase.testSet | uses-self.keys |
-| InstancingTestCase.testFrozenSet | uses-self.keys |
-| InstancingTestCase.testDict | uses-self.keys |
 | InstancingTestCase.testModule | unresolved-name:**file** |
 | CompatibilityTestCase.test0To3 | helper:_test(unresolved-name:**file**) |
 | CompatibilityTestCase.test1To3 | helper:_test(unresolved-name:**file**) |
 | CompatibilityTestCase.test2To3 | helper:_test(unresolved-name:**file**) |
 | CompatibilityTestCase.test3To3 | helper:_test(unresolved-name:**file**) |
-| InterningTestCase.testIntern | uses-self.strobj |
-| InterningTestCase.testNoIntern | uses-self.strobj |
-| SliceTestCase.test_slice | uses-self.helper |
+| SliceTestCase.test_slice | uses-self.subTest |
+| ContainerTestCase.test_dict | host-raised:AttributeError: '_SelfNS' object has no attribute 'd' |
+| ContainerTestCase.test_list | host-raised:AttributeError: '_SelfNS' object has no attribute 'd' |
+| ContainerTestCase.test_tuple | host-raised:AttributeError: '_SelfNS' object has no attribute 'd' |
+| ContainerTestCase.test_sets | host-raised:AttributeError: '_SelfNS' object has no attribute 'd' |
+| InstancingTestCase.testList | host-raised:AttributeError: '_SelfNS' object has no attribute 'keys' |
+| InstancingTestCase.testTuple | host-raised:AttributeError: '_SelfNS' object has no attribute 'keys' |
+| InstancingTestCase.testSet | host-raised:AttributeError: '_SelfNS' object has no attribute 'keys' |
+| InstancingTestCase.testFrozenSet | host-raised:AttributeError: '_SelfNS' object has no attribute 'keys' |
+| InstancingTestCase.testDict | host-raised:AttributeError: '_SelfNS' object has no attribute 'keys' |
+| InterningTestCase.testIntern | host-raised:AttributeError: '_SelfNS' object has no attribute 'strobj' |
+| InterningTestCase.testNoIntern | host-raised:AttributeError: '_SelfNS' object has no attribute 'strobj' |
 
 ## Expected vs got
 

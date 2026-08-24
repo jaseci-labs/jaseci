@@ -163,6 +163,12 @@ test "BoolTest.test_real_and_imag" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "BoolTest.test_bool_called_at_least_once" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class X:\n\n        def __init__(self):\n            self.count = 0\n\n        def __bool__(self):\n            self.count += 1\n            return True\n\n    def f(x):\n        if x or True:\n            pass\n    x = X()\n    f(x)\n    assert x.count >= 1, ('assertGreaterEqual', x.count, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "BoolTest.test_bool_new" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    assert bool.__new__(bool) is False, ('assertIs', bool.__new__(bool), False)\n    assert bool.__new__(bool, 1) is True, ('assertIs', bool.__new__(bool, 1), True)\n    assert bool.__new__(bool, 0) is False, ('assertIs', bool.__new__(bool, 0), False)\n    assert bool.__new__(bool, False) is False, ('assertIs', bool.__new__(bool, False), False)\n    assert bool.__new__(bool, True) is True, ('assertIs', bool.__new__(bool, True), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

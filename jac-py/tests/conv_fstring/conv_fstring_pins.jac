@@ -13,6 +13,12 @@ test "TestCase.test__format__lookup" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TestCase.test_ast" {
+    (ok, detail) = p2_libtest_run_snippet("import ast\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class X:\n\n        def __init__(self):\n            self.called = False\n\n        def __call__(self):\n            self.called = True\n            return 4\n    x = X()\n    expr = \"\\na = 10\\nf'{a * x()}'\"\n    t = ast.parse(expr)\n    c = compile(t, '', 'exec')\n    assert not x.called, ('assertFalse', x.called)\n    exec(c)\n    assert x.called, ('assertTrue', x.called)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestCase.test_ast_line_numbers" {
     (ok, detail) = p2_libtest_run_snippet("import ast\n\ndef _t():\n    expr = \"\\na = 10\\nf'{a * x()}'\"\n    t = ast.parse(expr)\n    assert type(t) == ast.Module, ('assertEqual', type(t), ast.Module)\n    assert len(t.body) == 2, ('assertEqual', len(t.body), 2)\n    assert type(t.body[0]) == ast.Assign, ('assertEqual', type(t.body[0]), ast.Assign)\n    assert t.body[0].lineno == 2, ('assertEqual', t.body[0].lineno, 2)\n    assert type(t.body[1]) == ast.Expr, ('assertEqual', type(t.body[1]), ast.Expr)\n    assert type(t.body[1].value) == ast.JoinedStr, ('assertEqual', type(t.body[1].value), ast.JoinedStr)\n    assert len(t.body[1].value.values) == 1, ('assertEqual', len(t.body[1].value.values), 1)\n    assert type(t.body[1].value.values[0]) == ast.FormattedValue, ('assertEqual', type(t.body[1].value.values[0]), ast.FormattedValue)\n    assert t.body[1].lineno == 3, ('assertEqual', t.body[1].lineno, 3)\n    assert t.body[1].value.lineno == 3, ('assertEqual', t.body[1].value.lineno, 3)\n    assert t.body[1].value.values[0].lineno == 3, ('assertEqual', t.body[1].value.values[0].lineno, 3)\n    binop = t.body[1].value.values[0].value\n    assert type(binop) == ast.BinOp, ('assertEqual', type(binop), ast.BinOp)\n    assert type(binop.left) == ast.Name, ('assertEqual', type(binop.left), ast.Name)\n    assert type(binop.op) == ast.Mult, ('assertEqual', type(binop.op), ast.Mult)\n    assert type(binop.right) == ast.Call, ('assertEqual', type(binop.right), ast.Call)\n    assert binop.lineno == 3, ('assertEqual', binop.lineno, 3)\n    assert binop.left.lineno == 3, ('assertEqual', binop.left.lineno, 3)\n    assert binop.right.lineno == 3, ('assertEqual', binop.right.lineno, 3)\n    assert binop.col_offset == 3, ('assertEqual', binop.col_offset, 3)\n    assert binop.left.col_offset == 3, ('assertEqual', binop.left.col_offset, 3)\n    assert binop.right.col_offset == 7, ('assertEqual', binop.right.col_offset, 7)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -93,6 +99,12 @@ test "TestCase.test_literal" {
 
 test "TestCase.test_many_expressions" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    def build_fstr(n, extra=''):\n        return \"f'\" + '{x} ' * n + extra + \"'\"\n    x = 'X'\n    width = 1\n    for i in range(250, 260):\n        assert eval(build_fstr(i)) == (x + ' ') * i, ('assertEqual', eval(build_fstr(i)), (x + ' ') * i)\n    assert eval(build_fstr(255) * 256) == (x + ' ') * (255 * 256), ('assertEqual', eval(build_fstr(255) * 256), (x + ' ') * (255 * 256))\n    s = build_fstr(253, '{x:{width}} ')\n    assert eval(s) == (x + ' ') * 254, ('assertEqual', eval(s), (x + ' ') * 254)\n    s = \"f'{1}' 'x' 'y'\" * 1024\n    assert eval(s) == '1xy' * 1024, ('assertEqual', eval(s), '1xy' * 1024)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCase.test_side_effect_order" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class X:\n\n        def __init__(self):\n            self.i = 0\n\n        def __format__(self, spec):\n            self.i += 1\n            return str(self.i)\n    x = X()\n    assert f'{x} {x}' == '1 2', ('assertEqual', f'{x} {x}', '1 2')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

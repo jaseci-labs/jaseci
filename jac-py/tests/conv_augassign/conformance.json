@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "9d86274c42461fda69d309214d128e472ac69395",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/wp4-mech/out/conv_augassign/conv_augassign_pins.jac"
+    "jac-py/tests/conv_augassign/conv_augassign_pins.jac"
   ],
-  "generated_at": "2026-08-24T00:36:12",
+  "generated_at": "2026-08-24T14:30:26",
   "hashes": {
-    "pins_jac": "4102beb50b744586f7b41a011b79d95c24c4394d66a85fdbe1c3a3426cfa793f",
-    "conversion_json": "de8d1a3abb337058d6de88477e7cb8b1858d1ade8934cb334de6af0ad9441c21",
+    "pins_jac": "6f9d72eb655a2d34108de294aece83777f3c0cf00e5bfc6ba2a49ad6f8726c8b",
+    "conversion_json": "e307df24a4ce9ff7f7e1af2918adc29b0a75bbfcad8dd31ffdcb16f35386173a",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "augassign",
   "counts": {
     "converted": 7,
-    "runnable": 5,
+    "runnable": 6,
     "green": 5,
-    "quarantined": 2
+    "quarantined": 1
   },
   "pins": [
     {
@@ -46,8 +46,9 @@
     },
     {
       "id": "AugAssignTest.testCustomMethods1",
-      "status": "quarantined",
-      "reason": "uses-self.val"
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertTrue\\', False)\"'>"
     },
     {
       "id": "AugAssignTest.testCustomMethods2",

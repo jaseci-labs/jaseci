@@ -193,6 +193,12 @@ test "ScopeTests.testTopIsNotSignificant" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "ScopeTests.testCellLeak" {
+    (ok, detail) = p2_libtest_run_snippet("import weakref\nfrom test.support import gc_collect\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Tester:\n\n        def dig(self):\n            if 0:\n                lambda: self\n            try:\n                1 / 0\n            except Exception as exc:\n                self.exc = exc\n            self = None\n    tester = Tester()\n    tester.dig()\n    ref = weakref.ref(tester)\n    del tester\n    gc_collect()\n    assert ref() is None, ('assertIsNone', ref())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "ScopeTests.test_multiple_nesting" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class MultiplyNested:\n\n        def f1(self):\n            __arg = 1\n\n            class D:\n\n                def g(self, __arg):\n                    return __arg\n            return D().g(_MultiplyNested__arg=2)\n\n        def f2(self):\n            __arg = 1\n\n            class D:\n\n                def g(self, __arg):\n                    return __arg\n            return D().g\n    inst = MultiplyNested()\n    try:\n        inst.f1()\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    closure = inst.f2()\n    try:\n        closure(_MultiplyNested__arg=2)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

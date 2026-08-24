@@ -1,6 +1,6 @@
 # Triage report: `conv_errno_pins.jac`
 
-- source: reference/cpython/Lib/test/test_errno.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_errno.py
 - guest leg: 0/1 marks
 - pins: **1 passed** / 1 run (+2 quarantined of 3 extracted)
 

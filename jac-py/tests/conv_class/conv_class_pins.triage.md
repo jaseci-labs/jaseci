@@ -1,11 +1,12 @@
 # Triage report: `conv_class_pins.jac`
 
-- source: reference/cpython/Lib/test/test_class.py
-- guest leg: 0/2 marks
-- pins: **0 passed** / 2 run (+35 quarantined of 37 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_class.py
+- guest leg: 0/3 marks
+- pins: **1 passed** / 3 run (+34 quarantined of 37 extracted)
 
 | pin | result | got |
 |---|---|---|
+| TestInlineValues.test_bug_117750 | PASS | |
 | TestInlineValues.test_store_attr_deleted_dict | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError '**dict**'"> |
 | TestInlineValues.test_rematerialize_object_dict | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError '**dict**'"> |
 
@@ -43,11 +44,10 @@
 | TestInlineValues.test_instances | unresolved-name:Plain |
 | TestInlineValues.test_inspect_dict | unresolved-name:Plain |
 | TestInlineValues.test_update_dict | unresolved-name:Plain |
-| TestInlineValues.test_many_attributes | self.set_100 |
-| TestInlineValues.test_many_attributes_with_dict | self.set_100 |
-| TestInlineValues.test_bug_117750 | uses-self.**dict** |
+| TestInlineValues.test_many_attributes | helper:set_100(decorated-helper) |
+| TestInlineValues.test_many_attributes_with_dict | helper:set_100(decorated-helper) |
 | TestInlineValues.test_store_attr_type_cache | uses-self.assertEqual |
-| TestInlineValues.test_detach_materialized_dict_no_memory | harness-error:ModuleNotFoundError: No module named 'test' |
+| TestInlineValues.test_detach_materialized_dict_no_memory | host-raised:SkipTest: No module named '_testcapi' |
 
 ## Expected vs got
 

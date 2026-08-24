@@ -1,6 +1,6 @@
 # Triage report: `conv_generator_stop_pins.jac`
 
-- source: reference/cpython/Lib/test/test_generator_stop.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_generator_stop.py
 - guest leg: 0/2 marks
 - pins: **1 passed** / 2 run (+0 quarantined of 2 extracted)
 

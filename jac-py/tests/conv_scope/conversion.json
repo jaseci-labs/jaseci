@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "3518a93f49871f294089786b53a66cce450da6eb",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_scope.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_scope.py",
     "-o",
-    "/var/tmp/laneb-out/test_scope",
+    "/var/tmp/lane8/jac-py/tests/conv_scope",
     "--name",
     "conv_scope"
   ],
-  "generated_at": "2026-08-24T13:05:14",
+  "generated_at": "2026-08-24T14:41:25",
   "hashes": {
-    "pins_jac": "535cda3d0264424955b7d48661254ecc2630ae667ea2b9683bf623350d18699d"
+    "pins_jac": "7e408cafd6da1a8b5e52b6ddba5aab94f70add1c0f5f65164827fd3d51360b34"
   },
-  "source_file": "reference/cpython/Lib/test/test_scope.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_scope.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "scope",
   "pins_file": "conv_scope_pins.jac",
@@ -157,6 +157,11 @@
       "snippet": "def _t():\n\n    def errorInOuter():\n        y = 1\n        del y\n        print(y)\n\n        def inner():\n            return y\n\n    def errorInInner():\n\n        def inner():\n            return y\n        y = 1\n        del y\n        inner()\n    try:\n        errorInOuter()\n    except UnboundLocalError:\n        pass\n    try:\n        errorInInner()\n    except NameError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "ScopeTests.testUnboundLocal_AugAssign",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fail'"
+    },
+    {
       "ident": "ScopeTests.testComplexDefinitions",
       "status": "pinned",
       "oracle": {
@@ -287,6 +292,14 @@
       "snippet": "def _t():\n\n    def top(a):\n        pass\n\n    def b():\n        global a\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "ScopeTests.testCellLeak",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import weakref\nfrom test.support import gc_collect\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Tester:\n\n        def dig(self):\n            if 0:\n                lambda: self\n            try:\n                1 / 0\n            except Exception as exc:\n                self.exc = exc\n            self = None\n    tester = Tester()\n    tester.dig()\n    ref = weakref.ref(tester)\n    del tester\n    gc_collect()\n    assert ref() is None, ('assertIsNone', ref())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "ScopeTests.test_multiple_nesting",
       "status": "pinned",
       "oracle": {
@@ -296,10 +309,6 @@
     }
   ],
   "quarantined": [
-    {
-      "ident": "ScopeTests.testUnboundLocal_AugAssign",
-      "reason": "uses-self.fail"
-    },
     {
       "ident": "ScopeTests.testLocalsClass_WithTrace",
       "reason": "self.addCleanup"
@@ -315,15 +324,11 @@
     {
       "ident": "ScopeTests.testClassNamespaceOverridesClosure",
       "reason": "self.assertNotHasAttr"
-    },
-    {
-      "ident": "ScopeTests.testCellLeak",
-      "reason": "uses-self.exc"
     }
   ],
   "counts": {
     "extracted": 41,
-    "pinned": 32,
-    "quarantined": 9
+    "pinned": 33,
+    "quarantined": 8
   }
 }

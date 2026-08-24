@@ -73,8 +73,20 @@ test "DictTest.test_len" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "DictTest.test_getitem" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    d = {'a': 1, 'b': 2}\n    assert d['a'] == 1, ('assertEqual', d['a'], 1)\n    assert d['b'] == 2, ('assertEqual', d['b'], 2)\n    d['c'] = 3\n    d['a'] = 4\n    assert d['c'] == 3, ('assertEqual', d['c'], 3)\n    assert d['a'] == 4, ('assertEqual', d['a'], 4)\n    del d['b']\n    assert d == {'a': 4, 'c': 3}, ('assertEqual', d, {'a': 4, 'c': 3})\n    try:\n        d.__getitem__()\n    except TypeError:\n        pass\n\n    class BadEq(object):\n\n        def __eq__(self, other):\n            raise Exc()\n\n        def __hash__(self):\n            return 24\n    d = {}\n    d[BadEq()] = 42\n    try:\n        d.__getitem__(*(23,))\n    except KeyError:\n        pass\n\n    class Exc(Exception):\n        pass\n\n    class BadHash(object):\n        fail = False\n\n        def __hash__(self):\n            if self.fail:\n                raise Exc()\n            else:\n                return 42\n    x = BadHash()\n    d[x] = 42\n    x.fail = True\n    try:\n        d.__getitem__(*(x,))\n    except Exc:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "DictTest.test_clear" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    d = {1: 1, 2: 2, 3: 3}\n    d.clear()\n    assert d == {}, ('assertEqual', d, {})\n    try:\n        d.clear(*(None,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "DictTest.test_update" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    d = {}\n    d.update({1: 100})\n    d.update({2: 20})\n    d.update({1: 1, 2: 2, 3: 3})\n    assert d == {1: 1, 2: 2, 3: 3}, ('assertEqual', d, {1: 1, 2: 2, 3: 3})\n    d.update()\n    assert d == {1: 1, 2: 2, 3: 3}, ('assertEqual', d, {1: 1, 2: 2, 3: 3})\n    try:\n        d.update(*(None,))\n    except (TypeError, AttributeError):\n        pass\n\n    class SimpleUserDict:\n\n        def __init__(self):\n            self.d = {1: 1, 2: 2, 3: 3}\n\n        def keys(self):\n            return self.d.keys()\n\n        def __getitem__(self, i):\n            return self.d[i]\n    d.clear()\n    d.update(SimpleUserDict())\n    assert d == {1: 1, 2: 2, 3: 3}, ('assertEqual', d, {1: 1, 2: 2, 3: 3})\n\n    class Exc(Exception):\n        pass\n    d.clear()\n\n    class FailingUserDict:\n\n        def keys(self):\n            raise Exc\n    try:\n        d.update(*(FailingUserDict(),))\n    except Exc:\n        pass\n\n    class FailingUserDict:\n\n        def keys(self):\n\n            class BogonIter:\n\n                def __init__(self):\n                    self.i = 1\n\n                def __iter__(self):\n                    return self\n\n                def __next__(self):\n                    if self.i:\n                        self.i = 0\n                        return 'a'\n                    raise Exc\n            return BogonIter()\n\n        def __getitem__(self, key):\n            return key\n    try:\n        d.update(*(FailingUserDict(),))\n    except Exc:\n        pass\n\n    class FailingUserDict:\n\n        def keys(self):\n\n            class BogonIter:\n\n                def __init__(self):\n                    self.i = ord('a')\n\n                def __iter__(self):\n                    return self\n\n                def __next__(self):\n                    if self.i <= ord('z'):\n                        rtn = chr(self.i)\n                        self.i += 1\n                        return rtn\n                    raise StopIteration\n            return BogonIter()\n\n        def __getitem__(self, key):\n            raise Exc\n    try:\n        d.update(*(FailingUserDict(),))\n    except Exc:\n        pass\n\n    class badseq(object):\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            raise Exc()\n    try:\n        {}.update(*(badseq(),))\n    except Exc:\n        pass\n    try:\n        {}.update(*([(1, 2, 3)],))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -115,8 +127,32 @@ test "DictTest.test_get" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "DictTest.test_setdefault" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    d = {}\n    assert d.setdefault('key0') is None, ('assertIs', d.setdefault('key0'), None)\n    d.setdefault('key0', [])\n    assert d.setdefault('key0') is None, ('assertIs', d.setdefault('key0'), None)\n    d.setdefault('key', []).append(3)\n    assert d['key'][0] == 3, ('assertEqual', d['key'][0], 3)\n    d.setdefault('key', []).append(4)\n    assert len(d['key']) == 2, ('assertEqual', len(d['key']), 2)\n    try:\n        d.setdefault()\n    except TypeError:\n        pass\n\n    class Exc(Exception):\n        pass\n\n    class BadHash(object):\n        fail = False\n\n        def __hash__(self):\n            if self.fail:\n                raise Exc()\n            else:\n                return 42\n    x = BadHash()\n    d[x] = 42\n    x.fail = True\n    try:\n        d.setdefault(*(x, []))\n    except Exc:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "DictTest.test_setdefault_atomic" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Hashed(object):\n\n        def __init__(self):\n            self.hash_count = 0\n            self.eq_count = 0\n\n        def __hash__(self):\n            self.hash_count += 1\n            return 42\n\n        def __eq__(self, other):\n            self.eq_count += 1\n            return id(self) == id(other)\n    hashed1 = Hashed()\n    y = {hashed1: 5}\n    hashed2 = Hashed()\n    y.setdefault(hashed2, [])\n    assert hashed1.hash_count == 1, ('assertEqual', hashed1.hash_count, 1)\n    assert hashed2.hash_count == 1, ('assertEqual', hashed2.hash_count, 1)\n    assert hashed1.eq_count + hashed2.eq_count == 1, ('assertEqual', hashed1.eq_count + hashed2.eq_count, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "DictTest.test_setitem_atomic_at_resize" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Hashed(object):\n\n        def __init__(self):\n            self.hash_count = 0\n            self.eq_count = 0\n\n        def __hash__(self):\n            self.hash_count += 1\n            return 42\n\n        def __eq__(self, other):\n            self.eq_count += 1\n            return id(self) == id(other)\n    hashed1 = Hashed()\n    y = {hashed1: 5, 0: 0, 1: 1, 2: 2, 3: 3}\n    hashed2 = Hashed()\n    y[hashed2] = []\n    assert hashed1.hash_count == 1, ('assertEqual', hashed1.hash_count, 1)\n    assert hashed2.hash_count == 1, ('assertEqual', hashed2.hash_count, 1)\n    assert hashed1.eq_count + hashed2.eq_count == 1, ('assertEqual', hashed1.eq_count + hashed2.eq_count, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "DictTest.test_popitem" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    for copymode in (-1, +1):\n        for log2size in range(12):\n            size = 2 ** log2size\n            a = {}\n            b = {}\n            for i in range(size):\n                a[repr(i)] = i\n                if copymode < 0:\n                    b[repr(i)] = i\n            if copymode > 0:\n                b = a.copy()\n            for i in range(size):\n                ka, va = ta = a.popitem()\n                assert va == int(ka), ('assertEqual', va, int(ka))\n                kb, vb = tb = b.popitem()\n                assert vb == int(kb), ('assertEqual', vb, int(kb))\n                assert not (copymode < 0 and ta != tb), ('assertFalse', (copymode < 0 and ta != tb))\n            assert not a, ('assertFalse', a)\n            assert not b, ('assertFalse', b)\n    d = {}\n    try:\n        d.popitem()\n    except KeyError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "DictTest.test_pop" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    d = {}\n    k, v = ('abc', 'def')\n    d[k] = v\n    try:\n        d.pop(*('ghi',))\n    except KeyError:\n        pass\n    assert d.pop(k) == v, ('assertEqual', d.pop(k), v)\n    assert len(d) == 0, ('assertEqual', len(d), 0)\n    try:\n        d.pop(*(k,))\n    except KeyError:\n        pass\n    assert d.pop(k, v) == v, ('assertEqual', d.pop(k, v), v)\n    d[k] = v\n    assert d.pop(k, 1) == v, ('assertEqual', d.pop(k, 1), v)\n    try:\n        d.pop()\n    except TypeError:\n        pass\n\n    class Exc(Exception):\n        pass\n\n    class BadHash(object):\n        fail = False\n\n        def __hash__(self):\n            if self.fail:\n                raise Exc()\n            else:\n                return 42\n    x = BadHash()\n    d[x] = 42\n    x.fail = True\n    try:\n        d.pop(*(x,))\n    except Exc:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -145,6 +181,12 @@ test "DictTest.test_mutating_iteration_delete_over_items" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "DictTest.test_mutating_lookup" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class NastyKey:\n        mutate_dict = None\n\n        def __init__(self, value):\n            self.value = value\n\n        def __hash__(self):\n            return 1\n\n        def __eq__(self, other):\n            if NastyKey.mutate_dict:\n                mydict, key = NastyKey.mutate_dict\n                NastyKey.mutate_dict = None\n                del mydict[key]\n            return self.value == other.value\n    key1 = NastyKey(1)\n    key2 = NastyKey(2)\n    d = {key1: 1}\n    NastyKey.mutate_dict = (d, key1)\n    d[key2] = 2\n    assert d == {key2: 2}, ('assertEqual', d, {key2: 2})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "DictTest.test_repr" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    d = {}\n    assert repr(d) == '{}', ('assertEqual', repr(d), '{}')\n    d[1] = 2\n    assert repr(d) == '{1: 2}', ('assertEqual', repr(d), '{1: 2}')\n    d = {}\n    d[1] = d\n    assert repr(d) == '{1: {...}}', ('assertEqual', repr(d), '{1: {...}}')\n\n    class Exc(Exception):\n        pass\n\n    class BadRepr(object):\n\n        def __repr__(self):\n            raise Exc()\n    d = {1: BadRepr()}\n    try:\n        repr(*(d,))\n    except Exc:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -153,6 +195,12 @@ test "DictTest.test_repr" {
 
 test "DictTest.test_eq" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    assert {} == {}, ('assertEqual', {}, {})\n    assert {1: 2} == {1: 2}, ('assertEqual', {1: 2}, {1: 2})\n\n    class Exc(Exception):\n        pass\n\n    class BadCmp(object):\n\n        def __eq__(self, other):\n            raise Exc()\n\n        def __hash__(self):\n            return 1\n    d1 = {BadCmp(): 1}\n    d2 = {1: 1}\n    try:\n        d1 == d2\n    except Exc as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "DictTest.test_keys_contained" {
+    (ok, detail) = p2_libtest_run_snippet("def helper_keys_contained(fn):\n    empty = fn(dict())\n    empty2 = fn(dict())\n    smaller = fn({1: 1, 2: 2})\n    larger = fn({1: 1, 2: 2, 3: 3})\n    larger2 = fn({1: 1, 2: 2, 3: 3})\n    larger3 = fn({4: 1, 2: 2, 3: 3})\n    assert smaller < larger, ('assertTrue', smaller < larger)\n    assert smaller <= larger, ('assertTrue', smaller <= larger)\n    assert larger > smaller, ('assertTrue', larger > smaller)\n    assert larger >= smaller, ('assertTrue', larger >= smaller)\n    assert not smaller >= larger, ('assertFalse', smaller >= larger)\n    assert not smaller > larger, ('assertFalse', smaller > larger)\n    assert not larger <= smaller, ('assertFalse', larger <= smaller)\n    assert not larger < smaller, ('assertFalse', larger < smaller)\n    assert not smaller < larger3, ('assertFalse', smaller < larger3)\n    assert not smaller <= larger3, ('assertFalse', smaller <= larger3)\n    assert not larger3 > smaller, ('assertFalse', larger3 > smaller)\n    assert not larger3 >= smaller, ('assertFalse', larger3 >= smaller)\n    assert larger2 >= larger, ('assertTrue', larger2 >= larger)\n    assert larger2 <= larger, ('assertTrue', larger2 <= larger)\n    assert not larger2 > larger, ('assertFalse', larger2 > larger)\n    assert not larger2 < larger, ('assertFalse', larger2 < larger)\n    assert larger == larger2, ('assertTrue', larger == larger2)\n    assert smaller != larger, ('assertTrue', smaller != larger)\n    assert empty == empty2, ('assertTrue', empty == empty2)\n    assert not empty != empty2, ('assertFalse', empty != empty2)\n    assert not empty == smaller, ('assertFalse', empty == smaller)\n    assert empty != smaller, ('assertTrue', empty != smaller)\n    assert larger != larger3, ('assertTrue', larger != larger3)\n    assert not larger == larger3, ('assertFalse', larger == larger3)\n\ndef _t():\n    helper_keys_contained(lambda x: x.keys())\n    helper_keys_contained(lambda x: x.items())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -177,6 +225,12 @@ test "DictTest.test_dictview_set_operations_on_items" {
 
 test "DictTest.test_dictview_mixed_set_operations" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    assert {1: 1}.keys() == {1}, ('assertTrue', {1: 1}.keys() == {1})\n    assert {1} == {1: 1}.keys(), ('assertTrue', {1} == {1: 1}.keys())\n    assert {1: 1}.keys() | {2} == {1, 2}, ('assertEqual', {1: 1}.keys() | {2}, {1, 2})\n    assert {2} | {1: 1}.keys() == {1, 2}, ('assertEqual', {2} | {1: 1}.keys(), {1, 2})\n    assert {1: 1}.items() == {(1, 1)}, ('assertTrue', {1: 1}.items() == {(1, 1)})\n    assert {(1, 1)} == {1: 1}.items(), ('assertTrue', {(1, 1)} == {1: 1}.items())\n    assert {1: 1}.items() | {2} == {(1, 1), 2}, ('assertEqual', {1: 1}.items() | {2}, {(1, 1), 2})\n    assert {2} | {1: 1}.items() == {(1, 1), 2}, ('assertEqual', {2} | {1: 1}.items(), {(1, 1), 2})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "DictTest.test_bad_key" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class CustomException(Exception):\n        pass\n\n    class BadDictKey:\n\n        def __hash__(self):\n            return hash(self.__class__)\n\n        def __eq__(self, other):\n            if isinstance(other, self.__class__):\n                raise CustomException\n            return other\n    d = {}\n    x1 = BadDictKey()\n    x2 = BadDictKey()\n    d[x1] = 1\n    for stmt in ['d[x2] = 2', 'z = d[x2]', 'x2 in d', 'd.get(x2)', 'd.setdefault(x2, 42)', 'd.pop(x2)', 'd.update({x2: 2})']:\n        try:\n            exec(stmt, locals())\n        except CustomException as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -241,8 +295,20 @@ test "DictTest.test_reversevaluesiterator_pickling" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "DictTest.test_instance_dict_getattr_str_subclass" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Foo:\n\n        def __init__(self, msg):\n            self.msg = msg\n    f = Foo('123')\n\n    class _str(str):\n        pass\n    assert f.msg == getattr(f, _str('msg')), ('assertEqual', f.msg, getattr(f, _str('msg')))\n    assert f.msg == f.__dict__[_str('msg')], ('assertEqual', f.msg, f.__dict__[_str('msg')])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "DictTest.test_object_set_item_single_instance_non_str_key" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class Foo:\n        pass\n    f = Foo()\n    f.__dict__[1] = 1\n    f.a = 'a'\n    assert f.__dict__ == {1: 1, 'a': 'a'}, ('assertEqual', f.__dict__, {1: 1, 'a': 'a'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "DictTest.test_reentrant_insertion" {
+    (ok, detail) = p2_libtest_run_snippet("def check_reentrant_insertion(mutate):\n\n    class Mutating:\n\n        def __del__(self):\n            mutate(d)\n    d = {k: Mutating() for k in 'abcdefghijklmnopqr'}\n    for k in list(d):\n        d[k] = k\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    def mutate(d):\n        d['b'] = 5\n    check_reentrant_insertion(mutate)\n\n    def mutate(d):\n        d.update(self.__dict__)\n        d.clear()\n    check_reentrant_insertion(mutate)\n\n    def mutate(d):\n        while d:\n            d.popitem()\n    check_reentrant_insertion(mutate)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -307,8 +373,20 @@ test "DictTest.test_reverse_iterator_for_empty_dict" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "DictTest.test_reverse_iterator_for_shared_shared_dicts" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class A:\n\n        def __init__(self, x, y):\n            if x:\n                self.x = x\n            if y:\n                self.y = y\n    assert list(reversed(A(1, 2).__dict__)) == ['y', 'x'], ('assertEqual', list(reversed(A(1, 2).__dict__)), ['y', 'x'])\n    assert list(reversed(A(1, 0).__dict__)) == ['x'], ('assertEqual', list(reversed(A(1, 0).__dict__)), ['x'])\n    assert list(reversed(A(0, 1).__dict__)) == ['y'], ('assertEqual', list(reversed(A(0, 1).__dict__)), ['y'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "DictTest.test_dict_copy_order" {
     (ok, detail) = p2_libtest_run_snippet("import collections\nimport collections.abc\n\ndef _t():\n    od = collections.OrderedDict([('a', 1), ('b', 2)])\n    od.move_to_end('a')\n    expected = list(od.items())\n    copy = dict(od)\n    assert list(copy.items()) == expected, ('assertEqual', list(copy.items()), expected)\n\n    class CustomDict(dict):\n        pass\n    pairs = [('a', 1), ('b', 2), ('c', 3)]\n    d = CustomDict(pairs)\n    assert pairs == list(dict(d).items()), ('assertEqual', pairs, list(dict(d).items()))\n\n    class CustomReversedDict(dict):\n\n        def keys(self):\n            return reversed(list(dict.keys(self)))\n        __iter__ = keys\n\n        def items(self):\n            return reversed(dict.items(self))\n    d = CustomReversedDict(pairs)\n    assert pairs[::-1] == list(dict(d).items()), ('assertEqual', pairs[::-1], list(dict(d).items()))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "DictTest.test_store_evilattr" {
+    (ok, detail) = p2_libtest_run_snippet("import gc\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class EvilAttr:\n\n        def __init__(self, d):\n            self.d = d\n\n        def __del__(self):\n            if 'attr' in self.d:\n                del self.d['attr']\n            gc.collect()\n\n    class Obj:\n        pass\n    obj = Obj()\n    obj.__dict__ = {}\n    for _ in range(10):\n        obj.attr = EvilAttr(obj.__dict__)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

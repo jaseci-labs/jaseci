@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_unicode_identifiers.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_unicode_identifiers.py",
     "-o",
-    "/var/tmp/wp4-mech/out/conv_unicode_identifiers",
+    "/var/tmp/lane8/jac-py/tests/conv_unicode_identifiers",
     "--name",
     "conv_unicode_identifiers"
   ],
-  "generated_at": "2026-08-24T00:42:28",
+  "generated_at": "2026-08-24T14:42:10",
   "hashes": {
-    "pins_jac": "450e3335ab5fb1634b700842fbbdeb5b009942217256776a04784324e0e7ad17"
+    "pins_jac": "2b06f7ce92c1db88cd803ede8e0eee52f4f463d5ab6313ee5df9bb813c126298"
   },
-  "source_file": "reference/cpython/Lib/test/test_unicode_identifiers.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_unicode_identifiers.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "unicode_identifiers",
   "pins_file": "conv_unicode_identifiers_pins.jac",
@@ -41,14 +41,17 @@
     },
     {
       "ident": "PEP3131Test.test_invalid",
-      "status": "quarantined",
-      "reason": "host-raised:ModuleNotFoundError: No module named 'test'"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        from test.tokenizedata import badsyntax_3131\n    except SyntaxError as err:\n        assert str(err) == \"invalid character '\u20ac' (U+20AC) (badsyntax_3131.py, line 2)\", ('assertEqual', str(err), \"invalid character '\u20ac' (U+20AC) (badsyntax_3131.py, line 2)\")\n        assert err.lineno == 2, ('assertEqual', err.lineno, 2)\n        assert err.offset == 1, ('assertEqual', err.offset, 1)\n    else:\n        raise AssertionError(\"expected exception didn't occur\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
   "quarantined": [],
   "counts": {
     "extracted": 3,
-    "pinned": 2,
-    "quarantined": 1
+    "pinned": 3,
+    "quarantined": 0
   }
 }

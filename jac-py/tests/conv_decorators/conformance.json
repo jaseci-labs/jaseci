@@ -1,32 +1,44 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "9d86274c42461fda69d309214d128e472ac69395",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/wp4-mech/out/conv_decorators/conv_decorators_pins.jac"
+    "jac-py/tests/conv_decorators/conv_decorators_pins.jac"
   ],
-  "generated_at": "2026-08-24T00:35:33",
+  "generated_at": "2026-08-24T14:31:21",
   "hashes": {
-    "pins_jac": "3d746a51443f9408ea6804e14c5a8a21af0d2d8448ec37c704d36c7c685df674",
-    "conversion_json": "b819ee892c14d2e8cf1b8fde3db7e75b67014e02b34aeb81a7552877b5b62674",
+    "pins_jac": "e224209aa357bab1f3ce83f6f1d8d380b9a8deee7e63112eac8f5b64c59b4d4d",
+    "conversion_json": "b93a5c8a3218d19d0cf7f3735d0fb5c29f004877b62548e8a6109cf243079bab",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "decorators",
   "counts": {
     "converted": 16,
-    "runnable": 11,
-    "green": 10,
-    "quarantined": 5
+    "runnable": 14,
+    "green": 11,
+    "quarantined": 2
   },
   "pins": [
     {
       "id": "TestDecorators.test_single",
       "status": "pass"
+    },
+    {
+      "id": "TestDecorators.test_staticmethod",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__wrapped__'\">"
+    },
+    {
+      "id": "TestDecorators.test_classmethod",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__wrapped__'\">"
     },
     {
       "id": "TestDecorators.test_argforms",
@@ -46,13 +58,17 @@
     },
     {
       "id": "TestDecorators.test_double",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC AttributeError 'abc'\">"
+      "status": "pass"
     },
     {
       "id": "TestDecorators.test_order",
       "status": "pass"
+    },
+    {
+      "id": "TestDecorators.test_eval_order",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'NameLookupTracer() takes no arguments'\">"
     },
     {
       "id": "TestDecorators.test_bound_function_inside_classmethod",
@@ -71,16 +87,6 @@
       "status": "pass"
     },
     {
-      "id": "TestDecorators.test_staticmethod",
-      "status": "quarantined",
-      "reason": "uses-self.check_wrapper_attrs"
-    },
-    {
-      "id": "TestDecorators.test_classmethod",
-      "status": "quarantined",
-      "reason": "uses-self.check_wrapper_attrs"
-    },
-    {
       "id": "TestDecorators.test_dotted",
       "status": "quarantined",
       "reason": "unresolved-name:MiscDecorators"
@@ -89,11 +95,6 @@
       "id": "TestDecorators.test_dbcheck",
       "status": "quarantined",
       "reason": "unresolved-name:DbcheckError"
-    },
-    {
-      "id": "TestDecorators.test_eval_order",
-      "status": "quarantined",
-      "reason": "uses-self.index"
     }
   ]
 }

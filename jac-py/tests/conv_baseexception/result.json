@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "7f5db5e8c68d10b8dbcdcd7224c1d7498c3f22d6",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,22 +10,41 @@
     "diff_runner.py",
     "jac-py/tests/conv_baseexception/conv_baseexception_pins.jac"
   ],
-  "generated_at": "2026-08-24T12:31:59",
+  "generated_at": "2026-08-24T14:30:28",
   "hashes": {
-    "pins_jac": "bb57f1e8b18207d5d5471f17d6f7e1629fa61095a5776bbf506152b2a93df9d8",
-    "conversion_json": "f537ac11292b74b92858df529b7a2d1a1743b3f580a96e72b42e252bc93a0b3d",
+    "pins_jac": "eab8308eeb449b253894b2656d6676049e049b4c10d6e5ab88f5b572cd4d01a3",
+    "conversion_json": "049544ba191b74d74f78f10cfa1a5d963ba20d1120adf3bfc0a065cbace34a07",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "baseexception",
-  "status": "passed",
+  "status": "failed",
   "timed_out": false,
   "counts": {
     "converted": 11,
-    "runnable": 1,
-    "green": 1,
-    "quarantined": 10,
-    "failed": 0,
+    "runnable": 6,
+    "green": 3,
+    "quarantined": 5,
+    "failed": 3,
     "infra_failed": 0
   },
-  "failures": []
+  "failures": [
+    {
+      "id": "UsageTests.test_catch_non_BaseException",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'TypeError expected when catching <object>'\">"
+    },
+    {
+      "id": "UsageTests.test_catch_BaseException_instance",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'TypeError expected when catching <object>'\">"
+    },
+    {
+      "id": "UsageTests.test_catch_string",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'TypeError expected when catching <object>'\">"
+    }
+  ]
 }

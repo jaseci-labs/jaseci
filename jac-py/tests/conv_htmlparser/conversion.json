@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1b020933a52de170f93504de1ea1171bc4552218",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "1b020933a52de170f93504de1ea1171bc4552218"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_htmlparser.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_htmlparser.py",
     "-o",
-    "/var/tmp/laneb-out/htmlparser-dunder",
+    "/var/tmp/lane8/jac-py/tests/conv_htmlparser",
     "--name",
     "conv_htmlparser"
   ],
-  "generated_at": "2026-08-24T10:50:39",
+  "generated_at": "2026-08-24T14:33:24",
   "hashes": {
     "pins_jac": "ba081137d37d28c0221fbf1795fd5f792d054f8a32b7c5524da402f1d0db02e5"
   },
-  "source_file": "reference/cpython/Lib/test/test_htmlparser.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_htmlparser.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "htmlparser",
   "pins_file": "conv_htmlparser_pins.jac",

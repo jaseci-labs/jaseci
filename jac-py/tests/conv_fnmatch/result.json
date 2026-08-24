@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/laneb-out/test_fnmatch/conv_fnmatch_pins.jac"
+    "jac-py/tests/conv_fnmatch/conv_fnmatch_pins.jac"
   ],
-  "generated_at": "2026-08-24T10:33:00",
+  "generated_at": "2026-08-24T14:32:51",
   "hashes": {
-    "pins_jac": "cfe1f362dfc1837f4da3053d490b365559a60ad867073ccd8280e6701b9e3d7d",
-    "conversion_json": "6a2ed79a1d794b2cdf29b430010fac3418c129088aa4fe63efec61bd51f62a1f",
+    "pins_jac": "e3df61c0add2a2054ce1cac45eb9b56fb1bc6c5acd5815d1de02c0a3d5572cd6",
+    "conversion_json": "e36e98a7102490670f8676906ce94e3d4e5c14cf6e22a4459e294597c7a05b96",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "fnmatch",
@@ -21,9 +21,9 @@
   "timed_out": false,
   "counts": {
     "converted": 24,
-    "runnable": 11,
-    "green": 10,
-    "quarantined": 13,
+    "runnable": 12,
+    "green": 11,
+    "quarantined": 12,
     "failed": 1,
     "infra_failed": 0
   },

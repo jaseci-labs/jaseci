@@ -8,91 +8,139 @@ import from layer_p2_libtest { p2_libtest_run_snippet }
 # Source: test_time.py
 
 test "TimeTestCase.test_data_attributes" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    time.altzone\n    time.daylight\n    time.timezone\n    time.tzname\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    time.altzone\n    time.daylight\n    time.timezone\n    time.tzname\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_time" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    time.time()\n    info = time.get_clock_info('time')\n    assert not info.monotonic, ('assertFalse', info.monotonic)\n    assert info.adjustable, ('assertTrue', info.adjustable)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    time.time()\n    info = time.get_clock_info('time')\n    assert not info.monotonic, ('assertFalse', info.monotonic)\n    assert info.adjustable, ('assertTrue', info.adjustable)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_time_ns_type" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    def check_ns(sec, ns):\n        assert isinstance(ns, int), ('assertIsInstance', ns, int)\n        sec_ns = int(sec * 1000000000.0)\n        assert sec_ns - ns < 50 ** 6, ('assertLess', sec_ns - ns, 50 ** 6)\n    check_ns(time.time(), time.time_ns())\n    check_ns(time.monotonic(), time.monotonic_ns())\n    check_ns(time.perf_counter(), time.perf_counter_ns())\n    check_ns(time.process_time(), time.process_time_ns())\n    if hasattr(time, 'thread_time'):\n        check_ns(time.thread_time(), time.thread_time_ns())\n    if hasattr(time, 'clock_gettime'):\n        check_ns(time.clock_gettime(time.CLOCK_REALTIME), time.clock_gettime_ns(time.CLOCK_REALTIME))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n\n    def check_ns(sec, ns):\n        assert isinstance(ns, int), ('assertIsInstance', ns, int)\n        sec_ns = int(sec * 1000000000.0)\n        assert sec_ns - ns < 50 ** 6, ('assertLess', sec_ns - ns, 50 ** 6)\n    check_ns(time.time(), time.time_ns())\n    check_ns(time.monotonic(), time.monotonic_ns())\n    check_ns(time.perf_counter(), time.perf_counter_ns())\n    check_ns(time.process_time(), time.process_time_ns())\n    if hasattr(time, 'thread_time'):\n        check_ns(time.thread_time(), time.thread_time_ns())\n    if hasattr(time, 'clock_gettime'):\n        check_ns(time.clock_gettime(time.CLOCK_REALTIME), time.clock_gettime_ns(time.CLOCK_REALTIME))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TimeTestCase.test_conversions" {
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    assert time.ctime(self.t) == time.asctime(time.localtime(self.t)), ('assertEqual', time.ctime(self.t), time.asctime(time.localtime(self.t)))\n    assert int(time.mktime(time.localtime(self.t))) == int(self.t), ('assertEqual', int(time.mktime(time.localtime(self.t))), int(self.t))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_epoch" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    epoch = time.gmtime(0)\n    assert tuple(epoch)[:6] == (1970, 1, 1, 0, 0, 0), ('assertEqual', tuple(epoch)[:6], (1970, 1, 1, 0, 0, 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    epoch = time.gmtime(0)\n    assert tuple(epoch)[:6] == (1970, 1, 1, 0, 0, 0), ('assertEqual', tuple(epoch)[:6], (1970, 1, 1, 0, 0, 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TimeTestCase.test_strftime" {
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    tt = time.gmtime(self.t)\n    for directive in ('a', 'A', 'b', 'B', 'c', 'd', 'H', 'I', 'j', 'm', 'M', 'p', 'S', 'U', 'w', 'W', 'x', 'X', 'y', 'Y', 'Z', '%'):\n        format = ' %' + directive\n        try:\n            time.strftime(format, tt)\n        except ValueError:\n            raise AssertionError('conversion specifier: %r failed.' % format)\n    try:\n        time.strftime(*(b'%S', tt))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TimeTestCase.test_strftime_special" {
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    tt = time.gmtime(self.t)\n    s1 = time.strftime('%c', tt)\n    s2 = time.strftime('%B', tt)\n    assert time.strftime('\ud83d\udc0d', tt) == '\ud83d\udc0d', ('assertEqual', time.strftime('\ud83d\udc0d', tt), '\ud83d\udc0d')\n    assert time.strftime('\ud83d\udcbb%c\ud83d\udc0d%B', tt) == f'\ud83d\udcbb{s1}\ud83d\udc0d{s2}', ('assertEqual', time.strftime('\ud83d\udcbb%c\ud83d\udc0d%B', tt), f'\ud83d\udcbb{s1}\ud83d\udc0d{s2}')\n    assert time.strftime('%c\ud83d\udcbb%B\ud83d\udc0d', tt) == f'{s1}\ud83d\udcbb{s2}\ud83d\udc0d', ('assertEqual', time.strftime('%c\ud83d\udcbb%B\ud83d\udc0d', tt), f'{s1}\ud83d\udcbb{s2}\ud83d\udc0d')\n    assert time.strftime('\\ud83d', tt) == '\\ud83d', ('assertEqual', time.strftime('\\ud83d', tt), '\\ud83d')\n    assert time.strftime('\\udc0d', tt) == '\\udc0d', ('assertEqual', time.strftime('\\udc0d', tt), '\\udc0d')\n    assert time.strftime('\\ud83d%c\\udc0d%B', tt) == f'\\ud83d{s1}\\udc0d{s2}', ('assertEqual', time.strftime('\\ud83d%c\\udc0d%B', tt), f'\\ud83d{s1}\\udc0d{s2}')\n    assert time.strftime('%c\\ud83d%B\\udc0d', tt) == f'{s1}\\ud83d{s2}\\udc0d', ('assertEqual', time.strftime('%c\\ud83d%B\\udc0d', tt), f'{s1}\\ud83d{s2}\\udc0d')\n    assert time.strftime('%c\\udc0d%B\\ud83d', tt) == f'{s1}\\udc0d{s2}\\ud83d', ('assertEqual', time.strftime('%c\\udc0d%B\\ud83d', tt), f'{s1}\\udc0d{s2}\\ud83d')\n    assert time.strftime('\\ud83d\\udc0d', tt) == '\\ud83d\\udc0d', ('assertEqual', time.strftime('\\ud83d\\udc0d', tt), '\\ud83d\\udc0d')\n    assert time.strftime('%c\\ud83d\\udc0d%B', tt) == f'{s1}\\ud83d\\udc0d{s2}', ('assertEqual', time.strftime('%c\\ud83d\\udc0d%B', tt), f'{s1}\\ud83d\\udc0d{s2}')\n    assert time.strftime('\\udcf0\\udc9f\\udc90\\udc8d', tt) == '\\udcf0\\udc9f\\udc90\\udc8d', ('assertEqual', time.strftime('\\udcf0\\udc9f\\udc90\\udc8d', tt), '\\udcf0\\udc9f\\udc90\\udc8d')\n    assert time.strftime('%c\\udcf0\\udc9f\\udc90\\udc8d%B', tt) == f'{s1}\\udcf0\\udc9f\\udc90\\udc8d{s2}', ('assertEqual', time.strftime('%c\\udcf0\\udc9f\\udc90\\udc8d%B', tt), f'{s1}\\udcf0\\udc9f\\udc90\\udc8d{s2}')\n    assert time.strftime('\\x00', tt) == '\\x00', ('assertEqual', time.strftime('\\x00', tt), '\\x00')\n    assert time.strftime('\\x00' * 1000, tt) == '\\x00' * 1000, ('assertEqual', time.strftime('\\x00' * 1000, tt), '\\x00' * 1000)\n    assert time.strftime('\\x00%c\\x00%B', tt) == f'\\x00{s1}\\x00{s2}', ('assertEqual', time.strftime('\\x00%c\\x00%B', tt), f'\\x00{s1}\\x00{s2}')\n    assert time.strftime('%c\\x00%B\\x00', tt) == f'{s1}\\x00{s2}\\x00', ('assertEqual', time.strftime('%c\\x00%B\\x00', tt), f'{s1}\\x00{s2}\\x00')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TimeTestCase.test_strftime_bounding_check" {
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _bounds_checking(func):\n    func((1900, 0, 1, 0, 0, 0, 0, 1, -1))\n    func((1900, 12, 1, 0, 0, 0, 0, 1, -1))\n    try:\n        func(*((1900, -1, 1, 0, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 13, 1, 0, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    func((1900, 1, 0, 0, 0, 0, 0, 1, -1))\n    func((1900, 1, 31, 0, 0, 0, 0, 1, -1))\n    try:\n        func(*((1900, 1, -1, 0, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 1, 32, 0, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    func((1900, 1, 1, 23, 0, 0, 0, 1, -1))\n    try:\n        func(*((1900, 1, 1, -1, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 1, 1, 24, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    func((1900, 1, 1, 0, 59, 0, 0, 1, -1))\n    try:\n        func(*((1900, 1, 1, 0, -1, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 1, 1, 0, 60, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 1, 1, 0, 0, -1, 0, 1, -1),))\n    except ValueError:\n        pass\n    func((1900, 1, 1, 0, 0, 60, 0, 1, -1))\n    func((1900, 1, 1, 0, 0, 61, 0, 1, -1))\n    try:\n        func(*((1900, 1, 1, 0, 0, 62, 0, 1, -1),))\n    except ValueError:\n        pass\n    assert func((1900, 1, 1, 0, 0, 0, -1, 1, -1)) == func((1900, 1, 1, 0, 0, 0, +6, 1, -1)), ('assertEqual', func((1900, 1, 1, 0, 0, 0, -1, 1, -1)), func((1900, 1, 1, 0, 0, 0, +6, 1, -1)))\n    try:\n        func(*((1900, 1, 1, 0, 0, 0, -2, 1, -1),))\n    except ValueError:\n        pass\n    func((1900, 1, 1, 0, 0, 0, 0, 0, -1))\n    func((1900, 1, 1, 0, 0, 0, 0, 366, -1))\n    try:\n        func(*((1900, 1, 1, 0, 0, 0, 0, -1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 1, 1, 0, 0, 0, 0, 367, -1),))\n    except ValueError:\n        pass\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    _bounds_checking(lambda tup: time.strftime('', tup))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_strftime_format_check" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    for x in ['', 'A', '%A', '%AA']:\n        for y in range(0, 16):\n            for z in ['%', 'A%', 'AA%', '%A%', 'A%A%', '%#']:\n                try:\n                    time.strftime(x * y + z)\n                except ValueError:\n                    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    for x in ['', 'A', '%A', '%AA']:\n        for y in range(0, 16):\n            for z in ['%', 'A%', 'AA%', '%A%', 'A%A%', '%#']:\n                try:\n                    time.strftime(x * y + z)\n                except ValueError:\n                    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_default_values_for_zero" {
-    (ok, detail) = p2_libtest_run_snippet("from test.support import warnings_helper\nimport time\n\ndef _t():\n    expected = '2000 01 01 00 00 00 1 001'\n    with warnings_helper.check_warnings():\n        result = time.strftime('%Y %m %d %H %M %S %w %j', (2000,) + (0,) * 8)\n    assert expected == result, ('assertEqual', expected, result)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("from test.support import warnings_helper\nimport time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    expected = '2000 01 01 00 00 00 1 001'\n    with warnings_helper.check_warnings():\n        result = time.strftime('%Y %m %d %H %M %S %w %j', (2000,) + (0,) * 8)\n    assert expected == result, ('assertEqual', expected, result)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TimeTestCase.test_strptime" {
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    tt = time.gmtime(self.t)\n    for directive in ('a', 'A', 'b', 'B', 'c', 'd', 'H', 'I', 'j', 'm', 'M', 'p', 'S', 'U', 'w', 'W', 'x', 'X', 'y', 'Y', 'Z', '%'):\n        format = '%' + directive\n        if directive == 'd':\n            format += ',%Y'\n        strf_output = time.strftime(format, tt)\n        try:\n            time.strptime(strf_output, format)\n        except ValueError:\n            raise AssertionError(\"conversion specifier %r failed with '%s' input.\" % (format, strf_output))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_strptime_bytes" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    try:\n        time.strptime(*(b'2009', '%Y'))\n    except TypeError:\n        pass\n    try:\n        time.strptime(*('2009', b'%Y'))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    try:\n        time.strptime(*(b'2009', '%Y'))\n    except TypeError:\n        pass\n    try:\n        time.strptime(*('2009', b'%Y'))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TimeTestCase.test_asctime" {
+    (ok, detail) = p2_libtest_run_snippet("import sysconfig\nimport time\nSIZEOF_INT = sysconfig.get_config_var('SIZEOF_INT') or 4\nTIME_MAXYEAR = (1 << 8 * SIZEOF_INT - 1) - 1\nTIME_MINYEAR = -TIME_MAXYEAR - 1 + 1900\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    time.asctime(time.gmtime(self.t))\n    for bigyear in (TIME_MAXYEAR, TIME_MINYEAR):\n        asc = time.asctime((bigyear, 6, 1) + (0,) * 6)\n        assert asc[-len(str(bigyear)):] == str(bigyear), ('assertEqual', asc[-len(str(bigyear)):], str(bigyear))\n    try:\n        time.asctime(*((TIME_MAXYEAR + 1,) + (0,) * 8,))\n    except OverflowError:\n        pass\n    try:\n        time.asctime(*((TIME_MINYEAR - 1,) + (0,) * 8,))\n    except OverflowError:\n        pass\n    try:\n        time.asctime(*(0,))\n    except TypeError:\n        pass\n    try:\n        time.asctime(*((),))\n    except TypeError:\n        pass\n    try:\n        time.asctime(*((0,) * 10,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TimeTestCase.test_asctime_bounding_check" {
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _bounds_checking(func):\n    func((1900, 0, 1, 0, 0, 0, 0, 1, -1))\n    func((1900, 12, 1, 0, 0, 0, 0, 1, -1))\n    try:\n        func(*((1900, -1, 1, 0, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 13, 1, 0, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    func((1900, 1, 0, 0, 0, 0, 0, 1, -1))\n    func((1900, 1, 31, 0, 0, 0, 0, 1, -1))\n    try:\n        func(*((1900, 1, -1, 0, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 1, 32, 0, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    func((1900, 1, 1, 23, 0, 0, 0, 1, -1))\n    try:\n        func(*((1900, 1, 1, -1, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 1, 1, 24, 0, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    func((1900, 1, 1, 0, 59, 0, 0, 1, -1))\n    try:\n        func(*((1900, 1, 1, 0, -1, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 1, 1, 0, 60, 0, 0, 1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 1, 1, 0, 0, -1, 0, 1, -1),))\n    except ValueError:\n        pass\n    func((1900, 1, 1, 0, 0, 60, 0, 1, -1))\n    func((1900, 1, 1, 0, 0, 61, 0, 1, -1))\n    try:\n        func(*((1900, 1, 1, 0, 0, 62, 0, 1, -1),))\n    except ValueError:\n        pass\n    assert func((1900, 1, 1, 0, 0, 0, -1, 1, -1)) == func((1900, 1, 1, 0, 0, 0, +6, 1, -1)), ('assertEqual', func((1900, 1, 1, 0, 0, 0, -1, 1, -1)), func((1900, 1, 1, 0, 0, 0, +6, 1, -1)))\n    try:\n        func(*((1900, 1, 1, 0, 0, 0, -2, 1, -1),))\n    except ValueError:\n        pass\n    func((1900, 1, 1, 0, 0, 0, 0, 0, -1))\n    func((1900, 1, 1, 0, 0, 0, 0, 366, -1))\n    try:\n        func(*((1900, 1, 1, 0, 0, 0, 0, -1, -1),))\n    except ValueError:\n        pass\n    try:\n        func(*((1900, 1, 1, 0, 0, 0, 0, 367, -1),))\n    except ValueError:\n        pass\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    _bounds_checking(time.asctime)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_ctime" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    t = time.mktime((1973, 9, 16, 1, 3, 52, 0, 0, -1))\n    assert time.ctime(t) == 'Sun Sep 16 01:03:52 1973', ('assertEqual', time.ctime(t), 'Sun Sep 16 01:03:52 1973')\n    t = time.mktime((2000, 1, 1, 0, 0, 0, 0, 0, -1))\n    assert time.ctime(t) == 'Sat Jan  1 00:00:00 2000', ('assertEqual', time.ctime(t), 'Sat Jan  1 00:00:00 2000')\n    for year in [-100, 100, 1000, 2000, 2050, 10000]:\n        try:\n            testval = time.mktime((year, 1, 10) + (0,) * 6)\n        except (ValueError, OverflowError):\n            pass\n        else:\n            assert time.ctime(testval)[20:] == str(year), ('assertEqual', time.ctime(testval)[20:], str(year))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    t = time.mktime((1973, 9, 16, 1, 3, 52, 0, 0, -1))\n    assert time.ctime(t) == 'Sun Sep 16 01:03:52 1973', ('assertEqual', time.ctime(t), 'Sun Sep 16 01:03:52 1973')\n    t = time.mktime((2000, 1, 1, 0, 0, 0, 0, 0, -1))\n    assert time.ctime(t) == 'Sat Jan  1 00:00:00 2000', ('assertEqual', time.ctime(t), 'Sat Jan  1 00:00:00 2000')\n    for year in [-100, 100, 1000, 2000, 2050, 10000]:\n        try:\n            testval = time.mktime((year, 1, 10) + (0,) * 6)\n        except (ValueError, OverflowError):\n            pass\n        else:\n            assert time.ctime(testval)[20:] == str(year), ('assertEqual', time.ctime(testval)[20:], str(year))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_insane_timestamps" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    for func in (time.ctime, time.gmtime, time.localtime):\n        for unreasonable in (-1e+200, 1e+200):\n            try:\n                func(*(unreasonable,))\n            except OverflowError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    for func in (time.ctime, time.gmtime, time.localtime):\n        for unreasonable in (-1e+200, 1e+200):\n            try:\n                func(*(unreasonable,))\n            except OverflowError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_ctime_without_arg" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    time.ctime()\n    time.ctime(None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    time.ctime()\n    time.ctime(None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_gmtime_without_arg" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    gt0 = time.gmtime()\n    gt1 = time.gmtime(None)\n    t0 = time.mktime(gt0)\n    t1 = time.mktime(gt1)\n    assert round(t1 - t0, 7) == 0, ('assertAlmostEqual', t1, t0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    gt0 = time.gmtime()\n    gt1 = time.gmtime(None)\n    t0 = time.mktime(gt0)\n    t1 = time.mktime(gt1)\n    assert round(t1 - t0, 7) == 0, ('assertAlmostEqual', t1, t0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_localtime_without_arg" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    lt0 = time.localtime()\n    lt1 = time.localtime(None)\n    t0 = time.mktime(lt0)\n    t1 = time.mktime(lt1)\n    assert round(t1 - t0, 7) == 0, ('assertAlmostEqual', t1, t0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    lt0 = time.localtime()\n    lt1 = time.localtime(None)\n    t0 = time.mktime(lt0)\n    t1 = time.mktime(lt1)\n    assert round(t1 - t0, 7) == 0, ('assertAlmostEqual', t1, t0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_mktime" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    for t in (-2, -1, 0, 1):\n        try:\n            tt = time.localtime(t)\n        except (OverflowError, OSError):\n            pass\n        else:\n            assert time.mktime(tt) == t, ('assertEqual', time.mktime(tt), t)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    for t in (-2, -1, 0, 1):\n        try:\n            tt = time.localtime(t)\n        except (OverflowError, OSError):\n            pass\n        else:\n            assert time.mktime(tt) == t, ('assertEqual', time.mktime(tt), t)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_monotonic" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    times = [time.monotonic() for n in range(100)]\n    t1 = times[0]\n    for t2 in times[1:]:\n        assert t2 >= t1, ('assertGreaterEqual', t2, t1)\n        t1 = t2\n    t1 = time.monotonic()\n    time.sleep(0.5)\n    t2 = time.monotonic()\n    dt = t2 - t1\n    assert t2 > t1, ('assertGreater', t2, t1)\n    assert 0.45 <= dt, ('assertTrue', 0.45 <= dt)\n    info = time.get_clock_info('monotonic')\n    assert info.monotonic, ('assertTrue', info.monotonic)\n    assert not info.adjustable, ('assertFalse', info.adjustable)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    times = [time.monotonic() for n in range(100)]\n    t1 = times[0]\n    for t2 in times[1:]:\n        assert t2 >= t1, ('assertGreaterEqual', t2, t1)\n        t1 = t2\n    t1 = time.monotonic()\n    time.sleep(0.5)\n    t2 = time.monotonic()\n    dt = t2 - t1\n    assert t2 > t1, ('assertGreater', t2, t1)\n    assert 0.45 <= dt, ('assertTrue', 0.45 <= dt)\n    info = time.get_clock_info('monotonic')\n    assert info.monotonic, ('assertTrue', info.monotonic)\n    assert not info.adjustable, ('assertFalse', info.adjustable)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
 test "TimeTestCase.test_perf_counter" {
-    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n    time.perf_counter()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    time.perf_counter()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "_TestAsctimeYear.test_large_year" {
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef yearstr(y):\n    return time.asctime((y,) + (0,) * 8).split()[-1]\n\ndef _t():\n    assert yearstr(12345) == '12345', ('assertEqual', yearstr(12345), '12345')\n    assert yearstr(123456789) == '123456789', ('assertEqual', yearstr(123456789), '123456789')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

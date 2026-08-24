@@ -1,28 +1,36 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_contains.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_contains.py",
     "-o",
-    "/var/tmp/laneb-out/test_contains",
+    "/var/tmp/lane8/jac-py/tests/conv_contains",
     "--name",
     "conv_contains"
   ],
-  "generated_at": "2026-08-24T10:31:08",
+  "generated_at": "2026-08-24T14:30:52",
   "hashes": {
-    "pins_jac": "fb29fa0868e93aed99e6e44b78d75328895b68f0830a59c084ecfcfce6d24b6e"
+    "pins_jac": "2c5aa1cc479cb91a1009f6b45ee20a77ec7f777b070fe6c14358ca56a786ded2"
   },
-  "source_file": "reference/cpython/Lib/test/test_contains.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_contains.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "contains",
   "pins_file": "conv_contains_pins.jac",
   "pins": [
+    {
+      "ident": "TestContains.test_builtin_sequence_types",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    a = range(10)\n    for i in a:\n        assert i in a, ('assertIn', i, a)\n    assert 16 not in a, ('assertNotIn', 16, a)\n    assert a not in a, ('assertNotIn', a, a)\n    a = tuple(a)\n    for i in a:\n        assert i in a, ('assertIn', i, a)\n    assert 16 not in a, ('assertNotIn', 16, a)\n    assert a not in a, ('assertNotIn', a, a)\n\n    class Deviant1:\n        \"\"\"Behaves strangely when compared\n\n            This class is designed to make sure that the contains code\n            works when the list is modified during the check.\n            \"\"\"\n        aList = list(range(15))\n\n        def __eq__(self, other):\n            if other == 12:\n                self.aList.remove(12)\n                self.aList.remove(13)\n                self.aList.remove(14)\n            return 0\n    assert Deviant1() not in Deviant1.aList, ('assertNotIn', Deviant1(), Deviant1.aList)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
     {
       "ident": "TestContains.test_nonreflexive",
       "status": "pinned",
@@ -44,15 +52,11 @@
     {
       "ident": "TestContains.test_common_tests",
       "reason": "unresolved-name:base_set"
-    },
-    {
-      "ident": "TestContains.test_builtin_sequence_types",
-      "reason": "uses-self.aList"
     }
   ],
   "counts": {
     "extracted": 4,
-    "pinned": 2,
-    "quarantined": 2
+    "pinned": 3,
+    "quarantined": 1
   }
 }

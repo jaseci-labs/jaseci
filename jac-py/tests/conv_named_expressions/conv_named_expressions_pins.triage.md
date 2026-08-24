@@ -1,8 +1,8 @@
 # Triage report: `conv_named_expressions_pins.jac`
 
-- source: reference/cpython/Lib/test/test_named_expressions.py
-- guest leg: 0/60 marks
-- pins: **59 passed** / 60 run (+14 quarantined of 74 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_named_expressions.py
+- guest leg: 0/61 marks
+- pins: **61 passed** / 61 run (+13 quarantined of 74 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -41,6 +41,7 @@
 | NamedExpressionAssignmentTest.test_named_expression_assignment_15 | PASS | |
 | NamedExpressionAssignmentTest.test_named_expression_assignment_16 | PASS | |
 | NamedExpressionAssignmentTest.test_named_expression_assignment_17 | PASS | |
+| NamedExpressionAssignmentTest.test_named_expression_assignment_18 | PASS | |
 | NamedExpressionScopeTest.test_named_expression_scope_01 | PASS | |
 | NamedExpressionScopeTest.test_named_expression_scope_02 | PASS | |
 | NamedExpressionScopeTest.test_named_expression_scope_03 | PASS | |
@@ -60,7 +61,7 @@
 | NamedExpressionScopeTest.test_named_expression_scope_22 | PASS | |
 | NamedExpressionScopeTest.test_named_expression_scope_23 | PASS | |
 | NamedExpressionScopeTest.test_named_expression_scope_24 | PASS | |
-| NamedExpressionScopeTest.test_named_expression_scope_25 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'a\'"'> |
+| NamedExpressionScopeTest.test_named_expression_scope_25 | PASS | |
 | NamedExpressionScopeTest.test_named_expression_global_scope | PASS | |
 | NamedExpressionScopeTest.test_named_expression_global_scope_no_global_keyword | PASS | |
 | NamedExpressionScopeTest.test_named_expression_nonlocal_scope | PASS | |
@@ -82,13 +83,5 @@
 | NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_iteration_variable | uses-self.subTest |
 | NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_inner_loop | uses-self.subTest |
 | NamedExpressionInvalidTest.test_named_expression_invalid_dict_comprehension_iterable_expression | uses-self.subTest |
-| NamedExpressionAssignmentTest.test_named_expression_assignment_18 | uses-self.two_dimensional_list |
 | NamedExpressionScopeTest.test_named_expression_variable_reuse_in_comprehensions | uses-self.subTest |
 | NamedExpressionScopeTest.test_named_expression_scope_mangled_names | uses-self.assertEqual |
-
-## Expected vs got
-
-### NamedExpressionScopeTest.test_named_expression_scope_25 (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC KeyError "\'a\'"'>

@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_opcodes.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_opcodes.py",
     "-o",
-    "/var/tmp/wp4-mech/out/conv_opcodes",
+    "/var/tmp/lane8/jac-py/tests/conv_opcodes",
     "--name",
     "conv_opcodes"
   ],
-  "generated_at": "2026-08-24T00:42:52",
+  "generated_at": "2026-08-24T14:34:39",
   "hashes": {
-    "pins_jac": "a3f427c030979c503f1efdfeff0e7dd9e2a17411c1f24b99cffbb4f1dae12d2d"
+    "pins_jac": "fb2427d67319f564d74a6cedb59d0443c3a9b7007b34b232508261d05cbab842"
   },
-  "source_file": "reference/cpython/Lib/test/test_opcodes.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_opcodes.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "opcodes",
   "pins_file": "conv_opcodes_pins.jac",
@@ -33,8 +33,11 @@
     },
     {
       "ident": "OpcodeTest.test_setup_annotations_line",
-      "status": "quarantined",
-      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.typinganndata import ann_module\n\ndef _t():\n    try:\n        with open(ann_module.__file__, encoding='utf-8') as f:\n            txt = f.read()\n        co = compile(txt, ann_module.__file__, 'exec')\n        assert co.co_firstlineno == 1, ('assertEqual', co.co_firstlineno, 1)\n    except OSError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "OpcodeTest.test_default_annotations_exist",
@@ -54,8 +57,11 @@
     },
     {
       "ident": "OpcodeTest.test_do_not_recreate_annotations",
-      "status": "quarantined",
-      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\n\ndef _t():\n    with support.swap_item(globals(), '__annotations__', {}):\n        globals().pop('__annotations__', None)\n\n        class C:\n            try:\n                del __annotations__\n            except NameError:\n                pass\n            x: int\n        assert C.__annotations__ == {'x': int}, ('assertEqual', C.__annotations__, {'x': int})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "OpcodeTest.test_raise_class_exceptions",
@@ -85,7 +91,7 @@
   "quarantined": [],
   "counts": {
     "extracted": 8,
-    "pinned": 6,
-    "quarantined": 2
+    "pinned": 8,
+    "quarantined": 0
   }
 }

@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "82dee0e2e6841054e57babda9a44e4d0a5945e88",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_struct.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_struct.py",
     "-o",
-    "/var/tmp/laneb-out/test_struct",
+    "/var/tmp/lane8/jac-py/tests/conv_struct",
     "--name",
     "conv_struct"
   ],
-  "generated_at": "2026-08-24T11:05:47",
+  "generated_at": "2026-08-24T14:41:29",
   "hashes": {
-    "pins_jac": "4e0bf36006e345d69f6f8a1dd4c23fbb5486870bc787cd030651330a5fb7dc27"
+    "pins_jac": "c8cd1df8fbbd3ef9134d5d6af70d5bb0a65cfdba0771283e1c8fcdcfc36a4079"
   },
-  "source_file": "reference/cpython/Lib/test/test_struct.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_struct.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "struct",
   "pins_file": "conv_struct_pins.jac",
@@ -94,6 +94,22 @@
         "status": "ok"
       },
       "snippet": "import struct\n\ndef string_reverse(s):\n    return s[::-1]\n\ndef _t():\n    test_string = b'abcd01234'\n    fmt = '4s'\n    s = struct.Struct(fmt)\n    for cls in (bytes, bytearray):\n        data = cls(test_string)\n        assert s.unpack_from(data) == (b'abcd',), ('assertEqual', s.unpack_from(data), (b'abcd',))\n        assert s.unpack_from(data, 2) == (b'cd01',), ('assertEqual', s.unpack_from(data, 2), (b'cd01',))\n        assert s.unpack_from(data, 4) == (b'0123',), ('assertEqual', s.unpack_from(data, 4), (b'0123',))\n        for i in range(6):\n            assert s.unpack_from(data, i) == (data[i:i + 4],), ('assertEqual', s.unpack_from(data, i), (data[i:i + 4],))\n        for i in range(6, len(test_string) + 1):\n            try:\n                s.unpack_from(*(data, i))\n            except struct.error:\n                pass\n    for cls in (bytes, bytearray):\n        data = cls(test_string)\n        assert struct.unpack_from(fmt, data) == (b'abcd',), ('assertEqual', struct.unpack_from(fmt, data), (b'abcd',))\n        assert struct.unpack_from(fmt, data, 2) == (b'cd01',), ('assertEqual', struct.unpack_from(fmt, data, 2), (b'cd01',))\n        assert struct.unpack_from(fmt, data, 4) == (b'0123',), ('assertEqual', struct.unpack_from(fmt, data, 4), (b'0123',))\n        for i in range(6):\n            assert struct.unpack_from(fmt, data, i) == (data[i:i + 4],), ('assertEqual', struct.unpack_from(fmt, data, i), (data[i:i + 4],))\n        for i in range(6, len(test_string) + 1):\n            try:\n                struct.unpack_from(*(fmt, data, i))\n            except struct.error:\n                pass\n    assert s.unpack_from(buffer=test_string, offset=2) == (b'cd01',), ('assertEqual', s.unpack_from(buffer=test_string, offset=2), (b'cd01',))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StructTest.test_pack_into",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import array\nimport struct\n\ndef string_reverse(s):\n    return s[::-1]\n\ndef _test_pack_into(pack_into):\n    test_string = b'Reykjavik rocks, eow!'\n    writable_buf = memoryview(array.array('b', b' ' * 100))\n    pack_into(writable_buf, 0, test_string)\n    from_buf = writable_buf.tobytes()[:len(test_string)]\n    assert from_buf == test_string, ('assertEqual', from_buf, test_string)\n    pack_into(writable_buf, 10, test_string)\n    from_buf = writable_buf.tobytes()[:len(test_string) + 10]\n    assert from_buf == test_string[:10] + test_string, ('assertEqual', from_buf, test_string[:10] + test_string)\n    pack_into(writable_buf, -30, test_string)\n    from_buf = writable_buf.tobytes()[-30:-30 + len(test_string)]\n    assert from_buf == test_string, ('assertEqual', from_buf, test_string)\n    small_buf = array.array('b', b' ' * 10)\n    try:\n        pack_into(small_buf, 0, test_string)\n    except (ValueError, struct.error) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, 90, test_string)\n    except (ValueError, struct.error) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, -10, test_string)\n    except (ValueError, struct.error) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, 150, test_string)\n    except (ValueError, struct.error) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, -150, test_string)\n    except (ValueError, struct.error) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(*(b' ' * 100, 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(*(' ' * 100, 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(*([0] * 100, 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(*(None, 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(*(writable_buf[::2], 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(*(writable_buf[::-1], 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(writable_buf, None, test_string)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, 0.0, test_string)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, 2 ** 1000, test_string)\n    except (IndexError, OverflowError) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, -2 ** 1000, test_string)\n    except (IndexError, OverflowError) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\ndef _t():\n    s = struct.Struct('21s')\n    _test_pack_into(s.pack_into)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StructTest.test_pack_into_fn",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import array\nimport struct\n\ndef _test_pack_into(pack_into):\n    test_string = b'Reykjavik rocks, eow!'\n    writable_buf = memoryview(array.array('b', b' ' * 100))\n    pack_into(writable_buf, 0, test_string)\n    from_buf = writable_buf.tobytes()[:len(test_string)]\n    assert from_buf == test_string, ('assertEqual', from_buf, test_string)\n    pack_into(writable_buf, 10, test_string)\n    from_buf = writable_buf.tobytes()[:len(test_string) + 10]\n    assert from_buf == test_string[:10] + test_string, ('assertEqual', from_buf, test_string[:10] + test_string)\n    pack_into(writable_buf, -30, test_string)\n    from_buf = writable_buf.tobytes()[-30:-30 + len(test_string)]\n    assert from_buf == test_string, ('assertEqual', from_buf, test_string)\n    small_buf = array.array('b', b' ' * 10)\n    try:\n        pack_into(small_buf, 0, test_string)\n    except (ValueError, struct.error) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, 90, test_string)\n    except (ValueError, struct.error) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, -10, test_string)\n    except (ValueError, struct.error) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, 150, test_string)\n    except (ValueError, struct.error) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, -150, test_string)\n    except (ValueError, struct.error) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(*(b' ' * 100, 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(*(' ' * 100, 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(*([0] * 100, 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(*(None, 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(*(writable_buf[::2], 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(*(writable_buf[::-1], 0, test_string))\n    except TypeError:\n        pass\n    try:\n        pack_into(writable_buf, None, test_string)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, 0.0, test_string)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, 2 ** 1000, test_string)\n    except (IndexError, OverflowError) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        pack_into(writable_buf, -2 ** 1000, test_string)\n    except (IndexError, OverflowError) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\ndef _t():\n    pack_into = lambda *args: struct.pack_into('21s', *args)\n    _test_pack_into(pack_into)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "StructTest.test_unpack_with_buffer",
@@ -273,11 +289,8 @@
     },
     {
       "ident": "UnpackIteratorTest.test_half_float",
-      "status": "pinned",
-      "oracle": {
-        "status": "ok"
-      },
-      "snippet": "import math\nimport struct\nimport sys\nfrom test.support import import_helper\n\ndef _t():\n    _testcapi = import_helper.import_module('_testcapi')\n    format_bits_float__cleanRoundtrip_list = [(b'\\x00<', 1.0), (b'\\x00\\xc0', -2.0), (b'\\xff{', 65504.0), (b'\\x00\\x04', 2 ** (-14)), (b'\\x01\\x00', 2 ** (-24)), (b'\\x00\\x00', 0.0), (b'\\x00\\x80', -0.0), (b'\\x00|', float('+inf')), (b'\\x00\\xfc', float('-inf')), (b'U5', 0.333251953125)]\n    for le_bits, f in format_bits_float__cleanRoundtrip_list:\n        be_bits = le_bits[::-1]\n        assert f == struct.unpack('<e', le_bits)[0], ('assertEqual', f, struct.unpack('<e', le_bits)[0])\n        assert le_bits == struct.pack('<e', f), ('assertEqual', le_bits, struct.pack('<e', f))\n        assert f == struct.unpack('>e', be_bits)[0], ('assertEqual', f, struct.unpack('>e', be_bits)[0])\n        assert be_bits == struct.pack('>e', f), ('assertEqual', be_bits, struct.pack('>e', f))\n        if sys.byteorder == 'little':\n            assert f == struct.unpack('e', le_bits)[0], ('assertEqual', f, struct.unpack('e', le_bits)[0])\n            assert le_bits == struct.pack('e', f), ('assertEqual', le_bits, struct.pack('e', f))\n        else:\n            assert f == struct.unpack('e', be_bits)[0], ('assertEqual', f, struct.unpack('e', be_bits)[0])\n            assert be_bits == struct.pack('e', f), ('assertEqual', be_bits, struct.pack('e', f))\n    format_bits__nan_list = [('<e', b'\\x01\\xfc'), ('<e', b'\\x00\\xfe'), ('<e', b'\\xff\\xff'), ('<e', b'\\x01|'), ('<e', b'\\x00~'), ('<e', b'\\xff\\x7f')]\n    for formatcode, bits in format_bits__nan_list:\n        assert math.isnan(struct.unpack('<e', bits)[0]), ('assertTrue', math.isnan(struct.unpack('<e', bits)[0]))\n        assert math.isnan(struct.unpack('>e', bits[::-1])[0]), ('assertTrue', math.isnan(struct.unpack('>e', bits[::-1])[0]))\n    if _testcapi.nan_msb_is_signaling:\n        expected = 124\n    else:\n        expected = 126\n    packed = struct.pack('<e', math.nan)\n    assert packed[1] & 126 == expected, ('assertEqual', packed[1] & 126, expected)\n    packed = struct.pack('<e', -math.nan)\n    assert packed[1] & 126 == expected, ('assertEqual', packed[1] & 126, expected)\n    format_bits_float__rounding_list = [('>e', b'\\x00\\x01', 2.0 ** (-25) + 2.0 ** (-35)), ('>e', b'\\x00\\x00', 2.0 ** (-25)), ('>e', b'\\x00\\x00', 2.0 ** (-26)), ('>e', b'\\x03\\xff', 2.0 ** (-14) - 2.0 ** (-24)), ('>e', b'\\x03\\xff', 2.0 ** (-14) - 2.0 ** (-25) - 2.0 ** (-65)), ('>e', b'\\x04\\x00', 2.0 ** (-14) - 2.0 ** (-25)), ('>e', b'\\x04\\x00', 2.0 ** (-14)), ('>e', b'<\\x01', 1.0 + 2.0 ** (-11) + 2.0 ** (-16)), ('>e', b'<\\x00', 1.0 + 2.0 ** (-11)), ('>e', b'<\\x00', 1.0 + 2.0 ** (-12)), ('>e', b'{\\xff', 65504), ('>e', b'{\\xff', 65519), ('>e', b'\\x80\\x01', -2.0 ** (-25) - 2.0 ** (-35)), ('>e', b'\\x80\\x00', -2.0 ** (-25)), ('>e', b'\\x80\\x00', -2.0 ** (-26)), ('>e', b'\\xbc\\x01', -1.0 - 2.0 ** (-11) - 2.0 ** (-16)), ('>e', b'\\xbc\\x00', -1.0 - 2.0 ** (-11)), ('>e', b'\\xbc\\x00', -1.0 - 2.0 ** (-12)), ('>e', b'\\xfb\\xff', -65519)]\n    for formatcode, bits, f in format_bits_float__rounding_list:\n        assert bits == struct.pack(formatcode, f), ('assertEqual', bits, struct.pack(formatcode, f))\n    format_bits_float__roundingError_list = [('>e', 65520.0), ('>e', 65536.0), ('>e', 1e+300), ('>e', -65520.0), ('>e', -65536.0), ('>e', -1e+300), ('<e', 65520.0), ('<e', 65536.0), ('<e', 1e+300), ('<e', -65520.0), ('<e', -65536.0), ('<e', -1e+300)]\n    for formatcode, f in format_bits_float__roundingError_list:\n        try:\n            struct.pack(*(formatcode, f))\n        except OverflowError:\n            pass\n    format_bits_float__doubleRoundingError_list = [('>e', b'g\\xff', 137405399039 * 2 ** (-26))]\n    for formatcode, bits, f in format_bits_float__doubleRoundingError_list:\n        assert bits == struct.pack(formatcode, f), ('assertEqual', bits, struct.pack(formatcode, f))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "status": "quarantined",
+      "reason": "host-raised:SkipTest: No module named '_testcapi'"
     }
   ],
   "quarantined": [
@@ -303,19 +316,11 @@
     },
     {
       "ident": "StructTest.test_integers",
-      "reason": "uses-self.format"
+      "reason": "uses-self.assertEqual"
     },
     {
       "ident": "StructTest.test_nN_code",
       "reason": "unresolved-name:cm"
-    },
-    {
-      "ident": "StructTest.test_pack_into",
-      "reason": "self._test_pack_into"
-    },
-    {
-      "ident": "StructTest.test_pack_into_fn",
-      "reason": "self._test_pack_into"
     },
     {
       "ident": "StructTest.test_c_complex_round_trip",
@@ -328,7 +333,7 @@
   ],
   "counts": {
     "extracted": 43,
-    "pinned": 32,
-    "quarantined": 11
+    "pinned": 33,
+    "quarantined": 10
   }
 }

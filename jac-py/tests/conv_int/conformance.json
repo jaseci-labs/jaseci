@@ -1,34 +1,32 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/laneb-out/test_int/conv_int_pins.jac"
+    "jac-py/tests/conv_int/conv_int_pins.jac"
   ],
-  "generated_at": "2026-08-24T11:07:47",
+  "generated_at": "2026-08-24T14:33:38",
   "hashes": {
-    "pins_jac": "2d2ba6d02f6f619c93269cb3112636bf60297e27a7fa3fe7c1d79bdb55ba1f30",
-    "conversion_json": "640c33846b6b5a73eca263bab0fe846e125def6e9c3473ff5f46a346b1671b7b",
+    "pins_jac": "36e93cc4f4e2378aeb3bfb02d35bf063c4240fcd6080d2b393db34cf65799067",
+    "conversion_json": "8fdcaeaa4c0fb3ac2bb5477656cb9829408339b509ea5bd056ec4edf340dc4d4",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "int",
   "counts": {
     "converted": 42,
-    "runnable": 16,
+    "runnable": 15,
     "green": 13,
-    "quarantined": 26
+    "quarantined": 27
   },
   "pins": [
     {
       "id": "IntTestCases.test_basic",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
+      "status": "pass"
     },
     {
       "id": "IntTestCases.test_invalid_signs",
@@ -42,7 +40,7 @@
       "id": "IntTestCases.test_underscores",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.numbers'\">"
+      "detail": "GOT<'ORACLE_EXC TypeError \"argument of type \\'bool\\' is not a container or iterable\"'>"
     },
     {
       "id": "IntTestCases.test_no_args",
@@ -59,6 +57,12 @@
     {
       "id": "IntTestCases.test_int_base_bad_types",
       "status": "pass"
+    },
+    {
+      "id": "IntTestCases.test_int_base_indexable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'MyIndexable\\' object cannot be interpreted as an integer\"'>"
     },
     {
       "id": "IntTestCases.test_int_memoryview",
@@ -85,19 +89,34 @@
       "status": "pass"
     },
     {
+      "id": "IntStrDigitLimitsTests.test_max_str_digits_edge_cases",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "id": "IntStrDigitLimitsTests.test_sign_not_counted",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
       "id": "IntStrDigitLimitsTests.test_int_max_str_digits_is_per_interpreter",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC AttributeError 'adjust_int_max_str_digits'\">"
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "id": "PyLongModuleTests.test_pylong_int_to_decimal",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
     },
     {
       "id": "PyLongModuleTests.test_pylong_int_divmod",
-      "status": "pass"
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
     },
     {
       "id": "PyLongModuleTests.test_pylong_str_to_int",
       "status": "quarantined",
-      "reason": "host-raised:ValueError: Exceeds the limit (4300 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit"
+      "reason": "host-raised:RuntimeError: super(): no arguments"
     },
     {
       "id": "IntTestCases.test_small_ints",
@@ -150,11 +169,6 @@
       "reason": "decorator:unittest.skipUnless"
     },
     {
-      "id": "IntTestCases.test_int_base_indexable",
-      "status": "quarantined",
-      "reason": "uses-self.value"
-    },
-    {
       "id": "IntTestCases.test_non_numeric_input_types",
       "status": "quarantined",
       "reason": "uses-self.subTest"
@@ -175,14 +189,9 @@
       "reason": "uses-self.int_class"
     },
     {
-      "id": "IntStrDigitLimitsTests.test_max_str_digits_edge_cases",
-      "status": "quarantined",
-      "reason": "uses-self.int_class"
-    },
-    {
       "id": "IntStrDigitLimitsTests.test_max_str_digits",
       "status": "quarantined",
-      "reason": "self.check"
+      "reason": "helper:check(uses-self.int_class)"
     },
     {
       "id": "IntStrDigitLimitsTests.test_denial_of_service_prevented_int_to_str",
@@ -202,22 +211,12 @@
     {
       "id": "IntStrDigitLimitsTests.test_underscores_ignored",
       "status": "quarantined",
-      "reason": "self.int_class"
-    },
-    {
-      "id": "IntStrDigitLimitsTests.test_sign_not_counted",
-      "status": "quarantined",
-      "reason": "uses-self.int_class"
+      "reason": "helper:check(uses-self.int_class)"
     },
     {
       "id": "IntStrDigitLimitsTests.test_int_from_other_bases",
       "status": "quarantined",
-      "reason": "self._other_base_helper"
-    },
-    {
-      "id": "PyLongModuleTests.test_pylong_int_to_decimal",
-      "status": "quarantined",
-      "reason": "self._test_pylong_int_to_decimal"
+      "reason": "uses-self.subTest"
     },
     {
       "id": "PyLongModuleTests.test_pylong_roundtrip",

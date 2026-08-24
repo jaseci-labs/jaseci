@@ -1,28 +1,36 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "b2fed455b5e7cdf32358e4def7f6c65d0a338fcf",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_class.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_class.py",
     "-o",
-    "/var/tmp/wp4-mech/out/conv_class",
+    "/var/tmp/lane8/jac-py/tests/conv_class",
     "--name",
     "conv_class"
   ],
-  "generated_at": "2026-08-24T00:40:44",
+  "generated_at": "2026-08-24T14:30:37",
   "hashes": {
-    "pins_jac": "3f0402248c06ea8d2a50aee8365da00c3f059e735712b146b20a5e074c892f76"
+    "pins_jac": "6655067b29338d2b9fa3a33f8433f1d14510e4db6cc082a3e4c865f0dc5f5d55"
   },
-  "source_file": "reference/cpython/Lib/test/test_class.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_class.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "class",
   "pins_file": "conv_class_pins.jac",
   "pins": [
+    {
+      "ident": "TestInlineValues.test_bug_117750",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    'Aborted on 3.13a6'\n\n    class C:\n\n        def __init__(self):\n            self.__dict__.clear()\n    obj = C()\n    assert obj.__dict__ == {}, ('assertEqual', obj.__dict__, {})\n    obj.foo = None\n    assert obj.__dict__ == {'foo': None}, ('assertEqual', obj.__dict__, {'foo': None})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
     {
       "ident": "TestInlineValues.test_store_attr_deleted_dict",
       "status": "pinned",
@@ -42,7 +50,7 @@
     {
       "ident": "TestInlineValues.test_detach_materialized_dict_no_memory",
       "status": "quarantined",
-      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+      "reason": "host-raised:SkipTest: No module named '_testcapi'"
     }
   ],
   "quarantined": [
@@ -168,15 +176,11 @@
     },
     {
       "ident": "TestInlineValues.test_many_attributes",
-      "reason": "self.set_100"
+      "reason": "helper:set_100(decorated-helper)"
     },
     {
       "ident": "TestInlineValues.test_many_attributes_with_dict",
-      "reason": "self.set_100"
-    },
-    {
-      "ident": "TestInlineValues.test_bug_117750",
-      "reason": "uses-self.__dict__"
+      "reason": "helper:set_100(decorated-helper)"
     },
     {
       "ident": "TestInlineValues.test_store_attr_type_cache",
@@ -185,7 +189,7 @@
   ],
   "counts": {
     "extracted": 37,
-    "pinned": 2,
-    "quarantined": 35
+    "pinned": 3,
+    "quarantined": 34
   }
 }

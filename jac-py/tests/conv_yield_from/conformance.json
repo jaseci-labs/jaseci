@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/wp4-mech/out/conv_yield_from/conv_yield_from_pins.jac"
+    "jac-py/tests/conv_yield_from/conv_yield_from_pins.jac"
   ],
-  "generated_at": "2026-08-24T00:42:57",
+  "generated_at": "2026-08-24T14:42:23",
   "hashes": {
-    "pins_jac": "9aba8968493dfad8e6844b1d98e94b053ad7dc101de3922bf62386873b7a72cd",
-    "conversion_json": "d133e7d0ee8f28e3f82dd80d42fc180070987ca06a85466809c85379c2e53300",
+    "pins_jac": "f2bf68a96a8e345899a55154c2270a2a1c9b20efa71b18710430e153ea868f5e",
+    "conversion_json": "59548fcc68ccf95b51157fb2a4a51b8b8fccd4c809fd78eb540d7e73218ff6ae",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "yield_from",
   "counts": {
     "converted": 43,
-    "runnable": 32,
-    "green": 23,
-    "quarantined": 11
+    "runnable": 34,
+    "green": 26,
+    "quarantined": 9
   },
   "pins": [
     {
@@ -84,8 +84,9 @@
     },
     {
       "id": "TestPEP380Operation.test_delegation_of_close_to_non_generator",
-      "status": "quarantined",
-      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'captured_stderr' from '<unknown>'\">"
     },
     {
       "id": "TestPEP380Operation.test_delegating_throw_to_non_generator",
@@ -113,15 +114,11 @@
     },
     {
       "id": "TestPEP380Operation.test_next_and_return_with_value",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [\\'g starting\\', \\'f resuming g\\', \\'g returning None\\', \\'f caught StopIteration()\\', \\'g starting\\', \\'f resuming g\\', \\'g returning 1\\', \\'f caught StopIteration()\\', \\'g starting\\', \\'f resuming g\\', \\'g returning (2,)\\', \\'f caught StopIteration()\\', \\'g starting\\', \\'f resuming g\\', \\'g returning StopIteration(3)\\', \\'f caught StopIteration()\\'], [\\'g starting\\', \\'f resuming g\\', \\'g returning None\\', \\'f caught StopIteration()\\', \\'g starting\\', \\'f resuming g\\', \\'g returning 1\\', \\'f caught StopIteration(1)\\', \\'g starting\\', \\'f resuming g\\', \\'g returning (2,)\\', \\'f caught StopIteration((2,))\\', \\'g starting\\', \\'f resuming g\\', \\'g returning StopIteration(3)\\', \\'f caught StopIteration(StopIteration(3))\\'])\"'>"
+      "status": "pass"
     },
     {
       "id": "TestPEP380Operation.test_send_and_return_with_value",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \\'(\\\\\\'assertEqual\\\\\\', [\\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning None\\\\\\', \\\\\\'f caught StopIteration()\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning 1\\\\\\', \\\\\\'f caught StopIteration()\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning (2,)\\\\\\', \\\\\\'f caught StopIteration()\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning StopIteration(3)\\\\\\', \\\\\\'f caught StopIteration()\\\\\\'], [\\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning None\\\\\\', \\\\\\'f caught StopIteration()\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning 1\\\\\\', \\\\\\'f caught StopIteration(1)\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning (2,)\\\\\\', \\\\\\'f caught StopIteration((2,))\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning StopIteration(3)\\\\\\', \\\\\\'f caught StopIteration(StopIteration(3))\\\\\\'])\\''>"
+      "status": "pass"
     },
     {
       "id": "TestPEP380Operation.test_catching_exception_from_subgen_and_returning",
@@ -159,18 +156,17 @@
       "id": "TestPEP380Operation.test_delegator_is_visible_to_debugger",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: bridge-table: type 'native_builtin' has policy BridgePolicy.TRAMPOLINE but no to_host conversion arm\">"
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
     },
     {
       "id": "TestPEP380Operation.test_custom_iterator_return",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', None, 42)\"'>"
+      "status": "pass"
     },
     {
       "id": "TestPEP380Operation.test_close_with_cleared_frame",
-      "status": "quarantined",
-      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'captured_stderr' from '<unknown>'\">"
     },
     {
       "id": "TestPEP380Operation.test_send_tuple_with_custom_generator",
@@ -188,42 +184,42 @@
     {
       "id": "TestPEP380Operation.test_delegating_generators_claim_to_be_running_with_close",
       "status": "quarantined",
-      "reason": "uses-self.assertTrue"
+      "reason": "uses-self.assertRaises"
     },
     {
       "id": "TestInterestingEdgeCases.test_close_and_throw_work",
       "status": "quarantined",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_stop_iteration(unresolved-name:caught)"
     },
     {
       "id": "TestInterestingEdgeCases.test_close_and_throw_raise_generator_exit",
       "status": "quarantined",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_stop_iteration(unresolved-name:caught)"
     },
     {
       "id": "TestInterestingEdgeCases.test_close_and_throw_raise_stop_iteration",
       "status": "quarantined",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_generator_raised_stop_iteration(uses-self.assertRaisesRegex)"
     },
     {
       "id": "TestInterestingEdgeCases.test_close_and_throw_raise_base_exception",
       "status": "quarantined",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_stop_iteration(unresolved-name:caught)"
     },
     {
       "id": "TestInterestingEdgeCases.test_close_and_throw_raise_exception",
       "status": "quarantined",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_stop_iteration(unresolved-name:caught)"
     },
     {
       "id": "TestInterestingEdgeCases.test_close_and_throw_yield",
       "status": "quarantined",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_generator_ignored_generator_exit(uses-self.assertRaisesRegex)"
     },
     {
       "id": "TestInterestingEdgeCases.test_close_and_throw_return",
       "status": "quarantined",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_stop_iteration(unresolved-name:caught)"
     }
   ]
 }

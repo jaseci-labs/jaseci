@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "02879f86e5975cac5e4f1160309ef54fbedfb233",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/laneb-out/test_math/conv_math_pins.jac"
+    "jac-py/tests/conv_math/conv_math_pins.jac"
   ],
-  "generated_at": "2026-08-24T13:37:44",
+  "generated_at": "2026-08-24T14:34:34",
   "hashes": {
-    "pins_jac": "aa1f5e2aa991ee972520f71e8cccc0b366d1cf25d5c6f1639310b3d56f9f1ecd",
-    "conversion_json": "e491ed94d65bab67c2c7f7235d3411e1f4bb8ed77816111245df7c04e601a96f",
+    "pins_jac": "83ee4e39d57e230493aed34143f977a96730e13053138c4d05e5838629506653",
+    "conversion_json": "bdfcf8c44756a2d9264f175ec803bba7c9ca26e8052b822577375947032bd6a7",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "math",
@@ -21,13 +21,19 @@
   "timed_out": false,
   "counts": {
     "converted": 88,
-    "runnable": 19,
-    "green": 18,
-    "quarantined": 69,
-    "failed": 1,
+    "runnable": 46,
+    "green": 44,
+    "quarantined": 42,
+    "failed": 2,
     "infra_failed": 0
   },
   "failures": [
+    {
+      "id": "MathTests.test_prod",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'register'\">"
+    },
     {
       "id": "MathTests.test_exception_messages",
       "status": "fail",

@@ -1,26 +1,26 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/laneb-out/test_types/conv_types_pins.jac"
+    "jac-py/tests/conv_types/conv_types_pins.jac"
   ],
-  "generated_at": "2026-08-24T10:32:40",
+  "generated_at": "2026-08-24T14:42:08",
   "hashes": {
     "pins_jac": "29d348c7b83943fb617886fd6d28d014f22cece8eb9ded03cfbc253edbd4e3eb",
-    "conversion_json": "8e9a7744742cedc4efd508430b5df6ce0a96681175af40a9ddcc4db604ffab1e",
+    "conversion_json": "b4fab1fbf6d20ac287808a41c0fbbe9e817b3ddd8b305c7689937205cd5d1ecd",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "types",
   "counts": {
     "converted": 129,
     "runnable": 95,
-    "green": 45,
+    "green": 48,
     "quarantined": 34
   },
   "pins": [
@@ -84,15 +84,11 @@
     },
     {
       "id": "TypesTests.test_float__format__locale",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: bridge-table: type 'globals' has policy BridgePolicy.FAIL but no to_host conversion arm\">"
+      "status": "pass"
     },
     {
       "id": "TypesTests.test_int__format__locale",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: bridge-table: type 'globals' has policy BridgePolicy.FAIL but no to_host conversion arm\">"
+      "status": "pass"
     },
     {
       "id": "TypesTests.test_float__format__",
@@ -202,7 +198,7 @@
       "id": "UnionTests.test_union_copy",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "RUN<'AttributeError: cache'>"
     },
     {
       "id": "UnionTests.test_union_parameter_substitution_errors",
@@ -278,6 +274,16 @@
       "status": "pass"
     },
     {
+      "id": "ClassCreationTests.test_new_class_meta",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'Meta'"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_exec_body",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'Meta'"
+    },
+    {
       "id": "ClassCreationTests.test_new_class_metaclass_keywords",
       "status": "pass"
     },
@@ -344,6 +350,11 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError 'too many positional arguments'\">"
+    },
+    {
+      "id": "ClassCreationTests.test_metaclass_override_function",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'Meta'"
     },
     {
       "id": "ClassCreationTests.test_metaclass_override_callable",
@@ -423,7 +434,7 @@
       "id": "SimpleNamespaceTests.test_subclass",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {\\'_jac_guest_\\': PyUserObj(t=\\'instance\\', cls=PyClass(t=\\'class\\', name=\\'Spam\\', attrs={\\'__name__\\': PyStr(t=\\'str\\', val=\\'__main__\\'), \\'__module__\\': PyStr(t=\\'str\\', val=\\'__main__\\'), \\'__qualname__\\': PyStr(t=\\'str\\', val=\\'_t.<locals>.Spam\\'), \\'__firstlineno__\\': PyInt(t=\\'int\\', val=9), \\'__static_attributes__\\': PyTuple(t=\\'tuple\\', items=[])}, bases=[PyHostProxy(t=\\'host\\', val=<class \\'types.SimpleNamespace\\'>)], native_base=\\'\\', metaclass=None, tp_flags=4096, slot_members=[], slots_declared=False, instance_has_dict=True), attrs={}, base=PyNoneType(t=\\'none\\'))}, {\\'ham\\': 8, \\'eggs\\': 9})\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {}, {\\'ham\\': 8, \\'eggs\\': 9})\"'>"
     },
     {
       "id": "SimpleNamespaceTests.test_pickle",
@@ -431,15 +442,13 @@
     },
     {
       "id": "SimpleNamespaceTests.test_replace",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "SimpleNamespaceTests.test_replace_subclass",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC TypeError 'replace() does not support Spam objects'\">"
     },
     {
       "id": "SimpleNamespaceTests.test_fake_namespace_compare",
@@ -473,13 +482,13 @@
       "id": "CoroutineTests.test_duck_gen",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<'AttributeError: __repr__'>"
     },
     {
       "id": "CoroutineTests.test_gen",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', <callable_iterator object at 0x7fa79c5c6710>, <class \\'__main__._GeneratorWrapper\\'>)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', <callable_iterator object at 0x7fd3716c47c0>, <class \\'__main__._GeneratorWrapper\\'>)\"'>"
     },
     {
       "id": "CoroutineTests.test_returning_itercoro",
@@ -489,13 +498,13 @@
       "id": "CoroutineTests.test_genfunc",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: bridge-table: type 'native_builtin' has policy BridgePolicy.TRAMPOLINE but no to_host conversion arm\">"
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
     },
     {
       "id": "CoroutineTests.test_wrapper_object",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'GeneratorWrapper\\', \\'<callable_iterator object at 0x7fa79c294ee0>\\')\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'GeneratorWrapper\\', \\'<callable_iterator object at 0x7fd3713f2950>\\')\"'>"
     },
     {
       "id": "FunctionTests.test_function_type_defaults",
@@ -635,24 +644,9 @@
       "reason": "self.assertIsSubclass"
     },
     {
-      "id": "ClassCreationTests.test_new_class_meta",
-      "status": "quarantined",
-      "reason": "uses-self.Meta"
-    },
-    {
-      "id": "ClassCreationTests.test_new_class_exec_body",
-      "status": "quarantined",
-      "reason": "uses-self.Meta"
-    },
-    {
       "id": "ClassCreationTests.test_new_class_meta_with_base",
       "status": "quarantined",
       "reason": "self.assertIsSubclass"
-    },
-    {
-      "id": "ClassCreationTests.test_metaclass_override_function",
-      "status": "quarantined",
-      "reason": "uses-self.Meta"
     },
     {
       "id": "ClassCreationTests.test_one_argument_type",
@@ -667,12 +661,12 @@
     {
       "id": "CoroutineTests.test_duck_functional_gen",
       "status": "quarantined",
-      "reason": "uses-self._i"
+      "reason": "uses-self.send"
     },
     {
       "id": "SubinterpreterTests.test_static_types_inherited_slots",
       "status": "quarantined",
-      "reason": "uses-self.maxDiff"
+      "reason": "uses-self.create_channel"
     }
   ]
 }

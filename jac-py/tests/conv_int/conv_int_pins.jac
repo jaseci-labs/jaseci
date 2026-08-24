@@ -55,6 +55,12 @@ test "IntTestCases.test_int_base_bad_types" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "IntTestCases.test_int_base_indexable" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class MyIndexable(object):\n\n        def __init__(self, value):\n            self.value = value\n\n        def __index__(self):\n            return self.value\n    for base in (2 ** 100, -2 ** 100, 1, 37):\n        try:\n            int('43', base)\n        except ValueError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    assert int('101', base=MyIndexable(2)) == 5, ('assertEqual', int('101', base=MyIndexable(2)), 5)\n    assert int('101', base=MyIndexable(10)) == 101, ('assertEqual', int('101', base=MyIndexable(10)), 101)\n    assert int('101', base=MyIndexable(36)) == 1 + 36 ** 2, ('assertEqual', int('101', base=MyIndexable(36)), 1 + 36 ** 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "IntTestCases.test_int_memoryview" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    assert int(memoryview(b'123')[1:3]) == 23, ('assertEqual', int(memoryview(b'123')[1:3]), 23)\n    assert int(memoryview(b'123\\x00')[1:3]) == 23, ('assertEqual', int(memoryview(b'123\\x00')[1:3]), 23)\n    assert int(memoryview(b'123 ')[1:3]) == 23, ('assertEqual', int(memoryview(b'123 ')[1:3]), 23)\n    assert int(memoryview(b'123A')[1:3]) == 23, ('assertEqual', int(memoryview(b'123A')[1:3]), 23)\n    assert int(memoryview(b'1234')[1:3]) == 23, ('assertEqual', int(memoryview(b'1234')[1:3]), 23)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -87,18 +93,6 @@ test "IntTestCases.test_int_subclass_with_int" {
 
 test "IntTestCases.test_issue31619" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    assert int('1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1', 2) == 1431655765, ('assertEqual', int('1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1', 2), 1431655765)\n    assert int('1_2_3_4_5_6_7_0_1_2_3', 8) == 1402433619, ('assertEqual', int('1_2_3_4_5_6_7_0_1_2_3', 8), 1402433619)\n    assert int('1_2_3_4_5_6_7_8_9', 16) == 4886718345, ('assertEqual', int('1_2_3_4_5_6_7_8_9', 16), 4886718345)\n    assert int('1_2_3_4_5_6_7', 32) == 1144132807, ('assertEqual', int('1_2_3_4_5_6_7', 32), 1144132807)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "IntStrDigitLimitsTests.test_int_max_str_digits_is_per_interpreter" {
-    (ok, detail) = p2_libtest_run_snippet("import sys\nfrom test import support\n\ndef _t():\n    code = \"if 1:\\n        # Subinterpreters maintain and enforce their own limit\\n        import sys\\n        sys.set_int_max_str_digits(2323)\\n        try:\\n            int('3'*3333)\\n        except ValueError:\\n            pass\\n        else:\\n            raise AssertionError('Expected a int max str digits ValueError.')\\n        \"\n    with support.adjust_int_max_str_digits(4000):\n        before_value = sys.get_int_max_str_digits()\n        assert support.run_in_subinterp(code) == 0, ('assertEqual', support.run_in_subinterp(code), 0)\n        after_value = sys.get_int_max_str_digits()\n        assert before_value == after_value, ('assertEqual', before_value, after_value)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "PyLongModuleTests.test_pylong_int_divmod" {
-    (ok, detail) = p2_libtest_run_snippet("def _t():\n    n = 1 << 100000\n    a, b = divmod(n * 3 + 1, n)\n    assert a == 3 and b == 1\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

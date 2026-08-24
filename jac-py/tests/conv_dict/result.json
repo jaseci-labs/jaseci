@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "82b1b52e4b03814ccf3d2ce1faf579ee3fb469a4",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/wp4-mech/out/conv3_dict/conv_dict_pins.jac"
+    "jac-py/tests/conv_dict/conv_dict_pins.jac"
   ],
-  "generated_at": "2026-08-24T00:55:10",
+  "generated_at": "2026-08-24T14:31:41",
   "hashes": {
-    "pins_jac": "0ecfa1d1607cc679058b85cefca5cc8a8acacbca87b3c93cf5f145faf3b4c0f4",
-    "conversion_json": "109d52960c34319f82769dd769577e491b701115a16163c0371cb81137d6cf4d",
+    "pins_jac": "f6c063b414af9990915af4c8fee184acfb9f3fdf457d2e2ab0901486916987f8",
+    "conversion_json": "d50339c58b6eabce250e5e08616ad81ac81a6c7b32a691a46edcb7ca6777e25b",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "dict",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 92,
-    "runnable": 59,
-    "green": 44,
-    "quarantined": 33,
-    "failed": 15,
+    "runnable": 72,
+    "green": 49,
+    "quarantined": 20,
+    "failed": 23,
     "infra_failed": 0
   },
   "failures": [
@@ -47,6 +47,18 @@
       "detail": "GOT<\"ORACLE_EXC AttributeError 'mapping'\">"
     },
     {
+      "id": "DictTest.test_getitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"cannot use \\'BadHash\\' as a dict key (unhashable type: \\'BadHash\\')\"'>"
+    },
+    {
+      "id": "DictTest.test_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {}, {1: 1, 2: 2, 3: 3})\"'>"
+    },
+    {
       "id": "DictTest.test_update_shared_keys",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
@@ -56,43 +68,79 @@
       "id": "DictTest.test_fromkeys",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'collections.abc'\">"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', {\\'a\\': None}, <class \\'__main__.dictlike\\'>)\"'>"
+    },
+    {
+      "id": "DictTest.test_setdefault",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"cannot use \\'BadHash\\' as a dict key (unhashable type: \\'BadHash\\')\"'>"
+    },
+    {
+      "id": "DictTest.test_setdefault_atomic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 2, 1)\"'>"
+    },
+    {
+      "id": "DictTest.test_setitem_atomic_at_resize",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 2, 1)\"'>"
+    },
+    {
+      "id": "DictTest.test_pop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC KeyError '<unhashable>'\">"
+    },
+    {
+      "id": "DictTest.test_mutating_lookup",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {}, {<__main__.NastyKey object at 0x7f2c2f5bbad0>: 2})\"'>"
+    },
+    {
+      "id": "DictTest.test_bad_key",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'d\\' is not defined\"'>"
     },
     {
       "id": "DictTest.test_container_iterator",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIs\\', <__main__.C object at 0x7f27aabf6e70>, None)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIs\\', <__main__.C object at 0x7f2c2f5bbdd0>, None)\"'>"
     },
     {
       "id": "DictTest.test_iterator_pickling",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'dictiter\\' has policy BridgePolicy.LAZY_ITER but no to_host conversion arm\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f2c30b2afb0>\"'>"
     },
     {
       "id": "DictTest.test_itemiterator_pickling",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'collections.abc'\">"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f2c30b375e0>\"'>"
     },
     {
       "id": "DictTest.test_valuesiterator_pickling",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'dictiter\\' has policy BridgePolicy.LAZY_ITER but no to_host conversion arm\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f2c30b36a30>\"'>"
     },
     {
       "id": "DictTest.test_reverseitemiterator_pickling",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'collections.abc'\">"
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'abc'\">"
     },
     {
-      "id": "DictTest.test_object_set_item_single_instance_non_str_key",
+      "id": "DictTest.test_instance_dict_getattr_str_subclass",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {\\'a\\': \\'a\\'}, {1: 1, \\'a\\': \\'a\\'})\"'>"
+      "detail": "GOT<\"ORACLE_EXC AttributeError ''\">"
     },
     {
       "id": "DictTest.test_equal_operator_modifying_operand",
@@ -104,7 +152,7 @@
       "id": "DictTest.test_dict_copy_order",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'collections.abc'\">"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [(\\'c\\', 3), (\\'b\\', 2), (\\'a\\', 1)], [(\\'a\\', 1), (\\'b\\', 2), (\\'c\\', 3)])\"'>"
     },
     {
       "id": "DictTest.test_overwrite_managed_dict",

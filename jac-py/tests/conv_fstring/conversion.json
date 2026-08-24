@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "3518a93f49871f294089786b53a66cce450da6eb",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_fstring.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_fstring.py",
     "-o",
-    "/var/tmp/laneb-out/test_fstring",
+    "/var/tmp/lane8/jac-py/tests/conv_fstring",
     "--name",
     "conv_fstring"
   ],
-  "generated_at": "2026-08-24T13:05:08",
+  "generated_at": "2026-08-24T14:32:56",
   "hashes": {
-    "pins_jac": "008b47a1f62f0365b83486550c220dcee3f7428c71fa80ab5df8786517b0c170"
+    "pins_jac": "dac10f3fb4b78ebbcfb6879cad3f3db48e1ff14cf48743bd6118ac731f4cec27"
   },
-  "source_file": "reference/cpython/Lib/test/test_fstring.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_fstring.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "fstring",
   "pins_file": "conv_fstring_pins.jac",
@@ -30,6 +30,14 @@
         "status": "ok"
       },
       "snippet": "import types\n\ndef _t():\n\n    class X:\n\n        def __format__(self, spec):\n            return 'class'\n    x = X()\n    y = X()\n    y.__format__ = types.MethodType(lambda self, spec: 'instance', y)\n    assert f'{y}' == format(y), ('assertEqual', f'{y}', format(y))\n    assert f'{y}' == 'class', ('assertEqual', f'{y}', 'class')\n    assert format(x) == format(y), ('assertEqual', format(x), format(y))\n    assert x.__format__('') == 'class', ('assertEqual', x.__format__(''), 'class')\n    assert y.__format__('') == 'instance', ('assertEqual', y.__format__(''), 'instance')\n    assert type(x).__format__(x, '') == 'class', ('assertEqual', type(x).__format__(x, ''), 'class')\n    assert type(y).__format__(y, '') == 'class', ('assertEqual', type(y).__format__(y, ''), 'class')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_ast",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import ast\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class X:\n\n        def __init__(self):\n            self.called = False\n\n        def __call__(self):\n            self.called = True\n            return 4\n    x = X()\n    expr = \"\\na = 10\\nf'{a * x()}'\"\n    t = ast.parse(expr)\n    c = compile(t, '', 'exec')\n    assert not x.called, ('assertFalse', x.called)\n    exec(c)\n    assert x.called, ('assertTrue', x.called)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestCase.test_ast_line_numbers",
@@ -142,6 +150,14 @@
         "status": "ok"
       },
       "snippet": "def _t():\n\n    def build_fstr(n, extra=''):\n        return \"f'\" + '{x} ' * n + extra + \"'\"\n    x = 'X'\n    width = 1\n    for i in range(250, 260):\n        assert eval(build_fstr(i)) == (x + ' ') * i, ('assertEqual', eval(build_fstr(i)), (x + ' ') * i)\n    assert eval(build_fstr(255) * 256) == (x + ' ') * (255 * 256), ('assertEqual', eval(build_fstr(255) * 256), (x + ' ') * (255 * 256))\n    s = build_fstr(253, '{x:{width}} ')\n    assert eval(s) == (x + ' ') * 254, ('assertEqual', eval(s), (x + ' ') * 254)\n    s = \"f'{1}' 'x' 'y'\" * 1024\n    assert eval(s) == '1xy' * 1024, ('assertEqual', eval(s), '1xy' * 1024)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_side_effect_order",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class X:\n\n        def __init__(self):\n            self.i = 0\n\n        def __format__(self, spec):\n            self.i += 1\n            return str(self.i)\n    x = X()\n    assert f'{x} {x}' == '1 2', ('assertEqual', f'{x} {x}', '1 2')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestCase.test_no_escapes_for_braces",
@@ -498,56 +514,48 @@
       "reason": "decorator:unittest.skipIf"
     },
     {
-      "ident": "TestCase.test_ast",
-      "reason": "uses-self.called"
-    },
-    {
       "ident": "TestCase.test_compile_time_concat_errors",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_unterminated_string",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_syntax_error_in_nested_fstring",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_double_braces",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_compile_time_concat",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_comments",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_format_specifier_expressions",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_custom_format_specifier",
       "reason": "uses-self.assertWarns"
     },
     {
-      "ident": "TestCase.test_side_effect_order",
-      "reason": "uses-self.i"
-    },
-    {
       "ident": "TestCase.test_missing_expression",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_parens_in_expressions",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_newlines_before_syntax_error",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_backslashes_in_string_part",
@@ -555,23 +563,23 @@
     },
     {
       "ident": "TestCase.test_misformed_unicode_character_name",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_backslashes_in_expression_part",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_invalid_backslashes_inside_fstring_context",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_lambda",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_fstring_backslash_before_double_bracket",
-      "reason": "uses-self.subTest"
+      "reason": "uses-self.assertWarns"
     },
     {
       "ident": "TestCase.test_fstring_backslash_before_double_bracket_warns_once",
@@ -583,44 +591,44 @@
     },
     {
       "ident": "TestCase.test_invalid_string_prefixes",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_conversions",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_assignment",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_del",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_mismatched_braces",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_errors",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_not_closing_quotes",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_syntax_error_after_debug",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_newlines_in_format_specifiers",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     }
   ],
   "counts": {
     "extracted": 90,
-    "pinned": 58,
-    "quarantined": 32
+    "pinned": 60,
+    "quarantined": 30
   }
 }

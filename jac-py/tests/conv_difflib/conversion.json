@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "unknown",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,13 +10,13 @@
     "convert_suite.py",
     "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_difflib.py",
     "-o",
-    "/var/tmp/nicestorm-selfhost-wt/jac-py/tests/conv_difflib",
+    "/var/tmp/lane8/jac-py/tests/conv_difflib",
     "--name",
     "conv_difflib"
   ],
-  "generated_at": "2026-08-24T09:44:13",
+  "generated_at": "2026-08-24T14:31:41",
   "hashes": {
-    "pins_jac": "bb315fe00a390882fd3a293913570d430e40c119477eb8d5c32f1b7039897059"
+    "pins_jac": "fd763939aaf0d9e32a329a826ed15455eadc487c142574c9edd2c4a9958fe7f1"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_difflib.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -208,6 +208,16 @@
       "snippet": "import difflib\n\ndef _t():\n    spec = '           The range of lines in file1 shall be written in the following format\\n           if the range contains two or more lines:\\n               \"*** %d,%d ****\\n\", <beginning line number>, <ending line number>\\n           and the following format otherwise:\\n               \"*** %d ****\\n\", <ending line number>\\n           The ending line number of an empty range shall be the number of the preceding line,\\n           or 0 if the range is at the start of the file.\\n\\n           Next, the range of lines in file2 shall be written in the following format\\n           if the range contains two or more lines:\\n               \"--- %d,%d ----\\n\", <beginning line number>, <ending line number>\\n           and the following format otherwise:\\n               \"--- %d ----\\n\", <ending line number>\\n        '\n    fmt = difflib._format_range_context\n    assert fmt(3, 3) == '3', ('assertEqual', fmt(3, 3), '3')\n    assert fmt(3, 4) == '4', ('assertEqual', fmt(3, 4), '4')\n    assert fmt(3, 5) == '4,5', ('assertEqual', fmt(3, 5), '4,5')\n    assert fmt(3, 6) == '4,6', ('assertEqual', fmt(3, 6), '4,6')\n    assert fmt(0, 0) == '0', ('assertEqual', fmt(0, 0), '0')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestBytes.test_byte_content",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check'"
+    },
+    {
+      "ident": "TestBytes.test_byte_filenames",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check'"
+    },
+    {
       "ident": "TestJunkAPIs.test_is_line_junk_true",
       "status": "pinned",
       "oracle": {
@@ -248,6 +258,22 @@
       "snippet": "import difflib\n\ndef _t():\n    for char in ['a', '#', '\\n', '\\x0c', '\\r', '\\x0b']:\n        assert not difflib.IS_CHARACTER_JUNK(char), ('assertFalse', difflib.IS_CHARACTER_JUNK(char))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestFindLongest.test_default_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import difflib\n\ndef longer_match_exists(a, b, n):\n    return any((b_part in a for b_part in [b[i:i + n + 1] for i in range(0, len(b) - n - 1)]))\n\ndef _t():\n    a = 'foo bar'\n    b = 'foo baz bar'\n    sm = difflib.SequenceMatcher(a=a, b=b)\n    match = sm.find_longest_match()\n    assert match.a == 0, ('assertEqual', match.a, 0)\n    assert match.b == 0, ('assertEqual', match.b, 0)\n    assert match.size == 6, ('assertEqual', match.size, 6)\n    assert a[match.a:match.a + match.size] == b[match.b:match.b + match.size], ('assertEqual', a[match.a:match.a + match.size], b[match.b:match.b + match.size])\n    assert not longer_match_exists(a, b, match.size), ('assertFalse', longer_match_exists(a, b, match.size))\n    match = sm.find_longest_match(alo=2, blo=4)\n    assert match.a == 3, ('assertEqual', match.a, 3)\n    assert match.b == 7, ('assertEqual', match.b, 7)\n    assert match.size == 4, ('assertEqual', match.size, 4)\n    assert a[match.a:match.a + match.size] == b[match.b:match.b + match.size], ('assertEqual', a[match.a:match.a + match.size], b[match.b:match.b + match.size])\n    assert not longer_match_exists(a[2:], b[4:], match.size), ('assertFalse', longer_match_exists(a[2:], b[4:], match.size))\n    match = sm.find_longest_match(bhi=5, blo=1)\n    assert match.a == 1, ('assertEqual', match.a, 1)\n    assert match.b == 1, ('assertEqual', match.b, 1)\n    assert match.size == 4, ('assertEqual', match.size, 4)\n    assert a[match.a:match.a + match.size] == b[match.b:match.b + match.size], ('assertEqual', a[match.a:match.a + match.size], b[match.b:match.b + match.size])\n    assert not longer_match_exists(a, b[1:5], match.size), ('assertFalse', longer_match_exists(a, b[1:5], match.size))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestFindLongest.test_longest_match_with_popular_chars",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import difflib\n\ndef longer_match_exists(a, b, n):\n    return any((b_part in a for b_part in [b[i:i + n + 1] for i in range(0, len(b) - n - 1)]))\n\ndef _t():\n    a = 'dabcd'\n    b = 'd' * 100 + 'abc' + 'd' * 100\n    sm = difflib.SequenceMatcher(a=a, b=b)\n    match = sm.find_longest_match(0, len(a), 0, len(b))\n    assert match.a == 0, ('assertEqual', match.a, 0)\n    assert match.b == 99, ('assertEqual', match.b, 99)\n    assert match.size == 5, ('assertEqual', match.size, 5)\n    assert a[match.a:match.a + match.size] == b[match.b:match.b + match.size], ('assertEqual', a[match.a:match.a + match.size], b[match.b:match.b + match.size])\n    assert not longer_match_exists(a, b, match.size), ('assertFalse', longer_match_exists(a, b, match.size))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "TestCloseMatches.test_invalid_inputs",
       "status": "pinned",
       "oracle": {
@@ -266,41 +292,25 @@
   ],
   "quarantined": [
     {
-      "ident": "TestBytes.test_byte_content",
-      "reason": "uses-self.check"
-    },
-    {
-      "ident": "TestBytes.test_byte_filenames",
-      "reason": "uses-self.check"
-    },
-    {
       "ident": "TestInputTypes.test_input_type_checks",
-      "reason": "self._assert_type_error"
+      "reason": "helper:_assert_type_error(unresolved-name:ctx)"
     },
     {
       "ident": "TestInputTypes.test_mixed_types_content",
-      "reason": "self._assert_type_error"
+      "reason": "helper:_assert_type_error(unresolved-name:ctx)"
     },
     {
       "ident": "TestInputTypes.test_mixed_types_filenames",
-      "reason": "self._assert_type_error"
+      "reason": "helper:_assert_type_error(unresolved-name:ctx)"
     },
     {
       "ident": "TestInputTypes.test_mixed_types_dates",
-      "reason": "self._assert_type_error"
-    },
-    {
-      "ident": "TestFindLongest.test_default_args",
-      "reason": "uses-self.longer_match_exists"
-    },
-    {
-      "ident": "TestFindLongest.test_longest_match_with_popular_chars",
-      "reason": "uses-self.longer_match_exists"
+      "reason": "helper:_assert_type_error(unresolved-name:ctx)"
     }
   ],
   "counts": {
     "extracted": 38,
-    "pinned": 30,
-    "quarantined": 8
+    "pinned": 32,
+    "quarantined": 6
   }
 }

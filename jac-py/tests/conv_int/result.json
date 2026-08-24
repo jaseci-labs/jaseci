@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/laneb-out/test_int/conv_int_pins.jac"
+    "jac-py/tests/conv_int/conv_int_pins.jac"
   ],
-  "generated_at": "2026-08-24T11:07:47",
+  "generated_at": "2026-08-24T14:33:38",
   "hashes": {
-    "pins_jac": "2d2ba6d02f6f619c93269cb3112636bf60297e27a7fa3fe7c1d79bdb55ba1f30",
-    "conversion_json": "640c33846b6b5a73eca263bab0fe846e125def6e9c3473ff5f46a346b1671b7b",
+    "pins_jac": "36e93cc4f4e2378aeb3bfb02d35bf063c4240fcd6080d2b393db34cf65799067",
+    "conversion_json": "8fdcaeaa4c0fb3ac2bb5477656cb9829408339b509ea5bd056ec4edf340dc4d4",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "int",
@@ -21,30 +21,24 @@
   "timed_out": false,
   "counts": {
     "converted": 42,
-    "runnable": 16,
+    "runnable": 15,
     "green": 13,
-    "quarantined": 26,
-    "failed": 3,
+    "quarantined": 27,
+    "failed": 2,
     "infra_failed": 0
   },
   "failures": [
     {
-      "id": "IntTestCases.test_basic",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
-    },
-    {
       "id": "IntTestCases.test_underscores",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.numbers'\">"
+      "detail": "GOT<'ORACLE_EXC TypeError \"argument of type \\'bool\\' is not a container or iterable\"'>"
     },
     {
-      "id": "IntStrDigitLimitsTests.test_int_max_str_digits_is_per_interpreter",
+      "id": "IntTestCases.test_int_base_indexable",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC AttributeError 'adjust_int_max_str_digits'\">"
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'MyIndexable\\' object cannot be interpreted as an integer\"'>"
     }
   ]
 }

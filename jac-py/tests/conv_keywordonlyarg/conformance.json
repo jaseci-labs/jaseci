@@ -1,38 +1,44 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "b2fed455b5e7cdf32358e4def7f6c65d0a338fcf",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/wp4-mech/out/conv_keywordonlyarg/conv_keywordonlyarg_pins.jac"
+    "jac-py/tests/conv_keywordonlyarg/conv_keywordonlyarg_pins.jac"
   ],
-  "generated_at": "2026-08-24T00:40:30",
+  "generated_at": "2026-08-24T14:33:50",
   "hashes": {
-    "pins_jac": "4bea0d26162baeb1ab6fc0a97fe8bf796a511e3d090f74a5e7a168de35c5fe93",
-    "conversion_json": "ad33b5613892aade04d93ac32efc57bbb6cd1108e0ab864290f04f3e29407bfe",
+    "pins_jac": "ef3b6e440f11102ebfe67c3c17f1658e0184a840cdcaa86d51f348a8cf10ebb5",
+    "conversion_json": "42b6f89dec9e3f22b5b97396485cda500e407c31f5ffaf4ac37b24bf8d6a4526",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "keywordonlyarg",
   "counts": {
     "converted": 11,
-    "runnable": 5,
-    "green": 3,
-    "quarantined": 6
+    "runnable": 7,
+    "green": 6,
+    "quarantined": 4
   },
   "pins": [
+    {
+      "id": "KeywordOnlyArgTestCase.testSyntaxErrorForFunctionDefinition",
+      "status": "pass"
+    },
     {
       "id": "KeywordOnlyArgTestCase.testSyntaxForManyArguments",
       "status": "pass"
     },
     {
+      "id": "KeywordOnlyArgTestCase.testSyntaxErrorForFunctionCall",
+      "status": "pass"
+    },
+    {
       "id": "KeywordOnlyArgTestCase.testKwDefaults",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC AttributeError '__kwdefaults__'\">"
+      "status": "pass"
     },
     {
       "id": "KeywordOnlyArgTestCase.test_kwonly_methods",
@@ -42,26 +48,16 @@
       "id": "KeywordOnlyArgTestCase.test_issue13343",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'collections.abc'\">"
+      "detail": "RUN<'AttributeError: __repr__'>"
     },
     {
       "id": "KeywordOnlyArgTestCase.test_mangling",
       "status": "pass"
     },
     {
-      "id": "KeywordOnlyArgTestCase.testSyntaxErrorForFunctionDefinition",
-      "status": "quarantined",
-      "reason": "self.assertRaisesSyntaxError"
-    },
-    {
       "id": "KeywordOnlyArgTestCase.testTooManyPositionalErrorMessage",
       "status": "quarantined",
       "reason": "unresolved-name:exc"
-    },
-    {
-      "id": "KeywordOnlyArgTestCase.testSyntaxErrorForFunctionCall",
-      "status": "quarantined",
-      "reason": "self.assertRaisesSyntaxError"
     },
     {
       "id": "KeywordOnlyArgTestCase.testRaiseErrorFuncallWithUnexpectedKeywordArgument",

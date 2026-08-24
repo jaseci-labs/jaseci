@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/laneb-out/test_iter/conv_iter_pins.jac"
+    "jac-py/tests/conv_iter/conv_iter_pins.jac"
   ],
-  "generated_at": "2026-08-24T10:33:03",
+  "generated_at": "2026-08-24T14:33:45",
   "hashes": {
-    "pins_jac": "dc3be110afc324710d97f3fdf2532037f67a1f5be8fb0faada0f1f88fc223c2a",
-    "conversion_json": "2e8311552a0ec24d4d96ac80d5d9e1d337432ff52e935d6ec514757d08fc3ab6",
+    "pins_jac": "395ba76ea5bb2e4b271565222909b9654bc610d4182a4e5434b87e2e8e7aa812",
+    "conversion_json": "d39fd950991ee5acfb24b199906d8c7c5a214f416aef4c239cdd5df578ad6ceb",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "iter",
@@ -21,13 +21,25 @@
   "timed_out": false,
   "counts": {
     "converted": 57,
-    "runnable": 18,
-    "green": 11,
-    "quarantined": 39,
-    "failed": 7,
+    "runnable": 32,
+    "green": 16,
+    "quarantined": 25,
+    "failed": 16,
     "infra_failed": 2
   },
   "failures": [
+    {
+      "id": "TestCase.test_iter_basic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f3d9ce59c70>\"'>"
+    },
+    {
+      "id": "TestCase.test_iter_for_loop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not iterable'\">"
+    },
     {
       "id": "TestCase.test_iter_independence",
       "status": "fail",
@@ -47,28 +59,70 @@
       "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
     },
     {
-      "id": "TestCase.test_sinkstate_dict",
+      "id": "TestCase.test_iter_big_range",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'dictiter\\' has policy BridgePolicy.LAZY_ITER but no to_host conversion arm\"'>"
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not iterable'\">"
     },
     {
-      "id": "TestCase.test_sinkstate_range",
+      "id": "TestCase.test_iter_empty",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'rangeiter\\' has policy BridgePolicy.LAZY_ITER but no to_host conversion arm\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f3d9ce59bc0>\"'>"
+    },
+    {
+      "id": "TestCase.test_iter_tuple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f3d9ceaa4b0>\"'>"
+    },
+    {
+      "id": "TestCase.test_iter_range",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not iterable'\">"
+    },
+    {
+      "id": "TestCase.test_iter_string",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f3d9ceab110>\"'>"
+    },
+    {
+      "id": "TestCase.test_iter_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f3d9ceaa560>\"'>"
+    },
+    {
+      "id": "TestCase.test_unicode_join_endcase",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'can only join an iterable'\">"
+    },
+    {
+      "id": "TestCase.test_writelines",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Whatever\\' object is not iterable\"'>"
+    },
+    {
+      "id": "TestCase.test_ref_counting_behavior",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 1, 0)\"'>"
     },
     {
       "id": "TestCase.test_3720",
       "status": "fail",
       "classification": "VM-CRASH",
-      "detail": "\ud83d\udee0  jac dev mode \u2014 using compiler source at /var/tmp/slatepetrel-wt/jac\n\u2716 Error: 'PyUserObj' object has no attribute 'index'\n13703 |             }\n13704 |             iterator = top as PyIter;\n13705 |             if iterator.index < len(iterator.items) {\n      |           ^^^^^^^^^^^^^^\n13706 |      "
+      "detail": "\ud83d\udee0  jac dev mode \u2014 using compiler source at /var/tmp/lane8/jac\n\u2716 Error: 'PyUserObj' object has no attribute 'index'\n14653 |             }\n14654 |             iterator = top as PyIter;\n14655 |             if iterator.index < len(iterator.items) {\n      |           ^^^^^^^^^^^^^^\n14656 |               "
     },
     {
       "id": "TestCase.test_extending_list_with_iterator_does_not_segfault",
       "status": "fail",
       "classification": "VM-CRASH",
-      "detail": "\ud83d\udee0  jac dev mode \u2014 using compiler source at /var/tmp/slatepetrel-wt/jac\n\u2716 Error: 'PyUserObj' object has no attribute 'index'\n13703 |             }\n13704 |             iterator = top as PyIter;\n13705 |             if iterator.index < len(iterator.items) {\n      |           ^^^^^^^^^^^^^^\n13706 |      "
+      "detail": "\ud83d\udee0  jac dev mode \u2014 using compiler source at /var/tmp/lane8/jac\n\u2716 Error: 'PyUserObj' object has no attribute 'index'\n14653 |             }\n14654 |             iterator = top as PyIter;\n14655 |             if iterator.index < len(iterator.items) {\n      |           ^^^^^^^^^^^^^^\n14656 |               "
     }
   ]
 }

@@ -1,15 +1,15 @@
 # Triage report: `conv_bytes_pins.jac`
 
-- source: reference/cpython/Lib/test/test_bytes.py
-- guest leg: 0/44 marks
-- pins: **18 passed** / 44 run (+99 quarantined of 143 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_bytes.py
+- guest leg: 0/43 marks
+- pins: **18 passed** / 43 run (+100 quarantined of 143 extracted)
 
 | pin | result | got |
 |---|---|---|
 | BaseBytesTest.test_from_mutating_list | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'X\' object cannot be interpreted as an integer"'> |
 | BytesTest.test_getitem_error | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'"> |
 | BytesTest.test_bytes_blocking | PASS | |
-| BytesTest.test_repeat_id_preserving | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 139705238531312, 139705238530448)"'> |
+| BytesTest.test_repeat_id_preserving | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 139790988259504, 139790988258640)"'> |
 | ByteArrayTest.test_getitem_error | PASS | |
 | ByteArrayTest.test_setitem_error | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'"> |
 | ByteArrayTest.test_nohash | PASS | |
@@ -35,8 +35,7 @@
 | ByteArrayTest.test_copied | PASS | |
 | ByteArrayTest.test_partition_bytearray_doesnt_share_nullstring | PASS | |
 | ByteArrayTest.test_resize_forbidden | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object does not support item assignment'"> |
-| ByteArrayTest.test_obsolete_write_lock | GUEST-WRONG-OUTPUT | RUN<"ImportError: cannot import name 'import_helper' from '<unknown>'"> |
-| ByteArrayTest.test_iterator_pickling2 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f0fa9392980>"'> |
+| ByteArrayTest.test_iterator_pickling2 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f23a02df1c0>"'> |
 | ByteArrayTest.test_iterator_length_hint | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', [], [])"'> |
 | ByteArrayTest.test_repeat_after_setslice | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object does not support item assignment'"> |
 | ByteArrayTest.test_extend_empty_buffer_overflow | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "can\'t extend bytearray with EvilIter"'> |
@@ -49,7 +48,7 @@
 | AssortedBytesTest.test_rsplit_bytearray | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', [b\'a\', b\'b\'], [b\'a\', b\'b\'])"'> |
 | AssortedBytesTest.test_return_self | PASS | |
 | BytearrayPEP3137Test.test_returns_new_copy | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC NameError "name \'val\' is not defined"'> |
-| ByteArraySubclassTest.test_init_override | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', <**main**.subclass object at 0x7f0fa9387150>, b\'abcd\')"'> |
+| ByteArraySubclassTest.test_init_override | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', <**main**.subclass object at 0x7f23a03c1050>, b\'abcd\')"'> |
 
 ## Quarantined at conversion
 
@@ -80,15 +79,14 @@
 | BaseBytesTest.test_extended_getslice | uses-self.type2test |
 | BaseBytesTest.test_encoding | uses-self.type2test |
 | BaseBytesTest.test_decode | uses-self.type2test |
-| BaseBytesTest.test_check_encoding_errors | uses-self.type2test |
 | BaseBytesTest.test_from_int | uses-self.type2test |
 | BaseBytesTest.test_concat | uses-self.type2test |
 | BaseBytesTest.test_repeat | uses-self.type2test |
 | BaseBytesTest.test_repeat_1char | uses-self.type2test |
 | BaseBytesTest.test_contains | uses-self.type2test |
-| BaseBytesTest.test_fromhex | uses-self.type2test |
+| BaseBytesTest.test_fromhex | uses-self.subTest |
 | BaseBytesTest.test_hex | uses-self.type2test |
-| BaseBytesTest.test_hex_separator_basics | uses-self.type2test |
+| BaseBytesTest.test_hex_separator_basics | uses-self.subTest |
 | BaseBytesTest.test_hex_separator_five_bytes | uses-self.type2test |
 | BaseBytesTest.test_hex_separator_six_bytes | uses-self.type2test |
 | BaseBytesTest.test_join | uses-self.type2test |
@@ -123,16 +121,13 @@
 | BaseBytesTest.test_rjust | uses-self.type2test |
 | BaseBytesTest.test_xjust_int_error | uses-self.type2test |
 | BaseBytesTest.test_ord | uses-self.type2test |
-| BaseBytesTest.test_maketrans | uses-self.type2test |
 | BaseBytesTest.test_none_arguments | uses-self.type2test |
 | BaseBytesTest.test_integer_arguments_out_of_byte_range | uses-self.type2test |
 | BaseBytesTest.test_find_etc_raise_correct_error_messages | assertRaisesRegex call form |
-| BaseBytesTest.test_free_after_iterating | uses-self.type2test |
 | BaseBytesTest.test_translate | uses-self.type2test |
 | BaseBytesTest.test_sq_item | uses-self.type2test |
-| BytesTest.test__bytes__ | uses-self.type2test |
 | BytesTest.test_buffer_is_readonly | unresolved-name:**file** |
-| BytesTest.test_custom | uses-self.value |
+| BytesTest.test_custom | unresolved-name:BytesSubclass |
 | BytesTest.test_from_format | uses-self.assertEqual |
 | ByteArrayTest.test_resize | unresolved-name:ByteArraySubclass |
 | ByteArrayTest.test_setitem | uses-self.subTest |
@@ -142,18 +137,23 @@
 | ByteArrayTest.test_append | unresolved-name:Indexable |
 | ByteArrayTest.test_insert | unresolved-name:Indexable |
 | ByteArrayTest.test_mutating_index | uses-self.subTest |
-| ByteArrayTest.test_mutating_index_inbounds | uses-self.ba |
-| ByteArrayTest.test_search_methods_reentrancy_raises_buffererror | uses-self.ba |
+| ByteArrayTest.test_mutating_index_inbounds | uses-self.subTest |
+| ByteArrayTest.test_search_methods_reentrancy_raises_buffererror | uses-self.subTest |
 | AssortedBytesTest.test_bytes_repr | unresolved-name:BytesSubclass |
 | AssortedBytesTest.test_bytearray_repr | unresolved-name:ByteArraySubclass |
 | AssortedBytesTest.test_bytes_str | self.test_bytes_repr |
 | AssortedBytesTest.test_bytearray_str | self.test_bytearray_repr |
 | FixedStringTest.test_mixed_cmp | self._assert_cmp |
 | SubclassTest.test_basic | self.assertIsSubclass |
-| SubclassTest.test_join | uses-self.type2test |
+| SubclassTest.test_join | uses-self.basetype |
 | SubclassTest.test_pickle | self.assertNotHasAttr |
 | SubclassTest.test_copy | self.assertNotHasAttr |
-| SubclassTest.test_fromhex | uses-self.basetype |
+| BaseBytesTest.test_check_encoding_errors | host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test' |
+| BaseBytesTest.test_maketrans | host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test' |
+| BaseBytesTest.test_free_after_iterating | host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test' |
+| BytesTest.test__bytes__ | host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test' |
+| ByteArrayTest.test_obsolete_write_lock | host-raised:SkipTest: No module named '_testcapi' |
+| SubclassTest.test_fromhex | host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test' |
 
 ## Expected vs got
 
@@ -175,7 +175,7 @@
 ### ByteArraySubclassTest.test_init_override (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', <**main**.subclass object at 0x7f0fa9387150>, b\'abcd\')"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', <**main**.subclass object at 0x7f23a03c1050>, b\'abcd\')"'>
 
 ### ByteArrayTest.test_bytearray_api (GUEST-WRONG-OUTPUT)
 
@@ -225,12 +225,7 @@
 ### ByteArrayTest.test_iterator_pickling2 (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f0fa9392980>"'>
-
-### ByteArrayTest.test_obsolete_write_lock (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"ImportError: cannot import name 'import_helper' from '<unknown>'">
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f23a02df1c0>"'>
 
 ### ByteArrayTest.test_regexps (GUEST-WRONG-OUTPUT)
 
@@ -285,4 +280,4 @@
 ### BytesTest.test_repeat_id_preserving (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 139705238531312, 139705238530448)"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 139790988259504, 139790988258640)"'>

@@ -1,8 +1,8 @@
 # Triage report: `conv_csv_pins.jac`
 
-- source: reference/cpython/Lib/test/test_csv.py
-- guest leg: 0/60 marks
-- pins: **30 passed** / 60 run (+68 quarantined of 128 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_csv.py
+- guest leg: 0/61 marks
+- pins: **30 passed** / 61 run (+67 quarantined of 128 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -28,6 +28,7 @@
 | Test_Csv.test_read_skipinitialspace | PASS | |
 | Test_Csv.test_read_space_delimiter | PASS | |
 | Test_Csv.test_read_linenum | PASS | |
+| Test_Csv.test_reader_reentrant_iterator | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'ReentrantIter\' object is not iterable"'> |
 | TestDialectRegistry.test_registry_badargs | PASS | |
 | TestDialectRegistry.test_incomplete_dialect | PASS | |
 | TestDialectRegistry.test_space_dialect | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
@@ -86,58 +87,57 @@
 | Test_Csv.test_read_bigfield | uses-self._read_test |
 | Test_Csv.test_roundtrip_quoteed_newlines | uses-self.subTest |
 | Test_Csv.test_roundtrip_escaped_unquoted_newlines | uses-self.subTest |
-| Test_Csv.test_reader_reentrant_iterator | uses-self.reader |
 | TestDialectRegistry.test_registry | self.addCleanup |
 | TestDialectRegistry.test_register_kwargs | self.addCleanup |
 | TestDialectRegistry.test_register_kwargs_override | self.addCleanup |
-| TestDialectExcel.test_single | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_simple | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_blankline | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_empty_fields | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_singlequoted | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_singlequoted_left_empty | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_singlequoted_right_empty | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_single_quoted_quote | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_quoted_quotes | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_inline_quote | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_inline_quotes | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_quotes_and_more | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_lone_quote | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_quote_and_quote | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_space_and_quote | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_quoted | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_quoted_quote | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_quoted_nl | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_dubious_quote | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_null | helper:writerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_single_writer | helper:writerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_simple_writer | helper:writerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_quotes | helper:writerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_quote_fieldsep | helper:writerAssertEqual(uses-self.dialect) |
-| TestDialectExcel.test_newlines | helper:writerAssertEqual(uses-self.dialect) |
-| TestEscapedExcel.test_escape_fieldsep | helper:writerAssertEqual(uses-self.dialect) |
-| TestEscapedExcel.test_read_escape_fieldsep | helper:readerAssertEqual(uses-self.dialect) |
-| TestDialectUnix.test_simple_writer | helper:writerAssertEqual(uses-self.dialect) |
-| TestDialectUnix.test_simple_reader | helper:readerAssertEqual(uses-self.dialect) |
-| TestQuotedEscapedExcel.test_write_escape_fieldsep | helper:writerAssertEqual(uses-self.dialect) |
-| TestQuotedEscapedExcel.test_read_escape_fieldsep | helper:readerAssertEqual(uses-self.dialect) |
 | TestDictFields.test_write_fields_not_in_fieldnames | unresolved-name:cx |
 | TestDialectValidity.test_quoting | unresolved-name:cm |
 | TestDialectValidity.test_delimiter | unresolved-name:cm |
 | TestDialectValidity.test_escapechar | unresolved-name:cm |
 | TestDialectValidity.test_lineterminator | unresolved-name:cm |
 | TestDialectValidity.test_invalid_chars | uses-self.subTest |
-| TestSniffer.test_issue43625 | uses-self.sample12 |
-| TestSniffer.test_has_header_strings | uses-self.sample10 |
-| TestSniffer.test_has_header | uses-self.sample1 |
-| TestSniffer.test_has_header_regex_special_delimiter | uses-self.sample8 |
-| TestSniffer.test_has_header_checks_20_rows | uses-self.sample18 |
 | TestSniffer.test_guess_quote_and_delimiter | uses-self.subTest |
-| TestSniffer.test_sniff | uses-self.sample1 |
 | TestSniffer.test_delimiters | assertRaisesRegex call form |
-| TestSniffer.test_doublequote | uses-self.header1 |
-| TestUnicode.test_unicode_read | uses-self.names |
-| TestUnicode.test_unicode_write | uses-self.names |
+| TestDialectExcel.test_single | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_simple | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_blankline | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_empty_fields | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_singlequoted | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_singlequoted_left_empty | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_singlequoted_right_empty | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_single_quoted_quote | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_quoted_quotes | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_inline_quote | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_inline_quotes | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_quotes_and_more | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_lone_quote | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_quote_and_quote | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_space_and_quote | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_quoted | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_quoted_quote | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_quoted_nl | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_dubious_quote | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_null | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_single_writer | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_simple_writer | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_quotes | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_quote_fieldsep | host-raised:NameError: name 'self' is not defined |
+| TestDialectExcel.test_newlines | host-raised:NameError: name 'self' is not defined |
+| TestEscapedExcel.test_escape_fieldsep | host-raised:NameError: name 'self' is not defined |
+| TestEscapedExcel.test_read_escape_fieldsep | host-raised:NameError: name 'self' is not defined |
+| TestDialectUnix.test_simple_writer | host-raised:NameError: name 'self' is not defined |
+| TestDialectUnix.test_simple_reader | host-raised:NameError: name 'self' is not defined |
+| TestQuotedEscapedExcel.test_write_escape_fieldsep | host-raised:NameError: name 'self' is not defined |
+| TestQuotedEscapedExcel.test_read_escape_fieldsep | host-raised:NameError: name 'self' is not defined |
+| TestSniffer.test_issue43625 | host-raised:AttributeError: '_SelfNS' object has no attribute 'sample12' |
+| TestSniffer.test_has_header_strings | host-raised:AttributeError: '_SelfNS' object has no attribute 'sample10' |
+| TestSniffer.test_has_header | host-raised:AttributeError: '_SelfNS' object has no attribute 'sample1' |
+| TestSniffer.test_has_header_regex_special_delimiter | host-raised:AttributeError: '_SelfNS' object has no attribute 'sample8' |
+| TestSniffer.test_has_header_checks_20_rows | host-raised:AttributeError: '_SelfNS' object has no attribute 'sample17' |
+| TestSniffer.test_sniff | host-raised:AttributeError: '_SelfNS' object has no attribute 'sample1' |
+| TestSniffer.test_doublequote | host-raised:AttributeError: '_SelfNS' object has no attribute 'header1' |
+| TestUnicode.test_unicode_read | host-raised:AttributeError: '_SelfNS' object has no attribute 'names' |
+| TestUnicode.test_unicode_write | host-raised:AttributeError: '_SelfNS' object has no attribute 'names' |
 | MiscTestCase.test__all__ | host-raised:NameError: name 'self' is not defined |
 
 ## Expected vs got
@@ -241,6 +241,11 @@
 
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', \',\', \'-\')"'>
+
+### Test_Csv.test_reader_reentrant_iterator (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC TypeError "\'ReentrantIter\' object is not iterable"'>
 
 ### Test_Csv.test_write_bigfield (GUEST-WRONG-OUTPUT)
 

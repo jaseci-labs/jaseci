@@ -1,6 +1,6 @@
 # Triage report: `conv_int_literal_pins.jac`
 
-- source: reference/cpython/Lib/test/test_int_literal.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_int_literal.py
 - guest leg: 0/6 marks
 - pins: **6 passed** / 6 run (+0 quarantined of 6 extracted)
 

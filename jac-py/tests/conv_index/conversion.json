@@ -1,118 +1,160 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_index.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_index.py",
     "-o",
-    "/var/tmp/laneb-out/test_index",
+    "/var/tmp/lane8/jac-py/tests/conv_index",
     "--name",
     "conv_index"
   ],
-  "generated_at": "2026-08-24T10:31:09",
+  "generated_at": "2026-08-24T14:33:32",
   "hashes": {
-    "pins_jac": "d0c75d028d2f97e5e9a139669ad120d0641cd1d72356f6e4f72884931489c486"
+    "pins_jac": "90001942e46c67a1b48a1bc5ba0708872791b9cfca47ade4ea9e0851230191ff"
   },
-  "source_file": "reference/cpython/Lib/test/test_index.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_index.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "index",
   "pins_file": "conv_index_pins.jac",
   "pins": [
+    {
+      "ident": "BaseTestCase.test_basic",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\nclass newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o.ind = -2\n    self.n.ind = 2\n    assert operator.index(self.o) == -2, ('assertEqual', operator.index(self.o), -2)\n    assert operator.index(self.n) == 2, ('assertEqual', operator.index(self.n), 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BaseTestCase.test_slice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "class newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o.ind = 1\n    self.n.ind = 2\n    slc = slice(self.o, self.o, self.o)\n    check_slc = slice(1, 1, 1)\n    assert slc.indices(self.o) == check_slc.indices(1), ('assertEqual', slc.indices(self.o), check_slc.indices(1))\n    slc = slice(self.n, self.n, self.n)\n    check_slc = slice(2, 2, 2)\n    assert slc.indices(self.n) == check_slc.indices(2), ('assertEqual', slc.indices(self.n), check_slc.indices(2))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BaseTestCase.test_wrappers",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "class newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o.ind = 4\n    self.n.ind = 5\n    assert 6 .__index__() == 6, ('assertEqual', 6 .__index__(), 6)\n    assert -7 .__index__() == -7, ('assertEqual', -7 .__index__(), -7)\n    assert self.o.__index__() == 4, ('assertEqual', self.o.__index__(), 4)\n    assert self.n.__index__() == 5, ('assertEqual', self.n.__index__(), 5)\n    assert True .__index__() == 1, ('assertEqual', True .__index__(), 1)\n    assert False .__index__() == 0, ('assertEqual', False .__index__(), 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BaseTestCase.test_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\nclass newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o.ind = 'dumb'\n    self.n.ind = 'bad'\n    try:\n        operator.index(*(self.o,))\n    except TypeError:\n        pass\n    try:\n        operator.index(*(self.n,))\n    except TypeError:\n        pass\n    try:\n        slice(self.o).indices(*(0,))\n    except TypeError:\n        pass\n    try:\n        slice(self.n).indices(*(0,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
     {
       "ident": "BaseTestCase.test_int_subclass_with_index",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
-      "snippet": "import operator\n\ndef _t():\n\n    class MyInt(int):\n\n        def __index__(self):\n            return int(str(self)) + 1\n    my_int = MyInt(7)\n    direct_index = my_int.__index__()\n    operator_index = operator.index(my_int)\n    assert direct_index == 8, ('assertEqual', direct_index, 8)\n    assert operator_index == 7, ('assertEqual', operator_index, 7)\n    assert type(direct_index) is int, ('assertIs', type(direct_index), int)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "snippet": "import operator\n\nclass newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n\n    class MyInt(int):\n\n        def __index__(self):\n            return int(str(self)) + 1\n    my_int = MyInt(7)\n    direct_index = my_int.__index__()\n    operator_index = operator.index(my_int)\n    assert direct_index == 8, ('assertEqual', direct_index, 8)\n    assert operator_index == 7, ('assertEqual', operator_index, 7)\n    assert type(direct_index) is int, ('assertIs', type(direct_index), int)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SeqTestCase.test_index",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'seq'"
+    },
+    {
+      "ident": "SeqTestCase.test_slice",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'seq'"
+    },
+    {
+      "ident": "SeqTestCase.test_slice_bug7532",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'seq'"
+    },
+    {
+      "ident": "SeqTestCase.test_repeat",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'seq'"
+    },
+    {
+      "ident": "SeqTestCase.test_wrappers",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'seq'"
+    },
+    {
+      "ident": "SeqTestCase.test_error",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'seq'"
+    },
+    {
+      "ident": "ListTestCase.test_setdelitem",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "class newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o2 = newstyle()\n    self.n2 = newstyle()\n    self.o.ind = -2\n    self.n.ind = 2\n    lst = list('ab!cdefghi!j')\n    del lst[self.o]\n    del lst[self.n]\n    lst[self.o] = 'X'\n    lst[self.n] = 'Y'\n    assert lst == list('abYdefghXj'), ('assertEqual', lst, list('abYdefghXj'))\n    lst = [5, 6, 7, 8, 9, 10, 11]\n    lst.__setitem__(self.n, 'here')\n    assert lst == [5, 6, 'here', 8, 9, 10, 11], ('assertEqual', lst, [5, 6, 'here', 8, 9, 10, 11])\n    lst.__delitem__(self.n)\n    assert lst == [5, 6, 8, 9, 10, 11], ('assertEqual', lst, [5, 6, 8, 9, 10, 11])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ListTestCase.test_inplace_repeat",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "class newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o2 = newstyle()\n    self.n2 = newstyle()\n    self.o.ind = 2\n    self.n.ind = 3\n    lst = [6, 4]\n    lst *= self.o\n    assert lst == [6, 4, 6, 4], ('assertEqual', lst, [6, 4, 6, 4])\n    lst *= self.n\n    assert lst == [6, 4, 6, 4] * 3, ('assertEqual', lst, [6, 4, 6, 4] * 3)\n    lst = [5, 6, 7, 8, 9, 11]\n    l2 = lst.__imul__(self.n)\n    assert l2 is lst, ('assertIs', l2, lst)\n    assert lst == [5, 6, 7, 8, 9, 11] * 3, ('assertEqual', lst, [5, 6, 7, 8, 9, 11] * 3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OverflowTestCase.test_large_longs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.pos = 2 ** 100\n    self.neg = -self.pos\n    assert self.pos.__index__() == self.pos, ('assertEqual', self.pos.__index__(), self.pos)\n    assert self.neg.__index__() == self.neg, ('assertEqual', self.neg.__index__(), self.neg)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OverflowTestCase.test_getitem",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nmaxsize = support.MAX_Py_ssize_t\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.pos = 2 ** 100\n    self.neg = -self.pos\n\n    class GetItem:\n\n        def __len__(self):\n            assert False, '__len__ should not be invoked'\n\n        def __getitem__(self, key):\n            return key\n    x = GetItem()\n    assert x[self.pos] == self.pos, ('assertEqual', x[self.pos], self.pos)\n    assert x[self.neg] == self.neg, ('assertEqual', x[self.neg], self.neg)\n    assert x[self.neg:self.pos].indices(maxsize) == (0, maxsize, 1), ('assertEqual', x[self.neg:self.pos].indices(maxsize), (0, maxsize, 1))\n    assert x[self.neg:self.pos:1].indices(maxsize) == (0, maxsize, 1), ('assertEqual', x[self.neg:self.pos:1].indices(maxsize), (0, maxsize, 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OverflowTestCase.test_sequence_repeat",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.pos = 2 ** 100\n    self.neg = -self.pos\n    try:\n        (lambda: 'a' * self.pos)()\n    except OverflowError:\n        pass\n    try:\n        (lambda: 'a' * self.neg)()\n    except OverflowError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
   "quarantined": [
     {
-      "ident": "BaseTestCase.test_basic",
-      "reason": "uses-self.o"
-    },
-    {
-      "ident": "BaseTestCase.test_slice",
-      "reason": "uses-self.o"
-    },
-    {
-      "ident": "BaseTestCase.test_wrappers",
-      "reason": "uses-self.o"
-    },
-    {
       "ident": "BaseTestCase.test_subclasses",
       "reason": "unresolved-name:TrapInt"
-    },
-    {
-      "ident": "BaseTestCase.test_error",
-      "reason": "uses-self.o"
     },
     {
       "ident": "BaseTestCase.test_index_returns_int_subclass",
       "reason": "uses-self.assertWarns"
     },
     {
-      "ident": "SeqTestCase.test_index",
-      "reason": "uses-self.o"
-    },
-    {
-      "ident": "SeqTestCase.test_slice",
-      "reason": "uses-self.o"
-    },
-    {
-      "ident": "SeqTestCase.test_slice_bug7532",
-      "reason": "uses-self.seq"
-    },
-    {
-      "ident": "SeqTestCase.test_repeat",
-      "reason": "uses-self.o"
-    },
-    {
-      "ident": "SeqTestCase.test_wrappers",
-      "reason": "uses-self.o"
-    },
-    {
       "ident": "SeqTestCase.test_subclasses",
-      "reason": "uses-self.seq"
-    },
-    {
-      "ident": "SeqTestCase.test_error",
-      "reason": "uses-self.o"
-    },
-    {
-      "ident": "ListTestCase.test_setdelitem",
-      "reason": "uses-self.o"
-    },
-    {
-      "ident": "ListTestCase.test_inplace_repeat",
-      "reason": "uses-self.o"
+      "reason": "unresolved-name:TrapInt"
     },
     {
       "ident": "RangeTestCase.test_range",
       "reason": "unresolved-name:newstyle"
-    },
-    {
-      "ident": "OverflowTestCase.test_large_longs",
-      "reason": "uses-self.pos"
-    },
-    {
-      "ident": "OverflowTestCase.test_getitem",
-      "reason": "uses-self.pos"
-    },
-    {
-      "ident": "OverflowTestCase.test_sequence_repeat",
-      "reason": "uses-self.pos"
     }
   ],
   "counts": {
     "extracted": 20,
-    "pinned": 1,
-    "quarantined": 19
+    "pinned": 10,
+    "quarantined": 10
   }
 }

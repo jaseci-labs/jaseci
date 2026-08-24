@@ -217,6 +217,12 @@ test "NamedExpressionAssignmentTest.test_named_expression_assignment_17" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "NamedExpressionAssignmentTest.test_named_expression_assignment_18" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class TwoDimensionalList:\n\n        def __init__(self, two_dimensional_list):\n            self.two_dimensional_list = two_dimensional_list\n\n        def __getitem__(self, index):\n            return self.two_dimensional_list[index[0]][index[1]]\n    a = TwoDimensionalList([[1], [2]])\n    element = a[(b := 0), (c := 0)]\n    assert b == 0, ('assertEqual', b, 0)\n    assert c == 0, ('assertEqual', c, 0)\n    assert element == a.two_dimensional_list[b][c], ('assertEqual', element, a.two_dimensional_list[b][c])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "NamedExpressionScopeTest.test_named_expression_scope_01" {
     (ok, detail) = p2_libtest_run_snippet("import re as _re\n\ndef _t():\n    code = 'def spam():\\n    (a := 5)\\nprint(a)'\n    try:\n        exec(code, {}, {})\n    except NameError as _exc:\n        assert _re.search(\"name 'a' is not defined\", str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

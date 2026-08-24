@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_int.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_int.py",
     "-o",
-    "/var/tmp/laneb-out/test_int",
+    "/var/tmp/lane8/jac-py/tests/conv_int",
     "--name",
     "conv_int"
   ],
-  "generated_at": "2026-08-24T11:07:22",
+  "generated_at": "2026-08-24T14:33:35",
   "hashes": {
-    "pins_jac": "2d2ba6d02f6f619c93269cb3112636bf60297e27a7fa3fe7c1d79bdb55ba1f30"
+    "pins_jac": "36e93cc4f4e2378aeb3bfb02d35bf063c4240fcd6080d2b393db34cf65799067"
   },
-  "source_file": "reference/cpython/Lib/test/test_int.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_int.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "int",
   "pins_file": "conv_int_pins.jac",
@@ -88,6 +88,14 @@
       "snippet": "def _t():\n    \"\"\"Not integer types are not valid bases; issue16772.\"\"\"\n    try:\n        int('0', 5.5)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        int('0', 5.0)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "IntTestCases.test_int_base_indexable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class MyIndexable(object):\n\n        def __init__(self, value):\n            self.value = value\n\n        def __index__(self):\n            return self.value\n    for base in (2 ** 100, -2 ** 100, 1, 37):\n        try:\n            int('43', base)\n        except ValueError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    assert int('101', base=MyIndexable(2)) == 5, ('assertEqual', int('101', base=MyIndexable(2)), 5)\n    assert int('101', base=MyIndexable(10)) == 101, ('assertEqual', int('101', base=MyIndexable(10)), 101)\n    assert int('101', base=MyIndexable(36)) == 1 + 36 ** 2, ('assertEqual', int('101', base=MyIndexable(36)), 1 + 36 ** 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "IntTestCases.test_int_memoryview",
       "status": "pinned",
       "oracle": {
@@ -136,25 +144,34 @@
       "snippet": "def _t():\n    assert int('1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1', 2) == 1431655765, ('assertEqual', int('1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1_0_1', 2), 1431655765)\n    assert int('1_2_3_4_5_6_7_0_1_2_3', 8) == 1402433619, ('assertEqual', int('1_2_3_4_5_6_7_0_1_2_3', 8), 1402433619)\n    assert int('1_2_3_4_5_6_7_8_9', 16) == 4886718345, ('assertEqual', int('1_2_3_4_5_6_7_8_9', 16), 4886718345)\n    assert int('1_2_3_4_5_6_7', 32) == 1144132807, ('assertEqual', int('1_2_3_4_5_6_7', 32), 1144132807)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "IntStrDigitLimitsTests.test_max_str_digits_edge_cases",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_sign_not_counted",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
       "ident": "IntStrDigitLimitsTests.test_int_max_str_digits_is_per_interpreter",
-      "status": "pinned",
-      "oracle": {
-        "status": "ok"
-      },
-      "snippet": "import sys\nfrom test import support\n\ndef _t():\n    code = \"if 1:\\n        # Subinterpreters maintain and enforce their own limit\\n        import sys\\n        sys.set_int_max_str_digits(2323)\\n        try:\\n            int('3'*3333)\\n        except ValueError:\\n            pass\\n        else:\\n            raise AssertionError('Expected a int max str digits ValueError.')\\n        \"\n    with support.adjust_int_max_str_digits(4000):\n        before_value = sys.get_int_max_str_digits()\n        assert support.run_in_subinterp(code) == 0, ('assertEqual', support.run_in_subinterp(code), 0)\n        after_value = sys.get_int_max_str_digits()\n        assert before_value == after_value, ('assertEqual', before_value, after_value)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "PyLongModuleTests.test_pylong_int_to_decimal",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
     },
     {
       "ident": "PyLongModuleTests.test_pylong_int_divmod",
-      "status": "pinned",
-      "oracle": {
-        "status": "ok"
-      },
-      "snippet": "def _t():\n    n = 1 << 100000\n    a, b = divmod(n * 3 + 1, n)\n    assert a == 3 and b == 1\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
     },
     {
       "ident": "PyLongModuleTests.test_pylong_str_to_int",
       "status": "quarantined",
-      "reason": "host-raised:ValueError: Exceeds the limit (4300 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit"
+      "reason": "host-raised:RuntimeError: super(): no arguments"
     }
   ],
   "quarantined": [
@@ -199,10 +216,6 @@
       "reason": "decorator:unittest.skipUnless"
     },
     {
-      "ident": "IntTestCases.test_int_base_indexable",
-      "reason": "uses-self.value"
-    },
-    {
       "ident": "IntTestCases.test_non_numeric_input_types",
       "reason": "uses-self.subTest"
     },
@@ -219,12 +232,8 @@
       "reason": "uses-self.int_class"
     },
     {
-      "ident": "IntStrDigitLimitsTests.test_max_str_digits_edge_cases",
-      "reason": "uses-self.int_class"
-    },
-    {
       "ident": "IntStrDigitLimitsTests.test_max_str_digits",
-      "reason": "self.check"
+      "reason": "helper:check(uses-self.int_class)"
     },
     {
       "ident": "IntStrDigitLimitsTests.test_denial_of_service_prevented_int_to_str",
@@ -240,19 +249,11 @@
     },
     {
       "ident": "IntStrDigitLimitsTests.test_underscores_ignored",
-      "reason": "self.int_class"
-    },
-    {
-      "ident": "IntStrDigitLimitsTests.test_sign_not_counted",
-      "reason": "uses-self.int_class"
+      "reason": "helper:check(uses-self.int_class)"
     },
     {
       "ident": "IntStrDigitLimitsTests.test_int_from_other_bases",
-      "reason": "self._other_base_helper"
-    },
-    {
-      "ident": "PyLongModuleTests.test_pylong_int_to_decimal",
-      "reason": "self._test_pylong_int_to_decimal"
+      "reason": "uses-self.subTest"
     },
     {
       "ident": "PyLongModuleTests.test_pylong_roundtrip",
@@ -261,7 +262,7 @@
   ],
   "counts": {
     "extracted": 42,
-    "pinned": 16,
-    "quarantined": 26
+    "pinned": 15,
+    "quarantined": 27
   }
 }
