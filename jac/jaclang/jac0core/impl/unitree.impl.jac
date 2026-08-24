@@ -331,8 +331,30 @@ impl Symbol.add_defn(nd: NameAtom) -> None {
 }
 
 impl Symbol.add_use(nd: NameAtom) -> None {
-    self.uses.append(nd);
     nd.sym = self;
+
+    if self.in_stub_scope() {
+        return;
+    }
+    self.uses.append(nd);
+}
+
+impl Symbol.in_stub_scope -> bool {
+    memo = self._in_stub_scope;
+    if memo is not None {
+        return memo;
+    }
+    found = False;
+    cur: (UniScopeNode | None) = self.parent_tab;
+    while cur is not None {
+        if isinstance(cur, Module) {
+            found = cur.stub_only;
+            break;
+        }
+        cur = cur.parent_scope;
+    }
+    self._in_stub_scope = found;
+    return found;
 }
 
 impl Symbol.__repr__ -> str {

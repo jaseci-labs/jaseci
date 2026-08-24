@@ -67,6 +67,21 @@ test "the reset shuts the old thread pool down instead of abandoning it" {
     );
 }
 
+test "an explicit project config does not survive the reset" {
+    import from pathlib { Path }
+    import from jaclang.project.config { JacConfig, get_config_for_path, set_config }
+    set_config(JacConfig());
+    assert get_config_for_path(Path("/tmp/_probe_module.jac")) is not None , (
+        "an explicit config should answer for every path while it is set"
+    );
+    _fresh_jac_state();
+    assert get_config_for_path(Path("/tmp/_probe_module.jac")) is None , (
+        "a test file's set_config leaked through the reset; the next file's "
+        "out-of-project compiles (e.g. dynamic modules in the test base) then "
+        "inherit this project's lint rules and can fail on them"
+    );
+}
+
 glob PIN_HANDOFF: list = [];
 
 test "the reset restores the run's config pin baseline" {
