@@ -218,17 +218,13 @@ impl KubernetesAutoscalerObserver._watch_loop{
 }
 
 impl KubernetesAutoscalerObserver._target_name_for{
-    label_target = (resource.get("metadata") or {}).get("labels", {}).get("app");
-    if isinstance(label_target, str) {
-        return label_target;
-    }
     if kind == "deployment" {
         name = (resource.get("metadata") or {}).get("name");
-        if isinstance(name, str) {
-            return name;
-        }
+        return name if isinstance(name, str) else None;
     }
-    return None;
+    ref_key = "scaleTargetRef" if kind == "scaled_object" else "scale_target_ref";
+    ref_name = ((resource.get("spec") or {}).get(ref_key) or {}).get("name");
+    return ref_name if isinstance(ref_name, str) else None;
 }
 
 impl KubernetesAutoscalerObserver._handle_event{
@@ -239,7 +235,7 @@ impl KubernetesAutoscalerObserver._handle_event{
             self.logger.debug(
                 f"autoscaler observer: could not correlate {kind} resource "
                 f"'{resource_name}' in namespace '{namespace}' to a scale "
-                f"target (missing 'app' label); ignoring event"
+                f"target (missing scaleTargetRef.name); ignoring event"
             );
         }
         return;

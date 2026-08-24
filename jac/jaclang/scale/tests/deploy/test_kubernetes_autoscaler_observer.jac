@@ -24,11 +24,8 @@ def scaled_object(
     target: str = "orders-deployment"
 ) -> dict {
     return {
-        "metadata": {
-            "name": name,
-            "resourceVersion": resource_version,
-            "labels": {"app": target}
-        },
+        "metadata": {"name": name, "resourceVersion": resource_version},
+        "spec": {"scaleTargetRef": {"name": target}},
         "status": {
             "conditions": [
                 {"type": "Ready", "status": ready},
@@ -41,14 +38,15 @@ def scaled_object(
 
 def hpa_item(target: str, current: int, desired: int) -> dict {
     return {
-        "metadata": {"name": f"{target}-hpa", "labels": {"app": target}},
+        "metadata": {"name": f"{target}-hpa"},
+        "spec": {"scale_target_ref": {"name": target}},
         "status": {"current_replicas": current, "desired_replicas": desired}
     };
 }
 
 def deployment_item(target: str, replicas: int, ready_replicas: int) -> dict {
     return {
-        "metadata": {"name": target, "labels": {"app": target}},
+        "metadata": {"name": target},
         "status": {
             "replicas": replicas,
             "ready_replicas": ready_replicas,
@@ -500,44 +498,53 @@ test "a Deployment readiness update alone can flip a target from activating to a
 
 
 # --- target correlation ---
-# jac-scale controls the `app` label on the ScaledObject/HPA resources it
-# creates itself (_managed_labels/_build_manifests), but not on the user's
-# own target Deployment -- so the deployment kind must correlate by the
-# resource's own name, not by a label jac-scale never promised to set there.
+# ScaledObject and HPA both carry a required spec.scaleTargetRef (spec.
+# scale_target_ref once .to_dict()'d) naming the real Deployment they scale
+# -- the API server enforces its presence, so it is always there and always
+# correct, unlike a shared `app` label. The Deployment has no
+# scaleTargetRef of its own, so it correlates by its own resource name
+# instead. Correlating this way sidesteps two failure modes an `app` label
+# hits in practice: an external tool not propagating it, and jac-scale's own
+# build code putting a different `app` value on the Deployment than on the
+# ScaledObject/HPA it creates to scale that same Deployment (confirmed on a
+# live cluster against jac-scale's own microservice/gateway deploy path).
 
-test "_target_name_for uses the app label for scaled_object and hpa resources" {
+test "_target_name_for uses scaleTargetRef.name for scaled_object and hpa resources" {
     obs = KubernetesAutoscalerObserver();
     scaled_object = {
-        "metadata": {
-            "name": "orders-scaledobject",
-            "labels": {"app": "orders-deployment"}
-        }
+        "metadata": {"name": "orders-scaledobject"},
+        "spec": {"scaleTargetRef": {"name": "orders-deployment"}}
     };
-    hpa = {"metadata": {"name": "orders-hpa", "labels": {"app": "orders-deployment"}}};
+    hpa = {
+        "metadata": {"name": "orders-hpa"},
+        "spec": {"scale_target_ref": {"name": "orders-deployment"}}
+    };
 
     assert obs._target_name_for("scaled_object", scaled_object) == "orders-deployment";
     assert obs._target_name_for("hpa", hpa) == "orders-deployment";
 }
 
-test "_target_name_for uses the deployment's own name, with no app label required" {
+test "_target_name_for uses the deployment's own name, independent of any app label" {
     obs = KubernetesAutoscalerObserver();
-    # A user's Deployment jac-scale did not create, and so never labeled --
-    # this is the realistic shape most target Deployments actually have.
-    deployment = {"metadata": {"name": "orders-deployment", "labels": {}}};
+    # A mismatched app label (as jac-scale's own gateway/microservice
+    # deploys actually produce) must not affect deployment correlation.
+    deployment = {
+        "metadata": {"name": "orders-deployment", "labels": {"app": "orders"}}
+    };
 
     assert obs._target_name_for("deployment", deployment) == "orders-deployment";
 }
 
-test "_target_name_for returns None for a scaled_object/hpa resource with no app label" {
+test "_target_name_for returns None for a scaled_object/hpa resource with no scaleTargetRef" {
     obs = KubernetesAutoscalerObserver();
-    scaled_object = {"metadata": {"name": "orphan-scaledobject", "labels": {}}};
+    scaled_object = {"metadata": {"name": "orphan-scaledobject"}};
     assert obs._target_name_for("scaled_object", scaled_object) is None;
 }
 
 test "_handle_event logs and silently ignores a resource that cannot be correlated" {
-    mock_logger = unittest.mock.MagicMock();
+    mock_logger: any = unittest.mock.MagicMock();
     obs = KubernetesAutoscalerObserver(logger=mock_logger);
-    orphan = {"metadata": {"name": "orphan-scaledobject", "labels": {}}};
+    orphan = {"metadata": {"name": "orphan-scaledobject"}};
 
     obs._handle_event("default", "scaled_object", "ADDED", orphan);
 
@@ -545,6 +552,73 @@ test "_handle_event logs and silently ignores a resource that cannot be correlat
     mock_logger.debug.assert_called_once();
     logged_msg = mock_logger.debug.call_args[0][0];
     assert "orphan-scaledobject" in logged_msg;
+}
+
+test "cross-resource join succeeds even when the Deployment's app label differs from the ScaledObject/HPA's" {
+    # Reproduces jac-scale's real microservice/gateway deploy shape: the
+    # Deployment is labeled app=gateway, but its ScaledObject/HPA are
+    # labeled app=gateway-deployment (AutoscalerSpec.scale_target_name).
+    # Before this fix, that split the join into two cache slots that never
+    # merged; scaleTargetRef-based correlation makes the label irrelevant.
+    target = "gateway-deployment";
+    seed_scaled_object = scaled_object(target=target, ready="True", active="True");
+    seed_hpa = hpa_item(target, current=1, desired=1);
+    seed_deployment = {
+        "metadata": {"name": target, "labels": {"app": "gateway"}},
+        "status": {"replicas": 1, "ready_replicas": 1, "available_replicas": 1}
+    };
+
+    mock_custom_api = unittest.mock.MagicMock();
+    mock_custom_api.list_namespaced_custom_object.return_value = {
+        "items": [seed_scaled_object],
+        "metadata": {"resourceVersion": "1"}
+    };
+    mock_v2 = unittest.mock.MagicMock();
+    mock_v2.list_namespaced_horizontal_pod_autoscaler.return_value = typed_list_response(
+        [seed_hpa]
+    );
+    mock_apps = unittest.mock.MagicMock();
+    mock_apps.list_namespaced_deployment.return_value = typed_list_response(
+        [seed_deployment]
+    );
+
+    def factory(
+        kind: str,
+        list_fn: any,
+        namespace: str,
+        label_selector: any,
+        resource_version: any
+    ) -> any {
+        return iter([]);
+    }
+
+    obs = KubernetesAutoscalerObserver(
+        _custom_api=mock_custom_api,
+        _v2_api=mock_v2,
+        _apps_api=mock_apps,
+        _watch_factory=factory
+    );
+    sub = obs.subscribe(scale_target_name=target);
+    obs.watch_namespace("default");
+
+    key = f"default::{target}";
+    deadline = time.time() + 3.0;
+    slot: dict = {};
+    while time.time() < deadline {
+        with obs._lock {
+            slot = dict(obs._target_cache.get(key, {}));
+        }
+        if slot.get("scaled_object") and slot.get("hpa") and slot.get("deployment") {
+            break;
+        }
+        time.sleep(0.05);
+    }
+
+    assert slot.get("scaled_object") is not None;
+    assert slot.get("hpa") is not None;
+    assert slot.get("deployment") is not None;
+
+    obs.stop(drain=True);
 }
 
 
@@ -661,9 +735,9 @@ test "_reconcile_target fully serializes concurrent reconciles of the same targe
 
 test "stop(drain=True) keeps tracking a thread that did not finish joining within the deadline" {
     obs = KubernetesAutoscalerObserver();
-    stuck = unittest.mock.MagicMock();
+    stuck: any = unittest.mock.MagicMock();
     stuck.is_alive.return_value = True;
-    finished = unittest.mock.MagicMock();
+    finished: any = unittest.mock.MagicMock();
     finished.is_alive.return_value = False;
     obs._threads = {"default::scaled_object": stuck, "default::hpa": finished};
 
@@ -677,7 +751,7 @@ test "stop(drain=True) keeps tracking a thread that did not finish joining withi
 
 test "stop(drain=False) clears bookkeeping immediately without joining" {
     obs = KubernetesAutoscalerObserver();
-    t = unittest.mock.MagicMock();
+    t: any = unittest.mock.MagicMock();
     obs._threads = {"default::scaled_object": t};
 
     obs.stop(drain=False);
