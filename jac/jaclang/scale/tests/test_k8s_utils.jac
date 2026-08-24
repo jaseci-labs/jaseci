@@ -41,17 +41,17 @@ test "a node probe that fails says so instead of silently answering local" {
     # skips the load balancer wait, so an EKS deploy reports wrong URLs with no
     # diagnostic anywhere.
     class FailingApi {
-        def list_node(self) {
+        def list_node(self: FailingApi) {
             raise ApiException(status=403, reason="Forbidden");
         }
     }
 
     class Recorder {
-        def init(self) {
+        def init(self: Recorder) {
             self.lines = [];
         }
 
-        def print(self, *args: any, **kwargs: any) {
+        def print(self: Recorder, *args: any, **kwargs: any) {
             self.lines.append(" ".join(str(a) for a in args));
         }
     }
@@ -82,30 +82,30 @@ test "a clean probe that finds no aws markers stays quiet" {
     # Only the unreadable case is worth a warning. A real local cluster must
     # not print one on every deploy.
     class Node {
-        def init(self) {
+        def init(self: Node) {
             self.spec = SimpleNamespace(provider_id="");
             self.metadata = SimpleNamespace(labels={});
         }
     }
 
     class Response {
-        def init(self) {
+        def init(self: Response) {
             self.items = [Node()];
         }
     }
 
     class LocalApi {
-        def list_node(self) -> Response {
+        def list_node(self: LocalApi) -> Response {
             return Response();
         }
     }
 
     class Recorder {
-        def init(self) {
+        def init(self: Recorder) {
             self.lines = [];
         }
 
-        def print(self, *args: any, **kwargs: any) {
+        def print(self: Recorder, *args: any, **kwargs: any) {
             self.lines.append(" ".join(str(a) for a in args));
         }
     }
