@@ -3474,7 +3474,11 @@ obj PyFunction(PyObj) {
         # The function's writable __dict__ + overridable dunders. functools.wraps
         # / update_wrapper copy __module__/__name__/__qualname__/__doc__ and set
         # __wrapped__ here, so decorators (pervasive in the unittest closure) work.
-        attrs: dict[str, PyObj] = {};
+        attrs: dict[str, PyObj] = {},
+        # Identity-stable live views minted on first read; invalidated by
+        # explicit reassignment.
+        kw_live: any = None,
+        attr_dict_live: any = None;
 
     def _func_doc -> PyObj {
         if len(self.code.consts) > 0 and isinstance(self.code.consts[0], PyStr) {
@@ -3503,18 +3507,55 @@ obj PyFunction(PyObj) {
             return py_none();
         }
         if name == "__defaults__" {
+            # An explicit f.__defaults__ assignment lands in attrs (checked
+            # above); this branch serves the MAKE_FUNCTION-built table.
             if len(self.defaults) == 0 {
                 return py_none();
             }
             return PyTuple(t="tuple", items=self.defaults);
         }
+        if name == "__kwdefaults__" {
+            # CPython: None when no keyword-only default exists; otherwise the
+            # SAME live dict every read, whose mutations affect later calls.
+            if len(self.kwdefaults) == 0 {
+                return py_none();
+            }
+            if self.kw_live is not None {
+                return self.kw_live as PyObj;
+            }
+            d = PyFuncKwDefaults(t="dict", owner=self, items={});
+            for k in self.kwdefaults {
+                hk = hashkey_str((PyStr(t="str", val=k)).tp_hashkey());
+                d.items[hk] = DictEntry(
+                    key=PyStr(t="str", val=k), value=self.kwdefaults[k]
+                );
+            }
+            self.kw_live = d;
+            return d as PyObj;
+        }
         if name == "__code__" {
             return self.code;
         }
         if name == "__dict__" {
-            # functools.wraps / update_wrapper reads and updates a function's
-            # __dict__ (WRAPPER_UPDATES). Snapshot of the writable attr map.
-            return dict_from_str_map(self.attrs);
+            # functools.wraps / update_wrapper reads and UPDATES a function's
+            # __dict__ (WRAPPER_UPDATES), so the snapshot-per-read copy lost
+            # every update -- CPython hands out the live attribute dict.
+            # Fixed-surface names (__name__, __code__, ...) stay out of the
+            # view exactly as they are absent from CPython's func_dict.
+            if self.attr_dict_live is not None {
+                return self.attr_dict_live as PyObj;
+            }
+            d = PyFuncDictView(t="dict", owner=self, items={});
+            for k in self.attrs {
+                if not func_attr_is_fixed(k) {
+                    hk = hashkey_str((PyStr(t="str", val=k)).tp_hashkey());
+                    d.items[hk] = DictEntry(
+                        key=PyStr(t="str", val=k), value=self.attrs[k]
+                    );
+                }
+            }
+            self.attr_dict_live = d;
+            return d as PyObj;
         }
         if name == "__wrapped__" {
             return py_error("AttributeError", name);
@@ -3523,12 +3564,44 @@ obj PyFunction(PyObj) {
     }
 
     def tp_setattro(name: str, value: PyObj) -> PyObj {
+        if name == "__kwdefaults__" {
+            # Rebind: the call path resolves through attrs from now on, so the
+            # old live view would go stale -- drop it.
+            self.kw_live = None;
+        }
         self.attrs[name] = value;
+        # Dynamic attributes join the live __dict__ view; fixed-surface names
+        # never appear in it (CPython keeps them on the type).
+        if self.attr_dict_live is not None and not func_attr_is_fixed(name) {
+            (self.attr_dict_live as PyFuncDictView).view_set(name, value);
+        }
         return py_none();
     }
 
-    # Functions are hashable by identity (enum keys candidate __new__ callables in
-    # a set; dispatch tables key on functions).
+    # Effective default tables for THIS call: an explicit __defaults__ /
+    # __kwdefaults__ attribute assignment overrides the MAKE_FUNCTION tables
+    # (CPython binds those attributes to the call machinery).
+    def _effective_defaults -> list[PyObj] {
+        if "__defaults__" in self.attrs {
+            v = self.attrs["__defaults__"];
+            if v is not None and isinstance(v, PyTuple) {
+                return (v as PyTuple).items;
+            }
+            return [];
+        }
+        return self.defaults;
+    }
+
+    def _effective_kwdefaults -> dict[str, PyObj] {
+        if "__kwdefaults__" in self.attrs {
+            v = self.attrs["__kwdefaults__"];
+            if v is not None and isinstance(v, PyDict) {
+                return (v as PyDict).dict_str_map();
+            }
+            return {};
+        }
+        return self.kwdefaults;
+    }
     def tp_hashkey -> PyObj {
         return PyStr(t="str", val="obj:" + str(id(self)));
     }
@@ -3541,14 +3614,133 @@ obj PyFunction(PyObj) {
             self.globals,
             {},
             self.closure,
-            self.defaults,
-            self.kwdefaults
+            self._effective_defaults(),
+            self._effective_kwdefaults()
         );
     }
 }
 
 def host_result_ok(result: any) -> bool {
     return result[0] == True;
+}
+
+# Function fixed-surface names: never visible in f.__dict__ (CPython stores
+# them as type-level descriptors, not dict entries).
+def func_attr_is_fixed(name: str) -> bool {
+    return name in {
+        "__name__", "__qualname__", "__doc__", "__module__",
+        "__defaults__", "__kwdefaults__", "__code__", "__globals__",
+        "__closure__", "__builtins__", "__dict__", "__wrapped__"
+    };
+}
+
+# Live ``f.__dict__`` view: mutations write through to the function attribute
+# map (minus the fixed surface) and attribute assignments reflect into it.
+obj PyFuncDictView(PyDict) {
+    # ``owner`` is typed ``any`` because a non-default field cannot follow the
+    # inherited defaulted ``version`` field.
+    has owner: any = None;
+
+    def view_set(name: str, value: PyObj) {
+        hk = hashkey_str((PyStr(t="str", val=name)).tp_hashkey());
+        self.items[hk] = DictEntry(key=PyStr(t="str", val=name), value=value);
+        self.version = self.version + 1;
+    }
+
+    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        hk = hashkey_str(hkr);
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            self.items[hk] = DictEntry(key=index, value=value);
+            self.version = self.version + 1;
+            if not func_attr_is_fixed(name) {
+                (self.owner as PyFunction).attrs[name] = value;
+            }
+            return py_none();
+        }
+        self.items[hk] = DictEntry(key=index, value=value);
+        self.version = self.version + 1;
+        return py_none();
+    }
+
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        hk = hashkey_str(hkr);
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            owner_f = self.owner as PyFunction;
+            if name in owner_f.attrs {
+                del owner_f.attrs[name];
+                del self.items[hk];
+                self.version = self.version + 1;
+                return py_none();
+            }
+        }
+        if hk in self.items {
+            del self.items[hk];
+            self.version = self.version + 1;
+            return py_none();
+        }
+        return py_error("KeyError", dict_key_repr(index));
+    }
+}
+
+# Live ``__kwdefaults__`` view for a PyFunction: a real dict whose mutations
+# write straight through to the function's kw-default table (CPython hands
+# out the borrowed internal dict; later calls observe every change).
+obj PyFuncKwDefaults(PyDict) {
+    # ``owner`` is typed ``any`` because a non-default field cannot follow the
+    # inherited defaulted ``version`` field.
+    has owner: any = None;
+
+    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        hk = hashkey_str(hkr);
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            (self.owner as PyFunction).kwdefaults[name] = value;
+        } else {
+            return py_error(
+                "TypeError", "keywords must be strings"
+            );
+        }
+        self.items[hk] = DictEntry(key=index, value=value);
+        self.version = self.version + 1;
+        return py_none();
+    }
+
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        hk = hashkey_str(hkr);
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            owner_f = self.owner as PyFunction;
+            if name in owner_f.kwdefaults {
+                del owner_f.kwdefaults[name];
+                del self.items[hk];
+                self.version = self.version + 1;
+                return py_none();
+            }
+        } elif hk in self.items {
+            del self.items[hk];
+            self.version = self.version + 1;
+            return py_none();
+        }
+        return py_error("KeyError", dict_key_repr(index));
+    }
 }
 
 def from_host(raw: any) -> PyObj {
