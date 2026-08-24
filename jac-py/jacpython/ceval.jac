@@ -5493,6 +5493,12 @@ def py_attr(value: PyObj, name: str) -> PyObj {
         if name == "__default__" {
             return typevar_default_value(value as PyTypeVar);
         }
+        # has_default() is syntactic (PEP 696: never forces evaluation) but
+        # needs a callable wrapper built on this side of the substrate
+        # boundary, like the dict/list/set method wrappers below.
+        if name == "has_default" {
+            return PyTypeVarMethod(t="typevar_method", tv=value as PyTypeVar, name=name);
+        }
     }
     # typing.Generic[T, ...] stand-ins answer origin/args/parameters plus the
     # __mro_entries__ hook that __build_class__ resolves (update_bases port in
@@ -10194,6 +10200,24 @@ def dict_lookup_value(d: PyDict, key: PyObj) -> PyObj {
 # The bound method object d.keys / d.values / d.items resolves to; calling it
 # builds the view (matching CPython, where `d.keys` is a builtin method and
 # `d.keys()` is the view).
+# Bound has_default() on a PEP 695 TypeVar (PEP 696): zero-arg probe of
+# whether a default was supplied at parameter creation -- purely syntactic,
+# never forces default evaluation.
+obj PyTypeVarMethod(PyObj) {
+    has tv: PyTypeVar,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(kwargs) > 0 {
+            return meth_no_kwargs("TypeVar", self.name);
+        }
+        if len(args) != 0 {
+            return meth_takes_none("TypeVar", self.name, len(args));
+        }
+        return PyBool(t="bool", val=self.tv.evaluate_default.t != "none");
+    }
+}
+
 obj PyDictViewCtor(PyObj) {
     has d: PyDict,
         mode: str;
