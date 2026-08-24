@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_float.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_float.py",
     "-o",
-    "/var/tmp/laneb-out/test_float",
+    "/var/tmp/lane8/jac-py/tests/conv_float",
     "--name",
     "conv_float"
   ],
-  "generated_at": "2026-08-24T11:07:21",
+  "generated_at": "2026-08-24T14:32:46",
   "hashes": {
-    "pins_jac": "b850f331fe74d79d67374541017e6f0c5e4cdf0ed4c560f0033a96c0e1382838"
+    "pins_jac": "6ca0420e2907cb548f4caed1e308704f64fe1e2d59ac55fb4ae6b81498003e0a"
   },
-  "source_file": "reference/cpython/Lib/test/test_float.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_float.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "float",
   "pins_file": "conv_float_pins.jac",
@@ -54,6 +54,14 @@
         "status": "ok"
       },
       "snippet": "import re as _re\n\ndef _t():\n    try:\n        float(x='3.14')\n    except TypeError as _exc:\n        assert _re.search('keyword argument', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_keywords_in_subclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class subclass(float):\n        pass\n    u = subclass(2.5)\n    assert type(u) is subclass, ('assertIs', type(u), subclass)\n    assert float(u) == 2.5, ('assertEqual', float(u), 2.5)\n    try:\n        subclass(x=0)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    class subclass_with_init(float):\n\n        def __init__(self, arg, newarg=None):\n            self.newarg = newarg\n    u = subclass_with_init(2.5, newarg=3)\n    assert type(u) is subclass_with_init, ('assertIs', type(u), subclass_with_init)\n    assert float(u) == 2.5, ('assertEqual', float(u), 2.5)\n    assert u.newarg == 3, ('assertEqual', u.newarg, 3)\n\n    class subclass_with_new(float):\n\n        def __new__(cls, arg, newarg=None):\n            self = super().__new__(cls, arg)\n            self.newarg = newarg\n            return self\n    u = subclass_with_new(2.5, newarg=3)\n    assert type(u) is subclass_with_new, ('assertIs', type(u), subclass_with_new)\n    assert float(u) == 2.5, ('assertEqual', float(u), 2.5)\n    assert u.newarg == 3, ('assertEqual', u.newarg, 3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "GeneralFloatCases.test_is_integer",
@@ -198,6 +206,14 @@
         "status": "ok"
       },
       "snippet": "fromHex = float.fromhex\n\ndef _t():\n    invalid_inputs = ['infi', '-Infinit', '++inf', '-+Inf', '--nan', '+-NaN', 'snan', 'NaNs', 'nna', 'an', 'nf', 'nfinity', 'inity', 'iinity', '0xnan', '', ' ', 'x1.0p0', '0xX1.0p0', '+ 0x1.0p0', '- 0x1.0p0', '0 x1.0p0', '0x 1.0p0', '0x1 2.0p0', '+0x1 .0p0', '0x1. 0p0', '-0x1.0 1p0', '-0x1.0 p0', '+0x1.0p +0', '0x1.0p -0', '0x1.0p 0', '+0x1.0p+ 0', '-0x1.0p- 0', '++0x1.0p-0', '--0x1.0p0', '+-0x1.0p+0', '-+0x1.0p0', '0x1.0p++0', '+0x1.0p+-0', '-0x1.0p-+0', '0x1.0p--0', '0x1.0.p0', '0x.p0', '0x1,p0', '0x1pa', '0x1p\uff10', '\uff10x1p0', '0x\uff11p0', '0x1.\uff10p0', '0x1p0 \\n 0x2p0', '0x1p0\\x00 0x1p0']\n    for x in invalid_inputs:\n        try:\n            result = fromHex(x)\n        except ValueError:\n            pass\n        else:\n            raise AssertionError('Expected float.fromhex(%r) to raise ValueError; got %r instead' % (x, result))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HexFloatTestCase.test_subclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F(float):\n\n        def __new__(cls, value):\n            return float.__new__(cls, value + 1)\n    f = F.fromhex(1.5.hex())\n    assert type(f) is F, ('assertIs', type(f), F)\n    assert f == 2.5, ('assertEqual', f, 2.5)\n\n    class F2(float):\n\n        def __init__(self, value):\n            self.foo = 'bar'\n    f = F2.fromhex(1.5.hex())\n    assert type(f) is F2, ('assertIs', type(f), F2)\n    assert f == 1.5, ('assertEqual', f, 1.5)\n    assert getattr(f, 'foo', 'none') == 'bar', ('assertEqual', getattr(f, 'foo', 'none'), 'bar')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
   "quarantined": [
@@ -294,10 +310,6 @@
       "reason": "uses-self.assertWarns"
     },
     {
-      "ident": "GeneralFloatCases.test_keywords_in_subclass",
-      "reason": "uses-self.newarg"
-    },
-    {
       "ident": "GeneralFloatCases.test_from_number",
       "reason": "unresolved-name:FloatLike"
     },
@@ -311,28 +323,24 @@
     },
     {
       "ident": "HexFloatTestCase.test_ends",
-      "reason": "self.identical"
+      "reason": "helper:identical(self.assertFloatsAreIdentical)"
     },
     {
       "ident": "HexFloatTestCase.test_whitespace",
-      "reason": "self.identical"
+      "reason": "helper:identical(self.assertFloatsAreIdentical)"
     },
     {
       "ident": "HexFloatTestCase.test_from_hex",
-      "reason": "self.identical"
+      "reason": "helper:identical(self.assertFloatsAreIdentical)"
     },
     {
       "ident": "HexFloatTestCase.test_roundtrip",
-      "reason": "self.identical"
-    },
-    {
-      "ident": "HexFloatTestCase.test_subclass",
-      "reason": "uses-self.foo"
+      "reason": "helper:identical(self.assertFloatsAreIdentical)"
     }
   ],
   "counts": {
     "extracted": 54,
-    "pinned": 22,
-    "quarantined": 32
+    "pinned": 24,
+    "quarantined": 30
   }
 }

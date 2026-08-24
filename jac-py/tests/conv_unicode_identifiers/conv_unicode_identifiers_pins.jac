@@ -18,3 +18,9 @@ test "PEP3131Test.test_non_bmp_normalized" {
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
+
+test "PEP3131Test.test_invalid" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n    try:\n        from test.tokenizedata import badsyntax_3131\n    except SyntaxError as err:\n        assert str(err) == \"invalid character '\u20ac' (U+20AC) (badsyntax_3131.py, line 2)\", ('assertEqual', str(err), \"invalid character '\u20ac' (U+20AC) (badsyntax_3131.py, line 2)\")\n        assert err.lineno == 2, ('assertEqual', err.lineno, 2)\n        assert err.offset == 1, ('assertEqual', err.offset, 1)\n    else:\n        raise AssertionError(\"expected exception didn't occur\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}

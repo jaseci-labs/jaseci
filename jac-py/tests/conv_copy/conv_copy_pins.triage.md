@@ -1,52 +1,83 @@
 # Triage report: `conv_copy_pins.jac`
 
-- source: reference/cpython/Lib/test/test_copy.py
-- guest leg: 0/41 marks
-- pins: **0 passed** / 41 run (+40 quarantined of 81 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_copy.py
+- guest leg: 0/72 marks
+- pins: **33 passed** / 72 run (+9 quarantined of 81 extracted)
 
 | pin | result | got |
 |---|---|---|
-| TestCopy.test_copy_basic | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_registry | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_reduce | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_cant | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_atomic | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_list | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_tuple | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_dict | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_set | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_frozenset | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_bytearray | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_basic | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_memo | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_issubclass | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_registry | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_reduce | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_cant | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_atomic | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_list | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_empty_tuple | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_tuple | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_tuple_of_immutables | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_dict | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_keepalive | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_dont_memo_immutable | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_reflexive_inst | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_reconstruct_string | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_reconstruct_nostate | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_reconstruct_reflexive | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_slots | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_slots | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_list_subclass | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_list_subclass | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_tuple_subclass | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_tuple_subclass | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_getstate_exc | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_copy_function | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_function | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestCopy.test_deepcopy_bound_method | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestReplace.test_unsupported | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| TestReplace.test_dataclass | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
+| TestCopy.test_copy_basic | PASS | |
+| TestCopy.test_copy_copy | PASS | |
+| TestCopy.test_copy_registry | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'"> |
+| TestCopy.test_copy_reduce | PASS | |
+| TestCopy.test_copy_cant | PASS | |
+| TestCopy.test_copy_atomic | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'"> |
+| TestCopy.test_copy_list | PASS | |
+| TestCopy.test_copy_tuple | PASS | |
+| TestCopy.test_copy_dict | PASS | |
+| TestCopy.test_copy_set | PASS | |
+| TestCopy.test_copy_frozenset | PASS | |
+| TestCopy.test_copy_bytearray | PASS | |
+| TestCopy.test_copy_inst_vanilla | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'"> |
+| TestCopy.test_copy_inst_copy | PASS | |
+| TestCopy.test_copy_inst_getinitargs | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'"> |
+| TestCopy.test_copy_inst_getnewargs | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', 0, <class \'**main**.C\'>)"'> |
+| TestCopy.test_copy_inst_getnewargs_ex | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', 0, <class \'**main**.C\'>)"'> |
+| TestCopy.test_copy_inst_getstate | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'"> |
+| TestCopy.test_copy_inst_setstate | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'"> |
+| TestCopy.test_copy_inst_getstate_setstate | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_basic | PASS | |
+| TestCopy.test_deepcopy_memo | PASS | |
+| TestCopy.test_deepcopy_issubclass | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object.**reduce_ex**() takes exactly one argument (0 given)'"> |
+| TestCopy.test_deepcopy_deepcopy | PASS | |
+| TestCopy.test_deepcopy_registry | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_reduce | PASS | |
+| TestCopy.test_deepcopy_cant | PASS | |
+| TestCopy.test_deepcopy_atomic | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_list | PASS | |
+| TestCopy.test_deepcopy_empty_tuple | PASS | |
+| TestCopy.test_deepcopy_tuple | PASS | |
+| TestCopy.test_deepcopy_tuple_of_immutables | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIs\', ((1, 2), 3), ((1, 2), 3))"'> |
+| TestCopy.test_deepcopy_dict | PASS | |
+| TestCopy.test_deepcopy_keepalive | PASS | |
+| TestCopy.test_deepcopy_dont_memo_immutable | PASS | |
+| TestCopy.test_deepcopy_inst_vanilla | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_inst_deepcopy | PASS | |
+| TestCopy.test_deepcopy_inst_getinitargs | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_inst_getnewargs | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', 0, <class \'**main**.C\'>)"'> |
+| TestCopy.test_deepcopy_inst_getnewargs_ex | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', 0, <class \'**main**.C\'>)"'> |
+| TestCopy.test_deepcopy_inst_getstate | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_inst_setstate | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_inst_getstate_setstate | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_reflexive_inst | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_reconstruct_string | PASS | |
+| TestCopy.test_reconstruct_nostate | PASS | |
+| TestCopy.test_reconstruct_state | PASS | |
+| TestCopy.test_reconstruct_state_setstate | PASS | |
+| TestCopy.test_reconstruct_reflexive | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_reduce_4tuple | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AttributeError "\'list\' object has no attribute \'**dict**\'"'> |
+| TestCopy.test_reduce_6tuple | PASS | |
+| TestCopy.test_reduce_6tuple_none | PASS | |
+| TestCopy.test_copy_slots | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_slots | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_dict_subclass | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AttributeError "\'dict\' object has no attribute \'_keys\'"'> |
+| TestCopy.test_copy_list_subclass | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AttributeError "\'list\' object has no attribute \'foo\'"'> |
+| TestCopy.test_deepcopy_list_subclass | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AttributeError "\'list\' object has no attribute \'foo\'"'> |
+| TestCopy.test_copy_tuple_subclass | PASS | |
+| TestCopy.test_deepcopy_tuple_subclass | PASS | |
+| TestCopy.test_getstate_exc | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'"> |
+| TestCopy.test_copy_function | PASS | |
+| TestCopy.test_deepcopy_function | PASS | |
+| TestCopy.test_copy_weakref | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'"> |
+| TestCopy.test_deepcopy_weakref | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestCopy.test_copy_weakkeydict | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'WeakKeyDictionary'"> |
+| TestCopy.test_copy_weakvaluedict | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'WeakValueDictionary'"> |
+| TestCopy.test_deepcopy_weakkeydict | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'WeakKeyDictionary'"> |
+| TestCopy.test_deepcopy_weakvaluedict | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'WeakValueDictionary'"> |
+| TestCopy.test_deepcopy_bound_method | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
+| TestReplace.test_unsupported | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError '**class**'"> |
+| TestReplace.test_replace_method | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AttributeError "\'A\' object has no attribute \'x\'"'> |
+| TestReplace.test_dataclass | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "<enum \'IntFlag\'> cannot extend <class \'ceval.Flag\'>"'> |
 
 ## Quarantined at conversion
 
@@ -56,40 +87,9 @@
 | TestCopy.test_deepcopy_reflexive_tuple | decorator:support.skip_emscripten_stack_overflow |
 | TestCopy.test_deepcopy_reflexive_dict | decorator:support.skip_emscripten_stack_overflow |
 | TestCopy.test_exceptions | self.assertIsSubclass |
-| TestCopy.test_copy_copy | uses-self.foo |
 | TestCopy.test_copy_reduce_ex | uses-self.fail |
-| TestCopy.test_copy_inst_vanilla | uses-self.foo |
-| TestCopy.test_copy_inst_copy | uses-self.foo |
-| TestCopy.test_copy_inst_getinitargs | uses-self.foo |
-| TestCopy.test_copy_inst_getnewargs | uses-self.foo |
-| TestCopy.test_copy_inst_getnewargs_ex | uses-self.foo |
-| TestCopy.test_copy_inst_getstate | uses-self.foo |
-| TestCopy.test_copy_inst_setstate | uses-self.foo |
-| TestCopy.test_copy_inst_getstate_setstate | uses-self.foo |
-| TestCopy.test_deepcopy_deepcopy | uses-self.foo |
 | TestCopy.test_deepcopy_reduce_ex | uses-self.fail |
-| TestCopy.test_deepcopy_inst_vanilla | uses-self.foo |
-| TestCopy.test_deepcopy_inst_deepcopy | uses-self.foo |
-| TestCopy.test_deepcopy_inst_getinitargs | uses-self.foo |
-| TestCopy.test_deepcopy_inst_getnewargs | uses-self.foo |
-| TestCopy.test_deepcopy_inst_getnewargs_ex | uses-self.foo |
-| TestCopy.test_deepcopy_inst_getstate | uses-self.foo |
-| TestCopy.test_deepcopy_inst_setstate | uses-self.foo |
-| TestCopy.test_deepcopy_inst_getstate_setstate | uses-self.foo |
-| TestCopy.test_reconstruct_state | uses-self.**dict** |
-| TestCopy.test_reconstruct_state_setstate | uses-self.**dict** |
-| TestCopy.test_reduce_4tuple | uses-self.**dict** |
-| TestCopy.test_reduce_5tuple | uses-self.**dict** |
-| TestCopy.test_reduce_6tuple | uses-self.**dict** |
-| TestCopy.test_reduce_6tuple_none | uses-self.**dict** |
-| TestCopy.test_deepcopy_dict_subclass | uses-self._keys |
-| TestCopy.test_copy_weakref | self._check_weakref |
-| TestCopy.test_deepcopy_weakref | self._check_weakref |
-| TestCopy.test_copy_weakkeydict | self._check_copy_weakdict |
-| TestCopy.test_copy_weakvaluedict | self._check_copy_weakdict |
-| TestCopy.test_deepcopy_weakkeydict | uses-self.i |
-| TestCopy.test_deepcopy_weakvaluedict | uses-self.i |
-| TestReplace.test_replace_method | uses-self.x |
+| TestCopy.test_reduce_5tuple | uses-self.items |
 | TestReplace.test_namedtuple | uses-self.subTest |
 | MiscTestCase.test__all__ | host-raised:NameError: name 'self' is not defined |
 
@@ -98,204 +98,194 @@
 ### TestCopy.test_copy_atomic (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'">
 
-### TestCopy.test_copy_basic (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_copy_bytearray (GUEST-WRONG-OUTPUT)
+### TestCopy.test_copy_inst_getinitargs (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'">
 
-### TestCopy.test_copy_cant (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_copy_dict (GUEST-WRONG-OUTPUT)
+### TestCopy.test_copy_inst_getnewargs (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', 0, <class \'**main**.C\'>)"'>
 
-### TestCopy.test_copy_frozenset (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_copy_function (GUEST-WRONG-OUTPUT)
+### TestCopy.test_copy_inst_getnewargs_ex (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', 0, <class \'**main**.C\'>)"'>
 
-### TestCopy.test_copy_list (GUEST-WRONG-OUTPUT)
+### TestCopy.test_copy_inst_getstate (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'">
+
+### TestCopy.test_copy_inst_getstate_setstate (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'">
+
+### TestCopy.test_copy_inst_setstate (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'">
+
+### TestCopy.test_copy_inst_vanilla (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'">
 
 ### TestCopy.test_copy_list_subclass (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_copy_reduce (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC AttributeError "\'list\' object has no attribute \'foo\'"'>
 
 ### TestCopy.test_copy_registry (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_copy_set (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'">
 
 ### TestCopy.test_copy_slots (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'">
 
-### TestCopy.test_copy_tuple (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_copy_tuple_subclass (GUEST-WRONG-OUTPUT)
+### TestCopy.test_copy_weakkeydict (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC AttributeError 'WeakKeyDictionary'">
+
+### TestCopy.test_copy_weakref (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'">
+
+### TestCopy.test_copy_weakvaluedict (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC AttributeError 'WeakValueDictionary'">
 
 ### TestCopy.test_deepcopy_atomic (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_deepcopy_basic (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
 
 ### TestCopy.test_deepcopy_bound_method (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
 
-### TestCopy.test_deepcopy_cant (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_deepcopy_dict (GUEST-WRONG-OUTPUT)
+### TestCopy.test_deepcopy_dict_subclass (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC AttributeError "\'dict\' object has no attribute \'_keys\'"'>
 
-### TestCopy.test_deepcopy_dont_memo_immutable (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_deepcopy_empty_tuple (GUEST-WRONG-OUTPUT)
+### TestCopy.test_deepcopy_inst_getinitargs (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
 
-### TestCopy.test_deepcopy_function (GUEST-WRONG-OUTPUT)
+### TestCopy.test_deepcopy_inst_getnewargs (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', 0, <class \'**main**.C\'>)"'>
+
+### TestCopy.test_deepcopy_inst_getnewargs_ex (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', 0, <class \'**main**.C\'>)"'>
+
+### TestCopy.test_deepcopy_inst_getstate (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
+
+### TestCopy.test_deepcopy_inst_getstate_setstate (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
+
+### TestCopy.test_deepcopy_inst_setstate (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
+
+### TestCopy.test_deepcopy_inst_vanilla (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
 
 ### TestCopy.test_deepcopy_issubclass (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_deepcopy_keepalive (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_deepcopy_list (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC TypeError 'object.**reduce_ex**() takes exactly one argument (0 given)'">
 
 ### TestCopy.test_deepcopy_list_subclass (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_deepcopy_memo (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_deepcopy_reduce (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC AttributeError "\'list\' object has no attribute \'foo\'"'>
 
 ### TestCopy.test_deepcopy_reflexive_inst (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
 
 ### TestCopy.test_deepcopy_registry (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
 
 ### TestCopy.test_deepcopy_slots (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_deepcopy_tuple (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
 
 ### TestCopy.test_deepcopy_tuple_of_immutables (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIs\', ((1, 2), 3), ((1, 2), 3))"'>
 
-### TestCopy.test_deepcopy_tuple_subclass (GUEST-WRONG-OUTPUT)
+### TestCopy.test_deepcopy_weakkeydict (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC AttributeError 'WeakKeyDictionary'">
+
+### TestCopy.test_deepcopy_weakref (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
+
+### TestCopy.test_deepcopy_weakvaluedict (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC AttributeError 'WeakValueDictionary'">
 
 ### TestCopy.test_getstate_exc (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
-### TestCopy.test_reconstruct_nostate (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'">
 
 ### TestCopy.test_reconstruct_reflexive (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'">
 
-### TestCopy.test_reconstruct_string (GUEST-WRONG-OUTPUT)
+### TestCopy.test_reduce_4tuple (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC AttributeError "\'list\' object has no attribute \'**dict**\'"'>
 
 ### TestReplace.test_dataclass (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC TypeError "<enum \'IntFlag\'> cannot extend <class \'ceval.Flag\'>"'>
+
+### TestReplace.test_replace_method (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC AttributeError "\'A\' object has no attribute \'x\'"'>
 
 ### TestReplace.test_unsupported (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC AttributeError '**class**'">

@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "fd4c8b36fdafb9259707f53f361b63d62fcfd882",
+  "jac_sha": "ac08a64851ccfed082ecf7de18dd723383ee3abb",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_array.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_array.py",
     "-o",
-    "/var/tmp/sp1-out/test_array",
+    "/var/tmp/lane8/jac-py/tests/conv_array",
     "--name",
     "conv_array"
   ],
-  "generated_at": "2026-08-24T13:48:09",
+  "generated_at": "2026-08-24T14:26:20",
   "hashes": {
     "pins_jac": "def560644029b4e37074ba1c900b76a03097a745c2e78826f320fe7eb0d84363"
   },
-  "source_file": "reference/cpython/Lib/test/test_array.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_array.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "array",
   "pins_file": "conv_array_pins.jac",

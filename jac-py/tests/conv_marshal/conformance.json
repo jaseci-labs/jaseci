@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "3b6cb3b10fde34d0c285e2b7ceed8f59d4d8313f",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/sp3-out/test_marshal/conv_marshal_pins.jac"
+    "jac-py/tests/conv_marshal/conv_marshal_pins.jac"
   ],
-  "generated_at": "2026-08-24T13:44:50",
+  "generated_at": "2026-08-24T14:34:03",
   "hashes": {
     "pins_jac": "ce70d09082611206bcf110f17c0daabee96506cef5ed0725354f6c03474ab341",
-    "conversion_json": "97c5389310691d8e0d6d7e19bb3090a8f869b5883913f35d2a354865679d37a0",
+    "conversion_json": "6453df2baa3494e2831905260f215163b557b7b25ebeff689fd0a85d16c9b77e",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "marshal",
@@ -73,6 +73,26 @@
     {
       "id": "CodeTestCase.test_different_filenames",
       "status": "pass"
+    },
+    {
+      "id": "ContainerTestCase.test_dict",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'd'"
+    },
+    {
+      "id": "ContainerTestCase.test_list",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'd'"
+    },
+    {
+      "id": "ContainerTestCase.test_tuple",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'd'"
+    },
+    {
+      "id": "ContainerTestCase.test_sets",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'd'"
     },
     {
       "id": "BufferTestCase.test_bytearray",
@@ -203,10 +223,45 @@
       "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
     },
     {
+      "id": "InstancingTestCase.testList",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'keys'"
+    },
+    {
+      "id": "InstancingTestCase.testTuple",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'keys'"
+    },
+    {
+      "id": "InstancingTestCase.testSet",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'keys'"
+    },
+    {
+      "id": "InstancingTestCase.testFrozenSet",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'keys'"
+    },
+    {
+      "id": "InstancingTestCase.testDict",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'keys'"
+    },
+    {
       "id": "InstancingTestCase.testRecursion",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError 'maximum recursion depth exceeded'\">"
+    },
+    {
+      "id": "InterningTestCase.testIntern",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'strobj'"
+    },
+    {
+      "id": "InterningTestCase.testNoIntern",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'strobj'"
     },
     {
       "id": "CodeTestCase.test_same_filename_used",
@@ -299,26 +354,6 @@
       "reason": "unresolved-name:ExceptionTestCase"
     },
     {
-      "id": "ContainerTestCase.test_dict",
-      "status": "quarantined",
-      "reason": "uses-self.d"
-    },
-    {
-      "id": "ContainerTestCase.test_list",
-      "status": "quarantined",
-      "reason": "uses-self.d"
-    },
-    {
-      "id": "ContainerTestCase.test_tuple",
-      "status": "quarantined",
-      "reason": "uses-self.d"
-    },
-    {
-      "id": "ContainerTestCase.test_sets",
-      "status": "quarantined",
-      "reason": "uses-self.d"
-    },
-    {
       "id": "BugsTestCase.test_reference_loop_code",
       "status": "quarantined",
       "reason": "self.addCleanup"
@@ -337,31 +372,6 @@
       "id": "BugsTestCase.test_unmarshallable",
       "status": "quarantined",
       "reason": "uses-self.subTest"
-    },
-    {
-      "id": "InstancingTestCase.testList",
-      "status": "quarantined",
-      "reason": "uses-self.keys"
-    },
-    {
-      "id": "InstancingTestCase.testTuple",
-      "status": "quarantined",
-      "reason": "uses-self.keys"
-    },
-    {
-      "id": "InstancingTestCase.testSet",
-      "status": "quarantined",
-      "reason": "uses-self.keys"
-    },
-    {
-      "id": "InstancingTestCase.testFrozenSet",
-      "status": "quarantined",
-      "reason": "uses-self.keys"
-    },
-    {
-      "id": "InstancingTestCase.testDict",
-      "status": "quarantined",
-      "reason": "uses-self.keys"
     },
     {
       "id": "InstancingTestCase.testModule",
@@ -389,19 +399,9 @@
       "reason": "helper:_test(unresolved-name:__file__)"
     },
     {
-      "id": "InterningTestCase.testIntern",
-      "status": "quarantined",
-      "reason": "uses-self.strobj"
-    },
-    {
-      "id": "InterningTestCase.testNoIntern",
-      "status": "quarantined",
-      "reason": "uses-self.strobj"
-    },
-    {
       "id": "SliceTestCase.test_slice",
       "status": "quarantined",
-      "reason": "uses-self.helper"
+      "reason": "uses-self.subTest"
     }
   ]
 }

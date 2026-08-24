@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "unknown",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,11 +10,11 @@
     "convert_suite.py",
     "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_copyreg.py",
     "-o",
-    "/var/tmp/nicestorm-selfhost-wt/jac-py/tests/conv_copyreg",
+    "/var/tmp/lane8/jac-py/tests/conv_copyreg",
     "--name",
     "conv_copyreg"
   ],
-  "generated_at": "2026-08-24T09:44:11",
+  "generated_at": "2026-08-24T14:31:00",
   "hashes": {
     "pins_jac": "93e7e94ce453693115773bebd3c1f9dd9ea3702c210a82a344701dffb2f26d08"
   },

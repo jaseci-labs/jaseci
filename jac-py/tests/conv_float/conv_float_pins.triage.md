@@ -1,22 +1,23 @@
 # Triage report: `conv_float_pins.jac`
 
-- source: reference/cpython/Lib/test/test_float.py
-- guest leg: 0/22 marks
-- pins: **18 passed** / 22 run (+32 quarantined of 54 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_float.py
+- guest leg: 0/24 marks
+- pins: **19 passed** / 24 run (+30 quarantined of 54 extracted)
 
 | pin | result | got |
 |---|---|---|
 | GeneralFloatCases.test_noargs | PASS | |
-| GeneralFloatCases.test_underscores | GUEST-WRONG-OUTPUT | RUN<"ModuleNotFoundError: No module named 'test.support.numbers'"> |
+| GeneralFloatCases.test_underscores | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "argument of type \'bool\' is not a container or iterable"'> |
 | GeneralFloatCases.test_float_memoryview | PASS | |
 | GeneralFloatCases.test_keyword_args | PASS | |
+| GeneralFloatCases.test_keywords_in_subclass | PASS | |
 | GeneralFloatCases.test_is_integer | PASS | |
 | GeneralFloatCases.test_floatasratio | GUEST-WRONG-OUTPUT | RUN<'AttributeError: register'> |
 | GeneralFloatCases.test_float_containment | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIn\', nan, [nan])"'> |
 | GeneralFloatCases.test_float_floor | PASS | |
 | GeneralFloatCases.test_float_ceil | PASS | |
 | GeneralFloatCases.test_hash | PASS | |
-| GeneralFloatCases.test_hash_nan | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 8779949750919, 8779949717921)"'> |
+| GeneralFloatCases.test_hash_nan | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 8748298040793, 8748298116451)"'> |
 | GeneralFloatCases.test_issue_gh143006 | PASS | |
 | FormatTestCase.test_format | PASS | |
 | FormatTestCase.test_issue5864 | PASS | |
@@ -28,6 +29,7 @@
 | InfNanTest.test_inf_signs | PASS | |
 | InfNanTest.test_nan_signs | PASS | |
 | HexFloatTestCase.test_invalid_inputs | PASS | |
+| HexFloatTestCase.test_subclass | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <class \'float\'>, <class \'**main**.F\'>)"'> |
 
 ## Quarantined at conversion
 
@@ -56,15 +58,13 @@
 | GeneralFloatCases.test_non_numeric_input_types | uses-self.subTest |
 | GeneralFloatCases.test_error_message | unresolved-name:cm |
 | GeneralFloatCases.test_floatconversion | uses-self.assertWarns |
-| GeneralFloatCases.test_keywords_in_subclass | uses-self.newarg |
 | GeneralFloatCases.test_from_number | unresolved-name:FloatLike |
 | GeneralFloatCases.test_from_number_subclass | self.test_from_number |
 | ReprTestCase.test_repr | unresolved-name:**file** |
-| HexFloatTestCase.test_ends | self.identical |
-| HexFloatTestCase.test_whitespace | self.identical |
-| HexFloatTestCase.test_from_hex | self.identical |
-| HexFloatTestCase.test_roundtrip | self.identical |
-| HexFloatTestCase.test_subclass | uses-self.foo |
+| HexFloatTestCase.test_ends | helper:identical(self.assertFloatsAreIdentical) |
+| HexFloatTestCase.test_whitespace | helper:identical(self.assertFloatsAreIdentical) |
+| HexFloatTestCase.test_from_hex | helper:identical(self.assertFloatsAreIdentical) |
+| HexFloatTestCase.test_roundtrip | helper:identical(self.assertFloatsAreIdentical) |
 
 ## Expected vs got
 
@@ -81,9 +81,14 @@
 ### GeneralFloatCases.test_hash_nan (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 8779949750919, 8779949717921)"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 8748298040793, 8748298116451)"'>
 
 ### GeneralFloatCases.test_underscores (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"ModuleNotFoundError: No module named 'test.support.numbers'">
+- got: GOT<'ORACLE_EXC TypeError "argument of type \'bool\' is not a container or iterable"'>
+
+### HexFloatTestCase.test_subclass (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <class \'float\'>, <class \'**main**.F\'>)"'>

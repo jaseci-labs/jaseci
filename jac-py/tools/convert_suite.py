@@ -5,9 +5,12 @@ For every ``test_*`` method in a CPython ``Lib/test`` file this tool:
 
 1. Extracts the method via AST and mechanically rewrites the common
    ``unittest`` assertion vocabulary (``assertEqual``, ``assertRaises``, ...)
-   into plain asserts/try-except. Anything outside the supported vocabulary
-   (other ``self.*`` attributes, unresolved names, skip machinery, decorators)
-   is quarantined with a reason instead of silently mistranslating.
+   into plain asserts/try-except. ``setUp`` bodies are spliced ahead of each
+   test (fixture vocabulary), and plain ``self.<attr>`` loads/stores are
+   satisfied by binding ``self`` to a bare namespace object; anything outside
+   the supported vocabulary (other ``self.*`` attributes, unresolved names,
+   skip machinery, decorators) is quarantined with a reason instead of
+   silently mistranslating.
 2. Captures the HOST ORACLE first: each rewritten snippet runs under host
    CPython in a sandboxed subprocess (fresh cwd, minimal env, hard timeout).
    A snippet is only pinnable when the host prints the success marker;
@@ -515,14 +518,51 @@ def _loaded_names(nodes: ast.AST) -> set[str]:
     }
 
 
-def _check_self_usage(body: list[ast.stmt], prefix: str = "") -> None:
-    for node in ast.walk(ast.Module(body=body, type_ignores=[])):
+def _scan_self_usage(body: list[ast.stmt]) -> tuple[set[str], set[str]]:
+    """Partition ``self.*`` references into namespace-safe attrs vs calls.
+
+    Returns (ns_attrs, call_attrs): ``ns_attrs`` are plain attribute
+    loads/stores (``self.data``, ``self.data[i] = x``) that a bare namespace
+    object bound to ``self`` satisfies at runtime; ``call_attrs`` are
+    ``self.method(...)`` references that need helper-vocabulary lifting (the
+    caller reports them unsupported when the rewriter left them behind).
+    """
+    tree = ast.Module(body=body, type_ignores=[])
+    call_func_ids = {
+        id(node.func)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "self"
+    }
+    ns_attrs: set[str] = set()
+    call_attrs: set[str] = set()
+    for node in ast.walk(tree):
         if (
             isinstance(node, ast.Attribute)
             and isinstance(node.value, ast.Name)
             and node.value.id == "self"
         ):
-            raise Unsupported(f"{prefix}uses-self.{node.attr}")
+            if id(node) in call_func_ids:
+                call_attrs.add(node.attr)
+            else:
+                ns_attrs.add(node.attr)
+    return ns_attrs, call_attrs
+
+
+_NS_PRELUDE_SRC = "class _SelfNS:\n    pass\nself = _SelfNS()\n"
+
+
+def _namespace_prelude() -> list[ast.stmt]:
+    """AST prelude binding ``self`` to a bare attribute namespace."""
+    return ast.parse(_NS_PRELUDE_SRC).body
+
+
+def _check_self_usage(body: list[ast.stmt], prefix: str = "") -> None:
+    _, call_attrs = _scan_self_usage(body)
+    if call_attrs:
+        raise Unsupported(f"{prefix}uses-self.{sorted(call_attrs)[0]}")
 
 
 def _check_names(body: list[ast.stmt], available: set[str]) -> None:
@@ -671,6 +711,7 @@ class _FixtureVocab:
         self.available_names = available_names
         self.lifted: list[ast.FunctionDef] = []  # insertion order
         self.needs_re = False
+        self.needs_ns = False
         self._ok: dict[str, ast.FunctionDef] = {}
         self._failed: dict[str, Unsupported] = {}
 
@@ -704,7 +745,11 @@ class _FixtureVocab:
         rewriter = _HelperCallRewriter(self)
         body = [rewriter.visit(stmt) for stmt in fn.body]
         body, needs_re = rewrite_block(body)
-        _check_self_usage(body)
+        ns_attrs, call_attrs = _scan_self_usage(body)
+        if call_attrs:
+            raise Unsupported(f"uses-self.{sorted(call_attrs)[0]}")
+        if ns_attrs:
+            self.needs_ns = True
         try:
             siblings = {f.name for f in self.lifted} | {
                 f.name for f in self._ok.values()
@@ -796,12 +841,14 @@ def _apply_fixture_vocab(
     rewriter = _HelperCallRewriter(session)
     stmts = [rewriter.visit(s) for s in prefix + list(body)]
     rewritten, needs_re = rewrite_block(stmts)
-    _check_self_usage(rewritten)
+    ns_attrs, call_attrs = _scan_self_usage(rewritten)
+    if call_attrs:
+        raise Unsupported(f"uses-self.{sorted(call_attrs)[0]}")
     extra_prelude = [
         *session.lifted,
         *_helper_class_deps(session.lifted, mod_classes),
     ]
-    return rewritten, extra_prelude, needs_re or session.needs_re
+    return rewritten, extra_prelude, bool(ns_attrs) or session.needs_ns, needs_re or session.needs_re
 
 
 # ---------------------------------------------------------------------------
@@ -910,15 +957,18 @@ def extract_tests(tree: ast.Module, source: str) -> Extraction:
     for cls_name, ident, body_stmts in candidates:
         try:
             extra_prelude: list[ast.stmt] = []
+            needs_ns = False
             if cls_name is not None:
-                rewritten, extra_prelude, needs_re = _apply_fixture_vocab(
+                rewritten, extra_prelude, needs_ns, needs_re = _apply_fixture_vocab(
                     body_stmts, cls_name, cmap, mod_classes, vocab_available
                 )
             else:
                 rewritten, needs_re = rewrite_block(body_stmts)
-            # After rewriting, any surviving self.* attribute is an unsupported
-            # construct (fixture access, custom helper, skip machinery).
-            _check_self_usage(rewritten)
+                # Module-level test functions have no self binding; keep the
+                # strict sweep there (any self.* reference is unsupported).
+                _check_self_usage(rewritten)
+            if needs_ns:
+                rewritten = _namespace_prelude() + rewritten
             pool = prelude + extra_prelude
             pool_names = prelude_names | {
                 binding

@@ -91,6 +91,12 @@ test "TestPEP380Operation.test_conversion_of_sendNone_to_next" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TestPEP380Operation.test_delegation_of_close_to_non_generator" {
+    (ok, detail) = p2_libtest_run_snippet("from test.support import captured_stderr, disable_gc, gc_collect\n\ndef _t():\n    \"\"\"\n        Test delegation of close() to non-generator\n        \"\"\"\n    trace = []\n\n    def g():\n        try:\n            trace.append('starting g')\n            yield from range(3)\n            trace.append('g should not be here')\n        finally:\n            trace.append('finishing g')\n    gi = g()\n    next(gi)\n    with captured_stderr() as output:\n        gi.close()\n    assert output.getvalue() == '', ('assertEqual', output.getvalue(), '')\n    assert trace == ['starting g', 'finishing g'], ('assertEqual', trace, ['starting g', 'finishing g'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestPEP380Operation.test_delegating_throw_to_non_generator" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    \"\"\"\n        Test delegating 'throw' to non-generator\n        \"\"\"\n    trace = []\n\n    def g():\n        try:\n            trace.append('Starting g')\n            yield from range(10)\n        finally:\n            trace.append('Finishing g')\n    try:\n        gi = g()\n        for i in range(5):\n            x = next(gi)\n            trace.append('Yielded %s' % (x,))\n        e = ValueError('tomato ejected')\n        gi.throw(e)\n    except ValueError as e:\n        assert e.args[0] == 'tomato ejected', ('assertEqual', e.args[0], 'tomato ejected')\n    else:\n        raise AssertionError('subgenerator failed to raise ValueError')\n    assert trace == ['Starting g', 'Yielded 0', 'Yielded 1', 'Yielded 2', 'Yielded 3', 'Yielded 4', 'Finishing g'], ('assertEqual', trace, ['Starting g', 'Yielded 0', 'Yielded 1', 'Yielded 2', 'Yielded 3', 'Yielded 4', 'Finishing g'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -183,6 +189,12 @@ test "TestPEP380Operation.test_delegator_is_visible_to_debugger" {
 
 test "TestPEP380Operation.test_custom_iterator_return" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class MyIter:\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            raise StopIteration(42)\n\n    def gen():\n        nonlocal ret\n        ret = (yield from MyIter())\n    ret = None\n    list(gen())\n    assert ret == 42, ('assertEqual', ret, 42)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestPEP380Operation.test_close_with_cleared_frame" {
+    (ok, detail) = p2_libtest_run_snippet("from test.support import captured_stderr, disable_gc, gc_collect\n\ndef _t():\n\n    def innermost():\n        yield\n\n    def inner():\n        outer_gen = (yield)\n        yield from innermost()\n\n    def outer():\n        inner_gen = (yield)\n        yield from inner_gen\n    with disable_gc():\n        inner_gen = inner()\n        outer_gen = outer()\n        outer_gen.send(None)\n        outer_gen.send(inner_gen)\n        outer_gen.send(outer_gen)\n        del outer_gen\n        del inner_gen\n        gc_collect()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

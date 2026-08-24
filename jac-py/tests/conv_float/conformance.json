@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/laneb-out/test_float/conv_float_pins.jac"
+    "jac-py/tests/conv_float/conv_float_pins.jac"
   ],
-  "generated_at": "2026-08-24T11:07:46",
+  "generated_at": "2026-08-24T14:32:49",
   "hashes": {
-    "pins_jac": "b850f331fe74d79d67374541017e6f0c5e4cdf0ed4c560f0033a96c0e1382838",
-    "conversion_json": "a851da0aa518c2bb834bffb412c0a3334817890f6a82c49ec18416a04dd595c9",
+    "pins_jac": "6ca0420e2907cb548f4caed1e308704f64fe1e2d59ac55fb4ae6b81498003e0a",
+    "conversion_json": "9f6e93fca180aaf6632ed34e969be581d19391745fc1bd029739168493f5684c",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "float",
   "counts": {
     "converted": 54,
-    "runnable": 22,
-    "green": 18,
-    "quarantined": 32
+    "runnable": 24,
+    "green": 19,
+    "quarantined": 30
   },
   "pins": [
     {
@@ -32,7 +32,7 @@
       "id": "GeneralFloatCases.test_underscores",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.numbers'\">"
+      "detail": "GOT<'ORACLE_EXC TypeError \"argument of type \\'bool\\' is not a container or iterable\"'>"
     },
     {
       "id": "GeneralFloatCases.test_float_memoryview",
@@ -40,6 +40,10 @@
     },
     {
       "id": "GeneralFloatCases.test_keyword_args",
+      "status": "pass"
+    },
+    {
+      "id": "GeneralFloatCases.test_keywords_in_subclass",
       "status": "pass"
     },
     {
@@ -74,7 +78,7 @@
       "id": "GeneralFloatCases.test_hash_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 8779949750919, 8779949717921)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 8748298040793, 8748298116451)\"'>"
     },
     {
       "id": "GeneralFloatCases.test_issue_gh143006",
@@ -119,6 +123,12 @@
     {
       "id": "HexFloatTestCase.test_invalid_inputs",
       "status": "pass"
+    },
+    {
+      "id": "HexFloatTestCase.test_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIs\\', <class \\'float\\'>, <class \\'__main__.F\\'>)\"'>"
     },
     {
       "id": "GeneralFloatCases.test_float_with_comma",
@@ -236,11 +246,6 @@
       "reason": "uses-self.assertWarns"
     },
     {
-      "id": "GeneralFloatCases.test_keywords_in_subclass",
-      "status": "quarantined",
-      "reason": "uses-self.newarg"
-    },
-    {
       "id": "GeneralFloatCases.test_from_number",
       "status": "quarantined",
       "reason": "unresolved-name:FloatLike"
@@ -258,27 +263,22 @@
     {
       "id": "HexFloatTestCase.test_ends",
       "status": "quarantined",
-      "reason": "self.identical"
+      "reason": "helper:identical(self.assertFloatsAreIdentical)"
     },
     {
       "id": "HexFloatTestCase.test_whitespace",
       "status": "quarantined",
-      "reason": "self.identical"
+      "reason": "helper:identical(self.assertFloatsAreIdentical)"
     },
     {
       "id": "HexFloatTestCase.test_from_hex",
       "status": "quarantined",
-      "reason": "self.identical"
+      "reason": "helper:identical(self.assertFloatsAreIdentical)"
     },
     {
       "id": "HexFloatTestCase.test_roundtrip",
       "status": "quarantined",
-      "reason": "self.identical"
-    },
-    {
-      "id": "HexFloatTestCase.test_subclass",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
+      "reason": "helper:identical(self.assertFloatsAreIdentical)"
     }
   ]
 }

@@ -1,8 +1,8 @@
 # Triage report: `conv_codecs_pins.jac`
 
-- source: reference/cpython/Lib/test/test_codecs.py
-- guest leg: 0/89 marks
-- pins: **57 passed** / 89 run (+118 quarantined of 207 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_codecs.py
+- guest leg: 0/90 marks
+- pins: **57 passed** / 90 run (+117 quarantined of 207 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -42,7 +42,7 @@
 | CodecsModuleTest.test_decode | PASS | |
 | CodecsModuleTest.test_encode | PASS | |
 | CodecsModuleTest.test_register | PASS | |
-| CodecsModuleTest.test_unregister | GUEST-WRONG-OUTPUT | RUN<'SystemError: unsupported opcode 36'> |
+| CodecsModuleTest.test_unregister | GUEST-WRONG-OUTPUT | RUN<'AttributeError: **repr**'> |
 | CodecsModuleTest.test_lookup | PASS | |
 | CodecsModuleTest.test_getencoder | PASS | |
 | CodecsModuleTest.test_getdecoder | PASS | |
@@ -50,14 +50,15 @@
 | CodecsModuleTest.test_getwriter | PASS | |
 | CodecsModuleTest.test_all | PASS | |
 | CodecsModuleTest.test_undefined | PASS | |
-| CodecsModuleTest.test_file_closes_if_lookup_error_raised | GUEST-WRONG-OUTPUT | RUN<'SystemError: unsupported opcode 36'> |
-| CodecsModuleTest.test_copy | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| CodecsModuleTest.test_deepcopy | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
+| CodecsModuleTest.test_file_closes_if_lookup_error_raised | GUEST-WRONG-OUTPUT | RUN<'AttributeError: **repr**'> |
+| CodecsModuleTest.test_copy | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', None, \'utf-8\')"'> |
+| CodecsModuleTest.test_deepcopy | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', None, \'utf-8\')"'> |
 | EncodedFileTest.test_basic | PASS | |
 | BasicUnicodeTest.test_seek | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC LookupError 'unknown encoding: big5'"> |
 | BasicUnicodeTest.test_bad_decode_args | PASS | |
 | BasicUnicodeTest.test_bad_encode_args | PASS | |
 | BasicUnicodeTest.test_encoding_map_type_initialized | PASS | |
+| BasicUnicodeTest.test_decoder_state | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'\', 0), (b\'\', 0))"'> |
 | CharmapTest.test_decode_with_string_map | PASS | |
 | CharmapTest.test_decode_with_int2int_map | PASS | |
 | WithStmtTest.test_encodedfile | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'StreamRecoder.**enter**() takes 1 positional argument but 2 were given'"> |
@@ -87,7 +88,7 @@
 | StreamRecoderTest.test_write | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'utf_8'"> |
 | StreamRecoderTest.test_seeking_read | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'"> |
 | StreamRecoderTest.test_seeking_write | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'"> |
-| StreamRecoderTest.test_copy | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
+| StreamRecoderTest.test_copy | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'ascii'"> |
 | Rot13Test.test_encode | PASS | |
 | Rot13Test.test_decode | PASS | |
 | Rot13Test.test_incremental_encode | PASS | |
@@ -124,65 +125,32 @@
 | LocaleCodecTest.test_decode_surrogateescape | decorator:unittest.skipIf |
 | LocaleCodecTest.test_decode_surrogatepass | decorator:unittest.skipIf |
 | LocaleCodecTest.test_decode_unsupported_error_handler | decorator:unittest.skipIf |
-| ReadTest.test_readline | uses-self.encoding |
-| ReadTest.test_mixed_readline_and_read | uses-self.encoding |
-| ReadTest.test_bug1175396 | uses-self.encoding |
-| ReadTest.test_readlinequeue | uses-self.encoding |
-| ReadTest.test_bug1098990_a | uses-self.encoding |
-| ReadTest.test_bug1098990_b | uses-self.encoding |
-| ReadTest.test_lone_surrogates | uses-self.encoding |
-| ReadTest.test_incremental_surrogatepass | uses-self.encoding |
-| UTF32Test.test_only_one_bom | uses-self.encoding |
-| UTF32Test.test_badbom | uses-self.encoding |
-| UTF32Test.test_partial | self.check_partial |
-| UTF32Test.test_decoder_state | self.check_state_handling_decode |
-| UTF32LETest.test_partial | self.check_partial |
-| UTF32LETest.test_simple | uses-self.encoding |
-| UTF32BETest.test_partial | self.check_partial |
-| UTF32BETest.test_simple | uses-self.encoding |
-| UTF16Test.test_only_one_bom | uses-self.encoding |
-| UTF16Test.test_badbom | uses-self.encoding |
-| UTF16Test.test_partial | self.check_partial |
-| UTF16Test.test_decoder_state | self.check_state_handling_decode |
+| ReadTest.test_readlinequeue | unresolved-name:Queue |
 | UTF16Test.test_bug691291 | self.addCleanup |
-| UTF16Test.test_invalid_modes | uses-self.encoding |
-| UTF16LETest.test_partial | self.check_partial |
-| UTF16LETest.test_nonbmp | uses-self.encoding |
-| UTF16BETest.test_partial | self.check_partial |
-| UTF16BETest.test_nonbmp | uses-self.encoding |
-| UTF8Test.test_partial | self.check_partial |
-| UTF8Test.test_decoder_state | self.check_state_handling_decode |
+| UTF16Test.test_invalid_modes | unresolved-name:cm |
 | UTF8Test.test_decode_error | uses-self.subTest |
-| UTF8Test.test_lone_surrogates | uses-self.encoding |
-| UTF8Test.test_surrogatepass_handler | uses-self.encoding |
+| UTF8Test.test_lone_surrogates | unresolved-name:cm |
 | UTF8Test.test_incremental_errors | uses-self.subTest |
-| UTF7Test.test_ascii | uses-self.encoding |
-| UTF7Test.test_partial | self.check_partial |
 | UTF7Test.test_errors | uses-self.subTest |
-| UTF7Test.test_nonbmp | uses-self.encoding |
 | UTF7Test.test_lone_surrogates | uses-self.subTest |
-| UTF8SigTest.test_partial | self.check_partial |
-| EscapeDecodeTest.test_warnings | uses-self.assertWarnsRegex |
+| EscapeDecodeTest.test_warnings | uses-self.assertWarns |
 | PunycodeTest.test_decode_invalid | uses-self.subTest |
-| IDNACodecTest.test_builtin_decode_invalid | uses-self.invalid_decode_testcases |
-| IDNACodecTest.test_builtin_encode_invalid | uses-self.invalid_encode_testcases |
-| IDNACodecTest.test_incremental_decode_invalid | uses-self.invalid_decode_testcases |
+| IDNACodecTest.test_builtin_decode_invalid | uses-self.subTest |
+| IDNACodecTest.test_builtin_encode_invalid | uses-self.subTest |
+| IDNACodecTest.test_incremental_decode_invalid | uses-self.subTest |
 | IDNACodecTest.test_incremental_encode_invalid | uses-self.subTest |
 | CodecsModuleTest.test_open | self.addCleanup |
 | CodecsModuleTest.test_pickle | uses-self.subTest |
 | StreamReaderTest.test_readlines | uses-self.reader |
 | StreamReaderTest.test_copy | uses-self.reader |
-| StreamReaderTest.test_pickle | uses-self.subTest |
+| StreamReaderTest.test_pickle | uses-self.reader |
 | StreamWriterTest.test_copy | uses-self.writer |
 | StreamWriterTest.test_pickle | uses-self.subTest |
-| StreamReaderWriterTest.test_copy | uses-self.reader |
+| StreamReaderWriterTest.test_copy | unresolved-name:Queue |
 | StreamReaderWriterTest.test_pickle | uses-self.subTest |
 | BasicUnicodeTest.test_basics | unresolved-name:Queue |
-| BasicUnicodeTest.test_decoder_state | self.check_state_handling_decode |
 | CharmapTest.test_decode_with_int2str_map | assertRaisesRegex call form |
-| UnicodeEscapeTest.test_decode_warnings | uses-self.assertWarnsRegex |
-| UnicodeEscapeTest.test_partial | self.check_partial |
-| RawUnicodeEscapeTest.test_partial | self.check_partial |
+| UnicodeEscapeTest.test_decode_warnings | uses-self.assertWarns |
 | EscapeEncodeTest.test_escape_encode | uses-self.subTest |
 | BomTest.test_seek0 | self.addCleanup |
 | TransformCodecTest.test_basics | uses-self.subTest |
@@ -194,17 +162,17 @@
 | TransformCodecTest.test_binary_to_text_denylists_text_transforms | uses-self.subTest |
 | TransformCodecTest.test_custom_hex_error_is_noted | unresolved-name:failure |
 | TransformCodecTest.test_aliases | uses-self.subTest |
-| ExceptionNotesTest.test_raise_by_type | self.check_note |
-| ExceptionNotesTest.test_raise_by_value | self.check_note |
-| ExceptionNotesTest.test_raise_grandchild_subclass_exact_size | self.check_note |
-| ExceptionNotesTest.test_raise_subclass_with_weakref_support | self.check_note |
-| ExceptionNotesTest.test_init_override | self.check_note |
-| ExceptionNotesTest.test_new_override | self.check_note |
-| ExceptionNotesTest.test_instance_attribute | self.check_note |
-| ExceptionNotesTest.test_non_str_arg | self.check_note |
-| ExceptionNotesTest.test_multiple_args | self.check_note |
-| ExceptionNotesTest.test_codec_lookup_failure | uses-self.codec_name |
-| ExceptionNotesTest.test_unflagged_non_text_codec_handling | self.set_codec |
+| ExceptionNotesTest.test_raise_by_type | helper:setUp(self.addCleanup) |
+| ExceptionNotesTest.test_raise_by_value | helper:setUp(self.addCleanup) |
+| ExceptionNotesTest.test_raise_grandchild_subclass_exact_size | helper:setUp(self.addCleanup) |
+| ExceptionNotesTest.test_raise_subclass_with_weakref_support | helper:setUp(self.addCleanup) |
+| ExceptionNotesTest.test_init_override | helper:setUp(self.addCleanup) |
+| ExceptionNotesTest.test_new_override | helper:setUp(self.addCleanup) |
+| ExceptionNotesTest.test_instance_attribute | helper:setUp(self.addCleanup) |
+| ExceptionNotesTest.test_non_str_arg | helper:setUp(self.addCleanup) |
+| ExceptionNotesTest.test_multiple_args | helper:setUp(self.addCleanup) |
+| ExceptionNotesTest.test_codec_lookup_failure | helper:setUp(self.addCleanup) |
+| ExceptionNotesTest.test_unflagged_non_text_codec_handling | helper:setUp(self.addCleanup) |
 | ASCIITest.test_encode_error | uses-self.subTest |
 | ASCIITest.test_decode_error | uses-self.subTest |
 | Latin1Test.test_encode | uses-self.subTest |
@@ -212,11 +180,43 @@
 | Latin1Test.test_decode | uses-self.subTest |
 | StreamRecoderTest.test_pickle | uses-self.subTest |
 | CodecNameNormalizationTest.test_codecs_lookup | self.addCleanup |
+| ReadTest.test_readline | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| ReadTest.test_mixed_readline_and_read | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| ReadTest.test_bug1175396 | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| ReadTest.test_bug1098990_a | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| ReadTest.test_bug1098990_b | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| ReadTest.test_lone_surrogates | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| ReadTest.test_incremental_surrogatepass | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF32Test.test_only_one_bom | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF32Test.test_badbom | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF32Test.test_partial | host-raised:NameError: name 'self' is not defined |
+| UTF32Test.test_decoder_state | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF32LETest.test_partial | host-raised:NameError: name 'self' is not defined |
+| UTF32LETest.test_simple | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF32BETest.test_partial | host-raised:NameError: name 'self' is not defined |
+| UTF32BETest.test_simple | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF16Test.test_only_one_bom | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF16Test.test_badbom | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF16Test.test_partial | host-raised:NameError: name 'self' is not defined |
+| UTF16Test.test_decoder_state | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF16LETest.test_partial | host-raised:NameError: name 'self' is not defined |
+| UTF16LETest.test_nonbmp | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF16BETest.test_partial | host-raised:NameError: name 'self' is not defined |
+| UTF16BETest.test_nonbmp | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF8Test.test_partial | host-raised:NameError: name 'self' is not defined |
+| UTF8Test.test_decoder_state | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF8Test.test_surrogatepass_handler | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF7Test.test_ascii | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF7Test.test_partial | host-raised:NameError: name 'self' is not defined |
+| UTF7Test.test_nonbmp | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF8SigTest.test_partial | host-raised:NameError: name 'self' is not defined |
 | EscapeDecodeTest.test_escape | host-raised:NameError: name 'self' is not defined |
 | UnicodeEscapeTest.test_escape_encode | host-raised:NameError: name 'self' is not defined |
 | UnicodeEscapeTest.test_escape_decode | host-raised:NameError: name 'self' is not defined |
+| UnicodeEscapeTest.test_partial | host-raised:NameError: name 'self' is not defined |
 | RawUnicodeEscapeTest.test_escape_encode | host-raised:NameError: name 'self' is not defined |
 | RawUnicodeEscapeTest.test_escape_decode | host-raised:NameError: name 'self' is not defined |
+| RawUnicodeEscapeTest.test_partial | host-raised:NameError: name 'self' is not defined |
 | TransformCodecTest.test_alias_modules_exist | host-raised:AttributeError: module 'importlib' has no attribute 'util' |
 
 ## Expected vs got
@@ -226,6 +226,11 @@
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC LookupError "unknown error handler name \'surrogateescape\'"'>
 
+### BasicUnicodeTest.test_decoder_state (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'\', 0), (b\'\', 0))"'>
+
 ### BasicUnicodeTest.test_seek (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
@@ -234,22 +239,22 @@
 ### CodecsModuleTest.test_copy (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', None, \'utf-8\')"'>
 
 ### CodecsModuleTest.test_deepcopy (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', None, \'utf-8\')"'>
 
 ### CodecsModuleTest.test_file_closes_if_lookup_error_raised (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<'SystemError: unsupported opcode 36'>
+- got: RUN<'AttributeError: **repr**'>
 
 ### CodecsModuleTest.test_unregister (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<'SystemError: unsupported opcode 36'>
+- got: RUN<'AttributeError: **repr**'>
 
 ### EscapeDecodeTest.test_empty (GUEST-WRONG-OUTPUT)
 
@@ -309,7 +314,7 @@
 ### StreamRecoderTest.test_copy (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC AttributeError 'ascii'">
 
 ### StreamRecoderTest.test_seeking_read (GUEST-WRONG-OUTPUT)
 

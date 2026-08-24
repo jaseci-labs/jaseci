@@ -1,274 +1,394 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "17027b0a53a9513da7086b107e795f2ddc032cfd",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
     "jac-py/tests/conv_copy/conv_copy_pins.jac"
   ],
-  "generated_at": "2026-08-23T23:58:57",
+  "generated_at": "2026-08-24T14:31:00",
   "hashes": {
-    "pins_jac": "67b46a71054c4b420527a56c60ea0839cdb5e7375806e65def7594af02355b7d",
-    "conversion_json": "29b865c1f4ef15de718a8703537745d0fd34825ed480b09f7a8dbc4255e5165d",
+    "pins_jac": "61a7d67ceac0c81957aa848350ff839846edb19ba411d0429ae5507742a70a39",
+    "conversion_json": "fe182eb7caf74186af2209db3dfb2302329a5e8f9ae56d5742dcf4ceb7195d6a",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "copy",
   "counts": {
     "converted": 81,
-    "runnable": 41,
-    "green": 0,
-    "quarantined": 40
+    "runnable": 72,
+    "green": 33,
+    "quarantined": 9
   },
   "pins": [
     {
       "id": "TestCopy.test_copy_basic",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
+    },
+    {
+      "id": "TestCopy.test_copy_copy",
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_copy_registry",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
     },
     {
       "id": "TestCopy.test_copy_reduce",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_copy_cant",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_copy_atomic",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
     },
     {
       "id": "TestCopy.test_copy_list",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_copy_tuple",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_copy_dict",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_copy_set",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_copy_frozenset",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_copy_bytearray",
+      "status": "pass"
+    },
+    {
+      "id": "TestCopy.test_copy_inst_vanilla",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_copy_inst_copy",
+      "status": "pass"
+    },
+    {
+      "id": "TestCopy.test_copy_inst_getinitargs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_copy_inst_getnewargs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', 0, <class \\'__main__.C\\'>)\"'>"
+    },
+    {
+      "id": "TestCopy.test_copy_inst_getnewargs_ex",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', 0, <class \\'__main__.C\\'>)\"'>"
+    },
+    {
+      "id": "TestCopy.test_copy_inst_getstate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_copy_inst_setstate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_copy_inst_getstate_setstate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
     },
     {
       "id": "TestCopy.test_deepcopy_basic",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_memo",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_issubclass",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object.__reduce_ex__() takes exactly one argument (0 given)'\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_deepcopy",
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_registry",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
     },
     {
       "id": "TestCopy.test_deepcopy_reduce",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_cant",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_atomic",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
     },
     {
       "id": "TestCopy.test_deepcopy_list",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_empty_tuple",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_tuple",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_tuple_of_immutables",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIs\\', ((1, 2), 3), ((1, 2), 3))\"'>"
     },
     {
       "id": "TestCopy.test_deepcopy_dict",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_keepalive",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_dont_memo_immutable",
+      "status": "pass"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_inst_vanilla",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_inst_deepcopy",
+      "status": "pass"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_inst_getinitargs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_inst_getnewargs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', 0, <class \\'__main__.C\\'>)\"'>"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_inst_getnewargs_ex",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', 0, <class \\'__main__.C\\'>)\"'>"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_inst_getstate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_inst_setstate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_inst_getstate_setstate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
     },
     {
       "id": "TestCopy.test_deepcopy_reflexive_inst",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
     },
     {
       "id": "TestCopy.test_reconstruct_string",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_reconstruct_nostate",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
+    },
+    {
+      "id": "TestCopy.test_reconstruct_state",
+      "status": "pass"
+    },
+    {
+      "id": "TestCopy.test_reconstruct_state_setstate",
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_reconstruct_reflexive",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_reduce_4tuple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'list\\' object has no attribute \\'__dict__\\'\"'>"
+    },
+    {
+      "id": "TestCopy.test_reduce_6tuple",
+      "status": "pass"
+    },
+    {
+      "id": "TestCopy.test_reduce_6tuple_none",
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_copy_slots",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
     },
     {
       "id": "TestCopy.test_deepcopy_slots",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_dict_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'dict\\' object has no attribute \\'_keys\\'\"'>"
     },
     {
       "id": "TestCopy.test_copy_list_subclass",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'list\\' object has no attribute \\'foo\\'\"'>"
     },
     {
       "id": "TestCopy.test_deepcopy_list_subclass",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'list\\' object has no attribute \\'foo\\'\"'>"
     },
     {
       "id": "TestCopy.test_copy_tuple_subclass",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_tuple_subclass",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_getstate_exc",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
     },
     {
       "id": "TestCopy.test_copy_function",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "status": "pass"
     },
     {
       "id": "TestCopy.test_deepcopy_function",
+      "status": "pass"
+    },
+    {
+      "id": "TestCopy.test_copy_weakref",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_weakref",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
+    },
+    {
+      "id": "TestCopy.test_copy_weakkeydict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'WeakKeyDictionary'\">"
+    },
+    {
+      "id": "TestCopy.test_copy_weakvaluedict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'WeakValueDictionary'\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_weakkeydict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'WeakKeyDictionary'\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_weakvaluedict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'WeakValueDictionary'\">"
     },
     {
       "id": "TestCopy.test_deepcopy_bound_method",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
     },
     {
       "id": "TestReplace.test_unsupported",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__class__'\">"
+    },
+    {
+      "id": "TestReplace.test_replace_method",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'A\\' object has no attribute \\'x\\'\"'>"
     },
     {
       "id": "TestReplace.test_dataclass",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
     },
     {
       "id": "MiscTestCase.test__all__",
@@ -296,59 +416,9 @@
       "reason": "self.assertIsSubclass"
     },
     {
-      "id": "TestCopy.test_copy_copy",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
       "id": "TestCopy.test_copy_reduce_ex",
       "status": "quarantined",
       "reason": "uses-self.fail"
-    },
-    {
-      "id": "TestCopy.test_copy_inst_vanilla",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_copy_inst_copy",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_copy_inst_getinitargs",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_copy_inst_getnewargs",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_copy_inst_getnewargs_ex",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_copy_inst_getstate",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_copy_inst_setstate",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_copy_inst_getstate_setstate",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_deepcopy",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
     },
     {
       "id": "TestCopy.test_deepcopy_reduce_ex",
@@ -356,114 +426,9 @@
       "reason": "uses-self.fail"
     },
     {
-      "id": "TestCopy.test_deepcopy_inst_vanilla",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_inst_deepcopy",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_inst_getinitargs",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_inst_getnewargs",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_inst_getnewargs_ex",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_inst_getstate",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_inst_setstate",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_inst_getstate_setstate",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "TestCopy.test_reconstruct_state",
-      "status": "quarantined",
-      "reason": "uses-self.__dict__"
-    },
-    {
-      "id": "TestCopy.test_reconstruct_state_setstate",
-      "status": "quarantined",
-      "reason": "uses-self.__dict__"
-    },
-    {
-      "id": "TestCopy.test_reduce_4tuple",
-      "status": "quarantined",
-      "reason": "uses-self.__dict__"
-    },
-    {
       "id": "TestCopy.test_reduce_5tuple",
       "status": "quarantined",
-      "reason": "uses-self.__dict__"
-    },
-    {
-      "id": "TestCopy.test_reduce_6tuple",
-      "status": "quarantined",
-      "reason": "uses-self.__dict__"
-    },
-    {
-      "id": "TestCopy.test_reduce_6tuple_none",
-      "status": "quarantined",
-      "reason": "uses-self.__dict__"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_dict_subclass",
-      "status": "quarantined",
-      "reason": "uses-self._keys"
-    },
-    {
-      "id": "TestCopy.test_copy_weakref",
-      "status": "quarantined",
-      "reason": "self._check_weakref"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_weakref",
-      "status": "quarantined",
-      "reason": "self._check_weakref"
-    },
-    {
-      "id": "TestCopy.test_copy_weakkeydict",
-      "status": "quarantined",
-      "reason": "self._check_copy_weakdict"
-    },
-    {
-      "id": "TestCopy.test_copy_weakvaluedict",
-      "status": "quarantined",
-      "reason": "self._check_copy_weakdict"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_weakkeydict",
-      "status": "quarantined",
-      "reason": "uses-self.i"
-    },
-    {
-      "id": "TestCopy.test_deepcopy_weakvaluedict",
-      "status": "quarantined",
-      "reason": "uses-self.i"
-    },
-    {
-      "id": "TestReplace.test_replace_method",
-      "status": "quarantined",
-      "reason": "uses-self.x"
+      "reason": "uses-self.items"
     },
     {
       "id": "TestReplace.test_namedtuple",

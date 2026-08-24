@@ -1,8 +1,8 @@
 # Triage report: `conv_yield_from_pins.jac`
 
-- source: reference/cpython/Lib/test/test_yield_from.py
-- guest leg: 0/32 marks
-- pins: **23 passed** / 32 run (+11 quarantined of 43 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_yield_from.py
+- guest leg: 0/34 marks
+- pins: **26 passed** / 34 run (+9 quarantined of 43 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -20,13 +20,14 @@
 | TestPEP380Operation.test_generator_return_value | PASS | |
 | TestPEP380Operation.test_delegation_of_next_to_non_generator | PASS | |
 | TestPEP380Operation.test_conversion_of_sendNone_to_next | PASS | |
+| TestPEP380Operation.test_delegation_of_close_to_non_generator | GUEST-WRONG-OUTPUT | RUN<"ImportError: cannot import name 'captured_stderr' from '<unknown>'"> |
 | TestPEP380Operation.test_delegating_throw_to_non_generator | PASS | |
 | TestPEP380Operation.test_attempting_to_send_to_non_generator | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC IndexError 'tuple index out of range'"> |
 | TestPEP380Operation.test_exception_in_initial_next_call | PASS | |
 | TestPEP380Operation.test_attempted_yield_from_loop | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC IndexError 'tuple index out of range'"> |
 | TestPEP380Operation.test_returning_value_from_delegated_throw | PASS | |
-| TestPEP380Operation.test_next_and_return_with_value | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', [\'g starting\', \'f resuming g\', \'g returning None\', \'f caught StopIteration()\', \'g starting\', \'f resuming g\', \'g returning 1\', \'f caught StopIteration()\', \'g starting\', \'f resuming g\', \'g returning (2,)\', \'f caught StopIteration()\', \'g starting\', \'f resuming g\', \'g returning StopIteration(3)\', \'f caught StopIteration()\'], [\'g starting\', \'f resuming g\', \'g returning None\', \'f caught StopIteration()\', \'g starting\', \'f resuming g\', \'g returning 1\', \'f caught StopIteration(1)\', \'g starting\', \'f resuming g\', \'g returning (2,)\', \'f caught StopIteration((2,))\', \'g starting\', \'f resuming g\', \'g returning StopIteration(3)\', \'f caught StopIteration(StopIteration(3))\'])"'> |
-| TestPEP380Operation.test_send_and_return_with_value | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError \'(\\\'assertEqual\\\', [\\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning None\\\', \\\'f caught StopIteration()\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning 1\\\', \\\'f caught StopIteration()\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning (2,)\\\', \\\'f caught StopIteration()\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning StopIteration(3)\\\', \\\'f caught StopIteration()\\\'], [\\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning None\\\', \\\'f caught StopIteration()\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning 1\\\', \\\'f caught StopIteration(1)\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning (2,)\\\', \\\'f caught StopIteration((2,))\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning StopIteration(3)\\\', \\\'f caught StopIteration(StopIteration(3))\\\'])\''> |
+| TestPEP380Operation.test_next_and_return_with_value | PASS | |
+| TestPEP380Operation.test_send_and_return_with_value | PASS | |
 | TestPEP380Operation.test_catching_exception_from_subgen_and_returning | PASS | |
 | TestPEP380Operation.test_throwing_GeneratorExit_into_subgen_that_returns | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC StopIteration ''"> |
 | TestPEP380Operation.test_throwing_GeneratorExit_into_subgenerator_that_yields | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'subgenerator failed to raise GeneratorExit'"> |
@@ -34,8 +35,9 @@
 | TestPEP380Operation.test_yield_from_empty | PASS | |
 | TestPEP380Operation.test_delegating_generators_claim_to_be_running | PASS | |
 | TestPEP380Operation.test_delegating_generators_claim_to_be_running_with_throw | PASS | |
-| TestPEP380Operation.test_delegator_is_visible_to_debugger | GUEST-WRONG-OUTPUT | RUN<"TypeError: bridge-table: type 'native_builtin' has policy BridgePolicy.TRAMPOLINE but no to_host conversion arm"> |
-| TestPEP380Operation.test_custom_iterator_return | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', None, 42)"'> |
+| TestPEP380Operation.test_delegator_is_visible_to_debugger | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| TestPEP380Operation.test_custom_iterator_return | PASS | |
+| TestPEP380Operation.test_close_with_cleared_frame | GUEST-WRONG-OUTPUT | RUN<"ImportError: cannot import name 'captured_stderr' from '<unknown>'"> |
 | TestPEP380Operation.test_send_tuple_with_custom_generator | PASS | |
 | TestInterestingEdgeCases.test_throws_in_iter | PASS | |
 
@@ -44,16 +46,14 @@
 | test | reason |
 |---|---|
 | TestPEP380Operation.test_broken_getattr_handling | uses-self.assertEqual |
-| TestPEP380Operation.test_delegating_generators_claim_to_be_running_with_close | uses-self.assertTrue |
-| TestInterestingEdgeCases.test_close_and_throw_work | self.assert_stop_iteration |
-| TestInterestingEdgeCases.test_close_and_throw_raise_generator_exit | self.assert_stop_iteration |
-| TestInterestingEdgeCases.test_close_and_throw_raise_stop_iteration | self.assert_stop_iteration |
-| TestInterestingEdgeCases.test_close_and_throw_raise_base_exception | self.assert_stop_iteration |
-| TestInterestingEdgeCases.test_close_and_throw_raise_exception | self.assert_stop_iteration |
-| TestInterestingEdgeCases.test_close_and_throw_yield | self.assert_stop_iteration |
-| TestInterestingEdgeCases.test_close_and_throw_return | self.assert_stop_iteration |
-| TestPEP380Operation.test_delegation_of_close_to_non_generator | harness-error:ModuleNotFoundError: No module named 'test' |
-| TestPEP380Operation.test_close_with_cleared_frame | harness-error:ModuleNotFoundError: No module named 'test' |
+| TestPEP380Operation.test_delegating_generators_claim_to_be_running_with_close | uses-self.assertRaises |
+| TestInterestingEdgeCases.test_close_and_throw_work | helper:assert_stop_iteration(unresolved-name:caught) |
+| TestInterestingEdgeCases.test_close_and_throw_raise_generator_exit | helper:assert_stop_iteration(unresolved-name:caught) |
+| TestInterestingEdgeCases.test_close_and_throw_raise_stop_iteration | helper:assert_generator_raised_stop_iteration(uses-self.assertRaisesRegex) |
+| TestInterestingEdgeCases.test_close_and_throw_raise_base_exception | helper:assert_stop_iteration(unresolved-name:caught) |
+| TestInterestingEdgeCases.test_close_and_throw_raise_exception | helper:assert_stop_iteration(unresolved-name:caught) |
+| TestInterestingEdgeCases.test_close_and_throw_yield | helper:assert_generator_ignored_generator_exit(uses-self.assertRaisesRegex) |
+| TestInterestingEdgeCases.test_close_and_throw_return | helper:assert_stop_iteration(unresolved-name:caught) |
 
 ## Expected vs got
 
@@ -67,25 +67,20 @@
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC IndexError 'tuple index out of range'">
 
-### TestPEP380Operation.test_custom_iterator_return (GUEST-WRONG-OUTPUT)
+### TestPEP380Operation.test_close_with_cleared_frame (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', None, 42)"'>
+- got: RUN<"ImportError: cannot import name 'captured_stderr' from '<unknown>'">
+
+### TestPEP380Operation.test_delegation_of_close_to_non_generator (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"ImportError: cannot import name 'captured_stderr' from '<unknown>'">
 
 ### TestPEP380Operation.test_delegator_is_visible_to_debugger (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: bridge-table: type 'native_builtin' has policy BridgePolicy.TRAMPOLINE but no to_host conversion arm">
-
-### TestPEP380Operation.test_next_and_return_with_value (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', [\'g starting\', \'f resuming g\', \'g returning None\', \'f caught StopIteration()\', \'g starting\', \'f resuming g\', \'g returning 1\', \'f caught StopIteration()\', \'g starting\', \'f resuming g\', \'g returning (2,)\', \'f caught StopIteration()\', \'g starting\', \'f resuming g\', \'g returning StopIteration(3)\', \'f caught StopIteration()\'], [\'g starting\', \'f resuming g\', \'g returning None\', \'f caught StopIteration()\', \'g starting\', \'f resuming g\', \'g returning 1\', \'f caught StopIteration(1)\', \'g starting\', \'f resuming g\', \'g returning (2,)\', \'f caught StopIteration((2,))\', \'g starting\', \'f resuming g\', \'g returning StopIteration(3)\', \'f caught StopIteration(StopIteration(3))\'])"'>
-
-### TestPEP380Operation.test_send_and_return_with_value (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError \'(\\\'assertEqual\\\', [\\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning None\\\', \\\'f caught StopIteration()\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning 1\\\', \\\'f caught StopIteration()\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning (2,)\\\', \\\'f caught StopIteration()\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning StopIteration(3)\\\', \\\'f caught StopIteration()\\\'], [\\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning None\\\', \\\'f caught StopIteration()\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning 1\\\', \\\'f caught StopIteration(1)\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning (2,)\\\', \\\'f caught StopIteration((2,))\\\', \\\'g starting\\\', \\\'f sending spam to g\\\', "g received \\\'spam\\\'", \\\'g returning StopIteration(3)\\\', \\\'f caught StopIteration(StopIteration(3))\\\'])\''>
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
 
 ### TestPEP380Operation.test_throwing_GeneratorExit_into_subgen_that_returns (GUEST-WRONG-OUTPUT)
 

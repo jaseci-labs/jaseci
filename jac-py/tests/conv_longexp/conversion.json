@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_longexp.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_longexp.py",
     "-o",
-    "/var/tmp/wp4-mech/out/conv_longexp",
+    "/var/tmp/lane8/jac-py/tests/conv_longexp",
     "--name",
     "conv_longexp"
   ],
-  "generated_at": "2026-08-24T00:42:57",
+  "generated_at": "2026-08-24T14:33:51",
   "hashes": {
     "pins_jac": "50a476facb389f1787f773fb860a4b90659497e8c77e4bb7035c40abd4637d25"
   },
-  "source_file": "reference/cpython/Lib/test/test_longexp.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_longexp.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "longexp",
   "pins_file": "conv_longexp_pins.jac",

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "7021ff79e4a5341a1ce8942c45111261e345dfc1",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_difflib/conv_difflib_pins.jac"
   ],
-  "generated_at": "2026-08-24T10:09:37",
+  "generated_at": "2026-08-24T14:32:44",
   "hashes": {
-    "pins_jac": "bb315fe00a390882fd3a293913570d430e40c119477eb8d5c32f1b7039897059",
-    "conversion_json": "96dd5a2d5d071932f237598ca613244d9eb9ae138db17bc028103c9dd92129f5",
+    "pins_jac": "fd763939aaf0d9e32a329a826ed15455eadc487c142574c9edd2c4a9958fe7f1",
+    "conversion_json": "0112e2ae1aa8e0e6184d840691788535515231fa7f8d15685cd1a9042a68d760",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "difflib",
   "counts": {
     "converted": 38,
-    "runnable": 30,
+    "runnable": 32,
     "green": 0,
-    "quarantined": 8
+    "quarantined": 6
   },
   "pins": [
     {
@@ -163,6 +163,16 @@
       "detail": "jac run hit 60s cap"
     },
     {
+      "id": "TestBytes.test_byte_content",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check'"
+    },
+    {
+      "id": "TestBytes.test_byte_filenames",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check'"
+    },
+    {
       "id": "TestJunkAPIs.test_is_line_junk_true",
       "status": "fail",
       "classification": "TIMEOUT",
@@ -193,6 +203,18 @@
       "detail": "jac run hit 60s cap"
     },
     {
+      "id": "TestFindLongest.test_default_args",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestFindLongest.test_longest_match_with_popular_chars",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
       "id": "TestCloseMatches.test_invalid_inputs",
       "status": "fail",
       "classification": "TIMEOUT",
@@ -205,44 +227,24 @@
       "detail": "jac run hit 60s cap"
     },
     {
-      "id": "TestBytes.test_byte_content",
-      "status": "quarantined",
-      "reason": "uses-self.check"
-    },
-    {
-      "id": "TestBytes.test_byte_filenames",
-      "status": "quarantined",
-      "reason": "uses-self.check"
-    },
-    {
       "id": "TestInputTypes.test_input_type_checks",
       "status": "quarantined",
-      "reason": "self._assert_type_error"
+      "reason": "helper:_assert_type_error(unresolved-name:ctx)"
     },
     {
       "id": "TestInputTypes.test_mixed_types_content",
       "status": "quarantined",
-      "reason": "self._assert_type_error"
+      "reason": "helper:_assert_type_error(unresolved-name:ctx)"
     },
     {
       "id": "TestInputTypes.test_mixed_types_filenames",
       "status": "quarantined",
-      "reason": "self._assert_type_error"
+      "reason": "helper:_assert_type_error(unresolved-name:ctx)"
     },
     {
       "id": "TestInputTypes.test_mixed_types_dates",
       "status": "quarantined",
-      "reason": "self._assert_type_error"
-    },
-    {
-      "id": "TestFindLongest.test_default_args",
-      "status": "quarantined",
-      "reason": "uses-self.longer_match_exists"
-    },
-    {
-      "id": "TestFindLongest.test_longest_match_with_popular_chars",
-      "status": "quarantined",
-      "reason": "uses-self.longer_match_exists"
+      "reason": "helper:_assert_type_error(unresolved-name:ctx)"
     }
   ]
 }

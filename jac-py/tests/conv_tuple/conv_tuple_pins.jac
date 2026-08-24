@@ -19,6 +19,12 @@ test "TupleTest.test_keyword_args" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TupleTest.test_keywords_in_subclass" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class subclass(tuple):\n        pass\n    u = subclass([1, 2])\n    assert type(u) is subclass, ('assertIs', type(u), subclass)\n    assert list(u) == [1, 2], ('assertEqual', list(u), [1, 2])\n    try:\n        subclass(sequence=())\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    class subclass_with_init(tuple):\n\n        def __init__(self, arg, newarg=None):\n            self.newarg = newarg\n    u = subclass_with_init([1, 2], newarg=3)\n    assert type(u) is subclass_with_init, ('assertIs', type(u), subclass_with_init)\n    assert list(u) == [1, 2], ('assertEqual', list(u), [1, 2])\n    assert u.newarg == 3, ('assertEqual', u.newarg, 3)\n\n    class subclass_with_new(tuple):\n\n        def __new__(cls, arg, newarg=None):\n            self = super().__new__(cls, arg)\n            self.newarg = newarg\n            return self\n    u = subclass_with_new([1, 2], newarg=3)\n    assert type(u) is subclass_with_new, ('assertIs', type(u), subclass_with_new)\n    assert list(u) == [1, 2], ('assertEqual', list(u), [1, 2])\n    assert u.newarg == 3, ('assertEqual', u.newarg, 3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TupleTest.test_tupleresizebug" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    def f():\n        for i in range(1000):\n            yield i\n    assert list(tuple(f())) == list(range(1000)), ('assertEqual', list(tuple(f())), list(range(1000)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

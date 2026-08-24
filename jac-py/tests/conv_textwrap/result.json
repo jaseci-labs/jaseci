@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "7021ff79e4a5341a1ce8942c45111261e345dfc1",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,29 +10,22 @@
     "diff_runner.py",
     "jac-py/tests/conv_textwrap/conv_textwrap_pins.jac"
   ],
-  "generated_at": "2026-08-24T10:02:34",
+  "generated_at": "2026-08-24T14:41:42",
   "hashes": {
-    "pins_jac": "6eab51a8d33063529c618c095bc1725f9cc3951bc1a84ad7c8832d2aeac8fe04",
-    "conversion_json": "762af15d61db1467361e611a460ff33d4e8f97c324cdeb2a31aa77fb577a5ecd",
+    "pins_jac": "b55b53c97c564138b071ec12e8d8ea52de21218850feee27dceb3e4029ac8115",
+    "conversion_json": "4e270008056654248db5fed1133dc350388d7d8699e2f6962f6acfb7ce212207",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "textwrap",
-  "status": "failed",
+  "status": "passed",
   "timed_out": false,
   "counts": {
     "converted": 68,
-    "runnable": 7,
-    "green": 6,
-    "quarantined": 61,
-    "failed": 1,
+    "runnable": 48,
+    "green": 48,
+    "quarantined": 20,
+    "failed": 0,
     "infra_failed": 0
   },
-  "failures": [
-    {
-      "id": "ShortenTestCase.test_width_too_small_for_placeholder",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'native_builtin\\' has policy BridgePolicy.TRAMPOLINE but no to_host conversion arm\"'>"
-    }
-  ]
+  "failures": []
 }

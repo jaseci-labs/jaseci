@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_unpack_ex/conv_unpack_ex_pins.jac"
+  ],
+  "generated_at": "2026-08-24T14:07:38",
+  "hashes": {
+    "pins_jac": "59ffa41d352ef7dce260bd34e5719852ab60eb6b000dece45960dc347a18f7bf",
+    "conversion_json": "b1b62cde848131f61c299790655960c80fd357a5cc6bc058de91d45bec16b490",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "unpack_ex",
+  "counts": {
+    "converted": 9,
+    "runnable": 1,
+    "green": 0,
+    "quarantined": 8
+  },
+  "pins": [
+    {
+      "id": "unpack_ex.doctests:doctests",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'ValueError: not enough values to unpack (expected at least 6, got 0)'>"
+    },
+    {
+      "id": "unpack_ex.doctests:doctests.ex66",
+      "status": "quarantined",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "id": "unpack_ex.doctests:doctests.ex67",
+      "status": "quarantined",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "id": "unpack_ex.doctests:doctests.ex68",
+      "status": "quarantined",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "id": "unpack_ex.doctests:doctests.ex69",
+      "status": "quarantined",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "id": "unpack_ex.doctests:doctests.ex70",
+      "status": "quarantined",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "id": "unpack_ex.doctests:doctests.ex76",
+      "status": "quarantined",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "id": "unpack_ex.doctests:doctests.ex81",
+      "status": "quarantined",
+      "reason": "doctest-depends-on-dropped:['a']"
+    },
+    {
+      "id": "unpack_ex.doctests:doctests.ex83",
+      "status": "quarantined",
+      "reason": "doctest-depends-on-dropped:['a']"
+    }
+  ]
+}

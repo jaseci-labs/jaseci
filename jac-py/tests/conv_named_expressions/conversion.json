@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_named_expressions.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_named_expressions.py",
     "-o",
-    "/var/tmp/wp4-mech/out/conv_named_expressions",
+    "/var/tmp/lane8/jac-py/tests/conv_named_expressions",
     "--name",
     "conv_named_expressions"
   ],
-  "generated_at": "2026-08-24T00:42:23",
+  "generated_at": "2026-08-24T14:34:34",
   "hashes": {
-    "pins_jac": "7c495e192bac992b2782d07cf273bee84c1aedcc5a92c8ae697cbc7c0278cf17"
+    "pins_jac": "cfa30b05faf22f09bffeba07fe82014545a06a798a6eb431acb7a0703cb809a1"
   },
-  "source_file": "reference/cpython/Lib/test/test_named_expressions.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_named_expressions.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "named_expressions",
   "pins_file": "conv_named_expressions_pins.jac",
@@ -304,6 +304,14 @@
       "snippet": "def _t():\n    a = [1]\n    element = a[(b := 0)]\n    assert b == 0, ('assertEqual', b, 0)\n    assert element == a[0], ('assertEqual', element, a[0])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "NamedExpressionAssignmentTest.test_named_expression_assignment_18",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class TwoDimensionalList:\n\n        def __init__(self, two_dimensional_list):\n            self.two_dimensional_list = two_dimensional_list\n\n        def __getitem__(self, index):\n            return self.two_dimensional_list[index[0]][index[1]]\n    a = TwoDimensionalList([[1], [2]])\n    element = a[(b := 0), (c := 0)]\n    assert b == 0, ('assertEqual', b, 0)\n    assert c == 0, ('assertEqual', c, 0)\n    assert element == a.two_dimensional_list[b][c], ('assertEqual', element, a.two_dimensional_list[b][c])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "NamedExpressionScopeTest.test_named_expression_scope_01",
       "status": "pinned",
       "oracle": {
@@ -550,10 +558,6 @@
       "reason": "uses-self.subTest"
     },
     {
-      "ident": "NamedExpressionAssignmentTest.test_named_expression_assignment_18",
-      "reason": "uses-self.two_dimensional_list"
-    },
-    {
       "ident": "NamedExpressionScopeTest.test_named_expression_variable_reuse_in_comprehensions",
       "reason": "uses-self.subTest"
     },
@@ -564,7 +568,7 @@
   ],
   "counts": {
     "extracted": 74,
-    "pinned": 60,
-    "quarantined": 14
+    "pinned": 61,
+    "quarantined": 13
   }
 }

@@ -36,3 +36,9 @@ test "AugAssignTest.testSequences" {
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
+
+test "AugAssignTest.testCustomMethods1" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class aug_test:\n\n        def __init__(self, value):\n            self.val = value\n\n        def __radd__(self, val):\n            return self.val + val\n\n        def __add__(self, val):\n            return aug_test(self.val + val)\n\n    class aug_test2(aug_test):\n\n        def __iadd__(self, val):\n            self.val = self.val + val\n            return self\n\n    class aug_test3(aug_test):\n\n        def __iadd__(self, val):\n            return aug_test3(self.val + val)\n\n    class aug_test4(aug_test3):\n        \"\"\"Blocks inheritance, and fallback to __add__\"\"\"\n        __iadd__ = None\n    x = aug_test(1)\n    y = x\n    x += 10\n    assert isinstance(x, aug_test), ('assertIsInstance', x, aug_test)\n    assert y is not x, ('assertTrue', y is not x)\n    assert x.val == 11, ('assertEqual', x.val, 11)\n    x = aug_test2(2)\n    y = x\n    x += 10\n    assert y is x, ('assertTrue', y is x)\n    assert x.val == 12, ('assertEqual', x.val, 12)\n    x = aug_test3(3)\n    y = x\n    x += 10\n    assert isinstance(x, aug_test3), ('assertIsInstance', x, aug_test3)\n    assert y is not x, ('assertTrue', y is not x)\n    assert x.val == 13, ('assertEqual', x.val, 13)\n    x = aug_test4(4)\n    try:\n        x += 10\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}

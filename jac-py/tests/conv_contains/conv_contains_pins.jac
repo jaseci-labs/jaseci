@@ -7,6 +7,12 @@ import from layer_p2_libtest { p2_libtest_run_snippet }
 
 # Source: test_contains.py
 
+test "TestContains.test_builtin_sequence_types" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    a = range(10)\n    for i in a:\n        assert i in a, ('assertIn', i, a)\n    assert 16 not in a, ('assertNotIn', 16, a)\n    assert a not in a, ('assertNotIn', a, a)\n    a = tuple(a)\n    for i in a:\n        assert i in a, ('assertIn', i, a)\n    assert 16 not in a, ('assertNotIn', 16, a)\n    assert a not in a, ('assertNotIn', a, a)\n\n    class Deviant1:\n        \"\"\"Behaves strangely when compared\n\n            This class is designed to make sure that the contains code\n            works when the list is modified during the check.\n            \"\"\"\n        aList = list(range(15))\n\n        def __eq__(self, other):\n            if other == 12:\n                self.aList.remove(12)\n                self.aList.remove(13)\n                self.aList.remove(14)\n            return 0\n    assert Deviant1() not in Deviant1.aList, ('assertNotIn', Deviant1(), Deviant1.aList)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestContains.test_nonreflexive" {
     (ok, detail) = p2_libtest_run_snippet("from collections import deque\nfrom test.support import NEVER_EQ\n\ndef _t():\n    values = (float('nan'), 1, None, 'abc', NEVER_EQ)\n    constructors = (list, tuple, dict.fromkeys, set, frozenset, deque)\n    for constructor in constructors:\n        container = constructor(values)\n        for elem in container:\n            assert elem in container, ('assertIn', elem, container)\n        assert container == constructor(values), ('assertTrue', container == constructor(values))\n        assert container == container, ('assertTrue', container == container)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

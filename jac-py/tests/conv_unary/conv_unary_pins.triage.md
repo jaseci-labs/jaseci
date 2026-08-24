@@ -1,6 +1,6 @@
 # Triage report: `conv_unary_pins.jac`
 
-- source: reference/cpython/Lib/test/test_unary.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_unary.py
 - guest leg: 0/6 marks
 - pins: **6 passed** / 6 run (+0 quarantined of 6 extracted)
 

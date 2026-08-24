@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "9d86274c42461fda69d309214d128e472ac69395",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_augassign.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_augassign.py",
     "-o",
-    "/var/tmp/wp4-mech/out/conv_augassign",
+    "/var/tmp/lane8/jac-py/tests/conv_augassign",
     "--name",
     "conv_augassign"
   ],
-  "generated_at": "2026-08-24T00:36:10",
+  "generated_at": "2026-08-24T14:30:24",
   "hashes": {
-    "pins_jac": "4102beb50b744586f7b41a011b79d95c24c4394d66a85fdbe1c3a3426cfa793f"
+    "pins_jac": "6f9d72eb655a2d34108de294aece83777f3c0cf00e5bfc6ba2a49ad6f8726c8b"
   },
-  "source_file": "reference/cpython/Lib/test/test_augassign.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_augassign.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "augassign",
   "pins_file": "conv_augassign_pins.jac",
@@ -62,13 +62,17 @@
         "status": "ok"
       },
       "snippet": "def _t():\n    x = [1, 2]\n    x += [3, 4]\n    x *= 2\n    assert x == [1, 2, 3, 4, 1, 2, 3, 4], ('assertEqual', x, [1, 2, 3, 4, 1, 2, 3, 4])\n    x = [1, 2, 3]\n    y = x\n    x[1:2] *= 2\n    y[1:2] += [1]\n    assert x == [1, 2, 1, 2, 3], ('assertEqual', x, [1, 2, 1, 2, 3])\n    assert x is y, ('assertTrue', x is y)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AugAssignTest.testCustomMethods1",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class aug_test:\n\n        def __init__(self, value):\n            self.val = value\n\n        def __radd__(self, val):\n            return self.val + val\n\n        def __add__(self, val):\n            return aug_test(self.val + val)\n\n    class aug_test2(aug_test):\n\n        def __iadd__(self, val):\n            self.val = self.val + val\n            return self\n\n    class aug_test3(aug_test):\n\n        def __iadd__(self, val):\n            return aug_test3(self.val + val)\n\n    class aug_test4(aug_test3):\n        \"\"\"Blocks inheritance, and fallback to __add__\"\"\"\n        __iadd__ = None\n    x = aug_test(1)\n    y = x\n    x += 10\n    assert isinstance(x, aug_test), ('assertIsInstance', x, aug_test)\n    assert y is not x, ('assertTrue', y is not x)\n    assert x.val == 11, ('assertEqual', x.val, 11)\n    x = aug_test2(2)\n    y = x\n    x += 10\n    assert y is x, ('assertTrue', y is x)\n    assert x.val == 12, ('assertEqual', x.val, 12)\n    x = aug_test3(3)\n    y = x\n    x += 10\n    assert isinstance(x, aug_test3), ('assertIsInstance', x, aug_test3)\n    assert y is not x, ('assertTrue', y is not x)\n    assert x.val == 13, ('assertEqual', x.val, 13)\n    x = aug_test4(4)\n    try:\n        x += 10\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
   "quarantined": [
-    {
-      "ident": "AugAssignTest.testCustomMethods1",
-      "reason": "uses-self.val"
-    },
     {
       "ident": "AugAssignTest.testCustomMethods2",
       "reason": "unresolved-name:test_self"
@@ -76,7 +80,7 @@
   ],
   "counts": {
     "extracted": 7,
-    "pinned": 5,
-    "quarantined": 2
+    "pinned": 6,
+    "quarantined": 1
   }
 }

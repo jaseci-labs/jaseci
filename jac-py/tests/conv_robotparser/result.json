@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "ac08a64851ccfed082ecf7de18dd723383ee3abb",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_robotparser/conv_robotparser_pins.jac"
+  ],
+  "generated_at": "2026-08-24T14:26:48",
+  "hashes": {
+    "pins_jac": "9613498aec7c2a85b79ea4a9107063120a073547007bc3393add214205110334",
+    "conversion_json": "e48a8b054709edb7ef845fc58d6494d8eea16d71fe8649c10bc22924092a5bfe",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "robotparser",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 17,
+    "runnable": 3,
+    "green": 0,
+    "quarantined": 14,
+    "failed": 3,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "ConstructedStringFormattingTest.test_empty",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConstructedStringFormattingTest.test_group_without_rules",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConstructedStringFormattingTest.test_group_without_user_agent",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    }
+  ]
+}

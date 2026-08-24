@@ -1,8 +1,8 @@
 # Triage report: `conv_struct_pins.jac`
 
-- source: reference/cpython/Lib/test/test_struct.py
-- guest leg: 0/32 marks
-- pins: **26 passed** / 32 run (+11 quarantined of 43 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_struct.py
+- guest leg: 0/33 marks
+- pins: **28 passed** / 33 run (+10 quarantined of 43 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -15,6 +15,8 @@
 | StructTest.test_705836 | PASS | |
 | StructTest.test_1530559 | PASS | |
 | StructTest.test_unpack_from | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'abcd\',), (b\'abcd\',))"'> |
+| StructTest.test_pack_into | PASS | |
+| StructTest.test_pack_into_fn | PASS | |
 | StructTest.test_unpack_with_buffer | PASS | |
 | StructTest.test_bool | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "Expected OSError: struct.pack(\'<?\', ExplodingBool())"'> |
 | StructTest.test_count_overflow | PASS | |
@@ -37,7 +39,6 @@
 | UnpackIteratorTest.test_arbitrary_buffer | PASS | |
 | UnpackIteratorTest.test_length_hint | PASS | |
 | UnpackIteratorTest.test_module_func | PASS | |
-| UnpackIteratorTest.test_half_float | GUEST-WRONG-OUTPUT | RUN<"ImportError: cannot import name 'import_helper' from '<unknown>'"> |
 
 ## Quarantined at conversion
 
@@ -48,12 +49,11 @@
 | StructTest.test_issue98248 | decorator:support.cpython_only |
 | StructTest.test_issue98248_error_propagation | decorator:support.cpython_only |
 | StructTest.test_endian_table_init_subinterpreters | decorator:unittest.skipIf |
-| StructTest.test_integers | uses-self.format |
+| StructTest.test_integers | uses-self.assertEqual |
 | StructTest.test_nN_code | unresolved-name:cm |
-| StructTest.test_pack_into | self._test_pack_into |
-| StructTest.test_pack_into_fn | self._test_pack_into |
 | StructTest.test_c_complex_round_trip | self.assertComplexesAreIdentical |
 | StructTest.test_float_round_trip | uses-self.subTest |
+| UnpackIteratorTest.test_half_float | host-raised:SkipTest: No module named '_testcapi' |
 
 ## Expected vs got
 
@@ -81,8 +81,3 @@
 
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'abcd\',), (b\'abcd\',))"'>
-
-### UnpackIteratorTest.test_half_float (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"ImportError: cannot import name 'import_helper' from '<unknown>'">

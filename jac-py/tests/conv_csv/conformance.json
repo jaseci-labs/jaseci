@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "fd4c8b36fdafb9259707f53f361b63d62fcfd882",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/sp1-out/test_csv/conv_csv_pins.jac"
+    "jac-py/tests/conv_csv/conv_csv_pins.jac"
   ],
-  "generated_at": "2026-08-24T13:47:34",
+  "generated_at": "2026-08-24T14:31:18",
   "hashes": {
-    "pins_jac": "ce6245678f0f3909b9a73466cbe5dfd322c30ba18aafb42a1ad3a365297075d6",
-    "conversion_json": "295bff43cbb3e3aa1a6a30bc22ded485b9f0635de5d1267f7435d4e22066c1a8",
+    "pins_jac": "da76047301e72409293b3a0421697c9ad57648d7a25008720d5b6250e6604a6b",
+    "conversion_json": "c370cf5b20345ad114955f54ff5f487ca2d38c0819f03bb4a614fb90c0122606",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "csv",
   "counts": {
     "converted": 128,
-    "runnable": 60,
+    "runnable": 61,
     "green": 30,
-    "quarantined": 68
+    "quarantined": 67
   },
   "pins": [
     {
@@ -135,6 +135,12 @@
       "status": "pass"
     },
     {
+      "id": "Test_Csv.test_reader_reentrant_iterator",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'ReentrantIter\\' object is not iterable\"'>"
+    },
+    {
       "id": "TestDialectRegistry.test_registry_badargs",
       "status": "pass"
     },
@@ -161,6 +167,161 @@
     {
       "id": "TestDialectRegistry.test_pickle",
       "status": "pass"
+    },
+    {
+      "id": "TestDialectExcel.test_single",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_simple",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_blankline",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_empty_fields",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_singlequoted",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_singlequoted_left_empty",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_singlequoted_right_empty",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_single_quoted_quote",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_quoted_quotes",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_inline_quote",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_inline_quotes",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_quotes_and_more",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_lone_quote",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_quote_and_quote",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_space_and_quote",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_quoted",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_quoted_quote",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_quoted_nl",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_dubious_quote",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_null",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_single_writer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_simple_writer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_quotes",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_quote_fieldsep",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectExcel.test_newlines",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestEscapedExcel.test_escape_fieldsep",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestEscapedExcel.test_read_escape_fieldsep",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectUnix.test_simple_writer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestDialectUnix.test_simple_reader",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestQuotedEscapedExcel.test_write_escape_fieldsep",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestQuotedEscapedExcel.test_read_escape_fieldsep",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
     },
     {
       "id": "TestDictFields.test_writeheader_return_value",
@@ -303,6 +464,51 @@
       "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
     },
     {
+      "id": "TestSniffer.test_issue43625",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample12'"
+    },
+    {
+      "id": "TestSniffer.test_has_header_strings",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample10'"
+    },
+    {
+      "id": "TestSniffer.test_has_header",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample1'"
+    },
+    {
+      "id": "TestSniffer.test_has_header_regex_special_delimiter",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample8'"
+    },
+    {
+      "id": "TestSniffer.test_has_header_checks_20_rows",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample17'"
+    },
+    {
+      "id": "TestSniffer.test_sniff",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample1'"
+    },
+    {
+      "id": "TestSniffer.test_doublequote",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'header1'"
+    },
+    {
+      "id": "TestUnicode.test_unicode_read",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'names'"
+    },
+    {
+      "id": "TestUnicode.test_unicode_write",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'names'"
+    },
+    {
       "id": "KeyOrderingTest.test_ordering_for_the_dict_reader_and_writer",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
@@ -405,11 +611,6 @@
       "reason": "uses-self.subTest"
     },
     {
-      "id": "Test_Csv.test_reader_reentrant_iterator",
-      "status": "quarantined",
-      "reason": "uses-self.reader"
-    },
-    {
       "id": "TestDialectRegistry.test_registry",
       "status": "quarantined",
       "reason": "self.addCleanup"
@@ -423,161 +624,6 @@
       "id": "TestDialectRegistry.test_register_kwargs_override",
       "status": "quarantined",
       "reason": "self.addCleanup"
-    },
-    {
-      "id": "TestDialectExcel.test_single",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_simple",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_blankline",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_empty_fields",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_singlequoted",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_singlequoted_left_empty",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_singlequoted_right_empty",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_single_quoted_quote",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_quoted_quotes",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_inline_quote",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_inline_quotes",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_quotes_and_more",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_lone_quote",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_quote_and_quote",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_space_and_quote",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_quoted",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_quoted_quote",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_quoted_nl",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_dubious_quote",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_null",
-      "status": "quarantined",
-      "reason": "helper:writerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_single_writer",
-      "status": "quarantined",
-      "reason": "helper:writerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_simple_writer",
-      "status": "quarantined",
-      "reason": "helper:writerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_quotes",
-      "status": "quarantined",
-      "reason": "helper:writerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_quote_fieldsep",
-      "status": "quarantined",
-      "reason": "helper:writerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectExcel.test_newlines",
-      "status": "quarantined",
-      "reason": "helper:writerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestEscapedExcel.test_escape_fieldsep",
-      "status": "quarantined",
-      "reason": "helper:writerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestEscapedExcel.test_read_escape_fieldsep",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectUnix.test_simple_writer",
-      "status": "quarantined",
-      "reason": "helper:writerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestDialectUnix.test_simple_reader",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestQuotedEscapedExcel.test_write_escape_fieldsep",
-      "status": "quarantined",
-      "reason": "helper:writerAssertEqual(uses-self.dialect)"
-    },
-    {
-      "id": "TestQuotedEscapedExcel.test_read_escape_fieldsep",
-      "status": "quarantined",
-      "reason": "helper:readerAssertEqual(uses-self.dialect)"
     },
     {
       "id": "TestDictFields.test_write_fields_not_in_fieldnames",
@@ -610,59 +656,14 @@
       "reason": "uses-self.subTest"
     },
     {
-      "id": "TestSniffer.test_issue43625",
-      "status": "quarantined",
-      "reason": "uses-self.sample12"
-    },
-    {
-      "id": "TestSniffer.test_has_header_strings",
-      "status": "quarantined",
-      "reason": "uses-self.sample10"
-    },
-    {
-      "id": "TestSniffer.test_has_header",
-      "status": "quarantined",
-      "reason": "uses-self.sample1"
-    },
-    {
-      "id": "TestSniffer.test_has_header_regex_special_delimiter",
-      "status": "quarantined",
-      "reason": "uses-self.sample8"
-    },
-    {
-      "id": "TestSniffer.test_has_header_checks_20_rows",
-      "status": "quarantined",
-      "reason": "uses-self.sample18"
-    },
-    {
       "id": "TestSniffer.test_guess_quote_and_delimiter",
       "status": "quarantined",
       "reason": "uses-self.subTest"
     },
     {
-      "id": "TestSniffer.test_sniff",
-      "status": "quarantined",
-      "reason": "uses-self.sample1"
-    },
-    {
       "id": "TestSniffer.test_delimiters",
       "status": "quarantined",
       "reason": "assertRaisesRegex call form"
-    },
-    {
-      "id": "TestSniffer.test_doublequote",
-      "status": "quarantined",
-      "reason": "uses-self.header1"
-    },
-    {
-      "id": "TestUnicode.test_unicode_read",
-      "status": "quarantined",
-      "reason": "uses-self.names"
-    },
-    {
-      "id": "TestUnicode.test_unicode_write",
-      "status": "quarantined",
-      "reason": "uses-self.names"
     }
   ]
 }

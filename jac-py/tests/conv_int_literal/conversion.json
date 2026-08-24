@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_int_literal.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_int_literal.py",
     "-o",
-    "/var/tmp/wp4-mech/out/conv_int_literal",
+    "/var/tmp/lane8/jac-py/tests/conv_int_literal",
     "--name",
     "conv_int_literal"
   ],
-  "generated_at": "2026-08-24T00:42:27",
+  "generated_at": "2026-08-24T14:33:38",
   "hashes": {
     "pins_jac": "7c1155acef23d277e9bff49c02547c91b2a1bd6d02bb08eacdd4c09708a3d423"
   },
-  "source_file": "reference/cpython/Lib/test/test_int_literal.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_int_literal.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "int_literal",
   "pins_file": "conv_int_literal_pins.jac",

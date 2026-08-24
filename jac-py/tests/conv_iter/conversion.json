@@ -1,28 +1,36 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_iter.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_iter.py",
     "-o",
-    "/var/tmp/laneb-out/test_iter",
+    "/var/tmp/lane8/jac-py/tests/conv_iter",
     "--name",
     "conv_iter"
   ],
-  "generated_at": "2026-08-24T10:31:06",
+  "generated_at": "2026-08-24T14:33:41",
   "hashes": {
-    "pins_jac": "dc3be110afc324710d97f3fdf2532037f67a1f5be8fb0faada0f1f88fc223c2a"
+    "pins_jac": "395ba76ea5bb2e4b271565222909b9654bc610d4182a4e5434b87e2e8e7aa812"
   },
-  "source_file": "reference/cpython/Lib/test/test_iter.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_iter.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "iter",
   "pins_file": "conv_iter_pins.jac",
   "pins": [
+    {
+      "ident": "TestCase.test_iter_basic",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_iterator(it, seq, pickle=True):\n    if pickle:\n        check_pickle(it, seq)\n    res = []\n    while 1:\n        try:\n            val = next(it)\n        except StopIteration:\n            break\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n    check_iterator(iter(range(10)), list(range(10)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
     {
       "ident": "TestCase.test_iter_idempotency",
       "status": "pinned",
@@ -30,6 +38,14 @@
         "status": "ok"
       },
       "snippet": "def _t():\n    seq = list(range(10))\n    it = iter(seq)\n    it2 = iter(it)\n    assert it is it2, ('assertTrue', it is it2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_iter_for_loop",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_for_loop(expr, seq, pickle=True):\n    if pickle:\n        check_pickle(iter(expr), seq)\n    res = []\n    for val in expr:\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n    check_for_loop(iter(range(10)), list(range(10)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestCase.test_iter_independence",
@@ -64,6 +80,22 @@
       "snippet": "def _t():\n\n    class IterClass(object):\n\n        def __iter__(self):\n            return self\n    try:\n        iter(*(IterClass(),))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestCase.test_iter_function",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_iterator(it, seq, pickle=True):\n    if pickle:\n        check_pickle(it, seq)\n    res = []\n    while 1:\n        try:\n            val = next(it)\n        except StopIteration:\n            break\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n\n    def spam(state=[0]):\n        i = state[0]\n        state[0] = i + 1\n        return i\n    check_iterator(iter(spam, 10), list(range(10)), pickle=False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_iter_function_stop",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_iterator(it, seq, pickle=True):\n    if pickle:\n        check_pickle(it, seq)\n    res = []\n    while 1:\n        try:\n            val = next(it)\n        except StopIteration:\n            break\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n\n    def spam(state=[0]):\n        i = state[0]\n        if i == 10:\n            raise StopIteration\n        state[0] = i + 1\n        return i\n    check_iterator(iter(spam, 20), list(range(10)), pickle=False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "TestCase.test_iter_function_concealing_reentrant_exhaustion",
       "status": "pinned",
       "oracle": {
@@ -80,12 +112,92 @@
       "snippet": "def _t():\n\n    def spam(state=[0]):\n        i = state[0]\n        state[0] = i + 1\n        if i == 10:\n            raise RuntimeError\n        return i\n    res = []\n    try:\n        for x in iter(spam, 20):\n            res.append(x)\n    except RuntimeError:\n        assert res == list(range(10)), ('assertEqual', res, list(range(10)))\n    else:\n        raise AssertionError('should have raised RuntimeError')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestCase.test_iter_big_range",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_for_loop(expr, seq, pickle=True):\n    if pickle:\n        check_pickle(iter(expr), seq)\n    res = []\n    for val in expr:\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n    check_for_loop(iter(range(10000)), list(range(10000)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_iter_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_for_loop(expr, seq, pickle=True):\n    if pickle:\n        check_pickle(iter(expr), seq)\n    res = []\n    for val in expr:\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n    check_for_loop(iter([]), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_iter_tuple",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_for_loop(expr, seq, pickle=True):\n    if pickle:\n        check_pickle(iter(expr), seq)\n    res = []\n    for val in expr:\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n    check_for_loop(iter((0, 1, 2, 3, 4, 5, 6, 7, 8, 9)), list(range(10)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_iter_range",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_for_loop(expr, seq, pickle=True):\n    if pickle:\n        check_pickle(iter(expr), seq)\n    res = []\n    for val in expr:\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n    check_for_loop(iter(range(10)), list(range(10)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_iter_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_for_loop(expr, seq, pickle=True):\n    if pickle:\n        check_pickle(iter(expr), seq)\n    res = []\n    for val in expr:\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n    check_for_loop(iter('abcde'), ['a', 'b', 'c', 'd', 'e'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_iter_dict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_for_loop(expr, seq, pickle=True):\n    if pickle:\n        check_pickle(iter(expr), seq)\n    res = []\n    for val in expr:\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n    dict = {}\n    for i in range(10):\n        dict[i] = None\n    check_for_loop(dict, list(dict.keys()))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_iter_file",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.os_helper import TESTFN, unlink\nimport pickle\nimport collections.abc\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert isinstance(it, collections.abc.Iterator), ('assertTrue', isinstance(it, collections.abc.Iterator))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef check_for_loop(expr, seq, pickle=True):\n    if pickle:\n        check_pickle(iter(expr), seq)\n    res = []\n    for val in expr:\n        res.append(val)\n    assert res == seq, ('assertEqual', res, seq)\n\ndef _t():\n    f = open(TESTFN, 'w', encoding='utf-8')\n    try:\n        for i in range(5):\n            f.write('%d\\n' % i)\n    finally:\n        f.close()\n    f = open(TESTFN, 'r', encoding='utf-8')\n    try:\n        check_for_loop(f, ['0\\n', '1\\n', '2\\n', '3\\n', '4\\n'], pickle=False)\n        check_for_loop(f, [], pickle=False)\n    finally:\n        f.close()\n        try:\n            unlink(TESTFN)\n        except OSError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_unicode_join_endcase",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.os_helper import TESTFN, unlink\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class OhPhooey:\n\n        def __init__(self, seq):\n            self.it = iter(seq)\n            self.i = 0\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            i = self.i\n            self.i = i + 1\n            if i == 2:\n                return 'fooled you!'\n            return next(self.it)\n    f = open(TESTFN, 'w', encoding='utf-8')\n    try:\n        f.write('a\\n' + 'b\\n' + 'c\\n')\n    finally:\n        f.close()\n    f = open(TESTFN, 'r', encoding='utf-8')\n    try:\n        got = ' - '.join(OhPhooey(f))\n        assert got == 'a\\n - b\\n - fooled you! - c\\n', ('assertEqual', got, 'a\\n - b\\n - fooled you! - c\\n')\n    finally:\n        f.close()\n        try:\n            unlink(TESTFN)\n        except OSError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "TestCase.test_countOf",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
       "snippet": "from test.support.os_helper import TESTFN, unlink\n\ndef _t():\n    from operator import countOf\n    assert countOf([1, 2, 2, 3, 2, 5], 2) == 3, ('assertEqual', countOf([1, 2, 2, 3, 2, 5], 2), 3)\n    assert countOf((1, 2, 2, 3, 2, 5), 2) == 3, ('assertEqual', countOf((1, 2, 2, 3, 2, 5), 2), 3)\n    assert countOf('122325', '2') == 3, ('assertEqual', countOf('122325', '2'), 3)\n    assert countOf('122325', '6') == 0, ('assertEqual', countOf('122325', '6'), 0)\n    try:\n        countOf(*(42, 1))\n    except TypeError:\n        pass\n    try:\n        countOf(*(countOf, countOf))\n    except TypeError:\n        pass\n    d = {'one': 3, 'two': 3, 'three': 3, 1j: 2j}\n    for k in d:\n        assert countOf(d, k) == 1, ('assertEqual', countOf(d, k), 1)\n    assert countOf(d.values(), 3) == 3, ('assertEqual', countOf(d.values(), 3), 3)\n    assert countOf(d.values(), 2j) == 1, ('assertEqual', countOf(d.values(), 2j), 1)\n    assert countOf(d.values(), 1j) == 0, ('assertEqual', countOf(d.values(), 1j), 0)\n    f = open(TESTFN, 'w', encoding='utf-8')\n    try:\n        f.write('a\\nb\\nc\\nb\\n')\n    finally:\n        f.close()\n    f = open(TESTFN, 'r', encoding='utf-8')\n    try:\n        for letter, count in (('a', 1), ('b', 2), ('c', 1), ('d', 0)):\n            f.seek(0, 0)\n            assert countOf(f, letter + '\\n') == count, ('assertEqual', countOf(f, letter + '\\n'), count)\n    finally:\n        f.close()\n        try:\n            unlink(TESTFN)\n        except OSError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_writelines",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.os_helper import TESTFN, unlink\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    f = open(TESTFN, 'w', encoding='utf-8')\n    try:\n        try:\n            f.writelines(*(None,))\n        except TypeError:\n            pass\n        try:\n            f.writelines(*(42,))\n        except TypeError:\n            pass\n        f.writelines(['1\\n', '2\\n'])\n        f.writelines(('3\\n', '4\\n'))\n        f.writelines({'5\\n': None})\n        f.writelines({})\n\n        class Iterator:\n\n            def __init__(self, start, finish):\n                self.start = start\n                self.finish = finish\n                self.i = self.start\n\n            def __next__(self):\n                if self.i >= self.finish:\n                    raise StopIteration\n                result = str(self.i) + '\\n'\n                self.i += 1\n                return result\n\n            def __iter__(self):\n                return self\n\n        class Whatever:\n\n            def __init__(self, start, finish):\n                self.start = start\n                self.finish = finish\n\n            def __iter__(self):\n                return Iterator(self.start, self.finish)\n        f.writelines(Whatever(6, 6 + 2000))\n        f.close()\n        f = open(TESTFN, encoding='utf-8')\n        expected = [str(i) + '\\n' for i in range(1, 2006)]\n        assert list(f) == expected, ('assertEqual', list(f), expected)\n    finally:\n        f.close()\n        try:\n            unlink(TESTFN)\n        except OSError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_ref_counting_behavior",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(object):\n        count = 0\n\n        def __new__(cls):\n            cls.count += 1\n            return object.__new__(cls)\n\n        def __del__(self):\n            cls = self.__class__\n            assert cls.count > 0\n            cls.count -= 1\n    x = C()\n    assert C.count == 1, ('assertEqual', C.count, 1)\n    del x\n    assert C.count == 0, ('assertEqual', C.count, 0)\n    l = [C(), C(), C()]\n    assert C.count == 3, ('assertEqual', C.count, 3)\n    try:\n        a, b = iter(l)\n    except ValueError:\n        pass\n    del l\n    assert C.count == 0, ('assertEqual', C.count, 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestCase.test_sinkstate_list",
@@ -170,28 +282,20 @@
   ],
   "quarantined": [
     {
-      "ident": "TestCase.test_iter_basic",
-      "reason": "self.check_iterator"
-    },
-    {
-      "ident": "TestCase.test_iter_for_loop",
-      "reason": "self.check_for_loop"
-    },
-    {
       "ident": "TestCase.test_iter_class_for",
-      "reason": "self.check_for_loop"
+      "reason": "unresolved-name:IteratingSequenceClass"
     },
     {
       "ident": "TestCase.test_iter_class_iter",
-      "reason": "self.check_iterator"
+      "reason": "unresolved-name:IteratingSequenceClass"
     },
     {
       "ident": "TestCase.test_seq_class_for",
-      "reason": "self.check_for_loop"
+      "reason": "unresolved-name:SequenceClass"
     },
     {
       "ident": "TestCase.test_seq_class_iter",
-      "reason": "self.check_iterator"
+      "reason": "unresolved-name:SequenceClass"
     },
     {
       "ident": "TestCase.test_mutating_seq_class_iter_pickle",
@@ -203,19 +307,11 @@
     },
     {
       "ident": "TestCase.test_reduce_mutating_builtins_iter",
-      "reason": "uses-self.name"
+      "reason": "unresolved-name:EmptyIterClass"
     },
     {
       "ident": "TestCase.test_iter_callable",
-      "reason": "self.check_iterator"
-    },
-    {
-      "ident": "TestCase.test_iter_function",
-      "reason": "self.check_iterator"
-    },
-    {
-      "ident": "TestCase.test_iter_function_stop",
-      "reason": "self.check_iterator"
+      "reason": "unresolved-name:CallableIterClass"
     },
     {
       "ident": "TestCase.test_exception_sequence",
@@ -223,35 +319,7 @@
     },
     {
       "ident": "TestCase.test_stop_sequence",
-      "reason": "self.check_for_loop"
-    },
-    {
-      "ident": "TestCase.test_iter_big_range",
-      "reason": "self.check_for_loop"
-    },
-    {
-      "ident": "TestCase.test_iter_empty",
-      "reason": "self.check_for_loop"
-    },
-    {
-      "ident": "TestCase.test_iter_tuple",
-      "reason": "self.check_for_loop"
-    },
-    {
-      "ident": "TestCase.test_iter_range",
-      "reason": "self.check_for_loop"
-    },
-    {
-      "ident": "TestCase.test_iter_string",
-      "reason": "self.check_for_loop"
-    },
-    {
-      "ident": "TestCase.test_iter_dict",
-      "reason": "self.check_for_loop"
-    },
-    {
-      "ident": "TestCase.test_iter_file",
-      "reason": "self.check_for_loop"
+      "reason": "unresolved-name:SequenceClass"
     },
     {
       "ident": "TestCase.test_builtin_list",
@@ -263,7 +331,7 @@
     },
     {
       "ident": "TestCase.test_builtin_filter",
-      "reason": "uses-self.truth"
+      "reason": "unresolved-name:SequenceClass"
     },
     {
       "ident": "TestCase.test_builtin_max_min",
@@ -275,11 +343,7 @@
     },
     {
       "ident": "TestCase.test_builtin_zip",
-      "reason": "uses-self.i"
-    },
-    {
-      "ident": "TestCase.test_unicode_join_endcase",
-      "reason": "uses-self.it"
+      "reason": "unresolved-name:IteratingSequenceClass"
     },
     {
       "ident": "TestCase.test_in_and_not_in",
@@ -290,16 +354,8 @@
       "reason": "unresolved-name:BadIterableClass"
     },
     {
-      "ident": "TestCase.test_writelines",
-      "reason": "uses-self.start"
-    },
-    {
       "ident": "TestCase.test_unpack_iter",
       "reason": "unresolved-name:IteratingSequenceClass"
-    },
-    {
-      "ident": "TestCase.test_ref_counting_behavior",
-      "reason": "uses-self.__class__"
     },
     {
       "ident": "TestCase.test_sinkstate_sequence",
@@ -328,7 +384,7 @@
   ],
   "counts": {
     "extracted": 57,
-    "pinned": 18,
-    "quarantined": 39
+    "pinned": 32,
+    "quarantined": 25
   }
 }

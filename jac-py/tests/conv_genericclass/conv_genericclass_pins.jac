@@ -13,6 +13,12 @@ test "TestMROEntry.test_mro_entry_signature" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TestMROEntry.test_mro_entry" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    tested = []\n\n    class A:\n        ...\n\n    class B:\n        ...\n\n    class C:\n\n        def __mro_entries__(self, bases):\n            tested.append(bases)\n            return (self.__class__,)\n    c = C()\n    assert tested == [], ('assertEqual', tested, [])\n\n    class D(A, c, B):\n        ...\n    assert tested[-1] == (A, c, B), ('assertEqual', tested[-1], (A, c, B))\n    assert D.__bases__ == (A, C, B), ('assertEqual', D.__bases__, (A, C, B))\n    assert D.__orig_bases__ == (A, c, B), ('assertEqual', D.__orig_bases__, (A, c, B))\n    assert D.__mro__ == (D, A, C, B, object), ('assertEqual', D.__mro__, (D, A, C, B, object))\n    d = D()\n\n    class E(d):\n        ...\n    assert tested[-1] == (d,), ('assertEqual', tested[-1], (d,))\n    assert E.__bases__ == (D,), ('assertEqual', E.__bases__, (D,))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestMROEntry.test_mro_entry_none" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    tested = []\n\n    class A:\n        ...\n\n    class B:\n        ...\n\n    class C:\n\n        def __mro_entries__(self, bases):\n            tested.append(bases)\n            return ()\n    c = C()\n    assert tested == [], ('assertEqual', tested, [])\n\n    class D(A, c, B):\n        ...\n    assert tested[-1] == (A, c, B), ('assertEqual', tested[-1], (A, c, B))\n    assert D.__bases__ == (A, B), ('assertEqual', D.__bases__, (A, B))\n    assert D.__orig_bases__ == (A, c, B), ('assertEqual', D.__orig_bases__, (A, c, B))\n    assert D.__mro__ == (D, A, B, object), ('assertEqual', D.__mro__, (D, A, B, object))\n\n    class E(c):\n        ...\n    assert tested[-1] == (c,), ('assertEqual', tested[-1], (c,))\n    assert E.__bases__ == (object,), ('assertEqual', E.__bases__, (object,))\n    assert E.__orig_bases__ == (c,), ('assertEqual', E.__orig_bases__, (c,))\n    assert E.__mro__ == (E, object), ('assertEqual', E.__mro__, (E, object))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

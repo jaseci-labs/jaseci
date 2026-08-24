@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_picklebuffer.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_picklebuffer",
+    "--name",
+    "conv_picklebuffer"
+  ],
+  "generated_at": "2026-08-24T14:04:46",
+  "hashes": {
+    "pins_jac": "32907f8986777f1bf4c9684bbf0e50082067fb8dd9cefbb6d2d7753052a7ed3a"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_picklebuffer.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "picklebuffer",
+  "pins_file": "conv_picklebuffer_pins.jac",
+  "pins": [
+    {
+      "ident": "PickleBufferTest.test_constructor_failure",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from pickle import PickleBuffer\n\ndef _t():\n    try:\n        PickleBuffer()\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        PickleBuffer('foo')\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    m = memoryview(b'foo')\n    m.release()\n    try:\n        PickleBuffer(m)\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PickleBufferTest.test_basics",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from pickle import PickleBuffer\n\ndef _t():\n    pb = PickleBuffer(b'foo')\n    assert b'foo' == bytes(pb), ('assertEqual', b'foo', bytes(pb))\n    with memoryview(pb) as m:\n        assert m.readonly, ('assertTrue', m.readonly)\n    pb = PickleBuffer(bytearray(b'foo'))\n    assert b'foo' == bytes(pb), ('assertEqual', b'foo', bytes(pb))\n    with memoryview(pb) as m:\n        assert not m.readonly, ('assertFalse', m.readonly)\n        m[0] = 48\n    assert b'0oo' == bytes(pb), ('assertEqual', b'0oo', bytes(pb))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PickleBufferTest.test_ndarray_2d",
+      "status": "quarantined",
+      "reason": "host-raised:SkipTest: No module named '_testbuffer'"
+    },
+    {
+      "ident": "PickleBufferTest.test_raw_ndarray",
+      "status": "quarantined",
+      "reason": "host-raised:SkipTest: No module named '_testbuffer'"
+    },
+    {
+      "ident": "PickleBufferTest.test_raw_non_contiguous",
+      "status": "quarantined",
+      "reason": "host-raised:SkipTest: No module named '_testbuffer'"
+    },
+    {
+      "ident": "PickleBufferTest.test_raw_released",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from pickle import PickleBuffer\n\ndef _t():\n    pb = PickleBuffer(b'foo')\n    pb.release()\n    try:\n        pb.raw()\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "PickleBufferTest.test_release",
+      "reason": "unresolved-name:raises"
+    },
+    {
+      "ident": "PickleBufferTest.test_cycle",
+      "reason": "unresolved-name:B"
+    },
+    {
+      "ident": "PickleBufferTest.test_raw",
+      "reason": "uses-self.subTest"
+    }
+  ],
+  "counts": {
+    "extracted": 9,
+    "pinned": 3,
+    "quarantined": 6
+  }
+}

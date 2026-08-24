@@ -7,6 +7,12 @@ import from layer_p2_libtest { p2_libtest_run_snippet }
 
 # Source: test_class.py
 
+test "TestInlineValues.test_bug_117750" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    'Aborted on 3.13a6'\n\n    class C:\n\n        def __init__(self):\n            self.__dict__.clear()\n    obj = C()\n    assert obj.__dict__ == {}, ('assertEqual', obj.__dict__, {})\n    obj.foo = None\n    assert obj.__dict__ == {'foo': None}, ('assertEqual', obj.__dict__, {'foo': None})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestInlineValues.test_store_attr_deleted_dict" {
     (ok, detail) = p2_libtest_run_snippet("callLst = []\n\ndef trackCall(f):\n\n    def track(*args, **kwargs):\n        callLst.append((f.__name__, args))\n        return f(*args, **kwargs)\n    return track\n\ndef _t():\n\n    class Foo:\n        pass\n    f = Foo()\n    del f.__dict__\n    f.a = 3\n    assert f.a == 3, ('assertEqual', f.a, 3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

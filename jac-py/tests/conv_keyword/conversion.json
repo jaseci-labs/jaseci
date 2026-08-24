@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "unknown",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,11 +10,11 @@
     "convert_suite.py",
     "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_keyword.py",
     "-o",
-    "/var/tmp/nicestorm-selfhost-wt/jac-py/tests/conv_keyword",
+    "/var/tmp/lane8/jac-py/tests/conv_keyword",
     "--name",
     "conv_keyword"
   ],
-  "generated_at": "2026-08-24T09:44:11",
+  "generated_at": "2026-08-24T14:33:46",
   "hashes": {
     "pins_jac": "1faa66b4c4cf1a319a690f87c1b12152b4950a1f9083a93f8090ce6a7b7fe152"
   },

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.3.0",
-  "jac_sha": "7f5db5e8c68d10b8dbcdcd7224c1d7498c3f22d6",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,13 +10,13 @@
     "convert_suite.py",
     "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_baseexception.py",
     "-o",
-    "/var/tmp/nicestorm-selfhost-wt/jac-py/tests/conv_baseexception",
+    "/var/tmp/lane8/jac-py/tests/conv_baseexception",
     "--name",
     "conv_baseexception"
   ],
-  "generated_at": "2026-08-24T12:28:51",
+  "generated_at": "2026-08-24T14:30:26",
   "hashes": {
-    "pins_jac": "bb57f1e8b18207d5d5471f17d6f7e1629fa61095a5776bbf506152b2a93df9d8"
+    "pins_jac": "eab8308eeb449b253894b2656d6676049e049b4c10d6e5ab88f5b572cd4d01a3"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_baseexception.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -24,12 +24,67 @@
   "pins_file": "conv_baseexception_pins.jac",
   "pins": [
     {
+      "ident": "ExceptionClassTests.test_interface_single_arg",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "ExceptionClassTests.test_interface_multi_arg",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "ExceptionClassTests.test_interface_no_arg",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
       "ident": "ExceptionClassTests.test_setstate_refcount_no_crash",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
       "snippet": "def _t():\n    import gc\n    d = {}\n\n    class HashThisKeyWillClearTheDict(str):\n\n        def __hash__(self) -> int:\n            d.clear()\n            return super().__hash__()\n\n    class Value(str):\n        pass\n    exc = Exception()\n    d[HashThisKeyWillClearTheDict()] = Value()\n    exc.__setstate__(d)\n    gc.collect()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UsageTests.test_raise_new_style_non_exception",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def raise_fails(object_):\n    \"\"\"Make sure that raising 'object_' triggers a TypeError.\"\"\"\n    try:\n        raise object_\n    except TypeError:\n        return\n    raise AssertionError('TypeError expected for raising %s' % type(object_))\n\ndef _t():\n\n    class NewStyleClass(object):\n        pass\n    raise_fails(NewStyleClass)\n    raise_fails(NewStyleClass())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UsageTests.test_raise_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def raise_fails(object_):\n    \"\"\"Make sure that raising 'object_' triggers a TypeError.\"\"\"\n    try:\n        raise object_\n    except TypeError:\n        return\n    raise AssertionError('TypeError expected for raising %s' % type(object_))\n\ndef _t():\n    raise_fails('spam')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UsageTests.test_catch_non_BaseException",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def catch_fails(object_):\n    \"\"\"Catching 'object_' should raise a TypeError.\"\"\"\n    try:\n        try:\n            raise Exception\n        except object_:\n            pass\n    except TypeError:\n        pass\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s' % type(object_))\n    try:\n        try:\n            raise Exception\n        except (object_,):\n            pass\n    except TypeError:\n        return\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s as specified in a tuple' % type(object_))\n\ndef _t():\n\n    class NonBaseException(object):\n        pass\n    catch_fails(NonBaseException)\n    catch_fails(NonBaseException())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UsageTests.test_catch_BaseException_instance",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def catch_fails(object_):\n    \"\"\"Catching 'object_' should raise a TypeError.\"\"\"\n    try:\n        try:\n            raise Exception\n        except object_:\n            pass\n    except TypeError:\n        pass\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s' % type(object_))\n    try:\n        try:\n            raise Exception\n        except (object_,):\n            pass\n    except TypeError:\n        return\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s as specified in a tuple' % type(object_))\n\ndef _t():\n    catch_fails(BaseException())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UsageTests.test_catch_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def catch_fails(object_):\n    \"\"\"Catching 'object_' should raise a TypeError.\"\"\"\n    try:\n        try:\n            raise Exception\n        except object_:\n            pass\n    except TypeError:\n        pass\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s' % type(object_))\n    try:\n        try:\n            raise Exception\n        except (object_,):\n            pass\n    except TypeError:\n        return\n    except Exception:\n        raise AssertionError('TypeError expected when catching %s as specified in a tuple' % type(object_))\n\ndef _t():\n    catch_fails('spam')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
   "quarantined": [
@@ -39,44 +94,12 @@
     },
     {
       "ident": "ExceptionClassTests.test_inheritance",
-      "reason": "self.assertIsSubclass"
-    },
-    {
-      "ident": "ExceptionClassTests.test_interface_single_arg",
-      "reason": "self.interface_test_driver"
-    },
-    {
-      "ident": "ExceptionClassTests.test_interface_multi_arg",
-      "reason": "self.interface_test_driver"
-    },
-    {
-      "ident": "ExceptionClassTests.test_interface_no_arg",
-      "reason": "self.interface_test_driver"
-    },
-    {
-      "ident": "UsageTests.test_raise_new_style_non_exception",
-      "reason": "self.raise_fails"
-    },
-    {
-      "ident": "UsageTests.test_raise_string",
-      "reason": "self.raise_fails"
-    },
-    {
-      "ident": "UsageTests.test_catch_non_BaseException",
-      "reason": "self.catch_fails"
-    },
-    {
-      "ident": "UsageTests.test_catch_BaseException_instance",
-      "reason": "self.catch_fails"
-    },
-    {
-      "ident": "UsageTests.test_catch_string",
-      "reason": "self.catch_fails"
+      "reason": "helper:verify_instance_interface(self.assertHasAttr)"
     }
   ],
   "counts": {
     "extracted": 11,
-    "pinned": 1,
-    "quarantined": 10
+    "pinned": 6,
+    "quarantined": 5
   }
 }

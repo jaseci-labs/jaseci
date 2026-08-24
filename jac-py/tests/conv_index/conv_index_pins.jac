@@ -7,8 +7,62 @@ import from layer_p2_libtest { p2_libtest_run_snippet }
 
 # Source: test_index.py
 
+test "BaseTestCase.test_basic" {
+    (ok, detail) = p2_libtest_run_snippet("import operator\n\nclass newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o.ind = -2\n    self.n.ind = 2\n    assert operator.index(self.o) == -2, ('assertEqual', operator.index(self.o), -2)\n    assert operator.index(self.n) == 2, ('assertEqual', operator.index(self.n), 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "BaseTestCase.test_slice" {
+    (ok, detail) = p2_libtest_run_snippet("class newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o.ind = 1\n    self.n.ind = 2\n    slc = slice(self.o, self.o, self.o)\n    check_slc = slice(1, 1, 1)\n    assert slc.indices(self.o) == check_slc.indices(1), ('assertEqual', slc.indices(self.o), check_slc.indices(1))\n    slc = slice(self.n, self.n, self.n)\n    check_slc = slice(2, 2, 2)\n    assert slc.indices(self.n) == check_slc.indices(2), ('assertEqual', slc.indices(self.n), check_slc.indices(2))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "BaseTestCase.test_wrappers" {
+    (ok, detail) = p2_libtest_run_snippet("class newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o.ind = 4\n    self.n.ind = 5\n    assert 6 .__index__() == 6, ('assertEqual', 6 .__index__(), 6)\n    assert -7 .__index__() == -7, ('assertEqual', -7 .__index__(), -7)\n    assert self.o.__index__() == 4, ('assertEqual', self.o.__index__(), 4)\n    assert self.n.__index__() == 5, ('assertEqual', self.n.__index__(), 5)\n    assert True .__index__() == 1, ('assertEqual', True .__index__(), 1)\n    assert False .__index__() == 0, ('assertEqual', False .__index__(), 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "BaseTestCase.test_error" {
+    (ok, detail) = p2_libtest_run_snippet("import operator\n\nclass newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o.ind = 'dumb'\n    self.n.ind = 'bad'\n    try:\n        operator.index(*(self.o,))\n    except TypeError:\n        pass\n    try:\n        operator.index(*(self.n,))\n    except TypeError:\n        pass\n    try:\n        slice(self.o).indices(*(0,))\n    except TypeError:\n        pass\n    try:\n        slice(self.n).indices(*(0,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "BaseTestCase.test_int_subclass_with_index" {
-    (ok, detail) = p2_libtest_run_snippet("import operator\n\ndef _t():\n\n    class MyInt(int):\n\n        def __index__(self):\n            return int(str(self)) + 1\n    my_int = MyInt(7)\n    direct_index = my_int.__index__()\n    operator_index = operator.index(my_int)\n    assert direct_index == 8, ('assertEqual', direct_index, 8)\n    assert operator_index == 7, ('assertEqual', operator_index, 7)\n    assert type(direct_index) is int, ('assertIs', type(direct_index), int)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    (ok, detail) = p2_libtest_run_snippet("import operator\n\nclass newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n\n    class MyInt(int):\n\n        def __index__(self):\n            return int(str(self)) + 1\n    my_int = MyInt(7)\n    direct_index = my_int.__index__()\n    operator_index = operator.index(my_int)\n    assert direct_index == 8, ('assertEqual', direct_index, 8)\n    assert operator_index == 7, ('assertEqual', operator_index, 7)\n    assert type(direct_index) is int, ('assertIs', type(direct_index), int)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ListTestCase.test_setdelitem" {
+    (ok, detail) = p2_libtest_run_snippet("class newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o2 = newstyle()\n    self.n2 = newstyle()\n    self.o.ind = -2\n    self.n.ind = 2\n    lst = list('ab!cdefghi!j')\n    del lst[self.o]\n    del lst[self.n]\n    lst[self.o] = 'X'\n    lst[self.n] = 'Y'\n    assert lst == list('abYdefghXj'), ('assertEqual', lst, list('abYdefghXj'))\n    lst = [5, 6, 7, 8, 9, 10, 11]\n    lst.__setitem__(self.n, 'here')\n    assert lst == [5, 6, 'here', 8, 9, 10, 11], ('assertEqual', lst, [5, 6, 'here', 8, 9, 10, 11])\n    lst.__delitem__(self.n)\n    assert lst == [5, 6, 8, 9, 10, 11], ('assertEqual', lst, [5, 6, 8, 9, 10, 11])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ListTestCase.test_inplace_repeat" {
+    (ok, detail) = p2_libtest_run_snippet("class newstyle:\n\n    def __index__(self):\n        return self.ind\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.o = newstyle()\n    self.n = newstyle()\n    self.o2 = newstyle()\n    self.n2 = newstyle()\n    self.o.ind = 2\n    self.n.ind = 3\n    lst = [6, 4]\n    lst *= self.o\n    assert lst == [6, 4, 6, 4], ('assertEqual', lst, [6, 4, 6, 4])\n    lst *= self.n\n    assert lst == [6, 4, 6, 4] * 3, ('assertEqual', lst, [6, 4, 6, 4] * 3)\n    lst = [5, 6, 7, 8, 9, 11]\n    l2 = lst.__imul__(self.n)\n    assert l2 is lst, ('assertIs', l2, lst)\n    assert lst == [5, 6, 7, 8, 9, 11] * 3, ('assertEqual', lst, [5, 6, 7, 8, 9, 11] * 3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "OverflowTestCase.test_large_longs" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.pos = 2 ** 100\n    self.neg = -self.pos\n    assert self.pos.__index__() == self.pos, ('assertEqual', self.pos.__index__(), self.pos)\n    assert self.neg.__index__() == self.neg, ('assertEqual', self.neg.__index__(), self.neg)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "OverflowTestCase.test_getitem" {
+    (ok, detail) = p2_libtest_run_snippet("from test import support\nmaxsize = support.MAX_Py_ssize_t\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.pos = 2 ** 100\n    self.neg = -self.pos\n\n    class GetItem:\n\n        def __len__(self):\n            assert False, '__len__ should not be invoked'\n\n        def __getitem__(self, key):\n            return key\n    x = GetItem()\n    assert x[self.pos] == self.pos, ('assertEqual', x[self.pos], self.pos)\n    assert x[self.neg] == self.neg, ('assertEqual', x[self.neg], self.neg)\n    assert x[self.neg:self.pos].indices(maxsize) == (0, maxsize, 1), ('assertEqual', x[self.neg:self.pos].indices(maxsize), (0, maxsize, 1))\n    assert x[self.neg:self.pos:1].indices(maxsize) == (0, maxsize, 1), ('assertEqual', x[self.neg:self.pos:1].indices(maxsize), (0, maxsize, 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "OverflowTestCase.test_sequence_repeat" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.pos = 2 ** 100\n    self.neg = -self.pos\n    try:\n        (lambda: 'a' * self.pos)()\n    except OverflowError:\n        pass\n    try:\n        (lambda: 'a' * self.neg)()\n    except OverflowError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

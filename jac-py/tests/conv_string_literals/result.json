@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "02879f86e5975cac5e4f1160309ef54fbedfb233",
+  "jac_sha": "ac08a64851ccfed082ecf7de18dd723383ee3abb",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/laneb-out/test_string_literals/conv_string_literals_pins.jac"
+    "jac-py/tests/conv_string_literals/conv_string_literals_pins.jac"
   ],
-  "generated_at": "2026-08-24T13:37:46",
+  "generated_at": "2026-08-24T14:26:44",
   "hashes": {
-    "pins_jac": "9fef1172d41b8896b42334b9770c603b4cf3cf125cda887cf7e84d62210aa2a5",
-    "conversion_json": "8813eda083ff62a3a475b5a41b958e1b2e89c191b5fc3b1504477204eb8f76ea",
+    "pins_jac": "174e4303ed9fa700ca5902e4d3606409c0e8576e0c47d50fd7640bd81af5d6c4",
+    "conversion_json": "419a61cb23e7cc4f0d9716b6df7a42ed8f47d2b57f99c9ed65adefa0d7388cb3",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "string_literals",
@@ -22,17 +22,71 @@
   "counts": {
     "converted": 20,
     "runnable": 10,
-    "green": 9,
+    "green": 0,
     "quarantined": 10,
-    "failed": 1,
+    "failed": 10,
     "infra_failed": 0
   },
   "failures": [
     {
+      "id": "TestLiterals.test_template",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestLiterals.test_eval_str_normal",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestLiterals.test_eval_str_incomplete",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
       "id": "TestLiterals.test_invalid_escape_locations_with_offset",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 0, 1)\"'>"
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestLiterals.test_eval_str_raw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestLiterals.test_eval_bytes_normal",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestLiterals.test_eval_bytes_incomplete",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestLiterals.test_eval_bytes_raw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestLiterals.test_eval_str_u",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestLiterals.test_uppercase_prefixes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
     }
   ]
 }

@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_yield_from.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_yield_from.py",
     "-o",
-    "/var/tmp/wp4-mech/out/conv_yield_from",
+    "/var/tmp/lane8/jac-py/tests/conv_yield_from",
     "--name",
     "conv_yield_from"
   ],
-  "generated_at": "2026-08-24T00:42:54",
+  "generated_at": "2026-08-24T14:42:19",
   "hashes": {
-    "pins_jac": "9aba8968493dfad8e6844b1d98e94b053ad7dc101de3922bf62386873b7a72cd"
+    "pins_jac": "f2bf68a96a8e345899a55154c2270a2a1c9b20efa71b18710430e153ea868f5e"
   },
-  "source_file": "reference/cpython/Lib/test/test_yield_from.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_yield_from.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "yield_from",
   "pins_file": "conv_yield_from_pins.jac",
@@ -137,8 +137,11 @@
     },
     {
       "ident": "TestPEP380Operation.test_delegation_of_close_to_non_generator",
-      "status": "quarantined",
-      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import captured_stderr, disable_gc, gc_collect\n\ndef _t():\n    \"\"\"\n        Test delegation of close() to non-generator\n        \"\"\"\n    trace = []\n\n    def g():\n        try:\n            trace.append('starting g')\n            yield from range(3)\n            trace.append('g should not be here')\n        finally:\n            trace.append('finishing g')\n    gi = g()\n    next(gi)\n    with captured_stderr() as output:\n        gi.close()\n    assert output.getvalue() == '', ('assertEqual', output.getvalue(), '')\n    assert trace == ['starting g', 'finishing g'], ('assertEqual', trace, ['starting g', 'finishing g'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestPEP380Operation.test_delegating_throw_to_non_generator",
@@ -270,8 +273,11 @@
     },
     {
       "ident": "TestPEP380Operation.test_close_with_cleared_frame",
-      "status": "quarantined",
-      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import captured_stderr, disable_gc, gc_collect\n\ndef _t():\n\n    def innermost():\n        yield\n\n    def inner():\n        outer_gen = (yield)\n        yield from innermost()\n\n    def outer():\n        inner_gen = (yield)\n        yield from inner_gen\n    with disable_gc():\n        inner_gen = inner()\n        outer_gen = outer()\n        outer_gen.send(None)\n        outer_gen.send(inner_gen)\n        outer_gen.send(outer_gen)\n        del outer_gen\n        del inner_gen\n        gc_collect()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestPEP380Operation.test_send_tuple_with_custom_generator",
@@ -297,40 +303,40 @@
     },
     {
       "ident": "TestPEP380Operation.test_delegating_generators_claim_to_be_running_with_close",
-      "reason": "uses-self.assertTrue"
+      "reason": "uses-self.assertRaises"
     },
     {
       "ident": "TestInterestingEdgeCases.test_close_and_throw_work",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_stop_iteration(unresolved-name:caught)"
     },
     {
       "ident": "TestInterestingEdgeCases.test_close_and_throw_raise_generator_exit",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_stop_iteration(unresolved-name:caught)"
     },
     {
       "ident": "TestInterestingEdgeCases.test_close_and_throw_raise_stop_iteration",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_generator_raised_stop_iteration(uses-self.assertRaisesRegex)"
     },
     {
       "ident": "TestInterestingEdgeCases.test_close_and_throw_raise_base_exception",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_stop_iteration(unresolved-name:caught)"
     },
     {
       "ident": "TestInterestingEdgeCases.test_close_and_throw_raise_exception",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_stop_iteration(unresolved-name:caught)"
     },
     {
       "ident": "TestInterestingEdgeCases.test_close_and_throw_yield",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_generator_ignored_generator_exit(uses-self.assertRaisesRegex)"
     },
     {
       "ident": "TestInterestingEdgeCases.test_close_and_throw_return",
-      "reason": "self.assert_stop_iteration"
+      "reason": "helper:assert_stop_iteration(unresolved-name:caught)"
     }
   ],
   "counts": {
     "extracted": 43,
-    "pinned": 32,
-    "quarantined": 11
+    "pinned": 34,
+    "quarantined": 9
   }
 }

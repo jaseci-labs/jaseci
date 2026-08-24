@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "9d86274c42461fda69d309214d128e472ac69395",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_unary.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_unary.py",
     "-o",
-    "/var/tmp/wp4-mech/out/conv_unary",
+    "/var/tmp/lane8/jac-py/tests/conv_unary",
     "--name",
     "conv_unary"
   ],
-  "generated_at": "2026-08-24T00:36:08",
+  "generated_at": "2026-08-24T14:42:08",
   "hashes": {
     "pins_jac": "bd44f7ab25c010a51912ed83b83c423339c340fe71a0239d9dcf50272e1e08ef"
   },
-  "source_file": "reference/cpython/Lib/test/test_unary.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_unary.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "unary",
   "pins_file": "conv_unary_pins.jac",

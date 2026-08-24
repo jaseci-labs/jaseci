@@ -181,12 +181,6 @@ test "ByteArrayTest.test_resize_forbidden" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
-test "ByteArrayTest.test_obsolete_write_lock" {
-    (ok, detail) = p2_libtest_run_snippet("from test.support import import_helper\n\ndef _t():\n    _testcapi = import_helper.import_module('_testcapi')\n    try:\n        _testcapi.getbuffer_with_null_view(*(bytearray(),))\n    except BufferError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
 test "ByteArrayTest.test_iterator_pickling2" {
     (ok, detail) = p2_libtest_run_snippet("import pickle\n\ndef _t():\n    orig = bytearray(b'abc')\n    data = list(b'qwerty')\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        itorig = iter(orig)\n        d = pickle.dumps((itorig, orig), proto)\n        it, b = pickle.loads(d)\n        b[:] = data\n        assert type(it) == type(itorig), ('assertEqual', type(it), type(itorig))\n        assert list(it) == data, ('assertEqual', list(it), data)\n        next(itorig)\n        d = pickle.dumps((itorig, orig), proto)\n        it, b = pickle.loads(d)\n        b[:] = data\n        assert type(it) == type(itorig), ('assertEqual', type(it), type(itorig))\n        assert list(it) == data[1:], ('assertEqual', list(it), data[1:])\n        for i in range(1, len(orig)):\n            next(itorig)\n        d = pickle.dumps((itorig, orig), proto)\n        it, b = pickle.loads(d)\n        b[:] = data\n        assert type(it) == type(itorig), ('assertEqual', type(it), type(itorig))\n        assert list(it) == data[len(orig):], ('assertEqual', list(it), data[len(orig):])\n        try:\n            next(*(itorig,))\n        except StopIteration:\n            pass\n        d = pickle.dumps((itorig, orig), proto)\n        it, b = pickle.loads(d)\n        b[:] = data\n        assert list(it) == [], ('assertEqual', list(it), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

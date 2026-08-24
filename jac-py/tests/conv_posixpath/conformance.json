@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/laneb-out/test_posixpath/conv_posixpath_pins.jac"
+    "jac-py/tests/conv_posixpath/conv_posixpath_pins.jac"
   ],
-  "generated_at": "2026-08-24T10:32:35",
+  "generated_at": "2026-08-24T14:34:47",
   "hashes": {
-    "pins_jac": "0be8194781db371d967bfba9f98579ed1c33abac5288a556a115b1d6f1a3eb00",
-    "conversion_json": "f7fd44706bf17630e33a2cb8cf6e3c73ae79d2df8abf6e8620f9eee6acd249d5",
+    "pins_jac": "eaf3c3ccbed0a7d9bb40aa8e7f0c46df64d3978f3fcd92b9fbccd8a5eaae966f",
+    "conversion_json": "ab3866b12da37e3b31159e74a05eaeffc446a65d639b73610651cb000a070847",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "posixpath",
   "counts": {
     "converted": 64,
-    "runnable": 22,
+    "runnable": 23,
     "green": 16,
-    "quarantined": 42
+    "quarantined": 41
   },
   "pins": [
     {
@@ -33,6 +33,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'/foo\\', b\\'bar\\'), (b\\'/foo\\', b\\'bar\\'))\"'>"
+    },
+    {
+      "id": "PosixPathTest.test_splitext",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'foo\\', b\\'.bar\\'), (b\\'foo\\', b\\'.bar\\'))\"'>"
     },
     {
       "id": "PosixPathTest.test_splitroot",
@@ -160,11 +166,6 @@
       "reason": "decorator:unittest.skipIf"
     },
     {
-      "id": "PosixPathTest.test_splitext",
-      "status": "quarantined",
-      "reason": "self.splitextTest"
-    },
-    {
       "id": "PosixPathTest.test_islink",
       "status": "quarantined",
       "reason": "self.addCleanup"
@@ -177,7 +178,7 @@
     {
       "id": "PosixPathTest.test_normpath",
       "status": "quarantined",
-      "reason": "uses-self.NORMPATH_CASES"
+      "reason": "uses-self.subTest"
     },
     {
       "id": "PosixPathTest.test_realpath_curdir",
@@ -242,97 +243,97 @@
     {
       "id": "PathLikeTests.test_path_normcase",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_isabs",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_join",
       "status": "quarantined",
-      "reason": "uses-self.path"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_split",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_splitext",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_splitdrive",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_splitroot",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_basename",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_dirname",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_islink",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_lexists",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_ismount",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_expanduser",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_expandvars",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_normpath",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_abspath",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_realpath",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_relpath",
       "status": "quarantined",
-      "reason": "self.assertPathEqual"
+      "reason": "helper:setUp(self.addCleanup)"
     },
     {
       "id": "PathLikeTests.test_path_commonpath",
       "status": "quarantined",
-      "reason": "uses-self.file_name"
+      "reason": "helper:setUp(self.addCleanup)"
     }
   ]
 }

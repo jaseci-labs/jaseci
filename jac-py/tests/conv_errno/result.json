@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/wp4-mech/out/conv_errno/conv_errno_pins.jac"
+    "jac-py/tests/conv_errno/conv_errno_pins.jac"
   ],
-  "generated_at": "2026-08-24T00:42:34",
+  "generated_at": "2026-08-24T14:32:46",
   "hashes": {
     "pins_jac": "ca8b9721267d298ba289727b21dd586b52854f44a9e815ab923bc1ad2b0e32e5",
-    "conversion_json": "abf304f2369cd92dcca89db8ef6134121b8aa4a1032c7f14d87e7f7a8451514a",
+    "conversion_json": "a71acbf0c1d56ea4d0bc659a99ec4af262240503f65f8b7bc642797885c355eb",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "errno",

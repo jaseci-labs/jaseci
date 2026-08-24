@@ -1,6 +1,6 @@
 # Triage report: `conv_format_pins.jac`
 
-- source: /var/tmp/sp2-wt/reference/cpython/Lib/test/test_format.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_format.py
 - guest leg: 0/14 marks
 - pins: **9 passed** / 14 run (+8 quarantined of 22 extracted)
 

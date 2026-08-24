@@ -1,23 +1,18 @@
 # Triage report: `conv_utf8source_pins.jac`
 
-- source: reference/cpython/Lib/test/test_utf8source.py
-- guest leg: 0/2 marks
-- pins: **1 passed** / 2 run (+1 quarantined of 3 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_utf8source.py
+- guest leg: 0/3 marks
+- pins: **2 passed** / 3 run (+0 quarantined of 3 extracted)
 
 | pin | result | got |
 |---|---|---|
 | PEP3120Test.test_pep3120 | PASS | |
-| BuiltinCompileTests.test_latin1 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'u\'"'> |
-
-## Quarantined at conversion
-
-| test | reason |
-|---|---|
-| PEP3120Test.test_badsyntax | host-raised:ModuleNotFoundError: No module named 'test' |
+| PEP3120Test.test_badsyntax | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC ModuleNotFoundError "No module named \'test.tokenizedata\'"'> |
+| BuiltinCompileTests.test_latin1 | PASS | |
 
 ## Expected vs got
 
-### BuiltinCompileTests.test_latin1 (GUEST-WRONG-OUTPUT)
+### PEP3120Test.test_badsyntax (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC KeyError "\'u\'"'>
+- got: GOT<'ORACLE_EXC ModuleNotFoundError "No module named \'test.tokenizedata\'"'>

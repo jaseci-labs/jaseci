@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "unknown",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,13 +10,13 @@
     "convert_suite.py",
     "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_textwrap.py",
     "-o",
-    "/var/tmp/nicestorm-selfhost-wt/jac-py/tests/conv_textwrap",
+    "/var/tmp/lane8/jac-py/tests/conv_textwrap",
     "--name",
     "conv_textwrap"
   ],
-  "generated_at": "2026-08-24T09:44:12",
+  "generated_at": "2026-08-24T14:41:37",
   "hashes": {
-    "pins_jac": "6eab51a8d33063529c618c095bc1725f9cc3951bc1a84ad7c8832d2aeac8fe04"
+    "pins_jac": "b55b53c97c564138b071ec12e8d8ea52de21218850feee27dceb3e4029ac8115"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_textwrap.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -24,12 +24,321 @@
   "pins_file": "conv_textwrap_pins.jac",
   "pins": [
     {
+      "ident": "WrapTestCase.test_simple",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = \"Hello there, how are you this fine day?  I'm glad to hear it!\"\n    check_wrap(text, 12, ['Hello there,', 'how are you', 'this fine', \"day?  I'm\", 'glad to hear', 'it!'])\n    check_wrap(text, 42, ['Hello there, how are you this fine day?', \"I'm glad to hear it!\"])\n    check_wrap(text, 80, [text])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_empty_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    check_wrap('', 6, [])\n    check_wrap('', 6, [], drop_whitespace=False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_empty_string_with_initial_indent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    check_wrap('', 6, [], initial_indent='++')\n    check_wrap('', 6, [], initial_indent='++', drop_whitespace=False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_whitespace",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'This is a paragraph that already has\\nline breaks.  But some of its lines are much longer than the others,\\nso it needs to be wrapped.\\nSome lines are \\ttabbed too.\\nWhat a mess!\\n'\n    expect = ['This is a paragraph that already has line', 'breaks.  But some of its lines are much', 'longer than the others, so it needs to be', 'wrapped.  Some lines are  tabbed too.  What a', 'mess!']\n    wrapper = TextWrapper(45, fix_sentence_endings=True)\n    result = wrapper.wrap(text)\n    check(result, expect)\n    result = wrapper.fill(text)\n    check(result, '\\n'.join(expect))\n    text = '\\tTest\\tdefault\\t\\ttabsize.'\n    expect = ['        Test    default         tabsize.']\n    check_wrap(text, 80, expect)\n    text = '\\tTest\\tcustom\\t\\ttabsize.'\n    expect = ['    Test    custom      tabsize.']\n    check_wrap(text, 80, expect, tabsize=4)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_fix_sentence_endings",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    wrapper = TextWrapper(60, fix_sentence_endings=True)\n    text = 'A short line. Note the single space.'\n    expect = ['A short line.  Note the single space.']\n    check(wrapper.wrap(text), expect)\n    text = 'Well, Doctor? What do you think?'\n    expect = ['Well, Doctor?  What do you think?']\n    check(wrapper.wrap(text), expect)\n    text = 'Well, Doctor?\\nWhat do you think?'\n    check(wrapper.wrap(text), expect)\n    text = 'I say, chaps! Anyone for \"tennis?\"\\nHmmph!'\n    expect = ['I say, chaps!  Anyone for \"tennis?\"  Hmmph!']\n    check(wrapper.wrap(text), expect)\n    wrapper.width = 20\n    expect = ['I say, chaps!', 'Anyone for \"tennis?\"', 'Hmmph!']\n    check(wrapper.wrap(text), expect)\n    text = 'And she said, \"Go to hell!\"\\nCan you believe that?'\n    expect = ['And she said, \"Go to', 'hell!\"  Can you', 'believe that?']\n    check(wrapper.wrap(text), expect)\n    wrapper.width = 60\n    expect = ['And she said, \"Go to hell!\"  Can you believe that?']\n    check(wrapper.wrap(text), expect)\n    text = 'File stdio.h is nice.'\n    expect = ['File stdio.h is nice.']\n    check(wrapper.wrap(text), expect)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_wrap_short",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'This is a\\nshort paragraph.'\n    check_wrap(text, 20, ['This is a short', 'paragraph.'])\n    check_wrap(text, 40, ['This is a short paragraph.'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_wrap_short_1line",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'This is a short line.'\n    check_wrap(text, 30, ['This is a short line.'])\n    check_wrap(text, 30, ['(1) This is a short line.'], initial_indent='(1) ')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_hyphenated",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "WrapTestCase.test_hyphenated_numbers",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'Python 1.0.0 was released on 1994-01-26.  Python 1.0.1 was\\nreleased on 1994-02-15.'\n    check_wrap(text, 30, ['Python 1.0.0 was released on', '1994-01-26.  Python 1.0.1 was', 'released on 1994-02-15.'])\n    check_wrap(text, 40, ['Python 1.0.0 was released on 1994-01-26.', 'Python 1.0.1 was released on 1994-02-15.'])\n    check_wrap(text, 1, text.split(), break_long_words=False)\n    text = 'I do all my shopping at 7-11.'\n    check_wrap(text, 25, ['I do all my shopping at', '7-11.'])\n    check_wrap(text, 27, ['I do all my shopping at', '7-11.'])\n    check_wrap(text, 29, ['I do all my shopping at 7-11.'])\n    check_wrap(text, 1, text.split(), break_long_words=False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_em_dash",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "WrapTestCase.test_unix_options",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "WrapTestCase.test_funky_hyphens",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "WrapTestCase.test_punct_hyphens",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "WrapTestCase.test_funky_parens",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_false",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = ' This is a    sentence with     much whitespace.'\n    check_wrap(text, 10, [' This is a', '    ', 'sentence ', 'with     ', 'much white', 'space.'], drop_whitespace=False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_false_whitespace_only",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    check_wrap('   ', 6, ['   '], drop_whitespace=False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_false_whitespace_only_with_indent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    check_wrap('   ', 6, ['     '], drop_whitespace=False, initial_indent='  ')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_whitespace_only",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    check_wrap('  ', 6, [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_leading_whitespace",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = ' This is a sentence with leading whitespace.'\n    check_wrap(text, 50, [' This is a sentence with leading whitespace.'])\n    check_wrap(text, 30, [' This is a sentence with', 'leading whitespace.'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_whitespace_line",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'abcd    efgh'\n    check_wrap(text, 6, ['abcd', '    ', 'efgh'], drop_whitespace=False)\n    check_wrap(text, 6, ['abcd', 'efgh'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_whitespace_only_with_indent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    check_wrap('  ', 6, [], initial_indent='++')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_whitespace_indent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    check_wrap('abcd efgh', 6, ['  abcd', '  efgh'], initial_indent='  ', subsequent_indent='  ')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_split",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'Hello there -- you goof-ball, use the -b option!'\n    result = self.wrapper._split(text)\n    check(result, ['Hello', ' ', 'there', ' ', '--', ' ', 'you', ' ', 'goof-', 'ball,', ' ', 'use', ' ', 'the', ' ', '-b', ' ', 'option!'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_break_on_hyphens",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'yaba daba-doo'\n    check_wrap(text, 10, ['yaba daba-', 'doo'], break_on_hyphens=True)\n    check_wrap(text, 10, ['yaba', 'daba-doo'], break_on_hyphens=False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "WrapTestCase.test_bad_width",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
-      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    text = \"Whatever, it doesn't matter.\"\n    try:\n        wrap(*(text, 0))\n    except ValueError:\n        pass\n    try:\n        wrap(*(text, -1))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = \"Whatever, it doesn't matter.\"\n    try:\n        wrap(*(text, 0))\n    except ValueError:\n        pass\n    try:\n        wrap(*(text, -1))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_no_split_at_umlaut",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'Die Empf\u00e4nger-Auswahl'\n    check_wrap(text, 13, ['Die', 'Empf\u00e4nger-', 'Auswahl'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_umlaut_followed_by_dash",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'aa \u00e4\u00e4-\u00e4\u00e4'\n    check_wrap(text, 7, ['aa \u00e4\u00e4-', '\u00e4\u00e4'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_non_breaking_space",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'This is a sentence with non-breaking\\xa0space.'\n    check_wrap(text, 20, ['This is a sentence', 'with non-', 'breaking\\xa0space.'], break_on_hyphens=True)\n    check_wrap(text, 20, ['This is a sentence', 'with', 'non-breaking\\xa0space.'], break_on_hyphens=False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "WrapTestCase.test_narrow_non_breaking_space",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper(width=45)\n    text = 'This is a sentence with non-breaking\\u202fspace.'\n    check_wrap(text, 20, ['This is a sentence', 'with non-', 'breaking\\u202fspace.'], break_on_hyphens=True)\n    check_wrap(text, 20, ['This is a sentence', 'with', 'non-breaking\\u202fspace.'], break_on_hyphens=False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MaxLinesTestCase.test_simple",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'text'"
+    },
+    {
+      "ident": "MaxLinesTestCase.test_spaces",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'text'"
+    },
+    {
+      "ident": "MaxLinesTestCase.test_placeholder",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'text'"
+    },
+    {
+      "ident": "MaxLinesTestCase.test_placeholder_backtrack",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n    text = 'Good grief Python features are advancing quickly!'\n    check_wrap(text, 12, ['Good grief', 'Python*****'], max_lines=3, placeholder='*****')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LongWordTestCase.test_break_long",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper()\n    self.text = 'Did you say \"supercalifragilisticexpialidocious?\"\\nHow *do* you spell that odd word, anyways?\\n'\n    check_wrap(self.text, 30, ['Did you say \"supercalifragilis', 'ticexpialidocious?\" How *do*', 'you spell that odd word,', 'anyways?'])\n    check_wrap(self.text, 50, ['Did you say \"supercalifragilisticexpialidocious?\"', 'How *do* you spell that odd word, anyways?'])\n    check_wrap('-' * 10 + 'hello', 10, ['----------', '               h', '               e', '               l', '               l', '               o'], subsequent_indent=' ' * 15)\n    check_wrap(self.text, 12, ['Did you say', '\"supercalifr', 'agilisticexp', 'ialidocious?', '\" How *do*', 'you spell', 'that odd', 'word,', 'anyways?'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LongWordTestCase.test_nobreak_long",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper()\n    self.text = 'Did you say \"supercalifragilisticexpialidocious?\"\\nHow *do* you spell that odd word, anyways?\\n'\n    self.wrapper.break_long_words = 0\n    self.wrapper.width = 30\n    expect = ['Did you say', '\"supercalifragilisticexpialidocious?\"', 'How *do* you spell that odd', 'word, anyways?']\n    result = self.wrapper.wrap(self.text)\n    check(result, expect)\n    result = wrap(self.text, width=30, break_long_words=0)\n    check(result, expect)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LongWordTestCase.test_max_lines_long",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper()\n    self.text = 'Did you say \"supercalifragilisticexpialidocious?\"\\nHow *do* you spell that odd word, anyways?\\n'\n    check_wrap(self.text, 12, ['Did you say', '\"supercalifr', 'agilisticexp', '[...]'], max_lines=4)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LongWordWithHyphensTestCase.test_break_long_words_on_hyphen",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper()\n    self.text1 = 'We used enyzme 2-succinyl-6-hydroxy-2,4-cyclohexadiene-1-carboxylate synthase.\\n'\n    self.text2 = '1234567890-1234567890--this_is_a_very_long_option_indeed-good-bye\"\\n'\n    expected = ['We used enyzme 2-succinyl-6-hydroxy-2,4-', 'cyclohexadiene-1-carboxylate synthase.']\n    check_wrap(self.text1, 50, expected)\n    expected = ['We used', 'enyzme 2-', 'succinyl-', '6-hydroxy-', '2,4-', 'cyclohexad', 'iene-1-', 'carboxylat', 'e', 'synthase.']\n    check_wrap(self.text1, 10, expected)\n    expected = ['1234567890', '-123456789', '0--this_is', '_a_very_lo', 'ng_option_', 'indeed-', 'good-bye\"']\n    check_wrap(self.text2, 10, expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LongWordWithHyphensTestCase.test_break_long_words_not_on_hyphen",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper()\n    self.text1 = 'We used enyzme 2-succinyl-6-hydroxy-2,4-cyclohexadiene-1-carboxylate synthase.\\n'\n    self.text2 = '1234567890-1234567890--this_is_a_very_long_option_indeed-good-bye\"\\n'\n    expected = ['We used enyzme 2-succinyl-6-hydroxy-2,4-cyclohexad', 'iene-1-carboxylate synthase.']\n    check_wrap(self.text1, 50, expected, break_on_hyphens=False)\n    expected = ['We used', 'enyzme 2-s', 'uccinyl-6-', 'hydroxy-2,', '4-cyclohex', 'adiene-1-c', 'arboxylate', 'synthase.']\n    check_wrap(self.text1, 10, expected, break_on_hyphens=False)\n    expected = ['1234567890', '-123456789', '0--this_is', '_a_very_lo', 'ng_option_', 'indeed-', 'good-bye\"']\n    check_wrap(self.text2, 10, expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LongWordWithHyphensTestCase.test_break_on_hyphen_but_not_long_words",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper()\n    self.text1 = 'We used enyzme 2-succinyl-6-hydroxy-2,4-cyclohexadiene-1-carboxylate synthase.\\n'\n    self.text2 = '1234567890-1234567890--this_is_a_very_long_option_indeed-good-bye\"\\n'\n    expected = ['We used enyzme', '2-succinyl-6-hydroxy-2,4-cyclohexadiene-1-carboxylate', 'synthase.']\n    check_wrap(self.text1, 50, expected, break_long_words=False)\n    expected = ['We used', 'enyzme', '2-succinyl-6-hydroxy-2,4-cyclohexadiene-1-carboxylate', 'synthase.']\n    check_wrap(self.text1, 10, expected, break_long_words=False)\n    expected = ['1234567890', '-123456789', '0--this_is', '_a_very_lo', 'ng_option_', 'indeed-', 'good-bye\"']\n    check_wrap(self.text2, 10, expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LongWordWithHyphensTestCase.test_do_not_break_long_words_or_on_hyphens",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_wrap(text, width, expect, **kwargs):\n    result = wrap(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.wrapper = TextWrapper()\n    self.text1 = 'We used enyzme 2-succinyl-6-hydroxy-2,4-cyclohexadiene-1-carboxylate synthase.\\n'\n    self.text2 = '1234567890-1234567890--this_is_a_very_long_option_indeed-good-bye\"\\n'\n    expected = ['We used enyzme', '2-succinyl-6-hydroxy-2,4-cyclohexadiene-1-carboxylate', 'synthase.']\n    check_wrap(self.text1, 50, expected, break_long_words=False, break_on_hyphens=False)\n    expected = ['We used', 'enyzme', '2-succinyl-6-hydroxy-2,4-cyclohexadiene-1-carboxylate', 'synthase.']\n    check_wrap(self.text1, 10, expected, break_long_words=False, break_on_hyphens=False)\n    expected = ['1234567890', '-123456789', '0--this_is', '_a_very_lo', 'ng_option_', 'indeed-', 'good-bye\"']\n    check_wrap(self.text2, 10, expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IndentTestCases.test_fill",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.text = 'This paragraph will be filled, first without any indentation,\\nand then with some (including a hanging indent).'\n    expect = 'This paragraph will be filled, first\\nwithout any indentation, and then with\\nsome (including a hanging indent).'\n    result = fill(self.text, 40)\n    check(result, expect)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IndentTestCases.test_initial_indent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.text = 'This paragraph will be filled, first without any indentation,\\nand then with some (including a hanging indent).'\n    expect = ['     This paragraph will be filled,', 'first without any indentation, and then', 'with some (including a hanging indent).']\n    result = wrap(self.text, 40, initial_indent='     ')\n    check(result, expect)\n    expect = '\\n'.join(expect)\n    result = fill(self.text, 40, initial_indent='     ')\n    check(result, expect)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IndentTestCases.test_subsequent_indent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.text = 'This paragraph will be filled, first without any indentation,\\nand then with some (including a hanging indent).'\n    expect = '  * This paragraph will be filled, first\\n    without any indentation, and then\\n    with some (including a hanging\\n    indent).'\n    result = fill(self.text, 40, initial_indent='  * ', subsequent_indent='    ')\n    check(result, expect)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "DedentTestCase.test_type_error",
@@ -38,6 +347,22 @@
         "status": "ok"
       },
       "snippet": "import re as _re\nfrom textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    try:\n        dedent(0)\n    except TypeError as _exc:\n        assert _re.search('expected str object, not', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        dedent(b'')\n    except TypeError as _exc:\n        assert _re.search('expected str object, not', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "DedentTestCase.test_dedent_whitespace",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef assertUnchanged(text):\n    \"\"\"assert that dedent() has no effect on 'text'\"\"\"\n    assert text == dedent(text), ('assertEqual', text, dedent(text))\n\ndef _t():\n    text = ''\n    assertUnchanged(text)\n    text = '    '\n    expect = ''\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '\\t\\t\\t\\t'\n    expect = ''\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = ' \\t  \\t\\t  \\t '\n    expect = ''\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '\\x0c\\n\\r\\t\\x0b '\n    expect = '\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '\\n'\n    expect = '\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '\\r\\n' * 5\n    expect = '\\n' * 5\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '    \\n\\t\\n  \\n\\t\\t\\n\\n\\n       '\n    expect = '\\n\\n\\n\\n\\n\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = 'a\\n \\n\\t\\n'\n    expect = 'a\\n\\n\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = 'a\\r\\n\\r\\n\\r\\n'\n    expect = 'a\\r\\n\\n\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "DedentTestCase.test_dedent_nomargin",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef assertUnchanged(text):\n    \"\"\"assert that dedent() has no effect on 'text'\"\"\"\n    assert text == dedent(text), ('assertEqual', text, dedent(text))\n\ndef _t():\n    text = \"Hello there.\\nHow are you?\\nOh good, I'm glad.\"\n    assertUnchanged(text)\n    text = 'Hello there.\\n\\nBoo!'\n    assertUnchanged(text)\n    text = 'Hello there.\\n  This is indented.'\n    assertUnchanged(text)\n    text = 'Hello there.\\n\\n  Boo!\\n'\n    assertUnchanged(text)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "DedentTestCase.test_dedent_even",
@@ -72,263 +397,121 @@
       "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    text = '  hello\\tthere\\n  how are\\tyou?'\n    expect = 'hello\\tthere\\nhow are\\tyou?'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    assert expect == dedent(expect), ('assertEqual', expect, dedent(expect))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "DedentTestCase.test_dedent_preserve_margin_tabs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef assertUnchanged(text):\n    \"\"\"assert that dedent() has no effect on 'text'\"\"\"\n    assert text == dedent(text), ('assertEqual', text, dedent(text))\n\ndef _t():\n    text = '  hello there\\n\\thow are you?'\n    assertUnchanged(text)\n    text = '        hello there\\n\\thow are you?'\n    assertUnchanged(text)\n    text = '\\thello there\\n\\thow are you?'\n    expect = 'hello there\\nhow are you?'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '  \\thello there\\n  \\thow are you?'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '  \\t  hello there\\n  \\t  how are you?'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '  \\thello there\\n  \\t  how are you?'\n    expect = 'hello there\\n  how are you?'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = \"  \\thello there\\n   \\thow are you?\\n \\tI'm fine, thanks\"\n    expect = \" \\thello there\\n  \\thow are you?\\n\\tI'm fine, thanks\"\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_nomargin_default",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'CASES'"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_nomargin_explicit_default",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'CASES'"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_nomargin_all_lines",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'CASES'"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_no_lines",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'CASES'"
+    },
+    {
+      "ident": "IndentTestCase.test_roundtrip_spaces",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'ROUNDTRIP_CASES'"
+    },
+    {
+      "ident": "IndentTestCase.test_roundtrip_tabs",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'ROUNDTRIP_CASES'"
+    },
+    {
+      "ident": "IndentTestCase.test_roundtrip_mixed",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'ROUNDTRIP_CASES'"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_default",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'CASES'"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_explicit_default",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'CASES'"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_all_lines",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'CASES'"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_empty_lines",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'CASES'"
+    },
+    {
+      "ident": "ShortenTestCase.test_simple",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_shorten(text, width, expect, **kwargs):\n    result = shorten(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n    text = \"Hello there, how are you this fine day? I'm glad to hear it!\"\n    check_shorten(text, 18, 'Hello there, [...]')\n    check_shorten(text, len(text), text)\n    check_shorten(text, len(text) - 1, \"Hello there, how are you this fine day? I'm glad to [...]\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ShortenTestCase.test_placeholder",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_shorten(text, width, expect, **kwargs):\n    result = shorten(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n    text = \"Hello there, how are you this fine day? I'm glad to hear it!\"\n    check_shorten(text, 17, 'Hello there,$$', placeholder='$$')\n    check_shorten(text, 18, 'Hello there, how$$', placeholder='$$')\n    check_shorten(text, 18, 'Hello there, $$', placeholder=' $$')\n    check_shorten(text, len(text), text, placeholder='$$')\n    check_shorten(text, len(text) - 1, \"Hello there, how are you this fine day? I'm glad to hear$$\", placeholder='$$')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ShortenTestCase.test_empty_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_shorten(text, width, expect, **kwargs):\n    result = shorten(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n    check_shorten('', 6, '')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ShortenTestCase.test_whitespace",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_shorten(text, width, expect, **kwargs):\n    result = shorten(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n    text = '\\n            This is a  paragraph that  already has\\n            line breaks and \\t tabs too.'\n    check_shorten(text, 62, 'This is a paragraph that already has line breaks and tabs too.')\n    check_shorten(text, 61, 'This is a paragraph that already has line breaks and [...]')\n    check_shorten('hello      world!  ', 12, 'hello world!')\n    check_shorten('hello      world!  ', 11, 'hello [...]')\n    check_shorten('hello      world!  ', 10, '[...]')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "ShortenTestCase.test_width_too_small_for_placeholder",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
       "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    shorten('x' * 20, width=8, placeholder='(......)')\n    try:\n        shorten('x' * 20, width=8, placeholder='(.......)')\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
-    }
-  ],
-  "quarantined": [
-    {
-      "ident": "WrapTestCase.test_simple",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_empty_string",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_empty_string_with_initial_indent",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_whitespace",
-      "reason": "self.check"
-    },
-    {
-      "ident": "WrapTestCase.test_fix_sentence_endings",
-      "reason": "self.check"
-    },
-    {
-      "ident": "WrapTestCase.test_wrap_short",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_wrap_short_1line",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_hyphenated",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_hyphenated_numbers",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_em_dash",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_unix_options",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_funky_hyphens",
-      "reason": "self.check_split"
-    },
-    {
-      "ident": "WrapTestCase.test_punct_hyphens",
-      "reason": "self.check_split"
-    },
-    {
-      "ident": "WrapTestCase.test_funky_parens",
-      "reason": "self.check_split"
-    },
-    {
-      "ident": "WrapTestCase.test_drop_whitespace_false",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_drop_whitespace_false_whitespace_only",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_drop_whitespace_false_whitespace_only_with_indent",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_drop_whitespace_whitespace_only",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_drop_whitespace_leading_whitespace",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_drop_whitespace_whitespace_line",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_drop_whitespace_whitespace_only_with_indent",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_drop_whitespace_whitespace_indent",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_split",
-      "reason": "self.check"
-    },
-    {
-      "ident": "WrapTestCase.test_break_on_hyphens",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_no_split_at_umlaut",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_umlaut_followed_by_dash",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_non_breaking_space",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "WrapTestCase.test_narrow_non_breaking_space",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "MaxLinesTestCase.test_simple",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "MaxLinesTestCase.test_spaces",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "MaxLinesTestCase.test_placeholder",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "MaxLinesTestCase.test_placeholder_backtrack",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "LongWordTestCase.test_break_long",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "LongWordTestCase.test_nobreak_long",
-      "reason": "self.check"
-    },
-    {
-      "ident": "LongWordTestCase.test_max_lines_long",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "LongWordWithHyphensTestCase.test_break_long_words_on_hyphen",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "LongWordWithHyphensTestCase.test_break_long_words_not_on_hyphen",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "LongWordWithHyphensTestCase.test_break_on_hyphen_but_not_long_words",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "LongWordWithHyphensTestCase.test_do_not_break_long_words_or_on_hyphens",
-      "reason": "self.check_wrap"
-    },
-    {
-      "ident": "IndentTestCases.test_fill",
-      "reason": "self.check"
-    },
-    {
-      "ident": "IndentTestCases.test_initial_indent",
-      "reason": "self.check"
-    },
-    {
-      "ident": "IndentTestCases.test_subsequent_indent",
-      "reason": "self.check"
-    },
-    {
-      "ident": "DedentTestCase.test_dedent_whitespace",
-      "reason": "self.assertUnchanged"
-    },
-    {
-      "ident": "DedentTestCase.test_dedent_nomargin",
-      "reason": "self.assertUnchanged"
-    },
-    {
-      "ident": "DedentTestCase.test_dedent_preserve_margin_tabs",
-      "reason": "self.assertUnchanged"
-    },
-    {
-      "ident": "IndentTestCase.test_indent_nomargin_default",
-      "reason": "uses-self.CASES"
-    },
-    {
-      "ident": "IndentTestCase.test_indent_nomargin_explicit_default",
-      "reason": "uses-self.CASES"
-    },
-    {
-      "ident": "IndentTestCase.test_indent_nomargin_all_lines",
-      "reason": "uses-self.CASES"
-    },
-    {
-      "ident": "IndentTestCase.test_indent_no_lines",
-      "reason": "uses-self.CASES"
-    },
-    {
-      "ident": "IndentTestCase.test_roundtrip_spaces",
-      "reason": "uses-self.ROUNDTRIP_CASES"
-    },
-    {
-      "ident": "IndentTestCase.test_roundtrip_tabs",
-      "reason": "uses-self.ROUNDTRIP_CASES"
-    },
-    {
-      "ident": "IndentTestCase.test_roundtrip_mixed",
-      "reason": "uses-self.ROUNDTRIP_CASES"
-    },
-    {
-      "ident": "IndentTestCase.test_indent_default",
-      "reason": "uses-self.CASES"
-    },
-    {
-      "ident": "IndentTestCase.test_indent_explicit_default",
-      "reason": "uses-self.CASES"
-    },
-    {
-      "ident": "IndentTestCase.test_indent_all_lines",
-      "reason": "uses-self.CASES"
-    },
-    {
-      "ident": "IndentTestCase.test_indent_empty_lines",
-      "reason": "uses-self.CASES"
-    },
-    {
-      "ident": "ShortenTestCase.test_simple",
-      "reason": "self.check_shorten"
-    },
-    {
-      "ident": "ShortenTestCase.test_placeholder",
-      "reason": "self.check_shorten"
-    },
-    {
-      "ident": "ShortenTestCase.test_empty_string",
-      "reason": "self.check_shorten"
-    },
-    {
-      "ident": "ShortenTestCase.test_whitespace",
-      "reason": "self.check_shorten"
     },
     {
       "ident": "ShortenTestCase.test_first_word_too_long_but_placeholder_fits",
-      "reason": "self.check_shorten"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef show(textin):\n    if isinstance(textin, list):\n        result = []\n        for i in range(len(textin)):\n            result.append('  %d: %r' % (i, textin[i]))\n        result = '\\n'.join(result) if result else '  no lines'\n    elif isinstance(textin, str):\n        result = '  %s\\n' % repr(textin)\n    return result\n\ndef check(result, expect):\n    assert result == expect, ('assertEqual', result, expect)\n\ndef check_shorten(text, width, expect, **kwargs):\n    result = shorten(text, width, **kwargs)\n    check(result, expect)\n\ndef _t():\n    check_shorten('Helloo', 5, '[...]')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
+  "quarantined": [],
   "counts": {
     "extracted": 68,
-    "pinned": 7,
-    "quarantined": 61
+    "pinned": 48,
+    "quarantined": 20
   }
 }

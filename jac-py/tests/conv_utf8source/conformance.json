@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "896753ce7d06545219072fd3d5524dd8cd7983cd",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/wp4-mech/out/convL_utf8source/conv_utf8source_pins.jac"
+    "jac-py/tests/conv_utf8source/conv_utf8source_pins.jac"
   ],
-  "generated_at": "2026-08-24T01:12:59",
+  "generated_at": "2026-08-24T14:42:19",
   "hashes": {
-    "pins_jac": "254ae8ddb030a351c2cbcc20777aa94ec16a1f4a65908b92e0543d755c6c2ddd",
-    "conversion_json": "248333bd1b9c1679bab195eeb8c4301b2c73280baa5bd854b89c4ba7e4928544",
+    "pins_jac": "4f1f42785512b0c0f4ced22b47fea56245e5454e912b4a1690ac2cc3db0176f5",
+    "conversion_json": "7e5509465a0e4faf66e14ac3ef07c93908e0509480970b899d93664d5ef62d82",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "utf8source",
   "counts": {
     "converted": 3,
-    "runnable": 2,
-    "green": 1,
-    "quarantined": 1
+    "runnable": 3,
+    "green": 2,
+    "quarantined": 0
   },
   "pins": [
     {
@@ -30,14 +30,13 @@
     },
     {
       "id": "PEP3120Test.test_badsyntax",
-      "status": "quarantined",
-      "reason": "host-raised:ModuleNotFoundError: No module named 'test'"
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC ModuleNotFoundError \"No module named \\'test.tokenizedata\\'\"'>"
     },
     {
       "id": "BuiltinCompileTests.test_latin1",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC KeyError \"\\'u\\'\"'>"
+      "status": "pass"
     }
   ]
 }

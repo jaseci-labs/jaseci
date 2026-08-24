@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "9d86274c42461fda69d309214d128e472ac69395",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_unpack.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_unpack.py",
     "-o",
-    "/var/tmp/wp4-mech/out/conv_unpack",
+    "/var/tmp/lane8/jac-py/tests/conv_unpack",
     "--name",
     "conv_unpack"
   ],
-  "generated_at": "2026-08-24T00:36:05",
+  "generated_at": "2026-08-24T14:42:12",
   "hashes": {
-    "pins_jac": "f925babe3aad9d5bd4c53e9310a1dbcf9ab7b4564c6b6924546bf50e8b08b12b"
+    "pins_jac": "5855fd045a9e81f6d4b90da029da7184dbe45e642d9c1a92459ca367d2166cc3"
   },
-  "source_file": "reference/cpython/Lib/test/test_unpack.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_unpack.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "unpack",
   "pins_file": "conv_unpack_pins.jac",
@@ -30,12 +30,33 @@
         "status": "ok"
       },
       "snippet": "def _t():\n    target = '(' + 'y,' * 400 + ')'\n    code = f'def unpack_400(x):\\n            {target} = x\\n            return y\\n        '\n    ns = {}\n    exec(code, ns)\n    unpack_400 = ns['unpack_400']\n    for _ in range(30):\n        y = unpack_400(range(400))\n        assert y == 399, ('assertEqual', y, 399)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "unpack.doctests:doctests",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "_d_buf = []\n\ndef _d_print(*args, sep=' '):\n    _d_buf.append(sep.join((str(a) for a in args)))\n\ndef _d_clear():\n    _d_buf.clear()\n\ndef _d_ell_match(want, got):\n    parts = want.split('...')\n    if len(parts) == 1:\n        return want == got\n    if not got.startswith(parts[0]) or not got.endswith(parts[-1]):\n        return False\n    pos = len(parts[0])\n    end = len(got) - len(parts[-1])\n    for seg in parts[1:-1]:\n        idx = got.find(seg, pos)\n        if idx < 0 or idx > end:\n            return False\n        pos = idx + len(seg)\n    return True\n\ndef _d_check(idx, want, ell=False):\n    got = chr(10).join(_d_buf)\n    ok = _d_ell_match(want, got) if ell else got == want\n    if not ok and want in ('0', '1'):\n        ok = got == ('False' if want == '0' else 'True')\n    assert ok, ('doctest', idx, got, want)\n_d_clear()\nt = (1, 2, 3)\n_d_clear()\na, b, c = t\n_d_clear()\n_d_r = a == 1 and b == 2 and (c == 3)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(2, 'True')\n_d_clear()\nl = [4, 5, 6]\n_d_clear()\na, b, c = l\n_d_clear()\n_d_r = a == 4 and b == 5 and (c == 6)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(5, 'True')\n_d_clear()\nd = {4: 'four', 5: 'five', 6: 'six'}\n_d_clear()\na, b, c = d\n_d_clear()\n_d_r = a == 4 and b == 5 and (c == 6)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(8, 'True')\n_d_clear()\na, b, c = (7, 8, 9)\n_d_clear()\n_d_r = a == 7 and b == 8 and (c == 9)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(10, 'True')\n_d_clear()\na, b, c = 'one'\n_d_clear()\n_d_r = a == 'o' and b == 'n' and (c == 'e')\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(12, 'True')\n_d_clear()\n\nclass Seq:\n\n    def __getitem__(self, i):\n        if i >= 0 and i < 3:\n            return i\n        raise IndexError\n_d_clear()\na, b, c = Seq()\n_d_clear()\n_d_r = a == 0 and b == 1 and (c == 2)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(15, 'True')\n_d_clear()\nst = (99,)\n_d_clear()\nsl = [100]\n_d_clear()\na, = st\n_d_clear()\n_d_r = a\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(19, '99')\n_d_clear()\nb, = sl\n_d_clear()\n_d_r = b\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(21, '100')\ntry:\n    _d_clear()\n    a, b, c = 7\nexcept TypeError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'TypeError: cannot unpack non-iterable int object', ('doctest-exc22', _d_e)\nelse:\n    raise AssertionError('ex22: expected TypeError')\ntry:\n    _d_clear()\n    a, b = t\nexcept ValueError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'ValueError: too many values to unpack (expected 2, got 3)', ('doctest-exc23', _d_e)\nelse:\n    raise AssertionError('ex23: expected ValueError')\ntry:\n    _d_clear()\n    a, b = l\nexcept ValueError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'ValueError: too many values to unpack (expected 2, got 3)', ('doctest-exc24', _d_e)\nelse:\n    raise AssertionError('ex24: expected ValueError')\ntry:\n    _d_clear()\n    a, b, c, d = Seq()\nexcept ValueError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'ValueError: not enough values to unpack (expected 4, got 3)', ('doctest-exc25', _d_e)\nelse:\n    raise AssertionError('ex25: expected ValueError')\ntry:\n    _d_clear()\n    a, b = Seq()\nexcept ValueError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'ValueError: too many values to unpack (expected 2)', ('doctest-exc26', _d_e)\nelse:\n    raise AssertionError('ex26: expected ValueError')\n_d_clear()\n\nclass BozoError(Exception):\n    pass\n_d_clear()\n\nclass BadSeq:\n\n    def __getitem__(self, i):\n        if i >= 0 and i < 3:\n            return i\n        elif i == 3:\n            raise BozoError\n        else:\n            raise IndexError\n_d_clear()\n() = []\n_d_clear()\n[] = ()\n_d_clear()\n[] = []\n_d_clear()\n() = ()\ntry:\n    _d_clear()\n    () = 42\nexcept TypeError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'TypeError: cannot unpack non-iterable int object', ('doctest-exc35', _d_e)\nelse:\n    raise AssertionError('ex35: expected TypeError')\ntry:\n    _d_clear()\n    () = [42]\nexcept ValueError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'ValueError: too many values to unpack (expected 0, got 1)', ('doctest-exc36', _d_e)\nelse:\n    raise AssertionError('ex36: expected ValueError')\n_d_clear()\nit = iter(range(100))\ntry:\n    _d_clear()\n    x, y, z = it\nexcept ValueError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'ValueError: too many values to unpack (expected 3)', ('doctest-exc38', _d_e)\nelse:\n    raise AssertionError('ex38: expected ValueError')\n_d_clear()\n_d_r = next(it)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(39, '4')\n_d_clear()\nd = {4: 'four', 5: 'five', 6: 'six', 7: 'seven'}\n_d_clear()\n\nclass LengthTooLong:\n\n    def __len__(self):\n        return 5\n\n    def __getitem__(self, i):\n        return i * 2\ntry:\n    _d_clear()\n    x, y, z = LengthTooLong()\nexcept ValueError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'ValueError: too many values to unpack (expected 3)', ('doctest-exc43', _d_e)\nelse:\n    raise AssertionError('ex43: expected ValueError')\n_d_clear()\n\nclass BadLength:\n\n    def __len__(self):\n        return 1\n\n    def __getitem__(self, i):\n        return i * 2\ntry:\n    _d_clear()\n    x, y, z = BadLength()\nexcept ValueError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'ValueError: too many values to unpack (expected 3)', ('doctest-exc45', _d_e)\nelse:\n    raise AssertionError('ex45: expected ValueError')\nprint('ok')\n"
     }
   ],
-  "quarantined": [],
+  "quarantined": [
+    {
+      "ident": "unpack.doctests:doctests.ex29",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "unpack.doctests:doctests.ex30",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "unpack.doctests:doctests.ex41",
+      "reason": "doctest-depends-on-dropped:['d']"
+    }
+  ],
   "counts": {
-    "extracted": 1,
-    "pinned": 1,
-    "quarantined": 0
+    "extracted": 5,
+    "pinned": 2,
+    "quarantined": 3
   }
 }

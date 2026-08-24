@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "conv_suite-0.2.0",
-  "jac_sha": "unknown",
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,27 +10,19 @@
     "convert_suite.py",
     "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_getopt.py",
     "-o",
-    "/var/tmp/nicestorm-selfhost-wt/jac-py/tests/conv_getopt",
+    "/var/tmp/lane8/jac-py/tests/conv_getopt",
     "--name",
     "conv_getopt"
   ],
-  "generated_at": "2026-08-24T09:44:12",
+  "generated_at": "2026-08-24T14:33:19",
   "hashes": {
-    "pins_jac": "b014708a58c420132c926fc2026248ada6b917204fd6b08fb656a8d7df571fdb"
+    "pins_jac": "6aa1ffe290ba7b04304e545f2a0129007bab759a75d1753391d0c5e9f169f342"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_getopt.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "getopt",
   "pins_file": "conv_getopt_pins.jac",
   "pins": [
-    {
-      "ident": "GetoptTests.test_issue4629",
-      "status": "pinned",
-      "oracle": {
-        "status": "ok"
-      },
-      "snippet": "import getopt\n\ndef _t():\n    longopts, shortopts = getopt.getopt(['--help='], '', ['help='])\n    assert longopts == [('--help', '')], ('assertEqual', longopts, [('--help', '')])\n    longopts, shortopts = getopt.getopt(['--help=x'], '', ['help='])\n    assert longopts == [('--help', 'x')], ('assertEqual', longopts, [('--help', 'x')])\n    try:\n        getopt.getopt(*(['--help='], '', ['help']))\n    except getopt.GetoptError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
-    },
     {
       "ident": "test_libref_examples",
       "status": "pinned",
@@ -43,27 +35,31 @@
   "quarantined": [
     {
       "ident": "GetoptTests.test_short_has_arg",
-      "reason": "self.assertError"
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "ident": "GetoptTests.test_long_has_args",
-      "reason": "self.assertError"
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "ident": "GetoptTests.test_do_shorts",
-      "reason": "self.assertError"
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "ident": "GetoptTests.test_do_longs",
-      "reason": "self.assertError"
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "ident": "GetoptTests.test_getopt",
-      "reason": "self.assertError"
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "ident": "GetoptTests.test_gnu_getopt",
-      "reason": "uses-self.env"
+      "reason": "helper:setUp(uses-self.enterContext)"
+    },
+    {
+      "ident": "GetoptTests.test_issue4629",
+      "reason": "helper:setUp(uses-self.enterContext)"
     },
     {
       "ident": "TestTranslations.test_translations",
@@ -72,7 +68,7 @@
   ],
   "counts": {
     "extracted": 9,
-    "pinned": 2,
-    "quarantined": 7
+    "pinned": 1,
+    "quarantined": 8
   }
 }

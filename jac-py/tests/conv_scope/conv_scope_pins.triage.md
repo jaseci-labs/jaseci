@@ -1,8 +1,8 @@
 # Triage report: `conv_scope_pins.jac`
 
-- source: reference/cpython/Lib/test/test_scope.py
-- guest leg: 0/32 marks
-- pins: **23 passed** / 32 run (+9 quarantined of 41 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_scope.py
+- guest leg: 0/33 marks
+- pins: **24 passed** / 33 run (+8 quarantined of 41 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -32,24 +32,24 @@
 | ScopeTests.testEvalFreeVars | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC NameError "name \'x\' is not defined"'> |
 | ScopeTests.testNonLocalFunction | PASS | |
 | ScopeTests.testNonLocalMethod | PASS | |
-| ScopeTests.testGlobalInParallelNestedFunctions | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'exec() argument 1 must be a code object'"> |
+| ScopeTests.testGlobalInParallelNestedFunctions | PASS | |
 | ScopeTests.testNonLocalClass | PASS | |
 | ScopeTests.testNonLocalGenerator | PASS | |
 | ScopeTests.testNestedNonLocal | PASS | |
 | ScopeTests.testTopIsNotSignificant | PASS | |
+| ScopeTests.testCellLeak | GUEST-WRONG-OUTPUT | RUN<"ImportError: cannot import name 'gc_collect' from '<unknown>'"> |
 | ScopeTests.test_multiple_nesting | PASS | |
 
 ## Quarantined at conversion
 
 | test | reason |
 |---|---|
-| ScopeTests.testUnboundLocal_AugAssign | uses-self.fail |
 | ScopeTests.testLocalsClass_WithTrace | self.addCleanup |
 | ScopeTests.testInteractionWithTraceFunc | self.addCleanup |
 | ScopeTests.testFreeingCell | unresolved-name:nestedcell_get |
 | ScopeTests.testClassNamespaceOverridesClosure | self.assertNotHasAttr |
-| ScopeTests.testCellLeak | uses-self.exc |
 | ScopeTests.testUnoptimizedNamespaces | host-raised:NameError: name 'self' is not defined |
+| ScopeTests.testUnboundLocal_AugAssign | host-raised:AttributeError: '_SelfNS' object has no attribute 'fail' |
 | ScopeTests.testScopeOfGlobalStmt | host-raised:NameError: name 'self' is not defined |
 | ScopeTests.testClassAndGlobal | host-raised:NameError: name 'self' is not defined |
 
@@ -65,6 +65,11 @@
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC AttributeError '**closure**'">
 
+### ScopeTests.testCellLeak (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"ImportError: cannot import name 'gc_collect' from '<unknown>'">
+
 ### ScopeTests.testEvalExecFreeVars (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
@@ -74,11 +79,6 @@
 
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC NameError "name \'x\' is not defined"'>
-
-### ScopeTests.testGlobalInParallelNestedFunctions (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC TypeError 'exec() argument 1 must be a code object'">
 
 ### ScopeTests.testLeaks (GUEST-WRONG-OUTPUT)
 

@@ -13,6 +13,12 @@ test "TestCopy.test_copy_basic" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TestCopy.test_copy_copy" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(object):\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __copy__(self):\n            return C(self.foo)\n    x = C(42)\n    y = copy.copy(x)\n    assert y.__class__ == x.__class__, ('assertEqual', y.__class__, x.__class__)\n    assert y.foo == x.foo, ('assertEqual', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestCopy.test_copy_registry" {
     (ok, detail) = p2_libtest_run_snippet("import copy\nimport copyreg\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class C(object):\n\n        def __new__(cls, foo):\n            obj = object.__new__(cls)\n            obj.foo = foo\n            return obj\n\n    def pickle_C(obj):\n        return (C, (obj.foo,))\n    x = C(42)\n    try:\n        copy.copy(*(x,))\n    except TypeError:\n        pass\n    copyreg.pickle(C, pickle_C, C)\n    y = copy.copy(x)\n    assert x is not y, ('assertIsNot', x, y)\n    assert type(y) == C, ('assertEqual', type(y), C)\n    assert y.foo == x.foo, ('assertEqual', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -73,6 +79,54 @@ test "TestCopy.test_copy_bytearray" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TestCopy.test_copy_inst_vanilla" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C(42)\n    assert copy.copy(x) == x, ('assertEqual', copy.copy(x), x)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_copy_inst_copy" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __copy__(self):\n            return C(self.foo)\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C(42)\n    assert copy.copy(x) == x, ('assertEqual', copy.copy(x), x)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_copy_inst_getinitargs" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __getinitargs__(self):\n            return (self.foo,)\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C(42)\n    assert copy.copy(x) == x, ('assertEqual', copy.copy(x), x)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_copy_inst_getnewargs" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(int):\n\n        def __new__(cls, foo):\n            self = int.__new__(cls)\n            self.foo = foo\n            return self\n\n        def __getnewargs__(self):\n            return (self.foo,)\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C(42)\n    y = copy.copy(x)\n    assert isinstance(y, C), ('assertIsInstance', y, C)\n    assert y == x, ('assertEqual', y, x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo == x.foo, ('assertEqual', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_copy_inst_getnewargs_ex" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(int):\n\n        def __new__(cls, *, foo):\n            self = int.__new__(cls)\n            self.foo = foo\n            return self\n\n        def __getnewargs_ex__(self):\n            return ((), {'foo': self.foo})\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C(foo=42)\n    y = copy.copy(x)\n    assert isinstance(y, C), ('assertIsInstance', y, C)\n    assert y == x, ('assertEqual', y, x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo == x.foo, ('assertEqual', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_copy_inst_getstate" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __getstate__(self):\n            return {'foo': self.foo}\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C(42)\n    assert copy.copy(x) == x, ('assertEqual', copy.copy(x), x)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_copy_inst_setstate" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __setstate__(self, state):\n            self.foo = state['foo']\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C(42)\n    assert copy.copy(x) == x, ('assertEqual', copy.copy(x), x)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_copy_inst_getstate_setstate" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __getstate__(self):\n            return self.foo\n\n        def __setstate__(self, state):\n            self.foo = state\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C(42)\n    assert copy.copy(x) == x, ('assertEqual', copy.copy(x), x)\n    x = C(0.0)\n    assert copy.copy(x) == x, ('assertEqual', copy.copy(x), x)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestCopy.test_deepcopy_basic" {
     (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n    x = 42\n    y = copy.deepcopy(x)\n    assert y == x, ('assertEqual', y, x)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -87,6 +141,12 @@ test "TestCopy.test_deepcopy_memo" {
 
 test "TestCopy.test_deepcopy_issubclass" {
     (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef _t():\n\n    class Meta(type):\n        pass\n\n    class C(metaclass=Meta):\n        pass\n    assert copy.deepcopy(C) == C, ('assertEqual', copy.deepcopy(C), C)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_deepcopy" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(object):\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __deepcopy__(self, memo=None):\n            return C(self.foo)\n    x = C(42)\n    y = copy.deepcopy(x)\n    assert y.__class__ == x.__class__, ('assertEqual', y.__class__, x.__class__)\n    assert y.foo == x.foo, ('assertEqual', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -157,6 +217,54 @@ test "TestCopy.test_deepcopy_dont_memo_immutable" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TestCopy.test_deepcopy_inst_vanilla" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C([42])\n    y = copy.deepcopy(x)\n    assert y == x, ('assertEqual', y, x)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_inst_deepcopy" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __deepcopy__(self, memo):\n            return C(copy.deepcopy(self.foo, memo))\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C([42])\n    y = copy.deepcopy(x)\n    assert y == x, ('assertEqual', y, x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_inst_getinitargs" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __getinitargs__(self):\n            return (self.foo,)\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C([42])\n    y = copy.deepcopy(x)\n    assert y == x, ('assertEqual', y, x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_inst_getnewargs" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(int):\n\n        def __new__(cls, foo):\n            self = int.__new__(cls)\n            self.foo = foo\n            return self\n\n        def __getnewargs__(self):\n            return (self.foo,)\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C([42])\n    y = copy.deepcopy(x)\n    assert isinstance(y, C), ('assertIsInstance', y, C)\n    assert y == x, ('assertEqual', y, x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo == x.foo, ('assertEqual', y.foo, x.foo)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_inst_getnewargs_ex" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(int):\n\n        def __new__(cls, *, foo):\n            self = int.__new__(cls)\n            self.foo = foo\n            return self\n\n        def __getnewargs_ex__(self):\n            return ((), {'foo': self.foo})\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C(foo=[42])\n    y = copy.deepcopy(x)\n    assert isinstance(y, C), ('assertIsInstance', y, C)\n    assert y == x, ('assertEqual', y, x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo == x.foo, ('assertEqual', y.foo, x.foo)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_inst_getstate" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __getstate__(self):\n            return {'foo': self.foo}\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C([42])\n    y = copy.deepcopy(x)\n    assert y == x, ('assertEqual', y, x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_inst_setstate" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __setstate__(self, state):\n            self.foo = state['foo']\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C([42])\n    y = copy.deepcopy(x)\n    assert y == x, ('assertEqual', y, x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_inst_getstate_setstate" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __init__(self, foo):\n            self.foo = foo\n\n        def __getstate__(self):\n            return self.foo\n\n        def __setstate__(self, state):\n            self.foo = state\n\n        def __eq__(self, other):\n            return self.foo == other.foo\n    x = C([42])\n    y = copy.deepcopy(x)\n    assert y == x, ('assertEqual', y, x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\n    x = C([])\n    y = copy.deepcopy(x)\n    assert y == x, ('assertEqual', y, x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestCopy.test_deepcopy_reflexive_inst" {
     (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class C:\n        pass\n    x = C()\n    x.foo = x\n    y = copy.deepcopy(x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo is y, ('assertIs', y.foo, y)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -175,8 +283,38 @@ test "TestCopy.test_reconstruct_nostate" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TestCopy.test_reconstruct_state" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(object):\n\n        def __reduce__(self):\n            return (C, (), self.__dict__)\n\n        def __eq__(self, other):\n            return self.__dict__ == other.__dict__\n    x = C()\n    x.foo = [42]\n    y = copy.copy(x)\n    assert y == x, ('assertEqual', y, x)\n    y = copy.deepcopy(x)\n    assert y == x, ('assertEqual', y, x)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_reconstruct_state_setstate" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(object):\n\n        def __reduce__(self):\n            return (C, (), self.__dict__)\n\n        def __setstate__(self, state):\n            self.__dict__.update(state)\n\n        def __eq__(self, other):\n            return self.__dict__ == other.__dict__\n    x = C()\n    x.foo = [42]\n    y = copy.copy(x)\n    assert y == x, ('assertEqual', y, x)\n    y = copy.deepcopy(x)\n    assert y == x, ('assertEqual', y, x)\n    assert y.foo is not x.foo, ('assertIsNot', y.foo, x.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestCopy.test_reconstruct_reflexive" {
     (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class C(object):\n        pass\n    x = C()\n    x.foo = x\n    y = copy.deepcopy(x)\n    assert y is not x, ('assertIsNot', y, x)\n    assert y.foo is y, ('assertIs', y.foo, y)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_reduce_4tuple" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(list):\n\n        def __reduce__(self):\n            return (C, (), self.__dict__, iter(self))\n\n        def __eq__(self, other):\n            return list(self) == list(other) and self.__dict__ == other.__dict__\n    x = C([[1, 2], 3])\n    y = copy.copy(x)\n    assert x == y, ('assertEqual', x, y)\n    assert x is not y, ('assertIsNot', x, y)\n    assert x[0] is y[0], ('assertIs', x[0], y[0])\n    y = copy.deepcopy(x)\n    assert x == y, ('assertEqual', x, y)\n    assert x is not y, ('assertIsNot', x, y)\n    assert x[0] is not y[0], ('assertIsNot', x[0], y[0])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_reduce_6tuple" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    def state_setter(*args, **kwargs):\n        raise AssertionError(\"shouldn't call this\")\n\n    class C:\n\n        def __reduce__(self):\n            return (C, (), self.__dict__, None, None, state_setter)\n    x = C()\n    try:\n        copy.copy(x)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        copy.deepcopy(x)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_reduce_6tuple_none" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C:\n\n        def __reduce__(self):\n            return (C, (), self.__dict__, None, None, None)\n    x = C()\n    try:\n        copy.copy(x)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        copy.deepcopy(x)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -189,6 +327,12 @@ test "TestCopy.test_copy_slots" {
 
 test "TestCopy.test_deepcopy_slots" {
     (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class C(object):\n        __slots__ = ['foo']\n    x = C()\n    x.foo = [42]\n    y = copy.deepcopy(x)\n    assert x.foo == y.foo, ('assertEqual', x.foo, y.foo)\n    assert x.foo is not y.foo, ('assertIsNot', x.foo, y.foo)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_dict_subclass" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(dict):\n\n        def __init__(self, d=None):\n            if not d:\n                d = {}\n            self._keys = list(d.keys())\n            super().__init__(d)\n\n        def __setitem__(self, key, item):\n            super().__setitem__(key, item)\n            if key not in self._keys:\n                self._keys.append(key)\n    x = C(d={'foo': 0})\n    y = copy.deepcopy(x)\n    assert x == y, ('assertEqual', x, y)\n    assert x._keys == y._keys, ('assertEqual', x._keys, y._keys)\n    assert x is not y, ('assertIsNot', x, y)\n    x['bar'] = 1\n    assert x != y, ('assertNotEqual', x, y)\n    assert x._keys != y._keys, ('assertNotEqual', x._keys, y._keys)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -235,6 +379,42 @@ test "TestCopy.test_deepcopy_function" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TestCopy.test_copy_weakref" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\nimport weakref\n\ndef global_foo(x, y):\n    return x + y\n\ndef _check_weakref(_copy):\n\n    class C(object):\n        pass\n    obj = C()\n    x = weakref.ref(obj)\n    y = _copy(x)\n    assert y is x, ('assertIs', y, x)\n    del obj\n    y = _copy(x)\n    assert y is x, ('assertIs', y, x)\n\ndef _t():\n    _check_weakref(copy.copy)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_weakref" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\nimport weakref\n\ndef global_foo(x, y):\n    return x + y\n\ndef _check_weakref(_copy):\n\n    class C(object):\n        pass\n    obj = C()\n    x = weakref.ref(obj)\n    y = _copy(x)\n    assert y is x, ('assertIs', y, x)\n    del obj\n    y = _copy(x)\n    assert y is x, ('assertIs', y, x)\n\ndef _t():\n    _check_weakref(copy.deepcopy)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_copy_weakkeydict" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\nimport weakref\nfrom test import support\n\ndef global_foo(x, y):\n    return x + y\n\ndef _check_copy_weakdict(_dicttype):\n\n    class C(object):\n        pass\n    a, b, c, d = [C() for i in range(4)]\n    u = _dicttype()\n    u[a] = b\n    u[c] = d\n    v = copy.copy(u)\n    assert v is not u, ('assertIsNot', v, u)\n    assert v == u, ('assertEqual', v, u)\n    assert v[a] == b, ('assertEqual', v[a], b)\n    assert v[c] == d, ('assertEqual', v[c], d)\n    assert len(v) == 2, ('assertEqual', len(v), 2)\n    del c, d\n    support.gc_collect()\n    assert len(v) == 1, ('assertEqual', len(v), 1)\n    x, y = (C(), C())\n    v[x] = y\n    assert x not in u, ('assertNotIn', x, u)\n\ndef _t():\n    _check_copy_weakdict(weakref.WeakKeyDictionary)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_copy_weakvaluedict" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\nimport weakref\nfrom test import support\n\ndef global_foo(x, y):\n    return x + y\n\ndef _check_copy_weakdict(_dicttype):\n\n    class C(object):\n        pass\n    a, b, c, d = [C() for i in range(4)]\n    u = _dicttype()\n    u[a] = b\n    u[c] = d\n    v = copy.copy(u)\n    assert v is not u, ('assertIsNot', v, u)\n    assert v == u, ('assertEqual', v, u)\n    assert v[a] == b, ('assertEqual', v[a], b)\n    assert v[c] == d, ('assertEqual', v[c], d)\n    assert len(v) == 2, ('assertEqual', len(v), 2)\n    del c, d\n    support.gc_collect()\n    assert len(v) == 1, ('assertEqual', len(v), 1)\n    x, y = (C(), C())\n    v[x] = y\n    assert x not in u, ('assertNotIn', x, u)\n\ndef _t():\n    _check_copy_weakdict(weakref.WeakValueDictionary)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_weakkeydict" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\nimport weakref\nfrom test import support\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(object):\n\n        def __init__(self, i):\n            self.i = i\n    a, b, c, d = [C(i) for i in range(4)]\n    u = weakref.WeakKeyDictionary()\n    u[a] = b\n    u[c] = d\n    v = copy.deepcopy(u)\n    assert v != u, ('assertNotEqual', v, u)\n    assert len(v) == 2, ('assertEqual', len(v), 2)\n    assert v[a] is not b, ('assertIsNot', v[a], b)\n    assert v[c] is not d, ('assertIsNot', v[c], d)\n    assert v[a].i == b.i, ('assertEqual', v[a].i, b.i)\n    assert v[c].i == d.i, ('assertEqual', v[c].i, d.i)\n    del c\n    support.gc_collect()\n    assert len(v) == 1, ('assertEqual', len(v), 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestCopy.test_deepcopy_weakvaluedict" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\nimport weakref\nfrom test import support\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class C(object):\n\n        def __init__(self, i):\n            self.i = i\n    a, b, c, d = [C(i) for i in range(4)]\n    u = weakref.WeakValueDictionary()\n    u[a] = b\n    u[c] = d\n    v = copy.deepcopy(u)\n    assert v != u, ('assertNotEqual', v, u)\n    assert len(v) == 2, ('assertEqual', len(v), 2)\n    (x, y), (z, t) = sorted(v.items(), key=lambda pair: pair[0].i)\n    assert x is not a, ('assertIsNot', x, a)\n    assert x.i == a.i, ('assertEqual', x.i, a.i)\n    assert y is b, ('assertIs', y, b)\n    assert z is not c, ('assertIsNot', z, c)\n    assert z.i == c.i, ('assertEqual', z.i, c.i)\n    assert t is d, ('assertIs', t, d)\n    del x, y, z, t\n    del d\n    support.gc_collect()\n    assert len(v) == 1, ('assertEqual', len(v), 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestCopy.test_deepcopy_bound_method" {
     (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef _t():\n\n    class Foo(object):\n\n        def m(self):\n            pass\n    f = Foo()\n    f.b = f.m\n    g = copy.deepcopy(f)\n    assert g.m == g.b, ('assertEqual', g.m, g.b)\n    assert g.b.__self__ is g, ('assertIs', g.b.__self__, g)\n    g.b()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -243,6 +423,12 @@ test "TestCopy.test_deepcopy_bound_method" {
 
 test "TestReplace.test_unsupported" {
     (ok, detail) = p2_libtest_run_snippet("import copy\n\ndef _t():\n    try:\n        copy.replace(*(1,))\n    except TypeError:\n        pass\n    try:\n        copy.replace(*([],))\n    except TypeError:\n        pass\n    try:\n        copy.replace(*({},))\n    except TypeError:\n        pass\n\n    def f():\n        pass\n    try:\n        copy.replace(*(f,))\n    except TypeError:\n        pass\n\n    class A:\n        pass\n    try:\n        copy.replace(*(A,))\n    except TypeError:\n        pass\n    try:\n        copy.replace(*(A(),))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TestReplace.test_replace_method" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\nfrom operator import le, lt, ge, gt, eq, ne, attrgetter\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class A:\n\n        def __new__(cls, x, y=0):\n            self = object.__new__(cls)\n            self.x = x\n            self.y = y\n            return self\n\n        def __init__(self, *args, **kwargs):\n            self.z = self.x + self.y\n\n        def __replace__(self, **changes):\n            x = changes.get('x', self.x)\n            y = changes.get('y', self.y)\n            return type(self)(x, y)\n    attrs = attrgetter('x', 'y', 'z')\n    a = A(11, 22)\n    assert attrs(copy.replace(a)) == (11, 22, 33), ('assertEqual', attrs(copy.replace(a)), (11, 22, 33))\n    assert attrs(copy.replace(a, x=1)) == (1, 22, 23), ('assertEqual', attrs(copy.replace(a, x=1)), (1, 22, 23))\n    assert attrs(copy.replace(a, y=2)) == (11, 2, 13), ('assertEqual', attrs(copy.replace(a, y=2)), (11, 2, 13))\n    assert attrs(copy.replace(a, x=1, y=2)) == (1, 2, 3), ('assertEqual', attrs(copy.replace(a, x=1, y=2)), (1, 2, 3))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

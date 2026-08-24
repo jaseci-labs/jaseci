@@ -1,32 +1,38 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "6fbd508262082bcfb0e340d3e60fb5019ab0a733",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/laneb-out/test_fstring/conv_fstring_pins.jac"
+    "jac-py/tests/conv_fstring/conv_fstring_pins.jac"
   ],
-  "generated_at": "2026-08-24T13:03:11",
+  "generated_at": "2026-08-24T14:33:05",
   "hashes": {
-    "pins_jac": "008b47a1f62f0365b83486550c220dcee3f7428c71fa80ab5df8786517b0c170",
-    "conversion_json": "e8451961f9c9e1a786b8a3930390899d734a04811388861b67e8c576fff6b2cd",
+    "pins_jac": "dac10f3fb4b78ebbcfb6879cad3f3db48e1ff14cf48743bd6118ac731f4cec27",
+    "conversion_json": "aa30fd795b0af2e43d9f7a7a14d204e07a102e431cdc509a78732774e9bfa305",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "fstring",
   "counts": {
     "converted": 90,
-    "runnable": 58,
-    "green": 49,
-    "quarantined": 32
+    "runnable": 60,
+    "green": 50,
+    "quarantined": 30
   },
   "pins": [
     {
       "id": "TestCase.test__format__lookup",
       "status": "pass"
+    },
+    {
+      "id": "TestCase.test_ast",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'x\\' is not defined\"'>"
     },
     {
       "id": "TestCase.test_ast_line_numbers",
@@ -91,6 +97,10 @@
       "detail": "GOT<'ORACLE_EXC NameError \"name \\'x\\' is not defined\"'>"
     },
     {
+      "id": "TestCase.test_side_effect_order",
+      "status": "pass"
+    },
+    {
       "id": "TestCase.test_no_escapes_for_braces",
       "status": "pass"
     },
@@ -150,7 +160,7 @@
       "id": "TestCase.test_global",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<'AttributeError: __repr__'>"
     },
     {
       "id": "TestCase.test_shadowed_global",
@@ -192,7 +202,7 @@
       "id": "TestCase.test_filename_in_syntaxerror",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.os_helper'\">"
+      "detail": "RUN<\"ImportError: cannot import name 'temp_cwd' from '<unknown>'\">"
     },
     {
       "id": "TestCase.test_loop",
@@ -246,13 +256,13 @@
       "id": "TestCase.test_debug_in_file",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.os_helper'\">"
+      "detail": "RUN<\"ImportError: cannot import name 'temp_cwd' from '<unknown>'\">"
     },
     {
       "id": "TestCase.test_syntax_warning_infinite_recursion_in_file",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.os_helper'\">"
+      "detail": "RUN<\"ImportError: cannot import name 'temp_cwd' from '<unknown>'\">"
     },
     {
       "id": "TestCase.test_fstring_without_formatting_bytecode",
@@ -272,7 +282,7 @@
       "id": "TestCase.test_gh139516",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.os_helper'\">"
+      "detail": "RUN<\"ImportError: cannot import name 'temp_cwd' from '<unknown>'\">"
     },
     {
       "id": "TestCase.test_mismatched_parens",
@@ -285,44 +295,39 @@
       "reason": "decorator:unittest.skipIf"
     },
     {
-      "id": "TestCase.test_ast",
-      "status": "quarantined",
-      "reason": "uses-self.called"
-    },
-    {
       "id": "TestCase.test_compile_time_concat_errors",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_unterminated_string",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_syntax_error_in_nested_fstring",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_double_braces",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_compile_time_concat",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_comments",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_format_specifier_expressions",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_custom_format_specifier",
@@ -330,24 +335,19 @@
       "reason": "uses-self.assertWarns"
     },
     {
-      "id": "TestCase.test_side_effect_order",
-      "status": "quarantined",
-      "reason": "uses-self.i"
-    },
-    {
       "id": "TestCase.test_missing_expression",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_parens_in_expressions",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_newlines_before_syntax_error",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_backslashes_in_string_part",
@@ -357,27 +357,27 @@
     {
       "id": "TestCase.test_misformed_unicode_character_name",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_backslashes_in_expression_part",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_invalid_backslashes_inside_fstring_context",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_lambda",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_fstring_backslash_before_double_bracket",
       "status": "quarantined",
-      "reason": "uses-self.subTest"
+      "reason": "uses-self.assertWarns"
     },
     {
       "id": "TestCase.test_fstring_backslash_before_double_bracket_warns_once",
@@ -392,47 +392,47 @@
     {
       "id": "TestCase.test_invalid_string_prefixes",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_conversions",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_assignment",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_del",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_mismatched_braces",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_errors",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_not_closing_quotes",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_syntax_error_after_debug",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_newlines_in_format_specifiers",
       "status": "quarantined",
-      "reason": "self.assertAllRaise"
+      "reason": "helper:assertAllRaise(uses-self.subTest)"
     }
   ]
 }

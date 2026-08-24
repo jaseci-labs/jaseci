@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "fd4c8b36fdafb9259707f53f361b63d62fcfd882",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_bytes.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_bytes.py",
     "-o",
-    "/var/tmp/sp1-out/test_bytes",
+    "/var/tmp/lane8/jac-py/tests/conv_bytes",
     "--name",
     "conv_bytes"
   ],
-  "generated_at": "2026-08-24T13:47:56",
+  "generated_at": "2026-08-24T14:30:32",
   "hashes": {
-    "pins_jac": "68dc92de0031482e5d8d436d3f37a2ff89422fcc500cc67db119c84b2ef388c7"
+    "pins_jac": "92b579c0950342e484e4c79e4915f3954f1d47c55dc7c6f183e77d1ff4f351a5"
   },
-  "source_file": "reference/cpython/Lib/test/test_bytes.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_bytes.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "bytes",
   "pins_file": "conv_bytes_pins.jac",
@@ -30,6 +30,26 @@
         "status": "ok"
       },
       "snippet": "def _t():\n\n    class X:\n\n        def __index__(self):\n            a.clear()\n            return 42\n    a = [X(), X()]\n    assert bytes(a) == b'*', ('assertEqual', bytes(a), b'*')\n\n    class Y:\n\n        def __index__(self):\n            if len(a) < 1000:\n                a.append(self)\n            return 42\n    a = [Y()]\n    assert bytes(a) == b'*' * 1000, ('assertEqual', bytes(a), b'*' * 1000)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BaseBytesTest.test_check_encoding_errors",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test'"
+    },
+    {
+      "ident": "BaseBytesTest.test_maketrans",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test'"
+    },
+    {
+      "ident": "BaseBytesTest.test_free_after_iterating",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test'"
+    },
+    {
+      "ident": "BytesTest.test__bytes__",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test'"
     },
     {
       "ident": "BytesTest.test_getitem_error",
@@ -257,11 +277,8 @@
     },
     {
       "ident": "ByteArrayTest.test_obsolete_write_lock",
-      "status": "pinned",
-      "oracle": {
-        "status": "ok"
-      },
-      "snippet": "from test.support import import_helper\n\ndef _t():\n    _testcapi = import_helper.import_module('_testcapi')\n    try:\n        _testcapi.getbuffer_with_null_view(*(bytearray(),))\n    except BufferError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "status": "quarantined",
+      "reason": "host-raised:SkipTest: No module named '_testcapi'"
     },
     {
       "ident": "ByteArrayTest.test_iterator_pickling2",
@@ -366,6 +383,11 @@
         "status": "ok"
       },
       "snippet": "def marshal(x):\n    return bytearray(x)\n\ndef _t():\n    val = marshal(b'1234')\n    for methname in ('zfill', 'rjust', 'ljust', 'center'):\n        method = getattr(val, methname)\n        newval = method(3)\n        assert val == newval, ('assertEqual', val, newval)\n        assert val is not newval, ('assertIsNot', val, newval)\n    for expr in ('val.split()[0]', 'val.rsplit()[0]', 'val.partition(b\".\")[0]', 'val.rpartition(b\".\")[2]', 'val.splitlines()[0]', 'val.replace(b\"\", b\"\")'):\n        newval = eval(expr)\n        assert val == newval, ('assertEqual', val, newval)\n        assert val is not newval, ('assertIsNot', val, newval)\n    sep = marshal(b'')\n    newval = sep.join([val])\n    assert val == newval, ('assertEqual', val, newval)\n    assert val is not newval, ('assertIsNot', val, newval)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SubclassTest.test_fromhex",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'type2test'"
     },
     {
       "ident": "ByteArraySubclassTest.test_init_override",
@@ -478,10 +500,6 @@
       "reason": "uses-self.type2test"
     },
     {
-      "ident": "BaseBytesTest.test_check_encoding_errors",
-      "reason": "uses-self.type2test"
-    },
-    {
       "ident": "BaseBytesTest.test_from_int",
       "reason": "uses-self.type2test"
     },
@@ -503,7 +521,7 @@
     },
     {
       "ident": "BaseBytesTest.test_fromhex",
-      "reason": "uses-self.type2test"
+      "reason": "uses-self.subTest"
     },
     {
       "ident": "BaseBytesTest.test_hex",
@@ -511,7 +529,7 @@
     },
     {
       "ident": "BaseBytesTest.test_hex_separator_basics",
-      "reason": "uses-self.type2test"
+      "reason": "uses-self.subTest"
     },
     {
       "ident": "BaseBytesTest.test_hex_separator_five_bytes",
@@ -650,10 +668,6 @@
       "reason": "uses-self.type2test"
     },
     {
-      "ident": "BaseBytesTest.test_maketrans",
-      "reason": "uses-self.type2test"
-    },
-    {
       "ident": "BaseBytesTest.test_none_arguments",
       "reason": "uses-self.type2test"
     },
@@ -666,10 +680,6 @@
       "reason": "assertRaisesRegex call form"
     },
     {
-      "ident": "BaseBytesTest.test_free_after_iterating",
-      "reason": "uses-self.type2test"
-    },
-    {
       "ident": "BaseBytesTest.test_translate",
       "reason": "uses-self.type2test"
     },
@@ -678,16 +688,12 @@
       "reason": "uses-self.type2test"
     },
     {
-      "ident": "BytesTest.test__bytes__",
-      "reason": "uses-self.type2test"
-    },
-    {
       "ident": "BytesTest.test_buffer_is_readonly",
       "reason": "unresolved-name:__file__"
     },
     {
       "ident": "BytesTest.test_custom",
-      "reason": "uses-self.value"
+      "reason": "unresolved-name:BytesSubclass"
     },
     {
       "ident": "BytesTest.test_from_format",
@@ -727,11 +733,11 @@
     },
     {
       "ident": "ByteArrayTest.test_mutating_index_inbounds",
-      "reason": "uses-self.ba"
+      "reason": "uses-self.subTest"
     },
     {
       "ident": "ByteArrayTest.test_search_methods_reentrancy_raises_buffererror",
-      "reason": "uses-self.ba"
+      "reason": "uses-self.subTest"
     },
     {
       "ident": "AssortedBytesTest.test_bytes_repr",
@@ -759,7 +765,7 @@
     },
     {
       "ident": "SubclassTest.test_join",
-      "reason": "uses-self.type2test"
+      "reason": "uses-self.basetype"
     },
     {
       "ident": "SubclassTest.test_pickle",
@@ -768,15 +774,11 @@
     {
       "ident": "SubclassTest.test_copy",
       "reason": "self.assertNotHasAttr"
-    },
-    {
-      "ident": "SubclassTest.test_fromhex",
-      "reason": "uses-self.basetype"
     }
   ],
   "counts": {
     "extracted": 143,
-    "pinned": 44,
-    "quarantined": 99
+    "pinned": 43,
+    "quarantined": 100
   }
 }

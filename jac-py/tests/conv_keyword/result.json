@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "7021ff79e4a5341a1ce8942c45111261e345dfc1",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_keyword/conv_keyword_pins.jac"
   ],
-  "generated_at": "2026-08-24T10:02:28",
+  "generated_at": "2026-08-24T14:33:48",
   "hashes": {
     "pins_jac": "1faa66b4c4cf1a319a690f87c1b12152b4950a1f9083a93f8090ce6a7b7fe152",
-    "conversion_json": "bbcbede53b65cd0964544bb36ebc72b604c8d9a0d4474d569a46549c413c630b",
+    "conversion_json": "fbac79128e14d7264aa6671216f8ffac854713c3d533c0abbf1baab635001652",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "keyword",

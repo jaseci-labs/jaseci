@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "ac08a64851ccfed082ecf7de18dd723383ee3abb",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_shlex/conv_shlex_pins.jac"
+  ],
+  "generated_at": "2026-08-24T14:28:11",
+  "hashes": {
+    "pins_jac": "31a1b4d0781360eca9a702b446916a051a17f79e073cf612baa6231e0b920fe8",
+    "conversion_json": "2130d0e6123ba5bdc58fd8231cc2679598ea3752b7e65b38e6a988d25d59daba",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "shlex",
+  "counts": {
+    "converted": 19,
+    "runnable": 17,
+    "green": 3,
+    "quarantined": 2
+  },
+  "pins": [
+    {
+      "id": "ShlexTest.testSplitNone",
+      "status": "pass"
+    },
+    {
+      "id": "ShlexTest.testSplitPosix",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testCompat",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testSyntaxSplitAmpersandAndPipe",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testSyntaxSplitSemicolon",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testSyntaxSplitRedirect",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testSyntaxSplitParen",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testSyntaxSplitCustom",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testTokenTypes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testPunctuationInWordChars",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testPunctuationWithWhitespaceSplit",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testPunctuationWithPosix",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testEmptyStringHandling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testUnicodeHandling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "ShlexTest.testQuote",
+      "status": "pass"
+    },
+    {
+      "id": "ShlexTest.testPunctuationCharsReadOnly",
+      "status": "pass"
+    },
+    {
+      "id": "ShlexTest.test_lazy_imports",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "ShlexTest.testJoin",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "ShlexTest.testJoinRoundtrip",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    }
+  ]
+}

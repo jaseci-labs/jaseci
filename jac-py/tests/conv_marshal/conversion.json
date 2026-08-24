@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "51c50b53f314dd1313d2a0894ead79a61f9ceb77",
+  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_marshal.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_marshal.py",
     "-o",
-    "/var/tmp/sp3-out/test_marshal",
+    "/var/tmp/lane8/jac-py/tests/conv_marshal",
     "--name",
     "conv_marshal"
   ],
-  "generated_at": "2026-08-24T13:45:36",
+  "generated_at": "2026-08-24T14:33:53",
   "hashes": {
     "pins_jac": "ce70d09082611206bcf110f17c0daabee96506cef5ed0725354f6c03474ab341"
   },
-  "source_file": "reference/cpython/Lib/test/test_marshal.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_marshal.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "marshal",
   "pins_file": "conv_marshal_pins.jac",
@@ -94,6 +94,26 @@
         "status": "ok"
       },
       "snippet": "import marshal\n\ndef _t():\n    co1 = compile('x', 'f1', 'exec')\n    co2 = compile('y', 'f2', 'exec')\n    co1, co2 = marshal.loads(marshal.dumps((co1, co2)))\n    assert co1.co_filename == 'f1', ('assertEqual', co1.co_filename, 'f1')\n    assert co2.co_filename == 'f2', ('assertEqual', co2.co_filename, 'f2')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ContainerTestCase.test_dict",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'd'"
+    },
+    {
+      "ident": "ContainerTestCase.test_list",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'd'"
+    },
+    {
+      "ident": "ContainerTestCase.test_tuple",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'd'"
+    },
+    {
+      "ident": "ContainerTestCase.test_sets",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'd'"
     },
     {
       "ident": "BufferTestCase.test_bytearray",
@@ -304,12 +324,47 @@
       "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef helper3(rsample, recursive=False, simple=False):\n    sample = (rsample, rsample)\n    n0 = CollectObjectIDs(set(), sample)\n    for v in range(3, marshal.version + 1):\n        s3 = marshal.dumps(sample, v)\n        n3 = CollectObjectIDs(set(), marshal.loads(s3))\n        assert n3 == n0, ('assertEqual', n3, n0)\n    if not recursive:\n        s2 = marshal.dumps(sample, 2)\n        n2 = CollectObjectIDs(set(), marshal.loads(s2))\n        assert n2 > n0, ('assertGreater', n2, n0)\n        if not simple:\n            assert len(s2) > len(s3), ('assertGreater', len(s2), len(s3))\n        else:\n            assert len(s2) >= len(s3), ('assertGreaterEqual', len(s2), len(s3))\n\ndef _t():\n    bytesobj = b'abcde' * 3\n    helper(bytesobj)\n    helper3(bytesobj)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "InstancingTestCase.testList",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'keys'"
+    },
+    {
+      "ident": "InstancingTestCase.testTuple",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'keys'"
+    },
+    {
+      "ident": "InstancingTestCase.testSet",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'keys'"
+    },
+    {
+      "ident": "InstancingTestCase.testFrozenSet",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'keys'"
+    },
+    {
+      "ident": "InstancingTestCase.testDict",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'keys'"
+    },
+    {
       "ident": "InstancingTestCase.testRecursion",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
       "snippet": "import marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef helper3(rsample, recursive=False, simple=False):\n    sample = (rsample, rsample)\n    n0 = CollectObjectIDs(set(), sample)\n    for v in range(3, marshal.version + 1):\n        s3 = marshal.dumps(sample, v)\n        n3 = CollectObjectIDs(set(), marshal.loads(s3))\n        assert n3 == n0, ('assertEqual', n3, n0)\n    if not recursive:\n        s2 = marshal.dumps(sample, 2)\n        n2 = CollectObjectIDs(set(), marshal.loads(s2))\n        assert n2 > n0, ('assertGreater', n2, n0)\n        if not simple:\n            assert len(s2) > len(s3), ('assertGreater', len(s2), len(s3))\n        else:\n            assert len(s2) >= len(s3), ('assertGreaterEqual', len(s2), len(s3))\n\ndef _t():\n    obj = 1.2345\n    d = {'hello': obj, 'goodbye': obj, obj: 'hello'}\n    d['self'] = d\n    helper3(d, recursive=True)\n    l = [obj, obj]\n    l.append(l)\n    helper3(l, recursive=True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InterningTestCase.testIntern",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'strobj'"
+    },
+    {
+      "ident": "InterningTestCase.testNoIntern",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'strobj'"
     }
   ],
   "quarantined": [
@@ -386,22 +441,6 @@
       "reason": "unresolved-name:ExceptionTestCase"
     },
     {
-      "ident": "ContainerTestCase.test_dict",
-      "reason": "uses-self.d"
-    },
-    {
-      "ident": "ContainerTestCase.test_list",
-      "reason": "uses-self.d"
-    },
-    {
-      "ident": "ContainerTestCase.test_tuple",
-      "reason": "uses-self.d"
-    },
-    {
-      "ident": "ContainerTestCase.test_sets",
-      "reason": "uses-self.d"
-    },
-    {
       "ident": "BugsTestCase.test_reference_loop_code",
       "reason": "self.addCleanup"
     },
@@ -416,26 +455,6 @@
     {
       "ident": "BugsTestCase.test_unmarshallable",
       "reason": "uses-self.subTest"
-    },
-    {
-      "ident": "InstancingTestCase.testList",
-      "reason": "uses-self.keys"
-    },
-    {
-      "ident": "InstancingTestCase.testTuple",
-      "reason": "uses-self.keys"
-    },
-    {
-      "ident": "InstancingTestCase.testSet",
-      "reason": "uses-self.keys"
-    },
-    {
-      "ident": "InstancingTestCase.testFrozenSet",
-      "reason": "uses-self.keys"
-    },
-    {
-      "ident": "InstancingTestCase.testDict",
-      "reason": "uses-self.keys"
     },
     {
       "ident": "InstancingTestCase.testModule",
@@ -458,16 +477,8 @@
       "reason": "helper:_test(unresolved-name:__file__)"
     },
     {
-      "ident": "InterningTestCase.testIntern",
-      "reason": "uses-self.strobj"
-    },
-    {
-      "ident": "InterningTestCase.testNoIntern",
-      "reason": "uses-self.strobj"
-    },
-    {
       "ident": "SliceTestCase.test_slice",
-      "reason": "uses-self.helper"
+      "reason": "uses-self.subTest"
     }
   ],
   "counts": {

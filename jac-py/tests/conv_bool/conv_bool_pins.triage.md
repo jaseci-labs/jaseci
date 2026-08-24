@@ -1,8 +1,8 @@
 # Triage report: `conv_bool_pins.jac`
 
-- source: reference/cpython/Lib/test/test_bool.py
-- guest leg: 0/27 marks
-- pins: **25 passed** / 27 run (+4 quarantined of 31 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_bool.py
+- guest leg: 0/28 marks
+- pins: **26 passed** / 28 run (+3 quarantined of 31 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -32,6 +32,7 @@
 | BoolTest.test_sane_len | PASS | |
 | BoolTest.test_blocked | PASS | |
 | BoolTest.test_real_and_imag | PASS | |
+| BoolTest.test_bool_called_at_least_once | PASS | |
 | BoolTest.test_bool_new | PASS | |
 
 ## Quarantined at conversion
@@ -41,7 +42,6 @@
 | BoolTest.test_math | uses-self.assertWarns |
 | BoolTest.test_boolean | self.assertNotIsInstance |
 | BoolTest.test_convert_to_bool | uses-self.assertRaises |
-| BoolTest.test_bool_called_at_least_once | uses-self.count |
 
 ## Expected vs got
 

@@ -1,8 +1,8 @@
 # Triage report: `conv_types_pins.jac`
 
-- source: reference/cpython/Lib/test/test_types.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_types.py
 - guest leg: 0/95 marks
-- pins: **45 passed** / 95 run (+34 quarantined of 129 extracted)
+- pins: **48 passed** / 95 run (+34 quarantined of 129 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -19,8 +19,8 @@
 | TypesTests.test_strings | PASS | |
 | TypesTests.test_type_function | PASS | |
 | TypesTests.test_int__format__ | PASS | |
-| TypesTests.test_float__format__locale | GUEST-WRONG-OUTPUT | RUN<"TypeError: bridge-table: type 'globals' has policy BridgePolicy.FAIL but no to_host conversion arm"> |
-| TypesTests.test_int__format__locale | GUEST-WRONG-OUTPUT | RUN<"TypeError: bridge-table: type 'globals' has policy BridgePolicy.FAIL but no to_host conversion arm"> |
+| TypesTests.test_float__format__locale | PASS | |
+| TypesTests.test_int__format__locale | PASS | |
 | TypesTests.test_float__format__ | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | TypesTests.test_format_spec_errors | PASS | |
 | TypesTests.test_internal_sizes | PASS | |
@@ -41,7 +41,7 @@
 | UnionTests.test_union_parameter_chaining | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_union_parameter_substitution | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_union_pickle | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
-| UnionTests.test_union_copy | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
+| UnionTests.test_union_copy | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_union_parameter_substitution_errors | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_or_type_operator_with_Protocol | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_or_type_operator_with_Alias | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
@@ -84,21 +84,21 @@
 | SimpleNamespaceTests.test_recursive | PASS | |
 | SimpleNamespaceTests.test_recursive_repr | PASS | |
 | SimpleNamespaceTests.test_as_dict | PASS | |
-| SimpleNamespaceTests.test_subclass | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {\'_jac_guest_\': PyUserObj(t=\'instance\', cls=PyClass(t=\'class\', name=\'Spam\', attrs={\'**name**\': PyStr(t=\'str\', val=\'**main**\'), \'**module**\': PyStr(t=\'str\', val=\'**main**\'), \'**qualname**\': PyStr(t=\'str\', val=\'_t.<locals>.Spam\'), \'**firstlineno**\': PyInt(t=\'int\', val=9), \'**static_attributes**\': PyTuple(t=\'tuple\', items=[])}, bases=[PyHostProxy(t=\'host\', val=<class \'types.SimpleNamespace\'>)], native_base=\'\', metaclass=None, tp_flags=4096, slot_members=[], slots_declared=False, instance_has_dict=True), attrs={}, base=PyNoneType(t=\'none\'))}, {\'ham\': 8, \'eggs\': 9})"'> |
+| SimpleNamespaceTests.test_subclass | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {}, {\'ham\': 8, \'eggs\': 9})"'> |
 | SimpleNamespaceTests.test_pickle | PASS | |
-| SimpleNamespaceTests.test_replace | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
-| SimpleNamespaceTests.test_replace_subclass | GUEST-WRONG-OUTPUT | RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')"> |
+| SimpleNamespaceTests.test_replace | PASS | |
+| SimpleNamespaceTests.test_replace_subclass | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'replace() does not support Spam objects'"> |
 | SimpleNamespaceTests.test_fake_namespace_compare | PASS | |
 | CoroutineTests.test_wrong_args | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaises: did not raise'"> |
 | CoroutineTests.test_non_gen_values | PASS | |
 | CoroutineTests.test_async_def | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'cr_code'"> |
 | CoroutineTests.test_duck_coro | PASS | |
 | CoroutineTests.test_duck_corogen | PASS | |
-| CoroutineTests.test_duck_gen | GUEST-WRONG-OUTPUT | RUN<'SystemError: unsupported opcode 36'> |
-| CoroutineTests.test_gen | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', <callable_iterator object at 0x7fa79c5c6710>, <class \'**main**._GeneratorWrapper\'>)"'> |
+| CoroutineTests.test_duck_gen | GUEST-WRONG-OUTPUT | RUN<'AttributeError: **repr**'> |
+| CoroutineTests.test_gen | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', <callable_iterator object at 0x7fd3716c47c0>, <class \'**main**._GeneratorWrapper\'>)"'> |
 | CoroutineTests.test_returning_itercoro | PASS | |
-| CoroutineTests.test_genfunc | GUEST-WRONG-OUTPUT | RUN<"TypeError: bridge-table: type 'native_builtin' has policy BridgePolicy.TRAMPOLINE but no to_host conversion arm"> |
-| CoroutineTests.test_wrapper_object | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIn\', \'GeneratorWrapper\', \'<callable_iterator object at 0x7fa79c294ee0>\')"'> |
+| CoroutineTests.test_genfunc | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| CoroutineTests.test_wrapper_object | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIn\', \'GeneratorWrapper\', \'<callable_iterator object at 0x7fd3713f2950>\')"'> |
 | FunctionTests.test_function_type_defaults | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "bridge-table: type \'code\' has policy BridgePolicy.FAIL but no to_host conversion arm"'> |
 | FunctionTests.test_function_type_wrong_defaults | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'"> |
 
@@ -131,15 +131,15 @@
 | MappingProxyTests.test_union | uses-self.mappingproxy |
 | MappingProxyTests.test_hash | uses-self.mappingproxy |
 | ClassCreationTests.test_new_class_subclass | self.assertIsSubclass |
-| ClassCreationTests.test_new_class_meta | uses-self.Meta |
-| ClassCreationTests.test_new_class_exec_body | uses-self.Meta |
 | ClassCreationTests.test_new_class_meta_with_base | self.assertIsSubclass |
-| ClassCreationTests.test_metaclass_override_function | uses-self.Meta |
 | ClassCreationTests.test_one_argument_type | unresolved-name:cm |
 | SimpleNamespaceTests.test_replace_invalid_subtype | assertRaisesRegex call form |
-| CoroutineTests.test_duck_functional_gen | uses-self._i |
-| SubinterpreterTests.test_static_types_inherited_slots | uses-self.maxDiff |
+| CoroutineTests.test_duck_functional_gen | uses-self.send |
+| SubinterpreterTests.test_static_types_inherited_slots | uses-self.create_channel |
 | UnionTests.test_instantiation | host-raised:NameError: name 'self' is not defined |
+| ClassCreationTests.test_new_class_meta | host-raised:AttributeError: '_SelfNS' object has no attribute 'Meta' |
+| ClassCreationTests.test_new_class_exec_body | host-raised:AttributeError: '_SelfNS' object has no attribute 'Meta' |
+| ClassCreationTests.test_metaclass_override_function | host-raised:AttributeError: '_SelfNS' object has no attribute 'Meta' |
 
 ## Expected vs got
 
@@ -196,22 +196,22 @@
 ### CoroutineTests.test_duck_gen (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<'SystemError: unsupported opcode 36'>
+- got: RUN<'AttributeError: **repr**'>
 
 ### CoroutineTests.test_gen (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', <callable_iterator object at 0x7fa79c5c6710>, <class \'**main**._GeneratorWrapper\'>)"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', <callable_iterator object at 0x7fd3716c47c0>, <class \'**main**._GeneratorWrapper\'>)"'>
 
 ### CoroutineTests.test_genfunc (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: bridge-table: type 'native_builtin' has policy BridgePolicy.TRAMPOLINE but no to_host conversion arm">
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
 
 ### CoroutineTests.test_wrapper_object (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertIn\', \'GeneratorWrapper\', \'<callable_iterator object at 0x7fa79c294ee0>\')"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIn\', \'GeneratorWrapper\', \'<callable_iterator object at 0x7fd3713f2950>\')"'>
 
 ### CoroutineTests.test_wrong_args (GUEST-WRONG-OUTPUT)
 
@@ -233,15 +233,10 @@
 - expected: host oracle = `ok`
 - got: RUN<"ImportError: cannot import name 'UserDict' from '<unknown>'">
 
-### SimpleNamespaceTests.test_replace (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
-
 ### SimpleNamespaceTests.test_replace_subclass (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: GOT<"ORACLE_EXC TypeError 'replace() does not support Spam objects'">
 
 ### SimpleNamespaceTests.test_repr (GUEST-WRONG-OUTPUT)
 
@@ -251,7 +246,7 @@
 ### SimpleNamespaceTests.test_subclass (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {\'_jac_guest_\': PyUserObj(t=\'instance\', cls=PyClass(t=\'class\', name=\'Spam\', attrs={\'**name**\': PyStr(t=\'str\', val=\'**main**\'), \'**module**\': PyStr(t=\'str\', val=\'**main**\'), \'**qualname**\': PyStr(t=\'str\', val=\'_t.<locals>.Spam\'), \'**firstlineno**\': PyInt(t=\'int\', val=9), \'**static_attributes**\': PyTuple(t=\'tuple\', items=[])}, bases=[PyHostProxy(t=\'host\', val=<class \'types.SimpleNamespace\'>)], native_base=\'\', metaclass=None, tp_flags=4096, slot_members=[], slots_declared=False, instance_has_dict=True), attrs={}, base=PyNoneType(t=\'none\'))}, {\'ham\': 8, \'eggs\': 9})"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {}, {\'ham\': 8, \'eggs\': 9})"'>
 
 ### TypesTests.test_call_unbound_crash (GUEST-WRONG-OUTPUT)
 
@@ -263,20 +258,10 @@
 - expected: host oracle = `ok`
 - got: RUN<'AttributeError: cache'>
 
-### TypesTests.test_float__format__locale (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: bridge-table: type 'globals' has policy BridgePolicy.FAIL but no to_host conversion arm">
-
 ### TypesTests.test_float_to_string (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
 - got: RUN<'AttributeError: cache'>
-
-### TypesTests.test_int__format__locale (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<"TypeError: bridge-table: type 'globals' has policy BridgePolicy.FAIL but no to_host conversion arm">
 
 ### TypesTests.test_method_descriptor_types (GUEST-WRONG-OUTPUT)
 
@@ -366,7 +351,7 @@
 ### UnionTests.test_union_copy (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')">
+- got: RUN<'AttributeError: cache'>
 
 ### UnionTests.test_union_of_unhashable (GUEST-WRONG-OUTPUT)
 
