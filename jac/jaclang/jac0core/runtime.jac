@@ -487,7 +487,7 @@ class JacRuntime(JacRuntimeInterface) {
         resolver: (Callable[([], (str | None))] | None)
     ) -> None;
 
-    static def set_context(context: ExecutionContext) -> None;
+    static def set_context(context: (ExecutionContext | None)) -> None;
     static def push_request_context(context: ExecutionContext) -> any;
     static def reset_request_context(token: any) -> None;
 }

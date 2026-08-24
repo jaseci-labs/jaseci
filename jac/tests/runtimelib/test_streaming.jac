@@ -12,6 +12,7 @@ pass only when every step and the teardown run inside the captured snapshot.
 
 import asyncio;
 import contextvars;
+import from collections.abc { AsyncGenerator, Generator }
 import from jaclang.runtimelib.streaming {
     context_bound_stream,
     context_bound_async_stream,
@@ -37,7 +38,7 @@ glob _probe: contextvars.ContextVar = contextvars.ContextVar(
 # ContextVar that is set ONLY in the captured snapshot, while the wrapper itself
 # is consumed from the default (foreign) Context where the var is still "unset".
 test "generator steps run inside the captured context" {
-    def _source {
+    def _source -> Generator {
         for _i in range(3) {
             yield _probe.get();
         }
@@ -67,7 +68,7 @@ test "generator steps run inside the captured context" {
 
 # Natural exhaustion runs teardown exactly once.
 test "teardown runs exactly once on normal completion" {
-    def _source {
+    def _source -> Generator {
         yield 1;
         yield 2;
     }
@@ -87,7 +88,7 @@ test "teardown runs exactly once on normal completion" {
 # A consumer that goes away mid-stream (`close()`) still runs teardown once, so
 # the request's writes commit even on early disconnect.
 test "teardown runs once when the consumer closes mid-stream" {
-    def _source {
+    def _source -> Generator {
         i = 0;
         while True {
             yield i;
@@ -113,7 +114,7 @@ test "teardown runs once when the consumer closes mid-stream" {
 # An exception raised inside a yield frame propagates to the consumer AND runs
 # teardown exactly once (the request context is still torn down).
 test "teardown runs once when the source raises" {
-    def _source {
+    def _source -> Generator {
         yield 1;
         raise ValueError("boom in yield frame");
     }
@@ -141,7 +142,7 @@ test "teardown runs once when the source raises" {
 # the captured Context, even though the wrapper is drained from the default
 # (foreign) Context where the sentinel is still "unset".
 test "async generator steps run inside the captured context" {
-    async def _source {
+    async def _source -> AsyncGenerator {
         for _i in range(3) {
             yield _probe.get();
         }
@@ -172,7 +173,7 @@ test "async generator steps run inside the captured context" {
 
 # Natural exhaustion runs teardown exactly once.
 test "async teardown runs exactly once on normal completion" {
-    async def _source {
+    async def _source -> AsyncGenerator {
         yield 1;
         yield 2;
     }
@@ -196,7 +197,7 @@ test "async teardown runs exactly once on normal completion" {
 # A consumer that stops draining and `aclose()`s mid-stream still runs teardown
 # exactly once, so the request's writes commit even on early disconnect.
 test "async teardown runs once when the consumer aclose()s mid-stream" {
-    async def _source {
+    async def _source -> AsyncGenerator {
         i = 0;
         while True {
             yield i;
@@ -238,7 +239,7 @@ test "async teardown runs once when the consumer aclose()s mid-stream" {
 # context down.
 test "closing iter_sync_or_async closes the sync source" {
     torn: list = [];
-    def _src {
+    def _src -> Generator {
         try {
             i = 0;
             while True {
@@ -262,7 +263,7 @@ test "closing iter_sync_or_async closes the sync source" {
 # deferred to GC after the loop was gone.
 test "closing iter_sync_or_async aclose()s the async source" {
     torn: list = [];
-    async def _src {
+    async def _src -> AsyncGenerator {
         try {
             i = 0;
             while True {
@@ -285,7 +286,7 @@ test "closing iter_sync_or_async aclose()s the async source" {
 # underlying generator closed by drain_sse -- not leaked until GC.
 test "drain_sse closes the source generator on client disconnect" {
     torn: list = [];
-    def _src {
+    def _src -> Generator {
         try {
             i = 0;
             while True {
@@ -312,7 +313,7 @@ test "drain_sse closes the source generator on client disconnect" {
 # An exception raised inside an async yield frame propagates to the consumer AND
 # runs teardown exactly once.
 test "async teardown runs once when the source raises" {
-    async def _source {
+    async def _source -> AsyncGenerator {
         yield 1;
         raise ValueError("boom in async yield frame");
     }

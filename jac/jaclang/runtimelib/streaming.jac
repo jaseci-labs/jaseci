@@ -35,7 +35,7 @@ async def _aclose_value(source: AsyncGenerator) {
 
 async def context_bound_async_stream(
     source: AsyncGenerator, captured: contextvars.Context, teardown: Callable[[], None]
-) -> any {
+) -> AsyncGenerator {
     try {
         while True {
             loop = asyncio.get_running_loop();

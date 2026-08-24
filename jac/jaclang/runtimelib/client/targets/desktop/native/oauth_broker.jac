@@ -159,10 +159,10 @@ def make_handler(
     tok_store: SessionStore,
     opener: Callable[[str], bool] = webbrowser.open,
     prefix: str = DEFAULT_PREFIX,
-    dispatch: Callable[[str], str] | None = None,
+    dispatch: Callable | None = None,
     events: object | None = None,
-    sv_bridge: Callable[[str, str, bytes, str], tuple[int, str, str]] | None = None,
-    sv_router: Callable[[str, str], bool] | None = None
+    sv_bridge: Callable | None = None,
+    sv_router: Callable | None = None
 ) -> type {
     pending = _PendingAuth();
 
@@ -252,8 +252,10 @@ def make_handler(
                 );
                 return;
             }
-            (status, sv_body, ctype) = result;
-            self._raw_response(sv_body, status, ctype);
+            if isinstance(result, tuple) {
+                (status, sv_body, ctype) = result;
+                self._raw_response(sv_body, status, ctype);
+            }
         }
 
         def _dispatch_invoke(self: _BrokerHandler, body: str) {
@@ -485,8 +487,8 @@ def make_handler(
                     return;
                 }
                 raw = self.rfile.read(n) if n > 0 else b"";
-                body = raw.decode("utf-8") if raw else "[]";
-                self._dispatch_invoke(body);
+                req_body = raw.decode("utf-8") if raw else "[]";
+                self._dispatch_invoke(req_body);
                 return;
             }
             if sv_bridge is not None

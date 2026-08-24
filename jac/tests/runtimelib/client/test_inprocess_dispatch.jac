@@ -23,6 +23,7 @@ import json;
 import tempfile;
 import warnings;
 import threading;
+import from collections.abc { Generator }
 import from pathlib { Path }
 
 # The `sv` backend exercised by the round-trip (one walker, one function).
@@ -205,7 +206,7 @@ test "cancel_stream stops the pump and suppresses the end frame" {
     def _capture(sid: str, frame: dict) {
         frames.append(frame);
     }
-    def _slow_gen {
+    def _slow_gen -> Generator {
         started.set();
         try {
             for i in range(1000) {
@@ -278,7 +279,7 @@ test "stream backpressure bounds in-flight frames until acked" {
     def _capture(sid: str, frame: dict) {
         frames.append(frame);
     }
-    def _fast_gen {
+    def _fast_gen -> Generator {
         for i in range(5) {
             yield {"n": i};
         }
@@ -348,7 +349,7 @@ test "a generator raising mid-stream emits an error frame and deregisters" {
     def _capture(sid: str, frame: dict) {
         frames.append(frame);
     }
-    def _boom_gen {
+    def _boom_gen -> Generator {
         try {
             yield {"n": 0};
             raise ValueError("kaboom mid-stream");
@@ -419,7 +420,7 @@ test "shutdown cancels an active stream without hanging or leaking" {
     def _capture(sid: str, frame: dict) {
         frames.append(frame);
     }
-    def _slow_gen {
+    def _slow_gen -> Generator {
         started.set();
         try {
             for i in range(1000) {
@@ -1384,7 +1385,7 @@ test "pool runs invocations concurrently (no head-of-line blocking)" {
         }
         ipd._workers = workers;
 
-        def _enqueue(id_str: bytes, name: str) {
+        def _enqueue(id_str: bytes, name: str) -> tuple {
             id_buf = ctypes.create_string_buffer(id_str);
             payload = json.dumps(
                 {"kind": "walker", "name": name, "node": "", "fields": {}, "token": ""}

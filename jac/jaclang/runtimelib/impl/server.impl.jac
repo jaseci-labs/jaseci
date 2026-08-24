@@ -2150,6 +2150,10 @@ impl JacAPIServer.build_app -> ServingApp {
         );
     }
 
+    async def _invoke_dispatch(request_: any) -> any {
+        return await server.invocation_dispatcher.invoke(request_);
+    }
+
     def _call_function(request: Request, name: str) -> any {
         server.introspector.load();
         data = _read_data(request);
@@ -2164,7 +2168,7 @@ impl JacAPIServer.build_app -> ServingApp {
         token = _bearer_token(request) or "";
         username = request.state?.username if request?.state else None;
         result: InvocationResult = asyncio.run(
-            server.invocation_dispatcher.invoke(
+            _invoke_dispatch(
                 InvocationRequest(
                     kind=InvocationKind.FUNCTION,
                     name=name,
@@ -2201,7 +2205,7 @@ impl JacAPIServer.build_app -> ServingApp {
         token = _bearer_token(request) or "";
         username = request.state?.username if request?.state else None;
         result: InvocationResult = asyncio.run(
-            server.invocation_dispatcher.invoke(
+            _invoke_dispatch(
                 InvocationRequest(
                     kind=InvocationKind.WALKER,
                     name=name,

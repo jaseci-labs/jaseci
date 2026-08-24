@@ -1966,7 +1966,7 @@ impl JacRuntime.set_full_target_path(target_path: (str | None)) -> None {
     _default_full_target_path[0] = target_path;
 }
 
-impl JacRuntime.set_context(context: ExecutionContext) -> None {
+impl JacRuntime.set_context(context: (ExecutionContext | None)) -> None {
     JacRuntime.exec_ctx = context;
 }
 

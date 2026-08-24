@@ -593,6 +593,13 @@ def forward(
         return (int(err["status"]), str(err["body"]), "application/json");
     }
     result = resolved.get("result");
+    if result is None {
+        return (
+            500,
+            json.dumps({"ok": False, "error": {"message": "no dispatch result"}}),
+            "application/json"
+        );
+    }
     if result.is_stream {
         body_text = "".join(iter_sse_frames(result.stream));
         return (int(result.http_status or 200), body_text, "text/event-stream");
@@ -614,6 +621,16 @@ def forward_outcome(method: str, path: str, body: bytes, token: str = "") -> dic
         };
     }
     result = resolved.get("result");
+    if result is None {
+        return {
+            "mode": DispatchMode.JSON,
+            "status": 500,
+            "body": json.dumps(
+                {"ok": False, "error": {"message": "no dispatch result"}}
+            ),
+            "content_type": "application/json"
+        };
+    }
     if result.is_stream {
         return {
             "mode": DispatchMode.SSE,

@@ -11,6 +11,7 @@ import os;
 import json;
 import socketserver;
 import threading;
+import from collections.abc { Generator }
 import tempfile;
 import from urllib.request { Request, urlopen }
 import from urllib.error { HTTPError }
@@ -518,7 +519,7 @@ test "broker streams SSE when the sv bridge tags a streaming outcome" {
     os.makedirs(web_dir, exist_ok=True);
     store = SessionStore(os.path.join(root_dir, "data", "session.json"));
     def fake_sv(method: str, path: str, body: bytes, token: str) -> dict {
-        def gen {
+        def gen -> Generator {
             yield {"n": 0};
             yield {"n": 1};
             yield {"n": 2};
@@ -527,7 +528,7 @@ test "broker streams SSE when the sv bridge tags a streaming outcome" {
     }
     handler = make_handler(web_dir, store, sv_bridge=fake_sv);
     srv = socketserver.TCPServer(("127.0.0.1", 0), handler);
-    port = srv.server_address[1];
+    port = int(srv.server_address[1]);
     threading.Thread(target=srv.serve_forever, daemon=True).start();
     try {
         url = f"http://127.0.0.1:{port}/walker/stream_it";
@@ -569,7 +570,7 @@ test "broker renders a json-mode sv outcome verbatim" {
     }
     handler = make_handler(web_dir, store, sv_bridge=fake_sv);
     srv = socketserver.TCPServer(("127.0.0.1", 0), handler);
-    port = srv.server_address[1];
+    port = int(srv.server_address[1]);
     threading.Thread(target=srv.serve_forever, daemon=True).start();
     try {
         (s, b) = _req(port, "/function/add", "POST", {"a": 1});
@@ -589,7 +590,7 @@ test "broker invoke streams SSE when dispatch returns sse mode" {
     os.makedirs(web_dir, exist_ok=True);
     store = SessionStore(os.path.join(root_dir, "data", "session.json"));
     def fake_dispatch(body: str) -> dict {
-        def gen {
+        def gen -> Generator {
             yield {"n": 0};
             yield {"n": 1};
         }
@@ -597,7 +598,7 @@ test "broker invoke streams SSE when dispatch returns sse mode" {
     }
     handler = make_handler(web_dir, store, dispatch=fake_dispatch);
     srv = socketserver.TCPServer(("127.0.0.1", 0), handler);
-    port = srv.server_address[1];
+    port = int(srv.server_address[1]);
     threading.Thread(target=srv.serve_forever, daemon=True).start();
     try {
         url = f"http://127.0.0.1:{port}/__jac/invoke";

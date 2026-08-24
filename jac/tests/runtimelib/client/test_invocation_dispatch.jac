@@ -202,23 +202,21 @@ test "runtime boots and dispatches with the serve closure imports blocked" {
     rt = None;
     try {
         rt = prepare_invocation_runtime(_FIXTURE, os.path.join(graph_root, "graph"));
-        walk = asyncio.run(
-            rt.dispatcher.invoke(
-                InvocationRequest(
-                    kind=InvocationKind.WALKER, name="greet", fields={"name": "Lean"}
-                )
+        walk_coro: any = rt.dispatcher.invoke(
+            InvocationRequest(
+                kind=InvocationKind.WALKER, name="greet", fields={"name": "Lean"}
             )
         );
+        walk = asyncio.run(walk_coro);
         assert walk.http_status == 200;
         assert walk.to_transport().data["reports"][0]["greeting"] == "hello Lean";
 
-        fn = asyncio.run(
-            rt.dispatcher.invoke(
-                InvocationRequest(
-                    kind=InvocationKind.FUNCTION, name="add", fields={"a": 1, "b": 2}
-                )
+        fn_coro: any = rt.dispatcher.invoke(
+            InvocationRequest(
+                kind=InvocationKind.FUNCTION, name="add", fields={"a": 1, "b": 2}
             )
         );
+        fn = asyncio.run(fn_coro);
         assert fn.http_status == 200;
         assert fn.to_transport().data["result"] == 3;
 

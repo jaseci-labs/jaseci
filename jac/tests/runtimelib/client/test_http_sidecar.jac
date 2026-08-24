@@ -285,11 +285,14 @@ test "websocket route invokes a walker per message through the sidecar" {
         uri = "ws://127.0.0.1:" + str(handle.port) + "/ws/walker/greet";
 
         async def _round_trip -> dict {
-            async with websockets.connect(
+            conn: any = websockets.connect(
                 uri, additional_headers={"x-jac-sidecar-token": handle.token}
-            ) as conn {
-                await conn.send(json.dumps({"name": "Ada"}));
-                raw = await conn.recv();
+            );
+            async with conn {
+                send_fn = getattr(conn, "send");
+                recv_fn = getattr(conn, "recv");
+                await send_fn(json.dumps({"name": "Ada"}));
+                raw = str(await recv_fn());
             }
             return json.loads(raw);
         }
