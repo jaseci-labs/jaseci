@@ -8195,6 +8195,18 @@ def py_raise_value(value: PyObj) -> PyObj {
         if is_error(instance) {
             return instance;
         }
+        # CPython do_raise contract: calling the class must yield a real
+        # BaseException INSTANCE (a subclass instance passes -- MRO-aware).
+        # A broken __new__ that returns the class itself (or an unrelated
+        # object) must TypeError here; recursing on the same input would
+        # loop forever (gen.throw(E) VM-crash fingerprint).
+        if isinstance(instance, PyClass)
+            or (isinstance(instance, PyUserObj)
+                and not instance_of_class(instance as PyUserObj, value as PyClass)) {
+            return py_error(
+                "TypeError", "should have returned an instance of BaseException"
+            );
+        }
         return py_raise_value(instance);
     }
     if isinstance(value, PyHostProxy) {
