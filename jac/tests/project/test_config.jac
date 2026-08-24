@@ -262,6 +262,34 @@ test "explicit set_config overrides file-anchored resolution" {
     assert get_explicit_config() is None;
 }
 
+test "jac create leaves no explicit config pin behind" {
+    # `jac create` bootstraps the new project's dependencies with the config
+    # temporarily pinned to that project. Restoring the pin afterwards must
+    # restore the ABSENCE of one -- promoting the ambient config to an explicit
+    # pin would make it win over file-anchored resolution for every path in the
+    # process, including files that belong to no project at all.
+    import from jaclang.cli.commands { project }
+    import from jaclang.project.template_registry { initialize_template_registry }
+    config_mod._config = None;
+    config_mod._config_explicit = False;
+    config_mod._config_by_root = {};
+    initialize_template_registry();
+    orig_cwd = os.getcwd();
+    with TemporaryDirectory() as tmpdir {
+        os.chdir(tmpdir);
+        try {
+            assert project.create(name="pinprobe") == 0;
+        } finally {
+            os.chdir(orig_cwd);
+        }
+    }
+    assert get_explicit_config() is None;
+    with TemporaryDirectory() as outsider {
+        # No jac.toml anywhere above it, so it resolves to no config at all.
+        assert get_config_for_path(Path(outsider) / "stray.jac") is None;
+    }
+}
+
 # ===========================================================================
 # TestJacConfigLoad
 # ===========================================================================

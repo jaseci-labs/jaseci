@@ -931,9 +931,9 @@ impl install(
 }
 
 def _bootstrap_project_deps(project_path: Path) -> bool {
-    import from jaclang.project.config { get_config, set_config }
+    import from jaclang.project.config { get_config, get_explicit_config, set_config }
     prev = os.getcwd();
-    prev_cfg = get_config();
+    prev_pin = get_explicit_config();
     try {
         os.chdir(str(project_path));
 
@@ -947,7 +947,7 @@ def _bootstrap_project_deps(project_path: Path) -> bool {
         return False;
     } finally {
         os.chdir(prev);
-        set_config(prev_cfg);
+        set_config(prev_pin);
     }
 }
 
