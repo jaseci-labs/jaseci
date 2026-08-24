@@ -457,6 +457,18 @@ def _jac_builtin_function_or_method_type():
     # itself so isinstance/name checks on native callables answer correctly.
     return type(builtins.len)
 
+def _jac_generator_type():
+    import types
+    return types.GeneratorType
+
+def _jac_coroutine_type():
+    import types
+    return types.CoroutineType
+
+def _jac_async_generator_type():
+    import types
+    return types.AsyncGeneratorType
+
 def _jac_host_same_object(a, b):
     return a is b
 
@@ -1043,7 +1055,7 @@ def _jac_make_guest_async_generator(agen_obj):
                 _jac_reraise_pyerror(err)
             if hasattr(err, "t") and err.t == "genstop":
                 return ("done", None)
-            if isinstance(err, PyAsyncGenWrapped):
+            if isinstance(err, PyAsyncGenWrappedValue):
                 # A wrapped yield is the async-gen ITEM: this anext awaitable
                 # completes with it (CPython async_generator_asend semantics).
                 return ("item", to_host(err.val))
@@ -3891,6 +3903,18 @@ def py_type_of(o: PyObj) -> PyObj {
         # `iterator` type (PySeqIter_Type), not list_iterator.
         return from_host(_jac_seq_iterator_type());
     }
+    if isinstance(o, PyGenerator) {
+        # The three suspendable frame wrappers map to their real host types;
+        # the to_host fallthrough would DRAIN them into a list ("list").
+        gen = o as PyGenerator;
+        if gen.t == "coroutine" {
+            return from_host(_jac_coroutine_type());
+        }
+        if gen.t == "async_generator" {
+            return from_host(_jac_async_generator_type());
+        }
+        return from_host(_jac_generator_type());
+    }
     ho_r = to_host_coerce(o);
     ho = ho_r[1];
     if not ((ho_r[0] as bool)) {
@@ -5881,8 +5905,11 @@ def py_get_awaitable(value: PyObj) -> PyObj {
         }
         return py_error("TypeError", "'generator' object can't be awaited");
     }
-    if value.t == "async_anext" or value.t == "async_aclose" {
+    if value.t == "agen_asend" or value.t == "agen_athrow" {
         return value;
+    }
+    if value.t == "async_generator" {
+        return py_error("TypeError", "object async_generator can't be used in 'await' expression");
     }
     if isinstance(value, PyHostProxy) {
         hp = value as PyHostProxy;
@@ -8567,6 +8594,11 @@ obj PyNativeBuiltin(PyObj) {
         if len(args) > 2 {
             return py_error("TypeError", "next expected at most 2 arguments, got " + str(len(args)));
         }
+        if args[0].t == "async_generator" {
+            # PyAsyncGenObject has no tp_iternext; CPython rejects it in
+            # builtin_next via PyIter_Check with this dedicated message.
+            return py_error("TypeError", "'async_generator' object is not an iterator");
+        }
         step = send_into(args[0], py_none());
         if step.t == "genstop" {
             if len(args) > 1 {
@@ -10547,95 +10579,73 @@ obj PyGenStop(PyObj) {
     has val: PyObj;
 }
 
-# INTRINSIC_ASYNC_GEN_WRAP(4) wraps every direct `yield` inside an async
-# generator's frame (CPython PyAsyncGenWrappedValue). The wrap lets an asend/
-# anext driver tell a real ITEM (wrapped -> completes the awaitable with it)
-# apart from an in-body await suspension (unwrapped -> propagates up).
-obj PyAsyncGenWrapped(PyObj) {
+# INTRINSIC_ASYNC_GEN_WRAP's payload (generated_cases.c.h): every value an
+# async generator yields is wrapped so the anext/asend driver can tell a
+# yield from a return even though both cross the same resume machinery.
+obj PyAsyncGenWrappedValue(PyObj) {
     has val: PyObj;
 }
 
-# __anext__() awaitable over an async generator. One drive step resumes the
-# agen frame; a wrapped yield is the ITEM (completes with it), an unwrapped
-# yield propagates (the body is awaiting something), exhaustion raises
-# StopAsyncIteration -- exactly CPython's async_generator_asend.
-obj PyAsyncGenAsend(PyObj) {
+# The one-shot awaitable `ag.__anext__()` / `ag.asend(v)` returns. The SEND
+# loop drives it through agen_asend_step like a native coroutine: a yield
+# surfaces the UNWRAPPED value, exhaustion raises StopAsyncIteration.
+obj PyAsyncGenASend(PyObj) {
     has gen: PyGenerator,
-        done: bool = False;
+        value: PyObj,
+        started: bool = False;
 }
 
-# aclose() awaitable: throws GeneratorExit into the frame via gen_close and
-# completes with None (CPython's async_generator_aclose).
-obj PyAsyncGenAClose(PyObj) {
+# The one-shot awaitable `ag.athrow(exc)` / `ag.aclose()` returns: on first
+# drive it throws `err` into the generator at its suspend point. aclose=True
+# runs the GeneratorExit close protocol (silent on clean exit, RuntimeError
+# when the generator yields again).
+obj PyAsyncGenAThrow(PyObj) {
     has gen: PyGenerator,
-        done: bool = False;
+        err: PyObj,
+        aclose: bool = False,
+        started: bool = False;
 }
 
-def asyncgen_driver_check(a: PyObj) -> PyObj {
-    # Re-driving a finished anext/aclose awaitable is a reuse error, CPython:
-    # "cannot reuse already awaited coroutine".
-    if (a as PyAsyncGenAsend).done {
-        return py_error("RuntimeError", "cannot reuse already awaited coroutine");
-    }
-    return py_none();
-}
+# A bound async-generator driver (asend/athrow/aclose/__anext__/__aiter__).
+# Each call returns a FRESH awaitable object (genobject.c's
+# async_gen_asend/athrow_new); awaiting it drives the underlying frame.
+obj PyAsyncGenMethod(PyObj) {
+    has gen: PyGenerator,
+        kind: str;
 
-# Drive one step of an async-generator anext/aclose awaitable. Returns the
-# PyGenStop(item-or-None) completion, the unwrapped suspension value, or an
-# error (StopAsyncIteration on clean exhaustion).
-def asyncgen_step(receiver: PyObj, sent: PyObj) -> PyObj {
-    if receiver.t == "async_anext" {
-        a = receiver as PyAsyncGenAsend;
-        reused = asyncgen_driver_check(receiver);
-        if is_error(reused) {
-            return reused;
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if self.kind == "anext" or self.kind == "__anext__" {
+            return PyAsyncGenASend(t="agen_asend", gen=self.gen, value=py_none());
         }
-        # gen_resume returns the raw suspended value (a wrapped item marker,
-        # a plain suspension value from an in-body await), a PyGenStop on
-        # frame return, or a propagating error.
-        res = gen_resume(a.gen, sent);
-        if isinstance(res, PyAsyncGenWrapped) {
-            a.done = True;
-            return PyGenStop(t="genstop", val=(res as PyAsyncGenWrapped).val);
-        }
-        if is_error(res) {
-            a.done = True;
-            exc = (res as PyError).exception;
-            if exc.type_name == "StopIteration" {
-                return stop_async_iteration(exc.value);
+        if self.kind == "asend" {
+            if len(args) < 1 {
+                return py_error("TypeError", "asend expected at least 1 argument");
             }
-            return res;
+            return PyAsyncGenASend(t="agen_asend", gen=self.gen, value=args[0]);
         }
-        if res.t == "genstop" {
-            a.done = True;
-            return stop_async_iteration((res as PyGenStop).val);
+        if self.kind == "aclose" {
+            return PyAsyncGenAThrow(
+                t="agen_athrow", gen=self.gen, err=py_none(), aclose=True
+            );
         }
-        return res;
+        if self.kind == "__aiter__" {
+            # PyAsyncGenObject.__aiter__ returns self, so `async for`
+            # iterates the generator itself.
+            return self.gen;
+        }
+        # athrow: an exception instance or type, coerced now so a bad operand
+        # surfaces at call time. Multi-arg (type, value[, tb]) forms stay in
+        # parity with the sync gen_throw surface.
+        thrown = py_none();
+        if len(args) > 0 {
+            thrown = args[0];
+        }
+        err = as_error(thrown);
+        if err.t != "error" {
+            return err;
+        }
+        return PyAsyncGenAThrow(t="agen_athrow", gen=self.gen, err=err);
     }
-    c = receiver as PyAsyncGenAClose;
-    reused = asyncgen_driver_check(receiver);
-    if is_error(reused) {
-        return reused;
-    }
-    result = gen_close(c.gen);
-    c.done = True;
-    if is_error(result) {
-        return result;
-    }
-    return PyGenStop(t="genstop", val=py_none());
-}
-
-# StopAsyncIteration carrying the async generator's return value.
-def stop_async_iteration(value: PyObj) -> PyObj {
-    return PyError(
-        t="error",
-        exception=PyException(
-            t="exception",
-            type_name="StopAsyncIteration",
-            message="",
-            value=value,
-        ),
-    );
 }
 
 obj PyGenerator(PyObj) {
@@ -10650,19 +10660,38 @@ obj PyGenerator(PyObj) {
         gen_qualname: str = "";
 
     def tp_iter -> PyObj {
+        # An async generator is driven exclusively through __anext__/asend;
+        # CPython gives it no tp_iter at all.
+        if self.t == "async_generator" {
+            return py_error("TypeError", "'async_generator' object is not iterable");
+        }
         return self;
     }
 
     # gen.send / gen.throw / gen.close / gen.__next__ resolve to native bound
-    # driver methods; an async generator also exposes its __aiter__/__anext__/
-    # aclose awaitable drivers; every other attribute is a real AttributeError.
+    # driver methods; every other attribute is a real AttributeError. An async
+    # generator (CO_ASYNC_GENERATOR) presents the ag_* surface instead: its
+    # drivers return awaitables, and the sync driver names are absent exactly
+    # as CPython's PyAsyncGenObject lacks send/throw/close/__next__.
     def tp_getattro(name: str) -> PyObj {
-        if name == "send" or name == "throw" or name == "close" or name == "__next__" {
-            return PyGenMethod(t="gen_method", gen=self, kind=name);
+        if self.t == "async_generator" {
+            if name == "asend" or name == "athrow" or name == "aclose"
+                or name == "__anext__" or name == "__aiter__" {
+                return PyAsyncGenMethod(t="agen_method", gen=self, kind=name);
+            }
+            if name == "ag_frame" {
+                return PyGenFrame(t="genframe", gen=self);
+            }
+            if name == "ag_running" {
+                # True only while the frame is actively executing, like gi_running.
+                return PyBool(t="bool", val=self.running);
+            }
+            return py_error(
+                "AttributeError",
+                "'async_generator' object has no attribute '" + name + "'",
+            );
         }
-        if self.t == "async_generator"
-            and (name == "__aiter__" or name == "__anext__" or name == "aclose")
-        {
+        if name == "send" or name == "throw" or name == "close" or name == "__next__" {
             return PyGenMethod(t="gen_method", gen=self, kind=name);
         }
         if name == "gi_frame" or name == "ag_frame" {
@@ -10735,19 +10764,6 @@ obj PyGenMethod(PyObj) {
         kind: str;
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if self.kind == "__aiter__" {
-            # An async generator is its own async iterator (CPython ag_aiter).
-            return self.gen;
-        }
-        if self.kind == "__anext__" or self.kind == "aclose" {
-            # __anext__()/aclose() return AWAITABLES, not items -- the SEND
-            # machinery drives them (CPython's async_generator_asend/aclose
-            # objects). py_get_awaitable admits both t-labels.
-            if self.kind == "__anext__" {
-                return PyAsyncGenAsend(t="async_anext", gen=self.gen, done=False);
-            }
-            return PyAsyncGenAClose(t="async_aclose", gen=self.gen, done=False);
-        }
         # Method-name prefix in arity errors mirrors CPython's METH_DEF_NAME
         # bindings: "generator.send()", "coroutine.close()", ...
         label = self.gen.t;
@@ -10921,6 +10937,14 @@ def finish_gen_result(gen: PyGenerator, result: PyObj) -> PyObj {
     gen.running = False;
     if is_error(result) {
         gen.finished = True;
+        if gen.t == "async_generator"
+            and ((result as PyError).exception).type_name == "StopAsyncIteration" {
+            # genobject.c gen_send_ex2: StopAsyncIteration escaping an async
+            # generator's body means the generator tried to end its own
+            # iteration -- the RuntimeError analogue of PEP 479's StopIteration
+            # guard for sync generators.
+            return py_error("RuntimeError", "async generator raised StopAsyncIteration");
+        }
         return result;
     }
     if result.t == "yield" {
@@ -11014,11 +11038,6 @@ def gen_throw(gen: PyGenerator, thrown: PyObj) -> PyObj {
 def send_throw_into(receiver: PyObj, err: PyObj) -> PyObj {
     if receiver.t == "generator" or receiver.t == "coroutine" {
         return gen_throw(receiver as PyGenerator, err);
-    }
-    # A throw landing at an async-gen driver delegates into the generator frame;
-    # the driver itself stays one-shot (its done flag only guards re-driving).
-    if receiver.t == "async_anext" {
-        return gen_throw((receiver as PyAsyncGenAsend).gen, err);
     }
     # A non-generator sub-iterator with a .throw() gets it; otherwise the
     # exception simply propagates at the delegation point.
@@ -11277,16 +11296,100 @@ def gen_close(gen: PyGenerator) -> PyObj {
     return py_error("RuntimeError", "generator ignored GeneratorExit");
 }
 
+# Drive one step of `await ag.__anext__()` / `await ag.asend(v)` (genobject.c
+# async_gen_asend_send). The awaitable carries the resume value (None for
+# __anext__, asend's operand otherwise); a yield unwraps to its payload,
+# exhaustion becomes StopAsyncIteration, errors propagate.
+def agen_asend_step(a: PyAsyncGenASend, sent: PyObj) -> PyObj {
+    if a.started {
+        return py_error("RuntimeError", "cannot reuse already awaited __anext__()/asend()");
+    }
+    a.started = True;
+    gen = a.gen;
+    if not gen.started and not gen.finished and a.value.t != "none" {
+        return py_error(
+            "TypeError", "can't send non-None value to a just-started async generator"
+        );
+    }
+    result = gen_resume(gen, a.value);
+    return agen_translate(result);
+}
+
+# Drive one step of `await ag.athrow(exc)` / `await ag.aclose()` (genobject.c
+# async_gen_athrow_send). athrow: a caught exception followed by another yield
+# surfaces that yield; a clean return raises StopAsyncIteration; throwing into
+# an ALREADY-EXHAUSTED generator completes silently (CPython 3.14 quirk).
+# aclose runs the GeneratorExit protocol and never raises on a clean exit.
+def agen_athrow_step(a: PyAsyncGenAThrow, sent: PyObj) -> PyObj {
+    if a.started {
+        return py_error("RuntimeError", "cannot reuse already awaited aclose()/athrow()");
+    }
+    a.started = True;
+    gen = a.gen;
+    if a.aclose {
+        if gen.finished or not gen.started {
+            gen.finished = True;
+            frame_clear(gen.frame);
+            return PyGenStop(t="genstop", val=py_none());
+        }
+        gen_exit = PyException(t="exception", type_name="GeneratorExit", message="");
+        result = gen_throw(gen, gen_exit);
+        gen.finished = True;
+        frame_clear(gen.frame);
+        if is_error(result) {
+            if ((result as PyError).exception).type_name == "GeneratorExit" {
+                # GeneratorExit propagating out is a clean close.
+                return PyGenStop(t="genstop", val=py_none());
+            }
+            return result;
+        }
+        if result.t == "async_wrapped" {
+            return py_error("RuntimeError", "async generator ignored GeneratorExit");
+        }
+        # Caught GeneratorExit and returned: clean close, value dropped.
+        return PyGenStop(t="genstop", val=py_none());
+    }
+    if gen.finished {
+        # Nothing left to throw into; CPython drops the resume outcome.
+        return PyGenStop(t="genstop", val=py_none());
+    }
+    result2 = gen_throw(gen, a.err);
+    return agen_translate(result2);
+}
+
+# Shared translation of an async-generator resume outcome into the awaitable
+# protocol. One drive IS one complete await: a yield finishes the asend/anext
+# coroutine with the UNWRAPPED payload (PyGenStop makes the SEND loop treat it
+# like a coroutine return), while normal exhaustion raises StopAsyncIteration.
+def agen_translate(result: PyObj) -> PyObj {
+    if is_error(result) {
+        return result;
+    }
+    if result.t == "async_wrapped" {
+        return PyGenStop(t="genstop", val=(result as PyAsyncGenWrappedValue).val);
+    }
+    return PyError(
+        t="error",
+        exception=PyException(t="exception", type_name="StopAsyncIteration", message=""),
+    );
+}
+
 # Drive one step of a yield-from sub-iterator (SEND). Returns the yielded value,
 # a PyGenStop(return value) on exhaustion, or a propagating error.
 def send_into(receiver: PyObj, sent: PyObj) -> PyObj {
+    # Async-generator awaitables (from __anext__/asend/athrow/aclose) drive
+    # through their own step functions; the SEND loop awaits them like any
+    # other awaitable.
+    if receiver.t == "agen_asend" {
+        return agen_asend_step(receiver as PyAsyncGenASend, sent);
+    }
+    if receiver.t == "agen_athrow" {
+        return agen_athrow_step(receiver as PyAsyncGenAThrow, sent);
+    }
     # A native coroutine drives through the identical suspend/resume machinery as
     # a generator -- `await` lowers to the same SEND loop `yield from` uses.
     if receiver.t == "generator" or receiver.t == "coroutine" {
         return gen_resume(receiver as PyGenerator, sent);
-    }
-    if receiver.t == "async_anext" or receiver.t == "async_aclose" {
-        return asyncgen_step(receiver, sent);
     }
     if receiver.t == "calliter" {
         # next(calliter) drives the callable-iterator; send() is not a
@@ -11546,12 +11649,12 @@ def exec_code_frame(
     if (co.flags & 128) != 0 {
         return PyGenerator(t="coroutine", frame=frame, started=False, finished=False);
     }
-    # CO_ASYNC_GENERATOR (0x200): async def with yield -- same suspendable frame,
-    # driven through __anext__/aclose awaitables instead of bare send/close.
+    # CO_ASYNC_GENERATOR (0x200): `async def` with `yield`. Calling it creates a
+    # LAZY async generator -- no frame execution until __anext__/asend/athrow/
+    # aclose drive it through the agen_* awaitables (genobject.c
+    # PyAsyncGenObject_New with an unstarted frame).
     if (co.flags & 512) != 0 {
-        return PyGenerator(
-            t="async_generator", frame=frame, started=False, finished=False
-        );
+        return PyGenerator(t="async_generator", frame=frame, started=False, finished=False);
     }
     if (co.flags & 32) != 0 {
         return PyGenerator(t="generator", frame=frame, started=False, finished=False);
@@ -13579,6 +13682,15 @@ def run_frame(frame: PyFrame) -> PyObj {
                 stack.append(PyTypeVar(t="TypeVar", name=(operand as PyStr).val));
                 continue;
             }
+            if arg == 4 {
+                # INTRINSIC_ASYNC_GEN_WRAP: CPython wraps each async-generator
+                # yield in an AsyncGenWrappedValue so the anext/asend machinery
+                # can tell yields from returns. The agen_* drivers unwrap it;
+                # a wrapped value escaping any other path stays observable and
+                # inert (same policy as CPython's opaque wrapper object).
+                stack.append(PyAsyncGenWrappedValue(t="async_wrapped", val=operand));
+                continue;
+            }
             if arg == 11 {
                 # INTRINSIC_TYPEALIAS (PEP 695 `type X = v`): operand is the
                 # (name, type_params_or_None, lazy-value-fn) triple codegen
@@ -13623,13 +13735,6 @@ def run_frame(frame: PyFrame) -> PyObj {
                 } else {
                     stack.append(operand);
                 }
-                continue;
-            }
-            if arg == 4 {
-                # INTRINSIC_ASYNC_GEN_WRAP: every direct `yield` inside an
-                # async generator wraps its value so an anext driver can tell
-                # the item apart from an in-body await suspension.
-                stack.append(PyAsyncGenWrapped(t="asyncgen_wrapped", val=operand));
                 continue;
             }
             if arg == 5 {
