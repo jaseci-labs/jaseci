@@ -252,6 +252,10 @@ def _jac_wrap_staticmethod(host_fn):
 def _jac_wrap_property(fget, fset, fdel):
     return property(fget, fset, fdel)
 
+def _jac_wrap_mappingproxy(d):
+    import types
+    return types.MappingProxyType(d)
+
 # Track B (builtin subclassing) host helpers.
 _JAC_BUILTIN_BASES = (
     "int", "str", "float", "bool", "list", "dict",
@@ -1186,6 +1190,8 @@ import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
 import from objects {
     _zero_step_error,
+    DictEntry,
+    _unhashable_error,
     slice_indices,
     PyObj,
     PyInt,
@@ -2514,7 +2520,13 @@ obj PyClass(PyObj) {
 obj PyUserObj(PyObj) {
     has cls: PyClass,
         attrs: dict[str, PyObj],
-        base: any = None;
+        base: any = None,
+        # Live instance-``__dict__`` view (PyInstanceDict) minted on first
+        # access and kept identity-stable -- CPython returns the SAME dict
+        # object every time. attrs_version mirrors attribute mutations into
+        # the view so reads through it stay current.
+        dict_cache: any = None,
+        attrs_version: int = 0;
 
     # The boxed builtin value (int/str/...) for a builtin subclass, or a
     # PyNoneType sentinel for a plain user class. _has_base tells them apart.
@@ -2754,22 +2766,7 @@ def default_user_getattro(u: PyUserObj, name: str) -> PyObj {
     # AttributeError 'C' object has no attribute '__dict__'). Checked BEFORE
     # the boxed-base fallthrough so the error names the subclass, not the base.
     if name == "__dict__" {
-        if not u.cls.instance_has_dict {
-            return py_error(
-                "AttributeError",
-                "'" + u.cls.name + "' object has no attribute '__dict__'",
-            );
-        }
-        # Slot storage shares the instance attribute map; the dict VIEW must
-        # exclude member names (CPython keeps d.a out of d.__dict__ even when
-        # __slots__ = ('a', '__dict__')).
-        view: dict[str, PyObj] = {};
-        for k in u.attrs {
-            if type_slots_in_dict_view(k, u.cls.slot_members) {
-                view[k] = u.attrs[k];
-            }
-        }
-        return dict_from_str_map(view);
+        return user_instance_dict(u);
     }
     # Fall through to the boxed builtin value's own attributes/methods
     # (str.upper on a str subclass, etc.).
@@ -2823,6 +2820,12 @@ def default_user_setattro(u: PyUserObj, name: str, value: PyObj) -> PyObj {
         );
     }
     u.attrs[name] = value;
+    # Keep the live __dict__ view current (identity-stable mirror).
+    if u.dict_cache is not None
+        and type_slots_in_dict_view(name, u.cls.slot_members) {
+        d = u.dict_cache as PyDict;
+        (d as PyInstanceDict).view_set(name, value);
+    }
     return py_none();
 }
 
@@ -2859,9 +2862,156 @@ def default_user_delattro(u: PyUserObj, name: str) -> PyObj {
     }
     if name in u.attrs {
         del u.attrs[name];
+        if u.dict_cache is not None
+            and type_slots_in_dict_view(name, u.cls.slot_members) {
+            (u.dict_cache as PyInstanceDict).view_del(name);
+        }
         return py_none();
     }
     return py_error("AttributeError", name);
+}
+
+# The live instance ``__dict__``: a real dict (subclass of PyDict) whose items
+# mirror the owner's attribute map, so CPython's identity/write-through/
+# reflection triangle holds -- ``o.__dict__ is o.__dict__``, writes through a
+# fetched reference are visible as attributes and vice versa. Slot member
+# names stay OUT of the view (CPython keeps d.a out of d.__dict__ even with
+# __slots__ = ('a', '__dict__')); writes of those names land in an overlay so
+# they iterate in the view while attribute reads still hit the member
+# descriptor first.
+obj PyInstanceDict(PyDict) {
+    # ``owner`` is typed ``any`` because a non-default field cannot follow the
+    # inherited defaulted ``version`` field.
+    has owner: any = None,
+        overlay: dict[str, PyObj] = {};
+
+    # Single mutation entry for mirrored attribute writes. Items live under
+    # the SAME hash-key namespace as every other PyDict ("s:"-prefixed for
+    # str keys), so inherited lookups/iteration see them.
+    def view_set(name: str, value: PyObj) {
+        hk = hashkey_str((PyStr(t="str", val=name)).tp_hashkey());
+        self.items[hk] = DictEntry(key=PyStr(t="str", val=name), value=value);
+        self.version = self.version + 1;
+    }
+
+    # Single removal entry for mirrored attribute deletes.
+    def view_del(name: str) {
+        del self.items[hashkey_str((PyStr(t="str", val=name)).tp_hashkey())];
+        self.version = self.version + 1;
+    }
+
+    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            owner_u = self.owner as PyUserObj;
+            if name in owner_u.cls.slot_members {
+                self.overlay[name] = value;
+            } else {
+                owner_u.attrs[name] = value;
+            }
+            self.view_set(name, value);
+            return py_none();
+        }
+        # Non-string key: a pure dict entry, invisible to the attribute
+        # protocol (CPython stores it in the instance dict the same way).
+        self.items[hashkey_str(hkr)] = DictEntry(key=index, value=value);
+        self.version = self.version + 1;
+        return py_none();
+    }
+
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            owner_u = self.owner as PyUserObj;
+            if name in self.overlay {
+                del self.overlay[name];
+                self.view_del(name);
+                return py_none();
+            }
+            if name in owner_u.attrs {
+                del owner_u.attrs[name];
+                self.view_del(name);
+                return py_none();
+            }
+            return py_error("KeyError", dict_key_repr(index));
+        }
+        hk = hashkey_str(hkr);
+        if hk in self.items {
+            del self.items[hk];
+            self.version = self.version + 1;
+            return py_none();
+        }
+        return py_error("KeyError", dict_key_repr(index));
+    }
+}
+
+def user_instance_dict(u: PyUserObj) -> PyObj {
+    if not u.cls.instance_has_dict {
+        return py_error(
+            "AttributeError",
+            "'" + u.cls.name + "' object has no attribute '__dict__'",
+        );
+    }
+    if u.dict_cache is not None {
+        return u.dict_cache as PyObj;
+    }
+    d = PyInstanceDict(t="dict", owner=u, items={});
+    for k in u.attrs {
+        if type_slots_in_dict_view(k, u.cls.slot_members) {
+            (d as PyInstanceDict).view_set(k, u.attrs[k]);
+        }
+    }
+    u.dict_cache = d;
+    return d as PyObj;
+}
+
+# CPython mappingproxy: a read-only view over a dict (class __dict__,
+# ``Field.metadata``, module surfaces). Reads and iteration delegate to the
+# wrapped dict; every mutation entry raises the host's two-clause TypeError.
+obj PyMappingProxy(PyObj) {
+    has target: PyDict;
+
+    def mp_subscript(index: PyObj) -> PyObj {
+        return self.target.mp_subscript(index);
+    }
+
+    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        return py_error(
+            "TypeError", "'mappingproxy' object does not support item assignment"
+        );
+    }
+
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        return py_error(
+            "TypeError", "'mappingproxy' object does not support item deletion"
+        );
+    }
+
+    def tp_getattro(name: str) -> PyObj {
+        # Read-only method surface: mapping-style accessors delegate to the
+        # wrapped dict's native methods; keys/values/items construct live
+        # set-like views exactly as a plain dict does.
+        if name == "keys" or name == "values" or name == "items" {
+            return PyDictViewCtor(
+                t="view_ctor", d=self.target, mode=name
+            );
+        }
+        if name == "get" or name == "copy" or name == "__contains__"
+            or name == "__getitem__" {
+            return PyDictMethod(
+                t="dict_method", target=self.target, name=name
+            );
+        }
+        return py_error("AttributeError", name);
+    }
 }
 
 # type.mro() as a bound method on a class: the C3 linearization with the
@@ -3008,6 +3158,11 @@ obj PyProperty(PyObj) {
         fset: any = None,
         fdel: any = None;
 
+    # Identity hash: CPython property objects are set/dict-key legal.
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
+    }
+
     # `@x.setter` / `.getter` / `.deleter` each yield a modifier that rebuilds the
     # property with one accessor replaced.
     def tp_getattro(name: str) -> PyObj {
@@ -3022,6 +3177,39 @@ obj PyProperty(PyObj) {
         }
         if name == "fget" {
             return self.fget if self.fget is not None else py_none();
+        }
+        if name == "fset" {
+            return self.fset if self.fset is not None else py_none();
+        }
+        if name == "fdel" {
+            return self.fdel if self.fdel is not None else py_none();
+        }
+        # CPython property.__doc__: the getter's docstring (None when absent);
+        # derived lazily so @x.setter chains keep the original doc for free.
+        if name == "__doc__" {
+            if self.fget is not None {
+                doc = py_attr(self.fget as PyObj, "__doc__");
+                if not is_error(doc) {
+                    return doc;
+                }
+            }
+            return py_none();
+        }
+        # ABC machinery reads this on every attribute walk of an abstract
+        # base -- absent answers False unless any accessor declares itself
+        # abstract (CPython property_init / prop_get___isabstractmethod__).
+        if name == "__isabstractmethod__" {
+            for acc in [self.fget, self.fset, self.fdel] {
+                if acc is not None {
+                    mark = py_attr(acc as PyObj, "__isabstractmethod__");
+                    if not is_error(mark)
+                        and isinstance(mark, PyBool)
+                        and (mark as PyBool).val {
+                        return mark;
+                    }
+                }
+            }
+            return PyBool(t="bool", val=False);
         }
         # The descriptor protocol surface itself: property.__get__/__set__/
         # __delete__ are real attributes in CPython (C.v.__get__(inst) runs the
@@ -3205,6 +3393,13 @@ obj PyStaticMethodCtor(PyObj) {
 }
 
 obj PyPropertyCtor(PyObj) {
+    # Identity hash (CPython: builtin_function_or_method-style objects hash by
+    # id) -- property/property-constructor objects live in sets and dict keys
+    # across the stdlib (codec registries, ABC caches).
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
+    }
+
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         fget: PyObj = py_none();
         fset: PyObj = py_none();
@@ -3369,7 +3564,11 @@ obj PyFunction(PyObj) {
         # The function's writable __dict__ + overridable dunders. functools.wraps
         # / update_wrapper copy __module__/__name__/__qualname__/__doc__ and set
         # __wrapped__ here, so decorators (pervasive in the unittest closure) work.
-        attrs: dict[str, PyObj] = {};
+        attrs: dict[str, PyObj] = {},
+        # Identity-stable live views minted on first read; invalidated by
+        # explicit reassignment.
+        kw_live: any = None,
+        attr_dict_live: any = None;
 
     def _func_doc -> PyObj {
         if len(self.code.consts) > 0 and isinstance(self.code.consts[0], PyStr) {
@@ -3398,18 +3597,55 @@ obj PyFunction(PyObj) {
             return py_none();
         }
         if name == "__defaults__" {
+            # An explicit f.__defaults__ assignment lands in attrs (checked
+            # above); this branch serves the MAKE_FUNCTION-built table.
             if len(self.defaults) == 0 {
                 return py_none();
             }
             return PyTuple(t="tuple", items=self.defaults);
         }
+        if name == "__kwdefaults__" {
+            # CPython: None when no keyword-only default exists; otherwise the
+            # SAME live dict every read, whose mutations affect later calls.
+            if len(self.kwdefaults) == 0 {
+                return py_none();
+            }
+            if self.kw_live is not None {
+                return self.kw_live as PyObj;
+            }
+            d = PyFuncKwDefaults(t="dict", owner=self, items={});
+            for k in self.kwdefaults {
+                hk = hashkey_str((PyStr(t="str", val=k)).tp_hashkey());
+                d.items[hk] = DictEntry(
+                    key=PyStr(t="str", val=k), value=self.kwdefaults[k]
+                );
+            }
+            self.kw_live = d;
+            return d as PyObj;
+        }
         if name == "__code__" {
             return self.code;
         }
         if name == "__dict__" {
-            # functools.wraps / update_wrapper reads and updates a function's
-            # __dict__ (WRAPPER_UPDATES). Snapshot of the writable attr map.
-            return dict_from_str_map(self.attrs);
+            # functools.wraps / update_wrapper reads and UPDATES a function's
+            # __dict__ (WRAPPER_UPDATES), so the snapshot-per-read copy lost
+            # every update -- CPython hands out the live attribute dict.
+            # Fixed-surface names (__name__, __code__, ...) stay out of the
+            # view exactly as they are absent from CPython's func_dict.
+            if self.attr_dict_live is not None {
+                return self.attr_dict_live as PyObj;
+            }
+            d = PyFuncDictView(t="dict", owner=self, items={});
+            for k in self.attrs {
+                if not func_attr_is_fixed(k) {
+                    hk = hashkey_str((PyStr(t="str", val=k)).tp_hashkey());
+                    d.items[hk] = DictEntry(
+                        key=PyStr(t="str", val=k), value=self.attrs[k]
+                    );
+                }
+            }
+            self.attr_dict_live = d;
+            return d as PyObj;
         }
         if name == "__wrapped__" {
             return py_error("AttributeError", name);
@@ -3418,12 +3654,44 @@ obj PyFunction(PyObj) {
     }
 
     def tp_setattro(name: str, value: PyObj) -> PyObj {
+        if name == "__kwdefaults__" {
+            # Rebind: the call path resolves through attrs from now on, so the
+            # old live view would go stale -- drop it.
+            self.kw_live = None;
+        }
         self.attrs[name] = value;
+        # Dynamic attributes join the live __dict__ view; fixed-surface names
+        # never appear in it (CPython keeps them on the type).
+        if self.attr_dict_live is not None and not func_attr_is_fixed(name) {
+            (self.attr_dict_live as PyFuncDictView).view_set(name, value);
+        }
         return py_none();
     }
 
-    # Functions are hashable by identity (enum keys candidate __new__ callables in
-    # a set; dispatch tables key on functions).
+    # Effective default tables for THIS call: an explicit __defaults__ /
+    # __kwdefaults__ attribute assignment overrides the MAKE_FUNCTION tables
+    # (CPython binds those attributes to the call machinery).
+    def _effective_defaults -> list[PyObj] {
+        if "__defaults__" in self.attrs {
+            v = self.attrs["__defaults__"];
+            if v is not None and isinstance(v, PyTuple) {
+                return (v as PyTuple).items;
+            }
+            return [];
+        }
+        return self.defaults;
+    }
+
+    def _effective_kwdefaults -> dict[str, PyObj] {
+        if "__kwdefaults__" in self.attrs {
+            v = self.attrs["__kwdefaults__"];
+            if v is not None and isinstance(v, PyDict) {
+                return (v as PyDict).dict_str_map();
+            }
+            return {};
+        }
+        return self.kwdefaults;
+    }
     def tp_hashkey -> PyObj {
         return PyStr(t="str", val="obj:" + str(id(self)));
     }
@@ -3436,14 +3704,133 @@ obj PyFunction(PyObj) {
             self.globals,
             {},
             self.closure,
-            self.defaults,
-            self.kwdefaults
+            self._effective_defaults(),
+            self._effective_kwdefaults()
         );
     }
 }
 
 def host_result_ok(result: any) -> bool {
     return result[0] == True;
+}
+
+# Function fixed-surface names: never visible in f.__dict__ (CPython stores
+# them as type-level descriptors, not dict entries).
+def func_attr_is_fixed(name: str) -> bool {
+    return name in {
+        "__name__", "__qualname__", "__doc__", "__module__",
+        "__defaults__", "__kwdefaults__", "__code__", "__globals__",
+        "__closure__", "__builtins__", "__dict__", "__wrapped__"
+    };
+}
+
+# Live ``f.__dict__`` view: mutations write through to the function attribute
+# map (minus the fixed surface) and attribute assignments reflect into it.
+obj PyFuncDictView(PyDict) {
+    # ``owner`` is typed ``any`` because a non-default field cannot follow the
+    # inherited defaulted ``version`` field.
+    has owner: any = None;
+
+    def view_set(name: str, value: PyObj) {
+        hk = hashkey_str((PyStr(t="str", val=name)).tp_hashkey());
+        self.items[hk] = DictEntry(key=PyStr(t="str", val=name), value=value);
+        self.version = self.version + 1;
+    }
+
+    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        hk = hashkey_str(hkr);
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            self.items[hk] = DictEntry(key=index, value=value);
+            self.version = self.version + 1;
+            if not func_attr_is_fixed(name) {
+                (self.owner as PyFunction).attrs[name] = value;
+            }
+            return py_none();
+        }
+        self.items[hk] = DictEntry(key=index, value=value);
+        self.version = self.version + 1;
+        return py_none();
+    }
+
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        hk = hashkey_str(hkr);
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            owner_f = self.owner as PyFunction;
+            if name in owner_f.attrs {
+                del owner_f.attrs[name];
+                del self.items[hk];
+                self.version = self.version + 1;
+                return py_none();
+            }
+        }
+        if hk in self.items {
+            del self.items[hk];
+            self.version = self.version + 1;
+            return py_none();
+        }
+        return py_error("KeyError", dict_key_repr(index));
+    }
+}
+
+# Live ``__kwdefaults__`` view for a PyFunction: a real dict whose mutations
+# write straight through to the function's kw-default table (CPython hands
+# out the borrowed internal dict; later calls observe every change).
+obj PyFuncKwDefaults(PyDict) {
+    # ``owner`` is typed ``any`` because a non-default field cannot follow the
+    # inherited defaulted ``version`` field.
+    has owner: any = None;
+
+    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        hk = hashkey_str(hkr);
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            (self.owner as PyFunction).kwdefaults[name] = value;
+        } else {
+            return py_error(
+                "TypeError", "keywords must be strings"
+            );
+        }
+        self.items[hk] = DictEntry(key=index, value=value);
+        self.version = self.version + 1;
+        return py_none();
+    }
+
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        hk = hashkey_str(hkr);
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            owner_f = self.owner as PyFunction;
+            if name in owner_f.kwdefaults {
+                del owner_f.kwdefaults[name];
+                del self.items[hk];
+                self.version = self.version + 1;
+                return py_none();
+            }
+        } elif hk in self.items {
+            del self.items[hk];
+            self.version = self.version + 1;
+            return py_none();
+        }
+        return py_error("KeyError", dict_key_repr(index));
+    }
 }
 
 def from_host(raw: any) -> PyObj {
@@ -3617,6 +4004,9 @@ def to_host_policy(tag: str) -> BridgePolicy {
     if tag == "list" or tag == "dict" or tag == "set" {
         return BridgePolicy.MUTABLE_COPY;
     }
+    if tag == "mappingproxy" {
+        return BridgePolicy.DEEP_COPY;
+    }
     if tag == "dictview_obj" {
         return BridgePolicy.VIEW_COPY;
     }
@@ -3767,6 +4157,11 @@ def to_host(value: PyObj) -> any {
             fdel = to_host(value.fdel as PyObj) if value.fdel is not None else None;
             return _jac_wrap_property(fget, fset, fdel);
 
+        case PyMappingProxy():
+            # Host mappingproxy over a converted copy of the wrapped dict:
+            # read-only view semantics survive the boundary.
+            return _jac_wrap_mappingproxy(to_host(value.target));
+
         case PyIter():
             # LAZY_ITER: a lazy host iterator sharing position with the guest
             # object -- no silent draining, and partial host consumption leaves
@@ -3893,6 +4288,22 @@ def host_result_error(result: any) -> PyObj {
 }
 
 def host_builtin(name: str) -> PyObj {
+    # Identity memo: native builtins are singletons (CPython's builtin tables
+    # hold one object per name). Minting a fresh wrapper per lookup breaks
+    # identity idioms -- {property: 1}[property], `len is len`, etc.
+    if name in native_builtin_cache {
+        return native_builtin_cache[name] as PyObj;
+    }
+    built = _mint_host_builtin(name);
+    if not is_error(built) {
+        native_builtin_cache[name] = built;
+    }
+    return built;
+}
+
+glob native_builtin_cache: dict[str, PyObj] = {};
+
+def _mint_host_builtin(name: str) -> PyObj {
     # The FULL builtin exception tree resolves to native PyExceptionType
     # markers: construction then runs the typed constructors (OSError
     # errno/strerror/filename forms, ImportError name/path, SyntaxError info,
@@ -3944,7 +4355,8 @@ def host_builtin(name: str) -> PyObj {
         or name == "sorted"
         or name == "max"
         or name == "min"
-        or name == "dir" {
+        or name == "dir"
+        or name == "vars" {
         # globals() must be native: it returns a LIVE view of the running frame's
         # module namespace, so `globals().update({...})` / `globals()[k] = v`
         # (module init idioms, e.g. re._constants) bind real module globals that a
@@ -4265,6 +4677,14 @@ def py_slot_truth(value: PyObj) -> PyObj {
             return py_slot_truth(u._base_obj());
         }
         return PyBool(t="bool", val=True);
+    }
+    # A read-only mapping view is truthy iff its dict is (len-based).
+    if isinstance(value, PyMappingProxy) {
+        ln = py_len((value as PyMappingProxy).target as PyObj);
+        if is_error(ln) {
+            return ln;
+        }
+        return PyBool(t="bool", val=(ln as PyInt).val != 0);
     }
     return PyBool(t="bool", val=value.tp_bool());
 }
@@ -4668,7 +5088,7 @@ def py_str(value: PyObj) -> PyObj {
     # self-referential structures hit the repr cycle guards instead of
     # recursing unbounded inside to_host conversion.
     if isinstance(value, PyDict) or isinstance(value, PyList)
-        or isinstance(value, PyTuple) {
+        or isinstance(value, PyTuple) or isinstance(value, PyMappingProxy) {
         return py_repr(value);
     }
     return host_convert(value, 1);
@@ -4768,6 +5188,10 @@ def py_repr(value: PyObj) -> PyObj {
     if isinstance(value, PyDict) {
         return dict_repr(value as PyDict, py_repr);
     }
+    if isinstance(value, PyMappingProxy) {
+        inner = dict_repr((value as PyMappingProxy).target, py_repr);
+        return PyStr(t="str", val="mappingproxy(" + str_value(inner) + ")");
+    }
     if isinstance(value, PyClass) {
         c = value as PyClass;
         mod = "";
@@ -4847,6 +5271,12 @@ def py_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     # __eq__: {1:1}.keys() == {1}, and d1.items() == d2.items() propagating a raise.
     if isinstance(lhs, PyDictView) or isinstance(rhs, PyDictView) {
         return dictview_richcompare(kind, lhs, rhs);
+    }
+    if isinstance(lhs, PyMappingProxy) {
+        lhs = (lhs as PyMappingProxy).target;
+    }
+    if isinstance(rhs, PyMappingProxy) {
+        rhs = (rhs as PyMappingProxy).target;
     }
     if isinstance(lhs, PyDict) and isinstance(rhs, PyDict) {
         return dict_richcompare(kind, lhs as PyDict, rhs as PyDict, py_compare);
@@ -6070,6 +6500,10 @@ def py_iter(value: PyObj) -> PyObj {
     if isinstance(value, PyCallableIter) {
         return value;
     }
+    # A read-only mapping view iterates exactly like its dict.
+    if isinstance(value, PyMappingProxy) {
+        return py_iter((value as PyMappingProxy).target as PyObj);
+    }
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
         if user_has_dunder(u, "__iter__") {
@@ -6291,6 +6725,9 @@ def py_len(value: PyObj) -> PyObj {
     }
     if isinstance(value, PyDictView) {
         return PyInt(t="int", val=len((value as PyDictView).d.items));
+    }
+    if isinstance(value, PyMappingProxy) {
+        return py_len((value as PyMappingProxy).target as PyObj);
     }
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
@@ -9320,6 +9757,37 @@ obj PyNativeBuiltin(PyObj) {
             }
             return py_dir(args[0]);
         }
+        if self.name == "vars" {
+            if len(kwargs) > 0 {
+                return py_error("TypeError", "vars() takes no keyword arguments");
+            }
+            if len(args) == 0 {
+                # No-arg vars() is locals(); like dir(), only the ceval CALL
+                # site sees that frame -- an indirect call answers an empty
+                # dict instead of leaking a foreign frame.
+                return PyDict(t="dict", items={});
+            }
+            if len(args) > 1 {
+                return py_error(
+                    "TypeError", "vars expected at most 1 argument, got " + str(len(args))
+                );
+            }
+            # A user instance answers with its LIVE __dict__ (identity-stable
+            # view); routing through the host crossed as a stand-in and lost
+            # every guest attribute behind the _jac_guest_ marker.
+            o = args[0];
+            if isinstance(o, PyUserObj) {
+                return user_instance_dict(o as PyUserObj);
+            }
+            d = py_attr(o, "__dict__");
+            if is_error(d)
+                and (d as PyError).exception.type_name == "AttributeError" {
+                return py_error(
+                    "TypeError", "vars() argument must have __dict__ attribute"
+                );
+            }
+            return d;
+        }
         if self.name == "iter" {
             if len(args) == 0 {
                 return py_error("TypeError", "iter expected at least 1 argument");
@@ -11904,6 +12372,11 @@ obj PyGenFrameClear(PyObj) {
 obj PyCopyFn(PyObj) {
     has deep: bool;
 
+    # Identity hash: same stdlib set/dict-key surface as the weakref shim.
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
+    }
+
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) < 1 {
             return py_error("TypeError", "copy expected at least 1 argument");
@@ -11937,6 +12410,12 @@ obj PyCopyFn(PyObj) {
 # proxies are rejected because deref would mint a fresh proxy and break
 # `r() is o` identity.
 obj PyWeakRefFn(PyObj) {
+    # Identity hash (CPython: builtin-style callables hash by id); copy.py's
+    # module init stores these wrappers in hash-keyed dispatch structures.
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
+    }
+
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) != 1 {
             # callback= / weakref.ref(cls) forms unsupported by this surface.

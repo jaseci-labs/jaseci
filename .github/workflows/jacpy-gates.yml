@@ -264,3 +264,9 @@ jobs:
       - name: Directory enumeration tests
         run: jac test jac-py/jacpython/test_dir_enumeration.jac
 
+      - name: Function attribute surface pins
+        run: jac test jac-py/jacpython/test_func_attr_surface.jac
+
+      - name: Attribute protocol pins
+        run: jac test jac-py/jacpython/test_attr_protocol.jac
+

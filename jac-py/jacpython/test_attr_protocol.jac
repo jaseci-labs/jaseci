@@ -179,3 +179,115 @@ test "attr protocol: data-descriptor priority and default protocol intact" {
     assert result.failed == 0;
     assert result.errored == 0;
 }
+
+# ---------------- live instance __dict__ ----------------
+# CPython's instance __dict__ is ONE identity-stable dict per instance:
+# reads, writes through a fetched reference, and attribute writes all observe
+# each other. vars(obj) must answer that same live dict (not a host stand-in
+# whose only key is the _jac_guest_ back-reference marker).
+test "attr protocol: __dict__ is identity-stable and write-through" {
+    src = "class TestLiveDict(unittest.TestCase):\n"
+    "    def test_identity(self):\n"
+    "        class C: pass\n"
+    "        c = C()\n"
+    "        self.assertTrue(c.__dict__ is c.__dict__)\n"
+    "    def test_write_through(self):\n"
+    "        class C: pass\n"
+    "        c = C()\n"
+    "        d = c.__dict__\n"
+    "        d['y'] = 2\n"
+    "        self.assertEqual(c.y, 2)\n"
+    "    def test_reflect(self):\n"
+    "        class C: pass\n"
+    "        c = C()\n"
+    "        d = c.__dict__\n"
+    "        c.z = 3\n"
+    "        self.assertEqual(d['z'], 3)\n"
+    "    def test_pop_removes_attribute(self):\n"
+    "        class C: pass\n"
+    "        c = C()\n"
+    "        c.a = 1\n"
+    "        c.__dict__.pop('a')\n"
+    "        self.assertFalse(hasattr(c, 'a'))\n"
+    "    def test_vars_same_object(self):\n"
+    "        import sys\n"
+    "        class C: pass\n"
+    "        c = C()\n"
+    "        c.a = 1\n"
+    "        self.assertEqual(sorted(vars(c).keys()), ['a'])\n"
+    "        self.assertTrue(vars(c) is c.__dict__)\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 5;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "attr protocol: slotted __dict__ view excludes member storage" {
+    src = "class TestSlotDictView(unittest.TestCase):\n"
+    "    def test_slots_stay_out_of_view(self):\n"
+    "        class C:\n"
+    "            __slots__ = ('s', '__dict__')\n"
+    "        c = C()\n"
+    "        c.s = 1\n"
+    "        c.other = 2\n"
+    "        self.assertEqual(sorted(c.__dict__.keys()), ['other'])\n"
+    "    def test_suppressed_dict_errors(self):\n"
+    "        class D:\n"
+    "            __slots__ = ('x',)\n"
+    "        d = D()\n"
+    "        with self.assertRaises(AttributeError):\n"
+    "            d.__dict__\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 2;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+# ---------------- property attribute surface ----------------
+# CPython exposes fget/fset/fdel (None when absent), __doc__ from the getter,
+# and __isabstractmethod__ on every property object -- ABC walks and
+# introspection tools read these unconditionally.
+test "attr protocol: property object surface" {
+    src = "class TestPropertySurface(unittest.TestCase):\n"
+    "    def test_accessors_exposed(self):\n"
+    "        class C:\n"
+    "            @property\n"
+    "            def p(self):\n"
+    "                return 1\n"
+    "        self.assertTrue(C.p.fget is not None)\n"
+    "        self.assertIsNone(C.p.fset)\n"
+    "        self.assertIsNone(C.p.fdel)\n"
+    "    def test_setter_chain_sets_fset(self):\n"
+    "        class C:\n"
+    "            _x = 0\n"
+    "            @property\n"
+    "            def x(self):\n"
+    "                return self._x\n"
+    "            @x.setter\n"
+    "            def x(self, v):\n"
+    "                self._x = v\n"
+    "        self.assertTrue(C.x.fset is not None)\n"
+    "        c = C()\n"
+    "        c.x = 7\n"
+    "        self.assertEqual(c.x, 7)\n"
+    "    def test_doc_from_getter(self):\n"
+    "        class C:\n"
+    "            @property\n"
+    "            def p(self):\n"
+    "                'doc here'\n"
+    "                return 1\n"
+    "        self.assertEqual(C.p.__doc__, 'doc here')\n"
+    "    def test_isabstractmethod_default_false(self):\n"
+    "        class C:\n"
+    "            @property\n"
+    "            def p(self):\n"
+    "                return 1\n"
+    "        self.assertFalse(C.p.__isabstractmethod__)\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 4;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}

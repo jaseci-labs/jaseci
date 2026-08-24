@@ -891,3 +891,34 @@ test "dataclass: init=False fields are set at construction, absent from init" {
     assert vm_str(ns, "out") == "N(a=1, c=2)";
     assert vm_bool(ns, "init_rejected") == True;
 }
+
+# ---------------- field metadata: mappingproxy surface ----------------
+test "dataclass: field metadata is a read-only mappingproxy" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, field\n"
+        "@dataclass\n"
+        "class C:\n"
+        "    a: int = field(metadata={'unit': 'cm'})\n"
+        "f = C.__dataclass_fields__['a']\n"
+        "rv = str(f.metadata)\n"
+        "raised = False\n"
+        "try:\n"
+        "    f.metadata['x'] = 2\n"
+        "except TypeError:\n"
+        "    raised = True\n"
+    );
+    assert vm_str(ns, "rv") == "mappingproxy({'unit': 'cm'})";
+    assert vm_bool(ns, "raised") == True;
+}
+
+test "dataclass: absent metadata is an empty identity-stable mappingproxy" {
+    ns = dc_exec(
+        "from dataclasses import dataclass\n"
+        "@dataclass\n"
+        "class C:\n"
+        "    a: int = 0\n"
+        "f = C.__dataclass_fields__['a']\n"
+        "rv = str(f.metadata) + '|' + str(len(f.metadata)) + '|' + str(f.metadata is f.metadata)\n"
+    );
+    assert vm_str(ns, "rv") == "mappingproxy({})|0|True";
+}
