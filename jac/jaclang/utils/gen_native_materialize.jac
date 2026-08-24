@@ -13,10 +13,7 @@ obj MaterializeProfile {
         envelope_modules: list[str],
         chain_base_module: str,
         chain_base_class: str,
-        chain_kid_field: str,
-        chain_back_fields: list[str],
-        chain_aux_node_fields: list[str],
-        chain_shared_fields: list[str],
+        chain_shared_fields: list[str],  # record fields that name nodes back
         mask_sources: list[str],
         mask_corpus: str,
         parse_entry: str,
@@ -77,9 +74,6 @@ def unitree_profile -> MaterializeProfile {
         envelope_modules=["jaclang.jac0core.parser.tokens"],
         chain_base_module="jaclang.jac0core.unitree",
         chain_base_class="UniNode",
-        chain_kid_field="kid",
-        chain_back_fields=["parent"],
-        chain_aux_node_fields=["_in_mod_nodes"],
         chain_shared_fields=["loc"],
         mask_sources=["jac0core/unitree.jac", "jac0core/parser/impl/parser.impl.jac"],
         mask_corpus=nl.join(list(_UNITREE_MASK_CORPUS_LINES)),
@@ -528,6 +522,82 @@ obj _MatGen {
     }
 }
 
+"""A declared type spelled as an identifier, for naming its empty-list pin."""
+def _ident(t: str) -> str {
+    return re.sub(r"[^0-9A-Za-z]+", "_", t).strip("_");
+}
+
+"""Assignments that sever every node link `sn` owns.
+
+A link that can be nulled is nulled and a list is emptied, which is enough for
+`parent` and the child lists. The rest cannot: `NameAtom.name_of` is `self` and
+`AstSymbolNode.name_spec` points back at it, and neither field is optional, so
+there is no value that means "no node". Those are repointed at a pin -- the first
+node of that type the walk saw -- which leaves exactly one self-referencing node
+per pinned type alive instead of one per parse.
+"""
+def _sever_lines(
+    g: _MatGen, sn: str, ind: str, pins: dict[(str, str)], shared: list[str]
+) -> list[str] {
+    out: list[str] = [];
+    for (lf, _dk, ann) in g.class_fields(sn) {
+        if ann is None or g.foreign.get((sn, lf, )) {
+            continue;
+        }
+        (kind, tname) = _field_kind(g, ann);
+        if kind == "opt_node" {
+            out.append(ind + f"nd.{lf} = None;");
+        } elif kind == "node_list" {
+            out.append(ind + f"nd.{lf} = _pin_empty_{_ident(tname)};");
+        } elif kind == "node" {
+            pin = pins.get(tname);
+            if pin is not None {
+                out.append(ind + f"if {pin} is not None {{ nd.{lf} = {pin}; }}");
+            }
+        } elif kind == "record" and lf in shared {
+            out.append(ind + f"nd.{lf} = _pin_{lf};");
+        }
+    }
+    return out;
+}
+
+"""How a field of declared type `ann` relates to the node graph.
+
+Returns (kind, type) where kind is one of "node" (a single node), "opt_node"
+(the same, nullable), "node_list", "record" (a non-node class that itself names
+nodes), or "" for anything that cannot reach a node.
+"""
+def _field_kind(g: _MatGen, ann: str) -> tuple[(str, str)] {
+    arms = _split_union(_norm(ann));
+    opt = "None" in arms;
+    arms = [
+        a
+        for a in arms
+        if a != "None"
+    ];
+    if len(arms) != 1 {
+        return ("", "", );
+    }
+    ab = _base_of(arms[0]);
+    if ab == "list" {
+        _elem = _norm(_inner(arms[0]));
+        ib = _base_of(_elem);
+        if ib in g.ns and g.is_chain(ib) {
+            # The declared element type, not its base: a slot spelled
+            # `Sequence[Name | Token]` only accepts a list of exactly that.
+            return ("node_list", _elem, );
+        }
+        return ("", "", );
+    }
+    if ab not in g.ns {
+        return ("", "", );
+    }
+    if g.is_chain(ab) {
+        return (("opt_node" if opt else "node"), ab, );
+    }
+    return ("record", ab, );
+}
+
 """Stack pushes reaching every node named by `expr`, of declared type `ann`.
 
 A `postinit` slot reads as None until it is assigned and an optional stays None,
@@ -662,6 +732,7 @@ glob _HEADER_LINES: tuple[str, ...] = (
          '     _mat_enums: list[int] = [],',
          '     _mat_memo: dict[int, int] = {},',
          '     _mat_annex: list[Module] = [];',
+         '@CHAIN_EMPTY_GLOBS@',
          '',
          'def _py_none -> int {',
          '    return Py_GetConstant(0);',
@@ -737,13 +808,18 @@ glob _HEADER_LINES: tuple[str, ...] = (
          '@CHAIN_PINS@',
          '    stack: list[@CHAIN_BASE@] = [nd];',
          '    seen: dict[int, bool] = {};',
+         '    nodes: list[@CHAIN_BASE@] = [];',
          '    while stack {',
          '        cur = stack.pop();',
          '        cid = id(cur);',
          '        if cid in seen { continue; }',
          '        seen[cid] = True;',
+         '        nodes.append(cur);',
          '        _mat_push_kids(cur, stack);',
-         '@CHAIN_CLEARS@',
+         '@CHAIN_PIN_PICKS@',
+         '    }',
+         '    for cur in nodes {',
+         '        _mat_sever(cur@CHAIN_SHARED_ARGS@@CHAIN_PIN_ARGS@);',
          '    }',
          '}',
 
@@ -975,6 +1051,23 @@ def generate(
     chain_classes = [t[2] for t in deco];
     all_emit = chain_classes + sorted(direct_classes);
 
+    _pin_types: list[str] = [];
+    _list_types: list[str] = [];
+    for _sn in chain_classes {
+        for (_lf, _dk2, _ann) in g.class_fields(_sn) {
+            if _ann is None or g.foreign.get((_sn, _lf, )) {
+                continue;
+            }
+            (_k, _t) = _field_kind(g, _ann);
+            if _k == "node" and _t not in _pin_types {
+                _pin_types.append(_t);
+            } elif _k == "node_list" and _t not in _list_types {
+                _list_types.append(_t);
+            }
+        }
+    }
+    _pins = {_t: f"_pin_n_{_t}" for _t in _pin_types};
+
     emit_fns: list[str] = [];
     for (ci, sn) in enumerate(all_emit) {
         lines: list[str] = [];
@@ -1052,6 +1145,42 @@ def generate(
         chain.append(f"    {'if' if _pk_first else '} elif'} isinstance(nd, {sn}) {{");
         chain.append(f"        _mat_kids_{sn}(nd, stack);");
         _pk_first = False;
+    }
+    chain.append("    }");
+    chain.append("}");
+
+    _shared_t: dict[(str, str)] = {};
+    for (_lf3, _dk3, _ann3) in g.class_fields(prof.chain_base_class) {
+        if _ann3 is None {
+            continue;
+        }
+        (_k3, _t3) = _field_kind(g, _ann3);
+        if _lf3 in prof.chain_shared_fields and _t3 {
+            _shared_t[_lf3] = _t3;
+        }
+    }
+    _pin_params = "".join(
+        [f", _pin_{_f}: {_shared_t.get(_f, 'any')}" for _f in prof.chain_shared_fields]
+    )
+        + "".join([f", {_pins[_t]}: ({_t} | None)" for _t in _pin_types]);
+    _pin_fwd = "".join([f", _pin_{_f}" for _f in prof.chain_shared_fields])
+        + "".join([f", {_pins[_t]}" for _t in _pin_types]);
+    for sn in chain_classes {
+        chain.append("");
+        chain.append(f"def _mat_sever_{sn}(nd: {sn}{_pin_params}) -> None {{");
+        _sv = _sever_lines(g, sn, "    ", _pins, prof.chain_shared_fields);
+        chain.extend(_sv if _sv else ["    return;"]);
+        chain.append("}");
+    }
+    chain.append("");
+    chain.append(
+        f"def _mat_sever(nd: {prof.chain_base_class}{_pin_params}) -> None {{"
+    );
+    _sv_first = True;
+    for sn in chain_classes {
+        chain.append(f"    {'if' if _sv_first else '} elif'} isinstance(nd, {sn}) {{");
+        chain.append(f"        _mat_sever_{sn}(nd{_pin_fwd});");
+        _sv_first = False;
     }
     chain.append("    }");
     chain.append("}");
@@ -1157,21 +1286,38 @@ def generate(
         )
     );
     header = header.replace("@CHAIN_BASE@", prof.chain_base_class);
-    header = header.replace("@CHAIN_KID@", prof.chain_kid_field);
     header = header.replace(
         "@CHAIN_PINS@",
         nl.join(
-            [f"    _pin_empty: list[{prof.chain_base_class}] = [];"]
-                + [f"    _pin_{_f} = nd.{_f};" for _f in prof.chain_shared_fields]
+            [f"    _pin_{_f} = nd.{_f};" for _f in prof.chain_shared_fields]
+                + [f"    {_pins[_t]}: ({_t} | None) = None;" for _t in _pin_types]
         )
     );
-    _clear_lines = [f"        cur.{_f} = None;" for _f in prof.chain_back_fields]
-        + [
-            f"        cur.{_f} = _pin_empty;"
-            for _f in ([prof.chain_kid_field] + prof.chain_aux_node_fields)
-        ]
-        + [f"        cur.{_f} = _pin_{_f};" for _f in prof.chain_shared_fields];
-    header = header.replace("@CHAIN_CLEARS@", nl.join(_clear_lines));
+    header = header.replace(
+        "@CHAIN_PIN_PICKS@",
+        nl.join(
+            [
+                f"        if {_pins[_t]} is None and isinstance(cur, {_t}) "
+                    + f"{{ {_pins[_t]} = cur; }}" for _t in _pin_types
+            ]
+        )
+    );
+    header = header.replace(
+        "@CHAIN_PIN_ARGS@", "".join([f", {_pins[_t]}" for _t in _pin_types])
+    );
+    # An empty list per element type, declared once: the walk assigns them to
+    # every emptied slot and nothing mutates one, so a module-level constant
+    # does the job a per-node allocation was doing.
+    header = header.replace(
+        "@CHAIN_EMPTY_GLOBS@",
+        nl.join(
+            [f"glob _pin_empty_{_ident(_lt)}: list[{_lt}] = [];" for _lt in _list_types]
+        )
+    );
+    header = header.replace(
+        "@CHAIN_SHARED_ARGS@",
+        "".join([f", _pin_{_f}" for _f in prof.chain_shared_fields])
+    );
 
     sep = nl + nl;
     parts = [header, sep.join(enum_fns), sep.join(emit_fns), nl.join(chain), crossing];

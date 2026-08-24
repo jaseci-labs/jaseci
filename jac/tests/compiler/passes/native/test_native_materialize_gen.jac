@@ -295,14 +295,17 @@ test "the teardown severs every link the profile calls cyclic" {
     # node in the tree, so allocating two throwaway lists apiece would cost more
     # allocations than the parse makes, and any node outliving the walk strands
     # both of them.
-    assert "_pin_empty: list[UniNode] = [];" in body;
+    assert "glob _pin_empty_UniNode: list[UniNode] = [];" in txt;
+    # Which links are cyclic is read off the field types, not named by hand.
+    sev = txt[txt.index("def _mat_sever_UniNode("):];
+    sev = sev[:sev.index("\n}")];
     for line in [
-        "cur.parent = None;",
-        "cur.kid = _pin_empty;",
-        "cur._in_mod_nodes = _pin_empty;",
-        "cur.loc = _pin_loc;"
+        "nd.parent = None;",
+        "nd.kid = _pin_empty_UniNode;",
+        "nd._in_mod_nodes = _pin_empty_UniNode;",
+        "nd.loc = _pin_loc;"
     ] {
-        assert line in body , (f"teardown must emit `{line}`");
+        assert line in sev , (f"teardown must emit `{line}`");
     }
 }
 
