@@ -142,6 +142,7 @@ obj Archetype {
     def __setattr__(name: str, value: any) -> None;
     def __repr__ -> str;
     def __jac_access__ -> (AccessLevel | str | int | None);
+    def __jac_access_for__(caller: UUID) -> (AccessLevel | str | int | None);
 }
 
 class NodeArchetype(Archetype) {
