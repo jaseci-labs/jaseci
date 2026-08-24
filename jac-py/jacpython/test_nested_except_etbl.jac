@@ -87,6 +87,79 @@ test "nested except etbl: flat control" {
     assert etbl_parity("flat", SRC_FLAT_CONTROL);
 }
 
+glob SRC_MULTI_UNBOUND = (
+    "try:\n"
+    "    raise KeyError('x')\n"
+    "except ValueError:\n"
+    "    r = 'a'\n"
+    "except TypeError:\n"
+    "    r = 'b'\n"
+);
+
+glob SRC_MULTI_BOUND = (
+    "try:\n"
+    "    raise KeyError('x')\n"
+    "except ValueError as v:\n"
+    "    r = 'a'\n"
+    "except TypeError as t:\n"
+    "    r = 'b'\n"
+);
+
+glob SRC_MULTI_MIXED = (
+    "try:\n"
+    "    raise KeyError('x')\n"
+    "except ValueError as v:\n"
+    "    r = 'a'\n"
+    "except TypeError:\n"
+    "    r = 'b'\n"
+);
+
+glob SRC_THREE_HANDLERS = (
+    "try:\n"
+    "    raise KeyError('x')\n"
+    "except ValueError:\n"
+    "    r = 'a'\n"
+    "except TypeError:\n"
+    "    r = 'b'\n"
+    "except IndexError:\n"
+    "    r = 'c'\n"
+);
+
+glob SRC_NESTED_MULTI = (
+    "try:\n"
+    "    try:\n"
+    "        raise KeyError('x')\n"
+    "    except ValueError:\n"
+    "        r = 'a'\n"
+    "    except TypeError:\n"
+    "        r = 'b'\n"
+    "except KeyError:\n"
+    "    r = 'outer'\n"
+);
+
+# Chained handlers keep CPython's uncovered NOT_TAKEN block split: adjacent
+# same-target spans must not coalesce across it, and bound-tail segments run
+# to the successor's NOT_TAKEN hole (last one through the reraise chain).
+test "multi handler etbl: chained unbound" {
+    assert etbl_parity("multi-unbound", SRC_MULTI_UNBOUND);
+}
+
+test "multi handler etbl: chained bound" {
+    assert etbl_parity("multi-bound", SRC_MULTI_BOUND);
+}
+
+test "multi handler etbl: chained mixed" {
+    assert etbl_parity("multi-mixed", SRC_MULTI_MIXED);
+}
+
+test "multi handler etbl: three handlers" {
+    assert etbl_parity("three", SRC_THREE_HANDLERS);
+}
+
+test "multi handler etbl: nested multi" {
+    assert etbl_parity("nested-multi", SRC_NESTED_MULTI);
+}
+
 # Runtime: an exception raised inside an inner handler body must reach the
 # OUTER matching handler instead of escaping every handler.
 glob SRC_RT_ESCAPE = (
