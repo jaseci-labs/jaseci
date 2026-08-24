@@ -572,6 +572,55 @@ test "dataclass: asdict/astuple exclude InitVars; _field_type marks them" {
     );
 }
 
+test "dataclass: make_dataclass builds an equivalent class" {
+    ns = dc_exec(
+        "import dataclasses\n"
+        "P = dataclasses.make_dataclass('P', [('a', int), ('b', str, 'x')])\n"
+        "p = P(3)\n"
+        "rv = (p.a, p.b, p == P(3))\n"
+        "names = [f.name for f in dataclasses.fields(P)]\n"
+    );
+    assert vm_str(ns, "rv") == "(3, 'x', True)";
+    assert vm_str(ns, "names") == "['a', 'b']";
+}
+
+test "dataclass: make_dataclass accepts field() specs and frozen" {
+    ns = dc_exec(
+        "import dataclasses\n"
+        "from dataclasses import field\n"
+        "F = dataclasses.make_dataclass('F', [('a', int, field(default_factory=int))], frozen=True)\n"
+        "f = F()\n"
+        "rv = f.a\n"
+        "raised = False\n"
+        "try:\n"
+        "    f.a = 2\n"
+        "except Exception:\n"
+        "    raised = True\n"
+    );
+    assert vm_int(ns, "rv") == 0;
+    assert vm_bool(ns, "raised") == True;
+}
+
+test "dataclass: KW_ONLY marker splits subsequent fields" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, KW_ONLY\n"
+        "@dataclass\n"
+        "class K:\n"
+        "    a: int\n"
+        "    _: KW_ONLY\n"
+        "    b: int = 0\n"
+        "k = K(1, b=2)\n"
+        "rv = k.b\n"
+        "rejected = False\n"
+        "try:\n"
+        "    K(1, 2)\n"
+        "except TypeError:\n"
+        "    rejected = True\n"
+    );
+    assert vm_int(ns, "rv") == 2;
+    assert vm_bool(ns, "rejected") == True;
+}
+
 # ---------------- ClassVar vs fields ----------------
 
 test "dataclass: ClassVar annotations stay class attributes, not fields" {
