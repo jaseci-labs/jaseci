@@ -399,7 +399,13 @@ impl _fresh_jac_state(clear_modules: bool = True) -> None {
     import tempfile;
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime, JacRuntimeInterface }
+    import from jaclang.project.config { get_explicit_config, set_config }
     import from jaclang.runtimelib.session { mark_scratch_base }
+    if not _CONFIG_PIN_BASELINE {
+        _CONFIG_PIN_BASELINE.append(get_explicit_config());
+    } else {
+        set_config(_CONFIG_PIN_BASELINE[0]);
+    }
     JacRuntime.reset_process_state(clear_modules=clear_modules);
     fresh_base = tempfile.mkdtemp(prefix="jac-test-base-");
     _TEST_BASES.append(fresh_base);

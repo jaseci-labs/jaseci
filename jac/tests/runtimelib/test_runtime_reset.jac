@@ -11,10 +11,19 @@ reset four of the five and left `compiler` behind, which kept a `JacCompiler`
 and its internal program alive for the life of the worker. The reset belongs
 next to the declarations, and the last test here fails if a new slot is added
 without deciding what the reset does with it.
+
+The project-config pin is per-run state too: `get_config_for_path` lets an
+explicit `set_config` win over file-anchored resolution for every path in
+the process, so a pin one test leaves behind rewrites what every later test
+compiles under (main went red on exactly this: a leaked repo-root pin put
+`no-print` in force for a dynamic module synthesized under /tmp). The reset
+captures the run's pin state the first time it runs and puts it back before
+every test.
 """
 
 import types;
 import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.project.config { JacConfig, get_explicit_config, set_config }
 import from jaclang.runtimelib.test_runner { _fresh_jac_state }
 
 glob PER_RUN_SLOTS: set = {
@@ -56,6 +65,52 @@ test "the reset shuts the old thread pool down instead of abandoning it" {
         "the previous pool still accepts work, so it was abandoned rather "
         "than shut down and its worker threads outlive the run"
     );
+}
+
+glob PIN_HANDOFF: list = [];
+
+test "the reset restores the run's config pin baseline" {
+    baseline = get_explicit_config();
+    probe = JacConfig();
+    set_config(probe);
+    assert get_explicit_config() is probe;
+
+    _fresh_jac_state();
+
+    assert get_explicit_config() is not probe , (
+        "the config pin set during a test survived the reset; every later "
+        "test in this worker now resolves config through it instead of "
+        "through file-anchored discovery"
+    );
+    assert get_explicit_config() is baseline , (
+        "the reset did not put back the pin state the run started with"
+    );
+}
+
+test "a config pin set inside a test is gone by the next test (part 1: leak one)" {
+    # Order-dependent pair: this test leaks a pin on purpose; the next one
+    # asserts the runner's per-test reset already removed it. Runs in
+    # registration order; part 2 passes vacuously if run alone.
+    PIN_HANDOFF.append(get_explicit_config());
+    leaked = JacConfig();
+    set_config(leaked);
+    PIN_HANDOFF.append(leaked);
+    assert get_explicit_config() is leaked;
+}
+
+test "a config pin set inside a test is gone by the next test (part 2: observe)" {
+    if PIN_HANDOFF {
+        baseline = PIN_HANDOFF[0];
+        leaked = PIN_HANDOFF[1];
+        assert get_explicit_config() is not leaked , (
+            "the pin part 1 leaked survived into this test; the runner did "
+            "not restore the config baseline between tests"
+        );
+        assert get_explicit_config() is baseline , (
+            "the runner reset landed on some other pin state than the one "
+            "the run started with"
+        );
+    }
 }
 
 test "every process-global slot is classified, so the reset cannot drift" {
