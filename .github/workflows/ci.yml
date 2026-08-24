@@ -627,6 +627,21 @@ jobs:
       - name: P3 runtime parity probes (M11)
         run: python3 jac-py/tools/p3_object_core/runtime_gate.py
 
+      # Unlike the P3 gate drivers above, these differential replay suites
+      # EXECUTE the pinned host interpreter for both legs; JACPYTHON_CPYTHON
+      # resolved earlier pins them to the setup-python 3.14 install.
+      - name: Exception hierarchy parity pins
+        run: jac test jac-py/jacpython/test_exc_hierarchy.jac
+
+      - name: Converted exception CPython differential tests
+        run: jac test jac-py/jacpython/test_conv_exceptions.jac
+
+      - name: Converted protocol CPython differential tests
+        run: jac test jac-py/jacpython/test_conv_protocols.jac
+
+      - name: Converted class CPython differential tests
+        run: jac test jac-py/jacpython/test_conv_classes.jac
+
   # Compiler suite, one chunk per runner. Chunking is load-bearing: the
   # materializer crossing leaks its native parse tree per compile, so one long
   # run OOMs; fresh runners bound the accumulation and parallelize the suite.
