@@ -104,6 +104,13 @@ def _jac_is_type_type(value):
     # build a class object (type.__new__), not a plain instance.
     return value is type
 
+def _jac_is_super_type(value):
+    # True iff value is exactly the builtin `super` type. Zero-arg super() at a
+    # generic call site must raise CPython's frame-without-cell error instead of
+    # letting the host super introspect the jaclang interpreter's own frame.
+    import builtins
+    return value is builtins.super
+
 def _jac_is_range_type(value):
     # True iff value is exactly the builtin `range` type. The py_call_host ctor
     # interception must match ONLY the exact builtin -- never a subclass -- so
@@ -1821,6 +1828,14 @@ obj PyHostProxy(PyObj) {
         # stay host-routed. `type` is the exact builtin here, never a subclass.
         if len(args) == 1 and len(kwargs) == 0 and bool(_jac_is_type_type(self.val)) {
             return py_type_of(args[0]);
+        }
+        # Zero-arg super() at a GENERIC call site (the proxy wraps the host
+        # super TYPE): the compiler lowers every cell-backed super().attr to
+        # LOAD_SUPER_ATTR, so this is exactly CPython's frame-without-cell case
+        # -- raise its error instead of letting the host super introspect the
+        # jaclang interpreter's own Python frame.
+        if len(args) == 0 and len(kwargs) == 0 and bool(_jac_is_super_type(self.val)) {
+            return py_error("RuntimeError", "super(): no arguments");
         }
         # The conversion constructors int()/float()/bool()/str() over a NATIVE
         # operand answer through the implicit slot machinery instead of crossing
@@ -7810,12 +7825,16 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     }
     # Default `type`: execute the body into a plain namespace and box a PyClass.
     namespace: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
-    body_cells: dict[str, PyCell] = {};
     body_result = exec_code_frame(
-        body.code, [], {}, body.globals, namespace, body.closure, [], {}, body_cells
+        body.code, [], {}, body.globals, namespace, body.closure, [], {}
     );
     if body_result.t == "error" {
         return body_result;
+    }
+    # CPython type.__new__ pops __classcell__ from the mapping so it never
+    # becomes a class attribute; py_build_class seeds the returned cell itself.
+    if "__classcell__" in namespace {
+        del namespace["__classcell__"];
     }
     built_cls = make_pyclass_from_map(class_name, bases, namespace, None);
     if is_error(built_cls) {
@@ -7823,10 +7842,11 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     }
     cls = built_cls as PyClass;
     # CPython bltinmodule.c __build_class__: when the body declares a __class__
-    # cellvar, the finished class object is written into that live cell so the
-    # methods' captured closures deref it for zero-arg super().
-    if "__class__" in body_cells {
-        cc = body_cells["__class__"];
+    # cellvar, the finished class object is written into that live cell (the
+    # epilogue returned it) so methods' captured closures deref it for
+    # zero-arg super().
+    if isinstance(body_result, PyCell) {
+        cc = body_result as PyCell;
         cc.val = cls;
         cc.filled = True;
     }
@@ -7901,20 +7921,22 @@ def build_class_via_metaclass(
             namespace2[pk] = prep_map[pk];
         }
     }
-    body_cells2: dict[str, PyCell] = {};
     body_result2 = exec_code_frame(
-        body.code, [], {}, body.globals, namespace2, body.closure, [], {}, body_cells2
+        body.code, [], {}, body.globals, namespace2, body.closure, [], {}
     );
     if body_result2.t == "error" {
         return body_result2;
     }
+    if "__classcell__" in namespace2 {
+        del namespace2["__classcell__"];
+    }
     ns_dict = dict_from_str_map(namespace2);
     call_args2: list[PyObj] = [PyStr(t="str", val=class_name), bases_tuple, ns_dict];
     made = py_invoke(metaclass, call_args2, class_kwds);
-    if not is_error(made) and "__class__" in body_cells2 {
-        # Same __class__-cell seeding as the default-type path: the metaclass's
+    if not is_error(made) and isinstance(body_result2, PyCell) {
+        # Same __classcell__ seeding as the default-type path: the metaclass's
         # returned class object goes into the body's live cell.
-        cc2 = body_cells2["__class__"];
+        cc2 = body_result2 as PyCell;
         cc2.val = made;
         cc2.filled = True;
     }
@@ -7975,6 +7997,16 @@ obj PyNativeBuiltin(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if self.name == "sorted" or self.name == "max" or self.name == "min" {
             return builtin_sorted_min_max(self.name, args, kwargs);
+        }
+        if self.name == "super" {
+            # Zero-arg super() at a GENERIC call site: the compiler lowers every
+            # super().attr / super().m() inside a method with a __class__ cell
+            # to LOAD_SUPER_ATTR, so a plain super() call here is exactly
+            # CPython's frame-without-cell case (class body, module level,
+            # function without the closure) -- same RuntimeError.
+            if len(args) == 0 and len(kwargs) == 0 {
+                return py_error("RuntimeError", "super(): no arguments");
+            }
         }
         if self.name == "id" {
             if len(kwargs) > 0 {
@@ -10718,8 +10750,7 @@ def exec_code_frame(
     locals: dict[str, PyObj],
     closure: list[PyCell],
     defaults: list[PyObj],
-    kwdefaults: dict[str, PyObj],
-    cell_out: dict[str, PyCell] | None = None
+    kwdefaults: dict[str, PyObj]
 ) -> PyObj {
     fast: list[PyObj] = [];
     assigned: list[bool] = [];
@@ -10829,11 +10860,6 @@ def exec_code_frame(
         } else {
             newcell = PyCell(t="cell", val=py_none());
             fast.append(newcell);
-            # Class-body frames hand their live cellvars back so the caller can
-            # seed them post-creation (the __class__ cell protocol).
-            if cell_out is not None {
-                (cell_out as dict[str, PyCell])[co.cellvars[ci]] = newcell;
-            }
         }
         ci = ci + 1;
     }
