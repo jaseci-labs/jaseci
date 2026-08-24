@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "6fbd508262082bcfb0e340d3e60fb5019ab0a733",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_scope/conv_scope_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:03:12",
+  "hashes": {
+    "pins_jac": "535cda3d0264424955b7d48661254ecc2630ae667ea2b9683bf623350d18699d",
+    "conversion_json": "0eebe210f357e9f704789ae64dee8a032f8acf69adceebb30195c2d9b5dc798c",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "scope",
+  "counts": {
+    "converted": 41,
+    "runnable": 32,
+    "green": 23,
+    "quarantined": 9
+  },
+  "pins": [
+    {
+      "id": "ScopeTests.testSimpleNesting",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testExtraNesting",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testSimpleAndRebinding",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testNestingGlobalNoFree",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testNestingThroughClass",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testNestingPlusFreeRefToGlobal",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testNearestEnclosingScope",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testMixedFreevarsAndCellvars",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testFreeVarInMethod",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testCellIsKwonlyArg",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testCellIsArgAndEscapes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__closure__'\">"
+    },
+    {
+      "id": "ScopeTests.testCellIsLocalAndEscapes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__closure__'\">"
+    },
+    {
+      "id": "ScopeTests.testRecursion",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testUnoptimizedNamespaces",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ScopeTests.testLambdas",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testUnboundLocal",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testUnboundLocal_AfterDel",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC SystemError 'unsupported opcode 62'\">"
+    },
+    {
+      "id": "ScopeTests.testComplexDefinitions",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testScopeOfGlobalStmt",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ScopeTests.testLeaks",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'gc_collect' from '<unknown>'\">"
+    },
+    {
+      "id": "ScopeTests.testClassAndGlobal",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ScopeTests.testLocalsFunction",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'h\\', {\\'fn\\': <built-in function locals>, \\'args\\': [], \\'kwargs\\': {}})\"'>"
+    },
+    {
+      "id": "ScopeTests.testLocalsClass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'y\\', [\\'fn\\', \\'args\\', \\'kwargs\\'])\"'>"
+    },
+    {
+      "id": "ScopeTests.testBoundAndFree",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testEvalExecFreeVars",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC NameError 'free variable is not set'\">"
+    },
+    {
+      "id": "ScopeTests.testListCompLocalVars",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testEvalFreeVars",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'x\\' is not defined\"'>"
+    },
+    {
+      "id": "ScopeTests.testNonLocalFunction",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testNonLocalMethod",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testGlobalInParallelNestedFunctions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'exec() argument 1 must be a code object'\">"
+    },
+    {
+      "id": "ScopeTests.testNonLocalClass",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testNonLocalGenerator",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testNestedNonLocal",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testTopIsNotSignificant",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.test_multiple_nesting",
+      "status": "pass"
+    },
+    {
+      "id": "ScopeTests.testUnboundLocal_AugAssign",
+      "status": "quarantined",
+      "reason": "uses-self.fail"
+    },
+    {
+      "id": "ScopeTests.testLocalsClass_WithTrace",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "ScopeTests.testInteractionWithTraceFunc",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "ScopeTests.testFreeingCell",
+      "status": "quarantined",
+      "reason": "unresolved-name:nestedcell_get"
+    },
+    {
+      "id": "ScopeTests.testClassNamespaceOverridesClosure",
+      "status": "quarantined",
+      "reason": "self.assertNotHasAttr"
+    },
+    {
+      "id": "ScopeTests.testCellLeak",
+      "status": "quarantined",
+      "reason": "uses-self.exc"
+    }
+  ]
+}

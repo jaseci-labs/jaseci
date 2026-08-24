@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "6fbd508262082bcfb0e340d3e60fb5019ab0a733",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_scope/conv_scope_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:03:12",
+  "hashes": {
+    "pins_jac": "535cda3d0264424955b7d48661254ecc2630ae667ea2b9683bf623350d18699d",
+    "conversion_json": "0eebe210f357e9f704789ae64dee8a032f8acf69adceebb30195c2d9b5dc798c",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "scope",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 41,
+    "runnable": 32,
+    "green": 23,
+    "quarantined": 9,
+    "failed": 9,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "ScopeTests.testCellIsArgAndEscapes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__closure__'\">"
+    },
+    {
+      "id": "ScopeTests.testCellIsLocalAndEscapes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__closure__'\">"
+    },
+    {
+      "id": "ScopeTests.testUnboundLocal_AfterDel",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC SystemError 'unsupported opcode 62'\">"
+    },
+    {
+      "id": "ScopeTests.testLeaks",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'gc_collect' from '<unknown>'\">"
+    },
+    {
+      "id": "ScopeTests.testLocalsFunction",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'h\\', {\\'fn\\': <built-in function locals>, \\'args\\': [], \\'kwargs\\': {}})\"'>"
+    },
+    {
+      "id": "ScopeTests.testLocalsClass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'y\\', [\\'fn\\', \\'args\\', \\'kwargs\\'])\"'>"
+    },
+    {
+      "id": "ScopeTests.testEvalExecFreeVars",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC NameError 'free variable is not set'\">"
+    },
+    {
+      "id": "ScopeTests.testEvalFreeVars",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'x\\' is not defined\"'>"
+    },
+    {
+      "id": "ScopeTests.testGlobalInParallelNestedFunctions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'exec() argument 1 must be a code object'\">"
+    }
+  ]
+}
