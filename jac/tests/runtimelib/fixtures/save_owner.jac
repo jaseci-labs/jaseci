@@ -22,9 +22,11 @@ walker create_other_root {
 
 walker mint_org_root {
     can enter with Root entry {
-        org = Root().__jac__;
+        org = Root();
         Jac.save(org);
-        print(org.id);
+        Jac.allow_root(org, here.__jac__.id, "WRITE");
+        Jac.commit();
+        print(org.__jac__.id);
     }
 }
 
