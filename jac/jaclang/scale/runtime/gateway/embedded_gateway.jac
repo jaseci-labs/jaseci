@@ -37,5 +37,5 @@ obj EmbeddedGateway(Gateway) {
     ) -> Response | None;
 
     def _serve_static(path: str, accept: str) -> Response;
-    def serve -> None;
+    def serve(on_ready: any = None) -> None;
 }

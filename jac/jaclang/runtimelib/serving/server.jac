@@ -91,10 +91,16 @@ obj ServingServer {
                 );
                 break;
             } except OSError as e {
-                if e.errno in ERRNO_ADDR_IN_USE and attempt < port_retries {
-                    attempt += 1;
-                    chosen += 1;
-                    continue;
+                if e.errno in ERRNO_ADDR_IN_USE {
+                    if attempt < port_retries {
+                        attempt += 1;
+                        chosen += 1;
+                        continue;
+                    }
+                    # Same wording every door uses for the same failure. A
+                    # pinned port that is taken is an ordinary answer, not a
+                    # crash, and a traceback here buries the one useful fact.
+                    raise OSError(f"Port {chosen} is already in use") from None;
                 }
                 raise;
             }
