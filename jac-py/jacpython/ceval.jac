@@ -4766,7 +4766,9 @@ def _mint_host_builtin(name: str) -> PyObj {
         or name == "max"
         or name == "min"
         or name == "dir"
-        or name == "vars" {
+        or name == "vars"
+        or name == "anext"
+        or name == "aiter" {
         # globals() must be native: it returns a LIVE view of the running frame's
         # module namespace, so `globals().update({...})` / `globals()[k] = v`
         # (module init idioms, e.g. re._constants) bind real module globals that a
@@ -10339,6 +10341,36 @@ obj PyNativeBuiltin(PyObj) {
             }
             vals: list[PyObj] = [py_type_of(e), e, tbv];
             return PyTuple(t="tuple", items=vals);
+        }
+        if self.name == "anext" {
+            # anext(aiter[, default]): must stay NATIVE -- routed through the
+            # host, a guest async generator crosses to its stand-in face and
+            # the yielded item is lost (silently-None / not-an-async-
+            # iterator). Returns the __anext__ awaitable; the caller's AWAIT
+            # drives it. Divergence: with default=, CPython converts the
+            # terminal StopIteration into the default -- that conversion needs
+            # coroutine wrapping and is documented as absent for now.
+            if len(args) < 1 or len(args) > 2 {
+                return py_error(
+                    "TypeError", "anext expected at least 1 argument, got " + str(len(args))
+                );
+            }
+            result = py_anext(args[0]);
+            if is_error(result) {
+                if len(args) == 2 and exc_name_matches(
+                    (result as PyError).exception.type_name, "StopAsyncIteration"
+                ) {
+                    return args[1];
+                }
+                return result;
+            }
+            return result;
+        }
+        if self.name == "aiter" {
+            if len(args) != 1 {
+                return py_error("TypeError", "aiter expected exactly 1 argument");
+            }
+            return py_aiter(args[0]);
         }
         if self.name == "exception" {
             # sys.exception() over GUEST handled-exception state: the most
