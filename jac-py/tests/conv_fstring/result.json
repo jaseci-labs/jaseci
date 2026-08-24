@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "6fbd508262082bcfb0e340d3e60fb5019ab0a733",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_fstring/conv_fstring_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:03:11",
+  "hashes": {
+    "pins_jac": "008b47a1f62f0365b83486550c220dcee3f7428c71fa80ab5df8786517b0c170",
+    "conversion_json": "e8451961f9c9e1a786b8a3930390899d734a04811388861b67e8c576fff6b2cd",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "fstring",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 90,
+    "runnable": 58,
+    "green": 49,
+    "quarantined": 32,
+    "failed": 9,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestCase.test_docstring",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsNone\\', \\'Not a docstring\\')\"'>"
+    },
+    {
+      "id": "TestCase.test_ast_compile_time_concat",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'x\\' is not defined\"'>"
+    },
+    {
+      "id": "TestCase.test_many_expressions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'x\\' is not defined\"'>"
+    },
+    {
+      "id": "TestCase.test_global",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestCase.test_filename_in_syntaxerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.os_helper'\">"
+    },
+    {
+      "id": "TestCase.test_debug_in_file",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.os_helper'\">"
+    },
+    {
+      "id": "TestCase.test_syntax_warning_infinite_recursion_in_file",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.os_helper'\">"
+    },
+    {
+      "id": "TestCase.test_fstring_without_formatting_bytecode",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestCase.test_gh139516",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.os_helper'\">"
+    }
+  ]
+}
