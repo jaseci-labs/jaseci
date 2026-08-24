@@ -10527,6 +10527,7 @@ obj PyAsyncGenMethod(PyObj) {
             return err;
         }
         return PyAsyncGenAThrow(t="agen_athrow", gen=self.gen, err=err);
+    }
 }
 
 obj PyGenerator(PyObj) {
