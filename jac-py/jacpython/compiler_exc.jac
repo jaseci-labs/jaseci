@@ -394,17 +394,22 @@ def visit_try_finally(
 }
 
 
-def append_try_unwind_region(g: cfg_builder, reg: except_region) {
+def append_try_unwind_region(g: cfg_builder, ownidx: list[int], reg: except_region) {
+    # Record the region index in the CALLING visit_try invocation's ownership
+    # list. Bindings are resolved by that same invocation after its reraise
+    # epilogue exists; a unit-global pending list would let an enclosing try's
+    # bind pass retarget inner regions to the outer unwind chain (which
+    # corrupted nested-except tables: inner match/reraise spans jumped to the
+    # outer COPY/POP_EXCEPT/RERAISE sequence, escaping every outer handler).
     g.u.except_regions.append(reg);
-    g.u.pending_try_unwind_regions.append(len(g.u.except_regions) - 1);
+    ownidx.append(len(g.u.except_regions) - 1);
 }
 
 
-def bind_try_unwind_handlers(g: cfg_builder, unwind_block: int) {
+def bind_try_unwind_handlers(g: cfg_builder, unwind_block: int, ownidx: list[int]) {
     pi = 0;
-    while pi < len(g.u.pending_try_unwind_regions) {
-        ri = g.u.pending_try_unwind_regions[pi];
-        g.u.except_regions[ri].handler_block = unwind_block;
+    while pi < len(ownidx) {
+        g.u.except_regions[ownidx[pi]].handler_block = unwind_block;
         pi = pi + 1;
     }
 }
@@ -560,7 +565,6 @@ def visit_try_except_finally(
     has_else = t.orelse is not None and len(t.orelse) > 0;
     dead_blocks = -1;
     dead_regions = -1;
-    dead_pending = -1;
     dead_ntf_ss = -1;
     dead_ntf_se = -1;
     dead_ntf_us = -1;
@@ -573,7 +577,6 @@ def visit_try_except_finally(
             # them so registration order matches without keeping the bytes.
             dead_blocks = len(g.u.blocks);
             dead_regions = len(g.u.except_regions);
-            dead_pending = len(g.u.pending_try_unwind_regions);
             dead_ntf_ss = g.u.nested_try_finally_success_start;
             dead_ntf_se = g.u.nested_try_finally_success_end;
             dead_ntf_us = g.u.nested_try_finally_unwind_start;
@@ -587,8 +590,6 @@ def visit_try_except_finally(
         if dead_blocks >= 0 {
             g.u.blocks = g.u.blocks[0:dead_blocks];
             g.u.except_regions = g.u.except_regions[0:dead_regions];
-            g.u.pending_try_unwind_regions =
-                g.u.pending_try_unwind_regions[0:dead_pending];
             g.u.nested_try_finally_success_start = dead_ntf_ss;
             g.u.nested_try_finally_success_end = dead_ntf_se;
             g.u.nested_try_finally_unwind_start = dead_ntf_us;
@@ -628,6 +629,11 @@ def visit_try_except_finally(
     spans: list[except_region] = [];
 
     # try body -> first handler.
+    # Consume epilogue spans published by the nested try/except in our body
+    # (if any). Snapshot-and-clear regardless of branch: stale spans must
+    # never leak into a later sibling's carve-out.
+    child_epi_spans = g.u.nested_except_epilogue_spans;
+    g.u.nested_except_epilogue_spans = [];
     if body_is_try_finally_only(t.body) {
         if g.u.nested_try_finally_success_start >= 0
             and g.u.nested_try_finally_success_end >= 0 {
@@ -661,6 +667,19 @@ def visit_try_except_finally(
                 stack_depth=1
             )
         );
+        # Cover each inner handler's success-epilogue block so raises during
+        # its final POP_EXCEPT / binding cleanup reach OUR handlers (CPython
+        # emits one depth-0 entry per inner handler epilogue).
+        for esp in child_epi_spans {
+            spans.append(
+                except_region(
+                    start_block=esp[0],
+                    end_block=esp[1],
+                    handler_block=handler_entry.id,
+                    stack_depth=1
+                )
+            );
+        }
     } else {
         spans.append(
             except_region(
@@ -1156,6 +1175,8 @@ def visit_try(
         return stmt_cont(loc=tloc);
     }
     g.u.nested_try_except_end = -1;
+    # except_region indices owned (and later bound) by this invocation only.
+    ownidx: list[int] = [];
     nop_blk = g.new_block();
     g.u.nested_try_except_start = nop_blk.id;
     try_body = g.new_block();
@@ -1238,12 +1259,23 @@ def visit_try(
         }
     }
     handler_entry = g.new_block();
+    handler_nt_blks: list[basicblock] = [];
+    handler_store_blks: list[basicblock] = [];
     handler_body_entries: list[basicblock] = [];
     handler_tails: list[tuple[basicblock, basicblock]] = [];
     as_unwind_tails: list[tuple[basicblock, basicblock]] = [];
     next_handlers: list[basicblock] = [];
     hi = 0;
     while hi < len(t.handlers) {
+        if hi > 0 {
+            # Own-block NOT_TAKEN for chained typed handlers; allocated here
+            # so LAYOUT order is match_i, NOT_TAKEN, body_i (CPython keeps
+            # this block uncovered by the exception table, which splits the
+            # adjacent same-target spans). normalize_jumps then sees it as
+            # the match block's layout neighbor and skips its inline insert.
+            handler_nt_blks.append(g.new_block());
+            handler_store_blks.append(g.new_block());
+        }
         handler_body_entries.append(g.new_block());
         handler_tails.append((g.new_block(), g.new_block()));
         as_unwind_tails.append((g.new_block(), g.new_block()));
@@ -1253,6 +1285,11 @@ def visit_try(
         hi = hi + 1;
     }
     reraise_blk = g.new_block();
+    # Consume epilogue spans published by the nested try/except in our body
+    # (if any). Snapshot-and-clear regardless of branch: stale spans must
+    # never leak into a later sibling's carve-out.
+    child_epi_spans = g.u.nested_except_epilogue_spans;
+    g.u.nested_except_epilogue_spans = [];
     if body_is_try_finally_only(t.body) {
         if g.u.nested_try_finally_success_start >= 0
             and g.u.nested_try_finally_success_end >= 0 {
@@ -1284,6 +1321,19 @@ def visit_try(
                 stack_depth=1
             )
         );
+        # Cover each inner handler's success-epilogue block so raises during
+        # its final POP_EXCEPT / binding cleanup reach OUR handlers (CPython
+        # emits one depth-0 entry per inner handler epilogue).
+        for esp in child_epi_spans {
+            g.u.except_regions.append(
+                except_region(
+                    start_block=esp[0],
+                    end_block=esp[1],
+                    handler_block=handler_entry.id,
+                    stack_depth=1
+                )
+            );
+        }
     } else {
         g.u.except_regions.append(
             except_region(
@@ -1314,10 +1364,11 @@ def visit_try(
     hloc = try_handler_span(t.handlers[0]);
     need_reraise_except_region = False;
     merged_handler_unwind_start = -1;
-    except_as_unwind_start = -1;
+    bound_tail_segs: list[tuple[int, int]] = [];
     nested_fini_starts: list[int] = [];
     nested_fini_ends: list[int] = [];
     hi = 0;
+    handler_nt_blk: basicblock | None = None;
     while hi < len(t.handlers) {
         h = t.handlers[hi];
         if hi > 0 {
@@ -1327,6 +1378,7 @@ def visit_try(
         hloc = try_handler_span(h);
         if h.type is None {
             # bare except: always matches, no CHECK_EXC_MATCH / POP_JUMP.
+            handler_nt_blk = None;
         } else {
             visit_expr(g, h.type);
             if codegen_busy(g) {
@@ -1338,15 +1390,40 @@ def visit_try(
             } else {
                 g.emit_jump(OP_POP_JUMP_IF_FALSE, reraise_blk.id, hloc);
             }
+            if hi > 0 {
+                handler_nt_blk = handler_nt_blks[hi - 1];
+                g.use(handler_nt_blk);
+                g.emit_op(OP_NOT_TAKEN, 0, noloc);
+            } else {
+                handler_nt_blk = None;
+            }
         }
         bind_name = h.name;
-        if bind_name is not None {
-            emit_name_store(g, bind_name, hloc);
-        } else {
-            g.emit_op(OP_POP_TOP, 0, hloc);
-        }
+        prev_handler_bound = hi > 0 and t.handlers[hi - 1].name is not None;
         handler_body_start = handler_body_entries[hi].id;
-        g.use(handler_body_entries[hi]);
+        if bind_name is not None {
+            if handler_nt_blk is not None {
+                # CPython bounds the NOT_TAKEN block separately: match span
+                # stops before it, the binding store opens its own covered
+                # block, then the body.
+                g.use(handler_store_blks[hi - 1]);
+                emit_name_store(g, bind_name, hloc);
+                g.use(handler_body_entries[hi]);
+            } else {
+                emit_name_store(g, bind_name, hloc);
+                g.use(handler_body_entries[hi]);
+            }
+        } else {
+            if handler_nt_blk is not None {
+                # POP_TOP opens the body block so the match span can stop at
+                # the uncovered NOT_TAKEN block (CPython's L5/L6 pair).
+                g.use(handler_body_entries[hi]);
+                g.emit_op(OP_POP_TOP, 0, hloc);
+            } else {
+                g.emit_op(OP_POP_TOP, 0, hloc);
+                g.use(handler_body_entries[hi]);
+            }
+        }
         hbody = visit_stmts(g, h.body, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=tloc);
@@ -1361,6 +1438,15 @@ def visit_try(
                 emit_except_as_cleanup(g, bind_name, hbody.loc);
             }
             g.use(handler_success);
+            if not (g.handler_fallthrough_fin is not None and not try_follows) {
+                # Publish this handler's success-epilogue span (POP_EXCEPT
+                # through binding cleanup). An enclosing try in carve-out mode
+                # emits a region over it targeting its own handlers, matching
+                # CPython's entry for the inner handler's final POP_EXCEPT.
+                g.u.nested_except_epilogue_spans.append(
+                    (handler_region_end.id, handler_success.id)
+                );
+            }
             if g.handler_fallthrough_fin is not None and not try_follows {
                 # Nested in an enclosing handler: emit its epilogue inline
                 # (second POP_EXCEPT + jump to finally) instead of returning.
@@ -1391,8 +1477,35 @@ def visit_try(
             }
         }
         if bind_name is not None {
+            if handler_nt_blk is not None {
+                if not prev_handler_bound {
+                    append_try_unwind_region(
+                        g,
+                        ownidx,
+                        except_region(
+                            start_block=handler_region_start,
+                            end_block=handler_nt_blk.id,
+                            handler_block=-1,
+                            stack_depth=3 + g.handler_nest_depth,
+                            preserve_lasti=True
+                        )
+                    );
+                }
+                append_try_unwind_region(
+                    g,
+                    ownidx,
+                    except_region(
+                        start_block=handler_store_blks[hi - 1].id,
+                        end_block=handler_body_start,
+                        handler_block=-1,
+                        stack_depth=3 + g.handler_nest_depth,
+                        preserve_lasti=True
+                    )
+                );
+            } else {
             append_try_unwind_region(
                 g,
+                ownidx,
                 except_region(
                     start_block=handler_region_start,
                     end_block=handler_body_start,
@@ -1401,9 +1514,15 @@ def visit_try(
                     preserve_lasti=True
                 )
             );
+            }
             as_unwind = as_unwind_tails[hi][0];
             g.use(as_unwind);
-            except_as_unwind_start = as_unwind.id;
+            # CPython covers each bound handler's cleanup tail with a segment
+            # running to the next handler's own protected region (or, for the
+            # last bound handler, through the reraise chain to the unwind).
+            # Record (handler index, start); segments are appended after
+            # unwind_blk exists.
+            bound_tail_segs.append((hi, as_unwind.id));
             emit_except_as_cleanup(g, bind_name, hbody.loc);
             g.emit_op(OP_RERAISE, 1, hbody.loc);
             as_unwind_end = as_unwind_tails[hi][1];
@@ -1427,6 +1546,7 @@ def visit_try(
                     # inline epilogue maps to the fin handler.
                     append_try_unwind_region(
                         g,
+                        ownidx,
                         except_region(
                             start_block=handler_region_start,
                             end_block=handler_region_end.id,
@@ -1451,16 +1571,47 @@ def visit_try(
                         nested_fini_ends.append(-1);
                     }
                 } else {
-                    append_try_unwind_region(
-                        g,
-                        except_region(
-                            start_block=handler_region_start,
-                            end_block=handler_region_end.id,
-                            handler_block=-1,
-                            stack_depth=3 + g.handler_nest_depth,
-                            preserve_lasti=True
-                        )
-                    );
+                    if handler_nt_blk is not None {
+                        # Chained typed handler: exclude the uncovered
+                        # NOT_TAKEN block so adjacent same-target spans stay
+                        # split like CPython's table.
+                        if not prev_handler_bound {
+                            append_try_unwind_region(
+                                g,
+                                ownidx,
+                                except_region(
+                                    start_block=handler_region_start,
+                                    end_block=handler_nt_blk.id,
+                                    handler_block=-1,
+                                    stack_depth=3 + g.handler_nest_depth,
+                                    preserve_lasti=True
+                                )
+                            );
+                        }
+                        append_try_unwind_region(
+                            g,
+                            ownidx,
+                            except_region(
+                                start_block=handler_body_start,
+                                end_block=handler_region_end.id,
+                                handler_block=-1,
+                                stack_depth=3 + g.handler_nest_depth,
+                                preserve_lasti=True
+                            )
+                        );
+                    } else {
+                        append_try_unwind_region(
+                            g,
+                            ownidx,
+                            except_region(
+                                start_block=handler_region_start,
+                                end_block=handler_region_end.id,
+                                handler_block=-1,
+                                stack_depth=3 + g.handler_nest_depth,
+                                preserve_lasti=True
+                            )
+                        );
+                    }
                 }
             }
         }
@@ -1491,21 +1642,43 @@ def visit_try(
         );
         nfi = nfi + 1;
     }
+    bi2 = 0;
+    while bi2 < len(bound_tail_segs) {
+        seg_hi = bound_tail_segs[bi2][0];
+        seg_start = bound_tail_segs[bi2][1];
+        seg_end: int;
+        if seg_hi + 1 < len(t.handlers) {
+            # Coverage runs to the successor handler's own protected region:
+            # up to its NOT_TAKEN hole when typed-chained, otherwise its
+            # match block.
+            if t.handlers[seg_hi + 1].type is not None {
+                seg_end = handler_nt_blks[seg_hi].id;
+            } else {
+                seg_end = next_handlers[seg_hi].id;
+            }
+        } else {
+            # Last handler is bound: run through the reraise chain.
+            seg_end = unwind_blk.id;
+        }
+        append_try_unwind_region(
+            g,
+            ownidx,
+            except_region(
+                start_block=seg_start,
+                end_block=seg_end,
+                handler_block=-1,
+                stack_depth=3 + g.handler_nest_depth,
+                preserve_lasti=True
+            )
+        );
+        bi2 = bi2 + 1;
+    }
     if need_reraise_except_region {
-        if except_as_unwind_start >= 0 {
+        last_handler_bound = t.handlers[len(t.handlers) - 1].name is not None;
+        if not last_is_bare and not last_handler_bound {
             append_try_unwind_region(
                 g,
-                except_region(
-                    start_block=except_as_unwind_start,
-                    end_block=unwind_blk.id,
-                    handler_block=-1,
-                    stack_depth=3 + g.handler_nest_depth,
-                    preserve_lasti=True
-                )
-            );
-        } elif not last_is_bare {
-            append_try_unwind_region(
-                g,
+                ownidx,
                 except_region(
                     start_block=reraise_blk.id,
                     end_block=reraise_end.id,
@@ -1518,6 +1691,7 @@ def visit_try(
     } else {
         append_try_unwind_region(
             g,
+            ownidx,
             except_region(
                 start_block=merged_handler_unwind_start,
                 end_block=unwind_blk.id,
@@ -1527,7 +1701,7 @@ def visit_try(
             )
         );
     }
-    bind_try_unwind_handlers(g, unwind_blk.id);
+    bind_try_unwind_handlers(g, unwind_blk.id, ownidx);
     g.use(unwind_blk);
     g.emit_op(OP_COPY, 3, noloc);
     g.emit_op(OP_POP_EXCEPT, 0, noloc);
