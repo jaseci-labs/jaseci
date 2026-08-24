@@ -282,3 +282,96 @@ test "item8: gi_yieldfrom + names + setters" {
         "__qualname__ must be set to a string object; AttributeError";
     assert got == expect, got;
 }
+
+# ---- StopIteration payload surface (M13): .value must equal .args ----------
+# CPython gen_send_ex raises StopIteration(value), so the generator's return
+# value materializes through args -> .args/__str__/__repr__, not just .value.
+# Oracle (python3.14.7):
+#   next-exhaustion after return 42 -> repr 'StopIteration(42)', str '42',
+#                                     args (42,), value 42
+#   bare return / fall-off-end      -> repr 'StopIteration()', args (),
+#                                     value None
+#   throw caught-then-return 'ret'  -> SI.args == ('ret',)
+#   yield-from delegated return 42  -> SI.args == (42,)
+
+test "m13: next exhaustion carries payload in args and repr" {
+    ns = vm_exec(
+        "def g():\n"
+        "    yield 1\n"
+        "    return 42\n"
+        "it = g()\n"
+        "next(it)\n"
+        "try:\n"
+        "    next(it)\n"
+        "except StopIteration as si:\n"
+        "    r = [repr(si), str(si), list(si.args), si.value]\n"
+    );
+    assert vm_str(ns, "r") == "['StopIteration(42)', '42', [42], 42]",
+        vm_str(ns, "r");
+}
+
+test "m13: bare return keeps argless StopIteration" {
+    ns = vm_exec(
+        "def g():\n"
+        "    yield 1\n"
+        "it = g()\n"
+        "next(it)\n"
+        "try:\n"
+        "    next(it)\n"
+        "except StopIteration as si:\n"
+        "    r = [repr(si), list(si.args), si.value]\n"
+    );
+    assert vm_str(ns, "r") == "['StopIteration()', [], None]", vm_str(ns, "r");
+}
+
+test "m13: send exhaustion carries payload in args" {
+    ns = vm_exec(
+        "def g():\n"
+        "    yield 1\n"
+        "    return 42\n"
+        "it = g()\n"
+        "next(it)\n"
+        "try:\n"
+        "    it.send(9)\n"
+        "except StopIteration as si:\n"
+        "    r = [list(si.args), si.value]\n"
+    );
+    assert vm_str(ns, "r") == "[[42], 42]", vm_str(ns, "r");
+}
+
+test "m13: throw caught-and-return surfaces string payload via args" {
+    ns = vm_exec(
+        "def g():\n"
+        "    try:\n"
+        "        yield 1\n"
+        "    except ValueError:\n"
+        "        return 'ret'\n"
+        "it = g()\n"
+        "next(it)\n"
+        "try:\n"
+        "    it.throw(ValueError)\n"
+        "except StopIteration as si:\n"
+        "    r = [repr(si), list(si.args)]\n"
+    );
+    assert vm_str(ns, "r") == "[\"StopIteration('ret')\", ['ret']]",
+        vm_str(ns, "r");
+}
+
+test "m13: yield-from delegated return payload reaches args" {
+    ns = vm_exec(
+        "def sub():\n"
+        "    try:\n"
+        "        yield 1\n"
+        "    except ValueError:\n"
+        "        return 42\n"
+        "def outer():\n"
+        "    return (yield from sub())\n"
+        "it = outer()\n"
+        "next(it)\n"
+        "try:\n"
+        "    it.throw(ValueError)\n"
+        "except StopIteration as si:\n"
+        "    r = [list(si.args), si.value]\n"
+    );
+    assert vm_str(ns, "r") == "[[42], 42]", vm_str(ns, "r");
+}
