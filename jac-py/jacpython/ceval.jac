@@ -1125,6 +1125,7 @@ import from objects {
     py_error_with_args,
     py_exception_type,
     PyNotImplementedSentinel,
+    is_builtin_exception_name,
     dict_key_repr,
     _pyobj_repr,
     _repr_unicode_escape,
@@ -3615,21 +3616,40 @@ def to_host_coerce(value: PyObj) -> tuple[bool, any] {
     }
 }
 
+# Host-boundary error conversion: the host shims report failures as
+# (False, type_name, message[, live_exception]). When the live instance is
+# present, keep it in `raw` with its full args tuple and host-computed str so a
+# caught exception exposes real fields (e.errno, e.filename, ...) and byte-exact
+# __str__ -- identical to how py_raise_value treats raised host exceptions.
+def host_result_error(result: any) -> PyObj {
+    if len(result) > 3 and result[3] is not None {
+        inst = _jac_host_exception_instance(result[3]);
+        if bool(inst[0]) {
+            return PyError(
+                t="error",
+                exception=PyException(
+                    t="exception",
+                    type_name=str(result[1]),
+                    message=str(inst[2]),
+                    args=inst[3],
+                    raw=PyHostProxy(t="host", val=result[3]),
+                ),
+            );
+        }
+    }
+    return py_error(str(result[1]), str(result[2]));
+}
+
 def host_builtin(name: str) -> PyObj {
-    if name == "Exception"
-        or name == "BaseException"
-        or name == "ValueError"
-        or name == "TypeError"
-        or name == "KeyError"
-        or name == "IndexError"
-        or name == "AttributeError"
-        or name == "NameError"
-        or name == "ZeroDivisionError"
-        or name == "ImportError"
-        or name == "StopIteration"
-        or name == "StopAsyncIteration"
-        or name == "GeneratorExit"
-        or name == "RuntimeError" {
+    # The FULL builtin exception tree resolves to native PyExceptionType
+    # markers: construction then runs the typed constructors (OSError
+    # errno/strerror/filename forms, ImportError name/path, SyntaxError info,
+    # Unicode*Error fields) with attributes served from type_fields, instead of
+    # collapsing through a lossy host-proxy round-trip. Host-RAISED errors
+    # still arrive with their live instance in `raw` (byte-exact str via the
+    # boundary), and except-matching/isinstance/issubclass work across both
+    # shapes through the shared name hierarchy.
+    if is_builtin_exception_name(name) {
         return py_exception_type(name);
     }
     # next()/iter() are handled natively so a native generator or iterator is
@@ -6284,6 +6304,30 @@ def exception_matches(value: PyObj, target: PyObj) -> bool {
     if target_name == "" {
         return False;
     }
+    # A raised USER exception instance matches builtin targets through its real
+    # MRO: class MyErr(KeyError) must satisfy `except KeyError` even though the
+    # name-level tree has no MyErr entry. Walk the MRO classes and their bases,
+    # which carry the native/host exception-type markers recorded at class
+    # creation.
+    raw = exception.raw;
+    if raw is not None and isinstance(raw, PyUserObj) {
+        for klass in class_mro((raw as PyUserObj).cls) {
+            if klass.name == target_name {
+                return True;
+            }
+            for base in klass.bases {
+                if isinstance(base, PyExceptionType)
+                    and (base as PyExceptionType).name == target_name {
+                    return True;
+                }
+                if isinstance(base, PyHostProxy)
+                    and (_jac_host_class_name((base as PyHostProxy).val) as str)
+                        == target_name {
+                    return True;
+                }
+            }
+        }
+    }
     return exc_name_matches(exception.type_name, target_name);
 }
 
@@ -6345,8 +6389,26 @@ def user_exception_view(u: PyUserObj) -> PyException {
     if isinstance(stored, PyTuple) {
         exc_args.extend((stored as PyTuple).items);
     }
+    # Resolve the nearest builtin exception ancestor (class MyErr(KeyError) ->
+    # "KeyError") so per-type __str__/attribute semantics inherited from the
+    # builtin base apply to the wrapper view exactly like CPython's slots.
+    family: str = "";
+    for klass in class_mro(u.cls) {
+        for base in klass.bases {
+            if isinstance(base, PyExceptionType) {
+                family = (base as PyExceptionType).name;
+            } elif isinstance(base, PyHostProxy)
+                and bool(_jac_is_exception_type((base as PyHostProxy).val)) {
+                family = _jac_host_class_name((base as PyHostProxy).val) as str;
+            }
+        }
+        if family != "" {
+            break;
+        }
+    }
     return PyException(
-        t="exception", type_name=u.cls.name, message="", args=exc_args
+        t="exception", type_name=u.cls.name, message="", args=exc_args,
+        family=family
     );
 }
 
@@ -7049,6 +7111,16 @@ def py_isinstance(ob: PyObj, typ: PyObj) -> bool {
         }
         return bool(_jac_host_isinstance(hob, host_type));
     }
+    # A host-proxied exception INSTANCE tested against a native exception-type
+    # marker: match through the shared name hierarchy (mirrors the proxy-target
+    # branch above).
+    if isinstance(ob, PyHostProxy) and typ.t == "exception_type" {
+        inst = _jac_host_exception_instance((ob as PyHostProxy).val);
+        if bool(inst[0]) {
+            return exc_name_matches(str(inst[1]), (typ as PyExceptionType).name);
+        }
+        return False;
+    }
     return False;
 }
 
@@ -7091,6 +7163,26 @@ def py_issubclass(cls: PyObj, typ: PyObj) -> bool {
         return bool(
             _jac_host_issubclass((cls as PyHostProxy).val, (typ as PyHostProxy).val)
         );
+    }
+    # Builtin exception types exist in two shapes -- native PyExceptionType
+    # markers and host-proxied classes -- and subclass tests must cross the
+    # split. Match by name through the shared EXC_PARENT hierarchy.
+    cls_name: str = "";
+    typ_name: str = "";
+    if cls.t == "exception_type" {
+        cls_name = (cls as PyExceptionType).name;
+    } elif isinstance(cls, PyHostProxy)
+        and bool(_jac_is_exception_type((cls as PyHostProxy).val)) {
+        cls_name = _jac_host_class_name((cls as PyHostProxy).val) as str;
+    }
+    if typ.t == "exception_type" {
+        typ_name = (typ as PyExceptionType).name;
+    } elif isinstance(typ, PyHostProxy)
+        and bool(_jac_is_exception_type((typ as PyHostProxy).val)) {
+        typ_name = _jac_host_class_name((typ as PyHostProxy).val) as str;
+    }
+    if cls_name != "" and typ_name != "" {
+        return exc_name_matches(cls_name, typ_name);
     }
     return False;
 }
@@ -11120,9 +11212,13 @@ def run_frame(frame: PyFrame) -> PyObj {
                 if arg == 2 {
                     result = baseexception_repr(exc, py_repr);
                 } elif arg == 3 {
-                    result = host_convert(value, arg);
+                    # str-form conversion stays native so the per-type __str__
+                    # overrides (OSError smart forms, KeyError repr-form,
+                    # SyntaxError suffixes) apply to natively constructed
+                    # instances instead of a lossy host reconstruction.
+                    result = baseexception_str(exc, py_repr);
                 } else {
-                    result = baseexception_str(exc);
+                    result = baseexception_str(exc, py_repr);
                 }
             } else {
                 result = host_convert(value, arg);
