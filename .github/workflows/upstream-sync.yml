@@ -1,0 +1,84 @@
+# Nightly merge of upstream jaseci/jaseci main into our jac-python branch.
+#
+# Token notes:
+# - Uses the default GITHUB_TOKEN, which works when branch protection on
+#   `jac-python` allows Actions-created commits (workflows need "Read and
+#   write" permission and the repo must allow Actions to push).
+# - If branch protection requires a human/PAT push, replace both
+#   `${{ github.token }}` occurrences with a repository secret holding a PAT
+#   with repo scope, e.g. `token: ${{ secrets.UPSTREAM_SYNC_PAT }}`.
+
+name: upstream-sync
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # nightly, 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: jac-python
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "jac-python-sync-bot"
+          git config user.email "actions@github.com"
+
+      - name: Fetch upstream main
+        run: |
+          git remote add upstream https://github.com/jaseci/jaseci.git
+          git fetch upstream main
+
+      - name: Merge upstream/main into jac-python
+        id: merge
+        continue-on-error: true
+        run: git merge --no-edit upstream/main
+
+      - name: Push clean merge
+        if: steps.merge.outcome == 'success'
+        run: git push origin jac-python
+
+      - name: File conflict issue
+        if: steps.merge.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The failed merge above left conflict state in place; list it.
+          files="$(git diff --name-only --diff-filter=U | tr '\n' ' ')"
+          git merge --abort || true
+          title="[sync] upstream conflicts: ${files:-unknown}"
+          {
+            echo "Nightly upstream-sync could not cleanly merge \`upstream/main\` into \`jac-python\`."
+            echo ""
+            echo "**Conflicted files:**"
+            echo ""
+            for f in $files; do echo "- \`$f\`"; done
+            echo ""
+            echo "<!-- sync-conflict-marker: replace this issue on the next conflict -->"
+          } > body.md
+          # Replace any previous open sync-conflict issue so they don't pile up.
+          old="$(gh issue list --state open --search "sync-conflict-marker in:body" --json number --jq '.[0].number' || true)"
+          if [ -n "$old" ]; then
+            gh issue close "$old"
+          fi
+          gh issue create --title "$title" --body-file body.md
+
+      - name: Report failure
+        if: steps.merge.outcome == 'failure'
+        run: |
+          echo "::error::Upstream merge conflicts -- see the filed [sync] issue for the file list."
+          exit 1
