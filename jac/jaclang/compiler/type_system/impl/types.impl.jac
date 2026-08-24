@@ -128,6 +128,12 @@ impl FunctionType.specialize_func_type_vars(
     return clone;
 }
 
+"""Give each function its own parameter list.
+
+The field is never None -- callers that have no parameters pass `[]` -- but a
+`has` default is shared, so replace an empty one with a fresh list rather than
+letting every parameterless FunctionType alias the same object.
+"""
 impl FunctionType.postinit -> None {
     self.parameters = self.parameters or [];
 }
