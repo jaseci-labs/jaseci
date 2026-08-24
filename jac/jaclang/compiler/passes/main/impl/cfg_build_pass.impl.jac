@@ -1,4 +1,3 @@
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 impl cfg_dot_from_file(file_name: str) -> str {
     import from jaclang.jac0core.compiler { run_pass }
     import from jaclang.jac0core.program { JacProgram }
@@ -94,6 +93,7 @@ impl CoalesceBBPass._has_bool_sc(condition: Expr) -> bool {
 
 impl CoalesceBBPass._node_label(nd: UniNode) -> str {
     import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
     if isinstance(nd, ElseIf) {
         return 'elif'
@@ -456,11 +456,11 @@ impl CFGBuildPass.exit_bool_expr(nd: BoolExpr) -> None {
         return;
     }
     if len(nd.values) >= 2 {
-        entry = self._wire_bool_operands(nd.values, _bool_is_and(nd), None, None);
+        `entry = self._wire_bool_operands(nd.values, _bool_is_and(nd), None, None);
 
         enclosing_flow = nd.find_parent_of_type(UniCFGNode);
         if enclosing_flow is not None {
-            self.link_bbs(enclosing_flow, entry);
+            self.link_bbs(enclosing_flow, `entry);
         }
     }
 }
@@ -472,11 +472,11 @@ impl CFGBuildPass.exit_if_else_expr(nd: IfElseExpr) -> None {
     unwrapped_cond = _unwrap_parens(nd.condition.expr);
     if isinstance(unwrapped_cond, BoolExpr) and len(unwrapped_cond.values) >= 2 {
         op_is_and = _bool_is_and(unwrapped_cond);
-        entry = self._wire_bool_operands(
+        `entry = self._wire_bool_operands(
             unwrapped_cond.values, op_is_and, nd.value, nd.else_value
         );
-        if entry {
-            self.link_bbs(nd.condition, entry);
+        if `entry {
+            self.link_bbs(nd.condition, `entry);
         }
     } else {
         nd.condition.sc_true_target = nd.value;
@@ -517,20 +517,83 @@ impl CFGBuildPass._find_parent_of_types(
     return None;
 }
 
+impl CFGBuildPass._next_in_body(
+    body: Sequence[CodeBlockStmt], child: UniNode
+) -> (UniCFGNode | None) {
+    found = False;
+    for stmt in body {
+        if found and isinstance(stmt, CodeBlockStmt) {
+            return stmt;
+        }
+        if stmt is child {
+            found = True;
+        }
+    }
+    return None;
+}
+
 impl CFGBuildPass._find_next_cfg_stmt_after(
     parent: UniNode, child: UniNode
 ) -> (UniCFGNode | None) {
-    body = parent?.body;
-    if body is not None and isinstance(body, Sequence) {
-        found = False;
-        for stmt in body {
-            if found and isinstance(stmt, CodeBlockStmt) {
-                return stmt;
-            }
-            if stmt is child {
-                found = True;
-            }
-        }
+    if isinstance(parent, IfStmt) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, ElseStmt) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, TryStmt) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, Except) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, FinallyStmt) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, InForStmt) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, IterForStmt) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, WhileStmt) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, ForeverStmt) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, WithStmt) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, MatchCase) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, SwitchCase) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, ModuleCode) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, Test) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, TypedCtxBlock) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, OpenStmt) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, AwaitingClause) {
+        return self._next_in_body(parent.body, child);
+    }
+    if isinstance(parent, Ability) and isinstance(parent.body, list) {
+        return self._next_in_body(cast(Sequence[CodeBlockStmt], parent.body), child);
+    }
+    if isinstance(parent, ImplDef) and isinstance(parent.body, list) {
+        return self._next_in_body(cast(Sequence[CodeBlockStmt], parent.body), child);
+    }
+    if isinstance(parent, LambdaExpr) and isinstance(parent.body, list) {
+        return self._next_in_body(cast(Sequence[CodeBlockStmt], parent.body), child);
     }
     return None;
 }
@@ -611,11 +674,11 @@ impl CFGBuildPass.exit_if_stmt(nd: IfStmt) -> None {
             false_target = self._find_next_cfg_stmt_after_branch(nd);
         }
         op_is_and = _bool_is_and(cond_bool);
-        entry = self._wire_bool_operands(
+        `entry = self._wire_bool_operands(
             cond_bool.values, op_is_and, true_target, false_target
         );
-        if entry {
-            self.link_bbs(nd, entry);
+        if `entry {
+            self.link_bbs(nd, `entry);
         }
     } else {
         if true_target is not None {
@@ -656,11 +719,11 @@ impl CFGBuildPass.exit_while_stmt(nd: WhileStmt) -> None {
 
     if cond_bool is not None and true_target {
         op_is_and = _bool_is_and(cond_bool);
-        entry = self._wire_bool_operands(
+        `entry = self._wire_bool_operands(
             cond_bool.values, op_is_and, true_target, false_target
         );
-        if entry {
-            self.link_bbs(nd, entry);
+        if `entry {
+            self.link_bbs(nd, `entry);
         }
     } else {
         if true_target {
@@ -848,8 +911,8 @@ impl CFGBuildPass.exit_finally_stmt(nd: FinallyStmt) -> None {
 }
 
 impl CFGBuildPass.exit_match_stmt(nd: MatchStmt) -> None {
-    for case in nd.cases {
-        self.link_bbs(nd, case);
+    for `case in nd.cases {
+        self.link_bbs(nd, `case);
     }
 }
 
@@ -861,8 +924,8 @@ impl CFGBuildPass.exit_match_case(nd: MatchCase) -> None {
 }
 
 impl CFGBuildPass.exit_switch_stmt(nd: SwitchStmt) -> None {
-    for case in nd.cases {
-        self.link_bbs(nd, case);
+    for `case in nd.cases {
+        self.link_bbs(nd, `case);
     }
 }
 

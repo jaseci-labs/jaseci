@@ -405,10 +405,11 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
 
 impl get_scale_config(project_dir: Path | None = None) -> JacScaleConfig {
     if _scale_config_instance is not None {
+        cached_dir = _scale_config_instance.project_dir;
         if (
             project_dir is not None
-            and Path(project_dir).resolve()
-                != _scale_config_instance.project_dir.resolve()
+            and cached_dir is not None
+            and Path(project_dir).resolve() != cached_dir.resolve()
         ) {
             raise RuntimeError(
                 f"get_scale_config(project_dir={project_dir}) called after the "
@@ -576,7 +577,9 @@ impl normalize_microservices_config(
     } else {
         try {
             import from jaclang.project.config { get_config }
-            resolved_client_entry: str = get_config().entry_point or 'main.jac';
+            cfg = get_config();
+            resolved_client_entry: str = (cfg.project.entry_point if cfg else '')
+                or 'main.jac';
         } except Exception {
             resolved_client_entry: str = 'main.jac';
         }

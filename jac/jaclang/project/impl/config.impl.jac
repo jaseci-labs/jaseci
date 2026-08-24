@@ -137,7 +137,7 @@ impl JacConfig._section_map -> dict[
     return {
         "run": self.run,
         "build": self.build,
-        "test": self.test,
+        "test": self.`test,
         "serve": self.serve,
         "format": self.format,
         "dot": self.dot,
@@ -173,7 +173,8 @@ impl JacConfig.apply_profile(
     section_map = self._section_map();
     for (section, obj) in section_map.items() {
         if section in profile {
-            for (key, value) in profile[section].items() {
+            profile_section: dict[str, any] = profile[section];
+            for (key, value) in profile_section.items() {
                 if hasattr(obj, key) {
                     setattr(obj, key, value);
                 }
@@ -182,7 +183,8 @@ impl JacConfig.apply_profile(
     }
 
     if "project" in profile {
-        for (key, value) in profile["project"].items() {
+        profile_project: dict[str, any] = profile["project"];
+        for (key, value) in profile_project.items() {
             attr = key.replace("-", "_");
             if hasattr(self.project, attr) {
                 setattr(self.project, attr, value);
@@ -191,7 +193,7 @@ impl JacConfig.apply_profile(
     }
 
     if "check" in profile {
-        check_data = profile["check"];
+        check_data: dict[str, any] = profile["check"];
         for (key, value) in check_data.items() {
             if key == "lint" and isinstance(value, dict) {
                 for (lk, lv) in value.items() {
@@ -206,7 +208,7 @@ impl JacConfig.apply_profile(
     }
 
     if "storage" in profile {
-        storage_data = profile["storage"];
+        storage_data: dict[str, any] = profile["storage"];
         for (key, value) in storage_data.items() {
             if key == "type" {
                 self.storage.storage_type = value;
@@ -266,12 +268,13 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
     if not toml_path.exists() {
         return;
     }
-    data = read_toml_with_encoding(str(toml_path));
+    data: dict[str, any] = read_toml_with_encoding(str(toml_path));
     data = _interpolate_recursive(data);
     section_map = self._section_map();
     for (section, obj) in section_map.items() {
         if section in data {
-            for (key, value) in data[section].items() {
+            data_section: dict[str, any] = data[section];
+            for (key, value) in data_section.items() {
                 if hasattr(obj, key) {
                     setattr(obj, key, value);
                 }
@@ -279,7 +282,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
         }
     }
     if "project" in data {
-        proj = data["project"];
+        proj: dict[str, any] = data["project"];
         for (key, value) in proj.items() {
             attr = key.replace("-", "_");
             if attr == "authors" {
@@ -287,7 +290,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
             } elif attr == "maintainers" {
                 self.project.maintainers = _parse_persons(value);
             } elif attr == "include" {
-                self.project.include = _parse_include(value);
+                self.project.`include = _parse_include(value);
             } elif hasattr(self.project, attr) {
                 setattr(self.project, attr, value);
             }
@@ -295,7 +298,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
     }
 
     if "check" in data {
-        check_data = data["check"];
+        check_data: dict[str, any] = data["check"];
         for (key, value) in check_data.items() {
             if key == "lint" and isinstance(value, dict) {
                 for (lk, lv) in value.items() {
@@ -310,7 +313,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
     }
 
     if "storage" in data {
-        storage_data = data["storage"];
+        storage_data: dict[str, any] = data["storage"];
         for (key, value) in storage_data.items() {
             if key == "type" {
                 self.storage.storage_type = value;
@@ -324,7 +327,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
         if "default" in gc_data {
             _gcd = str(gc_data["default"]).strip().lower();
             if _gcd in ("cycles", "rc", "none") {
-                self.gc.default = _gcd;
+                self.gc.`default = _gcd;
             }
         }
         if "enforce" in gc_data and isinstance(gc_data["enforce"], dict) {
@@ -569,7 +572,7 @@ impl JacConfig._write_toml_text(text: str) -> None {
 
 def _needs_quoting(key: str) -> bool {
     import re;
-    return not bool(re.match(r'^[A-Za-z0-9_-]+$', key));
+    return not bool(re.`match(r'^[A-Za-z0-9_-]+$', key));
 }
 
 def _quote_key(key: str) -> str {
@@ -638,7 +641,7 @@ def _toml_find_span(
     );
     header = -1;
     for (i, line) in enumerate(lines) {
-        if header_re.match(line) {
+        if header_re.`match(line) {
             if header >= 0 {
                 return None;
             }
@@ -666,7 +669,7 @@ def _toml_find_key(
     found = -1;
     value_start = -1;
     for i in range(span[0] + 1, span[1]) {
-        m = key_re.match(lines[i]);
+        m = key_re.`match(lines[i]);
         if m {
             if found >= 0 {
                 return None;
@@ -758,7 +761,7 @@ def _toml_replace_key(
     (idx, value_start) = hit;
     line = lines[idx];
     value_end = _toml_value_end(line, value_start);
-    if value_end is None or not re.match(r"^\s*(?:#.*)?$", line[value_end:]) {
+    if value_end is None or not re.`match(r"^\s*(?:#.*)?$", line[value_end:]) {
         return False;
     }
     lines[idx] = line[:value_start] + value_text + line[value_end:];
@@ -1091,7 +1094,7 @@ impl _parse_toml_data(
             entry_point=proj.get("entry-point", "main.jac"),
             kind=proj.get("kind", ""),
             urls=proj.get("urls", {}),
-            include=_parse_include(proj.get("include", {}))
+            `include=_parse_include(proj.get("include", {}))
         );
     }
     if "dependencies" in data {
@@ -1181,7 +1184,6 @@ impl _parse_toml_data(
             _native_opt = _builtin_native.opt_level;
         }
         config.build = BuildConfig(
-            typecheck=build_data.get("typecheck", False),
             dir=build_data.get("dir", ".jac"),
             default_codespace=_default_cs,
             native_closure_cap=_cap,
@@ -1213,11 +1215,11 @@ impl _parse_toml_data(
                 grandfathered=[str(_m) for _m in enf.get("grandfathered", [])]
             );
         }
-        config.gc = GcConfig(default=_gc_default, enforce=enforce_cfg);
+        config.gc = GcConfig(`default=_gc_default, enforce=enforce_cfg);
     }
     if "test" in data {
         test_data = data["test"];
-        config.test = TestConfig(
+        config.`test = TestConfig(
             directory=test_data.get("directory", ""),
             filter=test_data.get("filter", ""),
             verbose=test_data.get("verbose", False),
@@ -1251,10 +1253,6 @@ impl _parse_toml_data(
     if "format" in data {
         fmt = data["format"];
         config.format = FormatConfig(outfile=fmt.get("outfile", ""));
-    }
-    if "precommit" in data {
-        pc_data = data["precommit"];
-        config.precommit = PrecommitConfig(typecheck=pc_data.get("typecheck", True));
     }
     if "check" in data {
         check_data = data["check"];
@@ -1294,7 +1292,7 @@ impl _parse_toml_data(
         );
     }
     if "storage" in data {
-        storage_data = data["storage"];
+        storage_data: dict[str, any] = data["storage"];
         for (key, value) in storage_data.items() {
             if key == "type" {
                 config.storage.storage_type = value;
@@ -1386,7 +1384,7 @@ impl get_config(
     return _config;
 }
 
-impl set_config(config: JacConfig) -> None {
+impl set_config(config: JacConfig | None) -> None {
     _config = config;
 
     _config_explicit = config is not None;

@@ -50,7 +50,7 @@ obj PgJobStore(JobStore) {
 }
 
 obj MemoryJobStore(JobStore) {
-    has _jobs: dict[str, dict] | None = None;
+    has _jobs: dict[str, dict] postinit;
 
     def postinit -> None;
     def insert(job: dict) -> str;
@@ -90,7 +90,7 @@ obj JacScaleScheduler {
         _system_user_id: str = '__system__',
         _store: JobStore | None = None,
         _server: any | None = None,
-        _user_exists_cache: dict[str, float] | None = None,
+        _user_exists_cache: dict[str, float] postinit,
         _user_exists_ttl: float = 30.0;
 
     def postinit -> None;

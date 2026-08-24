@@ -18,6 +18,9 @@ impl TypeEvaluator._try_resolve_forward_ref(expr: String) -> TypeBase | None {
 
     resolved = self.get_type_of_symbol(symbol);
     if isinstance(resolved, UnknownType) {
+        if resolved.is_incomplete {
+            return resolved;
+        }
         return None;
     }
     return resolved;
@@ -57,6 +60,7 @@ impl TypeEvaluator._build_field_params(
         }
         for has_var in cls.shared.symbol_table.get_has_vars() {
             if skip_deferred and has_var.defer {
+                param_map.pop(has_var.name.value, None);
                 continue;
             }
 
@@ -359,7 +363,9 @@ impl TypeEvaluator._get_type_for_member_lookup(object_type: ClassType) -> ClassT
     return object_type;
 }
 
-impl TypeEvaluator.get_type_of_member(member: any, class_type: ClassType) -> TypeBase {
+impl TypeEvaluator.get_type_of_member(
+    member: ClassMember, class_type: ClassType
+) -> TypeBase {
     raw_type = self.get_type_of_symbol(member.symbol);
     if isinstance(raw_type, FunctionType) {
         params = raw_type.parameters or [];
@@ -426,11 +432,116 @@ impl TypeEvaluator._get_getattr_return_type(base_type: ClassType) -> TypeBase | 
             return getattr_type.return_type or UnknownType();
         }
     }
+
+    if member := self._lookup_class_member(base_type, "__getattribute__") {
+        _ga_decl = self.declaring_class_of(member.symbol, base_type);
+        if _ga_decl is not None and _ga_decl.shared.class_name != "object" {
+            getattr_type = self.get_type_of_symbol(member.symbol);
+            if isinstance(getattr_type, FunctionType) {
+                return getattr_type.return_type or UnknownType();
+            }
+        }
+    }
+    return None;
+}
+
+impl TypeEvaluator._resolve_enum_value_type(enum_type: ClassType) -> TypeBase | None {
+    val_type = enum_type.shared.enum_value_type;
+    if val_type is None and enum_type.shared.enum_members {
+        member_types = [
+            m.value_type
+            for m in enum_type.shared.enum_members.values()
+            if m.value_type is not None
+        ];
+        if member_types
+            and all(
+                isinstance(t, ClassType)
+                    and isinstance(member_types[0], ClassType)
+                    and t.shared == member_types[0].shared for t in member_types
+            ) {
+            val_type = member_types[0];
+        }
+    }
+    return val_type;
+}
+
+impl TypeEvaluator._synthesize_enum_metaclass_attr(
+    enum_type: ClassType, attr_name: str
+) -> TypeBase | None {
+    if not (
+        self.prefetch
+        and self.prefetch.dict_class
+        and self.prefetch.list_class
+        and self.prefetch.str_class
+    ) {
+        return None;
+    }
+    str_inst = self._convert_to_instance(self.prefetch.str_class);
+    if attr_name == "_member_names_" {
+        list_type = self.prefetch.list_class.specialize_generics([str_inst]);
+        return self._convert_to_instance(list_type);
+    }
+    if attr_name == "__members__" {
+        member_inst = enum_type.clone_as_instance();
+        if self.prefetch.mappingproxy_class {
+            proxy_type = self.prefetch.mappingproxy_class.specialize_generics(
+                [str_inst, member_inst]
+            );
+            return self._convert_to_instance(proxy_type);
+        }
+        dict_type = self.prefetch.dict_class.specialize_generics(
+            [str_inst, member_inst]
+        );
+        return self._convert_to_instance(dict_type);
+    }
+    if attr_name == "_member_map_" {
+        member_inst = enum_type.clone_as_instance();
+        dict_type = self.prefetch.dict_class.specialize_generics(
+            [str_inst, member_inst]
+        );
+        return self._convert_to_instance(dict_type);
+    }
+    if attr_name == "_value2member_map_" {
+        member_inst = enum_type.clone_as_instance();
+        val_type = self._resolve_enum_value_type(enum_type);
+        key_type = (
+            self._convert_to_instance(val_type)
+                if val_type is not None
+                else types.AnyType()
+        );
+        dict_type = self.prefetch.dict_class.specialize_generics(
+            [key_type, member_inst]
+        );
+        return self._convert_to_instance(dict_type);
+    }
     return None;
 }
 
 impl TypeEvaluator._convert_to_instance(jtype: TypeBase) -> TypeBase {
     return convert_to_instance(jtype);
+}
+
+impl TypeEvaluator._metaclass_of(cls_type: ClassType) -> (ClassType | None) {
+    for cls in cls_type.shared.mro {
+        arch = cls.shared.symbol_table;
+        if not isinstance(arch, Archetype) {
+            continue;
+        }
+        for kid in arch.kid {
+            if (
+                isinstance(kid, KWPair)
+                and kid.key is not None
+                and kid.key.sym_name == "metaclass"
+            ) {
+                meta_type = self.get_type_of_expression(kid.value);
+                if isinstance(meta_type, ClassType)
+                    and meta_type.shared is not cls_type.shared {
+                    return meta_type;
+                }
+            }
+        }
+    }
+    return None;
 }
 
 impl TypeEvaluator._edge_endpoint_type(
@@ -459,12 +570,19 @@ impl TypeEvaluator._edge_endpoint_type(
 }
 
 impl TypeEvaluator._type_in_list(ty: TypeBase, type_list: list[TypeBase]) -> bool {
+    import from jaclang.compiler.type_system.type_utils { types_equivalent }
     for existing in type_list {
         if isinstance(ty, ClassType) and isinstance(existing, ClassType) {
             if ty.shared == existing.shared {
                 return True;
             }
         } elif ty is existing {
+            return True;
+        } elif (
+            not isinstance(ty, ClassType)
+            and not isinstance(existing, ClassType)
+            and types_equivalent(ty, existing)
+        ) {
             return True;
         }
     }
@@ -1593,6 +1711,12 @@ impl TypeEvaluator.validate_typevar_variance(func: Ability) -> None {
 }
 
 impl TypeEvaluator.validate_typevar_scope(expr: Expr, type_var: TypeVarType) -> None {
+    if type_var.is_self {
+        if expr.find_parent_of_type(Archetype) is not None
+            or expr.find_parent_of_type(ImplDef) is not None {
+            return;
+        }
+    }
     if isinstance(expr, Name) and expr.sym {
         sym_decl = expr.sym.decl;
         if sym_decl {
@@ -1795,8 +1919,8 @@ impl TypeEvaluator._collect_return_types(
         if isinstance(stmt, MatchStmt) {
             if stmt.cases {
                 all_return = True;
-                for case in stmt.cases {
-                    mc: MatchCase = case;
+                for `case in stmt.cases {
+                    mc: MatchCase = `case;
                     if not self._collect_return_types(list(mc.body), out) {
                         all_return = False;
                     }
@@ -1812,8 +1936,8 @@ impl TypeEvaluator._collect_return_types(
             if stmt.cases {
                 has_default = False;
                 all_return = True;
-                for case in stmt.cases {
-                    sc: SwitchCase = case;
+                for `case in stmt.cases {
+                    sc: SwitchCase = `case;
                     if sc.pattern is None {
                         has_default = True;
                     }

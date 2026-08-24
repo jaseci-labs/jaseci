@@ -150,7 +150,7 @@ def linearize_tool_messages(messages: list) -> list {
             continue;
         }
         tool_calls = _field(m, "tool_calls");
-        if tool_calls {
+        if isinstance(tool_calls, list) and tool_calls {
             text = str(_field(m, "content") or "").strip();
             parts: list = [text] if text else [];
             for tc in tool_calls {
@@ -394,7 +394,7 @@ def _parse_value(token: str) -> object {
 def _parse_kwargs(argstr: str) -> dict {
     out: dict = {};
     for part in _split_top_level(argstr) {
-        m = re.match("\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*[:=]\\s*", part);
+        m = re.`match("\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*[:=]\\s*", part);
         if m is None {
             continue;
         }

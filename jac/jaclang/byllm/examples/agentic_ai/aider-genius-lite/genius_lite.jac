@@ -1,5 +1,4 @@
 import from pathlib { Path }
-import from jaclang.jac0core.archetype { Root }
 
 # Simple task object with semantic annotations
 obj Task {

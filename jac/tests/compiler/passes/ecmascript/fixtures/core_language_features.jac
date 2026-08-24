@@ -1,6 +1,5 @@
 """Combined core Jac constructs for ECMAScript generator tests."""
 
-
 glob global_counter: int = 0;
 
 # Basic functions and control flow
@@ -28,7 +27,11 @@ def fibonacci(n: int) -> int {
     return fibonacci(n - 1) + fibonacci(n - 2);
 }
 
-def addItem() -> None {
+# The list and its setter arrive as parameters: this file is compiled straight
+# through client codegen, and the emitted module is audited for names it never
+# binds, so a free `items` / `setItems` here would be a ReferenceError shipped
+# in a fixture.
+def addItem(items: any, setItems: any) {
     newItem = {"id": Date.now(), "text": "Item " + (items.length + 1), "done": False};
     newItems = items.concat([newItem]);
     setItems(newItems);
@@ -37,13 +40,13 @@ def addItem() -> None {
 def formatCompact(num: float) -> str {
     if num >= 1000000 {
         divided = num / 1000000;
-        return (Math.round(divided * 10) / 10).toString().concat("M");
+        return str(Math.round(divided * 10) / 10) + "M";
     }
     if num >= 1000 {
         divided = num / 1000;
-        return (Math.round(divided * 10) / 10).toString().concat("K");
+        return str(Math.round(divided * 10) / 10) + "K";
     }
-    return Math.round(num).toString();
+    return str(Math.round(num));
 }
 
 def loop_examples(limit: int) -> int {
@@ -78,7 +81,7 @@ def loop_examples(limit: int) -> int {
 }
 
 # Data structures and assignments
-def collection_examples() -> dict {
+def collection_examples -> dict {
     numbers = [1, 2, 3, 4];
     person = {"name": "Alice", "age": 30};
     matrix = [[1, 2], [3, 4]];
@@ -86,7 +89,7 @@ def collection_examples() -> dict {
     return {"numbers": numbers, "person": person, "matrix": matrix, "history": history};
 }
 
-def destructuring_examples() -> dict {
+def destructuring_examples -> dict {
     (x, y) = (10, 20);
     [a, b, c] = [1, 2, 3];
     (head, *tail) = [5, 6, 7, 8];
@@ -101,7 +104,8 @@ def destructuring_examples() -> dict {
 }
 
 def assignment_examples(value: int) -> dict {
-    current = value;
+    # `/=` produces a float, so the accumulator is float-typed from the start.
+    current: float = value;
     current += 5;
     current -= 2;
     current *= 3;
@@ -159,8 +163,8 @@ def switch_case(fruit: str) {
 
 # Object definitions
 obj Person {
-    has name: str;
-    has age: int = 0;
+    has name: str,
+        age: int = 0;
 
     def describe -> str {
         return self.name + " (" + str(self.age) + ")";
@@ -204,7 +208,7 @@ enum Status { ACTIVE = "active", INACTIVE = "inactive", PENDING = "pending" }
 
 enum Priority { LOW = 1, MEDIUM = 2, HIGH = 3 }
 
-def summarize_status() -> dict {
+def summarize_status -> dict {
     states = [Status.ACTIVE, Status.PENDING];
     return {"first": states[0], "count": len(states), "names": ["ACTIVE", "PENDING"]};
 }
@@ -230,7 +234,7 @@ def build_report(data: list) -> dict {
     };
 }
 
-def app() -> JsxElement {
+def app -> JsxElement {
     return
         <div>
             <h1>"Authentication" App</h1>

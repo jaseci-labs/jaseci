@@ -43,7 +43,6 @@ def _write_pair(tmp: str, dep_stem: str) -> str {
 def _aot_opts(rc_debug: bool) -> CompileOptions {
     return CompileOptions(
         aot_mode=True,
-        type_check=False,
         default_codespace='native',
         force_target_program=True,
         na_gc_mode='cycles',
@@ -61,7 +60,7 @@ def _compile_main(main_path: str, rc_debug: bool) -> JacProgram {
 
 def _dep_cache_files(tmp: str, dep_stem: str, ext: str) -> list[str] {
     cache_dir = str(get_native_cache_dir(os.path.join(tmp, f"{dep_stem}.jac")));
-    return sorted(glob.glob(os.path.join(cache_dir, f"{dep_stem}.*.{ext}")));
+    return sorted(`glob.`glob(os.path.join(cache_dir, f"{dep_stem}.*.{ext}")));
 }
 
 glob _CACHE_ENV_KEYS: tuple = ("XDG_CACHE_HOME", "HOME", "LOCALAPPDATA");
@@ -100,7 +99,6 @@ test "rc debug trace gate is driven by the options object, not env" {
                     options=CompileOptions(
                         aot_mode=True,
                         skip_native_engine=True,
-                        type_check=False,
                         default_codespace='native',
                         force_target_program=True,
                         na_gc_mode='cycles',

@@ -350,24 +350,22 @@ test "pyi loads build via PyastBuildPass and never compile" {
     past = time.time() - 2;
     os.utime(stub_file, (past, past));
     compile_calls = 0;
-    orig_compile = JacProgram.compile;
+    orig_compile: any = JacProgram.compile;
     def counting_compile(
         self: JacProgram,
         file_path: str,
         use_str: (str | None) = None,
         no_cgen: bool = False,
-        type_check: bool = False,
         symtab_ir_only: bool = False,
-        cancel_token = None,
-        options = None
-    ) -> object {
+        cancel_token: any = None,
+        options: any = None
+    ) -> any {
         compile_calls += 1;
         return orig_compile(
             self,
             file_path,
             use_str=use_str,
             no_cgen=no_cgen,
-            type_check=type_check,
             symtab_ir_only=symtab_ir_only,
             cancel_token=cancel_token,
             options=options
@@ -407,24 +405,22 @@ test "resolve_import_source_module never compiles pyi stubs" {
             f.write('import from "' + stub_name + '" { CacheProbe }\n');
         }
         compile_calls = 0;
-        orig_compile = JacProgram.compile;
+        orig_compile: any = JacProgram.compile;
         def counting_compile(
             self: JacProgram,
             file_path: str,
             use_str: (str | None) = None,
             no_cgen: bool = False,
-            type_check: bool = False,
             symtab_ir_only: bool = False,
-            cancel_token = None,
-            options = None
-        ) -> object {
+            cancel_token: any = None,
+            options: any = None
+        ) -> any {
             compile_calls += 1;
             return orig_compile(
                 self,
                 file_path,
                 use_str=use_str,
                 no_cgen=no_cgen,
-                type_check=type_check,
                 symtab_ir_only=symtab_ir_only,
                 cancel_token=cancel_token,
                 options=options
@@ -709,6 +705,7 @@ test "get_bytecode busts in-memory hub when .impl.jac changes" {
         prog = JacProgram();
         def tag_of -> int {
             code = compiler.get_bytecode(mod, prog);
+            assert code is not None , "get_bytecode returned None";
             ns: dict = {};
             exec(code, ns);
             return ns["Thing"]().get_tag();
@@ -754,7 +751,7 @@ test "release compile closure clears ASTs and evaluator but keeps stubs" {
         source_path = os.path.join(d, "source.jac");
         stub_path = os.path.join(d, "types.pyi");
         prog = JacProgram();
-        def source_ref -> object {
+        def source_ref -> any {
             source_mod = prog.parse_str("glob value = 1;\n", source_path);
             return weakref.ref(source_mod);
         }
@@ -764,8 +761,10 @@ test "release compile closure clears ASTs and evaluator but keeps stubs" {
         prog.release_compile_closure(keep_stubs=True);
         gc.collect();
         assert ast_ref() is None , "released AST is still strongly referenced";
-        assert source_path not in prog.mod.hub;
-        assert stub_path in prog.mod.hub;
+        # The hub is keyed by the resolved path (JacProgram.hub_key), and
+        # find_module is the accessor that normalizes for you.
+        assert prog.find_module(source_path) is None;
+        assert prog.find_module(stub_path) is not None;
         assert prog.type_evaluator is None;
     }
 }
@@ -779,7 +778,7 @@ test "release compile closure honors no unit eviction" {
         os.environ["JAC_NO_UNIT_EVICT"] = "1";
         try {
             prog.release_compile_closure();
-            assert source_path in prog.mod.hub;
+            assert prog.find_module(source_path) is not None;
         } finally {
             if old_no_evict is None {
                 os.environ.pop("JAC_NO_UNIT_EVICT", None);

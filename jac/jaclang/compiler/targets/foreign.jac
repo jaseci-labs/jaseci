@@ -1,22 +1,5 @@
 import jaclang.jac0core.unitree as uni;
-
-glob FOREIGN_SCALARS: dict[str, tuple] = {
-         "u8": (1, 1, False, 8),
-         "i8": (1, 1, False, 8),
-         "bool": (1, 1, False, 8),
-         "u16": (2, 2, False, 16),
-         "i16": (2, 2, False, 16),
-         "u32": (4, 4, False, 32),
-         "i32": (4, 4, False, 32),
-         "u64": (8, 8, False, 64),
-         "i64": (8, 8, False, 64),
-         "int": (8, 8, False, 64),
-         "f32": (4, 4, True, 32),
-         "f64": (8, 8, True, 64),
-         "float": (8, 8, True, 64),
-         "str": (8, 8, False, 64),
-
-     };
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 def collect_foreign_structs(modules: list) -> dict {
     out: dict = {};
@@ -34,12 +17,7 @@ def collect_foreign_structs(modules: list) -> dict {
                     for var in decl.get_has_vars() {
                         tname: (str | None) = None;
                         if var.type_tag is not None and var.type_tag.tag is not None {
-                            tag = var.type_tag.tag;
-                            if isinstance(tag, uni.Name) {
-                                tname = tag.value;
-                            } elif tag?.value and isinstance(tag.value, str) {
-                                tname = tag.value;
-                            }
+                            tname = declared_type_name(var.type_tag.tag);
                         }
                         fields.append((var.sym_name, tname));
                     }
@@ -107,17 +85,21 @@ def collect_foreign_fns(modules: list) -> dict {
     return out;
 }
 
-def foreign_struct_layout(structs: dict, name: str) -> tuple {
+def foreign_struct_layout(
+    structs: dict, name: str
+) -> tuple[int, int, list[tuple[int, bool, int]]] {
     fields = structs.get(name, []);
     offset = 0;
     max_align = 1;
-    scalars: list = [];
+    scalars: list[tuple[int, bool, int]] = [];
     for (fname, tname) in fields {
-        if tname is not None and tname in structs {
+        if isinstance(tname, str) and tname in structs {
             (sz, al, subs) = foreign_struct_layout(structs, tname);
-        } elif tname is not None and tname in FOREIGN_SCALARS {
-            (sz, al, isf, bits) = FOREIGN_SCALARS[tname];
-            subs = [(0, isf, bits)];
+        } elif isinstance(tname, str)
+            and (scalar := JAC_TYPE_REGISTRY.get(tname)) is not None
+            and scalar.width > 0 {
+            (sz, al) = (scalar.size_bytes(), scalar.align());
+            subs = [(0, scalar.is_float, max(8, scalar.width))];
         } else {
             (sz, al, subs) = (8, 8, [(0, False, 64)]);
         }

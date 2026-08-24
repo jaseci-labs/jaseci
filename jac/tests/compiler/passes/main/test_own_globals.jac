@@ -2,14 +2,18 @@
 through the same ownership-prefix path as locals and params, stamps the
 symbol owned, and lifts the enforced-mode E1406 rejection of heap-typed
 module globals -- the owned world's extent is the process. Unannotated
-heap globals keep the fence."""
+heap globals keep the fence.
+
+The fixture-plus-expected-codes cases for this rule live in the shared
+`test_ownership_codes.jac` table; what stays here asserts something that
+table cannot express.
+"""
 
 import os;
 import subprocess;
 import sys;
 import tempfile;
 import from tests.support { TESTS_DIR }
-import from tests.ownership_helpers { compile_fixture, expect_ownership_codes }
 
 glob FIXTURE = os.path.join(
          TESTS_DIR,
@@ -25,11 +29,6 @@ glob FIXTURE = os.path.join(
          "rc": ["--gc", "rc"],
          "cycles": ["--gc", "cycles"]
      };
-
-test "own globals are clean in the checker" {
-    prog = compile_fixture("own_glob_ok.jac");
-    expect_ownership_codes(prog, []);
-}
 
 test "own globals compile and run identically across gc modes including enforced" {
     with tempfile.TemporaryDirectory() as tmp {

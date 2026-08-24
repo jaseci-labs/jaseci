@@ -33,16 +33,21 @@ def validation_test(
     return f"x:{x},y:{y},z:{z},args:{len(args)},w:{w},kwargs:{len(kwargs)}";
 }
 
+"""Identity cast keeping deliberately loose values out of nominal checks."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
 with entry {
-    print("ULTIMATE_MIN:", ultimate_signature(1, reg_def=2.5, kw_req="test"));
+    print("ULTIMATE_MIN:", ultimate_signature(1, reg_def=_as_any(2.5), kw_req="test"));
     print(
         "ULTIMATE_FULL:",
         ultimate_signature(
-            1, "custom", 3.14, False, 10, 20, kw_req="req", kw_opt=200, extra="data"
+            1, "custom", _as_any(3.14), False, 10, 20, kw_req="req", kw_opt=200, extra="data"
         )
     );
     print("SEPARATORS:", separators_only(x=42));
     print("EDGE_MIX:", edge_case_mix(1, "test", 1.1, 2.2, c=True, name="edge"));
     print("RECURSIVE:", recursive_test(5), recursive_test(10, max_depth=1));
-    print("VALIDATION:", validation_test(1, 2.5, 10, 20, w=True, debug="on"));
+    print("VALIDATION:", validation_test(1, _as_any(2.5), 10, 20, w=True, debug="on"));
 }

@@ -8,9 +8,9 @@ import queue;
 import uuid;
 
 obj CallState {
-    has lock: any,
+    has lock: threading.Lock,
         done: bool = False,
-        timer: any = None;
+        timer: (threading.Timer | None) = None;
 }
 
 
@@ -24,7 +24,7 @@ glob _tc: any = None,
      _debug: bool = False,
      _BOOT_ERROR: str = "",
      _shutting_down: bool = False,
-     _sv_lock: any = None;
+     _sv_lock: (threading.Lock | None) = None;
 
 
 def boot(
@@ -237,7 +237,7 @@ def dispatch_sync(payload_json: str, timeout_s: float = 0.0) -> str {
     );
     th.start();
 
-    done.wait(timeout_s);
+    done.`wait(timeout_s);
     if box["v"] is not None {
         return box["v"] as str;
     }
@@ -273,7 +273,8 @@ def forward(
     if token {
         headers["Authorization"] = "Bearer " + token;
     }
-    with _sv_lock {
+    sv_lock: threading.Lock = _sv_lock;
+    with sv_lock {
         resp = tc.request(method, path, content=body, headers=headers);
     }
     ctype = resp.headers.get("content-type", "application/json");
@@ -306,12 +307,14 @@ def _error_envelope(code: str, message: str, details: str = "") -> str {
 def _webview_return(w: int, id_bytes: bytes, status: int, payload: bytes) {
     if _wv_return is None {
         lib = ctypes.CDLL(None);
-        lib.webview_return.argtypes = [
+        argtypes:
+            list[type[ctypes.c_void_p] | type[ctypes.c_char_p] | type[ctypes.c_int]] = [
             ctypes.c_void_p,
             ctypes.c_char_p,
             ctypes.c_int,
             ctypes.c_char_p
         ];
+        lib.webview_return.argtypes = argtypes;
         lib.webview_return.restype = ctypes.c_int;
         _wv_return = lib.webview_return;
     }
@@ -436,7 +439,8 @@ def _handle_impl(req_ptr: int, w: int, id_bytes: bytes) {
         return;
     }
     try {
-        outer = json.loads(ctypes.cast(req_ptr, ctypes.c_char_p).value.decode());
+        req_bytes = ctypes.cast(req_ptr, ctypes.c_char_p).value or b"";
+        outer = json.loads(req_bytes.decode());
         payload_json = outer[0];
     } except Exception as e {
         _reply(

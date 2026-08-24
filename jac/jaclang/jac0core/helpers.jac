@@ -87,7 +87,11 @@ def pretty_print_source_location(
     pretty_dump = '';
     curr_line = start_line;
     while (curr_line < end_line) {
-        pretty_dump += f"%{line_num_width}d | " % curr_line;
+        gutter: str = str(curr_line);
+        while (len(gutter) < line_num_width) {
+            gutter = ' ' + gutter;
+        }
+        pretty_dump += gutter + " | ";
         idx_line_start = idx;
         while ((idx < flen) and (fb[idx] != NL)) {
             idx += 1;
@@ -102,7 +106,11 @@ def pretty_print_source_location(
         }
         pretty_dump += '\n';
         if (curr_line == error_line) {
-            pretty_dump += f"%{line_num_width}s | " % ' ';
+            blank_gutter: str = ' ';
+            while (len(blank_gutter) < line_num_width) {
+                blank_gutter = ' ' + blank_gutter;
+            }
+            pretty_dump += blank_gutter + " | ";
 
             prefix = fb[idx_line_start:pos_start].decode("utf-8", errors="replace");
             spaces = '';
@@ -198,6 +206,11 @@ def read_file_with_encoding(file_path: str) -> str {
 }
 
 
+def _to_posix_path(raw_path: str) -> str {
+    return raw_path.replace(os.sep, '/');
+}
+
+
 def path_matches_exclude(
     file_path: str, patterns: list[str], project_root: str = ""
 ) -> bool {
@@ -205,9 +218,9 @@ def path_matches_exclude(
     if not patterns {
         return False;
     }
-    norm: str = file_path.replace(os.sep, '/');
+    norm = _to_posix_path(file_path);
     if project_root {
-        root_prefix = project_root.replace(os.sep, '/').rstrip('/') + '/';
+        root_prefix = _to_posix_path(project_root).rstrip('/') + '/';
         if norm.startswith(root_prefix) {
             norm = norm[len(root_prefix):];
         }

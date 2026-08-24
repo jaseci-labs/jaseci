@@ -3,7 +3,7 @@
 Recovers functional coverage dropped in PR #6840. Two layers:
 
 * Build / serve / HTTP (no browser) -- scaffold littleX into a writable
-  temp dir, install its npm deps, then `jac start` it and exercise the
+  temp dir, install its npm deps, then `jac run --serve` it and exercise the
   HTTP surface (the served `/cl/app` page, the static JS + CSS bundles,
   404s) plus a `--client pwa` build that emits a manifest + service worker.
 * Browser auth/form flows (Playwright) -- drive littleX's `AuthForm`
@@ -65,12 +65,12 @@ def _copy_littlex_into(dest: any) {
         ".pytest_cache",
         "__pycache__"
     };
-    for entry in os.listdir(src) {
-        if entry in skip_names {
+    for `entry in os.listdir(src) {
+        if `entry in skip_names {
             continue;
         }
-        src_path = os.path.join(src, entry);
-        dst_path = os.path.join(dest, entry);
+        src_path = os.path.join(src, `entry);
+        dst_path = os.path.join(dest, `entry);
         if os.path.isdir(src_path) {
             shutil.copytree(
                 src_path,

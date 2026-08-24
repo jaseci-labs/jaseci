@@ -12,6 +12,10 @@ import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang.runtimelib.testing { JacTestClient }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
 def fixture_abs_path(filename: str) -> str {
@@ -155,7 +159,7 @@ test "prod render_page injects early error handler before module bundle script" 
         get_client_functions=lambda { {'app': None}; },
         ensure_bundle=lambda { 'abc123'; }
     );
-    result = JacClient.render_page(introspector, 'app', {}, 'guest');
+    result = JacClient.render_page(_as_any(introspector), 'app', {}, 'guest');
     html = result['html'];
     assert 'window.__jacErrorHandlersInstalled' in html;
     assert '/cl/__error__' in html;

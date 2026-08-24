@@ -15,7 +15,7 @@ impl create_enum_member_info(
     if (
         not assignment.target
         or len(assignment.target) == 0
-        or not isinstance(target := assignment.target[0], (NameAtom, Name))
+        or not isinstance(target := assignment.target[0], Name)
         or is_excluded_enum_member_name(member_name := target.value)
     ) {
         return None;
@@ -93,6 +93,7 @@ impl build_enum_members(
                 }
 
                 if enum_value_type
+                    and isinstance(enum_value_type, ClassType)
                     and isinstance(member_info.value_type, ClassType)
                     and member_info.value_type.shared != enum_value_type.shared {
                     evaluator.emit_diag(
@@ -111,7 +112,7 @@ impl build_enum_members(
                     else auto_value;
             }
         } elif (
-            isinstance(stmt, NameAtom)
+            isinstance(stmt, Name)
             and not is_excluded_enum_member_name(member_name := stmt.value)
         ) {
             members[member_name] = EnumMemberInfo(

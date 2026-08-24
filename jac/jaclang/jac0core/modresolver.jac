@@ -1,11 +1,13 @@
 import importlib.util;
+import from importlib.machinery { ModuleSpec }
 import os;
 import sys;
 import from pathlib { Path }
 import from jaclang.jac0core.ext_registry { MODULE_SUFFIXES, language_of }
 
 glob _project_root_cache: dict = {},
-     _import_base_stack: list = [];
+     _import_base_stack: list = [],
+     COMPILER_PACKAGE: str = 'jaclang';
 
 def push_import_base(base_dir: str) {
     _import_base_stack.append(base_dir);
@@ -125,6 +127,28 @@ def _candidate_from(base: str, parts: list[str]) -> (tuple[(str, str)] | None) {
     return None;
 }
 
+def _self_tree_candidate(
+    base_dir: str, actual_parts: list[str]
+) -> (tuple[(str, str)] | None) {
+    if actual_parts[0] == COMPILER_PACKAGE {
+        return None;
+    }
+    cur = os.path.abspath(base_dir);
+    while True {
+        parent = os.path.dirname(cur);
+        if parent == cur {
+            return None;
+        }
+        if os.path.basename(cur) == actual_parts[0] {
+            res = _candidate_from(parent, actual_parts);
+            if res {
+                return res;
+            }
+        }
+        cur = parent;
+    }
+}
+
 def _resolve_jac_virtual_module(target: str) -> (tuple[(str, str)] | None) {
     if not target.startswith('@jac/') {
         return None;
@@ -218,7 +242,9 @@ def _resolve_path_alias(target: str, base_path: str) -> (str | None) {
     try {
         import from jaclang.project.config { get_config }
         config = get_config();
-        project_root = config.project_root if config else None;
+        project_root: (str | None) = (
+            str(config.project_root) if config and config.project_root else None
+        );
     } except (ImportError, AttributeError) {
         project_root = None;
     }
@@ -300,6 +326,10 @@ def resolve_module(
         if res {
             return res;
         }
+        res = _self_tree_candidate(base_dir, actual_parts);
+        if res {
+            return res;
+        }
         typeshed_paths = get_typeshed_paths();
         for typeshed_dir in typeshed_paths {
             res = _candidate_from_typeshed(typeshed_dir, actual_parts);
@@ -322,7 +352,11 @@ def resolve_module(
         } except (ImportError, AttributeError, ValueError) {
             spec = None;
         }
-        if (spec and spec.origin and (spec.origin not in {'built-in', 'frozen'})) {
+        if (
+            isinstance(spec, ModuleSpec)
+            and spec.origin
+            and (spec.origin not in {'built-in', 'frozen'})
+        ) {
             origin = os.path.normpath(spec.origin);
             lang = language_of(origin);
             if (lang != 'other') {
@@ -399,7 +433,7 @@ def resolve_relative_path(
 
 glob NPM_RUNTIME_CONDITIONS: tuple = ('browser', 'module', 'import', 'default'),
      NPM_TYPES_CONDITIONS: tuple = ('types', 'import', 'default'),
-     NPM_DTS_SUFFIXES: tuple = ('.d.ts', '.d.mts', '.d.cts');
+     NPM_DTS_SUFFIXES: tuple[str, ...] = ('.d.ts', '.d.mts', '.d.cts');
 
 def _find_npm_package(
     spec: str, base_path: str
@@ -661,9 +695,9 @@ def resolve_client_npm_declarations(spec: str, base_path: str) -> (str | None) {
                 }
             }
         }
-        entry = resolve_client_npm_package(spec, base_path);
-        if entry {
-            sibling = sibling_declaration_file(entry);
+        `entry = resolve_client_npm_package(spec, base_path);
+        if `entry {
+            sibling = sibling_declaration_file(`entry);
             if sibling {
                 return sibling;
             }
@@ -763,12 +797,12 @@ def _npm_package_entry(pkg_dir: str, data: dict) -> (str | None) {
         }
     }
     entries.append(os.path.join(pkg_dir, 'index'));
-    for entry in entries {
-        resolved = _npm_file_with_ext(entry);
+    for `entry in entries {
+        resolved = _npm_file_with_ext(`entry);
         if resolved {
             return resolved;
         }
-        nested = _npm_file_with_ext(os.path.join(entry, 'index'));
+        nested = _npm_file_with_ext(os.path.join(`entry, 'index'));
         if nested {
             return nested;
         }
@@ -786,7 +820,9 @@ def relative_js_specifier(target_path: str, importer_path: str) -> str {
         target = target[:-4];
     }
 
-    rel = os.path.relpath(target, os.path.dirname(importer_path));
+    rel = os.path.relpath(
+        os.path.realpath(target), os.path.dirname(os.path.realpath(importer_path))
+    );
     rel = rel.replace(os.sep, '/');
     if not rel.startswith('.') {
         rel = './' + rel;
