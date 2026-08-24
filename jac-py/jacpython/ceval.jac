@@ -7122,8 +7122,32 @@ def user_exception_view(u: PyUserObj) -> PyException {
     }
     return PyException(
         t="exception", type_name=u.cls.name, message="", args=exc_args,
-        family=family
+        family=family, value=stopiter_value_from_args(family, u.cls.name, exc_args)
     );
+}
+
+# CPython stopiteration_init: a StopIteration instance (or subclass instance)
+# records args[0] as .value at construction. User subclasses raise through the
+# PyUserObj wrapper view, so derive the payload there too -- yield-from
+# unwinding reads exc.value off this view.
+def stopiter_value_from_args(family: str, name: str, args: list[PyObj]) -> PyObj {
+    if name == "StopIteration" or family == "StopIteration"
+        or exc_is_subclass_of(name, "StopIteration")
+        or (family != "" and exc_is_subclass_of(family, "StopIteration")) {
+        if len(args) > 0 {
+            return args[0];
+        }
+    }
+    return py_none();
+}
+
+# True iff a raised exception IS StopIteration or derives from it -- the
+# exhaustion test every yield-from unwinding performs (genobject.c uses
+# PyErr_ExceptionMatches(PyExc_StopIteration)). Builtin names resolve through
+# the name-level tree; user subclasses through the wrapper view's family.
+def exc_is_stopiter(exc: PyException) -> bool {
+    return exc_name_matches(exc.type_name, "StopIteration")
+        or (exc.family != "" and exc_name_matches(exc.family, "StopIteration"));
 }
 
 def py_raise_value(value: PyObj) -> PyObj {
@@ -11473,7 +11497,7 @@ def send_throw_into(receiver: PyObj, err: PyObj) -> PyObj {
     result = py_invoke(thrower, [(err as PyError).exception], {});
     if is_error(result) {
         exc = (result as PyError).exception;
-        if exc.type_name == "StopIteration" {
+        if exc_is_stopiter(exc) {
             payload = py_none();
             if exc.value is not None {
                 payload = exc.value as PyObj;
@@ -11896,7 +11920,7 @@ def send_into(receiver: PyObj, sent: PyObj) -> PyObj {
     result = py_invoke(driver, call_args, {});
     if is_error(result) {
         exc = (result as PyError).exception;
-        if exc.type_name == "StopIteration" {
+        if exc_is_stopiter(exc) {
             payload = py_none();
             if exc.value is not None {
                 payload = exc.value as PyObj;
@@ -13215,7 +13239,11 @@ def run_frame(frame: PyFrame) -> PyObj {
             if exc.t == "exception" {
                 exc_name = (exc as PyException).type_name;
             }
-            if exc_name == "StopIteration" {
+            # A StopIteration (or subclass) means the sub-iterator finished
+            # handling the throw: unwind to (None, value) and loop to END_SEND.
+            if exc_name == "StopIteration"
+                or ((exc as PyException).family != ""
+                and exc_name_matches((exc as PyException).family, "StopIteration")) {
                 payload = py_none();
                 if (exc as PyException).value is not None {
                     payload = (exc as PyException).value as PyObj;

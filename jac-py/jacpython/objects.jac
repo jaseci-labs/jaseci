@@ -2784,8 +2784,21 @@ obj PyExceptionType(PyObj) {
         }
         exc_args: list[PyObj] = [];
         exc_args.extend(args);
+        # CPython stopiteration_init: StopIteration (and subclasses) store
+        # args[0] as .value at construction (None when argless, args[0] even
+        # with extra args). yield-from unwinding reads this payload out of the
+        # raised instance (genobject.c unpacks StopIteration.value), so a
+        # custom __next__ raising StopIteration(42) must carry it here.
+        si_value: PyObj = py_none();
+        if self.name == "StopIteration"
+            or exc_is_subclass_of(self.name, "StopIteration") {
+            if len(args) > 0 {
+                si_value = args[0];
+            }
+        }
         return PyException(
-            t="exception", type_name=self.name, message=message, args=exc_args
+            t="exception", type_name=self.name, message=message, args=exc_args,
+            value=si_value
         );
     }
 }
