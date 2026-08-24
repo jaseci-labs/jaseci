@@ -291,8 +291,6 @@ obj unverified_cfg {
         classdict_names: bool = False,
         # except_region indices whose handler_block is the PEP 479 handler (filled at end).
         pending_pep479_regions: list[int] = [],
-        # try/except unwind handler_block indices (filled after reraise epilogue).
-        pending_try_unwind_regions: list[int] = [],
         # Inner try/finally success-path bounds for outer try/except wrapping.
         nested_try_finally_success_start: int = -1,
         nested_try_finally_success_end: int = -1,
@@ -301,6 +299,10 @@ obj unverified_cfg {
         # the outer body span starts here so entries never overlap the inner
         # try's own regions (CPython table is per-instruction innermost).
         nested_try_except_end: int = -1,
+        # Success-epilogue (start, end) block pairs published by the most
+        # recent nested try/except; an enclosing try in carve-out mode emits
+        # regions covering them so cleanup-time raises reach its own handlers.
+        nested_except_epilogue_spans: list[tuple[int, int]] = [],
         # First block (leading NOP) of the most recent nested try/except; the
         # enclosing handler's match span ends here when the nested try's own
         # regions carve out its body/handler coverage.

@@ -394,17 +394,22 @@ def visit_try_finally(
 }
 
 
-def append_try_unwind_region(g: cfg_builder, reg: except_region) {
+def append_try_unwind_region(g: cfg_builder, ownidx: list[int], reg: except_region) {
+    # Record the region index in the CALLING visit_try invocation's ownership
+    # list. Bindings are resolved by that same invocation after its reraise
+    # epilogue exists; a unit-global pending list would let an enclosing try's
+    # bind pass retarget inner regions to the outer unwind chain (which
+    # corrupted nested-except tables: inner match/reraise spans jumped to the
+    # outer COPY/POP_EXCEPT/RERAISE sequence, escaping every outer handler).
     g.u.except_regions.append(reg);
-    g.u.pending_try_unwind_regions.append(len(g.u.except_regions) - 1);
+    ownidx.append(len(g.u.except_regions) - 1);
 }
 
 
-def bind_try_unwind_handlers(g: cfg_builder, unwind_block: int) {
+def bind_try_unwind_handlers(g: cfg_builder, unwind_block: int, ownidx: list[int]) {
     pi = 0;
-    while pi < len(g.u.pending_try_unwind_regions) {
-        ri = g.u.pending_try_unwind_regions[pi];
-        g.u.except_regions[ri].handler_block = unwind_block;
+    while pi < len(ownidx) {
+        g.u.except_regions[ownidx[pi]].handler_block = unwind_block;
         pi = pi + 1;
     }
 }
@@ -560,7 +565,6 @@ def visit_try_except_finally(
     has_else = t.orelse is not None and len(t.orelse) > 0;
     dead_blocks = -1;
     dead_regions = -1;
-    dead_pending = -1;
     dead_ntf_ss = -1;
     dead_ntf_se = -1;
     dead_ntf_us = -1;
@@ -573,7 +577,6 @@ def visit_try_except_finally(
             # them so registration order matches without keeping the bytes.
             dead_blocks = len(g.u.blocks);
             dead_regions = len(g.u.except_regions);
-            dead_pending = len(g.u.pending_try_unwind_regions);
             dead_ntf_ss = g.u.nested_try_finally_success_start;
             dead_ntf_se = g.u.nested_try_finally_success_end;
             dead_ntf_us = g.u.nested_try_finally_unwind_start;
@@ -587,8 +590,6 @@ def visit_try_except_finally(
         if dead_blocks >= 0 {
             g.u.blocks = g.u.blocks[0:dead_blocks];
             g.u.except_regions = g.u.except_regions[0:dead_regions];
-            g.u.pending_try_unwind_regions =
-                g.u.pending_try_unwind_regions[0:dead_pending];
             g.u.nested_try_finally_success_start = dead_ntf_ss;
             g.u.nested_try_finally_success_end = dead_ntf_se;
             g.u.nested_try_finally_unwind_start = dead_ntf_us;
@@ -628,6 +629,11 @@ def visit_try_except_finally(
     spans: list[except_region] = [];
 
     # try body -> first handler.
+    # Consume epilogue spans published by the nested try/except in our body
+    # (if any). Snapshot-and-clear regardless of branch: stale spans must
+    # never leak into a later sibling's carve-out.
+    child_epi_spans = g.u.nested_except_epilogue_spans;
+    g.u.nested_except_epilogue_spans = [];
     if body_is_try_finally_only(t.body) {
         if g.u.nested_try_finally_success_start >= 0
             and g.u.nested_try_finally_success_end >= 0 {
@@ -661,6 +667,19 @@ def visit_try_except_finally(
                 stack_depth=1
             )
         );
+        # Cover each inner handler's success-epilogue block so raises during
+        # its final POP_EXCEPT / binding cleanup reach OUR handlers (CPython
+        # emits one depth-0 entry per inner handler epilogue).
+        for esp in child_epi_spans {
+            spans.append(
+                except_region(
+                    start_block=esp[0],
+                    end_block=esp[1],
+                    handler_block=handler_entry.id,
+                    stack_depth=1
+                )
+            );
+        }
     } else {
         spans.append(
             except_region(
@@ -1156,6 +1175,8 @@ def visit_try(
         return stmt_cont(loc=tloc);
     }
     g.u.nested_try_except_end = -1;
+    # except_region indices owned (and later bound) by this invocation only.
+    ownidx: list[int] = [];
     nop_blk = g.new_block();
     g.u.nested_try_except_start = nop_blk.id;
     try_body = g.new_block();
@@ -1253,6 +1274,11 @@ def visit_try(
         hi = hi + 1;
     }
     reraise_blk = g.new_block();
+    # Consume epilogue spans published by the nested try/except in our body
+    # (if any). Snapshot-and-clear regardless of branch: stale spans must
+    # never leak into a later sibling's carve-out.
+    child_epi_spans = g.u.nested_except_epilogue_spans;
+    g.u.nested_except_epilogue_spans = [];
     if body_is_try_finally_only(t.body) {
         if g.u.nested_try_finally_success_start >= 0
             and g.u.nested_try_finally_success_end >= 0 {
@@ -1284,6 +1310,19 @@ def visit_try(
                 stack_depth=1
             )
         );
+        # Cover each inner handler's success-epilogue block so raises during
+        # its final POP_EXCEPT / binding cleanup reach OUR handlers (CPython
+        # emits one depth-0 entry per inner handler epilogue).
+        for esp in child_epi_spans {
+            g.u.except_regions.append(
+                except_region(
+                    start_block=esp[0],
+                    end_block=esp[1],
+                    handler_block=handler_entry.id,
+                    stack_depth=1
+                )
+            );
+        }
     } else {
         g.u.except_regions.append(
             except_region(
@@ -1361,6 +1400,15 @@ def visit_try(
                 emit_except_as_cleanup(g, bind_name, hbody.loc);
             }
             g.use(handler_success);
+            if not (g.handler_fallthrough_fin is not None and not try_follows) {
+                # Publish this handler's success-epilogue span (POP_EXCEPT
+                # through binding cleanup). An enclosing try in carve-out mode
+                # emits a region over it targeting its own handlers, matching
+                # CPython's entry for the inner handler's final POP_EXCEPT.
+                g.u.nested_except_epilogue_spans.append(
+                    (handler_region_end.id, handler_success.id)
+                );
+            }
             if g.handler_fallthrough_fin is not None and not try_follows {
                 # Nested in an enclosing handler: emit its epilogue inline
                 # (second POP_EXCEPT + jump to finally) instead of returning.
@@ -1393,6 +1441,7 @@ def visit_try(
         if bind_name is not None {
             append_try_unwind_region(
                 g,
+                ownidx,
                 except_region(
                     start_block=handler_region_start,
                     end_block=handler_body_start,
@@ -1427,6 +1476,7 @@ def visit_try(
                     # inline epilogue maps to the fin handler.
                     append_try_unwind_region(
                         g,
+                        ownidx,
                         except_region(
                             start_block=handler_region_start,
                             end_block=handler_region_end.id,
@@ -1453,6 +1503,7 @@ def visit_try(
                 } else {
                     append_try_unwind_region(
                         g,
+                        ownidx,
                         except_region(
                             start_block=handler_region_start,
                             end_block=handler_region_end.id,
@@ -1495,6 +1546,7 @@ def visit_try(
         if except_as_unwind_start >= 0 {
             append_try_unwind_region(
                 g,
+                ownidx,
                 except_region(
                     start_block=except_as_unwind_start,
                     end_block=unwind_blk.id,
@@ -1506,6 +1558,7 @@ def visit_try(
         } elif not last_is_bare {
             append_try_unwind_region(
                 g,
+                ownidx,
                 except_region(
                     start_block=reraise_blk.id,
                     end_block=reraise_end.id,
@@ -1518,6 +1571,7 @@ def visit_try(
     } else {
         append_try_unwind_region(
             g,
+            ownidx,
             except_region(
                 start_block=merged_handler_unwind_start,
                 end_block=unwind_blk.id,
@@ -1527,7 +1581,7 @@ def visit_try(
             )
         );
     }
-    bind_try_unwind_handlers(g, unwind_blk.id);
+    bind_try_unwind_handlers(g, unwind_blk.id, ownidx);
     g.use(unwind_blk);
     g.emit_op(OP_COPY, 3, noloc);
     g.emit_op(OP_POP_EXCEPT, 0, noloc);
