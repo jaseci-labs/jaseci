@@ -3,9 +3,13 @@
 Note: useEffect import is auto-injected from @jac/runtime when `can with entry/exit` is used.
 """
 
+async def fetch_user(userId: str) -> dict {
+    return {"id": userId};
+}
+
 def:pub user_profile(userId: str) -> JsxElement {
-    has userData: dict = {};
-    has loading: bool = True;
+    has userData: dict = {},
+        loading: bool = True;
 
     # Effect with dependencies (tuple syntax) - re-runs when userId or loading changes
     async can with (userId, loading) entry {

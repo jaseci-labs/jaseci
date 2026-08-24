@@ -64,7 +64,7 @@ test "in for stmt iteration variables" {
 test "compr unpacking variables" {
     file_path = os.path.join(FIXTURES, "comprehension_patterns.jac");
     mod = JacProgram().compile(file_path);
-    test_cases = [
+    test_cases: list[tuple[int, set[str], type]] = [
         (0, {"x"}, uni.ListCompr),
         (1, {"a", "b", "rest"}, uni.ListCompr),
         (2, {"a", "b", "c", "d"}, uni.ListCompr),

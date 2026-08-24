@@ -61,7 +61,7 @@ glob registry = get_registry();
             help="With --lint: auto-fix violations"
         ),
         Arg.create(
-            "native-census",
+            "native-coverage",
             typ=bool,
             `default=False,
             short="",
@@ -85,7 +85,7 @@ glob registry = get_registry();
     ],
     examples=[
         ("jac check myprogram.jac", "Check a single file"),
-        ("jac check . --native-census", "Rank modules by native compile outcome"),
+        ("jac check . --native-coverage", "Rank modules by native compile outcome"),
         ("jac check . --placements", "Show element placements with evidence"),
         ("jac check . --lint", "Report lint violations only"),
         ("jac check . --lint --fix", "Auto-fix lint violations"),
@@ -114,7 +114,7 @@ def check(
     nowarn: bool = False,
     lint_only: bool = False,
     fix: bool = False,
-    native_census: bool = False,
+    native_coverage: bool = False,
     placements: bool = False,
     compile_stats: bool = False
 ) -> int;
@@ -279,7 +279,12 @@ def precommit(
             short="v",
             config_key="test.verbose"
         ),
-        Arg.create("ignore", `default="", help="Path to skip during collection"),
+        Arg.create(
+            "ignore",
+            kind=ArgKind.MULTI_OPTION,
+            `default=[],
+            help="Paths to skip during collection (space separated)"
+        ),
         Arg.create(
             "profile",
             `default="",
@@ -306,7 +311,7 @@ def `test(
     maxfail: int = None,
     directory: str = "",
     verbose: bool = False,
-    ignore: str = ""
+    ignore: (list | None) = None
 ) -> int;
 
 @registry.command(

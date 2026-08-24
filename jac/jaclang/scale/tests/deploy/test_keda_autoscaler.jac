@@ -7,6 +7,9 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
     TriggerAuth
 }
 
+def _as_any(v: any) -> any {
+    return v;
+}
 
 test "cpu trigger is translated to KEDA Utilization format" {
     keda = KEDAAutoscaler();
@@ -340,7 +343,7 @@ test "apply logs the install docs link when KEDA CRDs are not installed" {
     mock_api = unittest.mock.MagicMock();
     mock_api.list_cluster_custom_object.side_effect = ApiException(status=404);
     mock_logger = unittest.mock.MagicMock();
-    keda = KEDAAutoscaler(_custom_api=mock_api, logger=mock_logger);
+    keda = KEDAAutoscaler(_custom_api=mock_api, logger=_as_any(mock_logger));
     spec = AutoscalerSpec(
         scale_target_name="svc-deployment",
         namespace="default",

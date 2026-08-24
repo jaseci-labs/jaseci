@@ -5,6 +5,7 @@ native machine code, and produce correct results when executed via ctypes.
 """
 
 import ctypes;
+import from _ctypes { CFuncPtr }
 import io;
 import os;
 import subprocess;
@@ -36,7 +37,9 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(
+    eng: ExecutionEngine, name: str, restype: (type | None), *argtypes: type
+) -> CFuncPtr {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -56,7 +59,9 @@ class JacStrABI(ctypes.Structure) {
     ];
 }
 
-def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_sfunc(
+    eng: ExecutionEngine, name: str, restype: (type | None), *argtypes: type
+) -> Callable[..., any] {
     # descriptor-ABI variant of get_func: a c_char_p spelling here means a
     # Jac `str` (the by-value {root, data, len} descriptor at the native
     # ABI). LLVM decomposes a by-value descriptor param into three scalar
@@ -66,7 +71,7 @@ def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> 
     # comparisons keep working.
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {
@@ -293,6 +298,7 @@ test "native partial class: un-lowerable method skipped, sibling stays native" {
     assert measure(b"hello") == 5;
     assert measure(b"") == 0;
     layout = ir.gen.native_layout;
+    assert layout is not None , "native layout missing";
     # The native-eligible method is exported; the eval-using one is skipped.
     assert "Literal.length" in layout.methods;
     assert "Literal.evaluate" not in layout.methods;
@@ -2273,7 +2279,7 @@ test "py interop native calls python function" {
     assert eng is not None;
     # Register the Python function in the interop callback table
     py_func_table = ir.gen.interop_py_funcs;
-    py_func_table["py_double"] = lambda (x) { x * 2; };
+    py_func_table["py_double"] = lambda (x: int) { x * 2; };
     # Now call the native function
     f = get_func(eng, "native_add_one_to_doubled", ctypes.c_int64, ctypes.c_int64);
     assert f(5) == 11;  # py_double(5) = 10, + 1 = 11
@@ -2753,7 +2759,7 @@ test "clib extensionless import resolves per platform (issue #6387)" {
         ] {
             _os.environ["JAC_NATIVE_TARGET"] = tgt;
             prog = JacProgram();
-            ir = prog.compile(_fix, options=CompileOptions(type_check=False));
+            ir = prog.compile(_fix, options=CompileOptions());
             assert not prog.errors_had , f"{tgt}: {prog.errors_had}";
             assert list(ir.gen._clib_paths) == [want] , f"{tgt}: got {ir.gen._clib_paths}, want [{want}]";
         }
@@ -2776,10 +2782,10 @@ test "clib dotted logical import maps to origin-relative subdir (issue #6387)" {
     _fix = str(os.path.join(FIXTURES, "clib_logical_dotted.jac"));
     try {
         _os.environ["JAC_NATIVE_TARGET"] = "x86_64-unknown-linux-gnu";
-        ir = JacProgram().compile(_fix, options=CompileOptions(type_check=False));
+        ir = JacProgram().compile(_fix, options=CompileOptions());
         assert list(ir.gen._clib_paths) == ["$ORIGIN/libs/libraylib.so"] , f"ELF: {ir.gen._clib_paths}";
         _os.environ["JAC_NATIVE_TARGET"] = "arm64-apple-darwin";
-        ir2 = JacProgram().compile(_fix, options=CompileOptions(type_check=False));
+        ir2 = JacProgram().compile(_fix, options=CompileOptions());
         assert list(ir2.gen._clib_paths) == ["@loader_path/libs/libraylib.dylib"] , f"Mach-O: {ir2.gen._clib_paths}";
     } finally {
         if _saved is None {
@@ -2932,8 +2938,7 @@ test "clib AArch64 AAPCS ABI lowering" {
     try {
         prog = JacProgram();
         ir = prog.compile(
-            str(os.path.join(FIXTURES, "clib_sysv_abi.jac")),
-            options=CompileOptions(type_check=False)
+            str(os.path.join(FIXTURES, "clib_sysv_abi.jac")), options=CompileOptions()
         );
         assert not prog.errors_had , f"Errors: {prog.errors_had}";
         assert ir.gen.llvm_ir is not None , "No LLVM IR generated";
@@ -3214,8 +3219,7 @@ def compile_auto_native(file_path: str) -> tuple[uni.Module, JacProgram] {
     prog = JacProgram();
     try {
         ir = prog.compile(
-            file_path=file_path,
-            options=CompileOptions(default_codespace='native', type_check=False)
+            file_path=file_path, options=CompileOptions(default_codespace='native')
         );
     } finally {
         set_effective_default_codespace('');
@@ -3806,7 +3810,8 @@ test "elf linker rejects unhandled relocation (issue #6366 guard)" {
         }
     }
     assert target is not None , "no .text relocation found to corrupt";
-    target.rtype = 9999;
+    _corrupt: any = target;
+    _corrupt.rtype = 9999;
     raised = False;
     try {
         linker.build_executable();
@@ -4110,6 +4115,7 @@ test "jir bitcode cache round-trip" {
     # Step 5: Verify native engine was restored via get_native_interop_setup
     (engine, _) = compiler2.get_native_interop_setup(fixture, prog2);
     assert engine is not None , "Native engine should be restored from bitcode cache";
+    assert isinstance(engine, ExecutionEngine) , "restored engine has the wrong type";
     add = get_func(engine, "add", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
     assert add(17, 25) == 42 , f"add(17,25) via cached engine should be 42, got {add(
         17, 25
@@ -5237,7 +5243,7 @@ test "finding 2 guard: int-to-obj escape hatch does not leak into the sv pathway
     # is the assignability error.
     sv_prog = JacProgram();
     sv_path = os.path.join(FIXTURES, "_finding2_guard.jac");
-    sv_prog.compile(file_path=sv_path, use_str=code, type_check=True);
+    sv_prog.compile(file_path=sv_path, use_str=code);
     assert sv_prog.errors_had , (
         "sv pathway must reject `w: Wrapper = raw` (int → obj). The native "
         "pointer-bitcast escape hatch must not apply outside native modules."
@@ -5562,7 +5568,9 @@ test "a failing native test must not abort the host process" {
     # and the no-handler abort() path -- calling the failing test twice in
     # one process proves the handler is popped/re-armed correctly too.
     (eng, ir) = compile_native("test_blocks.jac");
-    by_name = {t.name: t for t in ir.gen.native_layout.tests};
+    blocks_layout = ir.gen.native_layout;
+    assert blocks_layout is not None , "native layout missing";
+    by_name = {t.name: t for t in blocks_layout.tests};
     failing = get_func(eng, by_name["test_deliberate_failure"].symbol, ctypes.c_char_p);
     assert failing() is not None;
     assert failing() is not None;

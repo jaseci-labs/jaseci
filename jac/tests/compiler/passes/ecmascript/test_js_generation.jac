@@ -66,7 +66,7 @@ def _fatal_compile_errors(prog: JacProgram) -> list[Alert] {
     # Filter out type-checker diagnostics (non-fatal warnings about
     # Unknown types in client code).  Only fail on parse/compile errors.
     # issubclass: diagnostics may come from TypeCheckPass itself or its
-    # TypeInferencePass schedule entry.
+    # TypeCheckPass schedule entry.
     return [
         e
         for e in prog.errors_had
@@ -82,7 +82,7 @@ def compile_fixture_to_js(fixture_name: str, fixture_dir: str = "") -> str {
         return _js_compile_cache[cache_key];
     }
     prog = JacProgram();
-    ir = prog.compile(file_path=fixture_path, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=fixture_path, no_cgen=True);
     _fatal = _fatal_compile_errors(prog);
     assert not _fatal , (
         f"Compilation errors in {fixture_name}: {[str(e) for e in _fatal]}"
@@ -1165,7 +1165,7 @@ test "sv import duplicate kwarg is a compile error" {
 
     fixture = os.path.join(FIXTURES, "svc_kwargs/sv_import_kwargs_dup.jac");
     prog = JacProgram();
-    ir = prog.compile(file_path=fixture, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=fixture, no_cgen=True);
     run_pass(EsastGenPass, ir, prog);
 
     dup_errs = [
@@ -2879,7 +2879,7 @@ test "builtin functions lower to runtime helpers without type-check (#7480)" {
     import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
     fixture_path = _resolve_fixture_path("builtin_func_untyped.jac", FIXTURES);
     prog = JacProgram();
-    ir = prog.compile(file_path=fixture_path, no_cgen=True, type_check=False);
+    ir = prog.compile(file_path=fixture_path, no_cgen=True);
     _fatal = _fatal_compile_errors(prog);
     assert not _fatal , (f"Compilation errors: {[str(e) for e in _fatal]}");
     _ensure_js_generated(ir, prog);
@@ -3069,7 +3069,7 @@ test "unimplemented client statement is a hard error, not a silent drop (#7922)"
     temp_path = write_temp_jac(jac_code);
     try {
         prog = JacProgram();
-        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        ir = prog.compile(file_path=temp_path, no_cgen=True);
         run_pass(EsastGenPass, ir, prog);
         drops = [
             e
@@ -3108,7 +3108,7 @@ test "supported client statements do not trip the completeness guard (#7922)" {
     temp_path = write_temp_jac(jac_code);
     try {
         prog = JacProgram();
-        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        ir = prog.compile(file_path=temp_path, no_cgen=True);
         run_pass(EsastGenPass, ir, prog);
         drops = [
             e
@@ -3118,6 +3118,40 @@ test "supported client statements do not trip the completeness guard (#7922)" {
         assert not drops , (
             "Guard false-positive on supported statements: "
             + str([str(e) for e in drops])
+        );
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+test "E5018 names the rewrite that makes the pattern lower (#8375)" {
+    # `match` itself lowers to the client -- only certain pattern shapes do
+    # not, so the diagnostic must name the per-construct rewrite.
+    jac_code = (
+        "def t_match(v: any) -> str {\n"
+        "    match v {\n"
+        "        case [x] | (x, ): return str(x);\n"
+        "        case _: return \"other\";\n"
+        "    }\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        prog = JacProgram();
+        ir = prog.compile(file_path=temp_path, no_cgen=True);
+        run_pass(EsastGenPass, ir, prog);
+        pats = [
+            e
+            for e in prog.errors_had
+            if 'E5018' in e.pretty_print()
+        ];
+        assert len(pats) == 1 , (
+            "Expected exactly one E5018, got " + str([str(e) for e in prog.errors_had])
+        );
+        rendered = pats[0].pretty_print();
+        assert "own 'case'" in rendered , (
+            "E5018 must name the split-into-cases rewrite; got " + rendered
         );
     } finally {
         os.unlink(temp_path);
@@ -3414,4 +3448,43 @@ test "obj postinit is invoked by the generated constructor" {
         "postinit-only archetype (no has fields) must also get the call"
     );
     assert_balanced_syntax(js_code, "postinit_obj.jac");
+}
+
+test "a state setter handed out as a value loads without a ReferenceError" {
+    # #8224 executed rather than pattern-matched: the module that returns
+    # `setTheme` alongside `theme` used to throw `ReferenceError: setTheme is
+    # not defined` on first render, with the build green.
+    import re;
+    js_code = compile_fixture_to_js("state_setter_value_ref.jac", FIXTURES);
+    # Stand in for @jac/runtime with a cell carrying the same read/write shape.
+    stub = (
+        "const useJacState = (v) => { let cur = v; return { get val() "
+        "{ return cur; }, set(n) { cur = n; } }; };"
+    );
+    body = re.sub(r'import \{[^}]*\} from "@jac/runtime";', stub, js_code, count=1);
+    assert stub in body , (
+        f"fixture must import its state hook from @jac/runtime; got:\n{js_code}"
+    );
+    wrapper = body
+        + (
+            "\nconst box = useThing();\n"
+            'box.setTheme("light");\n'
+            'console.log(JSON.stringify({kind: typeof box.setTheme}));\n'
+        );
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "the emitted module must load and run:\nstderr="
+        + result.stderr
+        + "\njs:\n"
+        + body
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    assert got["kind"] == "function" , (
+        f"setTheme must reach the caller as a callable, got {got}"
+    );
 }

@@ -11,6 +11,7 @@ import from inspect { iscoroutine, isgenerator }
 import from pathlib { Path }
 import from typing { AsyncGenerator, Generator, TypeAlias, get_type_hints }
 import from urllib.parse { parse_qs, urlparse }
+import from jaclang.runtimelib.builtin { APIProtocol }
 import from jaclang.runtimelib.client_bundle { ClientBundleError }
 import from jaclang.runtimelib.context { CallState, ExecutionContext }
 import from jaclang.runtimelib.transport { TransportResponse, Meta }
@@ -36,7 +37,7 @@ import from jaclang.runtimelib.serving.server { PORT_RETRY_LIMIT, ServingServer 
 import from jaclang.runtimelib.static_files { find_static_candidate, is_asset_request }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.project.config { get_config }
-import from jaclang.runtimelib.scheduler { Scheduler }
+import from jaclang.runtimelib.scheduler { ScheduleSpec, Scheduler }
 import from jaclang.jac0core.constant { Constants as Con }
 import type from jaclang.jac0core.constructs { Archetype, WalkerArchetype }
 
@@ -101,7 +102,10 @@ obj ExecutionManager {
         walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
 
-    async def report_collector(call_state: CallState) -> dict[str, JsonValue];
+    async def report_collector(
+        call_state: CallState
+    ) -> list[JsonValue] | Generator | AsyncGenerator;
+
     async def _finalize_call_response(
         call_state: CallState, result: any
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
@@ -120,7 +124,7 @@ obj ModuleIntrospector {
         _bundle_error: (str | None) = None,
         _bundle_epoch: int = 0,
         _bundle_builder: any postinit,
-        _bundle_lock: any postinit,
+        _bundle_lock: threading.Lock postinit,
         _function_access: dict[(str, bool)] = {},
         _walker_access: dict[(str, bool)] = {},
         _spa_routes_loaded: bool = False,
@@ -240,7 +244,7 @@ obj JacAPIServer {
     def start(
         dev: bool = False,
         no_client: bool = False,
-        on_ready: Callable[[int], None] | None = None
+        on_ready: Callable[..., None] | None = None
     ) -> None;
 }
 

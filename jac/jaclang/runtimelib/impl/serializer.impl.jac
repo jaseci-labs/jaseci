@@ -229,7 +229,7 @@ impl Serializer._deserialize_jac_ref(data: dict[str, object]) -> (object | None)
     }
     ref_type = data.get('$type');
     stub_cls = cast(
-        type,
+        type[Anchor],
         (
             NodeAnchor
                 if ref_type == 'node'
@@ -245,10 +245,11 @@ impl Serializer.deserialize(data: dict[str, object]) -> (object | None) {
     if not isinstance(data, dict) {
         return data;
     }
-    type_name = data.get('__type__');
-    if not type_name {
+    raw_type_name = data.get('__type__');
+    if not isinstance(raw_type_name, str) or not raw_type_name {
         return {k: Serializer._deserialize_value(v) for (k, v) in data.items()};
     }
+    type_name = raw_type_name;
     dispatch = {
         'Anchor': Serializer._deserialize_anchor,
         'NodeAnchor': Serializer._deserialize_anchor,
@@ -260,7 +261,10 @@ impl Serializer.deserialize(data: dict[str, object]) -> (object | None) {
         return handler(data);
     }
 
-    if (cls := Serializer._get_class(data.get('__module__'), type_name)) {
+    raw_module_name = data.get('__module__');
+    module_name = raw_module_name if isinstance(raw_module_name, str) else '';
+    if (resolved := Serializer._get_class(module_name, type_name)) {
+        cls = cast(type[object], resolved);
         try {
             instance = cls.__new__(cls);
             field_types = get_field_types(cls);
@@ -323,10 +327,10 @@ impl Serializer.register(cls: type) -> None {
 
     _warm_typecache(cls);
     try {
-        cls.__jac_fingerprint__ = Serializer.fingerprint(cls);
+        setattr(cls, '__jac_fingerprint__', Serializer.fingerprint(cls));
     } except Exception as e {
         logger.debug(f"Failed to compute fingerprint for {cls.__name__}: {e}");
-        cls.__jac_fingerprint__ = '';
+        setattr(cls, '__jac_fingerprint__', '');
     }
 
     import from jaclang.runtimelib.schema_rules { collect_rules }
@@ -775,7 +779,7 @@ impl Serializer._reset_warn_cache -> None {
     }
 }
 
-impl Serializer._id_to_stub(anchor_cls: type, id_str: str) -> (Anchor | None) {
+impl Serializer._id_to_stub(anchor_cls: type[Anchor], id_str: str) -> (Anchor | None) {
     try {
         stub = anchor_cls.__new__(anchor_cls);
         stub.id = UUID(id_str);
@@ -788,15 +792,42 @@ impl Serializer._id_to_stub(anchor_cls: type, id_str: str) -> (Anchor | None) {
     }
 }
 
+def _new_anchor(type_name: object) -> Anchor {
+    if type_name == 'NodeAnchor' {
+        return NodeAnchor.__new__(NodeAnchor);
+    }
+    if type_name == 'EdgeAnchor' {
+        return EdgeAnchor.__new__(EdgeAnchor);
+    }
+    return Anchor.__new__(Anchor);
+}
+
+
+def _node_stub(raw_id: object, role: str) -> NodeAnchor {
+    if not isinstance(raw_id, str) or not raw_id {
+        raise TypeError(f"anchor payload '{role}' is not a string id");
+    }
+    stub = Serializer._id_to_stub(NodeAnchor, raw_id);
+    if not isinstance(stub, NodeAnchor) {
+        raise ValueError(f"anchor payload '{role}' is not a usable id: {raw_id}");
+    }
+    return stub;
+}
+
+
 impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) {
-    anchor_cls = {'NodeAnchor': NodeAnchor, 'EdgeAnchor': EdgeAnchor}.get(
-        data.get('__type__', ''), Anchor
-    );
     try {
-        anchor = anchor_cls.__new__(anchor_cls);
-        anchor.id = UUID(data['id']) if data.get('id') else None;
-        anchor.root = UUID(data['root']) if data.get('root') else None;
-        anchor.persistent = data.get('persistent', False);
+        anchor: Anchor = _new_anchor(data.get('__type__', ''));
+        raw_id = data.get('id');
+        if not isinstance(raw_id, str) or not raw_id {
+            raise ValueError("anchor payload carries no usable 'id'");
+        }
+        anchor.id = UUID(raw_id);
+        raw_root = data.get('root');
+        anchor.`root = UUID(raw_root)
+            if isinstance(raw_root, str) and raw_root
+            else None;
+        anchor.persistent = bool(data.get('persistent', False));
         anchor.access = Serializer._deserialize_permission(data.get('access'));
 
         if (arch_data := data.get('archetype')) {
@@ -828,16 +859,36 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
                 }
                 return None;
             }
+            if not isinstance(archetype, Archetype) {
+                raise TypeError(
+                    "anchor payload 'archetype' did not reconstruct an Archetype"
+                );
+            }
             anchor.archetype = archetype;
         }
         if isinstance(anchor, NodeAnchor) {
-            edge_ids = data.get('edges');
+            raw_edges = data.get('edges');
+            edge_ids: list[str] = [];
+            if raw_edges {
+                if not isinstance(raw_edges, list) {
+                    raise TypeError("anchor payload 'edges' is not a list");
+                }
+                for raw_eid in raw_edges {
+                    if not isinstance(raw_eid, str) {
+                        raise TypeError(
+                            "anchor payload 'edges' holds a non-string edge id"
+                        );
+                    }
+                    edge_ids.append(raw_eid);
+                }
+            }
             if not edge_ids {
                 anchor.edges = [];
             } else {
-                edges = [];
+                edges: list[EdgeAnchor] = [];
                 for eid in edge_ids {
-                    if (stub := Serializer._id_to_stub(EdgeAnchor, eid)) {
+                    stub = Serializer._id_to_stub(EdgeAnchor, eid);
+                    if isinstance(stub, EdgeAnchor) {
                         edges.append(stub);
                     }
                 }
@@ -850,16 +901,17 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
                 frozenset(UUID(eid) for eid in (edge_ids or []))
             );
 
-            anchor.version = data.get('version', 0);
+            raw_version = data.get('version', 0);
+            anchor.version = raw_version if isinstance(raw_version, int) else 0;
         }
         if isinstance(anchor, EdgeAnchor) {
-            anchor.is_undirected = data.get('is_undirected', False);
+            anchor.is_undirected = bool(data.get('is_undirected', False));
 
             if (source_id := data.get('source')) {
-                anchor.source = Serializer._id_to_stub(NodeAnchor, source_id);
+                anchor.source = _node_stub(source_id, 'source');
             }
             if (target_id := data.get('target')) {
-                anchor.target = Serializer._id_to_stub(NodeAnchor, target_id);
+                anchor.target = _node_stub(target_id, 'target');
             }
         }
 
@@ -903,8 +955,13 @@ impl Serializer._deserialize_access(data: object) -> Access {
         return Access();
     }
     access = Access();
-    if (anchors := data.get('anchors')) {
-        access.anchors = {k: access_level_cast(v) for (k, v) in anchors.items()};
+    anchors = data.get('anchors');
+    if isinstance(anchors, dict) and anchors {
+        for (k, v) in anchors.items() {
+            if isinstance(v, (int, str, AccessLevel)) {
+                access.anchors[str(k)] = access_level_cast(v);
+            }
+        }
     }
     return access;
 }
@@ -924,7 +981,7 @@ impl Serializer._deserialize_archetype(
     if not resolved {
         return None;
     }
-    cls = cast(type, resolved);
+    cls = cast(type[object], resolved);
     mode = repair_mode();
     (data, repair_steps) = Serializer.repair(data, cls);
     try {

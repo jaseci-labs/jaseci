@@ -20,7 +20,7 @@ sessionStorage) live in dom_types.pyi; this file is disjoint from it.
 """
 
 from collections.abc import Callable, Generator
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 if TYPE_CHECKING:
     # HTMLElement lives in dom_types.pyi, whose names the TypeEvaluator merges
@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from dom_types import HTMLElement
 
 _T = TypeVar("_T")
+_K = TypeVar("_K")
+_V = TypeVar("_V")
 
 __all__ = [
     # Standard built-in objects
@@ -44,6 +46,9 @@ __all__ = [
     "Array",
     "Object",
     "BigInt",
+    # Keyed collections
+    "Set",
+    "Map",
     # Binary / typed data (wasm interop)
     "ArrayBuffer",
     "Uint8Array",
@@ -69,6 +74,14 @@ __all__ = [
     "location",
     "history",
     "screen",
+    "performance",
+    "globalThis",
+    "AbortController",
+    "AbortSignal",
+    "ResizeObserver",
+    "ResizeObserverEntry",
+    "Reflect",
+    "Proxy",
     # Global functions
     "parseInt",
     "parseFloat",
@@ -285,6 +298,44 @@ class Object:
     def create(proto: object, *args: object) -> object: ...
     @staticmethod
     def fromEntries(entries: object) -> object: ...
+    @staticmethod
+    def getPrototypeOf(obj: object) -> object: ...
+    prototype: _ObjectPrototype
+    @staticmethod
+    def is_(a: object, b: object) -> bool: ...
+
+class _BoundToString:
+    """`Object.prototype.toString`, reached to brand-check a value."""
+
+    def call(self, this: object, *args: object) -> str: ...
+
+class _ObjectPrototype:
+    """`Object.prototype`, used for the `[object Tag]` brand check."""
+
+    toString: _BoundToString
+    def hasOwnProperty(self, key: str) -> bool: ...
+
+class Reflect:
+    """The `Reflect` global. Jac has no `new`, so host construction goes
+    through `Reflect.construct`."""
+
+    @staticmethod
+    def construct(target: object, args: object = ...) -> _HostObject: ...
+    @staticmethod
+    def deleteProperty(target: object, key: object) -> bool: ...
+    @staticmethod
+    def get(target: object, key: object) -> _HostObject: ...
+    @staticmethod
+    def set(target: object, key: object, value: object) -> bool: ...
+    @staticmethod
+    def has(target: object, key: object) -> bool: ...
+    @staticmethod
+    def ownKeys(target: object) -> list[str]: ...
+
+class Proxy:
+    """The `Proxy` global; constructed through `Reflect.construct`."""
+
+    def __init__(self, target: object, handler: object) -> None: ...
 
 class BigInt(int):
     """The `BigInt` global: arbitrary-precision integer coercion + static
@@ -296,6 +347,37 @@ class BigInt(int):
     def asUintN(bits: float, value: object) -> BigInt: ...
     @staticmethod
     def asIntN(bits: float, value: object) -> BigInt: ...
+
+# ── Keyed collections ──────────────────────────────────────────────────
+
+class Set(Generic[_T]):
+    """The ECMAScript Set object (`new(Set, iterable?)`)."""
+
+    def __init__(self, iterable: object = ...) -> None: ...
+    size: int
+    def add(self, value: _T) -> Set[_T]: ...
+    def clear(self) -> None: ...
+    def delete(self, value: _T) -> bool: ...
+    def has(self, value: _T) -> bool: ...
+    def forEach(self, callback: Callable[..., object]) -> None: ...
+    def keys(self) -> object: ...
+    def values(self) -> object: ...
+    def entries(self) -> object: ...
+
+class Map(Generic[_K, _V]):
+    """The ECMAScript Map object (`new(Map, entries?)`)."""
+
+    def __init__(self, entries: object = ...) -> None: ...
+    size: int
+    def clear(self) -> None: ...
+    def delete(self, key: _K) -> bool: ...
+    def get(self, key: _K) -> _V | None: ...
+    def has(self, key: _K) -> bool: ...
+    def set(self, key: _K, value: _V) -> Map[_K, _V]: ...
+    def forEach(self, callback: Callable[..., object]) -> None: ...
+    def keys(self) -> object: ...
+    def values(self) -> object: ...
+    def entries(self) -> object: ...
 
 # ── Binary / typed data (used to read & write wasm linear memory) ──────
 
@@ -536,6 +618,106 @@ class _Console:
 
 console: _Console
 
+class _HostObject:
+    """A host-injected JavaScript value reached through `globalThis`.
+
+    The desktop plugin broker, the wasm bridge and the client test hooks attach
+    their own objects to the global. No stub can enumerate them, so a host
+    value stays open: any property is another host value, it may be called, and
+    it may be awaited. This keeps such bridges checkable without pretending the
+    shapes are known.
+    """
+
+    def __getattr__(self, name: str) -> _HostObject: ...
+    def __setattr__(self, name: str, value: object) -> None: ...
+    def __call__(self, *args: object, **kwargs: object) -> _HostObject: ...
+    def __await__(self) -> Generator[object, object, object]: ...
+
+class AbortSignal:
+    """The `signal` half of an `AbortController`."""
+
+    @property
+    def aborted(self) -> bool: ...
+    @property
+    def reason(self) -> object: ...
+    def throwIfAborted(self) -> None: ...
+    def addEventListener(
+        self, type: str, listener: Callable[..., object], options: object = ...
+    ) -> None: ...
+    def removeEventListener(
+        self, type: str, listener: Callable[..., object], options: object = ...
+    ) -> None: ...
+
+class AbortController:
+    """Cancels a `fetch` (or any abortable operation) through its signal."""
+
+    @property
+    def signal(self) -> AbortSignal: ...
+    def abort(self, reason: object = ...) -> None: ...
+
+class ResizeObserverEntry:
+    """One observed element's new geometry."""
+
+    @property
+    def target(self) -> object: ...
+    @property
+    def contentRect(self) -> object: ...
+
+class ResizeObserver:
+    """Reports size changes of observed elements."""
+
+    def __init__(
+        self, callback: Callable[[list[ResizeObserverEntry], ResizeObserver], object]
+    ) -> None: ...
+    def observe(self, target: object, options: object = ...) -> None: ...
+    def unobserve(self, target: object) -> None: ...
+    def disconnect(self) -> None: ...
+
+class _GlobalThis:
+    """The `globalThis` object.
+
+    Standard globals are declared in this file; anything a host injects is
+    reached as an open `_HostObject`.
+    """
+
+    def __getattr__(self, name: str) -> _HostObject: ...
+
+globalThis: _GlobalThis
+
+class _ImportMetaEnv:
+    """`import.meta.env` -- build-time environment strings (Vite-style)."""
+
+    def __getattr__(self, name: str) -> Any: ...
+
+class _ImportMetaObject:
+    """The ES module `import.meta` object."""
+
+    url: str
+    env: _ImportMetaEnv
+    def __getattr__(self, name: str) -> Any: ...
+
+class _ImportNamespace:
+    """Pseudo-object for the escaped `import` keyword in client expressions.
+
+    `import` cannot be declared as a variable name in a stub, so the
+    evaluator aliases the client name `import` to `__import_meta__`.
+    """
+
+    meta: _ImportMetaObject
+
+__import_meta__: _ImportNamespace
+
+class _Performance:
+    """The `performance` object (High Resolution Time)."""
+
+    def now(self) -> float: ...
+    def mark(self, name: str) -> object: ...
+    def measure(self, name: str, start: str = ..., end: str = ...) -> object: ...
+    @property
+    def timeOrigin(self) -> float: ...
+
+performance: _Performance
+
 class _Location:
     """The `window.location` object."""
 
@@ -584,6 +766,8 @@ class _Navigator:
     languages: list[str]
     platform: str
     onLine: bool
+    maxTouchPoints: float
+    standalone: bool
     clipboard: _Clipboard
     geolocation: object
     def vibrate(self, pattern: object) -> bool: ...
@@ -609,6 +793,7 @@ class _Document:
     title: str
     cookie: str
     readyState: str
+    referrer: str
     # Always-present root elements. Typed as the real HTMLElement (from
     # dom_types.pyi, merged into builtins) rather than the bare `object`
     # placeholder so member access like `.classList`/`.style` resolves.
@@ -642,6 +827,13 @@ document: _Document
 class _Window:
     """The `window` object (minimal surface)."""
 
+    # Jac-injected host globals (set by the desktop host bootstrap and the
+    # client runtime before any user code runs).
+    __JAC_DESKTOP__: object
+    __JAC_BROKER__: object
+    __JAC_INIT__: object
+    __JAC_API_BASE_URL__: object
+    __JAC_RN_ASSET_MAP__: object
     innerWidth: float
     innerHeight: float
     outerWidth: float
@@ -657,6 +849,7 @@ class _Window:
     screen: _Screen
     document: _Document
     console: _Console
+    def dispatchEvent(self, event: object) -> bool: ...
     def alert(self, message: object = ...) -> None: ...
     def confirm(self, message: object = ...) -> bool: ...
     def prompt(self, message: object = ..., default: object = ...) -> str | None: ...

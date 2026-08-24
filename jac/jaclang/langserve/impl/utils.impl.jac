@@ -79,8 +79,9 @@ impl create_range(loc: CodeLocInfo) -> lspt.Range {
 }
 
 impl owner_sym(table: UniScopeNode) -> Optional[Symbol] {
-    if table.parent_scope and isinstance(table, uni.AstSymbolNode) {
-        return table.parent_scope.lookup(table.sym_name);
+    parent = table.parent_scope;
+    if parent is not None and isinstance(table, uni.AstSymbolNode) {
+        return parent.lookup(table.sym_name);
     }
     return None;
 }

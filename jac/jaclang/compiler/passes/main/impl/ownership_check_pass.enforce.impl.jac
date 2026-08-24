@@ -163,6 +163,7 @@ impl OwnershipCheckPass._nogc_infer_locals -> None {
         result_ownership,
         Ownership
     }
+    import from jaclang.compiler.type_system.types { AnyType }
     for nd in self.idx_assignments {
         if len(nd.target) != 1 {
             continue;
@@ -178,6 +179,12 @@ impl OwnershipCheckPass._nogc_infer_locals -> None {
             continue;
         }
         if self._nogc_local_shape(_tgt) in ("osp", "scalar") {
+            continue;
+        }
+
+        if nd.value is not None
+            and isinstance(nd.value.type, AnyType)
+            and nd.value.type.is_foreign {
             continue;
         }
         _sid = self._name_sym_id(_tgt);

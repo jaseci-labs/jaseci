@@ -12,7 +12,7 @@ def _jac_client_plugin_dir -> Path {
     return Path(paths[0]);
 }
 
-def _atomic_write_text(path: any, text: str) {
+def _atomic_write_text(path: Path, text: str) {
     import os;
     tmp = path.with_name(path.name + '.tmp');
     tmp.write_text(text, encoding='utf-8');
@@ -182,7 +182,7 @@ impl JacClientCompiler._output_path_for(
     self: JacClientCompiler, module_path: Path, source_root: Path
 ) -> Path {
     try {
-        relative_path = module_path.relative_to(source_root);
+        relative_path = module_path.resolve().relative_to(source_root.resolve());
         return self.compiled_dir / self._jac_path_to_js(str(relative_path));
     } except ValueError {
         return self.compiled_dir / self._jac_path_to_js(module_path.name);
@@ -218,6 +218,8 @@ impl JacClientCompiler.compile_dependencies_recursively(
     visited.add(module_path);
     if (source_root is None) {
         source_root = module_path.parent.resolve();
+    } else {
+        source_root = source_root.resolve();
     }
     (module_js, mod, manifest) = self.jac_compiler.compile_module(module_path);
     self._collect_na_modules(mod);
@@ -249,7 +251,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         return;
     }
     for (_name, import_path) in manifest.imports.items() {
-        path_obj = Path(import_path).resolve();
+        path_obj = Path(str(import_path)).resolve();
         if target_name == "react-native" {
             path_obj = self._native_variant(path_obj);
         }
@@ -622,6 +624,9 @@ impl JacClientCompiler.rescan_pages(self: JacClientCompiler) -> bool {
 
 impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> None {
     scanner = self._route_scanner;
+    if scanner is None {
+        return;
+    }
     routes = scanner._routes;
     layouts = scanner.get_layouts();
     lines: list[str] = [];
@@ -704,7 +709,7 @@ impl JacClientCompiler.init(
     self.import_processor = ImportProcessor();
     self.asset_processor = AssetProcessor();
     self._has_pages = False;
-    self._route_scanner = None;
+    self._route_scanner: (RouteScanner | None) = None;
     self.na_wasm_modules = set();
 }
 

@@ -104,13 +104,25 @@ __spec__: object  # type: ignore[no-redef]
 class Final: ...
 
 # ── Core archetype types ──────────────────────────────────────────
-class Node: ...
-class Edge: ...
+# `__jac__` is the runtime anchor behind every archetype instance. Its
+# static type is runtimelib's Anchor, which this ambient stub cannot
+# name, so the property stays gradually typed.
+class Node:
+    @property
+    def __jac__(self) -> Any: ...
+
+class Edge:
+    @property
+    def __jac__(self) -> Any: ...
 
 class Walker:
     reports: list[Any]
+    @property
+    def __jac__(self) -> Any: ...
 
-class Obj: ...
+class Obj:
+    @property
+    def __jac__(self) -> Any: ...
 
 class Root(Node):
     # The deployment's shared root: the root every unauthenticated

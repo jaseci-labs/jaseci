@@ -106,6 +106,7 @@ obj JacAutoLintPass(UniPass) {
         decl_sig: uni.FuncSignature, impl_sig: uni.FuncSignature
     ) -> bool;
 
+    def _stmt_body_list(nd: uni.UniNode) -> (Sequence[uni.UniNode] | None);
     def enter_import(import_node: uni.Import) -> None;
     def _remove_empty_parens_from_sig(
         target_node: uni.UniNode, sig: uni.FuncSignature, sig_attr: str
@@ -125,8 +126,8 @@ obj JacAutoLintPass(UniPass) {
     def _check_mutable_default(nd: uni.ParamVar) -> None;
     def _check_unnecessary_none_return(
         nd: (uni.Ability | uni.LambdaExpr),
-        body: (list | uni.Expr),
-        sig: (uni.FuncSignature | None),
+        body: (uni.UniNode | Sequence[uni.UniNode] | None),
+        sig: (uni.FuncSignature | uni.EventSignature | None),
         name: str
     ) -> None;
 
@@ -156,7 +157,7 @@ obj JacAutoLintPass(UniPass) {
     def exit_module(nd: uni.Module) -> None;
     def _strip_noise(nd: uni.Module) -> None;
     def _strip_docstrings(start: uni.UniNode) -> None;
-    def _collect_doc_nodes(`node: uni.UniNode, results: list) -> None;
+    def _collect_doc_nodes(`node: uni.UniNode, results: list[uni.AstDocNode]) -> None;
     def _check_stale_has_read(ability_node: uni.Ability) -> None;
     def _collect_reactive_has_names(ability_node: uni.Ability) -> set[str];
     def _walk_for_has_uses(
@@ -180,10 +181,7 @@ obj JacAutoLintPass(UniPass) {
     def _property_role_of_ability(ab: uni.Ability) -> str;
     def _make_accessor_from_ability(src: uni.Ability, kind: str) -> uni.Ability;
     def _build_property_has(
-        ref_node: uni.UniNode,
-        prop_name: str,
-        type_expr: (uni.Expr | None),
-        accessors: list
+        ref_node: uni.UniNode, prop_name: str, type_expr: uni.Expr, accessors: list
     ) -> uni.ArchHas;
 
     def _property_impl_roles(

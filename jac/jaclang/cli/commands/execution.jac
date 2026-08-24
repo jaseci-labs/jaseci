@@ -113,7 +113,7 @@ def run(
     nd: str = "",
     root_id: str = "",
     debug_mode: bool = False,
-    args: list = []
+    args: list[str] = []
 ) -> int;
 
 @registry.command(
@@ -160,7 +160,7 @@ def dev(filename: str = "", port: int = 0, api_port: int = 0) -> int;
 def enter(
     filename: str,
     entrypoint: str,
-    args: list = [],
+    args: list[str] = [],
     main: bool = True,
     `root: str = "",
     nd: str = ""
@@ -347,7 +347,7 @@ def start(
 def debug(filename: str, main: bool = True, cache: bool = False) -> int;
 
 def run_jab_image(
-    img_root: Path, port: (int | None), args: list, serve_only: bool, label: str
+    img_root: Path, port: (int | None), args: list[str], serve_only: bool, label: str
 ) -> int;
 
 @registry.command(
@@ -409,5 +409,5 @@ def x(
     use_global: bool = False,
     use_node: bool = False,
     list_tools: bool = False,
-    args: list = []
+    args: list[str] = []
 ) -> int;

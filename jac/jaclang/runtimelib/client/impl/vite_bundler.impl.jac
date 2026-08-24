@@ -1,3 +1,4 @@
+import threading;
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.client { get_bun }
 import from jaclang.runtimelib.client.bun_installer { bun_unavailable_message }
@@ -147,7 +148,10 @@ impl ViteBundler.create_tsconfig(self: ViteBundler) -> Path {
     user_include = user_ts_config.get('include', []);
     user_exclude = user_ts_config.get('exclude', []);
 
-    merged_compiler_options = {** default_compiler_options, ** user_compiler_options};
+    merged_compiler_options: dict[str, str | bool | list[str] | dict[str, list[str]]] = {
+        ** default_compiler_options,
+        ** user_compiler_options
+    };
 
     paths_config = self.config_loader.get_paths_config();
     if paths_config {
@@ -1283,10 +1287,18 @@ def _is_vite_url_line(line: str) -> bool {
 }
 
 def _forward_vite_output(
-    proc: any, ready_event: "threading.Event", sys_module: any, output_buffer: list[str]
+    proc: subprocess.Popen[str],
+    ready_event: threading.Event,
+    sys_module: any,
+    output_buffer: list[str]
 ) {
+    stream = proc.stdout;
+    if stream is None {
+        return;
+    }
     try {
-        for line in iter(proc.stdout.readline, '') {
+        while True {
+            line = stream.readline();
             if not line {
                 break;
             }

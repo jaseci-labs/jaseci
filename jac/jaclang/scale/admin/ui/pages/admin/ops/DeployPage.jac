@@ -86,15 +86,19 @@ def:pub DeployPage -> JsxElement {
     }
 
     def containerSummary(containers: list) -> str {
-        parts: list = [];
+        parts: list[str] = [];
         for c in containers {
             tag = c["state"];
             if c["reason"] {
                 tag = c["state"] + ":" + c["reason"];
             }
-            parts.push(c["name"] + " (" + tag + ")");
+            parts.append(String(c["name"]) + " (" + String(tag) + ")");
         }
-        return parts.join(", ");
+        return ", ".join(parts);
+    }
+
+    def joinLabels(values: list) -> str {
+        return ", ".join([String(v) for v in values]);
     }
 
     # ---- render ------------------------------------------------------
@@ -157,7 +161,7 @@ def:pub DeployPage -> JsxElement {
                                 <td
                                     className="py-1.5 pr-3 text-faint text-xs font-mono truncate max-w-xs"
                                 >
-                                    {(d["images"] or []).join(", ")}
+                                    {joinLabels(d["images"] or [])}
                                 </td>
                             </tr> for d in deployments
                         ]}

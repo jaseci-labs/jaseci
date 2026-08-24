@@ -63,7 +63,7 @@ base-path digest."""
 def _store_for(tmpdir: str, app: str) -> PgStore {
     import hashlib;
     import os;
-    digest = hashlib.sha1(os.path.abspath(tmpdir).encode('utf-8')).hexdigest()[:8];
+    digest = hashlib.sha1(os.path.realpath(tmpdir).encode('utf-8')).hexdigest()[:8];
     admin_rt = PgRuntime(data_dir=shared_pg_data_dir(), database='postgres');
     admin = PgStore(conninfo=admin_rt.ensure());
     admin.begin(TxnIsolation.READ_COMMITTED);
