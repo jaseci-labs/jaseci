@@ -1273,6 +1273,7 @@ import from opcode_meta {
     OP_CONTAINS_OP,
     OP_LOAD_COMMON_CONSTANT,
     OP_CALL_INTRINSIC_1,
+    OP_CALL_INTRINSIC_2,
     OP_LOAD_FAST_AND_CLEAR,
     OP_SEND,
     OP_END_SEND,
@@ -2749,6 +2750,58 @@ obj PyBoundMethod(PyObj) {
         }
         return py_attr(self.function, name);
     }
+}
+
+# typing._GenericAlias(Generic, params) stand-in -- the implicit PEP 695 class
+# base produced by CALL_INTRINSIC_1 arg 10 (INTRINSIC_SUBSCRIPT_GENERIC).
+# Data-only: attribute answers (__origin__/__args__/__parameters__), the repr,
+# and the __mro_entries__ hook live in ceval (py_attr / py_repr) because the
+# origin is typing_generic_class() below and resolution re-enters execution.
+obj PyGenericAlias(PyObj) {
+    has params: PyObj;
+}
+
+# Bound __mro_entries__ callable for PyGenericAlias: CPython's _GenericAlias
+# method returns a tuple of replacement bases when __build_class__ invokes it
+# (bltinmodule.c update_bases); ours resolves to Generic itself.
+obj PyGenericMroEntries(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return PyTuple(t="tuple", items=[typing_generic_class()]);
+    }
+}
+
+# typing.NoDefault sentinel (PEP 696): a type parameter without an explicit
+# default answers __default__ with this immortal singleton.
+obj PyNoDefault(PyObj) {
+}
+
+glob _no_default_singleton: any = None;
+
+def no_default_sentinel() -> PyObj {
+    if _no_default_singleton is None {
+        _no_default_singleton = PyNoDefault(t="nodefault");
+    }
+    return _no_default_singleton;
+}
+
+glob _generic_class_cache: any = None;
+
+# Native stand-in for typing.Generic: the base that implicit PEP 695 class
+# parameters resolve to through __mro_entries__, so a generic class's MRO
+# reads (C, Generic, object) like CPython's. Cached -- every generic class
+# shares this one base object, so identity comparisons hold.
+def typing_generic_class() -> PyClass {
+    if _generic_class_cache is None {
+        _generic_class_cache = PyClass(
+            t="class",
+            name="Generic",
+            attrs={
+                "__module__": PyStr(t="str", val="typing"),
+                "__qualname__": PyStr(t="str", val="Generic"),
+            },
+        );
+    }
+    return _generic_class_cache as PyClass;
 }
 
 obj PyBuildClass(PyObj) {
@@ -4337,8 +4390,11 @@ def py_str(value: PyObj) -> PyObj {
         return user_str_slot(value as PyUserObj);
     }
     # TypeVar has no __str__ of its own; object.__str__ falls back to tp_repr,
-    # so str(T) == 'T' byte-exact.
-    if isinstance(value, PyTypeVar) {
+    # so str(T) == 'T' byte-exact. Same for the generic-alias stand-in and the
+    # NoDefault sentinel.
+    if isinstance(value, PyTypeVar)
+        or isinstance(value, PyGenericAlias)
+        or isinstance(value, PyNoDefault) {
         return py_repr(value);
     }
     # A member descriptor's str is its repr (host: str(C.__dict__['x']) ==
@@ -4406,6 +4462,23 @@ def py_repr(value: PyObj) -> PyObj {
     # TypeVars outside typing.
     if isinstance(value, PyTypeVar) {
         return PyStr(t="str", val=(value as PyTypeVar).name);
+    }
+    # CPython _GenericAlias.__repr__ for the implicit generic base prints
+    # 'typing.Generic[T, ...]'; str falls back to the same (no __str__).
+    if isinstance(value, PyGenericAlias) {
+        parts: list[str] = [];
+        for gp in ((value as PyGenericAlias).params as PyTuple).items {
+            r = py_repr(gp);
+            if is_error(r) {
+                return r;
+            }
+            parts.append((r as PyStr).val);
+        }
+        return PyStr(t="str", val="typing.Generic[" + ", ".join(parts) + "]");
+    }
+    # typing.NoDefault: repr and str are both 'typing.NoDefault'.
+    if isinstance(value, PyNoDefault) {
+        return PyStr(t="str", val="typing.NoDefault");
     }
     if isinstance(value, PyTuple) {
         return tuple_repr(value as PyTuple);
@@ -5368,12 +5441,93 @@ def typealias_value(ta: PyTypeAlias) -> PyObj {
     return res;
 }
 
+# PEP 695 lazy bound/constraints/default resolution (CALL_INTRINSIC_2 arms
+# 2/3/5): the evaluator runs once through py_invoke and its value caches on
+# the TypeVar, mirroring CPython typevarobject.c getsets. Absent evaluators
+# answer the CPython defaults: None / the empty tuple / NoDefault.
+def typevar_bound_value(tv: PyTypeVar) -> PyObj {
+    if tv.bound_resolved {
+        return tv.cached_bound;
+    }
+    res = py_none();
+    if tv.evaluate_bound.t != "none" {
+        res = py_invoke(tv.evaluate_bound, [], {});
+        if is_error(res) {
+            return res;
+        }
+    }
+    tv.cached_bound = res;
+    tv.bound_resolved = True;
+    return res;
+}
+
+def typevar_constraints_value(tv: PyTypeVar) -> PyObj {
+    if tv.constraints_resolved {
+        return tv.cached_constraints;
+    }
+    res = PyTuple(t="tuple", items=[]);
+    if tv.evaluate_constraints.t != "none" {
+        res = py_invoke(tv.evaluate_constraints, [], {});
+        if is_error(res) {
+            return res;
+        }
+    }
+    tv.cached_constraints = res;
+    tv.constraints_resolved = True;
+    return res;
+}
+
+def typevar_default_value(tv: PyTypeVar) -> PyObj {
+    if tv.default_resolved {
+        return tv.cached_default;
+    }
+    res = no_default_sentinel() as PyObj;
+    if tv.evaluate_default.t != "none" {
+        res = py_invoke(tv.evaluate_default, [], {});
+        if is_error(res) {
+            return res;
+        }
+    }
+    tv.cached_default = res;
+    tv.default_resolved = True;
+    return res;
+}
+
 def py_attr(value: PyObj, name: str) -> PyObj {
     # The alias's lazy __value__ re-enters the interpreter (it runs the hidden
     # value function), so it is served here rather than in the na-clean obj's
     # tp_getattro -- see typealias_value.
     if isinstance(value, PyTypeAlias) and name == "__value__" {
         return typealias_value(value as PyTypeAlias);
+    }
+    # Same seam for the TypeVar's lazy __bound__/__constraints__/__default__
+    # (PEP 749 const-evaluators installed by CALL_INTRINSIC_2) -- see
+    # typevar_bound_value and siblings.
+    if isinstance(value, PyTypeVar) {
+        if name == "__bound__" {
+            return typevar_bound_value(value as PyTypeVar);
+        }
+        if name == "__constraints__" {
+            return typevar_constraints_value(value as PyTypeVar);
+        }
+        if name == "__default__" {
+            return typevar_default_value(value as PyTypeVar);
+        }
+    }
+    # typing.Generic[T, ...] stand-ins answer origin/args/parameters plus the
+    # __mro_entries__ hook that __build_class__ resolves (update_bases port in
+    # py_build_class).
+    if isinstance(value, PyGenericAlias) {
+        ga = value as PyGenericAlias;
+        if name == "__origin__" {
+            return typing_generic_class();
+        }
+        if name == "__args__" or name == "__parameters__" {
+            return ga.params;
+        }
+        if name == "__mro_entries__" {
+            return PyGenericMroEntries(t="generic_mro_entries");
+        }
     }
     result = value.tp_getattro(name);
     # A native dict's keys()/values()/items() are bound zero-arg constructors of
@@ -7869,6 +8023,68 @@ def resolve_metaclass(kwargs: dict[str, PyObj], bases: list[PyObj]) -> any {
     return winner;
 }
 
+# Port of CPython bltinmodule.c update_bases: non-class bases may replace
+# themselves through __mro_entries__ (typing.Generic[T], the implicit PEP 695
+# class base, resolves to Generic this way) before the metaclass is derived
+# from the bases. Each hook receives the ORIGINAL bases tuple and must return
+# one; real classes (guest PyClass, host type proxies) never get looked up,
+# matching the PyType_Check short-circuit in the host. Appends the resolved
+# bases to `out`; returns a PyError when the protocol fails.
+def update_build_class_bases(bases: list[PyObj], out: list[PyObj]) -> PyObj {
+    new_bases: list[PyObj] = [];
+    ub_j = 0;
+    while ub_j < len(bases) {
+        base = bases[ub_j];
+        if isinstance(base, PyClass)
+            or (isinstance(base, PyHostProxy)
+                and _jac_host_val_is_type((base as PyHostProxy).val)) {
+            new_bases.append(base);
+            ub_j = ub_j + 1;
+            continue;
+        }
+        entries = py_attr(base, "__mro_entries__");
+        if is_error(entries) {
+            if ((entries as PyError).exception.type_name != "AttributeError") {
+                return entries;
+            }
+            new_bases.append(base);
+            ub_j = ub_j + 1;
+            continue;
+        }
+        repl = py_invoke(entries, [PyTuple(t="tuple", items=bases)], {});
+        if is_error(repl) {
+            return repl;
+        }
+        if not isinstance(repl, PyTuple) {
+            return py_error("TypeError", "__mro_entries__ must return a tuple");
+        }
+        for rb in (repl as PyTuple).items {
+            new_bases.append(rb);
+        }
+        ub_j = ub_j + 1;
+    }
+    for nb in new_bases {
+        out.append(nb);
+    }
+    return py_none();
+}
+
+# True when the two base lists hold identical objects pairwise (CPython's
+# `bases != orig_bases` identity check after update_bases).
+def bases_are_same(a: list[PyObj], b: list[PyObj]) -> bool {
+    if len(a) != len(b) {
+        return False;
+    }
+    i = 0;
+    while i < len(a) {
+        if a[i] is not b[i] {
+            return False;
+        }
+        i = i + 1;
+    }
+    return True;
+}
+
 def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     if len(args) < 2 {
         return py_error("TypeError", "__build_class__ needs a body and name");
@@ -7890,6 +8106,19 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
             class_kwds[k] = kwargs[k];
         }
     }
+    # CPython resolves __mro_entries__ replacements BEFORE deriving the
+    # metaclass from the bases -- see update_build_class_bases.
+    orig_base_list: list[PyObj] = [];
+    for ob in bases {
+        orig_base_list.append(ob);
+    }
+    resolved_base_list: list[PyObj] = [];
+    ub_err = update_build_class_bases(bases, resolved_base_list);
+    if is_error(ub_err) {
+        return ub_err;
+    }
+    bases_changed = not bases_are_same(bases, resolved_base_list);
+    bases = resolved_base_list;
     metaclass = resolve_metaclass(kwargs, bases);
     # A user metaclass (EnumType, ABCMeta): run the full protocol -- __prepare__
     # for the body namespace, then call the metaclass as the class factory.
@@ -7910,6 +8139,11 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     # becomes a class attribute; py_build_class seeds the returned cell itself.
     if "__classcell__" in namespace {
         del namespace["__classcell__"];
+    }
+    # CPython bltinmodule.c: when update_bases replaced any base, the original
+    # bases land in the namespace as __orig_bases__ AFTER the body ran.
+    if bases_changed {
+        namespace["__orig_bases__"] = PyTuple(t="tuple", items=orig_base_list);
     }
     built_cls = make_pyclass_from_map(class_name, bases, namespace, None);
     if is_error(built_cls) {
@@ -13255,7 +13489,81 @@ def run_frame(frame: PyFrame) -> PyObj {
                 stack.append(py_none());
                 continue;
             }
+            if arg == 10 {
+                # INTRINSIC_SUBSCRIPT_GENERIC (implicit PEP 695 class base):
+                # operand is the type-parameter tuple; produce the
+                # typing.Generic[T, ...] stand-in that py_build_class later
+                # resolves through __mro_entries__ (update_build_class_bases).
+                if not isinstance(operand, PyTuple) {
+                    return py_error(
+                        "SystemError",
+                        "malformed CALL_INTRINSIC_1 SUBSCRIPT_GENERIC operand"
+                    );
+                }
+                stack.append(PyGenericAlias(t="generic_alias", params=operand));
+                continue;
+            }
             return py_error("SystemError", "unsupported CALL_INTRINSIC_1 " + str(arg));
+        }
+        if op == OP_CALL_INTRINSIC_2 {
+            rhs = stack.pop();
+            lhs = stack.pop();
+            if arg == 2 {
+                # INTRINSIC_TYPEVAR_WITH_BOUND: (name, lazy-bound-evaluator).
+                # The bound stays unevaluated until first __bound__ access --
+                # see typevar_bound_value in py_attr.
+                if not isinstance(lhs, PyStr) {
+                    return py_error(
+                        "SystemError", "malformed CALL_INTRINSIC_2 TYPEVAR_WITH_BOUND operand"
+                    );
+                }
+                stack.append(PyTypeVar(
+                    t="TypeVar", name=(lhs as PyStr).val, evaluate_bound=rhs
+                ));
+                continue;
+            }
+            if arg == 3 {
+                # INTRINSIC_TYPEVAR_WITH_CONSTRAINTS: (name, lazy-constraints).
+                if not isinstance(lhs, PyStr) {
+                    return py_error(
+                        "SystemError",
+                        "malformed CALL_INTRINSIC_2 TYPEVAR_WITH_CONSTRAINTS operand"
+                    );
+                }
+                stack.append(PyTypeVar(
+                    t="TypeVar", name=(lhs as PyStr).val, evaluate_constraints=rhs
+                ));
+                continue;
+            }
+            if arg == 4 {
+                # INTRINSIC_SET_FUNCTION_TYPE_PARAMS: (function, params-tuple);
+                # CPython stores func_typeparams and returns the function.
+                if not isinstance(lhs, PyFunction) or not isinstance(rhs, PyTuple) {
+                    return py_error(
+                        "SystemError",
+                        "malformed CALL_INTRINSIC_2 SET_FUNCTION_TYPE_PARAMS operands"
+                    );
+                }
+                fn_tps = lhs as PyFunction;
+                fn_tps.attrs["__type_params__"] = rhs;
+                stack.append(fn_tps);
+                continue;
+            }
+            if arg == 5 {
+                # INTRINSIC_SET_TYPEPARAM_DEFAULT: (typeparam,
+                # lazy-default-evaluator); evaluated on first __default__
+                # access -- see typevar_default_value in py_attr.
+                if not isinstance(lhs, PyTypeVar) {
+                    return py_error(
+                        "SystemError", "malformed CALL_INTRINSIC_2 SET_TYPEPARAM_DEFAULT operand"
+                    );
+                }
+                tp_default = lhs as PyTypeVar;
+                tp_default.evaluate_default = rhs;
+                stack.append(tp_default);
+                continue;
+            }
+            return py_error("SystemError", "unsupported CALL_INTRINSIC_2 " + str(arg));
         }
         if op == OP_RETURN_VALUE {
             if len(stack) == 0 {
