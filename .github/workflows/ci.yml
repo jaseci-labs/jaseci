@@ -612,6 +612,46 @@ jobs:
           jac test jac-py/tests/test_functools_parity.jac
           jac test jac-py/tests/test_itertools_facade_parity.jac
 
+      - name: P2 wave-13 structmodule facade parity
+        env:
+          JACPATH: jac-py/jacpython
+        run: jac test jac-py/tests/test_struct_parity.jac
+
+      - name: P2 wave-14 arraymodule facade parity
+        env:
+          JACPATH: jac-py/jacpython
+        run: jac test jac-py/tests/test_array_parity.jac
+
+      - name: P2 wave-15 jsonmodule facade parity
+        env:
+          JACPATH: jac-py/jacpython
+        run: jac test jac-py/tests/test_json_parity.jac
+
+      - name: P2 wave-16 binascii facade parity
+        env:
+          JACPATH: jac-py/jacpython
+        run: jac test jac-py/tests/test_binascii_parity.jac
+
+      - name: P2 wave-17 csv facade parity
+        env:
+          JACPATH: jac-py/jacpython
+        run: jac test jac-py/tests/test_csv_parity.jac
+
+      - name: P2 wave-18 randommodule facade parity
+        env:
+          JACPATH: jac-py/jacpython
+        run: jac test jac-py/tests/test_random_parity.jac
+
+      - name: P2 wave-19 collectionsmodule facade parity
+        env:
+          JACPATH: jac-py/jacpython
+        run: jac test jac-py/tests/test_collections_parity.jac
+
+      - name: P2 wave-21 datetime calendrical kernel parity
+        env:
+          JACPATH: jac-py/jacpython
+        run: jac test jac-py/tests/test_datetime_parity.jac
+
       - name: P3 Layer-0/1 replay regression tests
         run: jac test jac-py/jacpython/layer0_replay.jac
 
