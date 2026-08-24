@@ -480,8 +480,8 @@ impl Serializer.coerce(val: object, target_type: object) -> tuple {
     }
 
     try {
-        sized_name: (str | None) = base?.__jac_sized__;
-        if sized_name is not None {
+        sized_name = base?.__jac_sized__;
+        if isinstance(sized_name, str) {
             import from jaclang.runtimelib.sized { json_wire_read }
             if isinstance(val, (bool, int, float, str)) {
                 return (json_wire_read(sized_name, val), True);
