@@ -112,8 +112,9 @@ obj MicroserviceOrchestrator {
         }
 
         registry = self._build_registry();
-        _mark_all_healthy_k8s(registry);
-
+        for (_name, _entry) in registry.entries.items() {
+            _entry.status = ServiceStatus.STARTING;
+        }
         _populate_k8s_urls(registry);
 
         gateway_port = int(self.ms_config.get("gateway_port", DEFAULT_GATEWAY_PORT));
@@ -123,6 +124,9 @@ obj MicroserviceOrchestrator {
         client_dist: str = self._client_dist_dir(client_config);
 
         static_mounts: list[dict[str, str]] = self._parse_static_mounts(client_config);
+
+        health_monitor = ServiceProcessManager(registry=registry);
+        health_monitor.start_health_monitor();
 
         gateway = ProcessGateway(
             registry=registry,
@@ -382,13 +386,6 @@ def start_microservice_mode(ms_config: dict[str, any]) {
 
 def start_gateway_only(ms_config: dict[str, any]) {
     MicroserviceOrchestrator(ms_config=ms_config).start_gateway_only();
-}
-
-
-def _mark_all_healthy_k8s(registry: ServiceRegistry) {
-    for (_name, _entry) in registry.entries.items() {
-        _entry.status = ServiceStatus.HEALTHY;
-    }
 }
 
 
