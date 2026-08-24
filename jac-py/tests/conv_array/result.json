@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "fd4c8b36fdafb9259707f53f361b63d62fcfd882",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp1-out/test_array/conv_array_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:47:36",
+  "hashes": {
+    "pins_jac": "def560644029b4e37074ba1c900b76a03097a745c2e78826f320fe7eb0d84363",
+    "conversion_json": "e961594c5ab96c80be0b4a57b08995dd1ae9ed578aa758472f3c54af5b0dac7b",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "array",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 98,
+    "runnable": 5,
+    "green": 2,
+    "quarantined": 93,
+    "failed": 3,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "MiscTest.test_empty",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "LargeArrayTest.test_gh_128961",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__setstate__'\">"
+    },
+    {
+      "id": "LargeArrayTest.test_setitem_use_after_shrink_with_int_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Index\\' object cannot be interpreted as an integer\"'>"
+    }
+  ]
+}

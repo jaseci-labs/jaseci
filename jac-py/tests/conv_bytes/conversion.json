@@ -1,0 +1,782 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "fd4c8b36fdafb9259707f53f361b63d62fcfd882",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_bytes.py",
+    "-o",
+    "/var/tmp/sp1-out/test_bytes",
+    "--name",
+    "conv_bytes"
+  ],
+  "generated_at": "2026-08-24T13:47:56",
+  "hashes": {
+    "pins_jac": "68dc92de0031482e5d8d436d3f37a2ff89422fcc500cc67db119c84b2ef388c7"
+  },
+  "source_file": "reference/cpython/Lib/test/test_bytes.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "bytes",
+  "pins_file": "conv_bytes_pins.jac",
+  "pins": [
+    {
+      "ident": "BaseBytesTest.test_from_mutating_list",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class X:\n\n        def __index__(self):\n            a.clear()\n            return 42\n    a = [X(), X()]\n    assert bytes(a) == b'*', ('assertEqual', bytes(a), b'*')\n\n    class Y:\n\n        def __index__(self):\n            if len(a) < 1000:\n                a.append(self)\n            return 42\n    a = [Y()]\n    assert bytes(a) == b'*' * 1000, ('assertEqual', bytes(a), b'*' * 1000)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BytesTest.test_getitem_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    b = b'python'\n    msg = 'byte indices must be integers or slices'\n    try:\n        b['a']\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BytesTest.test_bytes_blocking",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class IterationBlocked(list):\n        __bytes__ = None\n    i = [0, 1, 2, 3]\n    assert bytes(i) == b'\\x00\\x01\\x02\\x03', ('assertEqual', bytes(i), b'\\x00\\x01\\x02\\x03')\n    try:\n        bytes(*(IterationBlocked(i),))\n    except TypeError:\n        pass\n\n    class IntBlocked(int):\n        __bytes__ = None\n    assert bytes(3) == b'\\x00\\x00\\x00', ('assertEqual', bytes(3), b'\\x00\\x00\\x00')\n    try:\n        bytes(*(IntBlocked(3),))\n    except TypeError:\n        pass\n\n    class BytesSubclassBlocked(bytes):\n        __bytes__ = None\n    assert bytes(b'ab') == b'ab', ('assertEqual', bytes(b'ab'), b'ab')\n    try:\n        bytes(*(BytesSubclassBlocked(b'ab'),))\n    except TypeError:\n        pass\n\n    class BufferBlocked(bytearray):\n        __bytes__ = None\n    ba, bb = (bytearray(b'ab'), BufferBlocked(b'ab'))\n    assert bytes(ba) == b'ab', ('assertEqual', bytes(ba), b'ab')\n    try:\n        bytes(*(bb,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BytesTest.test_repeat_id_preserving",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    a = b'123abc1@'\n    b = b'456zyx-+'\n    assert id(a) == id(a), ('assertEqual', id(a), id(a))\n    assert id(a) != id(b), ('assertNotEqual', id(a), id(b))\n    assert id(a) != id(a * -4), ('assertNotEqual', id(a), id(a * -4))\n    assert id(a) != id(a * 0), ('assertNotEqual', id(a), id(a * 0))\n    assert id(a) == id(a * 1), ('assertEqual', id(a), id(a * 1))\n    assert id(a) == id(1 * a), ('assertEqual', id(a), id(1 * a))\n    assert id(a) != id(a * 2), ('assertNotEqual', id(a), id(a * 2))\n\n    class SubBytes(bytes):\n        pass\n    s = SubBytes(b'qwerty()')\n    assert id(s) == id(s), ('assertEqual', id(s), id(s))\n    assert id(s) != id(s * -4), ('assertNotEqual', id(s), id(s * -4))\n    assert id(s) != id(s * 0), ('assertNotEqual', id(s), id(s * 0))\n    assert id(s) != id(s * 1), ('assertNotEqual', id(s), id(s * 1))\n    assert id(s) != id(1 * s), ('assertNotEqual', id(s), id(1 * s))\n    assert id(s) != id(s * 2), ('assertNotEqual', id(s), id(s * 2))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_getitem_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    b = bytearray(b'python')\n    msg = 'bytearray indices must be integers or slices'\n    try:\n        b['a']\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_setitem_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    b = bytearray(b'python')\n    msg = 'bytearray indices must be integers or slices'\n    try:\n        b['a'] = 'python'\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_nohash",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        hash(*(bytearray(),))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_bytearray_api",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import os\nimport tempfile\n\ndef _t():\n    short_sample = b'Hello world\\n'\n    sample = short_sample + b'\\x00' * (20 - len(short_sample))\n    tfn = tempfile.mktemp()\n    try:\n        with open(tfn, 'wb') as f:\n            f.write(short_sample)\n        with open(tfn, 'rb') as f:\n            b = bytearray(20)\n            n = f.readinto(b)\n        assert n == len(short_sample), ('assertEqual', n, len(short_sample))\n        assert list(b) == list(sample), ('assertEqual', list(b), list(sample))\n        with open(tfn, 'wb') as f:\n            f.write(b)\n        with open(tfn, 'rb') as f:\n            assert f.read() == sample, ('assertEqual', f.read(), sample)\n    finally:\n        try:\n            os.remove(tfn)\n        except OSError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_mod_concurrent_mutation",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    fmt = bytearray(b'%a end')\n\n    class S:\n\n        def __repr__(self):\n            fmt.clear()\n            return 'E'\n    try:\n        fmt.__mod__(*(S(),))\n    except BufferError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_reverse",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(b'hello')\n    assert b.reverse() == None, ('assertEqual', b.reverse(), None)\n    assert b == b'olleh', ('assertEqual', b, b'olleh')\n    b = bytearray(b'hello1')\n    b.reverse()\n    assert b == b'1olleh', ('assertEqual', b, b'1olleh')\n    b = bytearray()\n    b.reverse()\n    assert not b, ('assertFalse', b)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_clear",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(b'python')\n    b.clear()\n    assert b == b'', ('assertEqual', b, b'')\n    b = bytearray(b'')\n    b.clear()\n    assert b == b'', ('assertEqual', b, b'')\n    b = bytearray(b'')\n    b.append(ord('r'))\n    b.clear()\n    b.append(ord('p'))\n    assert b == b'p', ('assertEqual', b, b'p')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_copy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(b'abc')\n    bb = b.copy()\n    assert bb == b'abc', ('assertEqual', bb, b'abc')\n    b = bytearray(b'')\n    bb = b.copy()\n    assert bb == b'', ('assertEqual', bb, b'')\n    b = bytearray(b'abc')\n    bb = b.copy()\n    assert b == bb, ('assertEqual', b, bb)\n    assert b is not bb, ('assertIsNot', b, bb)\n    bb.append(ord('d'))\n    assert bb == b'abcd', ('assertEqual', bb, b'abcd')\n    assert b == b'abc', ('assertEqual', b, b'abc')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_regexps",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\n\ndef _t():\n\n    def by(s):\n        return bytearray(map(ord, s))\n    b = by('Hello, world')\n    assert re.findall(b'\\\\w+', b) == [by('Hello'), by('world')], ('assertEqual', re.findall(b'\\\\w+', b), [by('Hello'), by('world')])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_setslice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(range(10))\n    assert list(b) == list(range(10)), ('assertEqual', list(b), list(range(10)))\n    b[0:5] = bytearray([1, 1, 1, 1, 1])\n    assert b == bytearray([1, 1, 1, 1, 1, 5, 6, 7, 8, 9]), ('assertEqual', b, bytearray([1, 1, 1, 1, 1, 5, 6, 7, 8, 9]))\n    del b[0:-5]\n    assert b == bytearray([5, 6, 7, 8, 9]), ('assertEqual', b, bytearray([5, 6, 7, 8, 9]))\n    b[0:0] = bytearray([0, 1, 2, 3, 4])\n    assert b == bytearray(range(10)), ('assertEqual', b, bytearray(range(10)))\n    b[-7:-3] = bytearray([100, 101])\n    assert b == bytearray([0, 1, 2, 100, 101, 7, 8, 9]), ('assertEqual', b, bytearray([0, 1, 2, 100, 101, 7, 8, 9]))\n    b[3:5] = [3, 4, 5, 6]\n    assert b == bytearray(range(10)), ('assertEqual', b, bytearray(range(10)))\n    b[3:0] = [42, 42, 42]\n    assert b == bytearray([0, 1, 2, 42, 42, 42, 3, 4, 5, 6, 7, 8, 9]), ('assertEqual', b, bytearray([0, 1, 2, 42, 42, 42, 3, 4, 5, 6, 7, 8, 9]))\n    b[3:] = b'foo'\n    assert b == bytearray([0, 1, 2, 102, 111, 111]), ('assertEqual', b, bytearray([0, 1, 2, 102, 111, 111]))\n    b[:3] = memoryview(b'foo')\n    assert b == bytearray([102, 111, 111, 102, 111, 111]), ('assertEqual', b, bytearray([102, 111, 111, 102, 111, 111]))\n    b[3:4] = []\n    assert b == bytearray([102, 111, 111, 111, 111]), ('assertEqual', b, bytearray([102, 111, 111, 111, 111]))\n    for elem in [5, -5, 0, int(1e+21), 'str', 2.3, ['a', 'b'], [b'a', b'b'], [[]]]:\n        try:\n            b[3:4] = elem\n        except TypeError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    for elem in [[254, 255, 256], [-256, 9000]]:\n        try:\n            b[3:4] = elem\n        except ValueError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_setslice_extend",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(range(100))\n    assert list(b) == list(range(100)), ('assertEqual', list(b), list(range(100)))\n    del b[:10]\n    assert list(b) == list(range(10, 100)), ('assertEqual', list(b), list(range(10, 100)))\n    b.extend(range(100, 110))\n    assert list(b) == list(range(10, 110)), ('assertEqual', list(b), list(range(10, 110)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_fifo_overrun",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(10)\n    b.pop()\n    del b[:1]\n    b += bytes(2)\n    del b\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_del_expand",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\n\ndef _t():\n    b = bytearray(10)\n    size = sys.getsizeof(b)\n    del b[:1]\n    assert sys.getsizeof(b) <= size, ('assertLessEqual', sys.getsizeof(b), size)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_extended_set_del_slice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\n\ndef _t():\n    indices = (0, None, 1, 3, 19, 300, 1 << 333, sys.maxsize, -1, -2, -31, -300)\n    for start in indices:\n        for stop in indices:\n            for step in indices[1:]:\n                L = list(range(255))\n                b = bytearray(L)\n                data = L[start:stop:step]\n                data.reverse()\n                L[start:stop:step] = data\n                b[start:stop:step] = data\n                assert b == bytearray(L), ('assertEqual', b, bytearray(L))\n                del L[start:stop:step]\n                del b[start:stop:step]\n                assert b == bytearray(L), ('assertEqual', b, bytearray(L))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_setslice_trap",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(range(256))\n    b[8:] = b\n    assert b == bytearray(list(range(8)) + list(range(256))), ('assertEqual', b, bytearray(list(range(8)) + list(range(256))))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_iconcat",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(b'abc')\n    b1 = b\n    b += b'def'\n    assert b == b'abcdef', ('assertEqual', b, b'abcdef')\n    assert b == b1, ('assertEqual', b, b1)\n    assert b is b1, ('assertIs', b, b1)\n    b += b'xyz'\n    assert b == b'abcdefxyz', ('assertEqual', b, b'abcdefxyz')\n    try:\n        b += ''\n    except TypeError:\n        pass\n    else:\n        raise AssertionError(\"bytes += unicode didn't raise TypeError\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_irepeat",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(b'abc')\n    b1 = b\n    b *= 3\n    assert b == b'abcabcabc', ('assertEqual', b, b'abcabcabc')\n    assert b == b1, ('assertEqual', b, b1)\n    assert b is b1, ('assertIs', b, b1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_irepeat_1char",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(b'x')\n    b1 = b\n    b *= 100\n    assert b == b'x' * 100, ('assertEqual', b, b'x' * 100)\n    assert b == b1, ('assertEqual', b, b1)\n    assert b is b1, ('assertIs', b, b1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_alloc",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray()\n    alloc = b.__alloc__()\n    assert alloc >= 0, ('assertGreaterEqual', alloc, 0)\n    seq = [alloc]\n    for i in range(100):\n        b += b'x'\n        alloc = b.__alloc__()\n        assert alloc > len(b), ('assertGreater', alloc, len(b))\n        if alloc not in seq:\n            seq.append(alloc)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_init_alloc",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray()\n\n    def g():\n        for i in range(1, 100):\n            yield i\n            a = list(b)\n            assert a == list(range(1, len(a) + 1)), ('assertEqual', a, list(range(1, len(a) + 1)))\n            assert len(b) == len(a), ('assertEqual', len(b), len(a))\n            assert len(b) <= i, ('assertLessEqual', len(b), i)\n            alloc = b.__alloc__()\n            assert alloc > len(b), ('assertGreater', alloc, len(b))\n    b.__init__(g())\n    assert list(b) == list(range(1, 100)), ('assertEqual', list(b), list(range(1, 100)))\n    assert len(b) == 99, ('assertEqual', len(b), 99)\n    alloc = b.__alloc__()\n    assert alloc > len(b), ('assertGreater', alloc, len(b))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_pop",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(b'world')\n    assert b.pop() == ord('d'), ('assertEqual', b.pop(), ord('d'))\n    assert b.pop(0) == ord('w'), ('assertEqual', b.pop(0), ord('w'))\n    assert b.pop(-2) == ord('r'), ('assertEqual', b.pop(-2), ord('r'))\n    try:\n        (lambda: b.pop(10))()\n    except IndexError:\n        pass\n    try:\n        (lambda: bytearray().pop())()\n    except IndexError:\n        pass\n    assert bytearray(b'\\xff').pop() == 255, ('assertEqual', bytearray(b'\\xff').pop(), 255)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_nosort",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        (lambda: bytearray().sort())()\n    except AttributeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_copied",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(b'abc')\n    assert b is not b.replace(b'abc', b'cde', 0), ('assertIsNot', b, b.replace(b'abc', b'cde', 0))\n    t = bytearray([i for i in range(256)])\n    x = bytearray(b'')\n    assert x is not x.translate(t), ('assertIsNot', x, x.translate(t))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_partition_bytearray_doesnt_share_nullstring",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    a, b, c = bytearray(b'x').partition(b'y')\n    assert b == b'', ('assertEqual', b, b'')\n    assert c == b'', ('assertEqual', c, b'')\n    assert b is not c, ('assertIsNot', b, c)\n    b += b'!'\n    assert c == b'', ('assertEqual', c, b'')\n    a, b, c = bytearray(b'x').partition(b'y')\n    assert b == b'', ('assertEqual', b, b'')\n    assert c == b'', ('assertEqual', c, b'')\n    b, c, a = bytearray(b'x').rpartition(b'y')\n    assert b == b'', ('assertEqual', b, b'')\n    assert c == b'', ('assertEqual', c, b'')\n    assert b is not c, ('assertIsNot', b, c)\n    b += b'!'\n    assert c == b'', ('assertEqual', c, b'')\n    c, b, a = bytearray(b'x').rpartition(b'y')\n    assert b == b'', ('assertEqual', b, b'')\n    assert c == b'', ('assertEqual', c, b'')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_resize_forbidden",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(10)\n    v = memoryview(b)\n\n    def manual_resize(n):\n        b[1:-1] = range(n + 1, 2 * n - 1)\n    b.resize(10)\n    orig = b[:]\n    try:\n        b.resize(*(11,))\n    except BufferError:\n        pass\n    try:\n        manual_resize(*(11,))\n    except BufferError:\n        pass\n    assert b == orig, ('assertEqual', b, orig)\n    try:\n        b.resize(*(9,))\n    except BufferError:\n        pass\n    assert b == orig, ('assertEqual', b, orig)\n    try:\n        b.resize(*(0,))\n    except BufferError:\n        pass\n    assert b == orig, ('assertEqual', b, orig)\n    try:\n        b.pop(*(0,))\n    except BufferError:\n        pass\n    assert b == orig, ('assertEqual', b, orig)\n    try:\n        b.remove(*(b[1],))\n    except BufferError:\n        pass\n    assert b == orig, ('assertEqual', b, orig)\n\n    def delitem():\n        del b[1]\n    try:\n        delitem()\n    except BufferError:\n        pass\n    assert b == orig, ('assertEqual', b, orig)\n\n    def delslice():\n        b[1:-1:2] = b''\n    try:\n        delslice()\n    except BufferError:\n        pass\n    assert b == orig, ('assertEqual', b, orig)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_obsolete_write_lock",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import import_helper\n\ndef _t():\n    _testcapi = import_helper.import_module('_testcapi')\n    try:\n        _testcapi.getbuffer_with_null_view(*(bytearray(),))\n    except BufferError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_iterator_pickling2",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\n\ndef _t():\n    orig = bytearray(b'abc')\n    data = list(b'qwerty')\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        itorig = iter(orig)\n        d = pickle.dumps((itorig, orig), proto)\n        it, b = pickle.loads(d)\n        b[:] = data\n        assert type(it) == type(itorig), ('assertEqual', type(it), type(itorig))\n        assert list(it) == data, ('assertEqual', list(it), data)\n        next(itorig)\n        d = pickle.dumps((itorig, orig), proto)\n        it, b = pickle.loads(d)\n        b[:] = data\n        assert type(it) == type(itorig), ('assertEqual', type(it), type(itorig))\n        assert list(it) == data[1:], ('assertEqual', list(it), data[1:])\n        for i in range(1, len(orig)):\n            next(itorig)\n        d = pickle.dumps((itorig, orig), proto)\n        it, b = pickle.loads(d)\n        b[:] = data\n        assert type(it) == type(itorig), ('assertEqual', type(it), type(itorig))\n        assert list(it) == data[len(orig):], ('assertEqual', list(it), data[len(orig):])\n        try:\n            next(*(itorig,))\n        except StopIteration:\n            pass\n        d = pickle.dumps((itorig, orig), proto)\n        it, b = pickle.loads(d)\n        b[:] = data\n        assert list(it) == [], ('assertEqual', list(it), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_iterator_length_hint",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    ba = bytearray(b'ab')\n    it = iter(ba)\n    next(it)\n    ba.clear()\n    assert list(it) == [], ('assertEqual', list(it), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_repeat_after_setslice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray(b'abc')\n    b[:2] = b'x'\n    b1 = b * 1\n    b3 = b * 3\n    assert b1 == b'xc', ('assertEqual', b1, b'xc')\n    assert b1 == b, ('assertEqual', b1, b)\n    assert b3 == b'xcxcxc', ('assertEqual', b3, b'xcxcxc')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_extend_empty_buffer_overflow",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class EvilIter:\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            return next(source)\n\n        def __length_hint__(self):\n            return 0\n    source = iter(b'42')\n    ba = bytearray()\n    ba.extend(EvilIter())\n    try:\n        float(*(bytearray(),))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArrayTest.test_hex_use_after_free",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    ba = bytearray(b'\\xaa')\n\n    class S(bytes):\n\n        def __len__(self):\n            ba.clear()\n            return 1\n    try:\n        ba.hex(*(S(b':'),))\n    except BufferError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AssortedBytesTest.test_format",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport re\n\ndef _t():\n    for b in (b'abc', bytearray(b'abc')):\n        assert format(b) == str(b), ('assertEqual', format(b), str(b))\n        assert format(b, '') == str(b), ('assertEqual', format(b, ''), str(b))\n        try:\n            format(b, 's')\n        except TypeError as _exc:\n            assert _re.search('\\\\b%s\\\\b' % re.escape(type(b).__name__), str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AssortedBytesTest.test_compare_bytes_to_bytearray",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert (b'abc' == bytes(b'abc')) == True, ('assertEqual', (b'abc' == bytes(b'abc')), True)\n    assert (b'ab' != bytes(b'abc')) == True, ('assertEqual', (b'ab' != bytes(b'abc')), True)\n    assert (b'ab' <= bytes(b'abc')) == True, ('assertEqual', (b'ab' <= bytes(b'abc')), True)\n    assert (b'ab' < bytes(b'abc')) == True, ('assertEqual', (b'ab' < bytes(b'abc')), True)\n    assert (b'abc' >= bytes(b'ab')) == True, ('assertEqual', (b'abc' >= bytes(b'ab')), True)\n    assert (b'abc' > bytes(b'ab')) == True, ('assertEqual', (b'abc' > bytes(b'ab')), True)\n    assert (b'abc' != bytes(b'abc')) == False, ('assertEqual', (b'abc' != bytes(b'abc')), False)\n    assert (b'ab' == bytes(b'abc')) == False, ('assertEqual', (b'ab' == bytes(b'abc')), False)\n    assert (b'ab' > bytes(b'abc')) == False, ('assertEqual', (b'ab' > bytes(b'abc')), False)\n    assert (b'ab' >= bytes(b'abc')) == False, ('assertEqual', (b'ab' >= bytes(b'abc')), False)\n    assert (b'abc' < bytes(b'ab')) == False, ('assertEqual', (b'abc' < bytes(b'ab')), False)\n    assert (b'abc' <= bytes(b'ab')) == False, ('assertEqual', (b'abc' <= bytes(b'ab')), False)\n    assert (bytes(b'abc') == b'abc') == True, ('assertEqual', (bytes(b'abc') == b'abc'), True)\n    assert (bytes(b'ab') != b'abc') == True, ('assertEqual', (bytes(b'ab') != b'abc'), True)\n    assert (bytes(b'ab') <= b'abc') == True, ('assertEqual', (bytes(b'ab') <= b'abc'), True)\n    assert (bytes(b'ab') < b'abc') == True, ('assertEqual', (bytes(b'ab') < b'abc'), True)\n    assert (bytes(b'abc') >= b'ab') == True, ('assertEqual', (bytes(b'abc') >= b'ab'), True)\n    assert (bytes(b'abc') > b'ab') == True, ('assertEqual', (bytes(b'abc') > b'ab'), True)\n    assert (bytes(b'abc') != b'abc') == False, ('assertEqual', (bytes(b'abc') != b'abc'), False)\n    assert (bytes(b'ab') == b'abc') == False, ('assertEqual', (bytes(b'ab') == b'abc'), False)\n    assert (bytes(b'ab') > b'abc') == False, ('assertEqual', (bytes(b'ab') > b'abc'), False)\n    assert (bytes(b'ab') >= b'abc') == False, ('assertEqual', (bytes(b'ab') >= b'abc'), False)\n    assert (bytes(b'abc') < b'ab') == False, ('assertEqual', (bytes(b'abc') < b'ab'), False)\n    assert (bytes(b'abc') <= b'ab') == False, ('assertEqual', (bytes(b'abc') <= b'ab'), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AssortedBytesTest.test_from_bytearray",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    sample = bytes(b'Hello world\\n\\x80\\x81\\xfe\\xff')\n    buf = memoryview(sample)\n    b = bytearray(buf)\n    assert b == bytearray(sample), ('assertEqual', b, bytearray(sample))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AssortedBytesTest.test_literal",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    tests = [(b'Wonderful spam', 'Wonderful spam'), (b'Wonderful spam too', 'Wonderful spam too'), (b'\\xaa\\x00\\x00\\x80', '\u00aa\\x00\\x00\\x80'), (b'\\\\xaa\\\\x00\\\\000\\\\200', '\\\\xaa\\\\x00\\\\000\\\\200')]\n    for b, s in tests:\n        assert b == bytearray(s, 'latin-1'), ('assertEqual', b, bytearray(s, 'latin-1'))\n    for c in range(128, 256):\n        try:\n            eval(*('b\"%s\"' % chr(c),))\n        except SyntaxError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AssortedBytesTest.test_split_bytearray",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert b'a b'.split(memoryview(b' ')) == [b'a', b'b'], ('assertEqual', b'a b'.split(memoryview(b' ')), [b'a', b'b'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AssortedBytesTest.test_rsplit_bytearray",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert b'a b'.rsplit(memoryview(b' ')) == [b'a', b'b'], ('assertEqual', b'a b'.rsplit(memoryview(b' ')), [b'a', b'b'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AssortedBytesTest.test_return_self",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    b = bytearray()\n    assert b.replace(b'', b'') is not b, ('assertIsNot', b.replace(b'', b''), b)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BytearrayPEP3137Test.test_returns_new_copy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def marshal(x):\n    return bytearray(x)\n\ndef _t():\n    val = marshal(b'1234')\n    for methname in ('zfill', 'rjust', 'ljust', 'center'):\n        method = getattr(val, methname)\n        newval = method(3)\n        assert val == newval, ('assertEqual', val, newval)\n        assert val is not newval, ('assertIsNot', val, newval)\n    for expr in ('val.split()[0]', 'val.rsplit()[0]', 'val.partition(b\".\")[0]', 'val.rpartition(b\".\")[2]', 'val.splitlines()[0]', 'val.replace(b\"\", b\"\")'):\n        newval = eval(expr)\n        assert val == newval, ('assertEqual', val, newval)\n        assert val is not newval, ('assertIsNot', val, newval)\n    sep = marshal(b'')\n    newval = sep.join([val])\n    assert val == newval, ('assertEqual', val, newval)\n    assert val is not newval, ('assertIsNot', val, newval)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ByteArraySubclassTest.test_init_override",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class subclass(bytearray):\n\n        def __init__(me, newarg=1, *args, **kwargs):\n            bytearray.__init__(me, *args, **kwargs)\n    x = subclass(4, b'abcd')\n    x = subclass(4, source=b'abcd')\n    assert x == b'abcd', ('assertEqual', x, b'abcd')\n    x = subclass(newarg=4, source=b'abcd')\n    assert x == b'abcd', ('assertEqual', x, b'abcd')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "AssortedBytesTest.test_doc",
+      "reason": "decorator:.requires_docstrings"
+    },
+    {
+      "ident": "AssortedBytesTest.test_compare",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "FreeThreadingTest.test_free_threading_bytearray",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "FreeThreadingTest.test_free_threading_bytearrayiter",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "FreeThreadingTest.test_free_threading_bytearray_resize",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "BaseBytesTest.test_basics",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_copy",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_empty_sequence",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_from_iterable",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_from_tuple",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_from_list",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_from_index",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_from_buffer",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_from_ssize",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_constructor_type_errors",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_constructor_value_errors",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_constructor_overflow",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_constructor_exceptions",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_compare",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_compare_to_str",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_reversed",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_getslice",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_extended_getslice",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_encoding",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_decode",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_check_encoding_errors",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_from_int",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_concat",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_repeat",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_repeat_1char",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_contains",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_fromhex",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_hex",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_hex_separator_basics",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_hex_separator_five_bytes",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_hex_separator_six_bytes",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_join",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_count",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_startswith",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_endswith",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_find",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "BaseBytesTest.test_rfind",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_index",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_rindex",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_mod",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_memory_leak_gh_140939",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_imod",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_rmod",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_replace",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_replace_int_error",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_split_string_error",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_split_int_error",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_split_unicodewhitespace",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_rsplit_unicodewhitespace",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_partition",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_rpartition",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_partition_string_error",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_partition_int_error",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_pickling",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_iterator_pickling",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_strip_bytearray",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_strip_string_error",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_strip_int_error",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_center",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_ljust",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_rjust",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_xjust_int_error",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_ord",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_maketrans",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_none_arguments",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_integer_arguments_out_of_byte_range",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_find_etc_raise_correct_error_messages",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "BaseBytesTest.test_free_after_iterating",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_translate",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BaseBytesTest.test_sq_item",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BytesTest.test__bytes__",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "BytesTest.test_buffer_is_readonly",
+      "reason": "unresolved-name:__file__"
+    },
+    {
+      "ident": "BytesTest.test_custom",
+      "reason": "uses-self.value"
+    },
+    {
+      "ident": "BytesTest.test_from_format",
+      "reason": "uses-self.assertEqual"
+    },
+    {
+      "ident": "ByteArrayTest.test_resize",
+      "reason": "unresolved-name:ByteArraySubclass"
+    },
+    {
+      "ident": "ByteArrayTest.test_setitem",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "ByteArrayTest.test_delitem",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "ByteArrayTest.test_extend",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "ByteArrayTest.test_remove",
+      "reason": "unresolved-name:Indexable"
+    },
+    {
+      "ident": "ByteArrayTest.test_append",
+      "reason": "unresolved-name:Indexable"
+    },
+    {
+      "ident": "ByteArrayTest.test_insert",
+      "reason": "unresolved-name:Indexable"
+    },
+    {
+      "ident": "ByteArrayTest.test_mutating_index",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "ByteArrayTest.test_mutating_index_inbounds",
+      "reason": "uses-self.ba"
+    },
+    {
+      "ident": "ByteArrayTest.test_search_methods_reentrancy_raises_buffererror",
+      "reason": "uses-self.ba"
+    },
+    {
+      "ident": "AssortedBytesTest.test_bytes_repr",
+      "reason": "unresolved-name:BytesSubclass"
+    },
+    {
+      "ident": "AssortedBytesTest.test_bytearray_repr",
+      "reason": "unresolved-name:ByteArraySubclass"
+    },
+    {
+      "ident": "AssortedBytesTest.test_bytes_str",
+      "reason": "self.test_bytes_repr"
+    },
+    {
+      "ident": "AssortedBytesTest.test_bytearray_str",
+      "reason": "self.test_bytearray_repr"
+    },
+    {
+      "ident": "FixedStringTest.test_mixed_cmp",
+      "reason": "self._assert_cmp"
+    },
+    {
+      "ident": "SubclassTest.test_basic",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "ident": "SubclassTest.test_join",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "SubclassTest.test_pickle",
+      "reason": "self.assertNotHasAttr"
+    },
+    {
+      "ident": "SubclassTest.test_copy",
+      "reason": "self.assertNotHasAttr"
+    },
+    {
+      "ident": "SubclassTest.test_fromhex",
+      "reason": "uses-self.basetype"
+    }
+  ],
+  "counts": {
+    "extracted": 143,
+    "pinned": 44,
+    "quarantined": 99
+  }
+}
