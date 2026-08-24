@@ -76,6 +76,32 @@ def _jac_host_type_surface(kind):
     except BaseException as exc:
         return _jac_host_error(exc)
 
+def _jac_host_type_attr(kind, name):
+    # getattr on the HOST type for `kind` -- the inherited slot-wrapper surface
+    # a guest class exposes through CPython's metaclass channel (type(C).__mro__
+    # reaches object, whose type dict carries every slot wrapper). Companion to
+    # _jac_host_type_surface, which enumerates this dict for dir(); this fetches
+    # one entry's live value so `Cls.__repr__` returns the byte-exact host
+    # wrapper object pprint-style dispatch tables key on.
+    import builtins
+    import types
+    try:
+        if kind == "object":
+            target = builtins.object
+        elif kind == "type":
+            target = builtins.type
+        elif kind == "function":
+            target = types.FunctionType
+        elif kind == "method":
+            target = types.MethodType
+        else:
+            target = getattr(builtins, kind, None)
+        if target is None:
+            raise TypeError("unknown type surface '" + kind + "'")
+        return (True, getattr(target, name))
+    except BaseException as exc:
+        return _jac_host_error(exc)
+
 def _jac_host_is_callable(value):
     return callable(value)
 
@@ -675,6 +701,35 @@ def _jac_dir_names(value):
         return (True, [n for n in dir(value)])
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
+
+def _jac_make_live_ns_view(proxy):
+    # Live host view over a guest namespace (PyGlobalsProxy crossing to
+    # host-delegated code): CPython hands the LIVE module dict, so reads route
+    # through mp_subscript (KeyError-faithful) and writes through
+    # mp_ass_subscript -- host-side mutations land in the guest ns and guest
+    # writes stay visible to the host. A Mapping (not a dict subclass)
+    # because the storage is the Jac name->PyObj table, not a host dict;
+    # documented deltas: no del support (the proxy has no delete protocol)
+    # and isinstance(x, dict) is False.
+    import collections.abc
+    class _LiveNsView(collections.abc.Mapping):
+        def __getitem__(self, k):
+            r = proxy.mp_subscript(PyStr(t="str", val=k))
+            if isinstance(r, PyError):
+                raise KeyError(k)
+            return to_host(r)
+        def __setitem__(self, k, v):
+            proxy.mp_ass_subscript(PyStr(t="str", val=k), from_host(v))
+        def __contains__(self, k):
+            return isinstance(k, str) and k in proxy.ns
+        def __iter__(self):
+            return iter(list(proxy.ns.keys()))
+        def __len__(self):
+            return len(proxy.ns)
+        def __repr__(self):
+            return repr(dict(self))
+        get = collections.abc.Mapping.get
+    return _LiveNsView()
 
 def _jac_make_host_trampoline(native_fn):
     # Native-callable -> host round-trip. When a native PyFunction crosses the
@@ -2344,6 +2399,24 @@ obj PyClass(PyObj) {
             }
             return PyNativeNew(t="native_new", base_name=base);
         }
+        # Inherited slot-wrapper surface: CPython serves `Cls.__repr__` through
+        # the metaclass channel -- type(Cls).__mro__ reaches object, whose type
+        # dict carries every slot wrapper. Guest classes store no such entries
+        # in attrs, so walk the MRO's native-base surfaces first (a dict
+        # subclass inherits dict.__repr__'s wrapper) and finish on object's.
+        for klass in class_mro(self) {
+            nb = klass.native_base;
+            if nb != "" {
+                r = _jac_host_type_attr(nb, name);
+                if host_result_ok(r) {
+                    return from_host(r[1]);
+                }
+            }
+        }
+        obj_r = _jac_host_type_attr("object", name);
+        if host_result_ok(obj_r) {
+            return from_host(obj_r[1]);
+        }
         # A method defined on the metaclass (EnumType._add_member_, __call__) is
         # accessible on the class itself, bound to it -- the class is an instance
         # of its metaclass.
@@ -4007,7 +4080,7 @@ def to_host_policy(tag: str) -> BridgePolicy {
     if tag == "mappingproxy" {
         return BridgePolicy.DEEP_COPY;
     }
-    if tag == "dictview_obj" {
+    if tag == "dictview_obj" or tag == "globals" {
         return BridgePolicy.VIEW_COPY;
     }
     if tag == "function"
@@ -4218,6 +4291,12 @@ def to_host(value: PyObj) -> any {
             return _jac_make_host_iterator(value);
 
 
+        case PyGlobalsProxy():
+            # globals() crossing to host-delegated code stays LIVE: a snapshot
+            # would silently drop host-side writes and guest-side visibility
+            # (CPython passes the real module dict). See _jac_make_live_ns_view.
+            return _jac_make_live_ns_view(value);
+
         case PyDictView():
             # Rebuild a real host dict and hand back the matching live view, so
             # both iteration (list()/sorted()/set()) AND repr round-trip: repr of
@@ -4241,7 +4320,16 @@ def to_host(value: PyObj) -> any {
 
     }
     # Unreachable for every tag with a table policy and a matching arm above;
-    # both gaps fail LOUDLY here instead of degrading to None.
+    # both gaps fail LOUDLY here instead of degrading to None -- except the
+    # TRAMPOLINE family's long tail: native module functions are dozens of
+    # small wrapper objs tagged t="function"/"native_builtin" (PyWarningsWarnFn
+    # & co) that no per-class case above can enumerate. Their policy already
+    # declares the crossing semantics, so mint the same tp_call-backing
+    # trampoline the dedicated arms use. Non-callable stragglers surface their
+    # PyError at INVOCATION time (trampoline re-raises), not at crossing time.
+    if policy == BridgePolicy.TRAMPOLINE {
+        return _jac_make_host_trampoline(value);
+    }
     raise RuntimeError(
         "bridge-table: type '"
         + value.t
