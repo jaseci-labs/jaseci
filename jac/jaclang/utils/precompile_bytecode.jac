@@ -260,12 +260,14 @@ def precompile_unit(
     compiler = Jac.get_compiler();
 
     program = JacProgram();
-    options = CompileOptions();
-    if hasattr(options, 'graphmend') {
-        options.graphmend = False;
+    options_kw: dict = {};
+    probe = CompileOptions();
+    if hasattr(probe, 'graphmend') {
+        setattr(probe, 'graphmend', False);
+        options_kw['options'] = probe;
     }
     code = compiler.get_bytecode(
-        full_target=jac_path, target_program=program, options=options
+        full_target=jac_path, target_program=program, **options_kw
     );
     if code is None {
         _emit_unit_diagnostics(jac_path, [program, compiler.internal_program]);
