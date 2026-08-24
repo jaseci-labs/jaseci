@@ -593,7 +593,18 @@ def _jac_module_info(absname):
     import _imp
     import importlib.machinery as machinery
     parts = absname.split(".")
-    if _imp.is_builtin(parts[0]) or _imp.is_frozen(parts[0]):
+    if _imp.is_builtin(parts[0]):
+        return ("native", "", False, "", "")
+    # Frozen-but-with-source modules (abc, _collections_abc are frozen into the
+    # 3.10+ bootstrap): CPython prefers the frozen copy for STARTUP, but our
+    # guest must boot the REAL Lib source -- a host-proxied frozen module hands
+    # back host class objects (ABCMeta as PyHostProxy), which class_mro then
+    # excludes (non-PyClass bases are not MRO nodes), collapsing every
+    # metaclass chain built on them: `class P(metaclass=_PM(ABCMeta))` lost its
+    # entire ancestry and `import typing` died in _ProtocolMeta.__init__.
+    # Unfreeze-by-name so the sys.path walk below finds Lib/abc.py and boots it
+    # in-VM. Extend the set only with a fresh conv-pipe diff pass.
+    if _imp.is_frozen(parts[0]) and parts[0] != "abc":
         return ("native", "", False, "", "")
 
     def locate(base_dir, part):
@@ -2536,18 +2547,47 @@ obj PyClass(PyObj) {
         # boxed value, e.g. re._constants._NamedIntConstant) governs construction:
         # call __new__(cls, *args) and use its return value. __init__ then runs
         # only if __new__ returned an instance of this class (CPython's rule).
+        # NOTE the two shapes __new__ takes from guest namespaces: since the
+        # type_new_staticmethod replication above, guest-stored __new__ is a
+        # PyStaticMethod wrapping the real function; CPython's type_call looks
+        # through the descriptor to the underlying function.
         user_new = class_lookup_attr(self, "__new__");
-        if not is_error(user_new) and isinstance(user_new, PyFunction) {
+        new_fn: any = py_none();
+        has_user_new = False;
+        if not is_error(user_new) {
+            cand: any = user_new;
+            if isinstance(user_new, PyStaticMethod) {
+                cand = (user_new as PyStaticMethod).func;
+            }
+            if isinstance(cand, PyFunction) {
+                new_fn = cand;
+                has_user_new = True;
+            }
+        }
+        if has_user_new {
             new_args: list[PyObj] = [self];
             for a in args {
                 new_args.append(a);
             }
-            made = py_invoke(user_new, new_args, kwargs);
+            made = py_invoke(new_fn as PyFunction, new_args, kwargs);
             if is_error(made) {
                 return made;
             }
+            # CPython type_call runs __init__ iff isinstance(obj, cls). Two
+            # shapes qualify: an ordinary PyUserObj instance, AND the class
+            # object itself on the class-creation path (type.__new__ returns a
+            # PyClass tagged with THIS metaclass -- skipping its __init__ here
+            # silently drops _ProtocolMeta-style bodies).
+            made_is_meta_inst = False;
             if isinstance(made, PyUserObj)
                 and instance_of_class(made as PyUserObj, self) {
+                made_is_meta_inst = True;
+            }
+            if isinstance(made, PyClass)
+                and (made as PyClass).metaclass is self {
+                made_is_meta_inst = True;
+            }
+            if made_is_meta_inst {
                 init2 = class_lookup_attr(self, "__init__");
                 if not is_error(init2) and isinstance(init2, PyFunction) {
                     ir = bind_attribute(init2, made).tp_call(args, kwargs);
@@ -9107,13 +9147,32 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
     mro = class_mro(walk_cls as PyClass);
     past = False;
     for klass in mro {
-        if past and name in klass.attrs {
-            return klass.attrs[name];
+        if past {
+            # CPython type.__init__ after creation is arg validation + no-op;
+            # guest classes are already built when a metaclass __init__ chains
+            # super().__init__. The native `type` surface carries no attrs, so
+            # serve the no-op arm here instead of falling through to
+            # AttributeError (Lib/typing.py _ProtocolMeta.__init__ depends on
+            # this exact chain).
+            if name == "__init__" and klass.native_base == "type" {
+                return PyNoOpInit(t="noop_init");
+            }
+            if name in klass.attrs {
+                return klass.attrs[name];
+            }
         }
         if klass is start {
             past = True;
         }
     }
+        # A CLASS receiver means we are inside a metaclass body chaining
+        # super().__init__ during creation: class_mro nodes end at the newest
+        # guest class (implicit object/type roots are not class_mro nodes), so
+        # the walk found nothing. CPython's terminal there is type.__init__ --
+        # arg-validation + no-op over the already-built class.
+        if name == "__init__" and isinstance(instance, PyClass) {
+            return PyNoOpInit(t="noop_init");
+        }
     # No python ancestor defines it. A super().<dunder>() on a boxed-builtin
     # subclass (dict/list/... subclass calling super().__setitem__ etc.) delegates
     # to the base value's own slot.
@@ -9568,6 +9627,17 @@ def _slot_item_type_name(v: PyObj) -> str {
 def make_pyclass_from_map(
     class_name: str, bases: list[PyObj], namespace: dict[str, PyObj], meta: any
 ) -> PyObj {
+    # CPython type_new_staticmethod (Objects/typeobject.c): a plain-function
+    # __new__ in the namespace is stored as a STATICMETHOD so it never
+    # instance-binds -- super().__new__(mcls, ...) must reach it unbound (the
+    # receiver arrives as the explicit mcls argument). Without this, metaclass
+    # chains double-bind through descriptor_get and die with 'too many
+    # positional arguments' (Lib/typing.py _ProtocolMeta.__new__).
+    if "__new__" in namespace and isinstance(namespace["__new__"], PyFunction) {
+        namespace["__new__"] = PyStaticMethod(
+            t="staticmethod", func=namespace["__new__"]
+        );
+    }
     flags = type_ready(0);
     if flags < 0 {
         flags = Py_TPFLAGS_READY;
