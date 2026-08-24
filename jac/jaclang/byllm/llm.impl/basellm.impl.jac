@@ -1586,7 +1586,8 @@ impl BaseLLM.dispatch_streaming_with_tools(
             max_per_call=int(settings.get("max_per_call", _TOOL_DELTA_MAX_PER_CALL))
         );
         try {
-            for chunk in self.model_call_with_stream(params) {
+            _stream_resp = self.model_call_with_stream(params);
+            for chunk in _stream_resp {
                 chunks.append(chunk);
                 pending_before = len(mt_run._tool_arg_deltas);
                 if stream_args {
@@ -1635,7 +1636,9 @@ impl BaseLLM.dispatch_streaming_with_tools(
     message: object = None;
     usage_data: dict = {};
     try {
-        rebuilt = litellm.stream_chunk_builder(chunks);
+        rebuilt = litellm.stream_chunk_builder(
+            chunks, logging_obj=_stream_resp?.logging_obj
+        );
         if rebuilt {
             message = rebuilt.get("choices", [])[0].get("message");
             usage_data = rebuilt.get("usage", {}) or {};

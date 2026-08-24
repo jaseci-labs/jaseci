@@ -26,6 +26,18 @@ glob MODEL = "gpt-4o-mini",
      ];
 
 
+class _FakeStreamResp {
+    def init(self, chunks: list, logging_obj: object) {
+        self.chunks = chunks;
+        self.logging_obj = logging_obj;
+    }
+
+    def __iter__(self) {
+        return iter(self.chunks);
+    }
+}
+
+
 def _response(model: str = MODEL, usage: (dict | None) = None) -> dict {
     return {
         "model": model,
@@ -80,7 +92,7 @@ def _usage_from(path: str, response: (dict | None) = None) -> any {
     ];
     _call = lambda (params: dict) { return resp; };
     _stream = lambda (params: dict) { return chunks; };
-    _rebuild = lambda (seen: list) { return resp; };
+    _rebuild = lambda (seen: list, logging_obj: object = None) { return resp; };
 
     async def _acall(params: dict) -> dict {
         return resp;
@@ -228,4 +240,49 @@ test "_attach_call_cost trusts a cost litellm already computed" {
         );
     }
     assert usage.cost == 0.0042 , "a cost litellm already attached must not be overwritten";
+}
+
+
+test "dispatch_streaming_with_tools passes the stream's own logging_obj to stream_chunk_builder" {
+    # litellm only attaches a native cost via include_cost_in_streaming_usage
+    # when stream_chunk_builder receives a logging_obj - byLLM's own rebuild
+    # call must forward the one attached to the CustomStreamWrapper it got
+    # back from model_call_with_stream, or every tools-loop call silently
+    # loses the native path and falls back to a manual completion_cost().
+    llm = Model(model_name=MODEL);
+    mt = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="s"),
+            Message(role=MessageRole.USER, content="u")
+        ],
+        resp_type=str,
+        stream=True,
+        tools=[],
+        call_params={},
+        mtir=None
+    );
+
+    fake_logging_obj = object();
+    fake_chunk = types.SimpleNamespace(
+        usage=None,
+        choices=[types.SimpleNamespace(delta=types.SimpleNamespace(content="hi"))]
+    );
+    stream_resp = _FakeStreamResp(chunks=[fake_chunk], logging_obj=fake_logging_obj);
+    seen_logging_obj: list = [];
+    def _rebuild(seen: list, logging_obj: object = None) -> dict {
+        seen_logging_obj.append(logging_obj);
+        return _response();
+    }
+
+    out: list = [];
+    with mock.patch.object(
+        llm, "model_call_with_stream", lambda (params: dict) { return stream_resp; }
+    ), mock.patch.object(_byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild) {
+        list(llm.dispatch_streaming_with_tools(mt, out));
+    }
+
+    assert seen_logging_obj == [fake_logging_obj] , (
+        f"stream_chunk_builder should receive the stream's own logging_obj, "
+        f"got {seen_logging_obj}"
+    );
 }
