@@ -105,6 +105,10 @@ obj NaIRGenRefcount(NaIRGenState) {
     ) -> None;
 
     def _release_owned_args(call_args: list, op: str = "call_arg") -> None;
+    def _consume_owned_receiver(
+        recv: ir.Value, val: (ir.Value | None), op: str = "field_recv"
+    ) -> (ir.Value | None);
+
     def _rc_call_with_ctx(
         fn: ir.Function, args: list, op: str, loc: str = "", name: str = ""
     ) -> ir.Value;

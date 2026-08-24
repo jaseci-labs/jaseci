@@ -18,6 +18,12 @@ the assigned value can itself MINT a fresh owned temporary (a list flavor change
 lowers to a spread-copy into a new list). The guard must read the coerced value,
 not the pre-coercion one, or that temporary is retained once more than it is
 released and leaks along with everything it holds.
+
+The mirror case is an owned value nobody disposes of. Returning a borrowed
+element (`return self.toks[0]`) retains it so the caller gets an owned
+reference; reading a field off that result (`s.current().k`) then has to release
+it, because unlike a method call the field read never hands the receiver to the
+call machinery that would have freed it.
 """
 
 import ctypes;
@@ -80,6 +86,13 @@ def retain_calls_in(fixture: str, fn_name: str) -> int {
     return body.count('call void @"__rc_retain"');
 }
 
+"""Count releases emitted against one SSA value inside a function's body."""
+def releases_of(fixture: str, fn_name: str, ssa_name: str, ty: str) -> int {
+    (eng, ir) = compile_fixture(fixture);
+    body = str(ir.gen.llvm_ir).split(f'define i64 @"{fn_name}"')[1].split("\n}")[0];
+    return body.count(f'bitcast %"{ty}"* %"{ssa_name}" to i8*');
+}
+
 test "move-lowering elides exactly the `b = a` alias retain" {
     # A/B on identical IR: the ONLY difference is whether the move is lowered.
     off = retain_calls("move_elision.jac", False);
@@ -126,5 +139,25 @@ test "the coerced-assign elision is sound at runtime" {
     assert f(1000) == 1000;
     # Heavy loop: eliding a retain that was actually needed would free the list
     # early and corrupt the heap here.
+    assert f(400000) == 400000;
+}
+
+test "a field read releases the owned receiver it consumed" {
+    # `s.current()` hands back an owned reference; `.k` reads through it and is
+    # its only consumer. Without a release the element's refcount climbs once
+    # per read, so the stream that owns it can never be freed either -- the
+    # shape the jac parser hits on every `self.current().kind`.
+    n = releases_of(
+        "field_read_owned_receiver.jac", "run_reads", "call.current", "Tok"
+    );
+    assert n == 1 , (f"the consumed receiver must be released exactly once; got {n}");
+}
+
+test "releasing the field-read receiver is sound at runtime" {
+    (eng, _) = compile_fixture("field_read_owned_receiver.jac");
+    f = get_func(eng, "run_reads", ctypes.c_int64, ctypes.c_int64);
+    assert f(1000) == 1000;
+    # Releasing a receiver still owned elsewhere would free the element early
+    # and corrupt the heap over a heavy loop.
     assert f(400000) == 400000;
 }

@@ -624,6 +624,39 @@ impl NaIRGenRefcount._release_owned_args(
     }
 }
 
+impl NaIRGenRefcount._consume_owned_receiver(
+    recv: ir.Value, val: (ir.Value | None), op: str = "field_recv"
+) -> (ir.Value | None) {
+    """Drop a receiver that the field read was the only consumer of.
+
+    `obj().f` leaves `obj()`'s result with nothing holding it: a method call
+    passes the receiver as an argument, so `_release_owned_args` frees it, but a
+    field read only indexes into it and no one else ever looks at it again.
+
+    Releasing it here can free the field's own value along with it, since a
+    pointer field is owned by the object it lives in. So the loaded value is
+    retained first and handed back owned, which moves it onto the same
+    owned-temporary path the call machinery already knows how to dispose of. A
+    scalar field carries no such dependency and only needs the receiver dropped.
+    """;
+    if val is None
+        or not isinstance(recv.type, ir.PointerType)
+        or not self._is_owned(recv)
+        or val is recv {
+        return val;
+    }
+    if isinstance(val.type, ir.PointerType) {
+        self._emit_rc_retain(val, op=op, loc="");
+        self._emit_rc_release_simple(recv, op=op, loc="");
+        return self._mark_owned(val);
+    }
+    if self._opt_ptr_payload_of(val.type) is not None {
+        return val;
+    }
+    self._emit_rc_release_simple(recv, op=op, loc="");
+    return val;
+}
+
 impl NaIRGenRefcount._emit_magic_check(
     b: ir.IRBuilder, ptr: ir.Value, name_prefix: str = "mc"
 ) -> ir.Value {
