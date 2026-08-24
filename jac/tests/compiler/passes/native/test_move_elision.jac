@@ -12,6 +12,12 @@ that the result is sound at runtime (no leak, no double free over a heavy loop).
 
 The proof is native-owned and does NOT depend on the ownership checker: the
 elision lives in the native codegen path rather than the analysis schedule.
+
+The same guard covers a second source of ownership: a type coercion applied to
+the assigned value can itself MINT a fresh owned temporary (a list flavor change
+lowers to a spread-copy into a new list). The guard must read the coerced value,
+not the pre-coercion one, or that temporary is retained once more than it is
+released and leaks along with everything it holds.
 """
 
 import ctypes;
@@ -67,6 +73,13 @@ def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any 
     return ctypes.CFUNCTYPE(restype, *argtypes)(addr);
 }
 
+"""Count __rc_retain call sites emitted inside one function's body."""
+def retain_calls_in(fixture: str, fn_name: str) -> int {
+    (eng, ir) = compile_fixture(fixture);
+    body = str(ir.gen.llvm_ir).split(f'define i64 @"{fn_name}"')[1].split("\n}")[0];
+    return body.count('call void @"__rc_retain"');
+}
+
 test "move-lowering elides exactly the `b = a` alias retain" {
     # A/B on identical IR: the ONLY difference is whether the move is lowered.
     off = retain_calls("move_elision.jac", False);
@@ -92,5 +105,26 @@ test "move-lowering is sound at runtime: correct result, no leak, no double free
     assert f(1000) == 1000;
     # A heavy loop: a double free would corrupt the heap and crash here; a leak
     # would grow RSS unbounded. Reaching the assert cleanly proves neither.
+    assert f(400000) == 400000;
+}
+
+test "a coercion that mints an owned value gets its retain elided too" {
+    # `stack = nxt` needs a list flavor coercion, which builds a FRESH owned list.
+    # Reading ownership off the pre-coercion value calls it borrowed and emits a
+    # retain the fresh list never sees released -- rc parks at 1 and it is never
+    # freed. Every value in run_coerced is freshly minted, so the correct count
+    # is zero.
+    n = retain_calls_in("coerce_owned_assign.jac", "run_coerced");
+    assert n == 0 , (
+        f"a coerced owned temporary must not be retained; got {n} retain call(s)"
+    );
+}
+
+test "the coerced-assign elision is sound at runtime" {
+    (eng, _) = compile_fixture("coerce_owned_assign.jac");
+    f = get_func(eng, "run_coerced", ctypes.c_int64, ctypes.c_int64);
+    assert f(1000) == 1000;
+    # Heavy loop: eliding a retain that was actually needed would free the list
+    # early and corrupt the heap here.
     assert f(400000) == 400000;
 }

@@ -2291,7 +2291,7 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                         and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
                         self.nogc_no_free_vars.add(var_name);
                     }
-                    if not self._is_owned(value)
+                    if not self._is_owned(coerced)
                         and not self._can_native_move_lower(nd) {
                         self._emit_rc_retain(
                             coerced,
@@ -2300,7 +2300,7 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                                 if nd.loc
                                 else 0}"
                         );
-                    } elif self._is_owned(value) {
+                    } elif self._is_owned(coerced) {
                         self.rc_ops_elided += 1;
                     }
                     if not (
