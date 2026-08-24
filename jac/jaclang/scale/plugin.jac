@@ -101,12 +101,6 @@ def scale_local_serve(filename: str, port: int = 8000) -> int | None {
             should_serve_ms = False;
         }
         if should_serve_ms and realizer is not None {
-            # Recorded here, where this call has actually committed to the
-            # gateway, and only for a typed --port: `port` is the sentinel by
-            # now, so non-zero means a human named it. A jac.toml gateway_port
-            # does not pin, unlike [serve] port on the plain path, because the
-            # loaded config merges a default for that key and nothing
-            # downstream could tell a chosen 8000 from an assumed one.
             ms_config["gateway_port_pinned"] = bool(port);
             if enabled is None {
                 _print_local_ms_banner(ms_config.get("routes", {}));
