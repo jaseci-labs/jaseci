@@ -12,6 +12,7 @@ import from jaclang.runtimelib.dbcatalog {
     stop_heartbeat
 }
 import from jaclang.runtimelib.pgembed { PgRuntime }
+import from jaclang.runtimelib.exceptions { WriteConflict }
 import from jaclang.runtimelib.store {
     AnchorRow,
     ConnInfo,
@@ -89,7 +90,8 @@ obj Session {
         _active_units: int postinit,
         _flushing: (int | None) postinit,
         _read_scopes: int postinit,
-        _snapshot_reads: set[UUID] postinit;
+        _snapshot_reads: set[UUID] postinit,
+        _version_seen: dict[UUID, int] postinit;
 
     def postinit -> None;
     def data_location -> (str | None);
