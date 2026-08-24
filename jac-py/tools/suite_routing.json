@@ -1,0 +1,6078 @@
+{
+  "tool": "suite_router",
+  "pin": {
+    "version": "3.14.6",
+    "tree": "/home/jac/repos/jac-python/reference/cpython",
+    "policy": "CURRENT.md / fetch_cpython_reference.py"
+  },
+  "total_suites": 428,
+  "file_suites": 398,
+  "package_suites": 30,
+  "bucket_counts": {
+    "QUARANTINE": 252,
+    "RUNTIME-GAP": 9,
+    "NEEDS-FACADE": 130,
+    "SELF-HOST-CANDIDATE": 9,
+    "MECHANICAL": 28
+  },
+  "conformant_count": 19,
+  "facades_detected": {
+    "_ast_unparse": "_ast",
+    "_py_warnings": "_contextvars",
+    "_pyio": "_thread",
+    "_pylong": "_decimal",
+    "_sitebuiltins": "_pyrepl",
+    "_strptime": "_thread",
+    "_weakrefset": "_weakref",
+    "abc": "_abc",
+    "ast": "_ast",
+    "bisect": "_bisect",
+    "bz2": "_bz2",
+    "cProfile": "_lsprof",
+    "codecs": "_codecs",
+    "collections": "_collections",
+    "compression": "_zstd",
+    "concurrent": "_interpreters",
+    "contextvars": "_contextvars",
+    "csv": "_csv",
+    "ctypes": "_ctypes",
+    "curses": "_curses",
+    "datetime": "_datetime",
+    "decimal": "_decimal",
+    "dis": "_opcode",
+    "functools": "_functools",
+    "hashlib": "_blake2",
+    "heapq": "_heapq",
+    "hmac": "_hashlib",
+    "importlib": "_frozen_importlib",
+    "io": "_io",
+    "locale": "_locale",
+    "lzma": "_lzma",
+    "opcode": "_opcode",
+    "operator": "_operator",
+    "pdb": "_pyrepl",
+    "pickle": "_pickle",
+    "pydoc": "_pyrepl",
+    "queue": "_queue",
+    "random": "_random",
+    "re": "_sre",
+    "reprlib": "_thread",
+    "signal": "_signal",
+    "site": "_io",
+    "socket": "_socket",
+    "ssl": "_ssl",
+    "stat": "_stat",
+    "statistics": "_statistics",
+    "string": "_string",
+    "struct": "_struct",
+    "subprocess": "_posixsubprocess",
+    "symtable": "_symtable",
+    "sysconfig": "_sysconfig",
+    "tempfile": "_thread",
+    "threading": "_collections",
+    "tkinter": "_tkinter",
+    "tokenize": "_tokenize",
+    "traceback": "_suggestions",
+    "tracemalloc": "_tracemalloc",
+    "types": "_types",
+    "typing": "_typing",
+    "uuid": "_uuid",
+    "warnings": "_warnings",
+    "weakref": "_weakref",
+    "zipimport": "_frozen_importlib",
+    "zoneinfo": "_zoneinfo",
+    "json": "_json",
+    "dbm": "_gdbm",
+    "sqlite3": "_sqlite3",
+    "xml": "_elementtree"
+  },
+  "suites": [
+    {
+      "suite": "test___all__",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_socket",
+        "direct-accelerator-import:_socket"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test__colorize",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:io->_io",
+        "pure-lib-subject:_colorize"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test__interpchannels",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "direct-accelerator-import:_interpchannels",
+        "facade-module:collections->_collections",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test__interpreters",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_interpreters",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "direct-accelerator-import:_interpreters",
+        "facade-module:pickle->_pickle",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test__locale",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_locale",
+        "forbidden-import:locale",
+        "platform-specific-checks",
+        "direct-accelerator-import:_locale",
+        "facade-module:locale->_locale"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test__opcode",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "direct-accelerator-import:_opcode",
+        "facade-module:dis->_opcode",
+        "facade-module:opcode->_opcode"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test__osx_support",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:stat->_stat",
+        "pure-lib-subject:_osx_support"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_abc",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:abc->_abc"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_abstract_numbers",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:abc->_abc",
+        "facade-module:operator->_operator"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_android",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:io->_io",
+        "facade-module:queue->_queue",
+        "facade-module:re->_sre",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_annotationlib",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:functools->_functools",
+        "facade-module:pickle->_pickle",
+        "facade-module:string->_string",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing",
+        "pure-lib-subject:annotationlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_apple",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_argparse",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:stat->_stat",
+        "facade-module:tempfile->_thread",
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:argparse"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_array",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:collections->_collections",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:struct->_struct",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": true,
+      "coverage": "parity"
+    },
+    {
+      "suite": "test_asdl_parser",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:sysconfig->_sysconfig"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_asyncgen",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:asyncio",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_atexit",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:subprocess->_posixsubprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_audit",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_winapi",
+        "forbidden-import:_wmi",
+        "forbidden-import:ctypes",
+        "forbidden-import:http",
+        "forbidden-import:socket",
+        "forbidden-import:subprocess",
+        "forbidden-import:winreg",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.monitoring]",
+        "direct-accelerator-import:_posixsubprocess",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_winapi",
+        "direct-accelerator-import:_wmi",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:pickle->_pickle",
+        "facade-module:socket->_socket",
+        "facade-module:sqlite3->_sqlite3",
+        "facade-module:subprocess->_posixsubprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_augassign",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_base64",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:io->_io",
+        "pure-lib-subject:base64"
+      ],
+      "conformant": true,
+      "coverage": "delegate"
+    },
+    {
+      "suite": "test_baseexception",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_bdb",
+      "bucket": "RUNTIME-GAP",
+      "signals": [
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]",
+        "facade-module:importlib->_frozen_importlib",
+        "pure-lib-subject:bdb"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_bigaddrspace",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:operator->_operator"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_bigmem",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:operator->_operator"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_binascii",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:re->_sre"
+      ],
+      "conformant": true,
+      "coverage": "parity"
+    },
+    {
+      "suite": "test_binop",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:abc->_abc",
+        "facade-module:operator->_operator"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_bisect",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:bisect->_bisect",
+        "facade-module:collections->_collections",
+        "facade-module:random->_random"
+      ],
+      "conformant": true,
+      "coverage": "partial"
+    },
+    {
+      "suite": "test_bool",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_buffer",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testbuffer",
+        "forbidden-import:_testcapi",
+        "forbidden-import:ctypes",
+        "direct-accelerator-import:_testbuffer",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:decimal->_decimal",
+        "facade-module:io->_io",
+        "facade-module:random->_random",
+        "facade-module:struct->_struct",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_bufio",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:_pyio->_thread",
+        "facade-module:io->_io"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_build_details",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:json->_json",
+        "facade-module:string->_string",
+        "facade-module:sysconfig->_sysconfig"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_builtin",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:ctypes",
+        "forbidden-import:locale",
+        "forbidden-import:pty",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:ast->_ast",
+        "facade-module:collections->_collections",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:decimal->_decimal",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:locale->_locale",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:traceback->_suggestions",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_bytes",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testlimitedcapi",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:functools->_functools",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_bz2",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:bz2->_bz2",
+        "facade-module:compression->_zstd",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_c_locale_coercion",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:locale",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:collections->_collections",
+        "facade-module:locale->_locale",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_calendar",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:locale",
+        "forbidden-import:subprocess",
+        "facade-module:datetime->_datetime",
+        "facade-module:io->_io",
+        "facade-module:locale->_locale",
+        "pure-lib-subject:calendar"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_call",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "direct-accelerator-import:_testlimitedcapi",
+        "facade-module:collections->_collections",
+        "facade-module:functools->_functools",
+        "facade-module:struct->_struct",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_charmapcodec",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:codecs->_codecs",
+        "implicit-codec-dependency:codecs->_codecs_*"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_class",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:subprocess",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "direct-accelerator-import:_testlimitedcapi"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_clinic",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testclinic",
+        "direct-accelerator-import:_testclinic_limited",
+        "facade-module:functools->_functools",
+        "facade-module:re->_sre"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_cmath",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_cmd",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io",
+        "pure-lib-subject:cmd"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_cmd_line",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:re->_sre",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_cmd_line_script",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:zipimport->_frozen_importlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_code",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:dis->_opcode",
+        "facade-module:opcode->_opcode",
+        "facade-module:threading->_collections",
+        "facade-module:types->_types",
+        "facade-module:weakref->_weakref",
+        "pure-lib-subject:code"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_code_module",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:traceback->_suggestions"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codeccallbacks",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "direct-accelerator-import:_codecs",
+        "facade-module:codecs->_codecs",
+        "facade-module:re->_sre"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecencodings_cn",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecencodings_hk",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecencodings_iso2022",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecencodings_jp",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecencodings_kr",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecencodings_tw",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecmaps_cn",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecmaps_hk",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecmaps_jp",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecmaps_kr",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecmaps_tw",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "implicit-codec-dependency:test.multibytecodec_support->_multibytecodec"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codecs",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:_winapi",
+        "forbidden-import:ctypes",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testinternalcapi",
+        "direct-accelerator-import:_testlimitedcapi",
+        "direct-accelerator-import:_winapi",
+        "facade-module:bz2->_bz2",
+        "facade-module:codecs->_codecs",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:warnings->_warnings",
+        "implicit-codec-dependency:codecs->_codecs_*"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_codeop",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:codeop"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_collections",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:string->_string",
+        "facade-module:types->_types"
+      ],
+      "conformant": true,
+      "coverage": "parity"
+    },
+    {
+      "suite": "test_colorsys",
+      "bucket": "SELF-HOST-CANDIDATE",
+      "signals": [
+        "pure-lib-subject:colorsys"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_compare",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:decimal->_decimal"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_compile",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_ast",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:ast->_ast",
+        "facade-module:dis->_opcode",
+        "facade-module:io->_io",
+        "facade-module:opcode->_opcode",
+        "facade-module:tempfile->_thread",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_compileall",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:multiprocessing",
+        "forbidden-import:subprocess",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:struct->_struct",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:compileall"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_compiler_assemble",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:dis->_opcode",
+        "facade-module:io->_io",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_compiler_codegen",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:ast->_ast"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_complex",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:operator->_operator",
+        "facade-module:random->_random"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_configparser",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:decimal->_decimal",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "pure-lib-subject:configparser"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_contains",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_context",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:collections->_collections",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:contextvars->_contextvars",
+        "facade-module:functools->_functools",
+        "facade-module:random->_random",
+        "facade-module:threading->_collections",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_contextlib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "facade-module:io->_io",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:traceback->_suggestions",
+        "facade-module:weakref->_weakref",
+        "pure-lib-subject:contextlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_contextlib_async",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:functools->_functools",
+        "facade-module:traceback->_suggestions"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_copy",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:abc->_abc",
+        "facade-module:collections->_collections",
+        "facade-module:operator->_operator",
+        "facade-module:typing->_typing",
+        "facade-module:weakref->_weakref",
+        "pure-lib-subject:copy"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_copyreg",
+      "bucket": "SELF-HOST-CANDIDATE",
+      "signals": [
+        "pure-lib-subject:copyreg"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_coroutines",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:asyncio",
+        "forbidden-import:subprocess",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:pickle->_pickle",
+        "facade-module:traceback->_suggestions",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_cprofile",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.monitoring]",
+        "direct-accelerator-import:_lsprof",
+        "facade-module:cProfile->_lsprof",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_crossinterp",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_interpreters",
+        "forbidden-import:_testinternalcapi",
+        "direct-accelerator-import:_interpreters",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:traceback->_suggestions",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_csv",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "direct-accelerator-import:_csv",
+        "facade-module:collections->_collections",
+        "facade-module:csv->_csv",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:string->_string",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": true,
+      "coverage": "parity"
+    },
+    {
+      "suite": "test_curses",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:curses",
+        "platform-specific-checks",
+        "facade-module:codecs->_codecs",
+        "facade-module:curses->_curses",
+        "facade-module:functools->_functools",
+        "facade-module:string->_string",
+        "facade-module:tempfile->_thread",
+        "implicit-codec-dependency:codecs->_codecs_*"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_datetime",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:functools->_functools"
+      ],
+      "conformant": true,
+      "coverage": "parity"
+    },
+    {
+      "suite": "test_dbm",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:dbm->_gdbm",
+        "facade-module:sqlite3->_sqlite3"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dbm_dumb",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:dbm->_gdbm",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:operator->_operator",
+        "facade-module:random->_random",
+        "facade-module:stat->_stat"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dbm_gnu",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "direct-accelerator-import:_gdbm",
+        "facade-module:dbm->_gdbm"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dbm_ndbm",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:dbm->_gdbm"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dbm_sqlite3",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:dbm->_gdbm",
+        "facade-module:functools->_functools",
+        "facade-module:sqlite3->_sqlite3",
+        "facade-module:stat->_stat"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_decimal",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:locale",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "facade-module:contextvars->_contextvars",
+        "facade-module:decimal->_decimal",
+        "facade-module:locale->_locale",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:threading->_collections",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_decorators",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_defaultdict",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:pickle->_pickle"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_deque",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:struct->_struct",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_descr",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:subprocess",
+        "dict-unpack-merge (missing ops: DICT_MERGE)",
+        "direct-accelerator-import:_io",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:abc->_abc",
+        "facade-module:collections->_collections",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:string->_string",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_descrtut",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_devpoll",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:select",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:random->_random"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dict",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "dict-unpack-merge (missing ops: DICT_MERGE)",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:collections->_collections",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:string->_string",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dictcomps",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:traceback->_suggestions"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dictviews",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:pickle->_pickle"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_difflib",
+      "bucket": "SELF-HOST-CANDIDATE",
+      "signals": [
+        "pure-lib-subject:difflib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dis",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:ast->_ast",
+        "facade-module:dis->_opcode",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:opcode->_opcode",
+        "facade-module:re->_sre",
+        "facade-module:tempfile->_thread",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_docxmlrpc",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:threading",
+        "forbidden-import:xmlrpc",
+        "facade-module:re->_sre",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dtrace",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:dis->_opcode",
+        "facade-module:re->_sre",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dynamic",
+      "bucket": "RUNTIME-GAP",
+      "signals": [
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_dynamicclassattribute",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:abc->_abc",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_eintr",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:signal->_signal"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_embed",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "dict-unpack-merge (missing ops: DICT_MERGE)",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:collections->_collections",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:json->_json",
+        "facade-module:re->_sre",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ensurepip",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:ensurepip"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_enum",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:collections->_collections",
+        "facade-module:datetime->_datetime",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:pydoc->_pyrepl",
+        "facade-module:threading->_collections",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing",
+        "facade-module:weakref->_weakref",
+        "pure-lib-subject:enum"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_enumerate",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_eof",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:codecs->_codecs"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_epoll",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:select",
+        "forbidden-import:socket",
+        "facade-module:socket->_socket"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_errno",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_except_star",
+      "bucket": "RUNTIME-GAP",
+      "signals": [
+        "except*-exception-group (missing ops: CHECK_EG_MATCH, CALL_INTRINSIC_2)"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_exception_group",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_exception_hierarchy",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:select",
+        "forbidden-import:socket",
+        "platform-specific-checks",
+        "facade-module:socket->_socket"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_exception_variations",
+      "bucket": "RUNTIME-GAP",
+      "signals": [
+        "except*-exception-group (missing ops: CHECK_EG_MATCH, CALL_INTRINSIC_2)"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_exceptions",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:codecs->_codecs",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:pickle->_pickle",
+        "facade-module:traceback->_suggestions",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_extcall",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_external_inspection",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_ctypes",
+        "forbidden-import:asyncio",
+        "forbidden-import:socket",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "direct-accelerator-import:_ctypes",
+        "direct-accelerator-import:_remote_debugging",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:socket->_socket",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_faulthandler",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:datetime->_datetime",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_fcntl",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:multiprocessing",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:struct->_struct"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_file",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:_pyio->_thread",
+        "facade-module:collections->_collections",
+        "facade-module:io->_io",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_file_eintr",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:select",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_io",
+        "facade-module:_pyio->_thread",
+        "facade-module:signal->_signal",
+        "facade-module:subprocess->_posixsubprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_filecmp",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:re->_sre",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:filecmp"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_fileinput",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:bz2->_bz2",
+        "facade-module:collections->_collections",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:fileinput"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_fileio",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "platform-specific-checks",
+        "direct-accelerator-import:_io",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:_pyio->_thread",
+        "facade-module:collections->_collections",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_fileutils",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testinternalcapi"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_finalization",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_float",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:locale",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:locale->_locale",
+        "facade-module:operator->_operator",
+        "facade-module:random->_random",
+        "facade-module:struct->_struct"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_flufl",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_fnmatch",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:re->_sre",
+        "facade-module:string->_string",
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:fnmatch"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_fork1",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:signal",
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "direct-accelerator-import:_imp",
+        "facade-module:signal->_signal",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_format",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:locale",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:locale->_locale",
+        "facade-module:re->_sre"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_fractions",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:decimal->_decimal",
+        "facade-module:functools->_functools",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:typing->_typing",
+        "pure-lib-subject:fractions"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_frame",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:collections->_collections",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:operator->_operator",
+        "facade-module:re->_sre",
+        "facade-module:threading->_collections",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_frozen",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:importlib->_frozen_importlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_fstring",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:ast->_ast",
+        "facade-module:datetime->_datetime",
+        "facade-module:decimal->_decimal",
+        "facade-module:dis->_opcode",
+        "facade-module:re->_sre",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ftplib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:socket",
+        "forbidden-import:ssl",
+        "forbidden-import:threading",
+        "facade-module:io->_io",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl",
+        "facade-module:threading->_collections",
+        "pure-lib-subject:ftplib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_funcattrs",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_functools",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:abc->_abc",
+        "facade-module:collections->_collections",
+        "facade-module:decimal->_decimal",
+        "facade-module:functools->_functools",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:threading->_collections",
+        "facade-module:typing->_typing",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": true,
+      "coverage": "parity"
+    },
+    {
+      "suite": "test_gc",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_socket",
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "direct-accelerator-import:_datetime",
+        "direct-accelerator-import:_socket",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:threading->_collections",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_generated_cases",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_generator_stop",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_generators",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:pickle->_pickle",
+        "facade-module:types->_types",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_genericalias",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:ctypes",
+        "forbidden-import:http",
+        "forbidden-import:multiprocessing",
+        "forbidden-import:tkinter",
+        "forbidden-import:urllib",
+        "facade-module:collections->_collections",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:contextvars->_contextvars",
+        "facade-module:csv->_csv",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:functools->_functools",
+        "facade-module:pickle->_pickle",
+        "facade-module:queue->_queue",
+        "facade-module:re->_sre",
+        "facade-module:string->_string",
+        "facade-module:tempfile->_thread",
+        "facade-module:tkinter->_tkinter",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_genericclass",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "direct-accelerator-import:_testcapi"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_genericpath",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:genericpath"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_genexps",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_getopt",
+      "bucket": "SELF-HOST-CANDIDATE",
+      "signals": [
+        "pure-lib-subject:getopt"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_getpass",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io",
+        "pure-lib-subject:getpass"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_getpath",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "direct-accelerator-import:_testinternalcapi"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_gettext",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:gettext",
+        "facade-module:functools->_functools",
+        "pure-lib-subject:gettext"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_glob",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:re->_sre",
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:glob"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_global",
+      "bucket": "RUNTIME-GAP",
+      "signals": [
+        "except*-exception-group (missing ops: CHECK_EG_MATCH, CALL_INTRINSIC_2)",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_grammar",
+      "bucket": "RUNTIME-GAP",
+      "signals": [
+        "except*-exception-group (missing ops: CHECK_EG_MATCH, CALL_INTRINSIC_2)",
+        "facade-module:typing->_typing",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_graphlib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "pure-lib-subject:graphlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_grp",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:random->_random",
+        "facade-module:string->_string"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_gzip",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:struct->_struct",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:gzip"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_hash",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:collections->_collections",
+        "facade-module:datetime->_datetime"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_hashlib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_blake2",
+        "direct-accelerator-import:_hashlib",
+        "direct-accelerator-import:_md5",
+        "direct-accelerator-import:_sha3",
+        "facade-module:hashlib->_blake2",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": true,
+      "coverage": "delegate"
+    },
+    {
+      "suite": "test_heapq",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:heapq->_heapq",
+        "facade-module:operator->_operator",
+        "facade-module:random->_random"
+      ],
+      "conformant": true,
+      "coverage": "partial"
+    },
+    {
+      "suite": "test_hmac",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "direct-accelerator-import:_blake2",
+        "direct-accelerator-import:_hashlib",
+        "direct-accelerator-import:_hmac",
+        "direct-accelerator-import:_operator",
+        "direct-accelerator-import:_sha2",
+        "facade-module:functools->_functools",
+        "facade-module:hashlib->_blake2",
+        "facade-module:hmac->_hashlib",
+        "facade-module:random->_random",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_html",
+      "bucket": "SELF-HOST-CANDIDATE",
+      "signals": [
+        "pure-lib-subject:html"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_htmlparser",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_http_cookiejar",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:urllib",
+        "platform-specific-checks",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:stat->_stat",
+        "facade-module:traceback->_suggestions"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_http_cookies",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:urllib",
+        "facade-module:pickle->_pickle"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_httplib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:socket",
+        "forbidden-import:ssl",
+        "forbidden-import:threading",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_httpservers",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:socket",
+        "forbidden-import:ssl",
+        "forbidden-import:threading",
+        "forbidden-import:urllib",
+        "platform-specific-checks",
+        "facade-module:collections->_collections",
+        "facade-module:datetime->_datetime",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_idle",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:tkinter",
+        "facade-module:tkinter->_tkinter"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_imaplib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:imaplib",
+        "forbidden-import:socket",
+        "forbidden-import:socketserver",
+        "forbidden-import:ssl",
+        "forbidden-import:threading",
+        "facade-module:datetime->_datetime",
+        "facade-module:re->_sre",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl",
+        "facade-module:threading->_collections",
+        "pure-lib-subject:imaplib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_index",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:operator->_operator"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_int",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "direct-accelerator-import:_decimal",
+        "facade-module:_pylong->_decimal",
+        "facade-module:random->_random"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_int_literal",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_io",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:ctypes",
+        "forbidden-import:locale",
+        "forbidden-import:select",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_io",
+        "facade-module:_pyio->_thread",
+        "facade-module:abc->_abc",
+        "facade-module:codecs->_codecs",
+        "facade-module:collections->_collections",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:io->_io",
+        "facade-module:locale->_locale",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:signal->_signal",
+        "facade-module:threading->_collections",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "implicit-codec-dependency:codecs->_codecs_*"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ioctl",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "facade-module:struct->_struct",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ipaddress",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:weakref->_weakref",
+        "pure-lib-subject:ipaddress"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_isinstance",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:typing->_typing"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_iter",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:functools->_functools",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:traceback->_suggestions"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_iterlen",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:operator->_operator"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_itertools",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:decimal->_decimal",
+        "facade-module:functools->_functools",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:struct->_struct",
+        "facade-module:threading->_collections",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": true,
+      "coverage": "parity"
+    },
+    {
+      "suite": "test_keyword",
+      "bucket": "SELF-HOST-CANDIDATE",
+      "signals": [
+        "pure-lib-subject:keyword"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_keywordonlyarg",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_kqueue",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:select",
+        "forbidden-import:socket",
+        "platform-specific-checks",
+        "facade-module:operator->_operator",
+        "facade-module:socket->_socket"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_largefile",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "facade-module:_pyio->_thread",
+        "facade-module:io->_io",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_launcher",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "forbidden-import:winreg",
+        "platform-specific-checks",
+        "facade-module:re->_sre",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_linecache",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:tokenize->_tokenize",
+        "pure-lib-subject:linecache"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_list",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:pickle->_pickle",
+        "facade-module:signal->_signal"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_listcomps",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:traceback->_suggestions",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_lltrace",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:dis->_opcode"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_locale",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_locale",
+        "forbidden-import:locale",
+        "platform-specific-checks",
+        "direct-accelerator-import:_locale",
+        "facade-module:codecs->_codecs",
+        "facade-module:decimal->_decimal",
+        "facade-module:locale->_locale",
+        "implicit-codec-dependency:codecs->_codecs_*"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_logging",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:asyncio",
+        "forbidden-import:http",
+        "forbidden-import:multiprocessing",
+        "forbidden-import:socket",
+        "forbidden-import:socketserver",
+        "forbidden-import:ssl",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:urllib",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_multiprocessing",
+        "facade-module:codecs->_codecs",
+        "facade-module:collections->_collections",
+        "facade-module:datetime->_datetime",
+        "facade-module:io->_io",
+        "facade-module:json->_json",
+        "facade-module:pickle->_pickle",
+        "facade-module:queue->_queue",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl",
+        "facade-module:struct->_struct",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "pure-lib-subject:logging"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_long",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:random->_random"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_longexp",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_lzma",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:compression->_zstd",
+        "facade-module:io->_io",
+        "facade-module:lzma->_lzma",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_mailbox",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:socket",
+        "platform-specific-checks",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:socket->_socket",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:mailbox"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_marshal",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:io->_io",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_math",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:collections->_collections",
+        "facade-module:decimal->_decimal",
+        "facade-module:operator->_operator",
+        "facade-module:random->_random",
+        "facade-module:statistics->_statistics",
+        "facade-module:struct->_struct"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_math_property",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:functools->_functools"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_memoryio",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:_pyio->_thread",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_memoryview",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:ctypes",
+        "forbidden-import:multiprocessing",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:struct->_struct",
+        "facade-module:threading->_collections",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_metaclass",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_mimetypes",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_winapi",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_winapi",
+        "facade-module:io->_io",
+        "pure-lib-subject:mimetypes"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_minidom",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:xml->_elementtree"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_mmap",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:socket",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:socket->_socket",
+        "facade-module:string->_string",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_modulefinder",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:modulefinder"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_monitoring",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:subprocess",
+        "except*-exception-group (missing ops: CHECK_EG_MATCH, CALL_INTRINSIC_2)",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.monitoring]",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:collections->_collections",
+        "facade-module:dis->_opcode",
+        "facade-module:functools->_functools",
+        "facade-module:operator->_operator",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_msvcrt",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_winapi",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_winapi",
+        "facade-module:subprocess->_posixsubprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_multibytecodec",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "direct-accelerator-import:_multibytecodec",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:codecs->_codecs",
+        "facade-module:io->_io"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_multiprocessing_main_handling",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:multiprocessing",
+        "forbidden-import:subprocess",
+        "direct-accelerator-import:_multiprocessing",
+        "facade-module:importlib->_frozen_importlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_named_expressions",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_netrc",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "pure-lib-subject:netrc"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ntpath",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_winapi",
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_winapi",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:string->_string",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:ntpath"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_nturl2path",
+      "bucket": "SELF-HOST-CANDIDATE",
+      "signals": [
+        "pure-lib-subject:nturl2path"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_numeric_tower",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:decimal->_decimal",
+        "facade-module:operator->_operator",
+        "facade-module:random->_random"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_opcache",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:dis->_opcode",
+        "facade-module:pickle->_pickle",
+        "facade-module:threading->_collections",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_opcodes",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_openpty",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_operator",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:decimal->_decimal",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_optimizer",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_optparse",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "pure-lib-subject:optparse"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ordered_dict",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:struct->_struct",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_os",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_winapi",
+        "forbidden-import:asyncio",
+        "forbidden-import:ctypes",
+        "forbidden-import:locale",
+        "forbidden-import:select",
+        "forbidden-import:selectors",
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_winapi",
+        "facade-module:codecs->_codecs",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:decimal->_decimal",
+        "facade-module:locale->_locale",
+        "facade-module:pickle->_pickle",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:stat->_stat",
+        "facade-module:struct->_struct",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "facade-module:types->_types",
+        "facade-module:uuid->_uuid",
+        "facade-module:warnings->_warnings",
+        "implicit-codec-dependency:codecs->_codecs_*",
+        "pure-lib-subject:os"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_osx_env",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_patma",
+      "bucket": "RUNTIME-GAP",
+      "signals": [
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]",
+        "facade-module:collections->_collections",
+        "facade-module:dis->_opcode",
+        "facade-module:typing->_typing"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pdb",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:asyncio",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]",
+        "facade-module:codecs->_codecs",
+        "facade-module:io->_io",
+        "facade-module:pdb->_pyrepl",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_peepholer",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:ast->_ast",
+        "facade-module:dis->_opcode",
+        "facade-module:opcode->_opcode"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pep646_syntax",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_perf_profiler",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:string->_string",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_perfmaps",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testinternalcapi"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pickle",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:multiprocessing",
+        "direct-accelerator-import:_pickle",
+        "facade-module:collections->_collections",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:struct->_struct",
+        "facade-module:tempfile->_thread",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_picklebuffer",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testbuffer",
+        "direct-accelerator-import:_testbuffer",
+        "facade-module:pickle->_pickle",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pickletools",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "pure-lib-subject:pickletools"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pkg",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pkgutil",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:tempfile->_thread",
+        "facade-module:zipimport->_frozen_importlib",
+        "pure-lib-subject:pkgutil"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_platform",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_ctypes",
+        "forbidden-import:_winapi",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_ctypes",
+        "direct-accelerator-import:_winapi",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:subprocess->_posixsubprocess",
+        "pure-lib-subject:platform"
+      ],
+      "conformant": true,
+      "coverage": "partial"
+    },
+    {
+      "suite": "test_plistlib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:codecs->_codecs",
+        "facade-module:collections->_collections",
+        "facade-module:datetime->_datetime",
+        "facade-module:io->_io",
+        "facade-module:json->_json",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:struct->_struct",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:zoneinfo->_zoneinfo",
+        "pure-lib-subject:plistlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_poll",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:select",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:random->_random",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_popen",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_poplib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:socket",
+        "forbidden-import:ssl",
+        "forbidden-import:threading",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl",
+        "facade-module:threading->_collections",
+        "pure-lib-subject:poplib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_positional_only_arg",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:dis->_opcode",
+        "facade-module:pickle->_pickle",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_posix",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:pickle->_pickle",
+        "facade-module:signal->_signal",
+        "facade-module:stat->_stat",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_posixpath",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:functools->_functools",
+        "facade-module:random->_random",
+        "pure-lib-subject:posixpath"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pow",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:random->_random"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pprint",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:io->_io",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:types->_types",
+        "pure-lib-subject:pprint"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_print",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_profile",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:io->_io",
+        "pure-lib-subject:profile"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_property",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pstats",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:cProfile->_lsprof",
+        "facade-module:io->_io",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:pstats"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pty",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:pty",
+        "forbidden-import:select",
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "forbidden-import:tty",
+        "facade-module:io->_io",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:pty"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pulldom",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io",
+        "facade-module:xml->_elementtree"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pwd",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:random->_random",
+        "facade-module:string->_string"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_py_compile",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:functools->_functools",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:stat->_stat",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:py_compile"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pyclbr",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:pyclbr"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pyexpat",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:abc->_abc",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:traceback->_suggestions",
+        "facade-module:xml->_elementtree"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_queue",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:queue->_queue",
+        "facade-module:random->_random",
+        "facade-module:threading->_collections",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_quopri",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:io->_io",
+        "facade-module:subprocess->_posixsubprocess",
+        "pure-lib-subject:quopri"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_raise",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_random",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "direct-accelerator-import:_random",
+        "facade-module:collections->_collections",
+        "facade-module:functools->_functools",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": true,
+      "coverage": "parity"
+    },
+    {
+      "suite": "test_range",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:pickle->_pickle"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_re",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:locale",
+        "forbidden-import:multiprocessing",
+        "platform-specific-checks",
+        "direct-accelerator-import:_multiprocessing",
+        "direct-accelerator-import:_sre",
+        "facade-module:locale->_locale",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:string->_string",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": true,
+      "coverage": "delegate"
+    },
+    {
+      "suite": "test_readline",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:locale",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "facade-module:codecs->_codecs",
+        "facade-module:locale->_locale",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "implicit-codec-dependency:codecs->_codecs_*"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_regrtest",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:locale",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:io->_io",
+        "facade-module:locale->_locale",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "facade-module:xml->_elementtree"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_remote_pdb",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_remote_debugging",
+        "facade-module:io->_io",
+        "facade-module:json->_json",
+        "facade-module:pdb->_pyrepl",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:typing->_typing"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_repl",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:pty",
+        "forbidden-import:select",
+        "forbidden-import:subprocess",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:functools->_functools",
+        "facade-module:subprocess->_posixsubprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_reprlib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:collections->_collections",
+        "facade-module:functools->_functools",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:reprlib->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_resource",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_richcmp",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:operator->_operator",
+        "facade-module:random->_random"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_rlcompleter",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:types->_types",
+        "pure-lib-subject:rlcompleter"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_robotparser",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:socket",
+        "forbidden-import:threading",
+        "forbidden-import:urllib",
+        "facade-module:io->_io",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_runpy",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:runpy"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_sax",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:urllib",
+        "facade-module:codecs->_codecs",
+        "facade-module:io->_io",
+        "facade-module:xml->_elementtree"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_sched",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:queue->_queue",
+        "facade-module:threading->_collections",
+        "pure-lib-subject:sched"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_scope",
+      "bucket": "RUNTIME-GAP",
+      "signals": [
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_script_helper",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:subprocess->_posixsubprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_secrets",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:string->_string",
+        "pure-lib-subject:secrets"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_select",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:select",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:subprocess->_posixsubprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_selectors",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:selectors",
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "platform-specific-checks",
+        "facade-module:random->_random",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:selectors"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_set",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_setcomps",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:traceback->_suggestions"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_shelve",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:dbm->_gdbm",
+        "facade-module:pickle->_pickle",
+        "pure-lib-subject:shelve"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_shlex",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io",
+        "facade-module:string->_string",
+        "pure-lib-subject:shlex"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_shutil",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_winapi",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_winapi",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:random->_random",
+        "facade-module:stat->_stat",
+        "facade-module:string->_string",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:shutil"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_signal",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:functools->_functools",
+        "facade-module:random->_random",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:statistics->_statistics",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_site",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_winapi",
+        "forbidden-import:subprocess",
+        "forbidden-import:socket",
+        "forbidden-import:urllib",
+        "platform-specific-checks",
+        "direct-accelerator-import:_winapi",
+        "facade-module:ast->_ast",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:site->_io",
+        "facade-module:stat->_stat",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_slice",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_smtplib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:select",
+        "forbidden-import:smtplib",
+        "forbidden-import:socket",
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "facade-module:hashlib->_blake2",
+        "facade-module:hmac->_hashlib",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:socket->_socket",
+        "facade-module:threading->_collections",
+        "pure-lib-subject:smtplib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_smtpnet",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:smtplib",
+        "forbidden-import:socket",
+        "forbidden-import:ssl",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_socket",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_socket",
+        "forbidden-import:_testcapi",
+        "forbidden-import:_thread",
+        "forbidden-import:multiprocessing",
+        "forbidden-import:select",
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "direct-accelerator-import:_socket",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_thread",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:queue->_queue",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:string->_string",
+        "facade-module:struct->_struct",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:traceback->_suggestions",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_socketserver",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:select",
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "forbidden-import:socketserver",
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "facade-module:io->_io",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:threading->_collections",
+        "pure-lib-subject:socketserver"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_sort",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:functools->_functools",
+        "facade-module:operator->_operator",
+        "facade-module:random->_random"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_source_encoding",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ssl",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:ctypes",
+        "forbidden-import:http",
+        "forbidden-import:select",
+        "forbidden-import:socket",
+        "forbidden-import:ssl",
+        "forbidden-import:threading",
+        "forbidden-import:urllib",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_ssl",
+        "facade-module:ast->_ast",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:functools->_functools",
+        "facade-module:re->_sre",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl",
+        "facade-module:struct->_struct",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:threading->_collections",
+        "facade-module:traceback->_suggestions",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_stable_abi_ctypes",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:ctypes",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:ctypes->_ctypes"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_startfile",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_stat",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:socket",
+        "platform-specific-checks",
+        "facade-module:socket->_socket",
+        "facade-module:stat->_stat"
+      ],
+      "conformant": true,
+      "coverage": "partial"
+    },
+    {
+      "suite": "test_statistics",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:bisect->_bisect",
+        "facade-module:collections->_collections",
+        "facade-module:decimal->_decimal",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:statistics->_statistics"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_str",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:subprocess",
+        "direct-accelerator-import:_string",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:codecs->_codecs",
+        "facade-module:datetime->_datetime",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:struct->_struct",
+        "facade-module:warnings->_warnings",
+        "implicit-codec-dependency:codecs->_codecs_*"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_strftime",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:locale",
+        "platform-specific-checks",
+        "facade-module:locale->_locale",
+        "facade-module:re->_sre"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_string_literals",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:tempfile->_thread",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_stringprep",
+      "bucket": "SELF-HOST-CANDIDATE",
+      "signals": [
+        "pure-lib-subject:stringprep"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_strptime",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:locale",
+        "platform-specific-checks",
+        "facade-module:_strptime->_thread",
+        "facade-module:datetime->_datetime",
+        "facade-module:locale->_locale",
+        "facade-module:re->_sre"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_strtod",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:random->_random",
+        "facade-module:re->_sre"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_struct",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:subprocess",
+        "direct-accelerator-import:_struct",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:collections->_collections",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:operator->_operator",
+        "facade-module:random->_random",
+        "facade-module:struct->_struct",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": true,
+      "coverage": "parity"
+    },
+    {
+      "suite": "test_structseq",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_subclassinit",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_subprocess",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:select",
+        "forbidden-import:selectors",
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "direct-accelerator-import:_posixsubprocess",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:io->_io",
+        "facade-module:json->_json",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:traceback->_suggestions",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_sundry",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:tty",
+        "facade-module:importlib->_frozen_importlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_super",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:pickle->_pickle",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_support",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:stat->_stat",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_symtable",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:re->_sre",
+        "facade-module:symtable->_symtable"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_syntax",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:re->_sre"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_sys",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:locale",
+        "forbidden-import:socket",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]",
+        "direct-accelerator-import:_ast",
+        "direct-accelerator-import:_datetime",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:codecs->_codecs",
+        "facade-module:collections->_collections",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:datetime->_datetime",
+        "facade-module:io->_io",
+        "facade-module:locale->_locale",
+        "facade-module:operator->_operator",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:socket->_socket",
+        "facade-module:struct->_struct",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:traceback->_suggestions",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "implicit-codec-dependency:codecs->_codecs_*"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_sys_setprofile",
+      "bucket": "RUNTIME-GAP",
+      "signals": [
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.setprofile]"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_sys_settrace",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:subprocess",
+        "except*-exception-group (missing ops: CHECK_EG_MATCH, CALL_INTRINSIC_2)",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:functools->_functools",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_sysconfig",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_imp",
+        "direct-accelerator-import:_sysconfig",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:json->_json",
+        "facade-module:re->_sre",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_syslog",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tabnanny",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:tokenize->_tokenize",
+        "pure-lib-subject:tabnanny"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tarfile",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:bz2->_bz2",
+        "facade-module:compression->_zstd",
+        "facade-module:hashlib->_blake2",
+        "facade-module:io->_io",
+        "facade-module:lzma->_lzma",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:stat->_stat",
+        "facade-module:warnings->_warnings",
+        "pure-lib-subject:tarfile"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tcl",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:subprocess",
+        "forbidden-import:tkinter",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_tkinter",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tkinter->_tkinter"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tempfile",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:stat->_stat",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_termios",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_textwrap",
+      "bucket": "SELF-HOST-CANDIDATE",
+      "signals": [
+        "pure-lib-subject:textwrap"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_thread",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_thread",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_thread",
+        "facade-module:random->_random",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_thread_local_bytecode",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "direct-accelerator-import:_testinternalcapi"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_threadedtempfile",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "facade-module:io->_io",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:traceback->_suggestions"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_threading",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:_thread",
+        "forbidden-import:ctypes",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "direct-accelerator-import:_thread",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:random->_random",
+        "facade-module:signal->_signal",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:threading->_collections",
+        "facade-module:traceback->_suggestions",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_threading_local",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_thread",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_thread",
+        "facade-module:threading->_collections",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_threadsignals",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_thread",
+        "forbidden-import:signal",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_thread",
+        "facade-module:signal->_signal"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_time",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:threading",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:decimal->_decimal",
+        "facade-module:pickle->_pickle",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_timeit",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io",
+        "pure-lib-subject:timeit"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_timeout",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:socket",
+        "facade-module:functools->_functools",
+        "facade-module:socket->_socket"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tokenize",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:decimal->_decimal",
+        "facade-module:io->_io",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:string->_string",
+        "facade-module:tempfile->_thread",
+        "facade-module:tokenize->_tokenize"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_trace",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]",
+        "facade-module:pickle->_pickle",
+        "facade-module:types->_types",
+        "pure-lib-subject:trace"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_traceback",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:subprocess",
+        "except*-exception-group (missing ops: CHECK_EG_MATCH, CALL_INTRINSIC_2)",
+        "direct-accelerator-import:_suggestions",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:collections->_collections",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:json->_json",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:string->_string",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:traceback->_suggestions",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tracemalloc",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:tracemalloc->_tracemalloc"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tstring",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ttk_textonly",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:tkinter",
+        "direct-accelerator-import:_tkinter",
+        "facade-module:tkinter->_tkinter"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tty",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:tty",
+        "platform-specific-checks",
+        "pure-lib-subject:tty"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tuple",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:pickle->_pickle"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_turtle",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:turtle"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_type_aliases",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:pickle->_pickle",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_type_annotations",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_type_cache",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:collections->_collections",
+        "facade-module:dis->_opcode",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_type_comments",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:ast->_ast"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_type_params",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:pickle->_pickle",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_typechecks",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_types",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:locale",
+        "forbidden-import:subprocess",
+        "direct-accelerator-import:_datetime",
+        "direct-accelerator-import:_io",
+        "direct-accelerator-import:_queue",
+        "facade-module:collections->_collections",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:io->_io",
+        "facade-module:locale->_locale",
+        "facade-module:pickle->_pickle",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_typing",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:abc->_abc",
+        "facade-module:collections->_collections",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "facade-module:xml->_elementtree"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ucn",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:http",
+        "forbidden-import:urllib",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:ast->_ast"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_unary",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_unicode_file",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_unicode_file_functions",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_unicode_identifiers",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_unicodedata",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:subprocess",
+        "facade-module:functools->_functools",
+        "facade-module:hashlib->_blake2"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_univnewlines",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:_pyio->_thread",
+        "facade-module:io->_io"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_unpack",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_unpack_ex",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_unparse",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:ast->_ast",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:tokenize->_tokenize",
+        "facade-module:warnings->_warnings"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_urllib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:socket",
+        "forbidden-import:ssl",
+        "forbidden-import:urllib",
+        "platform-specific-checks",
+        "facade-module:collections->_collections",
+        "facade-module:io->_io",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:urllib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_urllib2",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:socket",
+        "forbidden-import:subprocess",
+        "forbidden-import:urllib",
+        "platform-specific-checks",
+        "facade-module:io->_io",
+        "facade-module:socket->_socket",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_urllib2_localnet",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:ssl",
+        "forbidden-import:threading",
+        "forbidden-import:urllib",
+        "facade-module:hashlib->_blake2",
+        "facade-module:ssl->_ssl",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_urllib2net",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:socket",
+        "forbidden-import:urllib",
+        "facade-module:socket->_socket",
+        "facade-module:sysconfig->_sysconfig"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_urllib_response",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:socket",
+        "forbidden-import:urllib",
+        "facade-module:socket->_socket",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_urllibnet",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:socket",
+        "forbidden-import:urllib",
+        "facade-module:socket->_socket"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_urlparse",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:urllib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_userdict",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_userlist",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_userstring",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_utf8_mode",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:locale",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "dict-unpack-merge (missing ops: DICT_MERGE)",
+        "facade-module:locale->_locale",
+        "facade-module:subprocess->_posixsubprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_utf8source",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_uuid",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_uuid",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:uuid->_uuid",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": true,
+      "coverage": "delegate"
+    },
+    {
+      "suite": "test_venv",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_winapi",
+        "forbidden-import:ctypes",
+        "forbidden-import:ssl",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_winapi",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:re->_sre",
+        "facade-module:ssl->_ssl",
+        "facade-module:struct->_struct",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:venv"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_wait3",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "facade-module:subprocess->_posixsubprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_wait4",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_wave",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io",
+        "facade-module:struct->_struct",
+        "pure-lib-subject:wave"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_weakref",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_testcapi",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:collections->_collections",
+        "facade-module:operator->_operator",
+        "facade-module:random->_random",
+        "facade-module:threading->_collections",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_weakset",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:string->_string",
+        "facade-module:weakref->_weakref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_webbrowser",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:subprocess->_posixsubprocess",
+        "pure-lib-subject:webbrowser"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_winapi",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_winapi",
+        "direct-accelerator-import:_winapi",
+        "facade-module:re->_sre"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_winconsoleio",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "direct-accelerator-import:_testconsole",
+        "facade-module:io->_io",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_winreg",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "forbidden-import:winreg",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_winsound",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:functools->_functools"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_with",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:re->_sre",
+        "facade-module:traceback->_suggestions"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_wmi",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:_wmi",
+        "direct-accelerator-import:_wmi",
+        "facade-module:concurrent->_interpreters"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_wsgiref",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:signal",
+        "forbidden-import:socketserver",
+        "forbidden-import:socket",
+        "forbidden-import:threading",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:threading->_collections",
+        "pure-lib-subject:wsgiref"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_xml_dom_minicompat",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:pickle->_pickle",
+        "facade-module:xml->_elementtree"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_xml_dom_xmlbuilder",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "facade-module:io->_io",
+        "facade-module:xml->_elementtree"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_xml_etree",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "facade-module:xml->_elementtree"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_xml_etree_c",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:io->_io",
+        "facade-module:struct->_struct",
+        "facade-module:types->_types",
+        "facade-module:xml->_elementtree"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_xmlrpc",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:http",
+        "forbidden-import:socket",
+        "forbidden-import:ssl",
+        "forbidden-import:threading",
+        "forbidden-import:xmlrpc",
+        "facade-module:datetime->_datetime",
+        "facade-module:decimal->_decimal",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl",
+        "facade-module:threading->_collections",
+        "pure-lib-subject:xmlrpc"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_xpickle",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "direct-accelerator-import:_pickle",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:struct->_struct",
+        "facade-module:subprocess->_posixsubprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_xxlimited",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_xxtestfuzz",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "direct-accelerator-import:_xxtestfuzz"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_yield_from",
+      "bucket": "MECHANICAL",
+      "signals": [],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_zipapp",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "platform-specific-checks",
+        "facade-module:io->_io",
+        "facade-module:stat->_stat",
+        "facade-module:tempfile->_thread",
+        "pure-lib-subject:zipapp"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_zipfile64",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_zipimport",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:re->_sre",
+        "facade-module:struct->_struct",
+        "facade-module:traceback->_suggestions",
+        "facade-module:warnings->_warnings",
+        "facade-module:zipimport->_frozen_importlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_zipimport_support",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:subprocess",
+        "facade-module:zipimport->_frozen_importlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_zlib",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random"
+      ],
+      "conformant": true,
+      "coverage": "delegate"
+    },
+    {
+      "suite": "test_zstd",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "direct-accelerator-import:_zstd",
+        "facade-module:compression->_zstd",
+        "facade-module:io->_io",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ast",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_ast",
+        "direct-accelerator-import:_testinternalcapi",
+        "facade-module:_ast_unparse->_ast",
+        "facade-module:ast->_ast",
+        "facade-module:dis->_opcode",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:tempfile->_thread",
+        "facade-module:types->_types",
+        "facade-module:weakref->_weakref",
+        "forbidden-import:_testinternalcapi",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_asyncio",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_asyncio",
+        "direct-accelerator-import:_functools",
+        "direct-accelerator-import:_json",
+        "direct-accelerator-import:_overlapped",
+        "direct-accelerator-import:_pickle",
+        "direct-accelerator-import:_thread",
+        "direct-accelerator-import:_winapi",
+        "except*-exception-group (missing ops: CHECK_EG_MATCH, CALL_INTRINSIC_2)",
+        "facade-module:collections->_collections",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:contextvars->_contextvars",
+        "facade-module:decimal->_decimal",
+        "facade-module:functools->_functools",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:queue->_queue",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:socket->_socket",
+        "facade-module:ssl->_ssl",
+        "facade-module:stat->_stat",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:traceback->_suggestions",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "forbidden-import:_thread",
+        "forbidden-import:_winapi",
+        "forbidden-import:asyncio",
+        "forbidden-import:multiprocessing",
+        "forbidden-import:select",
+        "forbidden-import:selectors",
+        "forbidden-import:signal",
+        "forbidden-import:socket",
+        "forbidden-import:ssl",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "forbidden-import:tty",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_capi",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "dict-unpack-merge (missing ops: DICT_MERGE)",
+        "direct-accelerator-import:_codecs",
+        "direct-accelerator-import:_interpreters",
+        "direct-accelerator-import:_io",
+        "direct-accelerator-import:_opcode",
+        "direct-accelerator-import:_posixsubprocess",
+        "direct-accelerator-import:_testbuffer",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "direct-accelerator-import:_testlimitedcapi",
+        "direct-accelerator-import:_testmultiphase",
+        "direct-accelerator-import:_testsinglephase",
+        "direct-accelerator-import:_thread",
+        "facade-module:codecs->_codecs",
+        "facade-module:collections->_collections",
+        "facade-module:contextvars->_contextvars",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:json->_json",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:queue->_queue",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:string->_string",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:threading->_collections",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "forbidden-import:_interpreters",
+        "forbidden-import:_testbuffer",
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:_testmultiphase",
+        "forbidden-import:_thread",
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "implicit-codec-dependency:codecs->_codecs_*",
+        "platform-specific-checks",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_concurrent_futures",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_interpreters",
+        "direct-accelerator-import:_thread",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:queue->_queue",
+        "facade-module:signal->_signal",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:weakref->_weakref",
+        "forbidden-import:_interpreters",
+        "forbidden-import:_thread",
+        "forbidden-import:asyncio",
+        "forbidden-import:multiprocessing",
+        "forbidden-import:select",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ctypes",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_ctypes",
+        "direct-accelerator-import:_ctypes_test",
+        "direct-accelerator-import:_imp",
+        "direct-accelerator-import:_sqlite3",
+        "direct-accelerator-import:_testbuffer",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:collections->_collections",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:functools->_functools",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:struct->_struct",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "forbidden-import:_ctypes",
+        "forbidden-import:_testbuffer",
+        "forbidden-import:_testcapi",
+        "forbidden-import:ctypes",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "pure-lib-subject:numbers"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_doctest",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:functools->_functools",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:tempfile->_thread",
+        "facade-module:types->_types",
+        "facade-module:xml->_elementtree",
+        "pure-lib-subject:doctest"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_email",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "facade-module:datetime->_datetime",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:string->_string",
+        "facade-module:threading->_collections",
+        "facade-module:types->_types",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "pure-lib-subject:email"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_free_threading",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "direct-accelerator-import:_uuid",
+        "facade-module:ast->_ast",
+        "facade-module:bisect->_bisect",
+        "facade-module:cProfile->_lsprof",
+        "facade-module:codecs->_codecs",
+        "facade-module:collections->_collections",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:csv->_csv",
+        "facade-module:ctypes->_ctypes",
+        "facade-module:dbm->_gdbm",
+        "facade-module:functools->_functools",
+        "facade-module:heapq->_heapq",
+        "facade-module:io->_io",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:string->_string",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:tokenize->_tokenize",
+        "facade-module:uuid->_uuid",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:ctypes",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks",
+        "pure-lib-subject:code",
+        "tracing-instrumentation (missing ops: INSTRUMENTED_*) [sys.settrace]"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_future_stmt",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "facade-module:ast->_ast",
+        "facade-module:re->_sre",
+        "forbidden-import:subprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_gdb",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:re->_sre"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_importlib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_imp",
+        "direct-accelerator-import:_interpreters",
+        "direct-accelerator-import:_testmultiphase",
+        "direct-accelerator-import:_testsinglephase",
+        "facade-module:_pyio->_thread",
+        "facade-module:codecs->_codecs",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:stat->_stat",
+        "facade-module:string->_string",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:traceback->_suggestions",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "facade-module:zipimport->_frozen_importlib",
+        "forbidden-import:_interpreters",
+        "forbidden-import:_testmultiphase",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "forbidden-import:winreg",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_inspect",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_pickle",
+        "direct-accelerator-import:_stat",
+        "direct-accelerator-import:_testcapi",
+        "direct-accelerator-import:_testinternalcapi",
+        "direct-accelerator-import:_thread",
+        "facade-module:abc->_abc",
+        "facade-module:codecs->_codecs",
+        "facade-module:collections->_collections",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:datetime->_datetime",
+        "facade-module:decimal->_decimal",
+        "facade-module:dis->_opcode",
+        "facade-module:functools->_functools",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:locale->_locale",
+        "facade-module:operator->_operator",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:stat->_stat",
+        "facade-module:string->_string",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:symtable->_symtable",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:tokenize->_tokenize",
+        "facade-module:tracemalloc->_tracemalloc",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "forbidden-import:_testcapi",
+        "forbidden-import:_testinternalcapi",
+        "forbidden-import:_thread",
+        "forbidden-import:asyncio",
+        "forbidden-import:locale",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "pure-lib-subject:inspect"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_interpreters",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "dict-unpack-merge (missing ops: DICT_MERGE)",
+        "direct-accelerator-import:_frozen_importlib",
+        "direct-accelerator-import:_interpchannels",
+        "direct-accelerator-import:_interpqueues",
+        "direct-accelerator-import:_interpreters",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:concurrent->_interpreters",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:json->_json",
+        "facade-module:pickle->_pickle",
+        "facade-module:string->_string",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:types->_types",
+        "forbidden-import:_interpreters",
+        "forbidden-import:_testcapi",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_json",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "facade-module:codecs->_codecs",
+        "facade-module:collections->_collections",
+        "facade-module:decimal->_decimal",
+        "facade-module:io->_io",
+        "facade-module:subprocess->_posixsubprocess",
+        "forbidden-import:subprocess",
+        "platform-specific-checks",
+        "pure-lib-subject:enum"
+      ],
+      "conformant": true,
+      "coverage": "parity"
+    },
+    {
+      "suite": "test_multiprocessing_fork",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:multiprocessing"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_multiprocessing_forkserver",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:multiprocessing"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_multiprocessing_spawn",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "forbidden-import:multiprocessing"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pathlib",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_winapi",
+        "facade-module:collections->_collections",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:socket->_socket",
+        "facade-module:stat->_stat",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "forbidden-import:_winapi",
+        "forbidden-import:socket",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "forbidden-import:urllib",
+        "platform-specific-checks",
+        "pure-lib-subject:copy",
+        "pure-lib-subject:pathlib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_peg_generator",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "facade-module:ast->_ast",
+        "facade-module:io->_io",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:sysconfig->_sysconfig",
+        "facade-module:tempfile->_thread",
+        "facade-module:tokenize->_tokenize",
+        "facade-module:typing->_typing",
+        "forbidden-import:subprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pydoc",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_pickle",
+        "direct-accelerator-import:_stat",
+        "direct-accelerator-import:_testcapi",
+        "facade-module:collections->_collections",
+        "facade-module:datetime->_datetime",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:pydoc->_pyrepl",
+        "facade-module:re->_sre",
+        "facade-module:tempfile->_thread",
+        "facade-module:types->_types",
+        "facade-module:typing->_typing",
+        "facade-module:xml->_elementtree",
+        "forbidden-import:_testcapi",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:urllib"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_pyrepl",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_curses",
+        "direct-accelerator-import:_pyrepl",
+        "facade-module:curses->_curses",
+        "facade-module:functools->_functools",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:json->_json",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:string->_string",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "facade-module:threading->_collections",
+        "facade-module:typing->_typing",
+        "facade-module:warnings->_warnings",
+        "forbidden-import:_curses",
+        "forbidden-import:curses",
+        "forbidden-import:pty",
+        "forbidden-import:select",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_sqlite3",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "direct-accelerator-import:_testcapi",
+        "facade-module:collections->_collections",
+        "facade-module:datetime->_datetime",
+        "facade-module:functools->_functools",
+        "facade-module:sqlite3->_sqlite3",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:threading->_collections",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "forbidden-import:_testcapi",
+        "forbidden-import:subprocess",
+        "forbidden-import:threading",
+        "forbidden-import:threading [requires_working_threading]",
+        "forbidden-import:urllib",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_string",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:pickle->_pickle",
+        "facade-module:string->_string",
+        "facade-module:types->_types"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tkinter",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "facade-module:functools->_functools",
+        "facade-module:locale->_locale",
+        "facade-module:re->_sre",
+        "facade-module:tkinter->_tkinter",
+        "forbidden-import:locale",
+        "forbidden-import:tkinter",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tomllib",
+      "bucket": "NEEDS-FACADE",
+      "signals": [
+        "facade-module:datetime->_datetime",
+        "facade-module:decimal->_decimal",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:json->_json",
+        "facade-module:tempfile->_thread"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_tools",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "facade-module:datetime->_datetime",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:json->_json",
+        "facade-module:re->_sre",
+        "facade-module:struct->_struct",
+        "facade-module:sysconfig->_sysconfig",
+        "forbidden-import:gettext",
+        "forbidden-import:subprocess",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_ttk",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "facade-module:tkinter->_tkinter",
+        "forbidden-import:tkinter",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_unittest",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "facade-module:collections->_collections",
+        "facade-module:contextvars->_contextvars",
+        "facade-module:datetime->_datetime",
+        "facade-module:functools->_functools",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:signal->_signal",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:traceback->_suggestions",
+        "facade-module:types->_types",
+        "facade-module:warnings->_warnings",
+        "facade-module:weakref->_weakref",
+        "forbidden-import:asyncio",
+        "forbidden-import:signal",
+        "forbidden-import:subprocess",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_zipfile",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "facade-module:_pyio->_thread",
+        "facade-module:datetime->_datetime",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:pickle->_pickle",
+        "facade-module:random->_random",
+        "facade-module:re->_sre",
+        "facade-module:stat->_stat",
+        "facade-module:string->_string",
+        "facade-module:struct->_struct",
+        "facade-module:subprocess->_posixsubprocess",
+        "facade-module:tempfile->_thread",
+        "forbidden-import:subprocess",
+        "platform-specific-checks"
+      ],
+      "conformant": false,
+      "coverage": null
+    },
+    {
+      "suite": "test_zoneinfo",
+      "bucket": "QUARANTINE",
+      "signals": [
+        "facade-module:datetime->_datetime",
+        "facade-module:functools->_functools",
+        "facade-module:importlib->_frozen_importlib",
+        "facade-module:io->_io",
+        "facade-module:json->_json",
+        "facade-module:lzma->_lzma",
+        "facade-module:pickle->_pickle",
+        "facade-module:re->_sre",
+        "facade-module:struct->_struct",
+        "facade-module:tempfile->_thread",
+        "facade-module:zoneinfo->_zoneinfo",
+        "forbidden-import:subprocess"
+      ],
+      "conformant": false,
+      "coverage": null
+    }
+  ]
+}
