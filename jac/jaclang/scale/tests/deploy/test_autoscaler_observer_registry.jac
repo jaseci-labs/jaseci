@@ -1,8 +1,9 @@
 # AutoscalerObserverRegistry is the structural enforcement of "no code path
 # opens its own watch": every test here injects a lightweight test double
 # via observer_factory so these stay pure registry-semantics tests (identity,
-# keying, shutdown, publish atomicity) with no Kubernetes mechanics involved
-# -- those are already covered by test_kubernetes_autoscaler_observer.jac.
+# keying, shutdown, publish atomicity, release refcounting) with no
+# Kubernetes mechanics involved -- those are already covered by
+# test_kubernetes_autoscaler_observer.jac.
 import unittest.mock;
 import time;
 import from threading { Thread, Lock }
@@ -12,6 +13,9 @@ import from jaclang.scale.deploy.autoscale.observer_registry {
 import from jaclang.scale.deploy.autoscale.observer {
     AutoscalerObserver,
     AutoscalerSubscription
+}
+import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
+    default_cluster_key
 }
 
 
@@ -148,6 +152,123 @@ test "get_or_create never returns an observer before its watch has started, unde
     assert violations == [];
 }
 
+test "release does not stop the observer while other references remain" {
+    AutoscalerObserverRegistry._instances = {};
+
+    first = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver)
+    );
+    AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver);
+
+    AutoscalerObserverRegistry.release("ns-a");
+
+    assert first.stop_calls == [];
+    second = AutoscalerObserverRegistry.get_or_create(
+        "ns-a", observer_factory=FakeObserver
+    );
+    assert second is first;
+}
+
+test "release stops and evicts the observer once its refcount reaches zero" {
+    AutoscalerObserverRegistry._instances = {};
+
+    obs = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver)
+    );
+    AutoscalerObserverRegistry.release("ns-a");
+
+    assert obs.stop_calls == [True];
+
+    # A fresh get_or_create for the same namespace must build a brand new
+    # instance, not the one release() just evicted.
+    fresh = AutoscalerObserverRegistry.get_or_create(
+        "ns-a", observer_factory=FakeObserver
+    );
+    assert fresh is not obs;
+}
+
+test "release passes drain through to stop" {
+    AutoscalerObserverRegistry._instances = {};
+
+    obs = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver)
+    );
+    AutoscalerObserverRegistry.release("ns-a", drain=False);
+
+    assert obs.stop_calls == [False];
+}
+
+test "release is a no-op for a namespace with no outstanding references" {
+    AutoscalerObserverRegistry._instances = {};
+
+    AutoscalerObserverRegistry.release("ns-never-created");
+
+    obs = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver)
+    );
+    AutoscalerObserverRegistry.release("ns-a");
+    AutoscalerObserverRegistry.release("ns-a");
+
+    assert obs.stop_calls == [True];
+}
+
+test "release only affects the released cluster's namespace" {
+    AutoscalerObserverRegistry._instances = {};
+
+    cluster_1 = fake(
+        AutoscalerObserverRegistry.get_or_create(
+            "ns-a", cluster_key="cluster-1", observer_factory=FakeObserver
+        )
+    );
+    cluster_2 = fake(
+        AutoscalerObserverRegistry.get_or_create(
+            "ns-a", cluster_key="cluster-2", observer_factory=FakeObserver
+        )
+    );
+
+    AutoscalerObserverRegistry.release("ns-a", cluster_key="cluster-1");
+
+    assert cluster_1.stop_calls == [True];
+    assert cluster_2.stop_calls == [];
+}
+
+test "concurrent releases stop the observer exactly once, however the refcount races down to zero" {
+    AutoscalerObserverRegistry._instances = {};
+
+    obs = fake(
+        AutoscalerObserverRegistry.get_or_create(
+            "ns-race", observer_factory=FakeObserver
+        )
+    );
+    for _ in range(15) {
+        AutoscalerObserverRegistry.get_or_create(
+            "ns-race", observer_factory=FakeObserver
+        );
+    }
+    assert AutoscalerObserverRegistry._refcounts.get(
+        f"{default_cluster_key()}::ns-race"
+    )
+        == 16;
+
+    def worker {
+        AutoscalerObserverRegistry.release("ns-race");
+    }
+
+    workers = [Thread(target=worker) for _ in range(16)];
+    for w in workers {
+        w.start();
+    }
+    for w in workers {
+        w.join();
+    }
+
+    assert obs.stop_calls == [True];
+    fresh = AutoscalerObserverRegistry.get_or_create(
+        "ns-race", observer_factory=FakeObserver
+    );
+    assert fresh is not obs;
+}
+
 test "shutdown_all stops every created instance and clears the registry" {
     AutoscalerObserverRegistry._instances = {};
 
@@ -163,6 +284,7 @@ test "shutdown_all stops every created instance and clears the registry" {
     assert ns_a.stop_calls == [True];
     assert ns_b.stop_calls == [True];
     assert AutoscalerObserverRegistry._instances == {};
+    assert AutoscalerObserverRegistry._refcounts == {};
 }
 
 test "get_or_create after shutdown_all returns a fresh instance, not the stopped one" {
