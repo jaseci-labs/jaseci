@@ -13,6 +13,12 @@ test "PEP3120Test.test_pep3120" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "PEP3120Test.test_badsyntax" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n    try:\n        import test.tokenizedata.badsyntax_pep3120\n    except SyntaxError as msg:\n        msg = str(msg).lower()\n        assert 'utf-8' in msg, ('assertTrue', 'utf-8' in msg)\n    else:\n        raise AssertionError(\"expected exception didn't occur\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "BuiltinCompileTests.test_latin1" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    source_code = '# coding: Latin-1\\nu = \"\u00c7\"\\n'.encode('Latin-1')\n    try:\n        code = compile(source_code, '<dummy>', 'exec')\n    except SyntaxError:\n        raise AssertionError('compile() cannot handle Latin-1 source')\n    ns = {}\n    exec(code, ns)\n    assert '\u00c7' == ns['u'], ('assertEqual', '\u00c7', ns['u'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

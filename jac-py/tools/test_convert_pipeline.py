@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import json
 import sys
+import tempfile
 import textwrap
 import unittest
 from pathlib import Path
@@ -313,6 +314,138 @@ class ManifestTests(unittest.TestCase):
             finally:
                 cs._MANIFEST = old_manifest
                 cs._TESTS_DIR = old_tests_dir
+
+
+class DoctestExtractionTests(unittest.TestCase):
+    """Module-level doctest strings (test_genexps style) become runnable pins."""
+
+    MODULE = '''\
+import doctest
+import unittest
+
+
+class Tool:
+    def double(self, x):
+        return x * 2
+
+
+tool = Tool()
+
+
+doctests = """
+    >>> tool.double(21)
+    42
+    >>> print('hello world')
+    hello world
+    >>> 1 +
+    Traceback (most recent call last):
+        ...
+    SyntaxError: invalid syntax
+    >>> list((i * i for i in [*range(3)]))
+    [0, 1, 4]
+    >>> a, *rest = range(4)
+    >>> a, rest
+    (0, [1, 2, 3])
+    >>> tool.double(2) == 4
+    True
+    >>> tool.double(1.5)
+    3.0
+    >>> repr(tool)
+    '<test_mini.Tool object at 0x123>'
+"""
+
+
+def load_tests(loader, tests, pattern):
+    tests.addTest(doctest.DocTestSuite())
+    return tests
+'''
+
+    @classmethod
+    def setUpClass(cls):
+        tree = ast.parse(cls.MODULE)
+        cls.extraction = cs.extract_module_doctests(tree, cls.MODULE, "__main__", "mini")
+
+    def test_pin_extracted(self):
+        self.assertEqual([p.ident for p in self.extraction.pinned], ["mini.doctests:doctests"])
+
+    def test_snippet_compiles_and_passes_on_host(self):
+        pin = self.extraction.pinned[0]
+        compile(pin.snippet, pin.ident, "exec")  # module-level: must be valid
+        captured = []
+        env = {"print": lambda *a, **k: captured.append(a), "__name__": "__main__"}
+        exec(pin.snippet, env)  # noqa: S102 - fixture
+        self.assertTrue(captured and str(captured[-1][0]) == cs._ORACLE_OK)
+
+    def test_failing_output_quarantined_by_host_oracle_path(self):
+        # The module-qualified expectation is unpinnable in a standalone snippet.
+        reasons = {q.ident: q.reason for q in self.extraction.quarantined}
+        self.assertIn("mini.doctests:doctests.ex8", reasons)
+        self.assertEqual(reasons["mini.doctests:doctests.ex8"], "doctest-module-qualified-expected")
+
+    def test_prelude_pruned_to_referenced_names(self):
+        pin = self.extraction.pinned[0]
+        self.assertIn("tool = Tool()", pin.snippet)
+        self.assertNotIn("import doctest", pin.snippet)
+        self.assertNotIn("import unittest", pin.snippet)
+        self.assertNotIn("load_tests", pin.snippet)
+
+    def test_helpers_present_once(self):
+        pin = self.extraction.pinned[0]
+        self.assertEqual(pin.snippet.count("def _d_check"), 1)
+
+    def test_no_sources_yields_empty(self):
+        tree = ast.parse("x = 1\n")
+        result = cs.extract_module_doctests(tree, "x = 1\n", "__main__", "none")
+        self.assertEqual(result.pinned, [])
+        self.assertEqual(result.quarantined, [])
+
+
+class ManifestUpdateTests(unittest.TestCase):
+    """update_manifest must not clobber curated notes fields."""
+
+    def _run(self, notes_before):
+        old_manifest = dr._MANIFEST
+        with tempfile.TemporaryDirectory() as td:
+            dr._MANIFEST = Path(td) / "manifest.json"
+            row = {
+                "stem": "x", "gate_type": "oracle", "status": "converted",
+                "oracle_tests": ["conv_x/conv_x_pins.jac"], "libtest_snippets": [],
+            }
+            if notes_before is not None:
+                row["notes"] = notes_before
+            dr._MANIFEST.write_text(json.dumps({
+                "version": 1, "wave": "conv_pipeline", "description": "",
+                "module_count": 1, "modules": [row],
+            }), encoding="utf-8")
+            try:
+                dr.update_manifest(
+                    {"module_stem": "x"}, "conv_x/conv_x_pins.jac", 3, 4, False
+                )
+                return json.loads(dr._MANIFEST.read_text(encoding="utf-8"))["modules"][0]
+            finally:
+                dr._MANIFEST = old_manifest
+
+    def test_curated_notes_survive(self):
+        curated = "5/5 runnable pins pass; 2 quarantined (class-scope self.*)."
+        row = self._run(curated)
+        self.assertEqual(row["notes"], curated)
+        # Counts still land in the machine-owned slot.
+        self.assertEqual(row["jacpython_results"]["x"]["passed"], 3)
+        self.assertEqual(row["status"], "partial")
+
+    def test_empty_notes_get_filled(self):
+        row = self._run(None)
+        self.assertIn("output-oracle pins pass on jacpython", row["notes"])
+        row = self._run("")
+        self.assertIn("output-oracle pins pass on jacpython", row["notes"])
+
+    def test_run_summary_recorded_in_results(self):
+        curated = "curated text"
+        row = self._run(curated)
+        self.assertIn(
+            "3/4 output-oracle pins pass",
+            row["jacpython_results"]["x"]["notes"],
+        )
 
 
 if __name__ == "__main__":

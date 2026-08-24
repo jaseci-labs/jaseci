@@ -6,7 +6,7 @@
 # differential stays separate; this path exercises ``import platform`` (etc.)
 # through register_shim_module + exec_code.
 
-import from objects { PyObj, PyStr, PyError, PyList, PyInt, PyBool, is_error, py_none, py_error, }
+import from objects { PyObj, PyStr, PyError, PyList, PyInt, PyBool, PyDict, is_error, py_none, py_error, }
 import from getplatform { Py_GetPlatform }
 import from _bisectmodule {
     _p2_bisect_right,
@@ -20,7 +20,7 @@ import from _warningsmodule {
     warnings_module_attrs,
     _p2_warn_state_reset,
 }
-import from ceval { _sys3_forget, set_layer3_active, }
+import from ceval { _sys3_forget, set_layer3_active, py_repr, py_compare, py_slot_truth, }
 import from _collectionsmodule {
     _p2_deque,
     _p2_defaultdict,
@@ -177,6 +177,77 @@ def _p2_json_kwbool(kwargs: dict[str, PyObj], name: str, dflt: bool) -> bool {
 # exceptions; the established shim contract is returning py_error objects
 # (ceval turns those into raised guest exceptions), so catch and convert.
 # JSONDecodeError surfaces as ValueError -- its Lib/json base class.
+# ---------------- test.support shim -----------------------------------------
+# Converted Lib/test pins import helper names from test.support; p2_libtest_reset
+# registers a minimal module covering what converted suites actually use.
+
+obj P2SupportSortdictFn(PyObj) {
+    # CPython test/support/__init__.py sortdict: "Like repr(dict), but in
+    # sorted order." Sorts by key (real comparisons, so unorderable key
+    # mixes raise TypeError like CPython), formats each pair %r: %r.
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 1 {
+            return py_error("TypeError", "sortdict expected at least 1 argument, got 0");
+        }
+        d = args[0];
+        if not isinstance(d, PyDict) {
+            return py_error("TypeError", "sortdict expected a dict");
+        }
+        keys: list[PyObj] = [];
+        vals: list[PyObj] = [];
+        for hk in (d as PyDict).items {
+            ent = (d as PyDict).items[hk];
+            keys.append(ent.key);
+            vals.append(ent.value);
+        }
+        # Insertion sort by key; pin dicts are tiny. kind 0 = less-than
+        # (same arm min()/max() use), truth via py_slot_truth.
+        i = 1;
+        while i < len(keys) {
+            k = keys[i];
+            v = vals[i];
+            j = i - 1;
+            while j >= 0 {
+                lt = py_compare(0, k, keys[j]);
+                if is_error(lt) {
+                    return lt;
+                }
+                truth = py_slot_truth(lt);
+                if is_error(truth) {
+                    return truth;
+                }
+                if not ((truth as PyBool).val) {
+                    break;
+                }
+                keys[j + 1] = keys[j];
+                vals[j + 1] = vals[j];
+                j -= 1;
+            }
+            keys[j + 1] = k;
+            vals[j + 1] = v;
+            i += 1;
+        }
+        out = "{";
+        idx = 0;
+        while idx < len(keys) {
+            kr = py_repr(keys[idx]);
+            if is_error(kr) {
+                return kr;
+            }
+            vr = py_repr(vals[idx]);
+            if is_error(vr) {
+                return vr;
+            }
+            if idx > 0 {
+                out = out + ", ";
+            }
+            out = out + (kr as PyStr).val + ": " + (vr as PyStr).val;
+            idx += 1;
+        }
+        return PyStr(t="str", val=out + "}");
+    }
+}
+
 obj P2LibtestJsonDumpsFn(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) < 1 {
@@ -798,6 +869,17 @@ def p2_libtest_reset {
     };
     register_shim_module(
         "bisect", PyModule(t="module", name="bisect", attrs=bisect_attrs)
+    );
+    # test.support shim for converted Lib/test pins (descrtut etc.). Mirrors
+    # install_layer2_shims' test package shape; extend attrs as conversions
+    # demand more helpers.
+    support_attrs: dict[str, PyObj] = {
+        "sortdict": P2SupportSortdictFn(t="function"),
+    };
+    support_mod = PyModule(t="module", name="test.support", attrs=support_attrs);
+    register_shim_module("test.support", support_mod);
+    register_shim_module(
+        "test", PyModule(t="module", name="test", attrs={"support": support_mod})
     );
     heapq_attrs: dict[str, PyObj] = {
         "heappush": P2LibtestHeappushFn(t="function"),
