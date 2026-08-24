@@ -2165,7 +2165,11 @@ impl NaIRGenExpr._codegen_subscript(nd: uni.AtomTrailer) -> (ir.Value | None) {
         if target_val is None or _any_key is None {
             return None;
         }
-        _any_res = self._codegen_any_subscript(target_val, _any_key);
+        _any_res = self._codegen_any_subscript(
+            target_val,
+            _any_key,
+            key_ty=self._expr_type_of(self._subscript_index_node(nd))
+        );
         if _any_res is not None {
             return _any_res;
         }

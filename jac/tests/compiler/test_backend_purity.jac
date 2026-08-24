@@ -80,7 +80,7 @@ glob FORBIDDEN: dict[str, str] = {
          ("native/na_ir_gen/comprehensions.impl.jac", "ir sniffing"): 6,
          ("native/na_ir_gen/container_helpers.impl.jac", "ir sniffing"): 3,
          ("native/na_ir_gen/core.impl.jac", "registry scan"): 8,
-         ("native/na_ir_gen/dicts.impl.jac", "ir sniffing"): 13,
+         ("native/na_ir_gen/dicts.impl.jac", "ir sniffing"): 12,
          ("native/na_ir_gen/enums.impl.jac", "ir sniffing"): 2,
          ("native/na_ir_gen/exceptions.impl.jac", "ir sniffing"): 3,
          ("native/na_ir_gen/expr.impl.jac", "ir sniffing"): 8,

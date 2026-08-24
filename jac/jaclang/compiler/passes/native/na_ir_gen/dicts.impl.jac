@@ -399,29 +399,6 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any) -> ir.Value {
     _ty = self._tb_solve(ty);
     _kind = self._tb_kind(_ty);
     _dyn_kind = _kind in ("any", "unknown", "typevar", "never");
-    if _dyn_kind and not isinstance(value.type, (ir.IntType, ir.DoubleType)) {
-        self.emit(
-            E5092,
-            kind="expression",
-            name=f"`any` box of {value.type}",
-            help_text=f"A value typed `{ty}` lowered as `{value.type}`, so the emitter cannot pick its tagged `any` representation; give the value a concrete type."
-        );
-        _jv0 = self._entry_alloca(self.jacval_type, "jacval");
-        _b0 = self.builder;
-        _tp0 = _b0.gep(
-            _jv0,
-            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
-            name="jv.tag.p"
-        );
-        _pp0 = _b0.gep(
-            _jv0,
-            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 1)],
-            name="jv.pl.p"
-        );
-        _b0.store(ir.Constant(ir.IntType(8), 8), _tp0);
-        _b0.store(ir.Constant(ir.IntType(64), 0), _pp0);
-        return _b0.load(_jv0, name="jacval");
-    }
     _pty = self._tb_opt_payload(_ty);
     _pty = _pty if _pty is not None else _ty;
     _pkind = self._tb_kind(_pty);
@@ -483,9 +460,10 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any) -> ir.Value {
             _hk = ("object", "struct", "list", "dict", "set", "tuple");
             _mem_kinds = {self._tb_kind(_m) for _m in self._tb_non_none(_ty)};
             if (
-                (_mem_kinds & set(_hk))
-                and _mem_kinds <= (set(_hk) | {"any", "unknown"})
+                _mem_kinds <= (set(_hk) | {"any", "unknown", "typevar", "never"})
                 and not self._nogc_headerless()
+                and self._str_desc_ty is not None
+                and value.type != self._str_desc_ty
             ) {
                 _rt_tag = b.call(
                     self._jv_runtime_tag_fn(),

@@ -2452,9 +2452,10 @@ impl JcirGenPass._delete_ctx_targets(
     items: list[CgNode] = targets;
     head = items[0] if items else None;
     if (head is not None and head.cls in ('List', 'Tuple')) {
+        _hd_elts: list[CgNode] = head.get('elts') or [];
         items = [
             i
-            for i in head.get('elts')
+            for i in _hd_elts
             if isinstance(i, CgNode)
         ];
     }
@@ -3639,7 +3640,8 @@ impl JcirGenPass._fold_sorted_traversal(nd: FuncCall) -> bool {
             )
         );
     }
-    gq.get('keywords').append(
+    _gq_kws: list[CgNode] = gq.get('keywords');
+    _gq_kws.append(
         self.nod(
             'keyword',
             ['arg', 'value'],

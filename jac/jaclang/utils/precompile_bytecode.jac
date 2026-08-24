@@ -483,7 +483,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      _JCIR_LOWERING_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._delete_ctx_targets",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_assignment",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_except",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_formatted_value",
@@ -500,7 +499,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_archetype",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_enum",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_module",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_element",
 
      ),
      _JCIR_ENTITY_SEAM_WAIVERS: tuple[str, ...] = (
@@ -509,8 +507,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      _JCIR_EMITTER_ICE_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._fold_sorted_traversal",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._query_filter_kws_ord",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_arch_has",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_event_signature",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_func_signature",

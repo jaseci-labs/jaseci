@@ -192,7 +192,16 @@ impl NaIRGenVtable._codegen_virtual_call(
                 _vd_ret_tb = _vd_mrt;
             }
         }
-        _vd_variants.append((_vd_cls, _vd_vt, _vd_fn, _vd_ret_tb));
+        _vd_variants.append(
+            (
+                _vd_cls,
+                _vd_vt,
+                _vd_fn,
+                _vd_ret_tb,
+                f"{_vd_cls}.{method_name}" in self._native_skipped_methods,
+
+            )
+        );
         if _vd_idx != indices[method_name] {
             _vd_uniform = False;
         }
@@ -208,7 +217,7 @@ impl NaIRGenVtable._codegen_virtual_call(
         _vd_fnc = self.builder.function;
         _vd_done = _vd_fnc.append_basic_block(name=f"vd.{method_name}.done");
         _vd_incoming: list[tuple] = [];
-        for (_vc, _vt, _vf, _vf_ret_tb) in _vd_variants {
+        for (_vc, _vt, _vf, _vf_ret_tb, _vf_demoted) in _vd_variants {
             _vd_hit = _vd_fnc.append_basic_block(name=f"vd.{method_name}.{_vc}");
             _vd_next = _vd_fnc.append_basic_block(name=f"vd.{method_name}.n.{_vc}");
             _vd_eq = self.builder.icmp_unsigned(
@@ -219,6 +228,16 @@ impl NaIRGenVtable._codegen_virtual_call(
             );
             self.builder.cbranch(_vd_eq, _vd_hit, _vd_next);
             self.builder.position_at_end(_vd_hit);
+            if _vf_demoted {
+                self._emit_runtime_raise(
+                    ir.Constant(ir.IntType(1), 1),
+                    "TypeError",
+                    f"'{_vc}.{method_name}' has no native lowering and cannot be reached from native code"
+                );
+                self.builder.unreachable();
+                self.builder.position_at_end(_vd_next);
+                continue;
+            }
             _vd_args: list[ir.Value] = [];
             for (_ai, _av) in enumerate(coerced) {
                 if _ai < len(_vf.function_type.args) {
