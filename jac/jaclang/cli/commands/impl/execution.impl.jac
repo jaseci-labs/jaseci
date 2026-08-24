@@ -199,10 +199,8 @@ def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> in
         return 1;
     }
     initialize_provider_registry();
+
     kw: dict = {
-        # 0 is the sentinel serve() maps to 8000: a port that reaches serve()
-        # as non-zero is treated as named and is refused when taken, so the
-        # default must stay unspecified or a bare `run --serve` pins 8000.
         "port": 0,
         "dev": False,
         "api_port": 0,
@@ -311,12 +309,9 @@ impl run_jab_image(
         if serve_port is None {
             import from jaclang.project.config { get_config_for_path }
             img_cfg = get_config_for_path(img_root);
-            # Mirror kinds.jac: a config port other than the default is a
-            # named port and pins; otherwise stay unspecified so serve()
-            # relocates rather than treating 8000 as a contract.
+
             serve_port = (
-                img_cfg.serve.port
-                if img_cfg and img_cfg.serve.port != 8000 else 0
+                img_cfg.serve.port if img_cfg and img_cfg.serve.port != 8000 else 0
             );
         }
         return serve(
