@@ -340,7 +340,7 @@ def emit_class_body_prologue(g: cfg_builder, class_qname: str, body_firstlineno:
     emit_folded_int(g, body_firstlineno, cloc);
     flidx = g.u.add_name("__firstlineno__");
     g.emit_op(OP_STORE_NAME, flidx, cloc);
-    if len(g.u.cellvars) > 0 {
+    if "__classdict__" in g.u.cellvars {
         g.emit_op(OP_LOAD_LOCALS, 0, cloc);
         cd_lp = localsplus_index_u(g.u, "__classdict__");
         g.emit_op(OP_STORE_DEREF, cd_lp, cloc);
@@ -355,14 +355,24 @@ def emit_class_body_epilogue(g: cfg_builder, last: cloc) {
     g.emit_op(OP_LOAD_CONST, tidx, last);
     saidx = g.u.add_name("__static_attributes__");
     g.emit_op(OP_STORE_NAME, saidx, last);
-    if len(g.u.cellvars) > 0 {
+    if "__classdict__" in g.u.cellvars {
         cd_lp = localsplus_index_u(g.u, "__classdict__");
         g.emit_op(OP_LOAD_FAST_BORROW, cd_lp, last);
         cdidx = g.u.add_name("__classdictcell__");
         g.emit_op(OP_STORE_NAME, cdidx, last);
     }
-    none_idx = g.u.add_const(py_none());
-    g.emit_op(OP_LOAD_CONST, none_idx, last);
+    if "__class__" in g.u.cellvars {
+        # Return __classcell__ to __build_class__ (CPython codegen.c): the live
+        # cell goes back so py_build_class can seed it with the finished class.
+        cc_lp = localsplus_index_u(g.u, "__class__");
+        g.emit_op(OP_LOAD_FAST_BORROW, cc_lp, last);
+        g.emit_op(OP_COPY, 1, last);
+        ccidx = g.u.add_name("__classcell__");
+        g.emit_op(OP_STORE_NAME, ccidx, last);
+    } else {
+        none_idx = g.u.add_const(py_none());
+        g.emit_op(OP_LOAD_CONST, none_idx, last);
+    }
     g.emit_op(OP_RETURN_VALUE, 0, last);
 }
 
@@ -492,9 +502,14 @@ def compile_class_cfg(
     # survive into the class-body code object so method creation inside the
     # body can close over those cells.
     u.freevars = freevars_from_sym(sym_cls);
+    # Implicit __class__ cell first (CPython compiler_unit appends it before
+    # __classdict__; observed oracle order ('__class__', '__classdict__')).
+    if sym_cls.needs_class_closure {
+        u.cellvars.append("__class__");
+    }
     if class_body_has_function(cd) or ann_plan.any_annotation
         or class_body_has_typealias(cd) {
-        u.cellvars = ["__classdict__"];
+        u.cellvars.append("__classdict__");
         if ann_plan.any_conditional {
             u.cellvars.append("__conditional_annotations__");
         }

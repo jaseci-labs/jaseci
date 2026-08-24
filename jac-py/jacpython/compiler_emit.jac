@@ -78,6 +78,7 @@ import from opcode_meta {
     OP_BINARY_SLICE,
     OP_BUILD_SLICE,
     OP_LOAD_ATTR,
+    OP_LOAD_SUPER_ATTR,
     OP_DELETE_NAME,
     OP_DELETE_GLOBAL,
     OP_DELETE_ATTR,
@@ -1480,9 +1481,11 @@ def visit_expr(
         } elif isinstance(ca.func, Attribute) {
             attr = ca.func as Attribute;
             aloc = expr_loc(attr);
-            visit_expr(g, attr.value);
-            idx = g.u.add_name(codegen_mangle(g, attr.attr));
-            g.emit_op(OP_LOAD_ATTR, (idx << 1) | 1, aloc);
+            if not try_load_super_attr(g, attr.value, attr.attr, True, aloc) {
+                visit_expr(g, attr.value);
+                idx = g.u.add_name(codegen_mangle(g, attr.attr));
+                g.emit_op(OP_LOAD_ATTR, (idx << 1) | 1, aloc);
+            }
         } else {
             visit_expr(g, ca.func);
             g.emit_op(OP_PUSH_NULL, 0, floc);
@@ -1540,6 +1543,9 @@ def visit_expr(
     if isinstance(e, Attribute) {
         a = e as Attribute;
         aloc = expr_loc(a);
+        if try_load_super_attr(g, a.value, a.attr, False, aloc) {
+            return None;
+        }
         visit_expr(g, a.value);
         idx = g.u.add_name(codegen_mangle(g, a.attr));
         g.emit_op(OP_LOAD_ATTR, idx * 2, aloc);
@@ -2062,6 +2068,92 @@ def emit_call_instruction(g: cfg_builder, ca: Call, cloc_call: cloc) {
     } else {
         g.emit_op(OP_CALL, len(args), cloc_call);
     }
+}
+
+# CPython codegen.c can_optimize_super_call / load_args_for_super: an attribute
+# access through a direct super(...) call compiles to LOAD_SUPER_ATTR over
+# (global super, class-or-arg0, self-or-arg1) instead of calling super first.
+# Emits the whole operand sequence plus the opcode (+ trailing NOP) and returns
+# True when this shape applied; callers then skip generic emission.
+def try_load_super_attr(
+    g: cfg_builder,
+    value: expr,
+    attr_name: str,
+    method_form: bool,
+    aloc: cloc
+) -> bool {
+    if not isinstance(value, Call) {
+        return False;
+    }
+    ca = value as Call;
+    if not isinstance(ca.func, Name) {
+        return False;
+    }
+    sf = ca.func as Name;
+    if sf.id != "super" {
+        return False;
+    }
+    if attr_name == "__class__" {
+        return False;
+    }
+    if len(call_effective_keywords(ca)) > 0 or call_has_unpacking(ca) {
+        return False;
+    }
+    # 'super' must resolve GLOBAL_IMPLICIT in this unit and be absent from the
+    # module top (static shadowing detection); otherwise fall back to the
+    # generic call path like CPython.
+    if g.sym_top is None {
+        return False;
+    }
+    flags = sym_dict_get(g.sym_top.symbols, "super", 0);
+    if sym_scope_of(flags) != SCOPE_GLOBAL_IMPLICIT {
+        return False;
+    }
+    if g.sym_top.top_has_super {
+        return False;
+    }
+    args = call_effective_args(ca);
+    two_arg = False;
+    if len(args) == 2 {
+        if isinstance(args[0], Starred) or isinstance(args[1], Starred) {
+            return False;
+        }
+        two_arg = True;
+    } elif len(args) != 0 {
+        return False;
+    } else {
+        # Zero-arg form needs a first positional parameter to bind as self and
+        # the symtable-provided __class__ free cell.
+        if g.u.argcount == 0 and g.u.posonlyargcount == 0 {
+            return False;
+        }
+        cls_flags = sym_dict_get(g.sym_top.symbols, "__class__", 0);
+        if sym_scope_of(cls_flags) != SCOPE_FREE {
+            return False;
+        }
+    }
+    emit_name_load(g, "super", call_func_loc(ca.func), False);
+    if codegen_busy(g) {
+        return True;
+    }
+    if two_arg {
+        visit_expr(g, args[0]);
+        if codegen_busy(g) {
+            return True;
+        }
+        visit_expr(g, args[1]);
+        if codegen_busy(g) {
+            return True;
+        }
+    } else {
+        emit_name_load(g, "__class__", aloc);
+        g.emit_op(OP_LOAD_FAST, 0, aloc);
+    }
+    idx = g.u.add_name(codegen_mangle(g, attr_name));
+    oparg = (idx << 2) | (2 if two_arg else 0) | (1 if method_form else 0);
+    g.emit_op(OP_LOAD_SUPER_ATTR, oparg, aloc);
+    g.emit_op(OP_NOP, 0, aloc);
+    return True;
 }
 
 # Build a list on the stack from a display element list containing starred
