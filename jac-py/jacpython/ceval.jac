@@ -76,6 +76,32 @@ def _jac_host_type_surface(kind):
     except BaseException as exc:
         return _jac_host_error(exc)
 
+def _jac_host_type_attr(kind, name):
+    # getattr on the HOST type for `kind` -- the inherited slot-wrapper surface
+    # a guest class exposes through CPython's metaclass channel (type(C).__mro__
+    # reaches object, whose type dict carries every slot wrapper). Companion to
+    # _jac_host_type_surface, which enumerates this dict for dir(); this fetches
+    # one entry's live value so `Cls.__repr__` returns the byte-exact host
+    # wrapper object pprint-style dispatch tables key on.
+    import builtins
+    import types
+    try:
+        if kind == "object":
+            target = builtins.object
+        elif kind == "type":
+            target = builtins.type
+        elif kind == "function":
+            target = types.FunctionType
+        elif kind == "method":
+            target = types.MethodType
+        else:
+            target = getattr(builtins, kind, None)
+        if target is None:
+            raise TypeError("unknown type surface '" + kind + "'")
+        return (True, getattr(target, name))
+    except BaseException as exc:
+        return _jac_host_error(exc)
+
 def _jac_host_is_callable(value):
     return callable(value)
 
@@ -2338,6 +2364,24 @@ obj PyClass(PyObj) {
             }
             return PyNativeNew(t="native_new", base_name=base);
         }
+        # Inherited slot-wrapper surface: CPython serves `Cls.__repr__` through
+        # the metaclass channel -- type(Cls).__mro__ reaches object, whose type
+        # dict carries every slot wrapper. Guest classes store no such entries
+        # in attrs, so walk the MRO's native-base surfaces first (a dict
+        # subclass inherits dict.__repr__'s wrapper) and finish on object's.
+        for klass in class_mro(self) {
+            nb = klass.native_base;
+            if nb != "" {
+                r = _jac_host_type_attr(nb, name);
+                if host_result_ok(r) {
+                    return from_host(r[1]);
+                }
+            }
+        }
+        obj_r = _jac_host_type_attr("object", name);
+        if host_result_ok(obj_r) {
+            return from_host(obj_r[1]);
+        }
         # A method defined on the metaclass (EnumType._add_member_, __call__) is
         # accessible on the class itself, bound to it -- the class is an instance
         # of its metaclass.
@@ -3846,7 +3890,16 @@ def to_host(value: PyObj) -> any {
 
     }
     # Unreachable for every tag with a table policy and a matching arm above;
-    # both gaps fail LOUDLY here instead of degrading to None.
+    # both gaps fail LOUDLY here instead of degrading to None -- except the
+    # TRAMPOLINE family's long tail: native module functions are dozens of
+    # small wrapper objs tagged t="function"/"native_builtin" (PyWarningsWarnFn
+    # & co) that no per-class case above can enumerate. Their policy already
+    # declares the crossing semantics, so mint the same tp_call-backing
+    # trampoline the dedicated arms use. Non-callable stragglers surface their
+    # PyError at INVOCATION time (trampoline re-raises), not at crossing time.
+    if policy == BridgePolicy.TRAMPOLINE {
+        return _jac_make_host_trampoline(value);
+    }
     raise RuntimeError(
         "bridge-table: type '"
         + value.t
