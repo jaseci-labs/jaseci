@@ -11396,11 +11396,28 @@ def gen_send(gen: PyGenerator, sent: PyObj) -> PyObj {
 }
 
 # StopIteration carrying the generator's return value as its .value payload.
+# CPython gen_send_ex raises StopIteration(value), so the payload must also
+# materialize through args -> .args / __str__ / __repr__ (StopIteration(42),
+# not an argless StopIteration() hiding its payload in .value alone). A None
+# payload (bare return / fall-off-end) stays argless exactly like the host:
+# StopIteration(), args=(), .value=None.
 def stop_iteration(value: PyObj) -> PyObj {
+    if value.t == "none" {
+        return PyError(
+            t="error",
+            exception=PyException(
+                t="exception", type_name="StopIteration", message="", value=value
+            ),
+        );
+    }
     return PyError(
         t="error",
         exception=PyException(
-            t="exception", type_name="StopIteration", message="", value=value
+            t="exception",
+            type_name="StopIteration",
+            message="",
+            args=[value],
+            value=value
         ),
     );
 }
