@@ -461,10 +461,12 @@ Both engines expose the same normalized status shape, so callers never need to b
 **One-shot query:**
 
 ```jac
-status = autoscaler.get_runtime_status(autoscaler_name, scale_target_name, namespace);
-# status.state: "inactive" | "activating" | "active" | "deactivating" | "degraded" | "unknown"
-# status.desired_replicas / current_replicas / ready_replicas
-# status.trigger_active, status.scaler_ready  (None when the engine doesn't report one)
+with entry {
+    status = autoscaler.get_runtime_status(autoscaler_name, scale_target_name, namespace);
+    # status.state: "inactive" | "activating" | "active" | "deactivating" | "degraded" | "unknown"
+    # status.desired_replicas / current_replicas / ready_replicas
+    # status.trigger_active, status.scaler_ready  (None when the engine doesn't report one)
+}
 ```
 
 `inactive` is the intentional, healthy scale-to-zero resting state, not an error -- a plain HPA target (see [HPA Engine](#hpa-engine-default)) never reports it, since `minReplicas` is always at least 1 under that engine.
@@ -475,13 +477,15 @@ status = autoscaler.get_runtime_status(autoscaler_name, scale_target_name, names
     Each `get_or_create` call increments a reference count for that `(cluster, namespace)`; call `AutoscalerObserverRegistry.release(namespace, cluster_key=None)` once you're done with it. The watcher's threads stop only when the count reaches zero, so other callers still watching that namespace are unaffected. `shutdown_all()` bypasses reference counting entirely and stops every watcher process-wide -- reserve it for process shutdown or test teardown.
 
     ```jac
-    observer = AutoscalerObserverRegistry.get_or_create(namespace);
-    subscription = observer.subscribe(scale_target_name=scale_target_name);
-    transition = subscription.poll(timeout_seconds=30.0);
-    if transition {
-        print(f"{transition.previous_state} -> {transition.state}");
+    with entry {
+        observer = AutoscalerObserverRegistry.get_or_create(namespace);
+        subscription = observer.subscribe(scale_target_name=scale_target_name);
+        transition = subscription.poll(timeout_seconds=30.0);
+        if transition {
+            print(f"{transition.previous_state} -> {transition.state}");
+        }
+        AutoscalerObserverRegistry.release(namespace);
     }
-    AutoscalerObserverRegistry.release(namespace);
     ```
 
     For HTTP-activated workloads (`apply_http_activation`, see the KEDA HTTP Add-on note above), `activating` distinguishes "KEDA has requested more replicas" from `active` ("the target Deployment is actually ready to receive traffic") -- watch for `active`, not just a desired-replica bump, before routing a request through.
