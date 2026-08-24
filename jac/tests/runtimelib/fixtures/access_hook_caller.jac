@@ -49,17 +49,25 @@ walker create_plain {
     }
 }
 
+obj HasBody {
+    has body: str = "";
+}
+
+def _as_doc(v: any) -> HasBody {
+    return v;
+}
+
 walker write_doc {
     has target_id: str,
         body: str;
 
     can enter with Root entry {
-        target = Jac.get_object(self.target_id);
-        if target is None {
+        found = Jac.get_object(self.target_id);
+        if found is None {
             print("WRITE:unreachable");
             return;
         }
-        target.body = self.body;
+        _as_doc(found).body = self.body;
         Jac.commit();
         print("WRITE:done");
     }
@@ -69,11 +77,11 @@ walker read_doc {
     has target_id: str;
 
     can enter with Root entry {
-        target = Jac.get_object(self.target_id);
-        if target is None {
+        found = Jac.get_object(self.target_id);
+        if found is None {
             print("READ:none");
         } else {
-            print("READ:" + target.body);
+            print("READ:" + _as_doc(found).body);
         }
     }
 }
