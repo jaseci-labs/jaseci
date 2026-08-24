@@ -77,6 +77,8 @@ import from jaclang.compiler.type_system.operations {
     AUG_OPERATOR_MAP,
     AUG_TO_BINARY_MAP,
     BINARY_OPERATOR_MAP,
+    BITWISE_OPERATORS,
+    SHIFT_OPERATORS,
     get_numeric_promotion_type,
     get_pow_result_type
 }
@@ -129,6 +131,7 @@ class TypeCheckPass(UniPass) {
 
     def before_pass(self: TypeCheckPass) -> None;
     def after_pass(self: TypeCheckPass) -> None;
+    def _stamp_fixed_width(self: TypeCheckPass) -> None;
     def _insert_builtin_symbols(self: TypeCheckPass) -> None;
     def _install_client_state_setters(self: TypeCheckPass) -> None;
     def _client_state_field_owner(self: TypeCheckPass, nd: HasVar) -> (Ability | None);

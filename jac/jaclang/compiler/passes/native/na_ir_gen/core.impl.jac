@@ -1,3 +1,10 @@
+def scalar_llvm_type(`entry: JacTypeEntry) -> ir.Type {
+    if `entry.is_float {
+        return ir.FloatType() if `entry.width == 32 else ir.DoubleType();
+    }
+    return ir.IntType(`entry.width);
+}
+
 impl NaIRGenCore.postinit -> None {
     import os as _ni_os;
 
@@ -47,36 +54,24 @@ impl NaIRGenCore.postinit -> None {
         }
     }
 
-    _spec_map: dict[str, ir.Type] = {
-        "i8": ir.IntType(8),
-        "i16": ir.IntType(16),
-        "i32": ir.IntType(32),
-        "i64": ir.IntType(64),
-        "f32": ir.FloatType(),
-        "f64": ir.DoubleType(),
-        "i1": ir.IntType(1),
-        "i8*": ir.IntType(8).as_pointer()
-    };
+    _byte_ptr = ir.IntType(8).as_pointer();
     self._type_map = {};
-    try {
-        import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
-        for (_name, _spec) in JAC_TYPE_REGISTRY.na_type_entries() {
-            self.type_map[_name] = _spec_map[_spec];
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    for _scalar in JAC_TYPE_REGISTRY.scalar_entries() {
+        if _scalar.name == "str" {
+            continue;
         }
-    } except ImportError {
-        self.type_map["int"] = _spec_map["i64"];
-        self.type_map["float"] = _spec_map["f64"];
-        self.type_map["bool"] = _spec_map["i1"];
-        self.type_map["str"] = _spec_map["i8*"];
+        self.type_map[_scalar.name] = scalar_llvm_type(_scalar);
     }
+    self.type_map["str"] = (
+        _byte_ptr
+            if "wasm" in str(self.llvm_module.triple or "")
+            else self._str_desc_type()
+    );
+    self.type_map["LiteralString"] = self.type_map["str"];
+    self.type_map["Region"] = _byte_ptr;
 
-    if "wasm" not in str(self.llvm_module.triple or "") {
-        self.type_map["str"] = self._str_desc_type();
-    }
-    self.type_map["LiteralString"] = self.type_map.get("str", _spec_map["i8*"]);
-    self.type_map["Region"] = _spec_map["i8*"];
-
-    self.type_map["type"] = _spec_map["i8*"];
+    self.type_map["type"] = _byte_ptr;
 
     self._complex_struct_type = self.llvm_module.context.get_identified_type(
         "JacComplex"

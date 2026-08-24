@@ -1,6 +1,6 @@
 """Sealing wave 6: capability_check_pass reaches IR, and what the last seam is.
 
-Same harness as waves 1, 2, 4 and 5 -- `na_coverage_begin` plus
+Same harness as the parametrized baselines -- `na_coverage_begin` plus
 `force_codespace='native'`, exactly what `seal_native_artifacts` runs -- and
 the same two-way discipline: this file fails if the closure gains a member,
 if IR stops being produced, or if the seam set moves in either direction.
@@ -66,17 +66,17 @@ the half of the wave's work that capability's coverage cannot see.
 import os;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
+import from tests.compiler.passes.native.seal_support {
+    PKG_PATH,
+    _own_seams,
+    _root_coverage
+}
 import from jaclang.utils.precompile_bytecode {
     NATIVE_SEAL_REFUSED_ROOTS,
     NATIVE_SEAL_ROOTS
 }
 
-glob PKG_PATH = Path(jaclang.__file__).parent,
-     CAPABILITY: str = "compiler/passes/main/capability_check_pass.jac",
+glob CAPABILITY: str = "compiler/passes/main/capability_check_pass.jac",
      MODULE_CODEGEN: str = "jac0core/passes/module_codegen_pass.jac";
 
 """capability_check_pass's exact native closure, as package-relative paths.
@@ -101,6 +101,7 @@ glob CAPABILITY_CLOSURE: tuple = (
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/transform.jac",
          "jac0core/passes/uni_pass.jac",
+         "jac0core/scalars.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
@@ -126,71 +127,6 @@ glob CAPABILITY_SEAMS: dict[(str, str)] = {
          "native_capability_violations": "pass-tier crossing: calls ModuleCodegenPass.iter_context_stmts"
      };
 
-glob _COVERAGE_MEMO: dict[(str, tuple)] = {};
-
-"""A root's dotted module name, for the sealed-runtime skip gate."""
-def _root_module_name(rel: str) -> str {
-    return "jaclang." + rel[:-4].replace("/", ".");
-}
-
-"""Compile one root the way seal_native_artifacts does, up to the coverage."""
-def _root_coverage(rel: str) -> tuple {
-    if _jaclang_image() is not None {
-        testskip(
-            "this runtime is a sealed jaclang image; a source coverage here "
-            "measures the image's trust boundary, not the unit's own seams"
-        );
-    }
-    if native_artifact_for(_root_module_name(rel)) is not None {
-        testskip(
-            f"{rel} is served from this runtime's native seal; the coverage "
-            "gated the build via seal_demotion_report"
-        );
-    }
-    if rel in _COVERAGE_MEMO {
-        return _COVERAGE_MEMO[rel];
-    }
-    prog = JacProgram();
-    na_coverage_begin();
-    try {
-        ir = prog.compile(
-            file_path=str(PKG_PATH / rel),
-            options=CompileOptions(
-                aot_mode=True,
-                force_codespace='native',
-                force_target_program=True,
-                na_gc_mode='cycles',
-                no_ir_cache=True
-            )
-        );
-    } finally {
-        coverage = na_coverage_end();
-    }
-    has_ir = ir is not None and ir.gen.llvm_ir is not None;
-    errors = [str(e) for e in prog.errors_had];
-    result = (coverage, has_ir, errors, );
-    _COVERAGE_MEMO[rel] = result;
-    return result;
-}
-
-"""The bare seam names a given closure member contributes."""
-def _own_seams(rel: str, member: str) -> set {
-    (coverage, _has_ir, _errors) = _root_coverage(rel);
-    found: set = set();
-    for (path, rec) in coverage.items() {
-        where = Path(path).resolve().relative_to(PKG_PATH.resolve()).as_posix();
-        if where != member {
-            continue;
-        }
-        for seam in (rec["seams"] or []) {
-            (name, sep, _why) = str(seam).partition(": ");
-            found.add(name if sep else str(seam));
-        }
-    }
-    return found;
-}
-
-
 test "capability_check_pass is refused for the seal, by name" {
     assert CAPABILITY not in NATIVE_SEAL_ROOTS , (
         f"{CAPABILITY} is in NATIVE_SEAL_ROOTS. The seal's abort-stub "
@@ -205,7 +141,6 @@ test "capability_check_pass is refused for the seal, by name" {
     );
 }
 
-
 test "capability_check_pass compiles with no module-level errors" {
     (_coverage, _has_ir, errors) = _root_coverage(CAPABILITY);
     assert not errors , (
@@ -213,7 +148,6 @@ test "capability_check_pass compiles with no module-level errors" {
         f"wave and must keep zero; got {len(errors)}: {errors[:5]}"
     );
 }
-
 
 test "capability_check_pass produces native IR" {
     (_coverage, has_ir, _errors) = _root_coverage(CAPABILITY);
@@ -223,7 +157,6 @@ test "capability_check_pass produces native IR" {
         "'measured'"
     );
 }
-
 
 test "capability_check_pass's native closure is exactly the measured set" {
     (coverage, _has_ir, _errors) = _root_coverage(CAPABILITY);
@@ -240,7 +173,6 @@ test "capability_check_pass's native closure is exactly the measured set" {
     );
 }
 
-
 test "capability_check_pass's own seams are exactly the named set" {
     seen = _own_seams(CAPABILITY, CAPABILITY);
     expected = set(CAPABILITY_SEAMS.keys());
@@ -253,7 +185,6 @@ test "capability_check_pass's own seams are exactly the named set" {
         + "module docstring have to say so."
     );
 }
-
 
 test "module_codegen_pass carries no seams of its own" {
     # The half of this wave that capability's coverage cannot see. All six of
@@ -269,7 +200,6 @@ test "module_codegen_pass carries no seams of its own" {
         "own seams in this wave and its waiver tuple was deleted"
     );
 }
-
 
 test "module_codegen_pass compiles clean and produces IR" {
     (_coverage, has_ir, errors) = _root_coverage(MODULE_CODEGEN);

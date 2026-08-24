@@ -86,7 +86,9 @@ obj NaIRGenStmt(NaIRGenState) {
         current: ir.Value,
         rhs: ir.Value,
         aug_op: str,
-        rhs_node: (uni.Expr | None) = None
+        rhs_node: (uni.Expr | None) = None,
+        unsigned: bool = False,
+        checked: bool = False
     ) -> (ir.Value | None);
 
     def _try_flow_for_parallel(nd: uni.InForStmt) -> bool;

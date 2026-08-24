@@ -79,7 +79,7 @@ def _write_preact_project(dest: Path) {
     shutil.copy(Path(FIXTURES) / "preact_counter_app.jac", dest / "main.jac");
 }
 
-"""Start `jac start` for a temp preact project. Returns (process, port, url)."""
+"""Start `jac run --serve` for a temp preact project. Returns (process, port, url)."""
 def _start_preact_server(project_dir: Path) -> tuple {
     import shutil as sh;
     import sys;
@@ -93,7 +93,9 @@ def _start_preact_server(project_dir: Path) -> tuple {
     env["PYTHONPATH"] = (
         f"{repo_jac}{os.pathsep}{existing_path}" if existing_path else repo_jac
     );
-    proc = Popen([*jac_cmd, "start", "-p", str(port)], cwd=str(project_dir), env=env,);
+    proc = Popen(
+        [*jac_cmd, "run", "--serve", "-p", str(port)], cwd=str(project_dir), env=env,
+    );
     _wait_for_port("127.0.0.1", port);
     # First client bundle can take a while (bun install + vite build).
     time.sleep(8);

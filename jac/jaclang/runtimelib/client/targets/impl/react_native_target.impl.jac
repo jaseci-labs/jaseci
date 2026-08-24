@@ -105,7 +105,7 @@ impl ReactNativeTarget.setup(project_dir: Path) -> None {
         style="muted"
     );
     console.print(
-        "  Dev:             jac start --client react-native --dev", style="muted"
+        "  Dev:             jac run --client react-native --dev", style="muted"
     );
     console.print(
         f"  EAS Build:       cd {rn_dir} && npx eas build --platform android",
@@ -243,7 +243,7 @@ impl ReactNativeTarget.dev(
     if not (rn_dir / "package.json").exists() {
         raise RuntimeError(
             "React Native scaffold not found. Run `jac setup react-native` "
-            "before `jac start --client react-native --dev`."
+            "before `jac run --client react-native --dev`."
         );
     }
 

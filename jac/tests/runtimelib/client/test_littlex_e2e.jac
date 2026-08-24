@@ -3,7 +3,7 @@
 Recovers functional coverage dropped in PR #6840. Two layers:
 
 * Build / serve / HTTP (no browser) -- scaffold littleX into a writable
-  temp dir, install its npm deps, then `jac start` it and exercise the
+  temp dir, install its npm deps, then `jac run --serve` it and exercise the
   HTTP surface (the served `/cl/app` page, the static JS + CSS bundles,
   404s) plus a `--client pwa` build that emits a manifest + service worker.
 * Browser auth/form flows (Playwright) -- drive littleX's `AuthForm`

@@ -52,10 +52,15 @@ impl NaIRGenBuiltins._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
                 fmt_parts.append("%s");
                 args.append(self.builder.select(val, t_g, f_g, name="print.bool"));
             } else {
+                _unsigned = self._is_unsigned_node(param);
                 if val.type.width < 64 {
-                    val = self.builder.sext(val, ir.IntType(64));
+                    val = (
+                        self.builder.zext(val, ir.IntType(64))
+                            if _unsigned
+                            else self.builder.sext(val, ir.IntType(64))
+                    );
                 }
-                fmt_parts.append("%lld");
+                fmt_parts.append("%llu" if _unsigned else "%lld");
                 args.append(val);
             }
         } elif isinstance(val.type, ir.DoubleType) {
@@ -1353,7 +1358,12 @@ impl NaIRGenBuiltins._emit_sys_exit(args: list[ir.Value]) -> (ir.Value | None) {
     exit_fn = self._get_or_declare_extern("exit", ir.VoidType(), [i32]);
 
     if args {
-        code = self._coerce_type(args[0], i32);
+        code = args[0];
+        if isinstance(code.type, ir.IntType) and code.type.width > 32 {
+            code = self.builder.trunc(code, i32, name="exit.code");
+        } else {
+            code = self._coerce_type(code, i32);
+        }
     } else {
         code = ir.Constant(i32, 0);
     }

@@ -99,7 +99,7 @@ test "static target is registered and resolvable" {
 
 """An explicit `kind = \"web-static\"` resolves to the static web project kind.
 
-This is the signal `jac build` / `jac start` key off to auto-route a
+This is the signal `jac build` / `jac run --serve` key off to auto-route a
 client-only project to the portable/static path without any --client flag.
 """
 test "web-static kind is detected from jac toml" {
