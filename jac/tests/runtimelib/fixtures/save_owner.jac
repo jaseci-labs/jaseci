@@ -58,6 +58,10 @@ walker grant_on_org {
     }
 }
 
+def _as_item(v: any) -> Item {
+    return v;
+}
+
 walker read_item {
     has item_id: str;
 
@@ -66,7 +70,7 @@ walker read_item {
         if it is None {
             print("READ:none");
         } else {
-            print("READ:" + it.label);
+            print("READ:" + _as_item(it).label);
         }
     }
 }
@@ -76,9 +80,9 @@ walker try_reown {
         org_id: str;
 
     can enter with Root entry {
-        it = Jac.get_object(self.item_id);
+        found: any = Jac.get_object(self.item_id);
         try {
-            Jac.save(it, owner=UUID(self.org_id));
+            Jac.save(found, owner=UUID(self.org_id));
             print("REOWN:allowed");
         } except ValueError {
             print("REOWN:refused");
