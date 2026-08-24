@@ -2786,14 +2786,10 @@ impl EsastGenPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
     op_tok = Tok(nd.op.name) if (nd.op.name in Tok.__members__) else None;
 
     if op_tok in (Tok.MINUS, Tok.BW_NOT) {
-        import from jaclang.jac0core.scalars { is_sized }
-        _fw_name = self._fw_name_of(nd.type);
-        if _fw_name is not None and is_sized(_fw_name) {
-            _tag = self.sync_loc(
-                es.Literal(value=_fw_name, raw=json.dumps(_fw_name)), jac_node=nd
-            );
+        _fw_name = nd.fw;
+        if _fw_name is not None {
             nd.gen.es_ast = self._fw_call(
-                "neg" if op_tok == Tok.MINUS else "invert", [_tag, operand], nd
+                f"{'neg' if op_tok == Tok.MINUS else 'inv'}_{_fw_name}", [operand], nd
             );
             return;
         }
@@ -8097,13 +8093,6 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
     }
 }
 
-impl EsastGenPass._fw_name_of(t: object) -> (str | None) {
-    import from jaclang.compiler.type_system.type_utils { primitive_type_name_of }
-    import from jaclang.jac0core.scalars { shape_of }
-    name = primitive_type_name_of(t);
-    return name if (name is not None and shape_of(name) is not None) else None;
-}
-
 impl EsastGenPass._fw_call(
     name: str, args: list[es.Expression], jac_node: uni.UniNode
 ) -> es.Expression {
@@ -8111,6 +8100,26 @@ impl EsastGenPass._fw_call(
     return self.sync_loc(
         es.CallExpression(
             callee=self._build_jac_ref(["_jac", "fw", name], jac_node), arguments=args
+        ),
+        jac_node=jac_node
+    );
+}
+
+impl EsastGenPass._fw_js_binop(
+    op: str, left: es.Expression, right: es.Expression, jac_node: uni.UniNode
+) -> es.Expression {
+    return self.sync_loc(
+        es.BinaryExpression(operator=op, left=left, right=right), jac_node=jac_node
+    );
+}
+
+impl EsastGenPass._fw_to_number(
+    expr: es.Expression, jac_node: uni.UniNode
+) -> es.Expression {
+    return self.sync_loc(
+        es.CallExpression(
+            callee=self.sync_loc(es.Identifier(name="Number"), jac_node=jac_node),
+            arguments=[expr]
         ),
         jac_node=jac_node
     );
@@ -8124,43 +8133,100 @@ impl EsastGenPass._apply_fw_coercion(nd: uni.Expr) -> None {
         return;
     }
     dst_shape = shape_of(dst);
-    src = self._fw_name_of(nd.type);
-    src_shape = shape_of(src) if src is not None else None;
     if dst_shape is None {
         return;
     }
-    dst_big = dst_shape.sized and not dst_shape.is_float and dst_shape.width == 64;
+    if (
+        dst_shape.sized
+        and not dst_shape.is_float
+        and dst_shape.width == 64
+        and isinstance(cur, es.Literal)
+        and isinstance(cur.value, int)
+        and not isinstance(cur.value, bool)
+    ) {
+        nd.gen.es_ast = self.sync_loc(
+            es.Literal(value=cur.value, raw=f"{cur.value}n"), jac_node=nd
+        );
+        return;
+    }
+    parent = nd.parent;
+    if (
+        isinstance(parent, uni.FuncCall)
+        and isinstance(parent.target, uni.Name)
+        and parent.target.sym_name == dst
+        and parent.params is not None
+        and len(parent.params) == 1
+    ) {
+        return;
+    }
+    src = nd.fw;
+    src_shape = shape_of(src) if src is not None else None;
     src_big = (
         src_shape is not None
         and src_shape.sized
         and not src_shape.is_float
         and src_shape.width == 64
     );
-    if dst_shape.sized {
-        if dst == "f32" or dst_big or src == "bool" or src_big {
-            tag = self.sync_loc(
-                es.Literal(value=dst, raw=json.dumps(dst)), jac_node=nd
-            );
-            nd.gen.es_ast = self._fw_call("widen", [tag, cur], nd);
+    if dst == "f32" {
+        nd.gen.es_ast = self._fw_call("r_f32", [cur], nd);
+        return;
+    }
+    dst_big = dst_shape.sized and not dst_shape.is_float and dst_shape.width == 64;
+    if dst_big {
+        if not src_big {
+            nd.gen.es_ast = self._fw_call(f"big_{dst}", [cur], nd);
         }
         return;
     }
-    if src_big or src == "bool" {
-        nd.gen.es_ast = self._fw_call("toNum", [cur], nd);
+    if src_big {
+        nd.gen.es_ast = self._fw_to_number(cur, nd);
+        return;
+    }
+    if src_shape is None
+        and not (isinstance(cur, es.Literal) and isinstance(cur.value, (int, float))) {
+        nd.gen.es_ast = self._fw_to_number(cur, nd);
     }
 }
 
 impl EsastGenPass._fw_binary(
     nd: uni.Expr, op: str, left: es.Expression, right: es.Expression
 ) -> (es.Expression | None) {
-    import from jaclang.jac0core.scalars { is_sized }
-    name = self._fw_name_of(nd.type);
-    if name is None or not is_sized(name) {
+    import from jaclang.jac0core.scalars { shape_of }
+    name = nd.fw;
+    if name is None {
         return None;
     }
-    tag = self.sync_loc(es.Literal(value=name, raw=json.dumps(name)), jac_node=nd);
-    op_lit = self.sync_loc(es.Literal(value=op, raw=json.dumps(op)), jac_node=nd);
-    return self._fw_call("arith", [tag, left, right, op_lit], nd);
+    row = shape_of(name);
+    if row is None or not row.sized {
+        return None;
+    }
+    if row.is_float {
+        helper = FW_JS_FLOAT_HELPERS.get(op, None);
+        if helper is not None {
+            return self._fw_call(f"{helper}_{name}", [left, right], nd);
+        }
+        raw = self._fw_js_binop(op, left, right, nd);
+        if row.width == 32 {
+            return self._fw_call("r_f32", [raw], nd);
+        }
+        return raw;
+    }
+    if op in FW_JS_PLAIN_OPS {
+        raw = self._fw_js_binop(op, left, right, nd);
+        if row.width == 32 and not row.signed {
+            zero = self.sync_loc(es.Literal(value=0, raw="0"), jac_node=nd);
+            return self._fw_js_binop(">>>", raw, zero, nd);
+        }
+        return raw;
+    }
+    if op in FW_JS_CHECKED_OPS {
+        return self._fw_call(f"c_{name}", [self._fw_js_binop(op, left, right, nd)], nd);
+    }
+    helper = FW_JS_HELPER_OPS.get(op, None);
+    if helper is None {
+        return None;
+    }
+    return self._fw_call(f"{helper}_{name}", [left, right], nd);
 }
 
 impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {

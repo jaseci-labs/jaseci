@@ -1484,6 +1484,20 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
         if n_syms != p_syms {
             return _parity_sym_report(canary_path, n_syms, p_syms);
         }
+        n_tab: list[str] = [];
+        p_tab: list[str] = [];
+        try {
+            n_tab = _sym_table_fingerprint(native_mod);
+            p_tab = _sym_table_fingerprint(py_mod);
+        } except Exception as tab_exc {
+            return (
+                f"{canary_path}: post-pass symbol table fingerprint raised "
+                f"{type(tab_exc).__name__}: {tab_exc}"
+            );
+        }
+        if n_tab != p_tab {
+            return _parity_table_report(canary_path, n_tab, p_tab);
+        }
     }
     return "";
 }
@@ -1730,6 +1744,54 @@ def _sym_name_fingerprint(mod: any) -> list[str] {
     }
     return out;
 }
+
+def _sym_table_fingerprint(mod: any) -> list[str] {
+    import jaclang.jac0core.unitree as uni;
+    out: list[str] = [];
+    for nd in mod._in_mod_nodes {
+        if isinstance(nd, uni.UniScopeNode) {
+            names = ",".join(sorted((nd.names_in_scope or {}).keys()));
+            over = ",".join(sorted((nd.names_in_scope_overload or {}).keys()));
+            reb = ",".join(sorted((nd.implicit_rebinds or {}).keys()));
+            kids = len(nd.kid_scope or []);
+            has_parent = "y" if nd.parent_scope is not None else "n";
+            out.append(
+                f"scope {type(nd).__name__}:{nd.scope_name} names=[{names}] "
+                f"over=[{over}] rebind=[{reb}] kids={kids} parent={has_parent}"
+            );
+        }
+        if isinstance(nd, uni.NameAtom) {
+            sym = nd.__dict__.get("_sym");
+            if sym is None {
+                out.append(f"name {type(nd).__name__} sym=none");
+            } else {
+                out.append(
+                    f"name {type(nd).__name__} sym={sym.sym_name}:"
+                    f"{sym.access} defn={len(sym.defn)} uses={len(sym.uses)}"
+                );
+            }
+        }
+    }
+    return out;
+}
+
+
+def _parity_table_report(canary_path: str, n_tab: list[str], p_tab: list[str]) -> str {
+    nl = chr(10);
+    at = _parity_diff_at(n_tab, p_tab);
+    n_show = n_tab[at] if at < len(n_tab) else "<end>";
+    p_show = p_tab[at] if at < len(p_tab) else "<end>";
+    return nl.join(
+        [
+            f"{canary_path}: the symbol table diverged at entry {at + 1} of "
+            f"{len(n_tab)} native / {len(p_tab)} bytecode: "
+            f"native {n_show!r} vs bytecode {p_show!r}",
+            f"    native   {_parity_window(n_tab, at, 2, sep=' | ')}",
+            f"    bytecode {_parity_window(p_tab, at, 2, sep=' | ')}"
+        ]
+    );
+}
+
 
 def _native_lib_filename(stem: str) -> str {
     if sys.platform.startswith("win") {
