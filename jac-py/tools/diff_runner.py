@@ -284,15 +284,20 @@ def build_report(
 def update_manifest(meta: dict, pins_rel: str, passed: int, total_run: int, clean: bool) -> Path:
     doc = json.loads(_MANIFEST.read_text(encoding="utf-8"))
     stem = meta["module_stem"]
+    run_note = (
+        f"{passed}/{total_run} output-oracle pins pass on jacpython "
+        "(diff_runner); lanes fix VM gaps from the triage report."
+    )
     for row in doc["modules"]:
         if row.get("stem") != stem:
             continue
         row["status"] = "gated" if clean else "partial"
-        row["notes"] = (
-            f"{passed}/{total_run} output-oracle pins pass on jacpython "
-            "(diff_runner); lanes fix VM gaps from the triage report."
-        )
-        row["jacpython_results"] = {stem: {"passed": passed, "total": total_run}}
+        # Pass counts are machine-owned and live here; ``notes`` may hold
+        # curated annotations from lanes, so never overwrite a non-empty one.
+        results = row.setdefault("jacpython_results", {})
+        results[stem] = {"passed": passed, "total": total_run, "notes": run_note}
+        if not row.get("notes"):
+            row["notes"] = run_note
         break
     else:
         doc["modules"].append(
@@ -302,7 +307,7 @@ def update_manifest(meta: dict, pins_rel: str, passed: int, total_run: int, clea
                 "status": "gated" if clean else "partial",
                 "oracle_tests": [pins_rel],
                 "libtest_snippets": [],
-                "notes": f"{passed}/{total_run} output-oracle pins pass on jacpython.",
+                "notes": run_note,
                 "jacpython_results": {stem: {"passed": passed, "total": total_run}},
             }
         )

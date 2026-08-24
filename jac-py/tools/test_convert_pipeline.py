@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import json
 import sys
+import tempfile
 import textwrap
 import unittest
 from pathlib import Path
@@ -373,6 +374,54 @@ def load_tests(loader, tests, pattern):
         result = cs.extract_module_doctests(tree, "x = 1\n", "__main__", "none")
         self.assertEqual(result.pinned, [])
         self.assertEqual(result.quarantined, [])
+
+
+class ManifestUpdateTests(unittest.TestCase):
+    """update_manifest must not clobber curated notes fields."""
+
+    def _run(self, notes_before):
+        old_manifest = dr._MANIFEST
+        with tempfile.TemporaryDirectory() as td:
+            dr._MANIFEST = Path(td) / "manifest.json"
+            row = {
+                "stem": "x", "gate_type": "oracle", "status": "converted",
+                "oracle_tests": ["conv_x/conv_x_pins.jac"], "libtest_snippets": [],
+            }
+            if notes_before is not None:
+                row["notes"] = notes_before
+            dr._MANIFEST.write_text(json.dumps({
+                "version": 1, "wave": "conv_pipeline", "description": "",
+                "module_count": 1, "modules": [row],
+            }), encoding="utf-8")
+            try:
+                dr.update_manifest(
+                    {"module_stem": "x"}, "conv_x/conv_x_pins.jac", 3, 4, False
+                )
+                return json.loads(dr._MANIFEST.read_text(encoding="utf-8"))["modules"][0]
+            finally:
+                dr._MANIFEST = old_manifest
+
+    def test_curated_notes_survive(self):
+        curated = "5/5 runnable pins pass; 2 quarantined (class-scope self.*)."
+        row = self._run(curated)
+        self.assertEqual(row["notes"], curated)
+        # Counts still land in the machine-owned slot.
+        self.assertEqual(row["jacpython_results"]["x"]["passed"], 3)
+        self.assertEqual(row["status"], "partial")
+
+    def test_empty_notes_get_filled(self):
+        row = self._run(None)
+        self.assertIn("output-oracle pins pass on jacpython", row["notes"])
+        row = self._run("")
+        self.assertIn("output-oracle pins pass on jacpython", row["notes"])
+
+    def test_run_summary_recorded_in_results(self):
+        curated = "curated text"
+        row = self._run(curated)
+        self.assertIn(
+            "3/4 output-oracle pins pass",
+            row["jacpython_results"]["x"]["notes"],
+        )
 
 
 if __name__ == "__main__":

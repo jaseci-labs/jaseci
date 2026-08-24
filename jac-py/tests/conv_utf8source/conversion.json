@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "0cacb3e12f88e0b33d52e0bac42555d0b0f871b3",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_utf8source.py",
+    "-o",
+    "jac-py/tests/conv_utf8source",
+    "--name",
+    "conv_utf8source"
+  ],
+  "generated_at": "2026-08-24T01:45:06",
+  "hashes": {
+    "pins_jac": "4f1f42785512b0c0f4ced22b47fea56245e5454e912b4a1690ac2cc3db0176f5"
+  },
+  "source_file": "reference/cpython/Lib/test/test_utf8source.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "utf8source",
+  "pins_file": "conv_utf8source_pins.jac",
+  "pins": [
+    {
+      "ident": "PEP3120Test.test_pep3120",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert '\u041f\u0438\u0442\u043e\u043d'.encode('utf-8') == b'\\xd0\\x9f\\xd0\\xb8\\xd1\\x82\\xd0\\xbe\\xd0\\xbd', ('assertEqual', '\u041f\u0438\u0442\u043e\u043d'.encode('utf-8'), b'\\xd0\\x9f\\xd0\\xb8\\xd1\\x82\\xd0\\xbe\\xd0\\xbd')\n    assert '\\\\\u041f'.encode('utf-8') == b'\\\\\\xd0\\x9f', ('assertEqual', '\\\\\u041f'.encode('utf-8'), b'\\\\\\xd0\\x9f')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PEP3120Test.test_badsyntax",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        import test.tokenizedata.badsyntax_pep3120\n    except SyntaxError as msg:\n        msg = str(msg).lower()\n        assert 'utf-8' in msg, ('assertTrue', 'utf-8' in msg)\n    else:\n        raise AssertionError(\"expected exception didn't occur\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinCompileTests.test_latin1",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    source_code = '# coding: Latin-1\\nu = \"\u00c7\"\\n'.encode('Latin-1')\n    try:\n        code = compile(source_code, '<dummy>', 'exec')\n    except SyntaxError:\n        raise AssertionError('compile() cannot handle Latin-1 source')\n    ns = {}\n    exec(code, ns)\n    assert '\u00c7' == ns['u'], ('assertEqual', '\u00c7', ns['u'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [],
+  "counts": {
+    "extracted": 3,
+    "pinned": 3,
+    "quarantined": 0
+  }
+}
