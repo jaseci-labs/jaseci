@@ -948,23 +948,11 @@ impl BaseLLM._invoke_with_handler(mt_run: MTRuntime, on_event: Callable) -> obje
         }
 
         if mt_run._usage_history {
-            u = mt_run._usage_history[-1];
             try {
                 on_event(
                     StreamEvent(
                         event_type="llm_timing",
-                        data={
-                            "duration_ms": 0.0,
-                            "iteration": 0,
-                            "completion_tokens": _usage_int(u, "completion_tokens"),
-                            "prompt_tokens": _usage_int(u, "prompt_tokens"),
-                            "cache_read_input_tokens": _usage_int(
-                                u, "cache_read_input_tokens"
-                            ),
-                            "cache_creation_input_tokens": _usage_int(
-                                u, "cache_creation_input_tokens"
-                            )
-                        }
+                        data={"duration_ms": 0.0, "iteration": 0}
                     )
                 );
             } except Exception as e {
@@ -2111,25 +2099,9 @@ impl BaseLLM._invoke_streaming(
 
             just_compacted = self._maybe_compact(mt_run, usage, just_compacted, _cp);
 
-            _completion_tokens = int(
-                usage.get("completion_tokens", 0)
-                    if isinstance(usage, dict)
-                    else getattr(usage, "completion_tokens", 0)
-            );
             yield StreamEvent(
                 event_type="llm_timing",
-                data={
-                    "duration_ms": _llm_ms,
-                    "iteration": iter_count,
-                    "completion_tokens": _completion_tokens,
-                    "prompt_tokens": _usage_int(usage, "prompt_tokens"),
-                    "cache_read_input_tokens": _usage_int(
-                        usage, "cache_read_input_tokens"
-                    ),
-                    "cache_creation_input_tokens": _usage_int(
-                        usage, "cache_creation_input_tokens"
-                    )
-                }
+                data={"duration_ms": _llm_ms, "iteration": iter_count}
             );
             yield from _usage_step_events(mt_run, _usage_base);
             _usage_base = len(mt_run._usage_history);

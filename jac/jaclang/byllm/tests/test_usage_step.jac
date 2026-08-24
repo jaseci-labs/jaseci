@@ -421,3 +421,34 @@ test "on_iteration's IterationContext exposes total_cost" {
         "IterationContext must expose total_cost alongside total_tokens"
     );
 }
+
+
+test "llm_timing no longer duplicates token counts now that usage_step exists" {
+    llm = MockLLM(
+        model_name="mockllm",
+        config={
+            "outputs": [
+                (
+                    MockToolCall(tool=finish_tool, args={"final_output": "done"}),
+                    {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110}
+                ),
+                "done"
+            ]
+        }
+    );
+
+    def task(q: str) -> str by llm(tools=[step_a], stream=True, logging=True);
+
+    timing_events: list = [];
+    for event in task("go") {
+        if event.event_type == "llm_timing" {
+            timing_events.append(event.data);
+        }
+    }
+
+    assert len(timing_events) == 1;
+    assert set(timing_events[0].keys()) == {"duration_ms", "iteration"} , (
+        f"llm_timing should carry only timing data now that usage_step covers "
+        f"token/cost per call, got keys={list(timing_events[0].keys())}"
+    );
+}
