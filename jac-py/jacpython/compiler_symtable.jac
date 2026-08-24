@@ -106,6 +106,13 @@ obj sym_block {
         generator: bool = False,
         coroutine: bool = False,
         can_see_class_scope: bool = False,
+        # Class scopes only: a child scope referenced __class__ (directly or via
+        # a super load), so the body needs the implicit __class__ cell
+        # (CPython symtable.c drop_class_free -> ste_needs_class_closure).
+        needs_class_closure: bool = False,
+        # Any module-top symbol entry for "super" (CPython codegen.c checks
+        # _PyST_GetScope(st_top, "super") != 0 before optimizing super calls).
+        top_has_super: bool = False,
         comprehension: str | None = None,
         symbols: dict[str, int] = {},
         varnames: list[str] = [],
@@ -192,19 +199,28 @@ def sym_sorted_names(d: dict[str, int]) -> list[str] {
 }
 
 def mangle_name(private: str | None, name: str) -> str {
+    # CPython _Py_Mangle: only __spam forms (>=2 leading underscores, at most 1
+    # trailing underscore) mangle inside a class scope; dunders (__x__) and
+    # dotted names never do, and leading underscores are stripped from the
+    # class name itself.
     if private is None {
         return name;
     }
-    if len(name) < 2 {
+    n = len(name);
+    if n < 2 or name[0] != "_" or name[1] != "_" {
         return name;
     }
-    if name[0] != "_" or name[1] != "_" {
+    if (name[n - 1] == "_" and name[n - 2] == "_") or "." in name {
         return name;
     }
-    if len(name) > 2 and name[2] == "_" {
+    ip = 0;
+    while ip < len(private) and private[ip] == "_" {
+        ip = ip + 1;
+    }
+    if ip == len(private) {
         return name;
     }
-    return "_" + private + name;
+    return "_" + private[ip:] + name;
 }
 
 obj sym_builder {
@@ -416,7 +432,13 @@ def sym_visit_load_expr(b: sym_builder, e: expr) -> bool {
         return False;
     }
     if isinstance(e, Name) {
-        return b.add_use((e as Name).id);
+        ok = b.add_use((e as Name).id);
+        # Special-case super: it counts as a use of __class__
+        # (CPython symtable.c Name_kind Load rule).
+        if ok and (e as Name).id == "super" and sym_is_function_like(b.cur) {
+            ok = b.add_use("__class__");
+        }
+        return ok;
     }
     if isinstance(e, Attribute) {
         return sym_visit_load_expr(b, (e as Attribute).value);
@@ -1553,9 +1575,15 @@ def sym_analyze_block(
     # Match CPython symtable.c analyze_block: only function-like blocks add their
     # locals to newbound; module/class locals are not closure parents for
     # top-level functions (self-recursion uses LOAD_GLOBAL, not LOAD_DEREF).
+    # Class scopes additionally bind the implicit closure names so children
+    # resolve them FREE (CPython's special-case before analyzing children).
     newbound: dict[str, int] = {};
     if sym_is_function_like(block) {
         newbound = sym_set_union(newbound, local);
+    } elif block.block_type == "class" {
+        for dunder in ["__class__", "__classdict__", "__conditional_annotations__"] {
+            sym_set_add(newbound, dunder);
+        }
     }
     if bound is not None {
         newbound = sym_set_union(newbound, bound);
@@ -1579,6 +1607,21 @@ def sym_analyze_block(
         ci = ci + 1;
     }
     child_free = sym_set_union(child_free, free);
+    if block.block_type == "class" {
+        # CPython drop_class_free: the implicit class-scope names never pass a
+        # class boundary as free variables; __class__ instead becomes the
+        # implicit cell (needs_class_closure) consumed by the body prologue and
+        # returned as __classcell__. __classdict__/__conditional_annotations__
+        # get their own implicit cells at compile time.
+        for dunder in ["__class__", "__classdict__", "__conditional_annotations__"] {
+            if sym_set_contains(child_free, dunder) {
+                sym_set_discard(child_free, dunder);
+                if dunder == "__class__" {
+                    block.needs_class_closure = True;
+                }
+            }
+        }
+    }
     fk_names = sym_set_keys(child_free);
     fi = 0;
     while fi < len(fk_names) {
@@ -1642,7 +1685,21 @@ def build_module_symtable(body: list[stmt]) -> symtable_result {
         return symtable_result(diag=sym_result[1]);
     }
     sym_propagate_module_globals(top);
+    # CPython codegen.c super-call optimization requires 'super' to be unknown
+    # at the module top; record that fact on every block so nested units can
+    # check it without parent links.
+    if sym_dict_get(top.symbols, "super", 0) != 0 {
+        sym_mark_top_has_super(top);
+    }
     return symtable_ok(top);
+}
+
+# Recursively flag every block with the module-top "super" shadowing fact.
+def sym_mark_top_has_super(block: sym_block) {
+    block.top_has_super = True;
+    for child in block.children {
+        sym_mark_top_has_super(child);
+    }
 }
 
 # Normalized facts for oracle comparison (matches Lib/symtable.py queries).
