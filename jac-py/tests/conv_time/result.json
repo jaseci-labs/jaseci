@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "82dee0e2e6841054e57babda9a44e4d0a5945e88",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_time/conv_time_pins.jac"
+  ],
+  "generated_at": "2026-08-24T11:05:08",
+  "hashes": {
+    "pins_jac": "9cc02f1f01a2eb95aa509171f29a66ffbf411a69e9561a3f9c7a008fb0a1ef1d",
+    "conversion_json": "262377cda0423ec1e4aea85c9c284d2372149485132ed48052f7121f9f02a573",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "time",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 63,
+    "runnable": 15,
+    "green": 14,
+    "quarantined": 48,
+    "failed": 1,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TimeTestCase.test_default_values_for_zero",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'warnings_helper' from '<unknown>'\">"
+    }
+  ]
+}
