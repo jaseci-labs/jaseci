@@ -9,6 +9,8 @@ import from objects {
     PyStr,
     PyInt,
     PyBool,
+    PyNoneType,
+    PyBytes,
     PyTuple,
     expect_str,
     is_error,
@@ -169,7 +171,8 @@ def registered_exc_base(qualified: str) -> str {
 }
 
 # CPython ``PyErr_GivenExceptionMatches`` name-level matching with
-# BaseException / Exception special cases from ceval.
+# BaseException / Exception special cases from ceval. Subclass walks come from
+# the canonical EXC_PARENT table in objects.jac.
 def exc_name_matches(err_name: str, target_name: str) -> bool {
     if target_name == "BaseException" {
         return True;
@@ -182,7 +185,7 @@ def exc_name_matches(err_name: str, target_name: str) -> bool {
         }
         return True;
     }
-    if _exc_is_subclass(err_name, target_name) {
+    if exc_is_subclass_of(err_name, target_name) {
         return True;
     }
     return err_name == target_name;
@@ -269,4 +272,234 @@ def py_err_given_exception_matches(err: PyException, exc: PyObj) -> bool {
         return exc_name_matches(err.type_name, (exc as PyExceptionType).name);
     }
     return False;
+}
+
+
+def _field_int(fields: dict[str, PyObj], key: str) -> int {
+    if key in fields {
+        v = fields[key];
+        if isinstance(v, PyInt) {
+            return (v as PyInt).val;
+        }
+    }
+    return -1;
+}
+
+def _field_present(fields: dict[str, PyObj], key: str) -> bool {
+    return key in fields and not isinstance(fields[key], PyNoneType);
+}
+
+def _hex_padded(v: int, width: int) -> str {
+    out = "";
+    x = v;
+    while x > 0 {
+        out = "0123456789abcdef"[x % 16] + out;
+        x = x // 16;
+    }
+    while len(out) < width {
+        out = "0" + out;
+    }
+    return out;
+}
+
+def _safe_field_str(fields: dict[str, PyObj], key: str) -> str {
+    if key in fields {
+        v = fields[key];
+        if isinstance(v, PyStr) {
+            return (v as PyStr).val;
+        }
+    }
+    return "";
+}
+
+def _seq_char_at(fields: dict[str, PyObj], index: int) -> int {
+    if "object" not in fields or index < 0 {
+        return -1;
+    }
+    seq = fields["object"];
+    if isinstance(seq, PyStr) {
+        s = (seq as PyStr).val;
+        if index < len(s) {
+            return ord(s[index]);
+        }
+    }
+    return -1;
+}
+
+def keyerror_str(exc_args: list[PyObj], repr_fn: any) -> str {
+    if len(exc_args) == 1 {
+        return _repr_obj(exc_args[0], repr_fn);
+    }
+    if len(exc_args) > 1 {
+        parts: list[str] = [];
+        for item in exc_args {
+            parts.append(_repr_obj(item, repr_fn));
+        }
+        return "(" + ", ".join(parts) + ")";
+    }
+    return "";
+}
+
+def oserror_smart_str(fields: dict[str, PyObj], repr_fn: any) -> str {
+    if not _field_present(fields, "errno") or not _field_present(fields, "strerror") {
+        return "";
+    }
+    errno = _field_int(fields, "errno");
+    if errno < 0 {
+        return "";
+    }
+    # CPython formats strerror with %s -- only filenames take %r.
+    serr = _obj_to_str(fields["strerror"]);
+    prefix = "[Errno " + str(errno) + "] " + serr;
+    if not _field_present(fields, "filename") {
+        return prefix;
+    }
+    fname_res = repr_fn(fields["filename"]);
+    if is_error(fname_res) {
+        return prefix;
+    }
+    fname = expect_str(fname_res);
+    if _field_present(fields, "filename2") {
+        # CPython takes the two-file form only when filename2 != filename.
+        f2 = "";
+        f2_res = repr_fn(fields["filename2"]);
+        if not is_error(f2_res) {
+            f2 = expect_str(f2_res);
+        }
+        if f2 != fname {
+            return prefix + ": " + fname + " -> " + f2;
+        }
+    }
+    return prefix + ": " + fname;
+}
+
+def syntax_error_str(exc: PyException) -> str {
+    fields = exc.type_fields;
+    msg_v = fields.get("msg");
+    msg = "";
+    if msg_v is not None and not isinstance(msg_v, PyNoneType) {
+        msg = _obj_to_str(msg_v);
+    } elif len(exc.args) > 0 {
+        msg = _obj_to_str(exc.args[0]);
+    }
+    has_file = _field_present(fields, "filename");
+    has_line = _field_present(fields, "lineno");
+    show_file = _field_present(fields, "print_file_and_line")
+        or (has_file and has_line);
+    suffix = "";
+    if show_file and has_file {
+        suffix = _obj_to_str(fields["filename"]);
+        if has_line {
+            suffix = suffix + ", line " + str(_field_int(fields, "lineno"));
+        }
+    } elif has_line {
+        suffix = "line " + str(_field_int(fields, "lineno"));
+    } else {
+        return msg;
+    }
+    return msg + " (" + suffix + ")";
+}
+
+def typed_exc_str(exc: PyException, repr_fn: any) -> str {
+    # A user subclass instance (class MyErr(KeyError)) carries its resolved
+    # builtin ancestor in `family`; dispatch on that so inherited __str__
+    # semantics apply exactly like CPython's inherited slots.
+    tname = exc.type_name;
+    if exc.family != "" {
+        tname = exc.family;
+    }
+    if exc_is_subclass_of(tname, "UnicodeDecodeError") {
+        s = unicode_decode_error_str(exc);
+        if s != "" {
+            return s;
+        }
+    }
+    if exc_is_subclass_of(tname, "UnicodeEncodeError") {
+        s = unicode_encode_error_str(exc);
+        if s != "" {
+            return s;
+        }
+    }
+    if exc_is_subclass_of(tname, "UnicodeTranslateError") {
+        s = unicode_translate_error_str(exc);
+        if s != "" {
+            return s;
+        }
+    }
+    if exc_is_subclass_of(tname, "OSError") {
+        s = oserror_smart_str(exc.type_fields, repr_fn);
+        if s != "" {
+            return s;
+        }
+    }
+    if exc_is_subclass_of(tname, "SyntaxError") {
+        return syntax_error_str(exc);
+    }
+    if exc_is_subclass_of(tname, "KeyError") {
+        return keyerror_str(exc.args, repr_fn);
+    }
+    return "";
+}
+
+def unicode_decode_error_str(exc: PyException) -> str {
+    fields = exc.type_fields;
+    enc = _safe_field_str(fields, "encoding");
+    reason = _safe_field_str(fields, "reason");
+    start = _field_int(fields, "start");
+    byte_val = -1;
+    if "object" in fields and start >= 0 {
+        seq = fields["object"];
+        # Native bytes carry their data as a list[int]-like payload; host bytes
+        # instances arrive only through the proxy path, where the host-computed
+        # message takes precedence before this renderer is ever reached.
+        if isinstance(seq, PyBytes) {
+            data = (seq as PyBytes).val;
+            if start < len(data) {
+                byte_val = data[start];
+            }
+        }
+    }
+    if enc == "" or byte_val < 0 {
+        return "";
+    }
+    return "'" + enc + "' codec can't decode byte 0x" + _hex_padded(byte_val, 2)
+        + " in position " + str(start) + ": " + reason;
+}
+
+def unicode_encode_error_str(exc: PyException) -> str {
+    fields = exc.type_fields;
+    enc = _safe_field_str(fields, "encoding");
+    reason = _safe_field_str(fields, "reason");
+    start = _field_int(fields, "start");
+    cp = _seq_char_at(fields, start);
+    if enc == "" or cp < 0 {
+        return "";
+    }
+    esc = "\\u";
+    width = 4;
+    if cp > 0xffff {
+        esc = "\\U";
+        width = 8;
+    }
+    return "'" + enc + "' codec can't encode character " + esc
+        + _hex_padded(cp, width)
+        + " in position " + str(start) + ": " + reason;
+}
+
+def unicode_translate_error_str(exc: PyException) -> str {
+    fields = exc.type_fields;
+    reason = _safe_field_str(fields, "reason");
+    start = _field_int(fields, "start");
+    cp = _seq_char_at(fields, start);
+    if cp < 0 {
+        return "";
+    }
+    esc = "\\u";
+    width = 4;
+    if cp > 0xffff {
+        esc = "\\U";
+        width = 8;
+    }
+    return "can't translate character " + esc + _hex_padded(cp, width)
+        + " in position " + str(start) + ": " + reason;
 }

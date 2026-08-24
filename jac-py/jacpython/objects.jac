@@ -2007,6 +2007,278 @@ obj PyTracebackFrame(PyObj) {
     }
 }
 
+# Canonical builtin-exception hierarchy: direct parent links from CPython
+# ``Lib/test/exception_hierarchy.txt``. Single source of truth for name-level
+# subclass tests (except-matching, isinstance/issubclass, per-type str/repr
+# dispatch); exceptions_core and ceval build on this via exc_is_subclass_of.
+glob EXC_PARENT: dict[str, str] = {
+    "BaseExceptionGroup": "BaseException",
+    "GeneratorExit": "BaseException",
+    "KeyboardInterrupt": "BaseException",
+    "SystemExit": "BaseException",
+    "Exception": "BaseException",
+    "ArithmeticError": "Exception",
+    "FloatingPointError": "ArithmeticError",
+    "OverflowError": "ArithmeticError",
+    "ZeroDivisionError": "ArithmeticError",
+    "AssertionError": "Exception",
+    "AttributeError": "Exception",
+    "BufferError": "Exception",
+    "EOFError": "Exception",
+    "ExceptionGroup": "Exception",
+    "ImportError": "Exception",
+    "ModuleNotFoundError": "ImportError",
+    "LookupError": "Exception",
+    "IndexError": "LookupError",
+    "KeyError": "LookupError",
+    "MemoryError": "Exception",
+    "NameError": "Exception",
+    "UnboundLocalError": "NameError",
+    "OSError": "Exception",
+    "BlockingIOError": "OSError",
+    "ChildProcessError": "OSError",
+    "ConnectionError": "OSError",
+    "BrokenPipeError": "ConnectionError",
+    "ConnectionAbortedError": "ConnectionError",
+    "ConnectionRefusedError": "ConnectionError",
+    "ConnectionResetError": "ConnectionError",
+    "FileExistsError": "OSError",
+    "FileNotFoundError": "OSError",
+    "InterruptedError": "OSError",
+    "IsADirectoryError": "OSError",
+    "NotADirectoryError": "OSError",
+    "PermissionError": "OSError",
+    "ProcessLookupError": "OSError",
+    "TimeoutError": "OSError",
+    "ReferenceError": "Exception",
+    "RuntimeError": "Exception",
+    "NotImplementedError": "RuntimeError",
+    "PythonFinalizationError": "RuntimeError",
+    "RecursionError": "RuntimeError",
+    "StopAsyncIteration": "Exception",
+    "StopIteration": "Exception",
+    "SyntaxError": "Exception",
+    "IndentationError": "SyntaxError",
+    "TabError": "IndentationError",
+    "SystemError": "Exception",
+    "TypeError": "Exception",
+    "ValueError": "Exception",
+    "UnicodeError": "ValueError",
+    "UnicodeDecodeError": "UnicodeError",
+    "UnicodeEncodeError": "UnicodeError",
+    "UnicodeTranslateError": "UnicodeError",
+    "Warning": "Exception",
+    "BytesWarning": "Warning",
+    "DeprecationWarning": "Warning",
+    "EncodingWarning": "Warning",
+    "FutureWarning": "Warning",
+    "ImportWarning": "Warning",
+    "PendingDeprecationWarning": "Warning",
+    "ResourceWarning": "Warning",
+    "RuntimeWarning": "Warning",
+    "SyntaxWarning": "Warning",
+    "UnicodeWarning": "Warning",
+    "UserWarning": "Warning",
+};
+
+# Membership test for the builtin exception tree (every name in EXC_PARENT
+# plus the BaseException root).
+def is_builtin_exception_name(name: str) -> bool {
+    return name == "BaseException" or name in EXC_PARENT;
+}
+
+# Name-level subclass test over EXC_PARENT (inclusive of `name == base`).
+def exc_is_subclass_of(name: str, base: str) -> bool {
+    if name == base {
+        return True;
+    }
+    cur = name;
+    while cur in EXC_PARENT {
+        cur = EXC_PARENT[cur];
+        if cur == base {
+            return True;
+        }
+    }
+    return False;
+}
+
+def _exc_field_int(fields: dict[str, PyObj], key: str) -> int {
+    # -1 encodes "absent / not an int" so callers can distinguish a stored 0.
+    if key in fields {
+        v = fields[key];
+        if isinstance(v, PyInt) {
+            return (v as PyInt).val;
+        }
+    }
+    return -1;
+}
+
+def _exc_field_str(fields: dict[str, PyObj], key: str) -> str {
+    if key in fields {
+        v = fields[key];
+        if isinstance(v, PyStr) {
+            return (v as PyStr).val;
+        }
+        if isinstance(v, PyInt) {
+            return str((v as PyInt).val);
+        }
+    }
+    return "";
+}
+
+def _exc_has_value(fields: dict[str, PyObj], key: str) -> bool {
+    return key in fields and not isinstance(fields[key], PyNoneType);
+}
+
+# CPython ``oserror_init`` (posix branch): parse the 2/3/5-argument forms into
+# errno/strerror/filename/filename2, trimming the stored args tuple to
+# ``(errno, strerror)`` -- filename data lives on attributes only. Returns None
+# when the arguments don't fit an OSError-specific form (caller falls back to
+# the generic BaseException constructor).
+def _oserror_parse(args: list[PyObj]) -> dict[str, PyObj] | None {
+    n = len(args);
+    if n == 0 {
+        return {};
+    }
+    fields: dict[str, PyObj] = {};
+    if n == 1 {
+        # OSError(5): errno-only form; OSError('plain'): generic message.
+        if isinstance(args[0], PyInt) {
+            fields["errno"] = args[0];
+            fields["strerror"] = py_none();
+            return fields;
+        }
+        return None;
+    }
+    fields["errno"] = args[0];
+    fields["strerror"] = args[1];
+    # Unset optional members read as None (the C struct's zero-init state).
+    fields["filename"] = args[2] if n >= 3 else py_none();
+    fields["filename2"] = args[4] if n >= 5 else py_none();
+    return fields;
+}
+
+def _construct_oserror(name: str, args: list[PyObj]) -> PyException | None {
+    parsed = _oserror_parse(args);
+    if parsed is None {
+        return None;
+    }
+    # CPython keeps only (errno, strerror) in .args once filename parsing ran.
+    exc_args: list[PyObj] = [];
+    if len(args) <= 1 {
+        exc_args.extend(args);
+    } else {
+        exc_args.extend([args[0], args[1]]);
+    }
+    message = "";
+    if len(exc_args) == 1 {
+        message = expect_str(exc_args[0]);
+    }
+    return PyException(
+        t="exception", type_name=name, message=message,
+        args=exc_args, type_fields=parsed
+    );
+}
+
+# CPython ``ImportError.__init__``: msg[, name[, path]] positional plus name= /
+# path= kwargs. Positional extras stay in .args verbatim; kwargs never enter it.
+def _construct_import_error(name: str, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyException {
+    fields: dict[str, PyObj] = {};
+    if "name" in kwargs {
+        fields["name"] = kwargs["name"];
+    } elif len(args) >= 2 {
+        fields["name"] = args[1];
+    } else {
+        fields["name"] = py_none();
+    }
+    if "path" in kwargs {
+        fields["path"] = kwargs["path"];
+    } elif len(args) >= 3 {
+        fields["path"] = args[2];
+    } else {
+        fields["path"] = py_none();
+    }
+    exc_args: list[PyObj] = [];
+    exc_args.extend(args);
+    message = "";
+    if len(args) == 1 {
+        message = expect_str(args[0]);
+    }
+    return PyException(
+        t="exception", type_name=name, message=message,
+        args=exc_args, type_fields=fields
+    );
+}
+
+# CPython ``SyntaxError.__init__``: msg[, (filename, lineno, offset, text) | info-dict].
+def _construct_syntax_error(name: str, args: list[PyObj]) -> PyException {
+    fields: dict[str, PyObj] = {};
+    if len(args) > 0 {
+        fields["msg"] = args[0];
+    } else {
+        fields["msg"] = py_none();
+    }
+    if len(args) > 1 {
+        info = args[1];
+        if isinstance(info, PyTuple) {
+            items = (info as PyTuple).items;
+            labels = ["filename", "lineno", "offset", "text"];
+            for i in range(len(labels)) {
+                if i < len(items) {
+                    fields[labels[i]] = items[i];
+                } else {
+                    fields[labels[i]] = py_none();
+                }
+            }
+        }
+        # Dict-form info is served by attribute delegation when the instance
+        # crosses back from the host; native dicts are rare enough that the
+        # tuple form is the one pinned by conformance probes.
+    }
+    exc_args: list[PyObj] = [];
+    exc_args.extend(args);
+    message = "";
+    if len(args) == 1 {
+        message = expect_str(args[0]);
+    }
+    return PyException(
+        t="exception", type_name=name, message=message,
+        args=exc_args, type_fields=fields
+    );
+}
+
+# CPython ``Unicode(Decode|Encode|Translate)Error.__init__``:
+# (encoding, object, start, end, reason), all five required.
+def _construct_unicode_error(name: str, args: list[PyObj]) -> PyObj {
+    if len(args) != 5 {
+        kind = "Decode";
+        if name == "UnicodeEncodeError" {
+            kind = "Encode";
+        } elif name == "UnicodeTranslateError" {
+            kind = "Translate";
+        }
+        return py_error(
+            "TypeError",
+            "Unicode" + kind + "Error constructor takes exactly 5 arguments"
+        );
+    }
+    fields: dict[str, PyObj] = {};
+    keys = ["encoding", "object", "start", "end", "reason"];
+    for i in range(len(keys)) {
+        fields[keys[i]] = args[i];
+    }
+    exc_args: list[PyObj] = [];
+    exc_args.extend(args);
+    message = "";
+    if len(args) == 1 {
+        message = expect_str(args[0]);
+    }
+    return PyException(
+        t="exception", type_name=name, message=message,
+        args=exc_args, type_fields=fields
+    );
+}
+
 obj PyExceptionType(PyObj) {
     has name: str;
 
@@ -2019,6 +2291,26 @@ obj PyExceptionType(PyObj) {
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        # Families with dedicated constructor semantics (CPython oserror_init,
+        # ImportError/SyntaxError/Unicode*Error __init__) parse their arguments
+        # into typed fields before falling through to the generic form.
+        if self.name != "Exception" and self.name != "BaseException"
+            and exc_is_subclass_of(self.name, "OSError") {
+            constructed = _construct_oserror(self.name, args);
+            if constructed is not None {
+                return constructed;
+            }
+        }
+        if self.name == "ImportError" or self.name == "ModuleNotFoundError" {
+            return _construct_import_error(self.name, args, kwargs);
+        }
+        if exc_is_subclass_of(self.name, "SyntaxError") {
+            return _construct_syntax_error(self.name, args);
+        }
+        if self.name == "UnicodeDecodeError" or self.name == "UnicodeEncodeError"
+            or self.name == "UnicodeTranslateError" {
+            return _construct_unicode_error(self.name, args);
+        }
         # Exception(*args): keep the FULL args tuple (BaseException.args), not just
         # the first, so `e.args`, str(e), and repr(e) round-trip faithfully. The
         # single-arg `message` shortcut stays for the common one-string case.
@@ -2055,7 +2347,19 @@ obj PyException(PyObj) {
         # Writable BaseException attributes (CPython allows assignment to all
         # four). Defaults mirror the unset state; reads fall back to None.
         traceback: any = None,
-        suppress_context: any = None;
+        suppress_context: any = None,
+        # Nearest builtin exception ancestor for USER subclass instances
+        # (class MyErr(KeyError) -> "KeyError"), resolved from the MRO when the
+        # instance is wrapped at raise time. Empty for direct builtin raises,
+        # whose type_name already IS the builtin name. Drives per-type __str__
+        # dispatch for subclasses without custom slots.
+        family: str = "",
+        # Type-specific constructor fields (OSError errno/strerror/filename,
+        # ImportError name/path, SyntaxError lineno/text, Unicode*Error parts).
+        # Populated by the typed constructors in PyExceptionType.tp_call and
+        # served read-only by tp_getattro, mirroring the C struct members that
+        # each exception type adds over BaseException.
+        type_fields: dict[str, PyObj] = {};
 
     # Attribute reads on a caught exception. `args` is served natively as a real
     # tuple; a user-exception instance (kept in `raw`) delegates to its own
@@ -2110,6 +2414,12 @@ obj PyException(PyObj) {
             # CPython's BaseException_new initializes __suppress_context__ to
             # False (not None) -- truthiness must be false-yet-bool.
             return PyBool(t="bool", val=False);
+        }
+        # Type-specific fields (e.errno, e.strerror, e.name, e.lineno, ...):
+        # unset optional members read as None, exactly like the C structs'
+        # zero-initialized slots.
+        if name in self.type_fields {
+            return self.type_fields[name];
         }
         return py_error("AttributeError", name);
     }
