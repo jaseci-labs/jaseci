@@ -57,6 +57,7 @@ import from tb_render {
     _TB_CAUSE_MESSAGE,
     _TB_CONTEXT_MESSAGE,
 }
+import from exceptions_core { baseexception_str }
 
 # Walk a guest tb chain into parallel (frame_code, lineno) columns.
 def _tb_collect(tb: any) -> tuple[list[PyCode], list[int]] {
@@ -731,6 +732,61 @@ obj TBExcObj(PyObj) {
     }
 }
 
+# exception-only text: "Type: message\n" (message omitted when empty), the
+# tail CPython appends after the stack block. Native exceptions use the
+# per-type __str__ slots; user instances delegate to their own tp_str.
+def _tb_exception_only_text(exc: PyObj) -> PyStr {
+    # CPython _format_exception_only: "TypeName" or "TypeName: <str(value)>" --
+    # the type prefix ALWAYS leads; str(value) may itself be empty (KeyError()).
+    tname = "";
+    body = "";
+    if isinstance(exc, PyException) {
+        e = exc as PyException;
+        tname = e.type_name;
+        body = baseexception_str(e, None, None).val;
+        if body == tname {
+            body = "";
+        }
+    } else {
+        # user-defined exception instances: v1 renders type-less body only
+        sr = exc.tp_str();
+        if not is_error(sr) and isinstance(sr, PyStr) {
+            body = (sr as PyStr).val;
+        }
+    }
+    if body == "" {
+        return PyStr(t="str", val=tname + "\n");
+    }
+    return PyStr(t="str", val=tname + ": " + body + "\n");
+}
+
+# Write text to a guest file-like via its BOUND write callable, or stderr.
+# The caller resolves target.write through ceval helpers -- importing them
+# here would create an import cycle with ceval.jac.
+def tb_write_bound(write_callable: PyObj, text: str) -> PyObj {
+    if isinstance(write_callable, PyNoneType) {
+        _tb_stderr_write(text);
+        return py_none();
+    }
+    return py_invoke(write_callable, [PyStr(t="str", val=text)], {});
+}
+
+obj TBFmtExcOnlyFn(PyObj) {
+    # format_exception_only(exc[, value]): 1-arg 3.14 form plus legacy shape;
+    # returns the single-element list CPython uses.
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 1 {
+            return py_error("TypeError", "format_exception_only expected at least 1 argument");
+        }
+        exc = args[len(args) - 1];
+        if len(args) >= 2 and not isinstance(args[0], PyException) {
+            # legacy (etype, value[, tb]) form: render VALUE, not etype
+            exc = args[1];
+        }
+        return PyList(t="list", items=[_tb_exception_only_text(exc)]);
+    }
+}
+
 def traceback_module_attrs -> dict[str, PyObj] {
     return {
         "extract_tb": TBExtractFn(t="function"),
@@ -738,6 +794,7 @@ def traceback_module_attrs -> dict[str, PyObj] {
         "print_tb": TBPrintTbFn(t="function"),
         "format_exception": TBFmtExcFn(t="function"),
         "walk_tb": TBWalkFn(t="function"),
+        "format_exception_only": TBFmtExcOnlyFn(t="function"),
         "TracebackException": TBExcCtorFn(t="type"),
     };
 }

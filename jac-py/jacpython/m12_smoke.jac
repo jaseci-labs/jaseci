@@ -1,5 +1,9 @@
 # M12 smoke: does guest print() reach stdout through exec_code?
-import from host_oracle { host_compile_marshal }
+# KNOWN LIMITATION: drives coroutines via coro.send(), which native guest
+# coroutines do not expose yet (pre-existing surface gap, unrelated to M12
+# tb-chain findings -- scenarios A-F in m12_probe_*.jac use native
+# async-for/await and all pass). Left as a fingerprint exhibit.
+import from pyc_first { host_compile_marshal, unmarshal }
 import from pyc_first { exec_code, unmarshal }
 import from objects { PyObj, PyStr, PyError, is_error }
 
@@ -42,7 +46,7 @@ print("SMOKE done")
 with entry {
     ns: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
     outcome = exec_code(
-        unmarshal(host_compile_marshal(SRC, "<m12-smoke>", "exec")), [], ns
+        unmarshal(host_compile_marshal(SRC)), [], ns
     );
     if is_error(outcome) {
         exc = (outcome as PyError).exception;

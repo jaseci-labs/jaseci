@@ -1370,7 +1370,7 @@ import from exceptions_core {
 }
 import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
-import from tracebackmodule { traceback_module_attrs, format_exception_text }
+import from tracebackmodule { traceback_module_attrs, format_exception_text, tb_write_bound }
 import from objects {
     _zero_step_error,
     DictEntry,
@@ -1826,6 +1826,12 @@ def import_native(absname: str) -> PyObj {
         tbmod = PyModule(t="module", name="traceback", attrs=traceback_module_attrs());
         (tbmod as PyModule).attrs["format_exc"] = PyNativeBuiltin(
             t="native_builtin", name="tb_format_exc"
+        );
+        (tbmod as PyModule).attrs["print_exc"] = PyNativeBuiltin(
+            t="native_builtin", name="tb_print_exc"
+        );
+        (tbmod as PyModule).attrs["print_exception"] = PyNativeBuiltin(
+            t="native_builtin", name="tb_print_exc_legacy"
         );
         shim_modules["traceback"] = tbmod;
     }
@@ -4834,6 +4840,12 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         tbmod = PyModule(t="module", name="traceback", attrs=traceback_module_attrs());
         (tbmod as PyModule).attrs["format_exc"] = PyNativeBuiltin(
             t="native_builtin", name="tb_format_exc"
+        );
+        (tbmod as PyModule).attrs["print_exc"] = PyNativeBuiltin(
+            t="native_builtin", name="tb_print_exc"
+        );
+        (tbmod as PyModule).attrs["print_exception"] = PyNativeBuiltin(
+            t="native_builtin", name="tb_print_exc_legacy"
         );
         shim_modules["traceback"] = tbmod;
     }
@@ -10404,6 +10416,42 @@ obj PyNativeBuiltin(PyObj) {
                 return PyStr(t="str", val="NoneType: None\n");
             }
             return format_exception_text(e);
+        }
+        if self.name == "tb_print_exc" or self.name == "tb_print_exc_legacy" {
+            # print_exc()/print_exception(): full-chain text to stderr or a
+            # guest file-like. print_exc with no positional args reads the
+            # CURRENTLY HANDLED exception; legacy form takes (etype, value, tb)
+            # and renders value.
+            target = py_none();
+            for wkey in kwargs {
+                if wkey == "file" {
+                    target = kwargs[wkey];
+                } else {
+                    return py_error("TypeError", "unsupported keyword argument: " + wkey);
+                }
+            }
+            no_pos = len(args) == 0;
+            if self.name == "tb_print_exc" and len(args) > 0 and isinstance(args[0], PyNoneType) {
+                no_pos = True;
+            }
+            if no_pos {
+                e = current_handled_exc();
+                if isinstance(e, PyNoneType) {
+                    return py_error("RuntimeError", "No active exception to re-raise");
+                }
+                text = format_exception_text(e);
+            }
+            elif self.name == "tb_print_exc_legacy" and len(args) >= 2 {
+                text = format_exception_text(args[1]);
+            }
+            else {
+                text = format_exception_text(args[0]);
+            }
+            w = py_attr(target, "write");
+            if is_error(w) {
+                return w;
+            }
+            return py_invoke(w, [text], {});
         }
         if self.name == "sorted" or self.name == "max" or self.name == "min" {
             return builtin_sorted_min_max(self.name, args, kwargs);
