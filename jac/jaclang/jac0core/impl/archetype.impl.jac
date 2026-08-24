@@ -20,8 +20,12 @@ impl PermissionDenied.message -> str {
         f"Permission denied: {self.operation} on "
         f"{self.target_type}[{self.target_id}] owned by root[{owner}]; "
         f"required {self.required.name}, have {self.actual.name}. "
-        f"Hint: at the owner-side call `grant(node, level={self.required.name})`, "
-        f"or expose an ability on the target node and route writes through it."
+        f"Hint: at the owner-side call "
+        f"`Jac.allow_root(node, root_id, AccessLevel.{self.required.name})` to "
+        f"share with one user's root, `grant(node, "
+        f"level=AccessLevel.{self.required.name})` to open the node to every "
+        f"user, or expose an ability on the target node and route writes "
+        f"through it."
     );
 }
 
@@ -262,18 +266,25 @@ impl Archetype.uninstall_subclass_hook(hook: Callable[[type], None]) -> None {
 impl Archetype.postinit -> None { }
 
 impl Archetype.__setattr__(name: str, value: any) -> None {
-    object.__setattr__(self, name, value);
     an = self.__dict__.get('__jac__');
     if an is None or not an.persistent {
+        object.__setattr__(self, name, value);
         return;
     }
     import from jaclang.jac0core.runtime { JacRuntime }
     ctx = JacRuntime.exec_ctx;
-    if ctx is not None {
-        md = ctx.mem?.mark_dirty;
-        if md is not None {
-            md(an);
-        }
+    if ctx is None {
+        object.__setattr__(self, name, value);
+        return;
+    }
+    import from jaclang { JacRuntimeInterface }
+    if not JacRuntimeInterface.check_write_access(an, op_hint="field_write") {
+        return;
+    }
+    object.__setattr__(self, name, value);
+    md = ctx.mem?.mark_dirty;
+    if md is not None {
+        md(an);
     }
 }
 
