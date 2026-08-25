@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "fd24bb0cc4bcfea469b0cdb93d7f658a21dd508c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_type_aliases.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_type_aliases",
+    "--name",
+    "conv_type_aliases"
+  ],
+  "generated_at": "2026-08-24T21:59:02",
+  "hashes": {
+    "pins_jac": "008cdb7991473e5b2abdbd42b7783da840a5e743544182c7001da97103343819"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_type_aliases.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "type_aliases",
+  "pins_file": "conv_type_aliases_pins.jac",
+  "pins": [
+    {
+      "ident": "TypeParamsInvalidTest.test_name_collisions",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TypeParamsInvalidTest.test_name_non_collision_02",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeParamsInvalidTest.test_name_non_collision_03",
+      "status": "quarantined",
+      "reason": "host-raised:SyntaxError: invalid syntax (typing.py, line 1991)"
+    },
+    {
+      "ident": "TypeParamsAccessTest.test_alias_access_01",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeParamsAccessTest.test_alias_access_02",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeParamsAccessTest.test_alias_access_03",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeParamsAliasValueTest.test_alias_value_01",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeParamsAliasValueTest.test_alias_value_04",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeParamsAliasValueTest.test_recursive_repr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    type Recursive = Recursive\n    assert repr(Recursive) == 'Recursive', ('assertEqual', repr(Recursive), 'Recursive')\n    type X = list[Y]\n    type Y = list[X]\n    assert repr(X) == 'X', ('assertEqual', repr(X), 'X')\n    assert repr(Y) == 'Y', ('assertEqual', repr(Y), 'Y')\n    type GenericRecursive[X] = list[X | GenericRecursive[X]]\n    assert repr(GenericRecursive) == 'GenericRecursive', ('assertEqual', repr(GenericRecursive), 'GenericRecursive')\n    assert repr(GenericRecursive[int]) == 'GenericRecursive[int]', ('assertEqual', repr(GenericRecursive[int]), 'GenericRecursive[int]')\n    assert repr(GenericRecursive[GenericRecursive[int]]) == 'GenericRecursive[GenericRecursive[int]]', ('assertEqual', repr(GenericRecursive[GenericRecursive[int]]), 'GenericRecursive[GenericRecursive[int]]')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TypeParamsAliasValueTest.test_raising",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    type MissingName = list[_My_X]\n    try:\n        MissingName.__value__\n    except NameError as _exc:\n        assert _re.search(\"cannot access free variable '_My_X' where it is not associated with a value\", str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    _My_X = int\n    assert MissingName.__value__ == list[int], ('assertEqual', MissingName.__value__, list[int])\n    del _My_X\n    assert MissingName.__value__ == list[int], ('assertEqual', MissingName.__value__, list[int])\n    type ExprException = 1 / 0\n    try:\n        ExprException.__value__\n    except ZeroDivisionError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TypeAliasConstructorTest.test_basic",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasConstructorTest.test_attributes_with_exec",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    ns = {}\n    exec('type TA = int', ns, ns)\n    TA = ns['TA']\n    assert TA.__name__ == 'TA', ('assertEqual', TA.__name__, 'TA')\n    assert TA.__value__ is int, ('assertIs', TA.__value__, int)\n    assert TA.__type_params__ == (), ('assertEqual', TA.__type_params__, ())\n    assert TA.__module__ is None, ('assertIs', TA.__module__, None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TypeAliasConstructorTest.test_generic",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasConstructorTest.test_not_generic",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasConstructorTest.test_type_params_order_with_defaults",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasConstructorTest.test_expects_type_like",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasConstructorTest.test_keywords",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasConstructorTest.test_errors",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasTypeTest.test_immutable",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasTypeTest.test_no_subclassing",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasTypeTest.test_union",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasTypeTest.test_module",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasTypeTest.test_unpack",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "TypeAliasPickleTest.test_pickling_local",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'ClassLevel'"
+    },
+    {
+      "ident": "TypeParamsExoticGlobalsTest.test_exec_with_unusual_globals",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class customdict(dict):\n\n        def __missing__(self, key):\n            return key\n    code = compile('type Alias = undefined', 'test', 'exec')\n    ns = customdict()\n    exec(code, ns)\n    Alias = ns['Alias']\n    assert Alias.__value__ == 'undefined', ('assertEqual', Alias.__value__, 'undefined')\n    code = compile('class A: type Alias = undefined', 'test', 'exec')\n    ns = customdict()\n    exec(code, ns)\n    Alias = ns['A'].Alias\n    assert Alias.__value__ == 'undefined', ('assertEqual', Alias.__value__, 'undefined')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TypeParamsAliasValueTest.test_alias_value_02",
+      "reason": "unresolved-name:A"
+    },
+    {
+      "ident": "TypeParamsAliasValueTest.test_alias_value_03",
+      "reason": "unresolved-name:A"
+    },
+    {
+      "ident": "TypeParamsAliasValueTest.test_subscripting",
+      "reason": "unresolved-name:A"
+    },
+    {
+      "ident": "TypeParamsAliasValueTest.test_repr",
+      "reason": "unresolved-name:P"
+    },
+    {
+      "ident": "TypeAliasPickleTest.test_pickling",
+      "reason": "unresolved-name:AllTypesAlias"
+    }
+  ],
+  "counts": {
+    "extracted": 30,
+    "pinned": 4,
+    "quarantined": 26
+  }
+}

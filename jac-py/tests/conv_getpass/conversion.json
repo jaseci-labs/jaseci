@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "fd24bb0cc4bcfea469b0cdb93d7f658a21dd508c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_getpass.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_getpass",
+    "--name",
+    "conv_getpass"
+  ],
+  "generated_at": "2026-08-24T21:58:50",
+  "hashes": {
+    "pins_jac": "8bd1eda26f0dc87bcaa30851f4d246c71997631c8c0d2af3534c4a25c462ea7c"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_getpass.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "getpass",
+  "pins_file": "conv_getpass_pins.jac",
+  "pins": [
+    {
+      "ident": "GetpassRawinputTest.test_flushes_stream_after_prompt",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import getpass\nfrom io import BytesIO, StringIO, TextIOWrapper\nfrom unittest import mock\n\ndef _t():\n    stream = mock.Mock(spec=StringIO)\n    input = StringIO('input_string')\n    getpass._raw_input('some_prompt', stream, input=input)\n    stream.flush.assert_called_once_with()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GetpassRawinputTest.test_uses_stderr_as_default",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import getpass\nfrom io import BytesIO, StringIO, TextIOWrapper\nfrom unittest import mock\n\ndef _t():\n    input = StringIO('input_string')\n    prompt = 'some_prompt'\n    with mock.patch('sys.stderr') as stderr:\n        getpass._raw_input(prompt, input=input)\n        stderr.write.assert_called_once_with(prompt)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GetpassRawinputTest.test_raises_on_empty_input",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import getpass\nfrom io import BytesIO, StringIO, TextIOWrapper\n\ndef _t():\n    input = StringIO('')\n    try:\n        getpass._raw_input(input=input)\n    except EOFError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GetpassRawinputTest.test_trims_trailing_newline",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import getpass\nfrom io import BytesIO, StringIO, TextIOWrapper\n\ndef _t():\n    input = StringIO('test\\n')\n    assert 'test' == getpass._raw_input(input=input), ('assertEqual', 'test', getpass._raw_input(input=input))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GetpassEchoCharTest.test_accept_none",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import getpass\n\ndef _t():\n    getpass._check_echo_char(None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GetpassEchoCharTest.test_reject_empty_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import getpass\n\ndef _t():\n    try:\n        getpass.getpass(echo_char='')\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "UnixGetpassTest.test_uses_tty_directly",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "UnixGetpassTest.test_resets_termios",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "UnixGetpassTest.test_falls_back_to_fallback_if_termios_raises",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "UnixGetpassTest.test_flushes_stream_after_input",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "UnixGetpassTest.test_falls_back_to_stdin",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "UnixGetpassTest.test_echo_char_replaces_input_with_asterisks",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "UnixGetpassTest.test_raw_input_with_echo_char",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "UnixGetpassTest.test_control_chars_with_echo_char",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "GetpassEchoCharTest.test_accept_single_printable_ascii",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "GetpassEchoCharTest.test_reject_multi_character_strings",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "GetpassEchoCharTest.test_reject_non_ascii",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "GetpassEchoCharTest.test_reject_non_printable_characters",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "GetpassEchoCharTest.test_reject_non_string",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "GetpassGetuserTest.test_username_takes_username_from_env",
+      "reason": "unresolved-name:environ"
+    },
+    {
+      "ident": "GetpassGetuserTest.test_username_priorities_of_env_values",
+      "reason": "unresolved-name:environ"
+    },
+    {
+      "ident": "GetpassGetuserTest.test_username_falls_back_to_pwd",
+      "reason": "unresolved-name:environ"
+    },
+    {
+      "ident": "GetpassRawinputTest.test_uses_stdin_as_default_input",
+      "reason": "unresolved-name:mock_input"
+    },
+    {
+      "ident": "GetpassRawinputTest.test_uses_stdin_as_different_locale",
+      "reason": "unresolved-name:mock_input"
+    }
+  ],
+  "counts": {
+    "extracted": 24,
+    "pinned": 6,
+    "quarantined": 18
+  }
+}

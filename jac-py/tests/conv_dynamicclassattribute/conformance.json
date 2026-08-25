@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "fd24bb0cc4bcfea469b0cdb93d7f658a21dd508c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_dynamicclassattribute/conv_dynamicclassattribute_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:58:50",
+  "hashes": {
+    "pins_jac": "2507a1900797f1d09bfdf692625efa5270b0f4d0d30dcf5af738de9c2f21895f",
+    "conversion_json": "52c7c8c9582c898bb17c0bf71629ab464663291efbff4ebf6f6d296eec108cce",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "dynamicclassattribute",
+  "counts": {
+    "converted": 12,
+    "runnable": 1,
+    "green": 1,
+    "quarantined": 11
+  },
+  "pins": [
+    {
+      "id": "PropertyTests.test_property___isabstractmethod__descriptor",
+      "status": "pass"
+    },
+    {
+      "id": "PropertyTests.test_property_decorator_subclass_doc",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "PropertyTests.test_property_decorator_baseclass_doc",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "PropertyTests.test_property_getter_doc_override",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "PropertySubclassTests.test_slots_docstring_copy_exception",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "PropertySubclassTests.test_docstring_copy",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "PropertySubclassTests.test_property_setter_copies_getter_docstring",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "PropertySubclassTests.test_property_new_getter_new_docstring",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "PropertyTests.test_property_decorator_baseclass",
+      "status": "quarantined",
+      "reason": "self.assertNotHasAttr"
+    },
+    {
+      "id": "PropertyTests.test_property_decorator_subclass",
+      "status": "quarantined",
+      "reason": "unresolved-name:PropertyDel"
+    },
+    {
+      "id": "PropertyTests.test_property_decorator_doc",
+      "status": "quarantined",
+      "reason": "unresolved-name:PropertyDocBase"
+    },
+    {
+      "id": "PropertyTests.test_abstract_virtual",
+      "status": "quarantined",
+      "reason": "unresolved-name:ClassWithAbstractVirtualProperty"
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "fd24bb0cc4bcfea469b0cdb93d7f658a21dd508c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_dynamicclassattribute.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_dynamicclassattribute",
+    "--name",
+    "conv_dynamicclassattribute"
+  ],
+  "generated_at": "2026-08-24T21:58:49",
+  "hashes": {
+    "pins_jac": "2507a1900797f1d09bfdf692625efa5270b0f4d0d30dcf5af738de9c2f21895f"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_dynamicclassattribute.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "dynamicclassattribute",
+  "pins_file": "conv_dynamicclassattribute_pins.jac",
+  "pins": [
+    {
+      "ident": "PropertyTests.test_property___isabstractmethod__descriptor",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from types import DynamicClassAttribute\n\ndef _t():\n    for val in (True, False, [], [1], '', '1'):\n\n        class C(object):\n\n            def foo(self):\n                pass\n            foo.__isabstractmethod__ = val\n            foo = DynamicClassAttribute(foo)\n        assert C.__dict__['foo'].__isabstractmethod__ is bool(val), ('assertIs', C.__dict__['foo'].__isabstractmethod__, bool(val))\n\n    class NotBool(object):\n\n        def __bool__(self):\n            raise ValueError()\n        __len__ = __bool__\n    try:\n\n        class C(object):\n\n            def foo(self):\n                pass\n            foo.__isabstractmethod__ = NotBool()\n            foo = DynamicClassAttribute(foo)\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "PropertyTests.test_property_decorator_subclass_doc",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertyTests.test_property_decorator_baseclass_doc",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertyTests.test_property_getter_doc_override",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_slots_docstring_copy_exception",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_docstring_copy",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_property_setter_copies_getter_docstring",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_property_new_getter_new_docstring",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertyTests.test_property_decorator_baseclass",
+      "reason": "self.assertNotHasAttr"
+    },
+    {
+      "ident": "PropertyTests.test_property_decorator_subclass",
+      "reason": "unresolved-name:PropertyDel"
+    },
+    {
+      "ident": "PropertyTests.test_property_decorator_doc",
+      "reason": "unresolved-name:PropertyDocBase"
+    },
+    {
+      "ident": "PropertyTests.test_abstract_virtual",
+      "reason": "unresolved-name:ClassWithAbstractVirtualProperty"
+    }
+  ],
+  "counts": {
+    "extracted": 12,
+    "pinned": 1,
+    "quarantined": 11
+  }
+}
