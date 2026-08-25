@@ -342,14 +342,14 @@ test "for-loop over a set lowers, and both lanes answer the same sum" {
     );
 }
 
-# A container stored inside another container comes back as a bare pointer:
-# the outer dict keeps pointer-valued entries untyped, so the inner
-# `dict`/`list` arrives with no layout attached. Subscripting a bare pointer
-# used to fall straight through to the string-index emitter, which read the
-# inner container's header bytes as characters -- `b['items']` compiled to a
-# character load and raised IndexError at run time. Only an integer index can
-# mean "index this string", so a non-integer key is a seam, not a character.
-test "guardrail: subscripting an element-erased container is not a char read" {
+# A container stored inside another container used to come back as a bare
+# pointer: the outer dict kept pointer-valued entries untyped, so the inner
+# `dict`/`list` arrived with no layout attached and `b['items']` fell through
+# to the string-index emitter, reading the inner container's header bytes as
+# characters. The seam is the erasure, not the subscript: now that the value
+# type reaches the backend from the checker, the nested read lowers, and what
+# has to stay true is that it lowers as a dict read rather than a char one.
+test "guardrail: a nested container subscript lowers from its value type" {
     (prog, ir, log) = compile_na_inline_demote(
         "erased_subscript",
         "def run(t: dict[int, dict[str, list[str]]]) -> int {\n"
@@ -359,16 +359,17 @@ test "guardrail: subscripting an element-erased container is not a char read" {
         "    return 0;\n"
         "}\n"
     );
-    assert not prog.errors_had , f"A function-owned E5092 must demote, got: {fmt_errors(
+    assert not prog.errors_had , f"the nested read must lower, got: {fmt_errors(
         prog
     )}";
     layout = ir.gen.native_layout;
     assert layout is not None , "whole-module native compile aborted";
-    assert "run" not in layout.functions , (
-        "an erased-container subscript must demote, not compile to a char read"
+    assert "run" in layout.functions , (
+        f"the inner dict's value type reaches the subscript, so run lowers; "
+        f"got:\n{log}"
     );
-    assert "subscript of an element-erased collection" in log , (
-        f"the demotion must name the erased subscript, got:\n{log}"
+    assert "element-erased" not in log , (
+        f"nothing about this read is erased any more, got:\n{log}"
     );
 }
 
@@ -376,9 +377,10 @@ test "guardrail: subscripting an element-erased container is not a char read" {
 # The same erasure reaching a membership test: every registered container
 # answers `in` from its own layout, and the one pointer shape left over is the
 # substring test. It used to accept any two pointers, so an object needle
-# handed `strstr` a `%Tag*` and raised a raw llvmlite TypeError -- an ICE-shaped
-# demotion with no diagnostic of its own.
-test "guardrail: membership with a non-string needle names its seam" {
+# handed `strstr` a `%Tag*` and raised a raw llvmlite TypeError. The element
+# type now reaches the membership emitter, which picks the list path and
+# compares elements rather than falling through to `strstr`.
+test "guardrail: membership over a nested list compares elements" {
     (prog, ir, log) = compile_na_inline_demote(
         "erased_membership",
         "obj Tag { has n: int = 0; }\n"
@@ -389,19 +391,16 @@ test "guardrail: membership with a non-string needle names its seam" {
         "    return 0;\n"
         "}\n"
     );
-    assert not prog.errors_had , f"A function-owned E5092 must demote, got: {fmt_errors(
+    assert not prog.errors_had , f"the membership test must lower, got: {fmt_errors(
         prog
     )}";
     layout = ir.gen.native_layout;
     assert layout is not None , "whole-module native compile aborted";
-    assert "run" not in layout.functions , (
-        "an erased-container membership test must demote"
-    );
-    assert "membership over an element-erased collection" in log , (
-        f"the demotion must name the erased membership test, got:\n{log}"
+    assert "run" in layout.functions , (
+        f"the inner list's element type reaches `in`, so run lowers; got:\n{log}"
     );
     assert "TypeError" not in log , (
-        f"the seam must be a diagnostic, not a raw emitter crash:\n{log}"
+        f"the emitter must never reach `strstr` with an object needle:\n{log}"
     );
 }
 
