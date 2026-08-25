@@ -496,7 +496,10 @@ impl TypeEvaluator._apply_function_decorators(
         self.assign_type_to_type_var(params[0].param_type, func_type, bindings);
         decorated = apply_solved_type_vars(decorator_type.return_type, bindings);
         if isinstance(decorated, FunctionType)
-            and not decorated.is_gradual_callable_form() {
+            and (
+                not decorated.is_gradual_callable_form()
+                or not isinstance(decorated.return_type, UnknownType)
+            ) {
             func_type = decorated;
         }
     }
