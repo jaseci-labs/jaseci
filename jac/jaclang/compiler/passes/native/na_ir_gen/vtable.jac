@@ -27,6 +27,10 @@ obj NaIRGenVtable(NaIRGenState) {
     def _class_id_of_value(arch_name: str, obj_val: ir.Value) -> ir.Value;
     def _codegen_class_ref(nd: uni.Name) -> (ir.Value | None);
     def _is_enum_arch(name: str) -> bool;
+    def _demoted_slot_thunk(
+        arch_name: str, method_name: str, func: ir.Function
+    ) -> ir.Function;
+
     def _emit_isa_fn -> ir.Function;
     def _emit_isa_seq_fn -> ir.Function;
     def _is_runtime_class_tuple(t: any) -> bool;

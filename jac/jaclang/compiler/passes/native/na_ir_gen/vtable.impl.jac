@@ -10,7 +10,14 @@ impl NaIRGenVtable._emit_vtable_global(arch_name: str) -> None {
     entries: list[ir.Constant] = [self._emit_class_name_const(arch_name)];
     for method_name in layout {
         func = self._resolve_method(arch_name, method_name);
-        if func is not None {
+        if (
+            func is not None
+            and f"{arch_name}.{method_name}" in self._native_skipped_methods
+        ) {
+            entries.append(
+                self._demoted_slot_thunk(arch_name, method_name, func).bitcast(i8_ptr)
+            );
+        } elif func is not None {
             entries.append(func.bitcast(i8_ptr));
         } else {
             entries.append(ir.Constant(i8_ptr, None));
@@ -29,6 +36,32 @@ impl NaIRGenVtable._emit_vtable_global(arch_name: str) -> None {
 
     vtable_global.linkage = "";
     vtable_global.initializer = vtable_init;
+}
+
+impl NaIRGenVtable._demoted_slot_thunk(
+    arch_name: str, method_name: str, func: ir.Function
+) -> ir.Function {
+    _key = f"{arch_name}.{method_name}";
+    _cached = self._demoted_thunks.get(_key);
+    if _cached is not None {
+        return _cached;
+    }
+    fn = self._define_function(
+        f"__jac_demoted_{arch_name}_{method_name.replace('.', '_')}", func.function_type
+    );
+    fn.linkage = "private";
+    _entry = fn.append_basic_block("entry");
+    _saved_builder = self._builder;
+    self._builder = ir.IRBuilder(_entry);
+    self._emit_runtime_raise(
+        ir.Constant(ir.IntType(1), 1),
+        "TypeError",
+        f"'{arch_name}.{method_name}' has no native lowering and cannot be called from native code"
+    );
+    self.builder.unreachable();
+    self._builder = _saved_builder;
+    self._demoted_thunks[_key] = fn;
+    return fn;
 }
 
 impl NaIRGenVtable._vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None) {

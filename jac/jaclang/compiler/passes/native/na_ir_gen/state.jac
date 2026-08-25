@@ -135,6 +135,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         str_cmp3_fn: (ir.Function | None) = None,
         str_fnv_fn: (ir.Function | None) = None,
         _jv_tag_of_fn: (ir.Function | None) = None,
+        _demoted_thunks: dict[str, ir.Function] = {},
         str_dup_fn: (ir.Function | None) = None,
         str_len_raw_fn: (ir.Function | None) = None,
         str_wrap_fn: (ir.Function | None) = None,
