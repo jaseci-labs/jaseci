@@ -1735,6 +1735,14 @@ def run_conversion(source: Path, outdir: Path, name: str, cpython_lib: Path, wri
         "pinned": len(survivors),
         "quarantined": len(meta["pins"]) - len(survivors) + len(extraction.quarantined),
     }
+    # Write-time invariants: the transient class behind a reported
+    # counts-vs-entries mismatch (counts.pinned != #status-pinned entries)
+    # should fail loudly here instead of poisoning downstream dashboards.
+    assert meta["counts"]["pinned"] == sum(
+        1 for p in meta["pins"] if p["status"] == "pinned"
+    ), f"{name}: counts.pinned != status-pinned entries"
+    assert meta["counts"]["extracted"] == len(meta["pins"]) + len(meta["quarantined"]), \
+        f"{name}: counts.extracted != pins + quarantined"
 
     outdir.mkdir(parents=True, exist_ok=True)
     pins_path = outdir / meta["pins_file"]
