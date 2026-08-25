@@ -1909,6 +1909,9 @@ impl JacRuntime.get_compiler(cls: any) -> JacCompiler {
     if (cls.compiler is None) {
         import from jaclang.jac0core.compiler { JacCompiler }
         cls.compiler = JacCompiler();
+        if cls.program is not None and cls.program._compiler is None {
+            cls.program._compiler = cls.compiler;
+        }
     }
     return cls.compiler;
 }
@@ -1916,9 +1919,21 @@ impl JacRuntime.get_compiler(cls: any) -> JacCompiler {
 impl JacRuntime.get_program(cls: any) -> JacProgram {
     if (cls.program is None) {
         import from jaclang.jac0core.program { JacProgram }
-        cls.program = JacProgram();
+        prog = JacProgram();
+        # The runtime is the composition root: the process program and the
+        # process compiler are linked here, not discovered ad hoc.
+        prog._compiler = cls.get_compiler();
+        cls.program = prog;
     }
     return cls.program;
+}
+
+impl JacRuntime.get_selfhost(cls: any) -> SelfHostCache {
+    if (cls.selfhost is None) {
+        import from jaclang.jac0core.selfhost { SelfHostCache }
+        cls.selfhost = SelfHostCache();
+    }
+    return cls.selfhost;
 }
 
 impl JacRuntime.get_shared_root -> Root {

@@ -167,7 +167,7 @@ test "a compile that re-enters the module being imported says so" {
         try {
             compiler.compile(
                 file_path=EXPR_KEYS,
-                target_program=compiler.internal_program,
+                target_program=compiler.selfhost.program,
                 options=CompileOptions(no_cgen=True)
             );
         } except CompilerSourceError as loud {

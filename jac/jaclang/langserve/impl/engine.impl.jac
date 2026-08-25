@@ -18,11 +18,11 @@ impl JacLangServer.postinit -> None {
     self.name = 'jac-lsp';
     self.version = 'v0.1';
     self._write_lock = threading.Lock();
-    JacProgram.init(self);
+    self.program = JacProgram();
 
-    self.deps.tracking = True;
+    self.program.deps.tracking = True;
     self._state_lock = ReadWriteLock();
-    self.module_manager = ModuleManager(self, self.sem_managers);
+    self.module_manager = ModuleManager(self.program, self.sem_managers);
 
     self._idle_event = threading.Event();
     self._idle_event.set();
@@ -81,8 +81,8 @@ impl JacLangServer._fanout_dependents(file_uri: str) -> None {
         return;
     }
 
-    self.invalidate_module(resolved);
-    dependents = self.transitive_dependents(resolved);
+    self.program.invalidate_module(resolved);
+    dependents = self.program.transitive_dependents(resolved);
     if not dependents {
         return;
     }
@@ -135,10 +135,10 @@ impl JacLangServer.type_check_file(
         (_syn_had, _pd, _ld) = parse_diags(main_doc.source, main_path);
         if _pd or _ld {
             _dsrc = _Src(main_doc.source, mod_path=main_path);
-            _replay_diags(_ld, _Lexer, self, _dsrc);
-            _replay_diags(_pd, _SyntaxParser, self, _dsrc);
-            _syn_errors = list(self.errors_had);
-            _syn_warnings = list(self.warnings_had);
+            _replay_diags(_ld, _Lexer, self.program, _dsrc);
+            _replay_diags(_pd, _SyntaxParser, self.program, _dsrc);
+            _syn_errors = list(self.program.errors_had);
+            _syn_warnings = list(self.program.warnings_had);
             self.publish_diagnostics(
                 _uri_of(main_path),
                 utils.gen_diagnostics(main_path, _syn_errors, _syn_warnings)
@@ -150,7 +150,7 @@ impl JacLangServer.type_check_file(
         if cancel_token and cancel_token.is_set() {
             return False;
         }
-        build = self.compile(
+        build = self.program.compile(
             file_path=main_path,
             use_str=main_doc.source,
             options=CompileOptions(
@@ -163,8 +163,8 @@ impl JacLangServer.type_check_file(
         }
         self.update_modules(main_path, build, files=files_to_check);
 
-        all_errors = list(self.errors_had);
-        all_warnings = list(self.warnings_had);
+        all_errors = list(self.program.errors_had);
+        all_warnings = list(self.program.warnings_had);
         for f in files_to_check {
             self.publish_diagnostics(
                 _uri_of(f), utils.gen_diagnostics(f, all_errors, all_warnings)
@@ -414,7 +414,7 @@ impl JacLangServer.get_definition(
                 if Path(mod_path).exists() and not Path(mod_path).is_dir() {
                     resolved_path = str(Path(mod_path).resolve());
                     with self._state_lock.read_lock() {
-                        target_mod = self.mod.hub.get(resolved_path);
+                        target_mod = self.program.mod.hub.get(resolved_path);
                     }
                     if target_mod {
                         sym = target_mod.lookup(
@@ -583,7 +583,8 @@ impl JacLangServer._npm_item_location(
 impl JacLangServer.get_outline(file_path: str) -> list[lspt.DocumentSymbol] {
     fs_path = _path_of(file_path);
     with self._state_lock.read_lock() {
-        if fs_path in self.mod.hub and (root_node := self.mod.hub[fs_path].sym_tab) {
+        if fs_path in self.program.mod.hub
+            and (root_node := self.program.mod.hub[fs_path].sym_tab) {
             return utils.get_symbols_for_outline(root_node);
         }
     }
@@ -703,8 +704,8 @@ impl JacLangServer.close_module(uri: str) -> None {
 
 impl JacLangServer.delete_module(uri: str) -> None {
     with self._state_lock.write_lock() {
-        if uri in self.mod.hub {
-            del (self.mod.hub[uri], );
+        if uri in self.program.mod.hub {
+            del (self.program.mod.hub[uri], );
         }
         if uri in self.sem_managers {
             del (self.sem_managers[uri], );
@@ -714,10 +715,10 @@ impl JacLangServer.delete_module(uri: str) -> None {
 
 impl JacLangServer.rename_module(old_path: str, new_path: str) -> None {
     with self._state_lock.write_lock() {
-        if old_path in self.mod.hub and new_path != old_path {
-            self.mod.hub[new_path] = self.mod.hub[old_path];
+        if old_path in self.program.mod.hub and new_path != old_path {
+            self.program.mod.hub[new_path] = self.program.mod.hub[old_path];
             self.sem_managers[new_path] = self.sem_managers[old_path];
-            del (self.mod.hub[old_path], );
+            del (self.program.mod.hub[old_path], );
             del (self.sem_managers[old_path], );
         }
     }
@@ -799,7 +800,7 @@ impl JacLangServer.get_node_type(n: uni.UniNode) -> Optional[TypeBase] {
     if isinstance(n, uni.Expr) {
         typ = n.type;
         if typ is None {
-            typ = self.get_type_evaluator().get_type_of_expression(n);
+            typ = self.program.get_type_evaluator().get_type_of_expression(n);
         }
         self.debug("found type " + str(typ) + " for expr " + str(n));
         return typ;
@@ -841,8 +842,8 @@ impl JacLangServer.get_node_at_position(
 
 impl JacLangServer.get_ast_of_file(file_path: str) -> Optional[uni.UniNode] {
     with self._state_lock.read_lock() {
-        if file_path in self.mod.hub {
-            return self.mod.hub[file_path];
+        if file_path in self.program.mod.hub {
+            return self.program.mod.hub[file_path];
         }
     }
     return None;
@@ -1055,10 +1056,10 @@ impl JacLangServer._clear_alerts_for_file(file_path: str) -> None {
 
 impl JacLangServer.diagnostics.getter -> dict[str, list] {
     with self._state_lock.read_lock() {
-        all_errors = list(self.errors_had);
-        all_warnings = list(self.warnings_had);
+        all_errors = list(self.program.errors_had);
+        all_warnings = list(self.program.warnings_had);
         result = {};
-        for file_path in self.mod.hub {
+        for file_path in self.program.mod.hub {
             uri = uris.from_fs_path(file_path);
             result[uri] = utils.gen_diagnostics(file_path, all_errors, all_warnings);
         }

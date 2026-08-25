@@ -48,8 +48,9 @@ obj Task {
     def postinit -> None;
 }
 
-obj JacLangServer(JacProgram, LanguageServer) {
-    has sem_managers: dict[str, SemTokManager] = {},
+obj JacLangServer(LanguageServer) {
+    has program: JacProgram postinit,
+        sem_managers: dict[str, SemTokManager] = {},
         module_manager: ModuleManager postinit,
         pipe: deque = deque(maxlen=1),
         dirty_files: dict[str, bool] = {},

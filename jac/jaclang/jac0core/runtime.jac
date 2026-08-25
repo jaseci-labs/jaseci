@@ -49,6 +49,7 @@ import type from jaclang.byllm.mtir { MTRuntime }
 import type from jaclang.cli.console { JacConsole as ConsoleImpl }
 import type from jaclang.jac0core.compiler { JacCompiler }
 import type from jaclang.jac0core.program { JacProgram }
+import type from jaclang.jac0core.selfhost { SelfHostCache }
 import type from jaclang.runtimelib.client_bundle { ClientBundle, ClientBundleBuilder }
 import type from jaclang.runtimelib.context { ExecutionContext }
 import type from jaclang.runtimelib.server { JacAPIServer as JacServer }
@@ -462,6 +463,7 @@ class JacRuntime(JacRuntimeInterface) {
     with entry {
         compiler: (JacCompiler | None) = None;
         program: (JacProgram | None) = None;
+        selfhost: (SelfHostCache | None) = None;
         pool: ThreadPoolExecutor = ThreadPoolExecutor();
         exec_ctx: (ExecutionContext | None) = None;
         loaded_modules: dict[(str, types.ModuleType)] = {};
@@ -480,6 +482,9 @@ class JacRuntime(JacRuntimeInterface) {
 
     @classmethod
     def get_program(cls: any) -> JacProgram;
+
+    @classmethod
+    def get_selfhost(cls: any) -> SelfHostCache;
 
     static def get_base_path_dir -> (str | None);
     static def get_full_target_path -> (str | None);

@@ -261,9 +261,9 @@ def precompile_unit(
     program = JacProgram();
     code = compiler.get_bytecode(full_target=jac_path, target_program=program);
     if code is None {
-        _emit_unit_diagnostics(jac_path, [program, compiler.internal_program]);
+        _emit_unit_diagnostics(jac_path, [program, compiler.selfhost.program]);
     }
-    compiler.internal_program.release_compile_closure();
+    compiler.selfhost.program.release_compile_closure();
     program.release_compile_closure();
     if code is None {
         return None;

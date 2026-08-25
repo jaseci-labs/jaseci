@@ -2382,8 +2382,8 @@ test "bare lt in jsx content is treated as text" {
 }
 
 test "jac check reports errors for files inside jaclang source tree" {
-    # Regression: _resolve_program routed jaclang-internal files to
-    # internal_program, so errors were invisible to the caller's JacProgram.
+    # Regression: the self-host redirect routed jaclang-internal files to
+    # the self-host program, so errors were invisible to the caller's JacProgram.
     # force_target_program=True (set by jac check) fixes this. The fixture
     # is deliberately ill-typed so this test never depends on an incidental
     # compiler bug in a shared fixture.

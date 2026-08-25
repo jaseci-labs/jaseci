@@ -437,7 +437,7 @@ test "test_missing_mod_warning" {
             "fixtures/md_path.jac, line 27, col 8: Module not found",
 
         ];
-        warnings_str = [str(w) for w in lsp.warnings_had];
+        warnings_str = [str(w) for w in lsp.program.warnings_had];
         for expected in expected_warnings {
             assert any(expected in w for w in warnings_str) , f"Expected warning '{expected}' not found in {warnings_str}";
         }

@@ -193,8 +193,8 @@ def make_failload_client(tmp_path: str) -> JacTestClient {
 
 Same fixtures as `make_crossboundary_client`, but the entry/server/client files
 are copied into a unique dir inside the jaclang package (where `jac ai --ui` and
-other bundled apps live). `JacCompiler._resolve_program` routes any file under
-the package root to the compiler's `internal_program`, so the cross-boundary
+other bundled apps live). `SelfHostCache.resolve` routes any file under
+the package root to the self-host program, so the cross-boundary
 interop facts land in that hub rather than `Jac.program.mod.hub` -- the exact
 condition under which the serve endpoint collector missed them. Returns
 `(client, cleanup_dir)`; the caller must rmtree `cleanup_dir`.
@@ -1368,7 +1368,7 @@ test "issue 6507: a cross-boundary endpoint module that fails to import is logge
 
 test "bundled app: cross-boundary def:pub endpoint registers for jaclang-bundled app" {
     # Regression for `jac ai --ui`: when the app lives under the jaclang package
-    # root, its modules route to the compiler's internal_program, so the
+    # root, its modules route to the self-host program, so the
     # cross-boundary bindings land there -- not in `Jac.program.mod.hub`. The
     # serve collector must span both hubs (`_search_hubs`); before the fix it
     # scanned only `Jac.program.mod.hub` (empty for a bundled app), so cross_pub

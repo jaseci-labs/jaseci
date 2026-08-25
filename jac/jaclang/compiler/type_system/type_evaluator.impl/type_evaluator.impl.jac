@@ -3990,7 +3990,7 @@ impl TypeEvaluator._load_stub_module(path: str) -> Module {
 
     resolved_path = str(Path(path).resolve());
     compiler = self.program._get_compiler();
-    target_program = compiler._resolve_program(resolved_path, self.program);
+    target_program = compiler.selfhost.resolve(resolved_path, self.program);
     target_hub = target_program.mod.hub;
 
     if resolved_path in self.program.mod.hub {

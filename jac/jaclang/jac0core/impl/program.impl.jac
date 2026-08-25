@@ -61,7 +61,7 @@ impl JacProgram.load_dependency_module(
 
     resolved_path = str(Path(source_path).resolve());
     compiler = self._get_compiler();
-    target_program = compiler._resolve_program(resolved_path, self);
+    target_program = compiler.selfhost.resolve(resolved_path, self);
     target_hub = target_program.mod.hub;
 
     if (resolved_path in self.mod.hub and not self.is_hub_entry_fresh(resolved_path)) {
@@ -242,7 +242,7 @@ impl JacProgram.release_compile_closure(
 
 impl JacProgram._search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]] {
     hubs: list[dict[(str, uni.Module)]] = [self.mod.hub];
-    internal = self._get_compiler().internal_program;
+    internal = self._get_compiler().selfhost.program;
     if internal is not self {
         hubs.append(internal.mod.hub);
     }

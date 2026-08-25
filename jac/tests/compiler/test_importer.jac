@@ -223,7 +223,7 @@ test "compiler separates internal from user modules" {
         user_program = Jac.get_program();
         jaclang_root = compiler._get_jaclang_root();
 
-        internal_hub_paths = list(compiler.internal_program.mod.hub.keys());
+        internal_hub_paths = list(compiler.selfhost.program.mod.hub.keys());
         user_hub_paths = list(user_program.mod.hub.keys());
 
         assert len(user_hub_paths) > 0 , "User program hub should not be empty";
@@ -813,13 +813,13 @@ test "release compile closure keeps synthesized type identity stable" {
 
 test "internal get_bytecode evicts unit AST after compile" {
     # Cold bootstrap used to retain every jaclang module AST in
-    # internal_program.mod.hub. After the outermost successful compile+cache
+    # the self-host program hub. After the outermost successful compile+cache
     # write, non-stub ASTs must leave the hub so peak RSS stays near one import
     # closure (+ warm typeshed), not the union of every module ever compiled.
     compiler = JacCompiler();
     prog = JacProgram();
     # Two small, already-shipped jaclang modules (always under jaclang_root →
-    # resolve to internal_program). Force a fresh compile so we exercise the
+    # resolve to the self-host program). Force a fresh compile so we exercise the
     # post-compile eviction path rather than a disk-cache hit.
     samples = [
         os.path.join(compiler._get_jaclang_root(), "jac0core", "log.jac"),
@@ -834,7 +834,7 @@ test "internal get_bytecode evicts unit AST after compile" {
         for p in samples {
             code = compiler.get_bytecode(p, prog);
             assert code is not None , f"compile failed for {p}";
-            hub = compiler.internal_program.mod.hub;
+            hub = compiler.selfhost.program.mod.hub;
             leftover_jac = [
                 k
                 for k in hub.keys()

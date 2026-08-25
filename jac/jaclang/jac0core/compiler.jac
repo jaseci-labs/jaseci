@@ -36,6 +36,7 @@ import from jaclang.jac0core.passes {
 }
 import from jaclang.jac0core.passes.transform { DiagnosticPolicy }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.selfhost { SelfHostCache }
 import from jaclang.jac0core.pass_driver {
     build_diagnostic_policy,
     deliver_alerts,
@@ -82,12 +83,10 @@ import from jaclang.jac0core.na_coverage {
 }
 
 obj JacCompiler {
-    has _internal_program: (JacProgram | None) = None,
-        _internal_bytecode_depth: int = 0,
-        _reentrant_depth: int = 0,
-        _jaclang_root: (str | None) = None;
+    has _selfhost: (SelfHostCache | None) = None,
+        _reentrant_depth: int = 0;
 
-    has internal_program: JacProgram { getter; }
+    has selfhost: SelfHostCache { getter; }
 
     def postinit {
         import from jaclang.jac0core.native_brands {
@@ -97,8 +96,6 @@ obj JacCompiler {
         ensure_native_brands_bound(DRIVER_ORIGIN);
     }
 
-    def _get_jaclang_root -> str;
-    def _resolve_program(file_path: str, target_program: JacProgram) -> JacProgram;
     def get_native_interop_setup(
         full_target: str, target_program: JacProgram
     ) -> tuple[((object | None), (dict[(str, object)] | None))];
@@ -111,10 +108,6 @@ obj JacCompiler {
     def get_bytecode(
         full_target: str, target_program: JacProgram
     ) -> (types.CodeType | None);
-
-    def _evict_internal_unit(
-        full_target: str, actual_program: JacProgram, result: uni.Module
-    ) -> None;
 
     def _load_native_from_cache(
         full_target: str,

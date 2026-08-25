@@ -1,37 +1,17 @@
-impl JacCompiler.internal_program.getter -> JacProgram {
-    if (self._internal_program is None) {
-        import from jaclang.jac0core.program { JacProgram }
-        prog = JacProgram();
-        prog._compiler = self;
-        self._internal_program = prog;
+impl JacCompiler.selfhost.getter -> SelfHostCache {
+    cache = self._selfhost;
+    if (cache is None) {
+        import from jaclang.jac0core.runtime { JacRuntime }
+        cache = JacRuntime.get_selfhost();
+        self._selfhost = cache;
     }
-    return self._internal_program;
-}
-
-impl JacCompiler._get_jaclang_root -> str {
-    if (self._jaclang_root is None) {
-        self._jaclang_root = os.path.realpath(
-            os.path.dirname(os.path.dirname(__file__))
-        );
-    }
-    return self._jaclang_root;
-}
-
-impl JacCompiler._resolve_program(
-    file_path: str, target_program: JacProgram
-) -> JacProgram {
-    normalized_path = os.path.realpath(file_path);
-    jaclang_root = self._get_jaclang_root();
-    if normalized_path.startswith((jaclang_root + os.sep)) {
-        return self.internal_program;
-    }
-    return target_program;
+    return cache;
 }
 
 impl JacCompiler.get_native_interop_setup(
     full_target: str, target_program: JacProgram
 ) -> tuple[((object | None), (dict[(str, object)] | None))] {
-    actual_program = self._resolve_program(full_target, target_program);
+    actual_program = self.selfhost.resolve(full_target, target_program);
     if (full_target in actual_program.hub.artifacts) {
         gen = actual_program.hub.artifacts[full_target];
         return (gen.native_engine, gen.interop_py_funcs);
@@ -48,7 +28,7 @@ impl JacCompiler.get_native_interop_setup(
 impl JacCompiler.get_native_layout(
     full_target: str, target_program: JacProgram
 ) -> (object | None) {
-    actual_program = self._resolve_program(full_target, target_program);
+    actual_program = self.selfhost.resolve(full_target, target_program);
     _layout: any = None;
     if (full_target in actual_program.hub.artifacts) {
         gen = actual_program.hub.artifacts[full_target];
@@ -78,7 +58,7 @@ impl JacCompiler._check_native_abi(layout: any, full_target: str) -> None {
 impl JacCompiler.get_bytecode(
     full_target: str, target_program: JacProgram
 ) -> (types.CodeType | None) {
-    actual_program = self._resolve_program(full_target, target_program);
+    actual_program = self.selfhost.resolve(full_target, target_program);
     (rebuild, no_precompile) = cache_mode();
     symtab_only_recovery = False;
 
@@ -145,7 +125,7 @@ impl JacCompiler.get_bytecode(
                 if (
                     _had_native_secs
                     and full_target not in actual_program.hub.artifacts
-                    and actual_program is not self._internal_program
+                    and not self.selfhost.is_selfhost(actual_program)
                 ) {
                     import logging as _bc_logging;
                     _bc_logging.getLogger(__name__).warning(
@@ -197,10 +177,10 @@ impl JacCompiler.get_bytecode(
         return marshal.loads(precompiled_bc);
     }
 
-    is_internal = actual_program is self._internal_program;
+    is_internal = self.selfhost.is_selfhost(actual_program);
     if is_internal {
         setup_progress.on_internal_compile(full_target);
-        self._internal_bytecode_depth += 1;
+        self.selfhost.enter_bytecode();
     }
     options = CompileOptions();
     result: (uni.Module | None) = None;
@@ -275,34 +255,12 @@ impl JacCompiler.get_bytecode(
         return None;
     } finally {
         if is_internal {
-            if self._internal_bytecode_depth == 1 {
-                self._evict_internal_unit(full_target, actual_program, result);
+            if self.selfhost.at_outermost_bytecode() {
+                self.selfhost.evict_unit(full_target, result);
             }
-            self._internal_bytecode_depth -= 1;
+            self.selfhost.exit_bytecode();
         }
     }
-}
-
-impl JacCompiler._evict_internal_unit(
-    full_target: str, actual_program: JacProgram, result: (uni.Module | None)
-) -> None {
-    import os;
-    if os.environ.get("JAC_NO_UNIT_EVICT") {
-        return;
-    }
-
-    if result is not None and result.gen.native_engine is not None {
-        import from jaclang.jac0core.codeinfo { CodeGenTarget }
-        slim = CodeGenTarget();
-        slim.native_engine = result.gen.native_engine;
-        slim.native_layout = result.gen.native_layout;
-        slim.interop_py_funcs = result.gen.interop_py_funcs;
-        slim._interop_callbacks = result.gen._interop_callbacks;
-        slim.interop_manifest = result.gen.interop_manifest;
-        actual_program.hub.artifacts[full_target] = slim;
-    }
-
-    actual_program.release_compile_closure(keep_stubs=True);
 }
 
 impl JacCompiler._load_native_from_cache(
@@ -706,16 +664,16 @@ impl JacCompiler.parse_str(
                 not _forced_pre
                 and _p_opts is not None
                 and _p_opts.aot_mode
-                and target_program is not self._internal_program
+                and not self.selfhost.is_selfhost(target_program)
                 and _default_codespace_for(target_program) == 'native'
             ) {
                 _forced_pre = 'native';
             }
-            if _forced_pre and target_program is not self._internal_program {
+            if _forced_pre and not self.selfhost.is_selfhost(target_program) {
                 codespace = _forced_pre;
             }
         }
-        if not codespace and target_program is not self._internal_program {
+        if not codespace and not self.selfhost.is_selfhost(target_program) {
             import from jaclang.jac0core.placement_pins {
                 config_kind_space as _kind_space_of
             }
@@ -762,7 +720,7 @@ impl JacCompiler.parse_str(
         _analysis_only = _opts is not None and _opts.no_cgen;
         _native_eligible = (
             not _analysis_only
-            and target_program is not self._internal_program
+            and not self.selfhost.is_selfhost(target_program)
             and _default_codespace_for(target_program) == 'native'
         );
         if _native_eligible {
@@ -895,7 +853,7 @@ impl JacCompiler.stamp_boundary_facts(
             or (
                 _sb_opts is not None
                 and _sb_opts.aot_mode
-                and target_program is not self._internal_program
+                and not self.selfhost.is_selfhost(target_program)
                 and _default_codespace_for(target_program) == 'native'
             )
         );
@@ -1166,7 +1124,7 @@ impl JacCompiler.compile(
         if options.force_target_program {
             _wrap_prog = target_program;
         } else {
-            _wrap_prog = self._resolve_program(file_path, target_program);
+            _wrap_prog = self.selfhost.resolve(file_path, target_program);
         }
 
         _scratch_prog = _wrap_prog;
@@ -1317,7 +1275,7 @@ impl JacCompiler._compile_once(
     if options.force_target_program {
         actual_program = target_program;
     } else {
-        actual_program = self._resolve_program(file_path, target_program);
+        actual_program = self.selfhost.resolve(file_path, target_program);
     }
 
     _prev_opts = actual_program.options;
@@ -1372,7 +1330,7 @@ impl JacCompiler._compile_once(
         _head_sched = get_symtab_ir_sched();
     } else {
         _head_sched = get_ir_gen_sched(
-            is_internal=(actual_program is self._internal_program),
+            is_internal=self.selfhost.is_selfhost(actual_program),
             gen_mtir=not options.no_cgen
         );
     }
@@ -1417,7 +1375,7 @@ impl JacCompiler._compile_once(
         and not _standalone_annex
         and (
             is_native_mod
-            or actual_program is not self._internal_program
+            or not self.selfhost.is_selfhost(actual_program)
             or not module_import_in_flight(file_path)
         );
 
@@ -1598,7 +1556,7 @@ impl JacCompiler._compile_once(
 impl JacCompiler.build(
     file_path: str, target_program: JacProgram, use_str: (str | None) = None
 ) -> uni.Module {
-    actual_program = self._resolve_program(file_path, target_program);
+    actual_program = self.selfhost.resolve(file_path, target_program);
     mod_targ = self.compile(
         file_path, actual_program, use_str, options=CompileOptions()
     );

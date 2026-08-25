@@ -366,7 +366,7 @@ class JacMetaImporter(MetaPathFinder, Loader):
                 # Files under the jaclang tree compile into the compiler's
                 # internal program, so their diagnostics live there rather
                 # than in the runtime program handed to us.
-                internal = getattr(compiler, "internal_program", None)
+                internal = compiler.selfhost.peek_program()
                 if internal is not None:
                     alerts = _module_scoped_alerts(internal, file_path)
             details = "\n".join(a.pretty_print() for a in alerts)
