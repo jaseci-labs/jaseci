@@ -18,6 +18,7 @@ Run from repo root:
 """
 from __future__ import annotations
 
+import fnmatch
 import re
 import subprocess
 import sys
@@ -38,6 +39,17 @@ ALLOWED_HOST_ORACLE_IMPORTERS = {
     "pyc_first.jac",  # bootstrap duplicate bridge; retire at P4 exit
     "ceval.jac",  # product ceval (PLAN §4); ::py:: host bridge like pyc_first
     "host_oracle.jac",
+}
+
+# Harness files by naming convention: differential pins/probes/debug scripts
+# compile through the test oracle by design and are never product path.
+# (The name-only allowlist above predates the pin waves and kept going stale.)
+ALLOWED_HOST_ORACLE_PATTERNS = ("test_*", "probe_*", "debug_*")
+
+# Known harness files whose names predate the conventions above.
+ALLOWED_HOST_ORACLE_FILES = {
+    "layer_unpack.jac",           # band-9 unpack slice: byte-parity vs oracle
+    "compiler_literals_slice.jac",  # literal-frontier differential tests
 }
 
 FORBIDDEN_IMPORT = re.compile(
@@ -106,7 +118,9 @@ def main() -> int:
             continue
         text = path.read_text()
         name = path.name
-        if name not in ALLOWED_HOST_ORACLE_IMPORTERS:
+        if name not in ALLOWED_HOST_ORACLE_IMPORTERS and not any(
+            fnmatch.fnmatch(name, pat) for pat in ALLOWED_HOST_ORACLE_PATTERNS
+        ) and name not in ALLOWED_HOST_ORACLE_FILES:
             if FORBIDDEN_IMPORT.search(text):
                 fail_msgs.append(f"{name} imports host_oracle (not in allowlist)")
         if _is_product_module(name):
