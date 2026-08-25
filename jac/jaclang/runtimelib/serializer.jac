@@ -2,6 +2,7 @@ import importlib;
 import logging;
 import sys;
 import threading;
+import weakref;
 import from time { monotonic }
 import from dataclasses { fields, is_dataclass, MISSING }
 import from datetime { date, datetime, time }
@@ -48,7 +49,7 @@ obj ImportFailure {
 }
 
 obj Serializer {
-    static has _registry: dict[str, type] = {},
+    static has _registry: MutableMapping[str, type] = weakref.WeakValueDictionary(),
         _aliases: dict[str, str] = {},
         _warn_counts: dict[str, int] = {},
         _warn_dedup_saturated: bool = False,

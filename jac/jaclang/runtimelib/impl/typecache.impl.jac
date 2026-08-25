@@ -2,7 +2,10 @@ import sys;
 import from dataclasses { fields, is_dataclass }
 import from typing { cast }
 
-glob _cache: dict[type, dict[str, object]] = {};
+import weakref;
+
+"""Field-type cache keyed weakly, so a class dies with the module that defined it."""
+glob _cache: MutableMapping[type, dict[str, object]] = weakref.WeakKeyDictionary();
 
 def _resolve_hints(cls: type) -> dict[str, object] {
     hints: dict[str, object] = {};
