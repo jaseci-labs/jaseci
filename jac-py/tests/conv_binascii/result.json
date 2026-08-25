@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "4c2c55eb0ba5fff3b134e97f06691fb24c18dd6c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "/home/jac/repos/jac-python/jac-py/tests/conv_binascii/conv_binascii_pins.jac"
+  ],
+  "generated_at": "2026-08-25T13:53:38",
+  "hashes": {
+    "pins_jac": "154d3baec0932f22ab35167d0ad366ec761005e3a594403d46dcef9b2d027cf3",
+    "conversion_json": "f9dceb4e940d62c7e09d41e43f8cd3c84e5dd35b8271c010c895f3c9c08f8c56",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "binascii",
+  "status": "passed",
+  "timed_out": false,
+  "counts": {
+    "converted": 70,
+    "runnable": 15,
+    "green": 15,
+    "quarantined": 55,
+    "failed": 0,
+    "infra_failed": 0
+  },
+  "failures": []
+}
