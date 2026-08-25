@@ -41,6 +41,14 @@ so the failure names a field rather than an offset.
 
 The corpus is the one the cutover requirements name: comments,
 diagnostics, string-named tests, and circular includes.
+
+Under seal-what-you-serve the emitter is UNSERVED -- it sits behind the
+prefix frontier, and `JcirGenPass`'s generic-specialized base does not
+lower when imported across a unit boundary anyway -- so the fused
+artifact carries no emitter code and the comparison here is
+binding-the-fused-artifact versus not. The invariant is unchanged:
+binding attests an artifact and must not perturb the emitter, whichever
+tier the emitter runs on.
 """
 
 import ast as pyast;
@@ -123,12 +131,13 @@ def _built -> tuple {
     tmp = tempfile.mkdtemp(prefix="jac_jcir_bytes_");
     record = seal_native_artifacts(PKG_PATH, Path(tmp));
     assert record is not None and record.get("artifact") , (
-        "the seal refused; the sealed-versus-source comparison needs an "
-        "artifact. If the jcir emitter was refused, this file is the thing "
-        "that should have caught it"
+        "the seal refused; the bound-versus-unbound comparison needs the "
+        "fused artifact"
     );
-    assert JCIR_MODULE in record["modules"] , (
-        f"the fused seal does not serve {JCIR_MODULE}: " f"{sorted(record['modules'])}"
+    assert JCIR_MODULE not in record["modules"] , (
+        "the fused seal claims the emitter now; retire this file's "
+        "linked-not-served framing and write the sealed-versus-source "
+        "comparison it was named for"
     );
     result = (tmp, record, );
     _BUILD_MEMO.append(result);
@@ -226,7 +235,7 @@ def code_field_diffs(a: any, b: any, at: str, out: list[str]) -> list[str] {
 }
 
 
-test "the emitter's artifact builds, binds and registers" {
+test "the fused artifact builds, binds and registers around the refused emitter" {
     (tmp, record) = _built();
     real_for = sealed.native_artifact_for;
     real_names = sealed.native_served_modules;
@@ -235,10 +244,15 @@ test "the emitter's artifact builds, binds and registers" {
     sealed.native_served_modules = lambda { sorted(record["modules"]); };
     try {
         _emit("with entry { probe = 1; }", "bind_probe.jac");
-        assert JCIR_MODULE in _NATIVE_SERVED_PASSES , (
-            "the emitter ran without the binder registering it, so the "
+        assert _NATIVE_SERVED_PASSES , (
+            "no pass registered against the bound fused artifact, so the "
             "byte comparison below would never have entered the serving "
             "path at all"
+        );
+        assert JCIR_MODULE not in _NATIVE_SERVED_PASSES , (
+            "the emitter registered as served; it is unserved (behind the "
+            "prefix frontier, and blocked by the generic-base import gap), "
+            "so a served claim means the seal and this file disagree"
         );
     } finally {
         sealed.native_artifact_for = real_for;
@@ -261,7 +275,7 @@ test "container bytes are the same with the artifact bound and without" {
     sealed.native_served_modules = lambda { sorted(record["modules"]); };
     failures: list[str] = [];
     try {
-        assert JCIR_MODULE in record["modules"];
+        assert record["modules"];
         for (label, src, path) in CORPUS {
             (sealed_blob, sealed_tree) = _emit(src, path);
             (source_blob, source_tree) = source_side[label];

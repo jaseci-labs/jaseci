@@ -354,100 +354,26 @@ glob NATIVE_SEAL_FUSED_ROOT: str = "compiler/fused_seal_root.jac",
 glob NATIVE_SEAL_SERVED_MODULES: tuple[str, ...] = (
          "compiler/frontend/unitree.jac",
          "compiler/passes/ast_validation_pass.jac",
-         "compiler/backends/py/module_codegen_pass.jac",
-         "compiler/passes/semantic_analysis_pass.jac",
          "compiler/passes/sym_tab_build_pass.jac",
          "compiler/passes/decl_impl_match_pass.jac",
-         "compiler/passes/uni_pass.jac",
-         "compiler/passes/endpoint_effect_pass.jac",
+         "compiler/passes/semantic_analysis_pass.jac",
          "compiler/passes/sem_def_match_pass.jac",
-         "compiler/passes/access_check_pass.jac",
-         "compiler/passes/jsx_intrinsic_guard_pass.jac",
          "compiler/passes/cfg_build_pass.jac",
-         "compiler/passes/rc_facts_pass.jac",
-         "compiler/backends/py/jcir_gen_pass.jac",
+         "compiler/passes/jsx_intrinsic_guard_pass.jac",
          "compiler/native_materialize.jac",
 
      ),
      NATIVE_SEAL_SERVED_IMPORTS: dict[str, str] = {
          "compiler/frontend/unitree.jac": "UniNode",
          "compiler/passes/ast_validation_pass.jac": "ASTValidationPass",
-         "compiler/backends/py/module_codegen_pass.jac": "ModuleCodegenPass",
-         "compiler/passes/semantic_analysis_pass.jac": "SemanticAnalysisPass",
          "compiler/passes/sym_tab_build_pass.jac": "SymTabBuildPass",
          "compiler/passes/decl_impl_match_pass.jac": "DeclImplMatchPass",
-         "compiler/passes/uni_pass.jac": "UniPass",
-         "compiler/passes/endpoint_effect_pass.jac": "EndpointEffectPass",
+         "compiler/passes/semantic_analysis_pass.jac": "SemanticAnalysisPass",
          "compiler/passes/sem_def_match_pass.jac": "SemDefMatchPass",
-         "compiler/passes/access_check_pass.jac": "AccessCheckPass",
-         "compiler/passes/jsx_intrinsic_guard_pass.jac": "JsxIntrinsicGuardPass",
          "compiler/passes/cfg_build_pass.jac": "CFGBuildPass",
-         "compiler/passes/rc_facts_pass.jac": "RcFactsPass",
-         "compiler/backends/py/jcir_gen_pass.jac": "JcirGenPass",
+         "compiler/passes/jsx_intrinsic_guard_pass.jac": "JsxIntrinsicGuardPass",
          "compiler/native_materialize.jac": "mat_parse"
-     },
-     NATIVE_SEAL_REFUSED_MODULES: dict[str, str] = {
-         "compiler/passes/capability_check_pass.jac": (
-             "one own seam left (native_capability_violations, the "
-             "pass-tier crossing into ModuleCodegenPass.iter_context_stmts) "
-             "and it cannot be waived: the seal's abort-stub linkage check "
-             "reads the IR that ships and NativeCapabilityCheckPass."
-             "transform -- the module's live entry point -- links the stub "
-             "directly, so the fused artifact would abort on its first "
-             "native run. Joins the fused root when transform stops calling "
-             "the demoted function natively."
-         )
-     },
-     NATIVE_SEAL_CLOSURE: tuple[str, ...] = (
-         "compiler/backends/py/codegen_ir.jac",
-         "compiler/frontend/codeinfo.jac",
-         "compiler/frontend/constant.jac",
-         "compiler/frontend/diagnostic_utils.jac",
-         "compiler/frontend/diagnostics.jac",
-         "compiler/frontend/helpers.jac",
-         "compiler/backends/py/jcir_facts.jac",
-         "compiler/frontend/parser/lexer.jac",
-         "compiler/frontend/parser/parser.jac",
-         "compiler/frontend/parser/tokens.jac",
-         "compiler/passes/annex_weave.jac",
-         "compiler/passes/ast_validation_pass.jac",
-         "compiler/passes/decl_impl_match_pass.jac",
-         "compiler/passes/endpoint_effect_pass.jac",
-         "compiler/backends/py/jcir_gen_pass.jac",
-         "compiler/backends/py/module_codegen_pass.jac",
-         "compiler/passes/prefix_drive.jac",
-         "compiler/passes/semantic_analysis_pass.jac",
-         "compiler/passes/sym_tab_build_pass.jac",
-         "compiler/passes/transform.jac",
-         "compiler/passes/pass_rim.jac",
-         "compiler/passes/pass_serve.jac",
-         "compiler/passes/uni_pass.jac",
-         "runtime/scalars.jac",
-         "compiler/frontend/srcloc.jac",
-         "compiler/frontend/unitree.jac",
-         "compiler/expr_keys.jac",
-         "compiler/native_materialize.jac",
-         "compiler/passes/access_check_pass.jac",
-         "compiler/passes/cfg_build_pass.jac",
-         "compiler/passes/dataflow.jac",
-         "compiler/passes/jsx_intrinsic_guard_pass.jac",
-         "compiler/passes/rc_facts_pass.jac",
-         "compiler/passes/sem_def_match_pass.jac",
-         "compiler/type_registry.jac",
-         "compiler/types/type_utils.jac",
-         "compiler/types/types.jac",
-         "project/client_kind_paths.jac",
-         "client/targets/react_native/html_tag_map.jac",
-         "runtime/na_stdlib/_hashlib_native.jac",
-         "runtime/na_stdlib/contextvars.jac",
-         "runtime/na_stdlib/fnmatch.jac",
-         "runtime/na_stdlib/hashlib.jac",
-         "runtime/na_stdlib/keyword.jac",
-         "runtime/na_stdlib/logging.jac",
-         "runtime/na_stdlib/pathlib.jac",
-         "runtime/na_stdlib/textwrap.jac",
-
-     );
+     };
 
 glob NATIVE_SEAL_UNITREE_ROOT: str = "compiler/frontend/unitree.jac",
      NATIVE_SEAL_MATERIALIZE_ROOT: str = "compiler/native_materialize.jac";
@@ -520,10 +446,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          + _CODEINFO_SEAM_WAIVERS
          + _RIM_SERVE_SEAM_WAIVERS
      ),
-     _CAPABILITY_SEAM_WAIVERS: tuple[str, ...] = (
-         ("compiler/passes/capability_check_pass.jac::" "native_capability_violations"),
-
-     ),
      _CFG_BUILD_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/passes/cfg_build_pass.jac::cfg_dot_from_file",
          "compiler/passes/cfg_build_pass.jac::CoalesceBBPass.enter_node",
@@ -533,134 +455,8 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple[str, ...]] = {
          "compiler/fused_seal_root.jac": (
              _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
-         ),
-         "compiler/passes/capability_check_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _CAPABILITY_SEAM_WAIVERS
          )
      };
-
-glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] = (
-         (
-             "pass construction rim",
-             _RIM_SERVE_SEAM_WAIVERS,
-             "The tier tripwire and the serving binder ride every pass's "
-             "MRO since the tripwire moved onto PassRim.__new__ (#8682), "
-             "so pass_rim/pass_serve join each pass root's native unit. "
-             "Both are host-side machinery: they read the sealed-image "
-             "registry and bind artifacts through bytecode the image "
-             "always carries (neither module is a native root). Their "
-             "native slots are unreachable in a sealed image -- natively "
-             "served passes construct through the artifact, and the "
-             "bytecode lane the guard protects is exactly the lane that "
-             "still has Python."
-         ),
-         (
-             "unitree Python-only surface",
-             _UNITREE_SEAM_WAIVERS,
-             "Import resolution, filesystem and jac.toml reads, the "
-             "CPython ast bridge, the `type`-object literal map and the `...` "
-             "value. Each is infrastructure no native unit can host. "
-             "They clear as the driver hands the tree data instead of "
-             "handles: import detection stamped onto the node (the #8242 "
-             "`absorbed_mod` pattern), codegen state crossing as records, "
-             "and a native value for `Ellipsis`. `UniNode.gen.__get__` sat "
-             "here until `codeinfo` joined the closure; with the module in "
-             "the unit the lazy `CodeGenTarget` construction lowers and the "
-             "waiver is gone."
-         ),
-         (
-             "type system cross-module cascades",
-             _TYPES_SEAM_WAIVERS,
-             "`lookup_member_symbol` and `specialize` are cascades of the "
-             "`type_utils` waivers below -- `collect_member_syms` and "
-             "`build_type_var_solution` -- and clear with their callees. "
-             "`create_callable_type` used to sit here for reading "
-             "`ParameterCategory.Positional`, whose `auto()` value no "
-             "constant fold reached; generated enum values gave it one and "
-             "the read lowers."
-         ),
-         (
-             "type utils erased operands and unreachable layouts",
-             _TYPE_UTILS_SEAM_WAIVERS,
-             "Three named backend gaps and their cascades: `isinstance` "
-             "against a layout not reachable from the root "
-             "(`class_implements_protocol`, `doc_of_sym`), `enumerate(...)` "
-             "as a for-loop iterable (`build_type_var_solution`, "
-             "`build_solution_from_specialized_class`), and comprehensions "
-             "over element-erased collections "
-             "(`shadowed_type_var_names`). "
-             "Each clears with the named gap."
-         ),
-         (
-             "helpers file reads and the unitree cycle",
-             _HELPERS_SEAM_WAIVERS,
-             "Two groups. `read_file_with_encoding` passes an encoding "
-             "keyword to `open()`, which the native lane refuses out loud "
-             "since #8255; `normalize_exclude_patterns` and "
-             "`read_jacignore_patterns` are string methods on "
-             "element-erased list members. The `sys.version_info` family "
-             "reads unitree through a function-local import that keeps "
-             "`helpers` out of a module-level cycle with `unitree`; "
-             "hoisting it is the clearing mechanism and it needs the cycle "
-             "broken first. `pretty_print_source_location` and "
-             "`format_related_spans` sat here until their old-style `%` "
-             "formatting (the `MOD on i8*` gap) became plain padding; the "
-             "console gutter lowers now and `Alert.pretty_print` with it."
-         ),
-         (
-             "codeinfo Python-only machinery and named backend gaps",
-             _CODEINFO_SEAM_WAIVERS,
-             "The module the emptied `PLACEMENT_INFERENCE_HELD` entry was "
-             "holding out of every unit (#8323 B4). Its data model lowers "
-             "whole; every seam is filesystem, config or Python-codegen "
-             "machinery no native unit can host, or a named backend gap. "
-             "Python-only: `native_stdlib_root`, `is_native_by_location`, "
-             "`is_client_by_location` (a `jaclang.__file__` read), "
-             "`effective_default_codespace` and `effective_native_closure_"
-             "cap` (`project.config` reads), `_inferred_native_path` and "
-             "`resolve_native_module` (the placement scan, the driver's "
-             "ground), `is_bundled_native_module` (cascade), "
-             "`CodeGenTarget.doc_ir.__get__` (lazy `doc_ir` import), "
-             "`install_native_static_init` (writes an `any`-typed engine "
-             "handle). Backend gaps: `native_layout_to_dict` and "
-             "`_func_layout_to_dict` (`any` box of an optional), "
-             "`native_wasm_stem` (`os.path.splitext`). None is reachable "
-             "from a parse; each Python-only entry clears when its answer "
-             "crosses as driver-stamped data, the #8274 pattern."
-         ),
-         (
-             "capability pass-tier crossing",
-             _CAPABILITY_SEAM_WAIVERS,
-             "`native_capability_violations` calls "
-             "`ModuleCodegenPass.iter_context_stmts`, a method on a sealed "
-             "module's class, and the crossing clears when the module joins "
-             "the fused unit rather than when the callee is fixed -- the "
-             "callee reached zero seams in wave 6. The waiver does NOT "
-             "make the module sealable: the seal's abort-stub linkage "
-             "check measured `NativeCapabilityCheckPass.transform` "
-             "-- the live entry point -- linking this stub directly, which "
-             "is why the module sits in `NATIVE_SEAL_REFUSED_MODULES` with "
-             "that finding as its blocker. The accounting stays so the "
-             "audit keeps measuring the refused module."
-         ),
-         (
-             "cfg_build graph tooling and erased basic-block storage",
-             _CFG_BUILD_SEAM_WAIVERS,
-             "`cfg_dot_from_file` opens a file and drives a whole "
-             "`JacProgram` -- the `jac dot` tool, never the compile "
-             "schedule -- and `CoalesceBBPass` exists only to serve it. "
-             "`enter_node` and `_node_label` are that pass's own surface: "
-             "the first subscripts `basic_blocks`, a "
-             "`dict[int, dict[str, list[UniCFGNode]]]` whose inner entry "
-             "reaches the emitter as a bare pointer, and the second "
-             "cascades on `unparse_node`. They clear together when a "
-             "container stored inside a container keeps its layout. "
-             "`_find_next_cfg_stmt_after` was here until it learned to "
-             "read the body through the classes that own one; it lowers "
-             "now and its waiver is gone."
-         ),
-
-     );
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
     if pkg_path is not None {

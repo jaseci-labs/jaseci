@@ -482,9 +482,9 @@ assumed away.
   the closure, never be waived. `decode_ops` was the latter: it decodes
   into heterogeneous tuples, does not lower, and now lives in
   `codegen_shim` where the reader belonged anyway.
-  `test_sealed_demotion_audit.jac` and `test_jcir_seal_baseline.jac` fail
-  on such a waiver now, so the finding surfaces in the coverage report rather than
-  three minutes into a link.
+  The seal's demotion gate refuses such a waiver at build time now, so
+  the finding surfaces in the coverage report rather than three minutes
+  into a link.
 - **Nested functions and the emitter's internal refusal.** Two emitter
   methods refused with an emitter-internal error rather than a named gap.
   Hoisting a nested function to a method cleared one of them
@@ -579,15 +579,16 @@ assumed away.
   2.2s in a fresh process, nearly all of it (about 2.08s) re-deriving
   the materializer root through `generate_materialize_root`, which is
   the next thing worth caching. `seal_native_artifacts` builds the one
-  fused `libjac_compiler` library whose closure carries the emitter
-  (`codegen_ir`, `jcir_facts`, and the rest of the compiler closure),
-  and the artifact passes a load canary and a container crossing canary
-  before it is accepted. `test_jcir_seal_baseline.jac` pins the
-  emitter's clean members; the residual seams are waived by family in
-  `NATIVE_SEAL_WAIVER_FAMILIES`, each naming what clears it, and
-  `test_sealed_demotion_audit.jac` holds the whole seal to that,
-  refused modules included: withholding a module from the fused root
-  does not withhold the accounting (`NATIVE_SEAL_REFUSED_MODULES`).
+  fused `libjac_compiler` library carrying the served surface only
+  (seal-what-you-serve): the emitter is unserved -- it sits behind the
+  prefix frontier, and `JcirGenPass`'s generic-specialized base does
+  not lower when imported across a unit boundary anyway -- so it stays
+  Python-tier until the prefix reaches codegen and that gap closes.
+  The artifact passes a load canary and a container crossing canary
+  before it is accepted; the seal's own demotion gate
+  (`NATIVE_SEAL_DEMOTION_WAIVERS` in `dist/precompile_bytecode.jac`)
+  refuses any un-waived seam at build time, and the executed parity
+  canaries are the proof no served path reaches a waived stub.
 
   The sealed-versus-source byte comparison C2 could not run still
   cannot. This paragraph once said the pass-serving binder is the

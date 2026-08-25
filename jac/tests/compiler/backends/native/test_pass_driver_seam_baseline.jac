@@ -9,7 +9,7 @@ seam is reachable on ANY input that contains an import, so
 it is unwaivable -- a sealed pass would abort on the first real module.
 
 This coverage compiles each pass unit natively, the same measurement
-`test_unitree_seal_baseline.jac` takes for unitree, and pins the unit's own seam
+the retired unitree closure census took for unitree, and pins the unit's own seam
 inventory. The driver hands each pass its inputs as data instead of letting the
 pass fetch them: the resolved module of an absorb import arrives on
 `Import.absorbed_mod` (stamped by `JacCompiler.resolve_absorb_imports`). The

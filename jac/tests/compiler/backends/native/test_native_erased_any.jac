@@ -20,7 +20,7 @@ keep refusing `Any`, now for a reason that cannot change back.
 accident is lane-scoped now: B4 (#8323) answered what it priced for the
 compiler's own roots -- `test_codeinfo_baseline.jac` carries the 19-member
 closure, the 21 arriving seams are waived by name in
-`NATIVE_SEAL_DEMOTION_WAIVERS`, and `test_unitree_seal_baseline.jac` pins the
+`NATIVE_SEAL_DEMOTION_WAIVERS`, whose seal-time gate pins the
 sealed root that absorbs them -- so `PLACEMENT_HOLD_EXEMPT_ROOTS` exempts
 `jac0core/` and `compiler/` from the hold, while user-facing inference keeps
 it (admitting codeinfo there flipped byllm/scale module codespaces). The
@@ -50,7 +50,7 @@ single named hold that replaced it is spent too, and its prediction held
 exactly: with the entry empty, four of `capability_check_pass`'s five seams
 cleared -- three because it reads `codeinfo`'s tables in-unit, and
 `ClientCapabilityCheckPass.transform` because `module_codegen_pass` joined
-alongside. `test_pass_seal_wave6_baseline.jac` carries the measurement.
+alongside. The wave-6 census carried the measurement (retired; in git).
 
 The last test keeps the half of the old reasoning that outlived the rest.
 `ModuleCodegenPass.is_erased_type_decl` reads the *marker* set

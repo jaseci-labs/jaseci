@@ -7,7 +7,7 @@ enough to refuse the module at placement, and no consumer could link it.
 
 `KIND` is declared and not read: a class-level slot is not part of the
 instance layout the backend emits against, so reading one off the class is a
-separate gap (waived in `test_type_system_seal_baseline` as
+separate gap (historically waived in the type-system censuses as
 `TypeBase.category.__get__`). What is measured here is that declaring one no
 longer costs the module its place in a native unit. The explicit import
 later escalated to E1125 (the name is ambient), so the spelling here is
