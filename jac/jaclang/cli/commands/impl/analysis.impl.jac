@@ -111,7 +111,9 @@ impl check(
                     _replay_diags
                 }
                 import from jaclang.compiler.frontend.parser.lexer { Lexer }
-                import from jaclang.compiler.frontend.parser.parser { Parser as _SyntaxParser }
+                import from jaclang.compiler.frontend.parser.parser {
+                    Parser as _SyntaxParser
+                }
                 import from jaclang.compiler.frontend.unitree { Source as _Src }
                 import from jaclang.compiler.frontend.helpers {
                     read_file_with_encoding as _read_src
@@ -136,7 +138,9 @@ impl check(
             }
 
             if placements {
-                import from jaclang.compiler.placement.placement { collect_placement_rows }
+                import from jaclang.compiler.placement.placement {
+                    collect_placement_rows
+                }
                 placement_report.update(collect_placement_rows(prog));
             }
             for m in prog.mod.hub.values() {
@@ -1226,6 +1230,8 @@ impl `test(
     maxfail: int = None,
     directory: str = "",
     collect_only: bool = False,
+    pct_range: str = "",
+    resume: bool = False,
     verbose: bool = False,
     ignore: (list | None) = None
 ) -> int {
@@ -1285,6 +1291,8 @@ impl `test(
             xit=xit,
             maxfail=maxfail,
             collect_only=collect_only,
+            pct_range=pct_range,
+            resume=resume,
             verbose=verbose,
             ignore=[
                 p
@@ -1317,7 +1325,11 @@ impl grammar(output: str = "", strict: bool = False) -> int {
     import from jaclang.compiler.tools.grammar_extract_pass { GrammarExtractPass }
     import jaclang;
     parser_path = str(
-        Path(jaclang.__file__).parent / "compiler" / "frontend" / "parser" / "parser.jac"
+        Path(jaclang.__file__).parent
+            / "compiler"
+            / "frontend"
+            / "parser"
+            / "parser.jac"
     );
     prog = JacProgram();
     mod = prog.compile(parser_path, no_cgen=True);

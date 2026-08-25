@@ -1820,7 +1820,9 @@ def _command_routes -> list[CommandMeta] {
                     'jac test --xit --verbose',
                     'Stop on first failure with verbose output'
                 ),
-                ('jac test --collect_only', 'List test files without running them')
+                ('jac test --collect_only', 'List test files without running them'),
+                ('jac test --range 15-20', 'Run only that percent slice of the plan'),
+                ('jac test -x --resume', 'Fix-and-continue from the last failure')
             ],
             args=[
                 ArgMeta(
@@ -1861,6 +1863,20 @@ def _command_routes -> list[CommandMeta] {
                     `default=False,
                     help='List collected test files without running them',
                     short='c'
+                ),
+                ArgMeta(
+                    name='range',
+                    `default='',
+                    help='Run only this percent slice of the plan (N-M, N-, or -M)',
+                    short='',
+                    dest='pct_range'
+                ),
+                ArgMeta(
+                    name='resume',
+                    typ='bool',
+                    `default=False,
+                    help='Restart the plan from the file that failed last run',
+                    short='r'
                 ),
                 ArgMeta(
                     name='verbose',

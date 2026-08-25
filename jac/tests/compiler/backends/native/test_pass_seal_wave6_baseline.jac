@@ -89,27 +89,27 @@ crossing the old pin's help text predicted -- and it collected the
 predicted payout below.
 """
 glob CAPABILITY_CLOSURE: tuple = (
-         "compiler/passes/capability_check_pass.jac",
-         "compiler/type_registry.jac",
-         "compiler/types/type_utils.jac",
-         "compiler/types/types.jac",
+         "compiler/backends/py/module_codegen_pass.jac",
          "compiler/frontend/codeinfo.jac",
          "compiler/frontend/constant.jac",
          "compiler/frontend/diagnostic_utils.jac",
          "compiler/frontend/diagnostics.jac",
          "compiler/frontend/helpers.jac",
-         "compiler/backends/py/module_codegen_pass.jac",
-         "compiler/passes/transform.jac",
-         "compiler/passes/uni_pass.jac",
-         "runtime/scalars.jac",
          "compiler/frontend/srcloc.jac",
          "compiler/frontend/unitree.jac",
+         "compiler/passes/capability_check_pass.jac",
+         "compiler/passes/transform.jac",
+         "compiler/passes/uni_pass.jac",
+         "compiler/type_registry.jac",
+         "compiler/types/type_utils.jac",
+         "compiler/types/types.jac",
          "runtime/na_stdlib/_hashlib_native.jac",
          "runtime/na_stdlib/contextvars.jac",
          "runtime/na_stdlib/fnmatch.jac",
          "runtime/na_stdlib/hashlib.jac",
          "runtime/na_stdlib/logging.jac",
-         "runtime/na_stdlib/pathlib.jac"
+         "runtime/na_stdlib/pathlib.jac",
+         "runtime/scalars.jac"
      );
 
 """capability's own seams, each mapped to the mechanism that clears it.

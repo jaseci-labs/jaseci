@@ -210,7 +210,7 @@ impl precompile_env(pbs_py_dir: str, site: str) -> dict[str, str] {
 }
 
 impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool) {
-    pc = os.path.join(site, "jaclang", "utils", "precompile_bytecode.jac");
+    pc = os.path.join(site, "jaclang", "dist", "precompile_bytecode.jac");
     if not file_exists(pc) {
         return;
     }
@@ -302,7 +302,7 @@ impl stage_tree(
             "jaclang",
             "compiler",
             "backends",
-         "native",
+            "native",
             "llvm",
             shim_file_name()
         )

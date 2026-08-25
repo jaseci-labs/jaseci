@@ -37,6 +37,11 @@ def _find_bundled_bun -> str | None {
         if os.path.isfile(alt) {
             return alt;
         }
+
+        legacy = os.path.join(p, "jaclang", "runtimelib", "client", "_bun", bun_name);
+        if os.path.isfile(legacy) {
+            return legacy;
+        }
     }
     return None;
 }

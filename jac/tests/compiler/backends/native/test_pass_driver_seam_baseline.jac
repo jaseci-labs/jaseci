@@ -41,14 +41,14 @@ failed for function 'rd_parse'"), so the quoted markers cannot collide with the
 file paths the diagnostics embed.
 """
 glob DRIVER_SEAM_MARKERS: tuple = (
-         "'prog'",
-         "'resolve_relative_path'",
          "'compile'",
-         "'load_dependency_module'",
          "'discover_annex_files'",
          "'discover_base_file'",
+         "'load_dependency_module'",
+         "'prog'",
          "'rd_parse'",
-         "'read_file_with_encoding'"
+         "'read_file_with_encoding'",
+         "'resolve_relative_path'"
      );
 
 """Backend gaps that keep a sym_tab_build method demoted, keyed as the coverage

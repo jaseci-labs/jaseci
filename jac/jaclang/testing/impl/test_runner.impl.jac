@@ -1317,6 +1317,74 @@ impl _run_serial(
     }
 }
 
+impl _parse_pct_range(expr: str) -> tuple[(int, int)] {
+    parts = expr.split("-");
+    bad = ValueError(f"bad --range '{expr}': expected N-M, N-, or -M (percents)");
+    if len(parts) != 2 {
+        raise bad;
+    }
+    try {
+        lo = int(parts[0]) if parts[0] else 0;
+        hi = int(parts[1]) if parts[1] else 100;
+    } except ValueError {
+        raise bad;
+    }
+    if not (0 <= lo <= hi <= 100) {
+        raise bad;
+    }
+    return (lo, hi);
+}
+
+impl _state_path -> str {
+    return os.path.join(os.getcwd(), ".jac", "test_state.json");
+}
+
+impl _load_last_failed -> str {
+    import json;
+    try {
+        with open(_state_path(), "r", encoding="utf-8") as f {
+            payload = json.load(f);
+        }
+        return str(payload.get("first_failed", ""));
+    } except Exception {
+        return "";
+    }
+}
+
+impl _store_run_state(plan: TestPlan, reporter: Reporter) -> None {
+    import json;
+    path = _state_path();
+    if not reporter.failure_count() {
+        try {
+            os.remove(path);
+        } except OSError {
+            ;
+        }
+        return;
+    }
+    order = {p: i for (i, p) in enumerate(plan.files)};
+    first = "";
+    best = len(plan.files) + 1;
+    for outcome in reporter.failures {
+        idx = order.get(outcome.file, len(plan.files));
+        if idx < best {
+            best = idx;
+            first = outcome.file;
+        }
+    }
+    if not first {
+        return;
+    }
+    try {
+        os.makedirs(os.path.dirname(path), exist_ok=True);
+        with open(path, "w", encoding="utf-8") as f {
+            json.dump({"first_failed": first}, f);
+        }
+    } except Exception {
+        ;
+    }
+}
+
 impl run_tests(
     paths: (list[str] | None) = None,
     directory: str = "",
@@ -1325,13 +1393,38 @@ impl run_tests(
     xit: bool = False,
     maxfail: (int | None) = None,
     collect_only: bool = False,
+    pct_range: str = "",
+    resume: bool = False,
     verbose: bool = False,
     ignore: (list[str] | None) = None,
     jobs: (str | int | None) = None
 ) -> int {
     import sys;
     import time;
+    if pct_range and resume {
+        raise ValueError("--range and --resume cannot be combined");
+    }
     plan = discover(paths, directory, ignore);
+    if resume {
+        last = _load_last_failed();
+        if not last {
+            sys.stdout.write(
+                "nothing to resume (no failure recorded); running the full plan\n"
+            );
+        } elif last not in plan.files {
+            sys.stdout.write(
+                "recorded failure is not in the current plan; "
+                "running the full plan\n"
+            );
+        } else {
+            plan.files = plan.files[plan.files.index(last):];
+        }
+    }
+    if pct_range {
+        (lo, hi) = _parse_pct_range(pct_range);
+        n = len(plan.files);
+        plan.files = plan.files[(lo * n) // 100:-((-hi * n) // 100)];
+    }
     reporter = Reporter(verbose=verbose, total_files=len(plan.files));
     if plan.is_empty() {
         sys.stdout.write("no tests ran (no test files collected)\n");
@@ -1366,6 +1459,7 @@ impl run_tests(
         pool.run();
     }
     failures = reporter.summarize(time.perf_counter() - started);
+    _store_run_state(plan, reporter);
     if reporter.total_count() == 0 {
         return EXIT_NO_TESTS;
     }

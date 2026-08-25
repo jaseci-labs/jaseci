@@ -74,11 +74,11 @@ A seam on any of these is reachable on every diagnostic of every pass, so it
 can never be waived.
 """
 glob EMISSION_PATH: tuple = (
-         "Transform.emit",
-         "Transform._is_suppressed",
-         "DiagnosticPolicy.is_suppressed",
+         "Alert.postinit",
          "DiagnosticPolicy._inline_suppressed",
-         "Alert.postinit"
+         "DiagnosticPolicy.is_suppressed",
+         "Transform._is_suppressed",
+         "Transform.emit"
      );
 
 """Waived per-callable seams: pinned empty -- every entry cleared by a mechanism.
@@ -198,12 +198,12 @@ test "no native error touches the emission path" {
         if any(
             marker in e
             for marker in (
-                "'emit'",
-                "'_is_suppressed'",
-                "'is_suppressed'",
                 "'_inline_suppressed'",
-                "'prog.errors_had'",
-                "'errors_had'"
+                "'_is_suppressed'",
+                "'emit'",
+                "'errors_had'",
+                "'is_suppressed'",
+                "'prog.errors_had'"
             )
         )
     ];

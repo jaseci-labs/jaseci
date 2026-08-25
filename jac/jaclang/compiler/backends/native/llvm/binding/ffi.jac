@@ -33,9 +33,20 @@ def _find_shim -> str {
         if not p {
             continue;
         }
-        alt = os.path.join(p, 'jaclang', 'compiler', 'backends', 'native', 'llvm', shim);
+        alt = os.path.join(
+            p, 'jaclang', 'compiler', 'backends', 'native', 'llvm', shim
+        );
         if os.path.isfile(alt) {
             return alt;
+        }
+        # Pre-reorg site layout: a host binary built before #8681 bundles
+        # the shim under compiler/passes/native/, and the dev-source
+        # reroute must still find it there.
+        legacy = os.path.join(
+            p, 'jaclang', 'compiler', 'passes', 'native', 'llvm', shim
+        );
+        if os.path.isfile(legacy) {
+            return legacy;
         }
     }
     raise OSError(
@@ -53,7 +64,6 @@ class _MissingShimFunc {
     shim those assignments land here and vanish, so the modules stay
     importable (the checker resolving an import must not demand LLVM).
     Only an actual call raises, with the original locate error."""
-
     def init(self: _MissingShimFunc, err: OSError) {
         self._err: OSError = err;
     }

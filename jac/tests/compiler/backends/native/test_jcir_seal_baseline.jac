@@ -90,38 +90,38 @@ called from the emitter's entry surface, which is what
 `test_sealed_seam_reachability.jac` proves; they are linked, not reached.
 """
 glob JCIR_CLOSURE: tuple = (
-         "compiler/type_registry.jac",
-         "compiler/types/type_utils.jac",
-         "compiler/types/types.jac",
          "compiler/backends/py/codegen_ir.jac",
+         "compiler/backends/py/jcir_facts.jac",
+         "compiler/backends/py/jcir_gen_pass.jac",
+         "compiler/backends/py/module_codegen_pass.jac",
          "compiler/frontend/codeinfo.jac",
          "compiler/frontend/constant.jac",
          "compiler/frontend/diagnostic_utils.jac",
          "compiler/frontend/diagnostics.jac",
          "compiler/frontend/helpers.jac",
-         "compiler/backends/py/jcir_facts.jac",
-         "compiler/backends/py/jcir_gen_pass.jac",
-         "compiler/backends/py/module_codegen_pass.jac",
-         "compiler/passes/transform.jac",
-         "compiler/passes/uni_pass.jac",
-         "runtime/scalars.jac",
          "compiler/frontend/srcloc.jac",
          "compiler/frontend/unitree.jac",
+         "compiler/passes/transform.jac",
+         "compiler/passes/uni_pass.jac",
+         "compiler/type_registry.jac",
+         "compiler/types/type_utils.jac",
+         "compiler/types/types.jac",
          "runtime/na_stdlib/_hashlib_native.jac",
          "runtime/na_stdlib/contextvars.jac",
          "runtime/na_stdlib/fnmatch.jac",
          "runtime/na_stdlib/hashlib.jac",
          "runtime/na_stdlib/logging.jac",
          "runtime/na_stdlib/pathlib.jac",
-         "runtime/na_stdlib/textwrap.jac"
+         "runtime/na_stdlib/textwrap.jac",
+         "runtime/scalars.jac"
      );
 
 """Closure members that must carry no seam of their own."""
 glob JCIR_CLEAN_MEMBERS: tuple = (
          "compiler/backends/py/codegen_ir.jac",
+         "compiler/backends/py/jcir_facts.jac",
          "compiler/frontend/constant.jac",
          "compiler/frontend/diagnostics.jac",
-         "compiler/backends/py/jcir_facts.jac",
          "compiler/frontend/srcloc.jac",
          "runtime/na_stdlib/textwrap.jac"
      );

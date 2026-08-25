@@ -484,7 +484,7 @@ def _precompile_app(
         jac_path.write_bytes(seal_binary);
         jac_path.chmod(0o755);
         script = Path(str(__file__)).parent.parent.parent
-            / "utils"
+            / "dist"
             / "precompile_bytecode.jac";
 
         result = subprocess.run(

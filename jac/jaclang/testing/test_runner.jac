@@ -147,10 +147,20 @@ def run_tests(
     xit: bool = False,
     maxfail: (int | None) = None,
     collect_only: bool = False,
+    pct_range: str = "",
+    resume: bool = False,
     verbose: bool = False,
     ignore: (list[str] | None) = None,
     jobs: (str | int | None) = None
 ) -> int;
+
+def _parse_pct_range(expr: str) -> tuple[(int, int)];
+
+def _state_path -> str;
+
+def _load_last_failed -> str;
+
+def _store_run_state(plan: TestPlan, reporter: Reporter) -> None;
 
 def default_jobs -> int;
 
