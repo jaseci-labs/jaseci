@@ -29,12 +29,8 @@ run only when JAC_CLIENT_INTEGRATION is set (and are covered by jac-client's own
 suite); core CI skips them.
 """
 def _require_client_integration {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            "client render requires the Vite/Bun toolchain; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 def fixture_abs_path(filename: str) -> str {
@@ -1217,7 +1213,7 @@ test "serve render client page returns html" {
         response = client.get("/cl/client_page");
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         assert "/static/client.js?hash=" in html;
         # Check __jac_init__ script contains expected data
         init_match = re.search(
@@ -1226,7 +1222,12 @@ test "serve render client page returns html" {
         assert init_match is not None;
         payload = json.loads(init_match.group(1)) if init_match else {};
         assert payload.get("function") == "client_page";
-        assert payload.get("globals", {}).get("API_LABEL") == "Runtime Test";
+        # Client globals ride the compiled bundle now, not the hydration
+        # payload; the value must reach the browser through the JS artifact.
+        hash_match = re.search(r'/static/client\.js\?hash=([a-f0-9]+)', html);
+        assert hash_match is not None;
+        bundle_js = client.get(f"/static/client.js?hash={hash_match.group(1)}").text;
+        assert "Runtime Test" in bundle_js;
         client.close();
     }
 }
@@ -1252,7 +1253,7 @@ test "serve client page html and bundle" {
         html = response.text;
         # HTML skeleton
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         assert "/static/client.js?hash=" in html;
         # Hydration payload targets the right function
         init_match = re.search(
@@ -1619,7 +1620,7 @@ test "serve spa catchall serves html for clean urls" {
         assert response.status_code == 200;
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         assert "/static/client.js?hash=" in html;
         spa.close();
     }
@@ -1633,7 +1634,7 @@ test "serve spa catchall root serves html" {
         assert response.ok;
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         spa.close();
     }
 }
@@ -1673,7 +1674,7 @@ test "serve spa catchall cl route still works" {
         assert response.ok;
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         spa.close();
     }
 }
@@ -2447,7 +2448,7 @@ test "serve spa fallback 404s unknown paths but still serves the app html" {
         assert response.status_code == 404 , f"expected 404, got {response.status_code}";
         html = response.text;
         assert "<!DOCTYPE html>" in html , "404 should still serve the app shell";
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         spa.server.introspector._spa_route_patterns = ["/about"];
         response = spa.get("/");
         assert response.status_code == 404 , f"index-less root: expected 404, got {response.status_code}";

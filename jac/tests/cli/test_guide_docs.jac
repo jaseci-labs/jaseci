@@ -245,6 +245,57 @@ test "guide --search JSON emits grep hits" {
 }
 
 
+test "guide CLI listing, body, search lines, and unknown-topic exit" {
+    buf = io.StringIO();
+    with redirect_stdout(buf) {
+        rc = guide();
+    }
+    listing = buf.getvalue();
+    assert rc == 0;
+    assert "Jac reference guides" in listing , "guide listing header missing";
+    assert "jac-types" in listing;
+    assert "jac-core-cheatsheet" in listing;
+
+    buf = io.StringIO();
+    with redirect_stdout(buf) {
+        rc = guide(topic="jac-types");
+    }
+    body = buf.getvalue();
+    assert rc == 0;
+    assert len(body) > 200 , f"jac-types body is too short ({len(body)} chars)";
+    assert not body.lstrip().startswith("---") , "jac-types leaked raw frontmatter";
+
+    buf = io.StringIO();
+    with redirect_stdout(buf) {
+        rc = guide(topic="reference/diagnostics");
+    }
+    assert rc == 0;
+    assert len(buf.getvalue()) > 500 , "reference/diagnostics body is too short";
+
+    buf = io.StringIO();
+    with redirect_stdout(buf) {
+        rc = guide(topic="community");
+    }
+    assert rc == 0;
+    assert "community/breaking-changes" in buf.getvalue();
+
+    import re;
+    buf = io.StringIO();
+    with redirect_stdout(buf) {
+        rc = guide(search="walker");
+    }
+    assert rc == 0;
+    hit = re.compile(r"^[A-Za-z0-9_/.-]+:[0-9]+: ");
+    assert any(hit.`match(line) for line in buf.getvalue().splitlines()) , "guide --search produced no grep-style hits";
+
+    buf = io.StringIO();
+    with redirect_stdout(buf) {
+        rc = guide(topic="does-not-exist");
+    }
+    assert rc != 0 , "guide on an unknown topic must exit non-zero";
+}
+
+
 test "mcp resources index the docs corpus" {
     import from jaclang.cli.mcp.resources { ResourceProvider }
     provider = ResourceProvider();

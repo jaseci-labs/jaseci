@@ -71,6 +71,9 @@ obj BuildConfig {
 
 obj TestConfig {
     has directory: str = "",
+        directories: list[str] = [],
+        isolate: list[str] = [],
+        serial: list[str] = [],
         filter: str = "",
         verbose: bool = False,
         fail_fast: bool = False,
