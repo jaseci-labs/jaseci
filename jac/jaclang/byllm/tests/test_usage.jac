@@ -156,9 +156,8 @@ def _assert_tokens_via_callback(
 # =============================================================================
 # Cost computation
 # =============================================================================
-# Uses litellm's real `completion_cost`, not a stub: `_attach_call_cost`
-# swallows exceptions, so a mocked one would stay green while reporting
-# nothing. The pricing table is local, so this needs no network or key.
+# Uses litellm's real `completion_cost`, not a stub - a mocked one would stay
+# green even if `_attach_call_cost` silently computed nothing.
 
 def _usage_from(path: str, response: dict | None = None) -> any {
     resp = response if response is not None else _response();
@@ -306,20 +305,21 @@ test "byllm opts in to litellm's native include_cost_in_streaming_usage, configu
             "computation"
         );
     }
-
-    import from jaclang.byllm.config_loader { JacByllmConfig }
-    defaults = JacByllmConfig().get_default_config();
-    assert defaults["litellm"]["include_cost_in_streaming_usage"] == True , (
-        "include_cost_in_streaming_usage should default to True"
-    );
 }
 
 
-test "dispatch_streaming_with_tools passes the stream's own logging_obj to stream_chunk_builder" {
+test "include_cost_in_streaming_usage defaults to True" {
+    import from jaclang.byllm.config_loader { JacByllmConfig }
+    defaults = JacByllmConfig().get_default_config();
+    assert defaults["litellm"]["include_cost_in_streaming_usage"] == True;
+}
+
+
+test "dispatch_streaming_with_tools forwards the stream's logging_obj and attributes usage to the served model" {
     # litellm only computes a native cost when stream_chunk_builder receives
     # a logging_obj - byLLM's rebuild call must forward the one on the
     # CustomStreamWrapper, or every tools-loop call loses the native path.
-    llm = Model(model_name=MODEL);
+    llm = Model(model_name="requested-model");
     mt = _mt(stream=True);
 
     fake_logging_obj = object();
@@ -331,7 +331,7 @@ test "dispatch_streaming_with_tools passes the stream's own logging_obj to strea
     seen_logging_obj: list = [];
     def _rebuild(seen: list, logging_obj: object = None) -> dict {
         seen_logging_obj.append(logging_obj);
-        return _response();
+        return _response(model="actual-served-model");
     }
 
     out: list = [];
@@ -346,6 +346,10 @@ test "dispatch_streaming_with_tools passes the stream's own logging_obj to strea
     assert seen_logging_obj == [fake_logging_obj] , (
         f"stream_chunk_builder should receive the stream's own logging_obj, "
         f"got {seen_logging_obj}"
+    );
+    assert mt._usage_history[-1]["model"] == "actual-served-model" , (
+        "usage must be attributed to the model stream_chunk_builder reports, "
+        "not the one requested on the client"
     );
 }
 
@@ -382,35 +386,34 @@ test "_rebuild_stream_chunks only forwards logging_obj when the cached support f
 }
 
 
-test "_stream_chunk_builder_accepts_logging_obj degrades to False and logs when introspection fails" {
-    # No logging_obj support is a normal, silent False; inspect.signature
-    # itself raising is the unexpected case that must leave a trace.
-    with unittest.mock.patch("inspect.signature", side_effect=ValueError("boom")), unittest.mock.patch.object(
-        _byllm_llm_mod.logger, "debug"
-    ) as mock_debug {
-        result = _byllm_llm_mod._stream_chunk_builder_accepts_logging_obj();
-        assert not result , (
-            "an uninspectable stream_chunk_builder must degrade to False, not raise"
-        );
-        assert mock_debug.call_count >= 1 , (
-            "a signature-inspection failure must be logged, not silently swallowed"
-        );
-    }
-}
-
-
-test "_stream_chunk_builder_accepts_logging_obj survives litellm not being installed" {
-    # _optdeps/litellm.jac's fallback stub has no stream_chunk_builder
-    # attribute at all - the attribute access itself must stay inside the
-    # try, not just the signature inspection.
-    with unittest.mock.patch.object(
-        _byllm_llm_mod, "litellm", types.SimpleNamespace()
-    ) {
-        result = _byllm_llm_mod._stream_chunk_builder_accepts_logging_obj();
-        assert not result , (
-            "a missing stream_chunk_builder attribute must degrade to False, "
-            "not raise AttributeError"
-        );
+test "_stream_chunk_builder_accepts_logging_obj degrades to False and logs on any introspection failure" {
+    # Two distinct raise sites share one except: litellm not being installed
+    # (no stream_chunk_builder attribute at all) and a signature that itself
+    # refuses to be introspected.
+    cases = [
+        (
+            "litellm not installed",
+            lambda { return unittest.mock.patch.object(
+                _byllm_llm_mod, "litellm", types.SimpleNamespace()
+            ); }
+        ),
+        (
+            "signature introspection fails",
+            lambda { return unittest.mock.patch(
+                "inspect.signature", side_effect=ValueError("boom")
+            ); }
+        )
+    ];
+    for (label, make_patch) in cases {
+        with make_patch(), unittest.mock.patch.object(
+            _byllm_llm_mod.logger, "debug"
+        ) as mock_debug {
+            result = _byllm_llm_mod._stream_chunk_builder_accepts_logging_obj();
+            assert not result , f"{label}: must degrade to False, not raise";
+            assert mock_debug.call_count >= 1 , (
+                f"{label}: the failure must be logged, not silently swallowed"
+            );
+        }
     }
 }
 
@@ -487,38 +490,11 @@ test "streaming records attribute the actual serving model and carry finish_reas
 }
 
 
-test "dispatch_streaming_with_tools attributes usage to the model stream_chunk_builder reports" {
-    llm = Model(model_name="requested-model");
-    mt = _mt(stream=True, tools=[Tool.make_finish_tool(str)]);
-
-    fake_chunk = types.SimpleNamespace(
-        usage=None,
-        choices=[types.SimpleNamespace(delta=types.SimpleNamespace(content="hi"))]
-    );
-    stream_resp = _FakeStreamResp(chunks=[fake_chunk], logging_obj=object());
-    out: list = [];
-
-    def _rebuild_as(seen: list, logging_obj: object = None) -> dict {
-        return _response(model="actual-served-model");
-    }
-    with unittest.mock.patch.object(
-        llm, "model_call_with_stream", lambda (params: dict) { return stream_resp; }
-    ), unittest.mock.patch.object(
-        _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild_as
-    ) {
-        list(llm.dispatch_streaming_with_tools(mt, out));
-    }
-
-    assert mt._usage_history[-1]["model"] == "actual-served-model";
-}
-
-
 # =============================================================================
 # Usage capture and call_kind tagging
 # =============================================================================
-# Usage lives on the per-call mt_run, not the shared model instance (which
-# is routinely reused across concurrent invocations). Calls byLLM's own
-# machinery makes on the caller's behalf get a call_kind distinct from
+# Usage lives on the per-call mt_run, not the shared (and reused) model
+# instance. byLLM's own follow-up calls get a call_kind distinct from
 # ordinary react_iteration calls.
 
 test "usage is recorded on mt_run, isolated per invocation, sync and async alike" {
@@ -723,7 +699,6 @@ test "byLLM's own follow-up calls get a call_kind distinct from react_iteration"
             f"{expected_kind}: expected exactly one recorded call"
         );
         assert mt_run._usage_history[0]["call_kind"] == expected_kind;
-        # The temporary override must not leak onto later calls on the mt_run.
         assert mt_run._call_kind == "react_iteration" , (
             f"{expected_kind}: call_kind override must reset after the call"
         );
