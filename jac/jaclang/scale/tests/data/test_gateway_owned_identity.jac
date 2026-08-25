@@ -10,7 +10,7 @@ real embedded Postgres.
 import os;
 import uuid;
 import from datetime { UTC, datetime, timedelta }
-import from jaclang.runtimelib.serving.authcrypt { jwt_encode }
+import from jaclang.server.serving.authcrypt { jwt_encode }
 import from jaclang.scale.config.config_loader { normalize_microservices_config }
 import from jaclang.scale.identity.user_manager {
     JWT_ALGORITHM,

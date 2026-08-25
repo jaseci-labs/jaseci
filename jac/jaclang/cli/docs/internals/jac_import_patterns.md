@@ -146,18 +146,18 @@ import_item: (KW_DEFAULT | STAR_MUL | named_ref) (KW_AS NAME)?
 
 ### Validation
 
-- `jac0core/passes/jcir_gen_pass.jac`:
+- `compiler/backends/py/jcir_gen_pass.jac`:
   - Logs error if `default` or `*` used without `cl`
   - Logs error if string literal imports used without `cl` (Python doesn't support string literal module names)
-- `jac0core/passes/sym_tab_build_pass.jac`: Only alias added to symbol table for default/namespace; skips symbol creation for String paths
-- `compiler/passes/ecmascript/esast_gen_pass.jac`: Generates appropriate `ImportSpecifier`, `ImportDefaultSpecifier`, or `ImportNamespaceSpecifier`
-- `jac0core/parser/parser.jac`: Handles both `dotted_name` (list of Names) and `STRING` in import paths
-- `jac0core/unitree.jac`: `ModulePath.dot_path_str` extracts string value from String literals
+- `compiler/passes/sym_tab_build_pass.jac`: Only alias added to symbol table for default/namespace; skips symbol creation for String paths
+- `compiler/backends/es/esast_gen_pass.jac`: Generates appropriate `ImportSpecifier`, `ImportDefaultSpecifier`, or `ImportNamespaceSpecifier`
+- `compiler/frontend/parser/parser.jac`: Handles both `dotted_name` (list of Names) and `STRING` in import paths
+- `compiler/frontend/unitree.jac`: `ModulePath.dot_path_str` extracts string value from String literals
 
 ## Testing
 
 The client lowerings are tested and verified in
-`tests/compiler/passes/ecmascript/test_js_generation.jac`:
+`tests/compiler/backends/es/test_js_generation.jac`:
 
 - "category1 named imports generate correct js"
 - "category2 default imports generate correct js"
