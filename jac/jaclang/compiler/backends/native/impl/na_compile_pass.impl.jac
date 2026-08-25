@@ -29,8 +29,8 @@ impl native_compiler_fingerprint(options: any) -> str {
     for _cp in [
         _cfp_os.path.join(_nat_dir, "impl", "*.jac"),
         _cfp_os.path.join(_nat_dir, "na_ir_gen", "*.jac"),
-        _cfp_os.path.join(_jl_dir, "compiler", "type_system", "*.jac"),
-        _cfp_os.path.join(_jl_dir, "compiler", "type_system", "*", "*.jac"),
+        _cfp_os.path.join(_jl_dir, "compiler", "types", "*.jac"),
+        _cfp_os.path.join(_jl_dir, "compiler", "types", "*", "*.jac"),
         _cfp_os.path.join(_jl_dir, "compiler", "type_registry.jac"),
         _cfp_os.path.join(_jl_dir, "runtime", "scalars.jac")
     ] {

@@ -20,7 +20,7 @@ glob _PKG_DIR: Path = Path(str(jaclang.__file__)).parent;
 
 test "_ABI64_ADAPTED matches the adapters defined in jac_abi64.c" {
     c_src = (
-        _PKG_DIR / "compiler" / "passes" / "native" / "wasm_rt" / "jac_abi64.c"
+        _PKG_DIR / "compiler" / "backends" / "native" / "wasm_rt" / "jac_abi64.c"
     ).read_text(
         encoding="utf-8"
     );

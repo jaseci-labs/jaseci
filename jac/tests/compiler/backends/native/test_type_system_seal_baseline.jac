@@ -66,7 +66,7 @@ import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
      TS_PATH = PKG_PATH / "compiler" / "types",
-     CHECKER_SRC = PKG_PATH / "compiler" / "passes" / "main" / "type_checker_pass.jac";
+     CHECKER_SRC = PKG_PATH / "compiler" / "passes" / "type_checker_pass.jac";
 
 """Every module the native compile of `types.jac` puts in its closure.
 

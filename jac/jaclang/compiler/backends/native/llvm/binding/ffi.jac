@@ -33,7 +33,7 @@ def _find_shim -> str {
         if not p {
             continue;
         }
-        alt = os.path.join(p, 'jaclang', 'compiler', 'passes', 'native', 'llvm', shim);
+        alt = os.path.join(p, 'jaclang', 'compiler', 'backends', 'native', 'llvm', shim);
         if os.path.isfile(alt) {
             return alt;
         }

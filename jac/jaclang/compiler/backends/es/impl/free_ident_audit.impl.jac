@@ -179,8 +179,9 @@ impl client_ambient_globals -> set[str] {
     names: set[str] = set(_JS_LANGUAGE_GLOBALS);
     names.update(BROWSER_SEED_GLOBALS);
 
+    import jaclang;
     stub_dir = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "..", "type_system"
+        os.path.dirname(str(jaclang.__file__)), "compiler", "types"
     );
     for stub in ("js_globals.pyi", "dom_types.pyi") {
         names.update(_stub_names(os.path.join(stub_dir, stub)));

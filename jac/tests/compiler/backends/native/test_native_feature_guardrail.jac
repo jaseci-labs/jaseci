@@ -454,7 +454,7 @@ test "checker: membership over an operand with no static type is refused (E1124)
 # The distinction was not free to learn. An earlier cut of this check also
 # refused unparameterized containers, and the seal caught it: NON_ESCAPED_KEYWORDS
 # in compiler/frontend/constant.jac and _proto_checks_in_progress in
-# type_system/impl/type_utils.impl.jac are both bare `set`, so the compiler
+# types/impl/type_utils.impl.jac are both bare `set`, so the compiler
 # refused to compile itself.
 test "checker: a bare container operand is left to the annotation refusal" {
     prog = check_na_inline(

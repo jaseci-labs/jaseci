@@ -7,7 +7,7 @@ flavor off it, while the empty *constructor* had only whatever inference had
 put on the call node. In a ternary arm inference has nothing to put there --
 nothing on that side of the branch mentions an element -- so the arm lowered
 to nothing and the whole `IfElseExpr` was refused. That single shape accounts
-for five of the six lowering failures in `type_system/ts_decl_parser.jac`.
+for five of the six lowering failures in `types/ts_decl_parser.jac`.
 
 The missing constraint is the sibling arm, and it is asked for in two ways
 because one of them is not always available. Inference answers when the

@@ -4,7 +4,7 @@
 solver treats as an all-or-nothing verdict on the whole module: one such line
 demotes the file and, through `_native_deps_ok`, every module whose import
 closure reaches it. Two of the compiler's most widely-reached modules carry
-exactly that line -- `type_system/types.jac` and `compiler/passes/transform.jac`,
+exactly that line -- `types/types.jac` and `compiler/passes/transform.jac`,
 the base every pass inherits -- so the reach was most of the pass tree.
 
 Nothing about `ABC` needs to survive to run time. Jac models abstractness with

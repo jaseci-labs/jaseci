@@ -138,7 +138,7 @@ def get_object(filename: str, id: str, main: bool = True) -> dict[(str, any)] {
 
 # The native pass fixtures directory: the default corpus for `compile_native`.
 glob NATIVE_FIXTURES: str = str(
-         Path(__file__).resolve().parent / "compiler" / "passes" / "native" / "fixtures"
+         Path(__file__).resolve().parent / "compiler" / "backends" / "native" / "fixtures"
      );
 
 """Compile a .jac fixture into the native codespace and return (engine, module).

@@ -132,7 +132,7 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             " build can compile + statically link the LLVMPY_* shim."
         );
     }
-    dst_dir = os.path.join(site, "jaclang", "compiler", "passes", "native", "llvm");
+    dst_dir = os.path.join(site, "jaclang", "compiler", "backends", "native", "llvm");
     make_dirs(dst_dir);
     log(f"==> bundling Zig-built LLVMPY_* shim ({so})");
     copy_file(so, os.path.join(dst_dir, os.path.basename(so)));

@@ -1,6 +1,6 @@
 """Per-name identity audit: ambient typing names vs their explicit imports.
 
-The ambient set (type_system/typing_ambient.pyi) merges 17 names into the
+The ambient set (types/typing_ambient.pyi) merges 17 names into the
 builtins scope so user code can write `Callable[[int], str]` without an
 import. W1103 advises dropping the redundant import. Before that advisory
 can escalate to an error, each name must be certified: the explicitly

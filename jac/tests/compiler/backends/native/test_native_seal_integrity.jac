@@ -52,7 +52,7 @@ import from jaclang.dist.precompile_bytecode {
     seal_native_canary
 }
 
-glob FIXTURES = Path(TESTS_DIR) / "compiler" / "passes" / "native" / "fixtures";
+glob FIXTURES = Path(TESTS_DIR) / "compiler" / "backends" / "native" / "fixtures";
 
 
 """Seal one fixture into a fresh temp tree.
