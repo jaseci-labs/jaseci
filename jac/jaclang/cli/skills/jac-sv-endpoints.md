@@ -109,7 +109,7 @@ Parameters are classified: **path** (name matches `{...}` in path) → **file** 
 ## File uploads
 
 ```jac
-import from jaclang.runtimelib.serving.datatypes { UploadFile }
+import from jaclang.server.serving.datatypes { UploadFile }
 
 glob storage: any = store();   # ambient builtin; local disk by default
 

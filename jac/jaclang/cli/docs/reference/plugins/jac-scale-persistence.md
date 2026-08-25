@@ -47,7 +47,7 @@ All storage instances provide these methods:
 ### Usage Example
 
 ```jac
-import from jaclang.runtimelib.serving.datatypes { UploadFile }
+import from jaclang.server.serving.datatypes { UploadFile }
 import from uuid { uuid4 }
 
 glob storage = store(base_path="./uploads");

@@ -153,7 +153,7 @@ def run_cli_tests(runner: IntegrationTestRunner) {
         [
             "jac",
             "check",
-            "jac/tests/compiler/passes/main/fixtures/checker/checker_type_ref.jac",
+            "jac/tests/compiler/passes/fixtures/checker/checker_type_ref.jac",
 
         ],
         description="jac check runs on test fixture",

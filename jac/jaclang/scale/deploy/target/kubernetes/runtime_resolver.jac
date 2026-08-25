@@ -5,7 +5,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry
 }
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { k8s_safe_name }
 import from jaclang.scale.runtime.context.util {
     k8s_service_dns_url,

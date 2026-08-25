@@ -168,7 +168,7 @@ Run `jac tool jac2py friends.jac` to generate:
     ```
 
 !!! note
-    The transpiler outputs `from jaclang.jac0core.jaclib import ...` internally; the public `jaclang.lib` re-exports the same symbols and is the recommended import path. See [Python Integration](python-integration.md#how-it-works-transpilation-to-native-python).
+    The transpiler outputs `from jaclang.lib.jaclib import ...` internally; the public `jaclang.lib` re-exports the same symbols and is the recommended import path. See [Python Integration](python-integration.md#how-it-works-transpilation-to-native-python).
 
 ---
 
