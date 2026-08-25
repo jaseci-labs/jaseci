@@ -12,10 +12,10 @@ suite's isolation convention and keeping each JIT engine local to its test.
 import ctypes;
 import os;
 import from tests.support { TESTS_DIR, native_force_opts, native_str_func }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(
-         TESTS_DIR, "compiler", "passes", "native", "fixtures"
+         TESTS_DIR, "compiler", "backends", "native", "fixtures"
      ),
      FIXTURE = "any_str.jac";
 
