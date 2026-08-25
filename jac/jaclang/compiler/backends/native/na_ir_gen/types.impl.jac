@@ -1293,11 +1293,6 @@ impl NaIRGenTypes._to_bool(val: ir.Value, ty: any) -> ir.Value {
     if val.type == ir.IntType(1) {
         return val;
     }
-    if ty is None and isinstance(val.type, ir.IntType) {
-        return self.builder.icmp_signed(
-            "!=", val, ir.Constant(val.type, 0), name="to_bool.int"
-        );
-    }
     if ty is None {
         raise AssertionError(
             f"native codegen: _to_bool needs the checker type of its operand "

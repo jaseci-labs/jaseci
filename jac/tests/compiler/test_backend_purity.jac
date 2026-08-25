@@ -112,7 +112,7 @@ glob FORBIDDEN: dict[str, str] = {
          ("native/na_ir_gen/sets.impl.jac", "semantic dispatch"): 1,
          ("native/na_ir_gen/stmt.impl.jac", "semantic dispatch"): 1,
          ("native/na_ir_gen/tuples.impl.jac", "semantic dispatch"): 7,
-         ("native/na_ir_gen/types.impl.jac", "semantic dispatch"): 36,
+         ("native/na_ir_gen/types.impl.jac", "semantic dispatch"): 35,
          ("native/primitives_native.jac", "semantic dispatch"): 2,
          ("native/impl/primitives_native.impl.jac", "shape guard"): 5,
          ("native/na_ir_gen/builtins.impl.jac", "shape guard"): 10,
