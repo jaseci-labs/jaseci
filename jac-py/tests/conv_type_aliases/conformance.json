@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "fd24bb0cc4bcfea469b0cdb93d7f658a21dd508c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_type_aliases/conv_type_aliases_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:59:07",
+  "hashes": {
+    "pins_jac": "008cdb7991473e5b2abdbd42b7783da840a5e743544182c7001da97103343819",
+    "conversion_json": "ec142623128e293ff641c15655d7ebd10283697a16c22066516e839666a7249d",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "type_aliases",
+  "counts": {
+    "converted": 30,
+    "runnable": 4,
+    "green": 0,
+    "quarantined": 26
+  },
+  "pins": [
+    {
+      "id": "TypeParamsInvalidTest.test_name_collisions",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TypeParamsInvalidTest.test_name_non_collision_02",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeParamsInvalidTest.test_name_non_collision_03",
+      "status": "quarantined",
+      "reason": "host-raised:SyntaxError: invalid syntax (typing.py, line 1991)"
+    },
+    {
+      "id": "TypeParamsAccessTest.test_alias_access_01",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeParamsAccessTest.test_alias_access_02",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeParamsAccessTest.test_alias_access_03",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeParamsAliasValueTest.test_alias_value_01",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeParamsAliasValueTest.test_alias_value_04",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeParamsAliasValueTest.test_recursive_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not subscriptable'\">"
+    },
+    {
+      "id": "TypeParamsAliasValueTest.test_raising",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC SystemError 'unsupported opcode 62'\">"
+    },
+    {
+      "id": "TypeAliasConstructorTest.test_basic",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasConstructorTest.test_attributes_with_exec",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__module__'\">"
+    },
+    {
+      "id": "TypeAliasConstructorTest.test_generic",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasConstructorTest.test_not_generic",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasConstructorTest.test_type_params_order_with_defaults",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasConstructorTest.test_expects_type_like",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasConstructorTest.test_keywords",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasConstructorTest.test_errors",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasTypeTest.test_immutable",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasTypeTest.test_no_subclassing",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasTypeTest.test_union",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasTypeTest.test_module",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasTypeTest.test_unpack",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TypeAliasPickleTest.test_pickling_local",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'ClassLevel'"
+    },
+    {
+      "id": "TypeParamsExoticGlobalsTest.test_exec_with_unusual_globals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"exec() argument 2 must be a dict, not \\'customdict\\'\"'>"
+    },
+    {
+      "id": "TypeParamsAliasValueTest.test_alias_value_02",
+      "status": "quarantined",
+      "reason": "unresolved-name:A"
+    },
+    {
+      "id": "TypeParamsAliasValueTest.test_alias_value_03",
+      "status": "quarantined",
+      "reason": "unresolved-name:A"
+    },
+    {
+      "id": "TypeParamsAliasValueTest.test_subscripting",
+      "status": "quarantined",
+      "reason": "unresolved-name:A"
+    },
+    {
+      "id": "TypeParamsAliasValueTest.test_repr",
+      "status": "quarantined",
+      "reason": "unresolved-name:P"
+    },
+    {
+      "id": "TypeAliasPickleTest.test_pickling",
+      "status": "quarantined",
+      "reason": "unresolved-name:AllTypesAlias"
+    }
+  ]
+}

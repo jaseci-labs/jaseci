@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "fd24bb0cc4bcfea469b0cdb93d7f658a21dd508c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_unparse/conv_unparse_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:59:16",
+  "hashes": {
+    "pins_jac": "36322a4d812f7246f62b94033ae7fbc8eae658ae4ed82cf7d0a93c46cc400054",
+    "conversion_json": "a136275cd6fcc16e9660005e613b90860ff8c0482cff2510eddc0037da27769a",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "unparse",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 79,
+    "runnable": 30,
+    "green": 0,
+    "quarantined": 49,
+    "failed": 30,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "UnparseTestCase.test_tstring_with_nonsensical_str_field",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_tstring_with_none_str_field",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_invalid_raise",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_invalid_fstring_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_fstring_backslash",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_invalid_yield_from",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_import_from_level_none",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_constant_tuples",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_unparse_interactive_semicolons",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_unparse_interactive_integrity_1",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_unparse_interactive_integrity_2",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_unparse_interactive_integrity_3",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_simple_expressions_parens",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_class_bases_and_keywords",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_fstrings",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_docstrings",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_unary_op_factor",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_slices",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_lambda_parameters",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_star_expr_assign_target",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_star_expr_assign_target_multiple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_class",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_class_with_type_params",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_function",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_function_with_type_params",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_function_with_type_params_and_bound",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_function_with_type_params_and_default",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_async_function",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_async_function_with_type_params",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_async_function_with_type_params_and_default",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "fd24bb0cc4bcfea469b0cdb93d7f658a21dd508c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_type_aliases/conv_type_aliases_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:59:07",
+  "hashes": {
+    "pins_jac": "008cdb7991473e5b2abdbd42b7783da840a5e743544182c7001da97103343819",
+    "conversion_json": "ec142623128e293ff641c15655d7ebd10283697a16c22066516e839666a7249d",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "type_aliases",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 30,
+    "runnable": 4,
+    "green": 0,
+    "quarantined": 26,
+    "failed": 4,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TypeParamsAliasValueTest.test_recursive_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not subscriptable'\">"
+    },
+    {
+      "id": "TypeParamsAliasValueTest.test_raising",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC SystemError 'unsupported opcode 62'\">"
+    },
+    {
+      "id": "TypeAliasConstructorTest.test_attributes_with_exec",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__module__'\">"
+    },
+    {
+      "id": "TypeParamsExoticGlobalsTest.test_exec_with_unusual_globals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"exec() argument 2 must be a dict, not \\'customdict\\'\"'>"
+    }
+  ]
+}

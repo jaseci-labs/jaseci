@@ -1,0 +1,453 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "fd24bb0cc4bcfea469b0cdb93d7f658a21dd508c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_unparse/conv_unparse_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:59:16",
+  "hashes": {
+    "pins_jac": "36322a4d812f7246f62b94033ae7fbc8eae658ae4ed82cf7d0a93c46cc400054",
+    "conversion_json": "a136275cd6fcc16e9660005e613b90860ff8c0482cff2510eddc0037da27769a",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "unparse",
+  "counts": {
+    "converted": 79,
+    "runnable": 30,
+    "green": 0,
+    "quarantined": 49
+  },
+  "pins": [
+    {
+      "id": "UnparseTestCase.test_tstring_with_nonsensical_str_field",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_tstring_with_none_str_field",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_invalid_raise",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_invalid_fstring_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_fstring_backslash",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_invalid_yield_from",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_import_from_level_none",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_constant_tuples",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_unparse_interactive_semicolons",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_unparse_interactive_integrity_1",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_unparse_interactive_integrity_2",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_unparse_interactive_integrity_3",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_simple_expressions_parens",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_class_bases_and_keywords",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_fstrings",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_docstrings",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_unary_op_factor",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_slices",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_lambda_parameters",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_star_expr_assign_target",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "CosmeticTestCase.test_star_expr_assign_target_multiple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_class",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_class_with_type_params",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_function",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_function_with_type_params",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_function_with_type_params_and_bound",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_function_with_type_params_and_default",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_async_function",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_async_function_with_type_params",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "ManualASTCreationTestCase.test_async_function_with_type_params_and_default",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"<enum \\'IntFlag\\'> cannot extend <class \\'ceval.Flag\\'>\"'>"
+    },
+    {
+      "id": "UnparseTestCase.test_fstrings",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_fstrings_special_chars",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_fstrings_complicated",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_fstrings_pep701",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_tstrings",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_strings",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_del_statement",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_shifts",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_for_else",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_while_else",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_unary_parens",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_integer_parens",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_huge_float",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_nan",
+      "status": "quarantined",
+      "reason": "self.assertASTEqual"
+    },
+    {
+      "id": "UnparseTestCase.test_min_int",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_imaginary_literals",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_lambda_parentheses",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_chained_comparisons",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_function_arguments",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_relative_import",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_nonlocal",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_raise_from",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_bytes",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_annotations",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_set_literal",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_empty_set",
+      "status": "quarantined",
+      "reason": "self.assertASTEqual"
+    },
+    {
+      "id": "UnparseTestCase.test_set_comprehension",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_dict_comprehension",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_class_decorators",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_class_definition",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_elifs",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_try_except_finally",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_try_except_star_finally",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_starred_assignment",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_with_simple",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_with_as",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_with_two_items",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_dict_unpacking_in_dict",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_slices",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_docstrings",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_function_type",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_type_comments",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "UnparseTestCase.test_type_ignore",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "CosmeticTestCase.test_docstrings_negative_cases",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "CosmeticTestCase.test_multiquote_joined_string",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "CosmeticTestCase.test_backslash_in_format_spec",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "CosmeticTestCase.test_quote_in_format_spec",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "CosmeticTestCase.test_type_params",
+      "status": "quarantined",
+      "reason": "helper:check_ast_roundtrip(self.assertASTEqual)"
+    },
+    {
+      "id": "DirectoryTestCase.test_files",
+      "status": "quarantined",
+      "reason": "helper:files_to_test(decorated-helper)"
+    }
+  ]
+}

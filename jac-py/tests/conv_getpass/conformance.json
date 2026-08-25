@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "fd24bb0cc4bcfea469b0cdb93d7f658a21dd508c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_getpass/conv_getpass_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:58:54",
+  "hashes": {
+    "pins_jac": "8bd1eda26f0dc87bcaa30851f4d246c71997631c8c0d2af3534c4a25c462ea7c",
+    "conversion_json": "ed196c1445d9f4b7fbf75081a30bbeb9b2aca619c5bc0ffc3317173465a49109",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "getpass",
+  "counts": {
+    "converted": 24,
+    "runnable": 6,
+    "green": 4,
+    "quarantined": 18
+  },
+  "pins": [
+    {
+      "id": "GetpassRawinputTest.test_flushes_stream_after_prompt",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute '__init_subclass__'\">"
+    },
+    {
+      "id": "GetpassRawinputTest.test_uses_stderr_as_default",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'result' from 'unittest' (/home/jac/.cache/jac/rt/553c250071fd962f-c152554fd6e7fdad/python/lib/python3.14/unittest/__init__.py)\">"
+    },
+    {
+      "id": "GetpassRawinputTest.test_raises_on_empty_input",
+      "status": "pass"
+    },
+    {
+      "id": "GetpassRawinputTest.test_trims_trailing_newline",
+      "status": "pass"
+    },
+    {
+      "id": "GetpassEchoCharTest.test_accept_none",
+      "status": "pass"
+    },
+    {
+      "id": "GetpassEchoCharTest.test_reject_empty_string",
+      "status": "pass"
+    },
+    {
+      "id": "UnixGetpassTest.test_uses_tty_directly",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "UnixGetpassTest.test_resets_termios",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "UnixGetpassTest.test_falls_back_to_fallback_if_termios_raises",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "UnixGetpassTest.test_flushes_stream_after_input",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "UnixGetpassTest.test_falls_back_to_stdin",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "UnixGetpassTest.test_echo_char_replaces_input_with_asterisks",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "UnixGetpassTest.test_raw_input_with_echo_char",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "UnixGetpassTest.test_control_chars_with_echo_char",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "GetpassEchoCharTest.test_accept_single_printable_ascii",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "GetpassEchoCharTest.test_reject_multi_character_strings",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "GetpassEchoCharTest.test_reject_non_ascii",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "GetpassEchoCharTest.test_reject_non_printable_characters",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "GetpassEchoCharTest.test_reject_non_string",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "GetpassGetuserTest.test_username_takes_username_from_env",
+      "status": "quarantined",
+      "reason": "unresolved-name:environ"
+    },
+    {
+      "id": "GetpassGetuserTest.test_username_priorities_of_env_values",
+      "status": "quarantined",
+      "reason": "unresolved-name:environ"
+    },
+    {
+      "id": "GetpassGetuserTest.test_username_falls_back_to_pwd",
+      "status": "quarantined",
+      "reason": "unresolved-name:environ"
+    },
+    {
+      "id": "GetpassRawinputTest.test_uses_stdin_as_default_input",
+      "status": "quarantined",
+      "reason": "unresolved-name:mock_input"
+    },
+    {
+      "id": "GetpassRawinputTest.test_uses_stdin_as_different_locale",
+      "status": "quarantined",
+      "reason": "unresolved-name:mock_input"
+    }
+  ]
+}
