@@ -52,7 +52,7 @@ def _stage_compiler_tree(where: str, codegen_body: str) -> str {
         "compiler/native_materialize.jac",
         "compiler/backends/native/llvm/libjacllvm.so",
         "dist/precompile_bytecode.jac",
-        "runtime/machine.jac",
+        "server/machine.jac",
         "compiler/__pycache__/stale.py",
         "compiler/.jac/cache/hidden.jac",
         "compiler/tests/test_lowering.jac",
@@ -99,7 +99,7 @@ test "the compiler digest ignores build artifacts and non-compiler modules" {
         for (rel, text) in [
             ("compiler/native_materialize.jac", "generated at seal time\n"),
             ("compiler/backends/native/llvm/libjacllvm.so", "relinked shim\n"),
-            ("runtime/machine.jac", "runtime edit\n"),
+            ("server/machine.jac", "runtime edit\n"),
             ("compiler/__pycache__/stale.py", "byte cache\n"),
             ("compiler/.jac/cache/hidden.jac", "cache droppings\n"),
             ("compiler/tests/test_lowering.jac", "new compiler test\n"),
