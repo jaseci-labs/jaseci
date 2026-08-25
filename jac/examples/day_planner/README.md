@@ -17,7 +17,7 @@ Each variant is a standalone Jac project. Set your Anthropic API key once, then 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
 cd basic            # or auth/  or walkers/
-jac start main.jac
+jac run main.jac
 ```
 
 Open http://localhost:8000 to use the app, http://localhost:8000/docs for the OpenAPI/Swagger UI, and http://localhost:8000/graph for a live visualization of the persisted node graph.

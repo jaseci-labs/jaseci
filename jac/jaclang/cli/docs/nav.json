@@ -123,7 +123,7 @@
         },
         { "title": "Native Compilation", "page": "reference/language/native-pathway.md" },
         {
-          "title": "Capabilities & Plugins",
+          "title": "Capabilities",
           "items": [
             { "title": "byLLM (Meaning Types, built-in)", "page": "reference/plugins/byllm.md" },
             {
@@ -135,8 +135,8 @@
                 { "title": "Kubernetes & Operations", "page": "reference/plugins/jac-scale-kubernetes.md" }
               ]
             },
-            { "title": "jac-client (Full-Stack)", "page": "reference/plugins/jac-client.md" },
-            { "title": "jac-desktop", "page": "reference/plugins/jac-desktop.md" }
+            { "title": "Client (Full-Stack, built-in)", "page": "reference/plugins/jac-client.md" },
+            { "title": "Desktop (built-in)", "page": "reference/plugins/jac-desktop.md" }
           ]
         },
         {

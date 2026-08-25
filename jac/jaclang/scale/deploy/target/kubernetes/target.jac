@@ -311,7 +311,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 f"{success_msg} "
                 f"NOTE: observability stack deploy failed - "
                 f"`{observability_err}`. The app is running but pod logs "
-                f"are not being shipped to Loki. Re-run `jac start --scale` "
+                f"are not being shipped to Loki. Re-run `jac scale deploy <file.jac>` "
                 f"once the underlying issue is fixed."
             );
         }
@@ -1633,7 +1633,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 self.logger.info(
                     f"PVC '{name}' already exists; skipping patch. To apply "
                     f"size/storage-class changes, delete the PVC manually or "
-                    f"run `jac start --scale --destroy`."
+                    f"run `jac scale destroy <file.jac>`."
                 );
             }
         } except ApiException as e {

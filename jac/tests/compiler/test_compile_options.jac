@@ -10,12 +10,12 @@ import os;
 import re;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options {
+import from jaclang.compiler.driver.compile_options {
     CompileOptions,
     effective_codegen_fingerprint,
     link_fingerprint_mismatches
 }
-import from jaclang.jac0core.jir { compute_module_key }
+import from jaclang.compiler.driver.jir { compute_module_key }
 
 
 def _pinned_opts(**overrides: any) -> CompileOptions {
@@ -236,7 +236,7 @@ test "no positional intrinsic name matching inside _codegen_call" {
     calls_impl = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
+        "backends",
         "native",
         "na_ir_gen",
         "calls.impl.jac"
@@ -284,7 +284,7 @@ test "no cycle counter or stack validity channel in the type system" {
         os.path.dirname(os.path.abspath(jaclang.__file__)), "compiler"
     );
     scan_dirs = [
-        os.path.join(compiler_dir, "type_system"),
+        os.path.join(compiler_dir, "types"),
         os.path.join(compiler_dir, "passes")
     ];
     tokens = ["_cyclic_resolution_depth", "is_result_valid"];
@@ -323,7 +323,7 @@ test "native type identity never reads walk-time registration maps" {
     native_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
+        "backends",
         "native"
     );
     assert os.path.isdir(native_dir) , f"native dir missing: {native_dir}";
@@ -431,7 +431,7 @@ test "container lifecycle emission lives only in the shared emitters" {
     impl_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
+        "backends",
         "native",
         "na_ir_gen"
     );
@@ -480,7 +480,7 @@ test "no numeric header offsets outside the HDR_* constants" {
     native_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
+        "backends",
         "native"
     );
     hdr_pat = re.compile(r"Constant\([^,()]*i64[^,()]*,\s*-(8|16|24|32)\)\s*\]");
@@ -514,7 +514,7 @@ test "one static-string constructor" {
     native_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
+        "backends",
         "native"
     );
     marker = "LiteralStructType([i64,i64,arr_type])";
@@ -552,7 +552,7 @@ test "set shares the dict hash core with no linear-scan sibling" {
     native_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
+        "backends",
         "native"
     );
     impl_dir = os.path.join(native_dir, "na_ir_gen");
@@ -630,7 +630,9 @@ test "hetero container band-aids are deleted; one element-storage authority" {
     );
     assert authority_defs
         == [
-            os.path.join("compiler", "passes", "native", "na_ir_gen", "types.impl.jac")
+            os.path.join(
+                "compiler", "backends", "native", "na_ir_gen", "types.impl.jac"
+            )
         ] , (
         "container element storage must be decided by exactly one authority "
         f"(_elem_storage_llvm in types.impl.jac); found: {authority_defs}"
@@ -642,7 +644,7 @@ test "no consumer-site NULL guards on string operands" {
     native_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
+        "backends",
         "native"
     );
     assert os.path.isdir(native_dir) , f"native dir missing: {native_dir}";

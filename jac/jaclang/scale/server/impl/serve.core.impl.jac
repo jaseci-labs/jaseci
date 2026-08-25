@@ -360,7 +360,7 @@ impl JacAPIServerCore._configure_openapi_security -> None {
 }
 
 impl JacAPIServerCore.register_health_endpoint -> None {
-    import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+    import from jaclang.server.serving.datatypes { JSONResponse }
     import from jaclang.scale.runtime.lifecycle.drain { is_draining }
 
     async def health_live -> dict {
@@ -426,7 +426,7 @@ impl JacAPIServerCore.register_health_endpoint -> None {
 
 impl JacAPIServerCore.register_build_status_endpoint -> None {
     async def build_status -> dict {
-        import from jaclang.runtimelib.hmr { get_build_status }
+        import from jaclang.server.hmr { get_build_status }
         return get_build_status();
     }
 
@@ -449,8 +449,8 @@ impl JacAPIServerCore.register_build_status_endpoint -> None {
 }
 
 impl JacAPIServerCore._register_client_error_endpoint -> None {
-    import from jaclang.runtimelib.serving.datatypes { Request }
-    import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+    import from jaclang.server.serving.datatypes { Request }
+    import from jaclang.server.serving.datatypes { JSONResponse }
     async def client_error_handler(request: Request) -> JSONResponse {
         try {
             data = await request.json();
@@ -464,7 +464,7 @@ impl JacAPIServerCore._register_client_error_endpoint -> None {
             );
         }
 
-        import from jaclang.runtimelib.source_mapping {
+        import from jaclang.client.source_mapping {
             _error_rate_limiter,
             resolve_client_error_stacks,
             format_client_error_log
@@ -624,8 +624,8 @@ impl JacAPIServerCore._setup_scheduler -> None {
 impl JacAPIServerCore._create_admin_metrics_handler(
     original_handler: Callable[..., any]
 ) -> Callable[..., any] {
-    import from jaclang.runtimelib.serving.datatypes { JSONResponse, Request, Response }
-    import from jaclang.runtimelib.transport { TransportResponse, Meta }
+    import from jaclang.server.serving.datatypes { JSONResponse, Request, Response }
+    import from jaclang.server.transport { TransportResponse, Meta }
     import dataclasses;
     import base64;
 

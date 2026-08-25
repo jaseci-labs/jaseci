@@ -21,9 +21,9 @@ import os;
 import shutil;
 import tempfile;
 import jaclang;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from pathlib { Path }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob REACT_DTS = (
          "export declare function createContext(x: any): any;\n"
