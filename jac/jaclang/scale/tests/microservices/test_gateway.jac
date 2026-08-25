@@ -1639,7 +1639,7 @@ def _gateway(entries: list) -> tuple {
     }
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
     return (gw, TestClient(gw.app));
 }
 
