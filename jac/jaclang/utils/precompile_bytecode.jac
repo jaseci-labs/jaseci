@@ -471,6 +471,12 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/codeinfo.jac::cl_stdlib_root",
          "jac0core/codeinfo.jac::project_uses_bun_host",
          "jac0core/codeinfo.jac::resolve_cl_module",
+         "jac0core/host.jac::host_kind_for_module",
+         "jac0core/host.jac::host_kind_for_node",
+         "jac0core/host.jac::host_provides_node",
+         "jac0core/host.jac::resolve_project_host_kind",
+         "jac0core/host.jac::framework_for_host_kind",
+         "jac0core/host.jac::framework_for_module",
 
      ),
      _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
