@@ -255,9 +255,11 @@ impl JacAutoLintPass.enter_archetype(nd: uni.Archetype) -> None {
     self._combine_has_in_node(arch);
 }
 
-impl JacAutoLintPass.combine_consecutive_glob(body: list) -> list {
+impl JacAutoLintPass.combine_consecutive_glob(
+    body: Sequence[uni.UniNode]
+) -> list[uni.UniNode] {
     if len(body) <= 1 {
-        return body;
+        return list(body);
     }
     new_body: list[uni.UniNode] = [];
     i = 0;
@@ -634,7 +636,12 @@ impl JacAutoLintPass.enter_module(nd: uni.Module) -> None {
         }
     }
     if not self._is_suppressed(W3003) {
-        new_body = self.combine_consecutive_glob(new_body);
+        combined_body = self.combine_consecutive_glob(new_body);
+        new_body = [
+            stmt
+            for stmt in combined_body
+            if isinstance(stmt, (uni.ElementStmt, uni.String, uni.EmptyToken))
+        ];
     }
     module.body = new_body;
     self.recalculate_parents(module);
