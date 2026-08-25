@@ -917,8 +917,7 @@ impl serve(
         return 0;
     } except Exception as e {
         import from jaclang.jac0core.traceback_render { dump_traceback }
-        console.error(f"Server error: {e}");
-        console.error(dump_traceback(e));
+        import from jaclang.runtimelib.net { PortInUseError }
         if hot_reloader is not None {
             hot_reloader.stop();
         }
@@ -926,6 +925,11 @@ impl serve(
             started_vite.terminate();
         }
         mach.close();
+        if isinstance(e, PortInUseError) {
+            raise;
+        }
+        console.error(f"Server error: {e}");
+        console.error(dump_traceback(e));
         return 1;
     }
 }

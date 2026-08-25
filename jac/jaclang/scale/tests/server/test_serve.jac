@@ -1846,6 +1846,7 @@ test "dev mode named endpoints and HMR refresh" {
 import from jaclang.scale.server.serve { _get_network_ips }
 import from jaclang.runtimelib.net {
     find_available_port as _find_available_port,
+    PortInUseError,
     PORT_RETRY_LIMIT,
     ERRNO_ADDR_IN_USE_LINUX,
     ERRNO_ADDR_IN_USE_MACOS,
@@ -1942,6 +1943,46 @@ test "an explicitly requested port is never relocated" {
             collide_err = e;
         }
         _assert_refuses("app port equal to the api port", blocked, collide_err);
+    }
+}
+
+
+test "a refused port reaches the CLI as a mapped error, not a traceback" {
+    # The refusal crosses two paths that report failures differently: the plain
+    # one catches it itself, the gateway one lets it reach the CLI executor.
+    # Carrying a type rather than a message is what lets errmap render both the
+    # same way, so an unmapped error's raw Python traceback stops being the
+    # gateway's answer to a busy port.
+    import from jaclang.cli.errmap { humanize_error }
+
+    blocked = get_free_port();
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+        s.bind(('0.0.0.0', blocked));
+        s.listen(1);
+        err: OSError | None = None;
+        try {
+            _find_available_port(blocked, strict=True);
+        } except OSError as e {
+            err = e;
+        }
+        assert isinstance(err, PortInUseError) , (
+            f"a strict refusal must raise PortInUseError, got {type(err).__name__}"
+        );
+        assert err.port == blocked , (
+            f"the error must carry the port asked for, got {err.port}"
+        );
+        assert isinstance(err, OSError) , (
+            "PortInUseError must stay an OSError so existing handlers still catch it"
+        );
+        mapped = humanize_error(err);
+        assert mapped is not None , (
+            "an unmapped error is what makes the CLI print a raw traceback"
+        );
+        assert str(blocked) in mapped[0] , (
+            f"the mapped message must name the port: {mapped[0]!r}"
+        );
+        assert mapped[1] , "the mapped error should carry a hint";
     }
 }
 

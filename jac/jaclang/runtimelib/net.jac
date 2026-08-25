@@ -1,5 +1,13 @@
 import socket;
 
+class PortInUseError(OSError) {
+    def init(self: PortInUseError, port: int) {
+        self.port = port;
+        super.__init__(f"Port {port} is already in use");
+    }
+}
+
+
 glob PORT_RETRY_LIMIT: int = 10,
      ERRNO_ADDR_IN_USE_LINUX: int = 98,
      ERRNO_ADDR_IN_USE_MACOS: int = 48,
@@ -13,11 +21,10 @@ def find_available_port(
     strict: bool = False
 ) -> int {
     candidate = start_port;
-    pinned_taken = f"Port {start_port} is already in use";
     for _ in range(max_retries) {
         if candidate == skip_port {
             if strict {
-                raise OSError(pinned_taken) from None;
+                raise PortInUseError(start_port) from None;
             }
             candidate += 1;
             continue;
@@ -40,7 +47,7 @@ def find_available_port(
                 raise;
             }
             if strict {
-                raise OSError(pinned_taken) from None;
+                raise PortInUseError(start_port) from None;
             }
             candidate += 1;
         }

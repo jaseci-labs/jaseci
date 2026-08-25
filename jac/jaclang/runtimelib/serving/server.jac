@@ -13,6 +13,7 @@ import from jaclang.runtimelib.serving.datatypes {
     parse_query_string
 }
 import from jaclang.runtimelib.serving.ws { WebSocket, compute_accept_key }
+import from jaclang.runtimelib.net { PortInUseError }
 
 
 glob ACCESS_LOGGER_NAME: str = "jaclang.serving.access";
@@ -98,7 +99,7 @@ obj ServingServer {
                         continue;
                     }
 
-                    raise OSError(f"Port {chosen} is already in use") from None;
+                    raise PortInUseError(chosen) from None;
                 }
                 raise;
             }
