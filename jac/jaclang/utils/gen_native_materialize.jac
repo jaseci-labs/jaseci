@@ -13,7 +13,7 @@ obj MaterializeProfile {
         envelope_modules: list[str],
         chain_base_module: str,
         chain_base_class: str,
-        chain_shared_fields: list[str],  # record fields that name nodes back
+        chain_shared_fields: list[str],
         mask_sources: list[str],
         mask_corpus: str,
         parse_entry: str,
@@ -1077,7 +1077,7 @@ def generate(
             f"def _mat_kids_{sn}(nd: {sn}, stack: list[{prof.chain_base_class}]) -> None {{"
         );
         _pushes = _node_child_pushes(g, sn, "    ");
-        chain.extend(_pushes if _pushes else ["    return;"]);
+        chain.extend(_pushes or ["    return;"]);
         chain.append("}");
     }
     chain.append("");
@@ -1114,7 +1114,7 @@ def generate(
         chain.append("");
         chain.append(f"def _mat_sever_{sn}(nd: {sn}{_pin_params}) -> None {{");
         _sv = _sever_lines(g, sn, "    ", _pins, prof.chain_shared_fields);
-        chain.extend(_sv if _sv else ["    return;"]);
+        chain.extend(_sv or ["    return;"]);
         chain.append("}");
     }
     chain.append("");

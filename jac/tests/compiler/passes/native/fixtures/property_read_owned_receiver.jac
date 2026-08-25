@@ -4,7 +4,6 @@ obj Val {
 
 obj Box {
     has _v: Val = Val(n=1);
-
     has v: Val { getter; }
 }
 

@@ -627,12 +627,6 @@ impl NaIRGenRefcount._release_owned_args(
 impl NaIRGenRefcount._field_read_consumes_receiver(
     type_name: (str | None), field_name: str
 ) -> bool {
-    """False keeps an older leak rather than trading it for something worse.
-
-    An inline field reads as a pointer into the receiver, so dropping it
-    dangles. A property read is already retained but carries no ownership flag,
-    so consuming retains it twice.
-    """;
     if type_name is None {
         return False;
     }
@@ -645,11 +639,6 @@ impl NaIRGenRefcount._field_read_consumes_receiver(
 impl NaIRGenRefcount._consume_owned_receiver(
     recv: ir.Value, val: (ir.Value | None), op: str = "field_recv"
 ) -> (ir.Value | None) {
-    """Drop a receiver whose field read was its only consumer.
-
-    A pointer field is owned by its receiver, so the value is retained before
-    the drop. Gate with `_field_read_consumes_receiver`.
-    """;
     if val is None
         or not isinstance(recv.type, ir.PointerType)
         or not self._is_owned(recv)
