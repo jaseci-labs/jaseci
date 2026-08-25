@@ -103,6 +103,7 @@ glob FORBIDDEN: dict[str, str] = {
          ("native/na_ir_gen/enums.impl.jac", "semantic dispatch"): 2,
          ("native/na_ir_gen/exceptions.impl.jac", "semantic dispatch"): 1,
          ("native/na_ir_gen/expr.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/hash_core.impl.jac", "semantic dispatch"): 1,
          ("native/na_ir_gen/lists.impl.jac", "semantic dispatch"): 1,
          ("native/na_ir_gen/math.impl.jac", "semantic dispatch"): 2,
          ("native/na_ir_gen/objects.impl.jac", "semantic dispatch"): 4,

@@ -196,8 +196,13 @@ impl NaIRGenStruct._emit_struct_unpack(
     null_ptr = ir.Constant(tuple_type.as_pointer(), None);
     size_gep = b.gep(null_ptr, [ir.Constant(i32, 1)], name="up.sizeof.gep");
     size = b.ptrtoint(size_gep, i64, name="up.sizeof");
+    if self.rc_alloc_fn is None {
+        self._emit_rc_helpers();
+    }
+    _alloc_fn = self.rc_alloc_fn;
+    assert _alloc_fn is not None , "rc helpers are emitted before struct unpack";
     raw = self._rc_call_with_ctx(
-        self.rc_alloc_fn, [size], op="struct_unpack", loc="", name="up.tuple.raw"
+        _alloc_fn, [size], op="struct_unpack", loc="", name="up.tuple.raw"
     );
     tup = b.bitcast(raw, tuple_type.as_pointer(), name="up.tuple");
     n = 0;

@@ -21,7 +21,7 @@ impl NaIRGenClibVtable._clib_detect_vtable_structs -> None {
 }
 
 impl NaIRGenClibVtable._clib_coerce_callback(
-    val: ir.Value, c_fn_ty: ir.Type
+    val: ir.Value, c_fn_ty: ir.PointerType
 ) -> ir.Value {
     if isinstance(val, ir.Function) {
         if val.function_type == c_fn_ty.pointee {
@@ -49,7 +49,7 @@ impl NaIRGenClibVtable._clib_cb_coerce_scalar(
 }
 
 impl NaIRGenClibVtable._emit_clib_c_trampoline(
-    jac_fn: ir.Function, c_fn_ty: ir.Type
+    jac_fn: ir.Function, c_fn_ty: ir.PointerType
 ) -> ir.Function {
     key = f"{jac_fn.name}|{c_fn_ty}";
     cached = self.clib_trampoline_funcs.get(key);
