@@ -5,6 +5,10 @@ import from jaclang.scale.observability.logger { Logger }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    ManifestBuilder,
+    is_scale_to_zero_eligible
+}
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     COMPANION_DEFS,
     create_k8s_secret,
@@ -242,6 +246,16 @@ obj KubernetesTargetBase(DeploymentTarget) {
                 status = ResourceStatus.RUNNING;
             } elif ready_replicas > 0 {
                 status = ResourceStatus.PENDING;
+            } elif replicas == 0
+                and is_scale_to_zero_eligible(
+                    ManifestBuilder(
+                        k8s_config=self.k8s_config, logger=self.logger
+                    )._get_autoscaler_config(
+                        app_name
+                    ),
+                    self.k8s_config.autoscaler_engine
+                ) {
+                status = ResourceStatus.STOPPED;
             } else {
                 status = ResourceStatus.FAILED;
             }

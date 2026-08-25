@@ -1,6 +1,10 @@
 import unittest.mock;
+import kubernetes;
+import from typing { cast }
+import from types { SimpleNamespace }
 import from kubernetes.client.exceptions { ApiException }
 import from kubernetes.config.config_exception { ConfigException }
+import from jaclang.scale.models.resource_status { ResourceStatus }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.deploy.target.factory { DeploymentTargetFactory }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
@@ -27,7 +31,7 @@ test "deployment target factory creates kubernetes target" {
     assert hasattr(target, "destroy");
     assert hasattr(target, "get_status");
     assert hasattr(target, "scale");
-    assert target.k8s_config.app_name == "test-app";
+    assert cast(any, target).k8s_config.app_name == "test-app";
 }
 
 test "kubernetes target creation auto-syncs missing deploy tooling globally" {
@@ -523,4 +527,91 @@ test "kubernetes_target falls back to in-cluster config when kubeconfig is unava
     # The except ConfigException clause must catch and reach the in-cluster fallback.
     fake_cfg.load_kube_config.assert_called_once();
     fake_cfg.load_incluster_config.assert_called_once();
+}
+
+def _status_apis(replicas: int, ready: int) -> tuple {
+    apps = unittest.mock.MagicMock();
+    apps.read_namespaced_deployment.return_value = SimpleNamespace(
+        spec=SimpleNamespace(replicas=replicas),
+        status=SimpleNamespace(ready_replicas=ready)
+    );
+    core = unittest.mock.MagicMock();
+    return (apps, core);
+}
+
+def _get_status(
+    target: any, autoscaler_cfg: dict | None, replicas: int, ready: int
+) -> any {
+    (apps, core) = _status_apis(replicas, ready);
+    with unittest.mock.patch.object(
+        kubernetes.client, "AppsV1Api", return_value=apps
+    ) {
+        with unittest.mock.patch.object(
+            kubernetes.client, "CoreV1Api", return_value=core
+        ) {
+            with unittest.mock.patch.object(target, "_load_cluster_config") {
+                with unittest.mock.patch.object(
+                    kt_module, "ManifestBuilder"
+                ) as mock_builder_cls {
+                    mock_builder_cls.return_value._get_autoscaler_config.return_value = autoscaler_cfg;
+                    return target.get_status("order-service");
+                }
+            }
+        }
+    }
+}
+
+test "get_status reports STOPPED for a KEDA min=0 deployment settled at zero" {
+    config = {
+        "app_name": "order-service",
+        "namespace": "ns",
+        "autoscaler_engine": "keda"
+    };
+    target = DeploymentTargetFactory.create("kubernetes", config);
+
+    info = _get_status(
+        target,
+        {"min": 0, "max": 3, "triggers": [{"type": "cron", "metadata": {}}]},
+        replicas=0,
+        ready=0
+    );
+
+    assert info.status == ResourceStatus.STOPPED , (
+        f"expected STOPPED for a scale-to-zero-eligible deployment, got {info.status}"
+    );
+    assert not info.is_ready() , "a parked-at-zero deployment is not ready to serve";
+}
+
+test "get_status still reports FAILED at zero replicas under the plain HPA engine" {
+    config = {"app_name": "order-service", "namespace": "ns"};
+    target = DeploymentTargetFactory.create("kubernetes", config);
+
+    info = _get_status(
+        target,
+        {"min": 0, "max": 3, "triggers": [{"type": "cron", "metadata": {}}]},
+        replicas=0,
+        ready=0
+    );
+
+    assert info.status == ResourceStatus.FAILED , (
+        f"the plain HPA engine cannot scale to zero by design: {info.status}"
+    );
+}
+
+test "get_status still reports FAILED at zero replicas when KEDA has no real trigger" {
+    config = {
+        "app_name": "order-service",
+        "namespace": "ns",
+        "autoscaler_engine": "keda"
+    };
+    target = DeploymentTargetFactory.create("kubernetes", config);
+
+    info = _get_status(
+        target, {"min": 0, "max": 3, "triggers": []}, replicas=0, ready=0
+    );
+
+    assert info.status == ResourceStatus.FAILED , (
+        f"CPU/memory-only triggers can't reach zero, so this is a real failure: "
+        f"{info.status}"
+    );
 }
