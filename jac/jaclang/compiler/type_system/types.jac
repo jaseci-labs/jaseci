@@ -215,7 +215,7 @@ obj Parameter {
 obj FunctionType(TypeBase) {
     has func_name: str = "",
         return_type: (TypeBase | None) = None,
-        parameters: (list[Parameter] | None) = None,
+        parameters: list[Parameter] = [],
         function_flags: int = 0,
         type_params: (list[TypeVarType] | None) = None,
         is_async: bool = False,
