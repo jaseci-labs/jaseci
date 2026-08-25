@@ -358,6 +358,13 @@ impl TypeEvaluator._is_type_subscript(class_type: ClassType) -> bool {
     );
 }
 
+impl TypeEvaluator._subscript_index_expr(right: Expr) -> Expr {
+    if isinstance(right, IndexSlice) and not right.is_range and right.slices {
+        return right.slices[0].start;
+    }
+    return right;
+}
+
 impl TypeEvaluator._get_type_for_member_lookup(object_type: ClassType) -> ClassType {
     if self._is_type_subscript(object_type) {
         inner_type = object_type.private.type_args[0];
@@ -552,6 +559,40 @@ impl TypeEvaluator._metaclass_of(cls_type: ClassType) -> (ClassType | None) {
         }
     }
     return None;
+}
+
+impl TypeEvaluator._lookup_metaclass_member(
+    cls_type: ClassType, member: str
+) -> ClassMember | None {
+    if not cls_type.is_instantiable_class() {
+        return None;
+    }
+    meta_cls = self._metaclass_of(cls_type);
+    if meta_cls is None and self.prefetch is not None {
+        meta_cls = self.prefetch.type_class;
+    }
+    if not isinstance(meta_cls, ClassType) {
+        return None;
+    }
+    return self._lookup_class_member(meta_cls, member);
+}
+
+impl TypeEvaluator._is_metaclass_declared(member: ClassMember) -> bool {
+    return member.class_type.shared.class_name not in ("type", "object");
+}
+
+impl TypeEvaluator._bind_receiver_type_vars(
+    method: FunctionType, receiver_type: TypeBase, bindings: dict[str, TypeBase]
+) -> None {
+    params = method.parameters or [];
+    if not params {
+        return;
+    }
+    receiver = params[0];
+    if not (receiver.is_self or receiver.is_cls) or receiver.param_type is None {
+        return;
+    }
+    self.assign_type_to_type_var(receiver.param_type, receiver_type, bindings);
 }
 
 impl TypeEvaluator._edge_endpoint_type(
