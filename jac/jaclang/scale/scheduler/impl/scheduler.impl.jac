@@ -62,6 +62,9 @@ impl TriggerSpec.to_dict -> dict {
 
 impl TriggerSpec.apscheduler_kwargs -> dict {
     if self.trigger == 'interval' {
+        if self.interval is None {
+            raise ValueError("interval (seconds) required for trigger='interval'");
+        }
         return {'seconds': float(self.interval)};
     }
     if self.trigger == 'cron' {

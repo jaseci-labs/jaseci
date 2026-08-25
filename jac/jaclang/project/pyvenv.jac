@@ -407,16 +407,14 @@ def remove_venv_from_path(config: JacConfig | None = None) -> None {
         bin_dir = venv_dir / "bin";
     }
 
-    bin_str = os.path.normpath(str(bin_dir.resolve()))
-        if bin_dir.exists()
-        else str(bin_dir);
+    bin_str = os.path.realpath(str(bin_dir));
     current_path = os.environ.get("PATH", "");
     path_parts = current_path.split(os.pathsep);
 
     new_parts = [
         p
         for p in path_parts
-        if os.path.normpath(p) != bin_str
+        if os.path.realpath(p) != bin_str
     ];
     if len(new_parts) != len(path_parts) {
         os.environ["PATH"] = os.pathsep.join(new_parts);

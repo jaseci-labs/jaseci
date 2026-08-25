@@ -84,7 +84,7 @@ obj LocalProvider(ClusterProvider) {
         v1 = client.CoreV1Api();
         all_services = v1.list_service_for_all_namespaces();
         used_ports: dict[int, str] = {};
-        for svc in all_services.items {
+        for svc in (all_services.items or []) {
             if svc.metadata.namespace == current_namespace {
                 continue;
             }

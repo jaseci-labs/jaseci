@@ -20,8 +20,13 @@ import from litellm.exceptions { RateLimitError }
 import types;
 
 # ---------------------------------------------------------------------------
-# Shared helper
+# Shared helpers
 # ---------------------------------------------------------------------------
+"""Identity cast that keeps duck-typed test payloads out of nominal checks."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
 def make_chunk(text: str) -> object {
     delta = types.SimpleNamespace(content=text);
     choice = types.SimpleNamespace(delta=delta);
@@ -31,17 +36,18 @@ def make_chunk(text: str) -> object {
 # ---------------------------------------------------------------------------
 # Scenario A: pre-stream failure → fallback takes over
 # ---------------------------------------------------------------------------
-glob model1 = MockLLM(model_name="gpt-3.5-turbo", config={"outputs": []});
-glob model2 = MockLLM(model_name="gpt-4", config={"outputs": []});
-glob pool = ModelPool(models=[model1, model2], strategy="fallback");
+glob model1 = MockLLM(model_name="gpt-3.5-turbo", config={"outputs": []}),
+     model2 = MockLLM(model_name="gpt-4", config={"outputs": []}),
+     pool = ModelPool(models=[model1, model2], strategy="fallback");
 
 """Stream a short answer to the given question."""
 def stream_answer(question: str) -> str by pool(stream=True);
 
 glob _models_tried: list = [];
 
-def mock_completion(model: str, messages: list, stream: bool,
-                    fallbacks: list, **_kwargs: object) -> object {
+def mock_completion(
+    model: str, messages: list, stream: bool, fallbacks: list, **_kwargs: object
+) -> object {
     _models_tried.append(model);
     if model == "pool-primary" {
         raise RateLimitError(
@@ -50,7 +56,7 @@ def mock_completion(model: str, messages: list, stream: bool,
             llm_provider="openai",
         );
     }
-    def _gen() -> object {
+    def _gen -> object {
         yield make_chunk("stream_fallback_");
         yield make_chunk("success");
     }
@@ -60,20 +66,21 @@ def mock_completion(model: str, messages: list, stream: bool,
 # ---------------------------------------------------------------------------
 # Scenario B: mid-stream failure → exception must propagate, no fallback
 # ---------------------------------------------------------------------------
-glob model_b1 = MockLLM(model_name="gpt-3.5-turbo", config={"outputs": []});
-glob model_b2 = MockLLM(model_name="gpt-4", config={"outputs": []});
-glob pool_mid = ModelPool(models=[model_b1, model_b2], strategy="fallback");
+glob model_b1 = MockLLM(model_name="gpt-3.5-turbo", config={"outputs": []}),
+     model_b2 = MockLLM(model_name="gpt-4", config={"outputs": []}),
+     pool_mid = ModelPool(models=[model_b1, model_b2], strategy="fallback");
 
 """Stream a short answer (mid-stream scenario)."""
 def stream_answer_mid(question: str) -> str by pool_mid(stream=True);
 
 glob _tried_mid: list = [];
 
-def mock_midstream_completion(model: str, messages: list, stream: bool,
-                              fallbacks: list, **_kwargs: object) -> object {
+def mock_midstream_completion(
+    model: str, messages: list, stream: bool, fallbacks: list, **_kwargs: object
+) -> object {
     _tried_mid.append(model);
     if model == "pool-primary" {
-        def _failing_gen() -> object {
+        def _failing_gen -> object {
             yield make_chunk("partial_chunk");
             raise RateLimitError(
                 message="Primary failed mid-stream",
@@ -83,8 +90,8 @@ def mock_midstream_completion(model: str, messages: list, stream: bool,
         }
         return _failing_gen();
     }
-    # Fallback should never be reached — if it is, the test will catch it.
-    def _fallback_gen() -> object {
+    # Fallback should never be reached -- if it is, the test will catch it.
+    def _fallback_gen -> object {
         yield make_chunk("should_not_appear");
     }
     return _fallback_gen();
@@ -92,7 +99,7 @@ def mock_midstream_completion(model: str, messages: list, stream: bool,
 
 with entry {
     # --- Scenario A ---
-    pool._router._completion = mock_completion;  # type: ignore
+    _as_any(pool._router)._completion = mock_completion;
 
     result_stream = stream_answer("test question");
     output = "".join(list(result_stream));
@@ -100,13 +107,20 @@ with entry {
     print(f"output:{output}");
     print(f"primary_tried:{'pool-primary' in _models_tried}");
     print(f"fallback_tried:{'pool-fallback-1' in _models_tried}");
-    print(f"order_correct:{_models_tried.index('pool-primary') < _models_tried.index('pool-fallback-1')}");
+    print(
+        f"order_correct:{_models_tried.index('pool-primary')
+            < _models_tried.index('pool-fallback-1')}"
+    );
 
     # --- Scenario B ---
-    pool_mid._router._completion = mock_midstream_completion;  # type: ignore
+    _as_any(pool_mid._router)._completion = mock_midstream_completion;
 
     mid_raised: bool = False;
-    mid_chunks: list = [];
+}
+
+glob mid_chunks: list = [];
+
+with entry {
     try {
         for chunk in stream_answer_mid("test question") {
             mid_chunks.append(chunk);

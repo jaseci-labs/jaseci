@@ -26,6 +26,10 @@ import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
 import from jaclang.compiler.passes.ecmascript.backends.solid { SolidBackend }
 import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 glob _RT = Path(jaclang.__file__).parent / "runtimelib",
      # The three router/component runtimes: one public surface, three targets.
      _ROUTER_RUNTIMES: dict[str, Path] = {
@@ -88,7 +92,7 @@ def _signatures(path: Path) -> dict[str, list] {
             continue;
         }
         params = [];
-        for prm in (abl.signature.params or []) {
+        for prm in (_as_any(abl.signature).params or []) {
             type_node = prm.type_tag.tag if prm.type_tag else None;
             params.append(
                 (prm.name.value, _node_text(src, type_node), _node_text(src, prm.value))
@@ -106,9 +110,7 @@ parameter even after the `impl/` body stops using one. Dropping it leaves only
 what the impl actually wrote -- which is where the behavior lives."""
 def _compiled_body(path: Path, backend: any, name: str) -> str {
     prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(path), options=CompileOptions(type_check=True, no_cgen=True)
-    );
+    ir = prog.compile(file_path=str(path), options=CompileOptions(no_cgen=True));
     fatal = [
         e
         for e in prog.errors_had

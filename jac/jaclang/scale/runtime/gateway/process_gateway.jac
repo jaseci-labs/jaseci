@@ -32,6 +32,8 @@ obj ProcessGateway(Gateway) {
         if self._gateway is None {
             self.setup();
         }
-        self._gateway.start();
+        gateway = self._gateway;
+        assert gateway is not None , "setup() must bind the gateway";
+        gateway.start();
     }
 }

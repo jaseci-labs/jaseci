@@ -12,7 +12,6 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     delete_k8s_secret,
     delete_if_exists,
     delete_namespace,
-    ensure_namespace_exists,
     get_cluster_provider,
     resize_pvc_if_needed
 }
@@ -502,7 +501,8 @@ obj KubernetesTargetBase(DeploymentTarget) {
             self._destroy_databases(app_name, namespace, apps_v1, core_v1);
 
             pvcs = core_v1.list_namespaced_persistent_volume_claim(namespace);
-            for pvc in pvcs.items {
+            pvc_items: list[any] = pvcs.items;
+            for pvc in pvc_items {
                 if pvc.metadata.name.startswith(app_name) {
                     try {
                         core_v1.delete_namespaced_persistent_volume_claim(
@@ -750,7 +750,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
                     ingress = networking_v1.read_namespaced_ingress(
                         name=f"{app_name}-ingress", namespace=namespace
                     );
-                    ann = ingress.metadata.annotations or {};
+                    ann: dict[str, str] = ingress.metadata.annotations or {};
                     domain = ann.get('jac-scale/domain', '');
                 } except Exception as e {
                     if self.logger {
@@ -837,7 +837,10 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
         dep_map = {};
         try {
-            for d in apps_v1.list_namespaced_deployment(namespace=namespace).items {
+            dep_items: list[any] = apps_v1.list_namespaced_deployment(
+                namespace=namespace
+            ).items;
+            for d in dep_items {
                 dep_map[d.metadata.name] = d;
             }
         } except Exception as e {
@@ -850,7 +853,10 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
         sts_map = {};
         try {
-            for s in apps_v1.list_namespaced_stateful_set(namespace=namespace).items {
+            sts_items: list[any] = apps_v1.list_namespaced_stateful_set(
+                namespace=namespace
+            ).items;
+            for s in sts_items {
                 sts_map[s.metadata.name] = s;
             }
         } except Exception as e {
@@ -863,8 +869,11 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
         restarting_apps = {};
         try {
-            for pod in core_v1.list_namespaced_pod(namespace=namespace).items {
-                pod_labels = pod.metadata.labels;
+            pod_items: list[any] = core_v1.list_namespaced_pod(
+                namespace=namespace
+            ).items;
+            for pod in pod_items {
+                pod_labels: (dict[str, str] | None) = pod.metadata.labels;
                 if pod_labels and 'app' in pod_labels {
                     pod_app = pod_labels['app'];
                     if pod.status and pod.status.container_statuses {
