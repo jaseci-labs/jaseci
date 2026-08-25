@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
+  "jac_sha": "d16ccf930e72eff9aad7712b877e98223d42915c",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_csv/conv_csv_pins.jac"
   ],
-  "generated_at": "2026-08-24T23:00:01",
+  "generated_at": "2026-08-25T14:26:20",
   "hashes": {
-    "pins_jac": "9d95da637c32d22435d0d6b999424cde1f7d7d76e585a2416207492d07584a3b",
-    "conversion_json": "7e5756b1819fde94f4a9654e79a4b54bc1bbe4a43f891f02b1d440517e3b7beb",
+    "pins_jac": "73337f51e2ae8a4392d552cc0c9aaea42ca403b0d9612275026b19f6d55117f6",
+    "conversion_json": "d0124a04933846a35aafa44e65db0fcf74307c042442943e2966edaaffd5d315",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "csv",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 128,
-    "runnable": 71,
-    "green": 32,
-    "quarantined": 57,
-    "failed": 39,
+    "runnable": 34,
+    "green": 29,
+    "quarantined": 94,
+    "failed": 5,
     "infra_failed": 0
   },
   "failures": [
@@ -53,214 +53,10 @@
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\',\\', \\'-\\')\"'>"
     },
     {
-      "id": "Test_Csv.test_write_arg_valid",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_write_bigfield",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_write_quoting",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_write_escape",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
       "id": "Test_Csv.test_write_lineterminator",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError 'StringIO.__enter__() takes no arguments (1 given)'\">"
-    },
-    {
-      "id": "Test_Csv.test_write_iterable",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_writerows",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_writerows_with_none",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_write_empty_fields",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_write_empty_fields_space_delimiter",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_writerows_errors",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_roundtrip_quoteed_newlines",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_roundtrip_escaped_unquoted_newlines",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "Test_Csv.test_reader_reentrant_iterator",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC TypeError \"\\'ReentrantIter\\' object is not iterable\"'>"
-    },
-    {
-      "id": "TestDialectRegistry.test_space_dialect",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDialectRegistry.test_dialect_apply",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDictFields.test_writeheader_return_value",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDictFields.test_write_simple_dict",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDictFields.test_read_dict_fields",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDictFields.test_read_dict_no_fieldnames",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDictFields.test_read_dict_fieldnames_from_file",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDictFields.test_read_dict_fieldnames_chain",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDictFields.test_read_long",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDictFields.test_read_long_with_rest",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDictFields.test_read_long_with_rest_no_fieldnames",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestDictFields.test_read_short",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestArrayWrites.test_int_write",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestArrayWrites.test_double_write",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestArrayWrites.test_float_write",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestArrayWrites.test_char_write",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestUnicode.test_unicode_read",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "TestUnicode.test_unicode_write",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "KeyOrderingTest.test_ordering_for_the_dict_reader_and_writer",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
-    },
-    {
-      "id": "KeyOrderingTest.test_ordered_dict_reader",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [{\\'FirstName\\': \\'Eric\\', \\'LastName\\': \\'Idle\\'}, {\\'FirstName\\': \\'Graham\\', \\'LastName\\': \\'Chapman\\', None: [\\'Over1\\', \\'Over2\\']}, {\\'FirstName\\': \\'Under1\\', \\'LastName\\': None}, {\\'FirstName\\': \\'John\\', \\'LastName\\': \\'Cleese\\'}], [OrderedDict({\\'FirstName\\': \\'Eric\\', \\'LastName\\': \\'Idle\\'}), OrderedDict({\\'FirstName\\': \\'Graham\\', \\'LastName\\': \\'Chapman\\', None: [\\'Over1\\', \\'Over2\\']}), OrderedDict({\\'FirstName\\': \\'Under1\\', \\'LastName\\': None}), OrderedDict({\\'FirstName\\': \\'John\\', \\'LastName\\': \\'Cleese\\'})])\"'>"
-    },
-    {
-      "id": "MiscTestCase.test_lazy_import",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.import_helper'\">"
     }
   ]
 }
