@@ -191,7 +191,7 @@ def _emit(src: str, path: str) -> tuple {
         )
     );
     assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
-    blob = JcirGenPass(ir_in=mod, prog=prog).ir_bytes();
+    blob = JcirGenPass(ir_in=mod).ir_bytes();
     (mods, _diags) = transcribe(blob);
     assert len(mods) == 1;
     return (blob, mods[0][1], );
