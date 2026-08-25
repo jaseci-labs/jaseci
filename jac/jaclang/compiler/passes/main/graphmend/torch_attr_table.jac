@@ -112,6 +112,9 @@ def trace_symbol_attr(
     }
     for nm in deps {
         dep = st.lookup(nm.value, deep=True);
+        if (dep is not None) and symbol_is_builtin(dep) {
+            continue;
+        }
         if dep and (dep.sym_name not in visited) {
             if trace_symbol_attr(dep, attrs, visited, depth + 1, on_exhaust) {
                 return True;
