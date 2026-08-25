@@ -1,13 +1,5 @@
-glob SYSTEM_PERSONA = """\
-    This is a task you must complete by returning only the output. The task will be expressed in the form of function call with arguments. Do not include explanations, code, or extra text—only the result.
-    """,
-     INSTRUCTION_TOOL = """
-    Use the tools provided to reach the goal. Call one tool at a time with \
-    proper args—no explanations, no narration. Think step by step, invoking tools \
-    as needed. When done, always call finish_tool(output) to return the final
-    output. Only use tools.
-    """;
-
+glob SYSTEM_PERSONA = "This is a task you must complete by returning only the output. The task will be expressed in the form of function call with arguments. Do not include explanations, code, or extra text—only the result.";
+glob INSTRUCTION_TOOL= "Use the tools provided to reach the goal. Call one tool at a time with proper args—no explanations, no narration. Think step by step, invoking tools as needed. When done, always call finish_tool(output) to return the final output. Only use tools.";
 
 def _describe_input_type(value: object, _depth: int = 0) -> str {
     import from enum { Enum }

@@ -302,13 +302,27 @@ def route_visit(candidates: list, model: object) -> list {
     if intent {
         user_parts.append(f"Goal: {intent}");
     }
-    if wkr is not None {
-        user_parts.append(f"Walker:\n{_describe_arch(wkr)}");
+    # Cache-aware layout (JAC_ROUTE_CACHE_LAYOUT=1): zones ordered by stability —
+    # Goal (compile-time) and here/candidates (graph-dependent, stable across
+    # requests) before the per-request Walker zone, so a prefix cache can reuse
+    # everything up to Walker. Default layout unchanged.
+    if os.environ.get("JAC_ROUTE_CACHE_LAYOUT") == "1" {
+        if here_anchor is not None {
+            user_parts.append(f"Current node:\n{_describe_arch(here_anchor.archetype)}");
+        }
+        user_parts.append(f"Candidates (choose by handle):\n{candidates_block}");
+        if wkr is not None {
+            user_parts.append(f"Walker:\n{_describe_arch(wkr)}");
+        }
+    } else {
+        if wkr is not None {
+            user_parts.append(f"Walker:\n{_describe_arch(wkr)}");
+        }
+        if here_anchor is not None {
+            user_parts.append(f"Current node:\n{_describe_arch(here_anchor.archetype)}");
+        }
+        user_parts.append(f"Candidates (choose by handle):\n{candidates_block}");
     }
-    if here_anchor is not None {
-        user_parts.append(f"Current node:\n{_describe_arch(here_anchor.archetype)}");
-    }
-    user_parts.append(f"Candidates (choose by handle):\n{candidates_block}");
     if incl_info and isinstance(incl_info, dict) {
         user_parts.append("\n".join([f"{k} = {v}" for (k, v) in incl_info.items()]));
     }

@@ -250,3 +250,52 @@ obj Model(BaseLLM) {
         url: str, token: str, payload: dict, ca_bundle: str | bool
     ) -> object;
 }
+
+"""Interceptor connector for the proactive-prefill side runtime.
+
+Talks to a dedicated guard server (one InterceptorLLMBackend per program) over
+a persistent TCP connection of length-prefixed JSON messages. postinit opens
+the connection and registers the tenant identity (program_name, pid,
+model_name). The server owns the whole ReAct loop: a function call sends only
+the callsite key plus argument str_views (`call`), the server drives
+generation against its compiled invariants and sends back `tool_call` frames
+one at a time; this side executes each tool locally and replies
+`tool_result`, until the server's `final` frame is parsed into the program's
+real return type (a parse failure is sent back as `reject` and the server
+regenerates on the warm prefix). Only `visit ... by llm()` routing, which has
+no callable behind it, still ships full messages (`generate`) — but it now
+carries a location-derived key so the server can identify the routing site.
+Concurrent calls on
+one instance are a hard error. Streaming and an unreachable server fall back
+to a plain `Model` with the same model_name.
+"""
+obj InterceptorLLM(BaseLLM) {
+    has comm_ip: str = "localhost",
+        comm_port: int = 8964,
+        program_name: str = "",
+        _current_key: str = "",
+        _current_site: str | None = None,
+        _req_id: int = 0,
+        _sock: object = None,
+        _sock_lock: object = None,
+        _delegate: BaseLLM | None = None;
+
+    def postinit -> None;
+    override def invoke(mt_run: MTRuntime) -> object;
+    override async def ainvoke(mt_run: MTRuntime) -> object;
+    override def _invoke_react_loop(mt_run: MTRuntime) -> object;
+    override def model_call_no_stream(params: dict) -> dict;
+    def _args_view(mt_run: MTRuntime) -> tuple;
+    def _run_tool(mt_run: MTRuntime, name: str, arguments: dict) -> str;
+    def _callsite_key(mt_run: MTRuntime) -> str;
+    def _visit_key -> tuple;
+    def _call_site(name: str) -> str | None;
+    def _connect -> bool;
+    def _adopt_registered(sock: object) -> None;
+    def _close -> None;
+    def _send_msg(msg: dict) -> None;
+    def _recv_msg -> dict;
+    def _recv_exact(n: int) -> bytes;
+    def _request(payload: dict) -> dict;
+    def _fallback(mt_run: MTRuntime, reason: str) -> object;
+}
