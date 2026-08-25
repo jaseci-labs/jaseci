@@ -101,7 +101,8 @@ import from jaclang.compiler.frontend.unitree {
     UniScopeNode,
     WhileStmt,
     WithStmt,
-    YieldExpr
+    YieldExpr,
+    find_python_scope_node_of
 }
 import from jaclang.compiler.frontend.constant {
     TOKEN_MAP,
@@ -542,6 +543,7 @@ obj TypeEvaluator {
     def _resolution_scope_for(expr: UniNode) -> UniScopeNode | None;
     def _is_non_expression_name(expr: Name) -> bool;
     def _is_attr_receiver_name(expr: Name) -> bool;
+    def _is_runtime_local_name(expr: Name) -> bool;
     def _lookup_bare_runtime_name(scope: UniScopeNode, name: str) -> Symbol | None;
     def _is_expr_self(expr: Expr) -> bool;
     def _is_expr_super(expr: Expr) -> bool;

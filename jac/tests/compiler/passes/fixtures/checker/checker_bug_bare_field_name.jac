@@ -29,6 +29,16 @@ obj GlobalControl {
     }
 }
 
+obj RebindControl {
+    has rebound_title: str = "field";
+
+    def size -> int {
+        # An assignment records this field as a valid implicit rebind.
+        rebound_title = "local";
+        return len(rebound_title.strip());
+    }
+}
+
 node NodeWidget {
     has node_title: str = "field";
 

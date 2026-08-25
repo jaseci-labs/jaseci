@@ -929,6 +929,32 @@ impl TypeEvaluator._is_attr_receiver_name(expr: Name) -> bool {
     );
 }
 
+impl TypeEvaluator._is_runtime_local_name(expr: Name) -> bool {
+    scope = find_python_scope_node_of(expr);
+    if scope is None {
+        return False;
+    }
+    if expr.value in scope.implicit_rebinds {
+        return True;
+    }
+    for assignment in scope.get_all_sub_nodes(Assignment) {
+        if find_python_scope_node_of(assignment) is not scope {
+            continue;
+        }
+        for target in assignment.target {
+            if isinstance(target, Name) and target.value == expr.value {
+                return True;
+            }
+            for nested in target.get_all_sub_nodes(Name) {
+                if nested.value == expr.value {
+                    return True;
+                }
+            }
+        }
+    }
+    return False;
+}
+
 impl TypeEvaluator._lookup_bare_runtime_name(
     scope: UniScopeNode, name: str
 ) -> Symbol | None {
