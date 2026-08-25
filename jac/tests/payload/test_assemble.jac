@@ -14,7 +14,7 @@ import from compression.zstd {
     compress,
     decompress
 }
-import from jaclang.payload.assemble {
+import from jaclang.dist.payload.assemble {
     PAYLOAD_WINDOW_LOG,
     TAR_DIRTYPE,
     TAR_PAX_FORMAT,
@@ -25,8 +25,8 @@ import from jaclang.payload.assemble {
     tar_stage,
     tar_zst_dir
 }
-import from jaclang.payload.fsutil { host_os_arch }
-import from jaclang.payload.pins { py_ver }
+import from jaclang.dist.payload.fsutil { host_os_arch }
+import from jaclang.dist.payload.pins { py_ver }
 
 def wf(stage: str, rel: str, data: bytes, mode: int = 0o644) {
     p = os.path.join(stage, rel);

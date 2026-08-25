@@ -8,7 +8,7 @@
 //!     compiler with `jac build --as native` (the Jac-native linkers; no
 //!     external toolchain) -- it links only libc/libdl and dlopens the bundled
 //!     CPython at runtime;
-//!   * the payload tool is `jaclang.payload`, Python-tier Jac that fetches the
+//!   * the payload tool is `jaclang.dist.payload`, Python-tier Jac that fetches the
 //!     vendored inputs, stages the runtime tree, packs it, and appends it to the
 //!     stub with the trailer.
 //!
@@ -59,9 +59,9 @@ const Shim = struct { bin: std.Build.LazyPath, place: *std.Build.Step };
 /// build` fetches python-build-standalone first (bootstrap/fetch_pbs.zig, the
 /// one step that runs before any Python exists) and then drives every other
 /// build step through this program, so the build tooling is Jac
-/// (`jaclang.payload`) and needs no prior jac binary:
+/// (`jaclang.dist.payload`) and needs no prior jac binary:
 ///
-///     <pbs-python> -I -c JACBOOT <root> payload <subcommand> [args...]   # jaclang.payload.cli
+///     <pbs-python> -I -c JACBOOT <root> payload <subcommand> [args...]   # jaclang.dist.payload.cli
 ///     <pbs-python> -I -c JACBOOT <root> jac <jac-cli-args...>             # the jac CLI itself
 ///
 /// `-I` keeps the interpreter isolated from the ambient environment; the
@@ -78,7 +78,7 @@ const JACBOOT_SRC =
     "import _jac_finder\n" ++
     "_jac_finder.install()\n" ++
     "if mode == 'payload':\n" ++
-    "    from jaclang.payload.cli import main\n" ++
+    "    from jaclang.dist.payload.cli import main\n" ++
     "    sys.exit(int(main(argv) or 0))\n" ++
     "sys.argv = ['jac'] + argv\n" ++
     "from jaclang.cli.cli_boot import start_cli\n" ++

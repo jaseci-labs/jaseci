@@ -175,7 +175,7 @@ glob COMPILER_DIGEST_ROOTS: tuple = (
          "lib",
          "cli/cli_boot.jac",
          "project/tomlio.jac",
-         "utils/precompile_bytecode.jac"
+         "dist/precompile_bytecode.jac"
      ),
      COMPILER_DIGEST_SUFFIXES: tuple = (".jac", ".py"),
      COMPILER_DIGEST_SKIP_DIRS: tuple = ("tests", "test", "__pycache__"),

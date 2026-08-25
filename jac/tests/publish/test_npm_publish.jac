@@ -1,4 +1,4 @@
-"""Tests for the jaclang.publish npm pipeline.
+"""Tests for the jaclang.dist.publish npm pipeline.
 
 Covers the js-package counterparts of the wheel pipeline:
   package_json - package.json string generation from jac.toml
@@ -20,21 +20,21 @@ import from subprocess { run }
 import from jaclang.project.config { JacConfig }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.program { JacProgram }
-import from jaclang.publish.package_json {
+import from jaclang.dist.publish.package_json {
     generate_package_json,
     npm_package_name,
     npm_tarball_filename
 }
-import from jaclang.publish.jsdoc {
+import from jaclang.dist.publish.jsdoc {
     jac_type_to_jsdoc,
     jac_type_to_ts,
     jsdoc_for_module,
     inject_jsdoc
 }
-import from jaclang.publish.dts { dts_for_module }
-import from jaclang.publish.npm_sources { collect_npm_sources, NpmBoundaryError }
-import from jaclang.publish.npm_builder { NpmBuilder }
-import from jaclang.publish.runtime_npm {
+import from jaclang.dist.publish.dts { dts_for_module }
+import from jaclang.dist.publish.npm_sources { collect_npm_sources, NpmBoundaryError }
+import from jaclang.dist.publish.npm_builder { NpmBuilder }
+import from jaclang.dist.publish.runtime_npm {
     build_runtime_tarball,
     runtime_api_names,
     runtime_peer_deps,

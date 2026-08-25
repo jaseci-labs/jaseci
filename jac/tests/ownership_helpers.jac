@@ -10,7 +10,7 @@ import from tests.support { JAC_ROOT }
 import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "ownership"
+         JAC_ROOT, "tests", "compiler", "passes", "fixtures", "ownership"
      ),
      OWNERSHIP_PREFIX = "E13";
 

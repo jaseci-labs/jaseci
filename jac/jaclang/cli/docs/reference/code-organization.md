@@ -78,7 +78,7 @@ Now that we understand the motivation, let us survey the five organizational pat
 
 | Pattern | File Layout | When to Use | Compiler Example |
 |---------|-------------|-------------|------------------|
-| **Inline** | Single `.jac` file, declarations + `impl` blocks together | Small modules (<100 lines) | [`langserve/rwlock.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/langserve/rwlock.jac) |
+| **Inline** | Single `.jac` file, declarations + `impl` blocks together | Small modules (<100 lines) | [`langserve/rwlock.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/lsp/server/rwlock.jac) |
 | **Side-by-Side** | `mod.jac` + `impl/mod.impl.jac` | Medium modules, clean interface/impl split | [`cli/command.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/command.jac) |
 | **Shared impl/ Directory** | Multiple `.jac` files + one `impl/` directory | Package-level organization | [`cli/commands/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands) |
 | **`.impl/` Directory** | `mod.jac` + `mod.impl/*.impl.jac` | Very large modules, many concerns | [`type_evaluator.jac`](https://github.com/jaseci-labs/jac/blob/main/jac/jaclang/compiler/types/type_evaluator.jac) |
@@ -125,7 +125,7 @@ Notice how the declaration block at the top still reads like a concise API summa
 
 ### Real example
 
-**[`jaclang/langserve/rwlock.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/langserve/rwlock.jac)** -- A read-write lock in 94 lines. The declaration block (lines 1-29) reads like an API summary, and the `impl` blocks follow immediately. At this size, introducing a second file would be unnecessary overhead.
+**[`jaclang/lsp/server/rwlock.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/lsp/server/rwlock.jac)** -- A read-write lock in 94 lines. The declaration block (lines 1-29) reads like an API summary, and the `impl` blocks follow immediately. At this size, introducing a second file would be unnecessary overhead.
 
 ### When to use
 
@@ -272,7 +272,7 @@ To appreciate how pervasive this pattern is, here is a sampling from across the 
 | [`compiler/tools/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/tools) | 8 tool pass files | 8 matching impl files |
 | [`compiler/passes/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes) | 8 pass files | 8 matching impl files |
 | [`jac0core/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/jac0core) | `unitree.jac`, `program.jac`, `runtime.jac`, etc. | Matching impl files |
-| [`langserve/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/langserve) | `server.jac`, `engine.jac`, `utils.jac`, etc. | Matching impl files |
+| [`langserve/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/lsp/server) | `server.jac`, `engine.jac`, `utils.jac`, etc. | Matching impl files |
 | [`runtimelib/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/runtimelib) | `context.jac`, `memory.jac`, `server.jac`, etc. | Matching impl files |
 | [`project/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/project) | `config.jac`, `dependencies.jac`, etc. | Matching impl files |
 

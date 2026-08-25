@@ -1,4 +1,4 @@
-"""Tests for the jaclang.publish pipeline.
+"""Tests for the jaclang.dist.publish pipeline.
 
 Covers the four new modules added in this branch:
   metadata  — METADATA 2.4 string generation
@@ -21,26 +21,26 @@ import tempfile;
 import shutil;
 import from pathlib { Path }
 import from jaclang.project.config { JacConfig }
-import from jaclang.publish.metadata {
+import from jaclang.dist.publish.metadata {
     normalize_package_name,
     normalize_constraint,
     generate_metadata,
     generate_pyproject_toml
 }
-import from jaclang.publish.record { record_entry_from_bytes, generate_record }
-import from jaclang.publish.wheel_meta {
+import from jaclang.dist.publish.record { record_entry_from_bytes, generate_record }
+import from jaclang.dist.publish.wheel_meta {
     generate_wheel_file,
     generate_entry_points,
     wheel_filename,
     dist_info_dirname,
     sdist_filename
 }
-import from jaclang.publish.sources {
+import from jaclang.dist.publish.sources {
     SourceFile,
     read_source_file,
     collect_source_files
 }
-import from jaclang.publish.builder { WheelBuilder }
+import from jaclang.dist.publish.builder { WheelBuilder }
 
 
 # Helpers --------------------------------------------------------------------------
@@ -587,7 +587,7 @@ test "WheelBuilder.build_sdist_to writes file with correct name" {
 
 # py_imports — wheel-layout import rewriting -----------------------------------------------------
 test "wheel_module_name maps wheel paths to dotted module names" {
-    import from jaclang.publish.py_imports { wheel_module_name }
+    import from jaclang.dist.publish.py_imports { wheel_module_name }
     assert wheel_module_name("pkg/mod.py") == "pkg.mod";
     assert wheel_module_name("pkg/sub/mod.py") == "pkg.sub.mod";
     assert wheel_module_name("pkg/__init__.py") == "pkg";
@@ -595,7 +595,7 @@ test "wheel_module_name maps wheel paths to dotted module names" {
 
 test "rewrite_imports repoints project imports and leaves stdlib alone" {
     import os;
-    import from jaclang.publish.py_imports { rewrite_imports }
+    import from jaclang.dist.publish.py_imports { rewrite_imports }
     tmpdir = tempfile.mkdtemp();
     try {
         proj = Path(tmpdir);

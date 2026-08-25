@@ -64,7 +64,7 @@ diagnostics out. Full annotated trees never cross in production.
 The proven pattern is the `mat_parse` crossing
 (`compiler/frontend/parser/materialize.jac` on the Python side,
 `compiler/native_materialize.jac` generated at seal time by
-`utils/gen_native_materialize.jac` on the native side):
+`dist/gen_native_materialize.jac` on the native side):
 
 - one GIL-held `PYFUNCTYPE` entry per crossing, returning a fully
   Python-owned result;

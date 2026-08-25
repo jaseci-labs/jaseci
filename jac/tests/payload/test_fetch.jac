@@ -11,7 +11,7 @@ import shutil;
 import tempfile;
 import zipfile;
 
-import from jaclang.payload.fetch {
+import from jaclang.dist.payload.fetch {
     BUN_VERSION,
     HttpSource,
     bun_asset_name,
@@ -22,8 +22,8 @@ import from jaclang.payload.fetch {
     slice_wanted,
     unzip_member_by_suffix
 }
-import from jaclang.payload.fsutil { PayloadDie, find_sum_line }
-import from jaclang.payload.pins {
+import from jaclang.dist.payload.fsutil { PayloadDie, find_sum_line }
+import from jaclang.dist.payload.pins {
     LlvmSlice,
     llvm_release,
     load_pins,

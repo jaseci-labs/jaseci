@@ -11,7 +11,7 @@ description: >
   of rebuilding (PR branches cross-restore main's entry, and build their own on
   a miss). Exact-key match only (no restore-keys), so a stale binary can never
   be served -- which is why this is safe even though zig's own incremental cache
-  stays disabled (it doesn't reliably invalidate on a jaclang/payload change).
+  stays disabled (it doesn't reliably invalidate on a jaclang/dist/payload change).
 inputs:
   skip-precompile:
     description: >
@@ -144,7 +144,7 @@ runs:
           jac/jaclang/lib \
           jac/jaclang/cli/cli_boot.jac \
           jac/jaclang/project/tomlio.jac \
-          jac/jaclang/utils/precompile_bytecode.jac \
+          jac/jaclang/dist/precompile_bytecode.jac \
           | grep -E '\.(jac|py)$' \
           | grep -vE '(^|/)(tests|test)/|\.test\.jac$' || true)"
         n="$(printf '%s\n' "$list" | grep -c . || true)"

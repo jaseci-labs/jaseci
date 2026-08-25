@@ -630,7 +630,7 @@ test "hetero container band-aids are deleted; one element-storage authority" {
     );
     assert authority_defs
         == [
-            os.path.join("compiler", "passes", "native", "na_ir_gen", "types.impl.jac")
+            os.path.join("compiler", "backends", "native", "na_ir_gen", "types.impl.jac")
         ] , (
         "container element storage must be decided by exactly one authority "
         f"(_elem_storage_llvm in types.impl.jac); found: {authority_defs}"

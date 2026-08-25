@@ -119,7 +119,7 @@ impl dot(
 }
 
 impl lsp -> int {
-    import from jaclang.langserve.server { run_lang_server }
+    import from jaclang.lsp.server.server { run_lang_server }
     try {
         run_lang_server();
         return 0;

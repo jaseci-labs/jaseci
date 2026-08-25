@@ -51,7 +51,7 @@ def _stage_compiler_tree(where: str, codegen_body: str) -> str {
         "compiler/backends/py/jcir_gen_pass.jac",
         "compiler/native_materialize.jac",
         "compiler/backends/native/llvm/libjacllvm.so",
-        "utils/precompile_bytecode.jac",
+        "dist/precompile_bytecode.jac",
         "runtime/machine.jac",
         "compiler/__pycache__/stale.py",
         "compiler/.jac/cache/hidden.jac",
@@ -163,7 +163,7 @@ test "the running compiler digest covers the real compiler tree" {
         "compiler/backends/py/jcir_gen_pass.jac",
         "compiler/backends/py/impl/jcir_gen_pass.impl.jac",
         "compiler/passes/type_checker_pass.jac",
-        "utils/precompile_bytecode.jac"
+        "dist/precompile_bytecode.jac"
     ] {
         assert expected in rels , f"{expected} is outside the compiler digest";
     }

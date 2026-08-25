@@ -64,5 +64,5 @@ glob MICRO_JAC_FILES: list[str] = [
          "jaclang/jac0core/__init__.py",
          "jaclang/compiler/passes/__init__.py",
          "jaclang/compiler/passes/ast_gen/__init__.py",
-         "jaclang/utils/__init__.py"
+         "jaclang/dist/__init__.py"
      ];

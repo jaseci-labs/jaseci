@@ -10,7 +10,7 @@ persists natively through Session/PgStore.
 
 import tempfile;
 import from pathlib { Path }
-import from jaclang.publish.runtime_vendor { build_runtime_closure }
+import from jaclang.dist.publish.runtime_vendor { build_runtime_closure }
 import from jaclang.cli.commands.eject_targets.backend { emit_backend }
 
 

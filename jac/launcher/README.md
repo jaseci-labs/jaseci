@@ -8,7 +8,7 @@ Python, uv, or pip** at install or runtime. Both halves are Jac:
 |---|---|---|
 | Launcher stub (`launcher.jac`) | this directory | native (`jac build --as native` / `nacompile`) |
 | Fused-runtime library | `jaclang/dist/fused/` | native, shipped in the payload |
-| Payload tool (fetch, stage, precompile, pack) | `jaclang/payload/` | Python tier, run on the pbs CPython |
+| Payload tool (fetch, stage, precompile, pack) | `jaclang/dist/payload/` | Python tier, run on the pbs CPython |
 | Bootstrap seed (`fetch_pbs.zig`), `pins.json` | `bootstrap/` | Zig + the pin file |
 | `build.zig` | `jac/` | the one-command entry; also the C/C++ cross-compiler for the LLVM shim and the vendored runtimes |
 

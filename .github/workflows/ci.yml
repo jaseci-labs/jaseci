@@ -85,7 +85,7 @@ jobs:
               - 'jac/launcher/**'
               - 'jac/jaclang/dist/fused/**'
               - 'jac/jaclang/runtime/na_stdlib/**'
-              - 'jac/jaclang/payload/**'
+              - 'jac/jaclang/dist/payload/**'
               - '.github/workflows/ci.yml'
               # Payload-baked inputs. The host kit's binary predates a PR that
               # changes these, so the jobs that can notice must take the kit
@@ -93,7 +93,7 @@ jobs:
               - 'jac/launcher/**'
               - 'jac/_jac_finder.py'
               - 'jac/sitecustomize.py'
-              - 'jac/jaclang/utils/precompile_bytecode.jac'
+              - 'jac/jaclang/dist/precompile_bytecode.jac'
               - '.github/actions/**'
 
   # Host kit: the newest main binary (restore-keys prefix; any sealed binary

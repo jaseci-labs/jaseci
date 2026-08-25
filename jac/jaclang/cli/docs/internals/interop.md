@@ -313,7 +313,7 @@ libraries (`_precompiled/native/<triple>/libjac_native_materialize.*`,
 `libjac_unitree.*`) with persisted `NativeModuleLayout` JSON, recorded in
 `MANIFEST.json` under `native_artifacts` (sha256-verified,
 fail-closed). The materializer root is itself native jac, GENERATED AT SEAL TIME by
-`jaclang/utils/gen_native_materialize.jac` (the generated output is never
+`jaclang/dist/gen_native_materialize.jac` (the generated output is never
 checked in; issue #8133 tracks the end state): typed per-class emitters rebuild
 the parsed tree as real CPython objects at about 1.6 us per node through
 `import from python` clib externs -- resolved from the host process via ELF
@@ -715,7 +715,7 @@ RPC to the backend). It is the matrix in miniature.
 | Context split / coercion | [`compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/compiler.jac) (`_coerce_module`); `constant.jac` (`CodeContext`) |
 | `cl → sv` | `compiler/backends/es/impl/esast_gen_pass.impl.jac` (`__jacSpawn`/`__jacCallFunction`); `client/impl/client_runtime.impl.jac`; `jac/jaclang/scale/server/impl/serve.endpoints.impl.jac` |
 | `sv → cl` | `client/impl/{compiler,vite_bundler}.impl.jac`; `server/impl/server.impl.jac`; `passes/ast_gen/impl/jsx_processor.impl.jac` |
-| `sv ↔ na` | `runtime/interop_bridge.jac`; `compiler/frontend/parser/materialize.jac` + `utils/gen_native_materialize.jac` (sealed parse-tree crossing); `passes/impl/jcir_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `passes/native/impl/na_compile_pass.impl.jac` |
+| `sv ↔ na` | `runtime/interop_bridge.jac`; `compiler/frontend/parser/materialize.jac` + `dist/gen_native_materialize.jac` (sealed parse-tree crossing); `passes/impl/jcir_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `passes/native/impl/na_compile_pass.impl.jac` |
 | `na ↔ C` | `compiler/backends/native/{foreign,abi}.jac`; `passes/native/na_ir_gen/{clib_abi,clib_vtable}.impl.jac` |
 | `na → C host` | `cli/commands/impl/nacompile.impl.jac` (`_inject_shared_init`); `passes/native/impl/{elf,macho,pe}_linker.impl.jac` |
 | `na ↔ cl` (wasm) | `passes/native/{wasm_build,wasm_linker}.jac`; `client/impl/compiler.impl.jac` |

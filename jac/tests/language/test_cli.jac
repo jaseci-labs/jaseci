@@ -1369,7 +1369,7 @@ test "install editable resolves config from cwd when given dot path" {
         }
 
         with patch(
-            "jaclang.publish.builder.WheelBuilder.install_editable",
+            "jaclang.dist.publish.builder.WheelBuilder.install_editable",
             fake_install_editable
         ) {
             result = project.install(editable=[["."]]);
@@ -1474,7 +1474,7 @@ test "jac install -e links all packages for space-separated and repeated flag fo
         }
 
         with patch(
-            "jaclang.publish.builder.WheelBuilder.install_editable",
+            "jaclang.dist.publish.builder.WheelBuilder.install_editable",
             fake_install_editable
         ) {
             # [[pkg_a, pkg_b], [pkg_c]] mirrors: -e pkg_a pkg_b -e pkg_c

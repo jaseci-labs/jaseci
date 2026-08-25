@@ -759,7 +759,7 @@ impl install(
 
     editable = [p for group in (editable or []) for p in group];
     if editable {
-        import from jaclang.publish.builder { WheelBuilder }
+        import from jaclang.dist.publish.builder { WheelBuilder }
 
         editable_targets: list = [];
         all_dep_specs: list[str] = [];
@@ -1417,7 +1417,7 @@ impl jacpack(action: str = "", path: str = "", output: str = "") -> int {
 }
 
 def _bundle_wheel(config: any, output: str) -> int {
-    import from jaclang.publish.builder { WheelBuilder }
+    import from jaclang.dist.publish.builder { WheelBuilder }
 
     out_dir = Path(output);
     out_dir.mkdir(parents=True, exist_ok=True);
@@ -1498,7 +1498,7 @@ def _run_precompiler(src_dir: str, flags: list[str]) -> int {
         + repr(src_dir)
         + "] + "
         + repr(list(flags))
-        + "; from jaclang.utils.precompile_bytecode import main; main()"
+        + "; from jaclang.dist.precompile_bytecode import main; main()"
     );
     return subprocess.call([sys.executable, "-c", code]);
 }
@@ -1531,7 +1531,7 @@ def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
     import from jaclang.compiler.frontend.constant { Tokens as Tok }
     import from jaclang.compiler.driver.schedules { get_boundary_analysis_sched }
     import from jaclang.client.client_bundle { _ensure_js_generated }
-    import from jaclang.utils.precompile_bytecode {
+    import from jaclang.dist.precompile_bytecode {
         find_jac_files,
         _nested_project_dirs
     }
@@ -2073,8 +2073,8 @@ def _tar_gz_dir(top: Path) -> bytes {
 }
 
 def _bundle_npm(config: any, output: str) -> int {
-    import from jaclang.publish.npm_builder { NpmBuilder }
-    import from jaclang.publish.npm_sources { NpmBoundaryError }
+    import from jaclang.dist.publish.npm_builder { NpmBuilder }
+    import from jaclang.dist.publish.npm_sources { NpmBoundaryError }
 
     out_dir = Path(output);
     out_dir.mkdir(parents=True, exist_ok=True);
@@ -2099,7 +2099,7 @@ def _bundle_npm(config: any, output: str) -> int {
 }
 
 def _bundle_npm_runtime(output: str, framework: str = "") -> int {
-    import from jaclang.publish.runtime_npm { build_runtime_to, runtime_pkg_name }
+    import from jaclang.dist.publish.runtime_npm { build_runtime_to, runtime_pkg_name }
     import importlib.metadata;
 
     version = importlib.metadata.version("jaclang");

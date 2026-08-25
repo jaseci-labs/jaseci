@@ -482,7 +482,7 @@ closure carries the parser, lexer and `unitree` -- and
 `_precompiled/native/<triple>/libjac_native_materialize.*` /
 `libjac_unitree.*`, alongside persisted `NativeModuleLayout` JSON. The
 materializer is native jac, generated at seal time from the unitree
-layout by `jaclang/utils/gen_native_materialize.jac` (the generated
+layout by `jaclang/dist/gen_native_materialize.jac` (the generated
 output is never checked in),
 with per-class emitters that rebuild the parsed tree as
 real Python `unitree` objects through CPython C-API clib externs resolved

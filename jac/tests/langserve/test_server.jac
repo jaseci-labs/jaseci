@@ -8,19 +8,19 @@ import from tempfile { TemporaryDirectory }
 import from tests.support { JAC_ROOT }
 import from tests.compiler.passes.checker_npm_harness { make_npm_client_project }
 
-import jaclang.lsp.types as lspt;
+import jaclang.lsp.protocol.types as lspt;
 
 import jaclang;
-import from jaclang.langserve.engine { JacLangServer }
-import from jaclang.lsp { uris }
-import from jaclang.lsp.server { Workspace }
+import from jaclang.lsp.server.engine { JacLangServer }
+import from jaclang.lsp.protocol { uris }
+import from jaclang.lsp.protocol.server { Workspace }
 
 glob FIXTURE_DIR = os.path.join(
          os.path.dirname(os.path.abspath(__file__)), "fixtures"
      ),
      EXAMPLES_DIR = os.path.join(JAC_ROOT, "examples"),
      PASSES_FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
+         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
      ),
      _active_servers: list = [];
 
@@ -270,7 +270,7 @@ test "test_go_to_definition_md_path" {
             (6, 17, "concurrent/__init__.pyi:0:0-0:0"),
             (6, 28, "concurrent/futures/__init__.pyi:0:0-0:0"),
             (7, 17, "typing.pyi:0:0-0:0"),
-            (9, 18, "jaclang/jac0core/__init__.py:0:0-0:0"),
+            (9, 18, "jaclang/compiler/__init__.py:0:0-0:0"),
             (9, 25, "jaclang/compiler/frontend/unitree.jac:0:0-0:0"),
             # jaclang/__init__.py now exposes JacRuntimeInterface lazily via
             # PEP 562 __getattr__ (no static import binding), so go-to-def
@@ -283,9 +283,9 @@ test "test_go_to_definition_md_path" {
             (18, 5, "compiler/types/types.jac:37:4-37:12"),
             (20, 34, "jaclang/compiler/frontend/unitree.jac:0:0-0:0"),
             (22, 22, "tests/langserve/fixtures/circle.jac:7:5-7:8"),
-            (23, 28, "jaclang/lsp/uris.jac:0:0-0:0"),
-            (24, 40, "jaclang/lsp/server.jac:93:4-93:18"),
-            (26, 31, "jaclang/lsp/types.jac:0:0-0:0"),
+            (23, 28, "jaclang/lsp/protocol/uris.jac:0:0-0:0"),
+            (24, 40, "jaclang/lsp/protocol/server.jac:93:4-93:18"),
+            (26, 31, "jaclang/lsp/protocol/types.jac:0:0-0:0"),
 
         ];
 

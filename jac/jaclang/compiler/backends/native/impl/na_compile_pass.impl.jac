@@ -22,7 +22,7 @@ impl native_compiler_fingerprint(options: any) -> str {
     import os as _cfp_os;
     import jaclang as _jlm;
     _jl_dir = _cfp_os.path.dirname(_cfp_os.path.abspath(_jlm.__file__));
-    _nat_dir = _cfp_os.path.join(_jl_dir, "compiler", "passes", "native");
+    _nat_dir = _cfp_os.path.join(_jl_dir, "compiler", "backends", "native");
     _comp_h = _cfh_hash.sha256();
     import from jaclang.compiler.driver.jir { FORMAT_VERSION }
     _comp_h.update(str(FORMAT_VERSION).encode());

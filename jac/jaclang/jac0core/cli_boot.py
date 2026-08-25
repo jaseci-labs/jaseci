@@ -5,7 +5,7 @@ start_cli`` into its boot source, so this import path is a frozen
 contract with every launcher already in the field -- it cannot move with
 the source tree. The real module lives at ``jaclang.cli.cli_boot``
 (#8681); binaries built from this tree onward import that directly (see
-``jaclang/payload/assemble.jac``), and this seam exists for launchers
+``jaclang/dist/payload/assemble.jac``), and this seam exists for launchers
 built before the reorg.
 """
 

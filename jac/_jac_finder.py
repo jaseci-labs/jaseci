@@ -46,7 +46,7 @@ def _baked_source_dir() -> str | None:
 
     ``zig build -Ddev`` / ``-Djaclang-dir=PATH`` ships a payload WITHOUT a
     bundled ``jaclang`` and writes the absolute compiler path into a
-    ``jac_linked_source`` file beside this module (see ``jaclang.payload``
+    ``jac_linked_source`` file beside this module (see ``jaclang.dist.payload``
     ``mkPayload``). Reading it here makes such a binary reroute to live source
     from ANY directory, with no ``[dev]`` ``jac.toml`` stanza in scope. The file
     is one line of plain text; absent on a normal (self-contained) binary.

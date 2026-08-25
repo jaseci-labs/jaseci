@@ -23,7 +23,7 @@ import from jaclang.compiler.frontend.codeinfo { native_safe_sym }
 import from jaclang.compiler.frontend.helpers { pascal_to_snake }
 
 glob FIXTURES = os.path.join(
-         TESTS_DIR, "compiler", "passes", "native", "fixtures"
+         TESTS_DIR, "compiler", "backends", "native", "fixtures"
      );
 
 """Run a snippet through the front-end check schedule with the native

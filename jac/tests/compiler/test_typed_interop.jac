@@ -20,7 +20,7 @@ import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURE_DIR = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
+         JAC_ROOT, "tests", "compiler", "backends", "es", "fixtures"
      ),
      _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_typed_interop_");
 

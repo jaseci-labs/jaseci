@@ -15,7 +15,7 @@ import from jaclang.cli.commands { analysis }
 
 glob EXAMPLES = os.path.join(JAC_ROOT, "examples"),
      FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
+         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
      ),
      COMPILER_FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "fixtures"),
      LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
