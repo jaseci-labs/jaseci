@@ -314,17 +314,23 @@ test "the preflight refuses a pin that names no published release" {
 test "the preflight needs the pod binary and the host sealing binary" {
     # Since jac#7989 a deploy may also fetch a host-platform build of the same
     # version to seal the .jab, so a release missing either one cannot deploy.
+    # The pod arch is chosen to DIFFER from the host arch: on a linux host
+    # whose arch matches the pod's, the two required asset names collapse into
+    # one and neither "missing" leg can trip.
     d = _project(
         '[project]\nname = "x"\nversion = "0.1.0"\njac-version = "==0.34.3"\n'
     );
+    pod_arch = "aarch64" if binary_mod.host_arch() == "x86_64" else "x86_64";
+    pod = f"jac-0.34.3-linux-{pod_arch}";
     host = f"jac-0.34.3-{binary_mod.host_seal_platform()}-{binary_mod.host_arch()}";
-    for names in [["jac-0.34.3-linux-x86_64"], [host]] {
+    assert pod != host;
+    for names in [[pod], [host]] {
         with unittest.mock.patch.object(
             binary_mod, "_http_get_bytes", return_value=_release_meta(names)
         ) {
             raised = False;
             try {
-                binary_mod.preflight_pod_runtime(d, "stable", "x86_64");
+                binary_mod.preflight_pod_runtime(d, "stable", pod_arch);
             } except RuntimeError {
                 raised = True;
             }
@@ -332,10 +338,8 @@ test "the preflight needs the pod binary and the host sealing binary" {
         }
     }
     with unittest.mock.patch.object(
-        binary_mod,
-        "_http_get_bytes",
-        return_value=_release_meta(["jac-0.34.3-linux-x86_64", host])
+        binary_mod, "_http_get_bytes", return_value=_release_meta([pod, host])
     ) {
-        assert binary_mod.preflight_pod_runtime(d, "stable", "x86_64") == "0.34.3";
+        assert binary_mod.preflight_pod_runtime(d, "stable", pod_arch) == "0.34.3";
     }
 }
