@@ -13,8 +13,8 @@ observable contract across syntax variants that must agree:
 - Single-branch if and while-loop assignment forms keep warning.
 """
 
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 def unused_warnings(src: str, name: str) -> list[str] {
     prog = JacProgram();
