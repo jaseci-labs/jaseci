@@ -14,7 +14,6 @@ import from pathlib { Path }
 glob _mobui_file = (
          Path(os.path.dirname(__file__)).parent.parent.parent
          / "jaclang"
-         / "runtimelib"
          / "client"
          / "client_mobui.jac"
      ),

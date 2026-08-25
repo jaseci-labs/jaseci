@@ -33,7 +33,7 @@ test "_ABI64_ADAPTED matches the adapters defined in jac_abi64.c" {
 }
 
 test "WASM_HOST_ABI matches the host functions in wasm_host.jac" {
-    host_src = (_PKG_DIR / "runtimelib" / "wasm_host.jac").read_text(encoding="utf-8");
+    host_src = (_PKG_DIR / "client" / "wasm_host.jac").read_text(encoding="utf-8");
     implemented = {str(m) for m in re.findall(r'"(\w+)": lambda', host_src)};
     declared = {str(x) for x in WASM_HOST_ABI};
     assert implemented == declared , (

@@ -176,7 +176,7 @@ test "helpers.jac lowers when a native unit reaches it" {
         na_coverage_end
     }
     helpers_path = os.path.join(
-        os.path.dirname(jaclang.__file__), "jac0core", "helpers.jac"
+        os.path.dirname(jaclang.__file__), "compiler", "frontend", "helpers.jac"
     );
     prog = JacProgram();
     opts = CompileOptions(

@@ -33,7 +33,7 @@ Desktop now ships inside jaclang core at
 def _pkg_root -> Path {
     import jaclang;
     pkg = (
-        Path(jaclang.__file__).parent / "runtimelib" / "client" / "targets" / "desktop"
+        Path(jaclang.__file__).parent / "client" / "targets" / "desktop"
     );
     if not (pkg / "plugin" / "plugin_host.jac").exists() {
         raise RuntimeError("Could not find desktop target package root at " + str(pkg));

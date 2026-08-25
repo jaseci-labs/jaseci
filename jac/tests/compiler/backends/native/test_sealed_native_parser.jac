@@ -143,7 +143,7 @@ test "materialized native tree matches bytecode on fam.jac" {
 }
 
 test "materialized native tree matches bytecode on a compiler source module" {
-    mod_src = PKG_PATH / "jac0core" / "srcloc.jac";
+    mod_src = PKG_PATH / "compiler" / "frontend" / "srcloc.jac";
     _assert_parity(mod_src.read_text(encoding="utf-8"), str(mod_src));
 }
 
@@ -382,7 +382,7 @@ test "a prior parse's envelope objects never bleed into the next tree" {
         [f"# filler comment number {i} padding the envelope" for i in range(64)]
             + ["with entry { x = 1; }"]
     );
-    probe_src = (PKG_PATH / "jac0core" / "srcloc.jac").read_text(encoding="utf-8");
+    probe_src = (PKG_PATH / "compiler" / "frontend" / "srcloc.jac").read_text(encoding="utf-8");
     for cycle in range(3) {
         np.parse(commented, f"__bleed_comments_{cycle}__.jac");
         (m2, _e, _pd, _cm, _ld, _le) = np.parse(
@@ -475,11 +475,11 @@ test "the full compiler pipeline runs over materialized native trees" {
 }
 
 test "materializer parity holds across the jac0core source corpus" {
-    # Bounded standing corpus sweep: every jac0core source this checkout
+    # Bounded standing corpus sweep: every compiler/driver source this checkout
     # ships. Fixture-wide equivalence ran once on the integration branch
     # (1410 files, zero divergence); this keeps a representative slice green
     # in CI without that cost.
-    corpus = sorted((PKG_PATH / "jac0core").`glob("*.jac"));
+    corpus = sorted((PKG_PATH / "compiler" / "driver").`glob("*.jac"));
     assert len(corpus) > 10;
     for src_file in corpus {
         _assert_parity(src_file.read_text(encoding="utf-8"), str(src_file));
@@ -596,7 +596,7 @@ test "field-level parity: archetypes, enums, walkers, edge ops" {
 }
 
 test "field-level parity holds on a compiler source module" {
-    mod_src = PKG_PATH / "jac0core" / "srcloc.jac";
+    mod_src = PKG_PATH / "compiler" / "frontend" / "srcloc.jac";
     _assert_full_parity(mod_src.read_text(encoding="utf-8"), str(mod_src));
 }
 
@@ -655,7 +655,7 @@ test "refcount soundness: repeated materialization is object-count stable" {
     # dropped trees actually die: live UniNode coverage and sampled refcounts
     # return to baseline across repeated parses.
     (np, _out, _rec) = _build_binding();
-    src = (PKG_PATH / "jac0core" / "srcloc.jac").read_text(encoding="utf-8");
+    src = (PKG_PATH / "compiler" / "frontend" / "srcloc.jac").read_text(encoding="utf-8");
 
     (_m, _e, _pd, _cm, _ld, _le) = np.parse(src, "__leak_warmup__.jac");
     _m = None;
@@ -726,7 +726,7 @@ test "native memory soundness: the native tree dies inside the call" {
     # twenty times are tens of MB of LIVE memory, while a warmed allocator's
     # steady state drifts by at most a few.
     (np, _out, _rec) = _build_binding();
-    src = (PKG_PATH / "jac0core" / "unitree.jac").read_text(encoding="utf-8");
+    src = (PKG_PATH / "compiler" / "frontend" / "unitree.jac").read_text(encoding="utf-8");
     for _w in range(5) {
         (m, _e, _pd, _cm, _ld, _le) = np.parse(src, "__rss_warmup__.jac");
         m = None;
@@ -762,7 +762,7 @@ test "native memory soundness: the native tree dies inside the call" {
 
 test "front-end timing: native parse+materialize against the bytecode tier" {
     (np, _out, _rec) = _build_binding();
-    src = (PKG_PATH / "jac0core" / "srcloc.jac").read_text(encoding="utf-8");
+    src = (PKG_PATH / "compiler" / "frontend" / "srcloc.jac").read_text(encoding="utf-8");
     reps = 3;
     t0 = time.perf_counter();
     for i in range(reps) {

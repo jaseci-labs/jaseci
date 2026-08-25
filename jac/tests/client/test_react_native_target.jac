@@ -14,7 +14,6 @@ import from pathlib { Path }
 glob _client_dir = (
          Path(os.path.dirname(__file__)).parent.parent.parent
          / "jaclang"
-         / "runtimelib"
          / "client"
      ),
      _targets_dir = _client_dir / "targets";

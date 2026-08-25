@@ -32,7 +32,7 @@ glob _PYI_PATH: str = os.path.join(
          JAC_ROOT, "jaclang", "compiler", "types", "jac_builtins.pyi"
      ),
      _BUILTIN_PATH: str = os.path.join(
-         JAC_ROOT, "jaclang", "runtimelib", "builtin.jac"
+         JAC_ROOT, "jaclang", "runtime", "builtin.jac"
      );
 
 

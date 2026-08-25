@@ -12,7 +12,7 @@ import from pathlib { Path }
 import jaclang;
 
 glob RUNTIME_SRC = (
-         Path(jaclang.__file__).resolve().parent / "runtimelib" / "client_runtime.jac"
+         Path(jaclang.__file__).resolve().parent / "client" / "client_runtime.jac"
      ).read_text();
 
 test "runtime exposes the React Router v6 routing surface" {

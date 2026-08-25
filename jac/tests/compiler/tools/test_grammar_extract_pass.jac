@@ -28,7 +28,11 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob PARSER_PATH = str(
-         Path(jaclang.__file__).parent / "jac0core" / "parser" / "parser.jac"
+         Path(jaclang.__file__).parent
+         / "compiler"
+         / "frontend"
+         / "parser"
+         / "parser.jac"
      ),
      SPEC_PATH = os.path.join(JAC_ROOT, "jaclang", "jac.spec");
 

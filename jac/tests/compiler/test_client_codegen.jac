@@ -172,7 +172,7 @@ test "jac call function sends params directly" {
     # shared core runtime; the per-framework shim re-exports it.
     runtime_path = (
         Path(jaclang.__file__).resolve().parent
-        / "runtimelib"
+        / "client"
         / "impl"
         / "client_runtime_core.impl.jac"
     );

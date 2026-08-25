@@ -80,7 +80,7 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     UNITREE_SRC = PKG_PATH / "jac0core" / "unitree.jac";
+     UNITREE_SRC = PKG_PATH / "compiler" / "frontend" / "unitree.jac";
 
 """Every module the native compile of `unitree.jac` puts in its closure.
 

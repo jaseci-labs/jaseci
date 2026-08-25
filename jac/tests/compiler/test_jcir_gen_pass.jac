@@ -703,7 +703,7 @@ obj Helper {
 }
 
 test "real repo file srcloc lowers identically end to end" {
-    path = os.path.join(JAC_ROOT, "jaclang", "jac0core", "srcloc.jac");
+    path = os.path.join(JAC_ROOT, "jaclang", "compiler", "frontend", "srcloc.jac");
     (ref_tree, got_tree, blob) = dual_compile_file(path);
     assert_dump_equal(ref_tree, got_tree);
     result = compile_ir(blob);

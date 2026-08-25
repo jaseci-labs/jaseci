@@ -24,7 +24,6 @@ def _cef_dir -> Path {
     for _ in range(8) {
         cand = probe
             / "jaclang"
-            / "runtimelib"
             / "client"
             / "targets"
             / "desktop"

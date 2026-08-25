@@ -15,7 +15,6 @@ import from pathlib { Path }
 # source order, so this entry block puts it on the path before the imports.
 glob _plugin_dir = str(
          Path(jaclang.__file__).parent
-             / "runtimelib"
              / "client"
              / "targets"
              / "desktop"

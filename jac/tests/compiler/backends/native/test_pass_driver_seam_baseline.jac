@@ -32,7 +32,7 @@ import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
-glob PASSES_DIR = Path(jaclang.__file__).parent / "jac0core" / "passes";
+glob PASSES_DIR = Path(jaclang.__file__).parent / "compiler" / "passes";
 
 """Substrings that mark a seam as driver coupling rather than a backend gap.
 

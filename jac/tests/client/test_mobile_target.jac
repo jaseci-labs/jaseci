@@ -6,7 +6,6 @@ import from pathlib { Path }
 # Mobile target modules now ship with core under jaclang/client/.
 glob _client_dir = Path(os.path.dirname(__file__)).parent.parent.parent
          / "jaclang"
-         / "runtimelib"
          / "client";
 
 test "mobile target files exist" {

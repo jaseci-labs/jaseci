@@ -97,7 +97,7 @@ test "type check holds one identity per class across a self-import cycle" {
 
 test "the compiler's own package stays with the running compiler" {
     home = tempfile.mkdtemp();
-    copy = Path(home) / 'jaclang' / 'runtimelib' / 'serving';
+    copy = Path(home) / 'jaclang' / 'server' / 'serving';
     copy.mkdir(parents=True);
     (Path(home) / 'jaclang' / '__init__.jac').write_text('');
     (copy / 'app.jac').write_text('obj ServingApp {}\n');

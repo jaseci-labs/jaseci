@@ -65,7 +65,7 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
 glob TRANSFORM_JAC = str(
-         Path(jaclang.__file__).parent / "jac0core" / "passes" / "transform.jac"
+         Path(jaclang.__file__).parent / "compiler" / "passes" / "transform.jac"
      );
 
 """The emission path: every callable a single `self.emit(...)` can reach.

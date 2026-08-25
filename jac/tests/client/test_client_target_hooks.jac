@@ -9,7 +9,6 @@ import from pathlib { Path }
 
 glob _client_dir = Path(__file__).parent.parent.parent.parent
          / "jaclang"
-         / "runtimelib"
          / "client",
      _register_jac = _client_dir / "targets" / "register.jac",
      _registry_jac = _client_dir / "targets" / "registry.jac",

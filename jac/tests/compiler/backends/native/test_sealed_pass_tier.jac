@@ -71,7 +71,7 @@ def _run_tier_pass -> any {
 """The sealable unit's source, read from the installed tree it compiles from."""
 def _unit_source -> str {
     return (
-        Path(jaclang.__file__).parent / "jac0core" / "passes" / "transform.jac"
+        Path(jaclang.__file__).parent / "compiler" / "passes" / "transform.jac"
     ).read_text(
         encoding="utf-8"
     );

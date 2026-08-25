@@ -79,7 +79,7 @@ test "the stamped verdict is the computation it replaced" {
 
 test "the emitter unit no longer names the driver" {
     text = (
-        PKG_PATH / "jac0core" / "passes" / "impl" / "jcir_gen_pass.impl.jac"
+        PKG_PATH / "compiler" / "backends" / "py" / "impl" / "jcir_gen_pass.impl.jac"
     ).read_text(
         encoding="utf-8"
     );

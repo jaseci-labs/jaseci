@@ -116,7 +116,7 @@ test "the pass chain's traversal methods lower" {
     na_coverage_begin();
     try {
         prog.compile(
-            file_path=os.path.join(pkg, "jac0core", "passes", "uni_pass.jac"),
+            file_path=os.path.join(pkg, "compiler", "passes", "uni_pass.jac"),
             options=CompileOptions(
                 aot_mode=True,
                 force_codespace='native',
@@ -129,7 +129,7 @@ test "the pass chain's traversal methods lower" {
         coverage = na_coverage_end();
     }
     rec = coverage.get(
-        os.path.realpath(os.path.join(pkg, "jac0core", "passes", "uni_pass.jac"))
+        os.path.realpath(os.path.join(pkg, "compiler", "passes", "uni_pass.jac"))
     );
     assert rec is not None , "uni_pass.jac never entered the coverage";
     names: set[str] = set();

@@ -275,7 +275,7 @@ test "the wheel-shaped lane stays quiet on the live closure" {
     }
 
     pkg = os.path.dirname(os.path.abspath(jaclang.__file__));
-    target = os.path.join(pkg, "runtimelib", "sealed_serve.jac");
+    target = os.path.join(pkg, "server", "sealed_serve.jac");
     if not os.path.isfile(target) {
         testskip("sealed_serve.jac is absent from this payload");
     }

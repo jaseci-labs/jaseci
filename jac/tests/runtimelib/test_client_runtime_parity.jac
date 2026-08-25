@@ -30,7 +30,7 @@ def _as_any(v: any) -> any {
     return v;
 }
 
-glob _RT = Path(jaclang.__file__).parent / "runtimelib",
+glob _RT = Path(jaclang.__file__).parent / "client",
      # The three router/component runtimes: one public surface, three targets.
      _ROUTER_RUNTIMES: dict[str, Path] = {
          "react": _RT / "client_runtime.jac",

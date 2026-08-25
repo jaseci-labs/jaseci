@@ -21,7 +21,6 @@ def _webview_dir -> Path {
     for _ in range(8) {
         cand = probe
             / "jaclang"
-            / "runtimelib"
             / "client"
             / "targets"
             / "desktop"
@@ -45,7 +44,6 @@ def _native_dir -> Path {
     for _ in range(8) {
         cand = probe
             / "jaclang"
-            / "runtimelib"
             / "client"
             / "targets"
             / "desktop"

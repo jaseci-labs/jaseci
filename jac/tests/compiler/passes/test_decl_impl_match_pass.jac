@@ -20,7 +20,7 @@ def _jac_root -> str {
     if here is None {
         raise RuntimeError("test __file__ is unavailable");
     }
-    return str(Path(here).resolve().parent.parent.parent.parent.parent);
+    return str(Path(here).resolve().parent.parent.parent.parent);
 }
 
 glob JAC_ROOT = _jac_root(),
