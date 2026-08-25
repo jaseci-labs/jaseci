@@ -135,7 +135,7 @@ def:pub ssl_read(ssl: int, bufsize: int) -> bytes {
         return b"";
     }
     if err == _SSL_ERROR_SSL {
-        reason = ERR_peek_error() & _ERR_REASON_MASK;
+        reason = int(ERR_peek_error()) & _ERR_REASON_MASK;
         if reason != _SSL_R_UNEXPECTED_EOF_WHILE_READING {
             raise OSError("TLS read failed: " + last_error());
         }
