@@ -4,7 +4,7 @@ import asyncio;
 import os;
 import tempfile;
 
-import from jaclang.lsp.types {
+import from jaclang.lsp.protocol.types {
     DidChangeTextDocumentParams,
     DidOpenTextDocumentParams,
     DidSaveTextDocumentParams,
@@ -17,10 +17,10 @@ import from jaclang.lsp.types {
     VersionedTextDocumentIdentifier
 }
 
-import from jaclang.langserve.engine { JacLangServer }
-import from jaclang.langserve.server { formatting }
-import from jaclang.lsp.uris { from_fs_path }
-import from jaclang.lsp.server { Workspace }
+import from jaclang.lsp.server.engine { JacLangServer }
+import from jaclang.lsp.server.server { formatting }
+import from jaclang.lsp.protocol.uris { from_fs_path }
+import from jaclang.lsp.protocol.server { Workspace }
 
 glob _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_lsp_");
 
@@ -94,7 +94,7 @@ obj LanguageServerTestHelper {
         test_file: JacTestFile;
 
     def open_document {
-        import from jaclang.langserve.server { did_open }
+        import from jaclang.lsp.server.server { did_open }
 
         open_params = DidOpenTextDocumentParams(
             text_document=TextDocumentItem(
@@ -109,7 +109,7 @@ obj LanguageServerTestHelper {
     }
 
     def save_document(code: str | None = None) {
-        import from jaclang.langserve.server { did_save }
+        import from jaclang.lsp.server.server { did_save }
 
         content = code if code is not None else self.test_file.code;
         version = self.test_file.increment_version();
@@ -126,7 +126,7 @@ obj LanguageServerTestHelper {
     }
 
     def change_document(code: str) {
-        import from jaclang.langserve.server { did_change }
+        import from jaclang.lsp.server.server { did_change }
 
         version = self.test_file.increment_version();
         self._update_workspace(code, version);

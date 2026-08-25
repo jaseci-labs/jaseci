@@ -69,7 +69,7 @@ def share_with(tweet_id: str, target_root: str) {
 }
 ```
 
-`target_root` is the other user's root id - the `root_id` field of their `/user/login` response, or `jid(root)` captured server-side. Like `grant`, it's per-node, not per-subtree. The `jac:ignore[E1053]` is needed because the checker doesn't yet accept node types for the `archetype: Archetype` parameter (runtime is fine - verified live); alternatively cast `t as Archetype` with `import from jaclang.jac0core.archetype { Archetype }`.
+`target_root` is the other user's root id - the `root_id` field of their `/user/login` response, or `jid(root)` captured server-side. Like `grant`, it's per-node, not per-subtree. The `jac:ignore[E1053]` is needed because the checker doesn't yet accept node types for the `archetype: Archetype` parameter (runtime is fine - verified live); alternatively cast `t as Archetype` with `import from jaclang.runtime.archetype { Archetype }`.
 
 ## root.shared - the public commons
 
@@ -138,7 +138,7 @@ Read-only `allroots()` fan-outs don't need gating - grants already filter what e
 
 - **A node is only reachable by other users if granted** (`grant`, `allow_root`, or living open on `root.shared`). Creating it under your root and connecting an edge is NOT enough - forgetting the grant is the #1 cause of "the other user's feed is empty" with no error. Grant at creation time, in the same function.
 - **Grants are per-node, not per-subtree.** Granting a `Profile` does not grant the `Tweet`s hanging off it.
-- **`allroots()` needs served context** (`jac start`). In a single-session `jac run` it returns only the one root - validate cross-user features with two real logged-in users, never a single-root script.
+- **`allroots()` needs served context** (`jac run`). In a single-session `jac run` it returns only the one root - validate cross-user features with two real logged-in users, never a single-root script.
 - **`allroots()` fan-outs can visit the same node twice** - a node reachable through more than one root (granted, shared) is surfaced once per path, so a bare per-visit tally double-counts. Dedupe with a `jid(here)`-keyed dict (littleX's trending walker keeps a `seen: dict[str, bool]`).
 - **`def:pub` is the wrong tool for shared data.** Anonymous callers land on the guest graph, token-holders on their own root - so a `:pub` "global graph" isn't even one graph. Keep endpoints authenticated and use `grant`/`root.shared`. See `jac-sv-auth`.
 - `jobj(id)` resolves any node by jid regardless of grants - don't treat a jid as a secret capability; enforce sharing decisions with grant levels and traversal, not id obscurity.

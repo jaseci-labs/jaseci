@@ -1,4 +1,4 @@
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Assignment,
     AtomTrailer,
     AtomUnit,
@@ -21,7 +21,7 @@ import from jaclang.jac0core.unitree {
     UnaryExpr,
     UniNode
 }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
 
 def int_subscript_suffix(right: IndexSlice) -> str | None {
     if (not right.is_range and len(right.slices) == 1) {

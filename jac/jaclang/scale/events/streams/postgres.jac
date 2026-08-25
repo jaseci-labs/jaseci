@@ -6,7 +6,7 @@ import time;
 import uuid;
 import from threading { Thread, Event as _ThreadStop }
 import from typing { cast }
-import from jaclang.runtimelib.store { TxnIsolation }
+import from jaclang.data.store { TxnIsolation }
 import from jaclang.scale.events.broker {
     EventStreamBroker,
     Event,
@@ -65,8 +65,8 @@ obj PgEventStream(EventStreamBroker) {
 
     def _ensure_store -> any {
         if self._store is None {
-            import from jaclang.runtimelib.session { conninfo_from_url }
-            import from jaclang.runtimelib.store { PgStore }
+            import from jaclang.server.session { conninfo_from_url }
+            import from jaclang.data.store { PgStore }
             import from jaclang.scale.persistence.pg { scale_db_url }
             url = self.config.get('url') or scale_db_url();
             assert url , "PgEventStream needs a database url (JAC_DB_URL)";

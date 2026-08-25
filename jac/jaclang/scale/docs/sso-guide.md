@@ -156,7 +156,7 @@ Create a new file `sso/microsoft.jac` extending `OAuth2CodeProvider` (which hand
 
 ```jac
 import from jaclang.scale.sso.provider { OAuth2CodeProvider, SSOUserInfo }
-import from jaclang.runtimelib.serving.client { arequest }
+import from jaclang.server.serving.client { arequest }
 
 obj MicrosoftSSOProvider(OAuth2CodeProvider) {
     def authorize_url -> str {
