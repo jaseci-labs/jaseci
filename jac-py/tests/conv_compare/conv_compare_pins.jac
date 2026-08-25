@@ -7,6 +7,12 @@ import from layer_p2_libtest { p2_libtest_run_snippet }
 
 # Source: test_compare.py
 
+test "ComparisonSimpleTest.test_other_delegation" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n    \"\"\"No default delegation between operations except __ne__()\"\"\"\n    ops = (('__eq__', lambda a, b: a == b), ('__lt__', lambda a, b: a < b), ('__le__', lambda a, b: a <= b), ('__gt__', lambda a, b: a > b), ('__ge__', lambda a, b: a >= b))\n    for name, func in ops:\n\n        def unexpected(*args):\n            raise AssertionError('Unexpected operator method called')\n\n        class C:\n            __ne__ = unexpected\n        for other, _ in ops:\n            if other != name:\n                setattr(C, other, unexpected)\n        if name == '__eq__':\n            assert func(C(), object()) is False, ('assertIs', func(C(), object()), False)\n        else:\n            try:\n                func(*(C(), object()))\n            except TypeError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "ComparisonSimpleTest.test_issue_1393" {
     (ok, detail) = p2_libtest_run_snippet("from test.support import ALWAYS_EQ\n\ndef _t():\n    x = lambda: None\n    assert x == ALWAYS_EQ, ('assertEqual', x, ALWAYS_EQ)\n    assert ALWAYS_EQ == x, ('assertEqual', ALWAYS_EQ, x)\n    y = object()\n    assert y == ALWAYS_EQ, ('assertEqual', y, ALWAYS_EQ)\n    assert ALWAYS_EQ == y, ('assertEqual', ALWAYS_EQ, y)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

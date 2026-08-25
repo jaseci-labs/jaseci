@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "jac_sha": "5542c0d7bed70fe5a119f442e06395e8f0cbb3d5",
   "cpython": {
     "version": "3.14.6",
-    "sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "/var/tmp/sp4-wt/reference/cpython/Lib/test/test_dictcomps.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_dictcomps.py",
     "-o",
-    "/var/tmp/sp4-out/dictcomps",
+    "/var/tmp/lane8/jac-py/tests/conv_dictcomps",
     "--name",
     "conv_dictcomps"
   ],
-  "generated_at": "2026-08-24T13:50:05",
+  "generated_at": "2026-08-24T21:02:09",
   "hashes": {
     "pins_jac": "0ecd0ba0751f3acc6d865cb8be46f163e615e40f62faf00c79ad6ff735d4dc38"
   },
-  "source_file": "/var/tmp/sp4-wt/reference/cpython/Lib/test/test_dictcomps.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_dictcomps.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "dictcomps",
   "pins_file": "conv_dictcomps_pins.jac",
@@ -94,14 +94,14 @@
         "status": "ok"
       },
       "snippet": "def _t():\n    expected = {0: 0, 1: 1, 2: 4, 3: 9}\n    assert {i: i * i for i in [*range(4)]} == expected, ('assertEqual', {i: i * i for i in [*range(4)]}, expected)\n    assert {i: i * i for i in (*range(4),)} == expected, ('assertEqual', {i: i * i for i in (*range(4),)}, expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
-    }
-  ],
-  "quarantined": [
+    },
     {
       "ident": "DictComprehensionTest.test_exception_locations",
-      "reason": "uses-self.subTest"
+      "status": "quarantined",
+      "reason": "host-raised:AssertionError: ('assertEqual', ' in BrokenIter(init_raises=T', 'BrokenIter(init_raises=True)')"
     }
   ],
+  "quarantined": [],
   "counts": {
     "extracted": 10,
     "pinned": 9,

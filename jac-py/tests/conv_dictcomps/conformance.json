@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "c01c89da056bb6d42e60df316b7e375e687a90dd",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "5542c0d7bed70fe5a119f442e06395e8f0cbb3d5",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/sp4-out/dictcomps/conv_dictcomps_pins.jac"
+    "jac-py/tests/conv_dictcomps/conv_dictcomps_pins.jac"
   ],
-  "generated_at": "2026-08-24T13:51:21",
+  "generated_at": "2026-08-24T21:02:25",
   "hashes": {
     "pins_jac": "0ecd0ba0751f3acc6d865cb8be46f163e615e40f62faf00c79ad6ff735d4dc38",
-    "conversion_json": "9801abbbedd618261a0d18b3ddde0d0858b88dbb110d132fef286d6f56295781",
+    "conversion_json": "461d7a6ce4c22be5085e0623154a4ff7e11fc4a2b8de8503baef679dbc4587a5",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "dictcomps",
@@ -65,7 +65,7 @@
     {
       "id": "DictComprehensionTest.test_exception_locations",
       "status": "quarantined",
-      "reason": "uses-self.subTest"
+      "reason": "host-raised:AssertionError: ('assertEqual', ' in BrokenIter(init_raises=T', 'BrokenIter(init_raises=True)')"
     }
   ]
 }

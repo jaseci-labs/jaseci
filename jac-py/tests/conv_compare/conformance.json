@@ -1,29 +1,38 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "c01c89da056bb6d42e60df316b7e375e687a90dd",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "5542c0d7bed70fe5a119f442e06395e8f0cbb3d5",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/sp6-out/test_compare/conv_compare_pins.jac"
+    "jac-py/tests/conv_compare/conv_compare_pins.jac"
   ],
-  "generated_at": "2026-08-24T13:50:58",
+  "generated_at": "2026-08-24T21:02:41",
   "hashes": {
-    "pins_jac": "f529ab3dd88a496e68f66735216edd7b694fe288cb261b048383e21e1b30783f",
-    "conversion_json": "b678af49c66f29fa46dd873cdcd172c97ab08db30b81b01e543518b2006cdead",
+    "pins_jac": "bd88f4210dac9b12adaa35a87cfdddafdbb331b3444a0b1354dc82e9e1a0c8f6",
+    "conversion_json": "1d2185c28dba2d2c883ac49a642f96415c3c608cb8303e7aceb572d01feff7f1",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "compare",
   "counts": {
     "converted": 16,
-    "runnable": 8,
-    "green": 6,
-    "quarantined": 8
+    "runnable": 9,
+    "green": 7,
+    "quarantined": 7
   },
   "pins": [
+    {
+      "id": "ComparisonSimpleTest.test_comparisons",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'candidates'"
+    },
+    {
+      "id": "ComparisonSimpleTest.test_other_delegation",
+      "status": "pass"
+    },
     {
       "id": "ComparisonSimpleTest.test_issue_1393",
       "status": "fail",
@@ -35,6 +44,16 @@
       "status": "pass"
     },
     {
+      "id": "ComparisonFullTest.test_comp_classes_same",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'all_comp_classes'"
+    },
+    {
+      "id": "ComparisonFullTest.test_comp_classes_different",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'all_comp_classes'"
+    },
+    {
       "id": "ComparisonFullTest.test_str_subclass",
       "status": "pass"
     },
@@ -42,7 +61,7 @@
       "id": "ComparisonFullTest.test_numbers",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: register'>"
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'int\\' and \\'Fraction\\'\"'>"
     },
     {
       "id": "ComparisonFullTest.test_sequences",
@@ -59,11 +78,6 @@
     {
       "id": "ComparisonFullTest.test_mappings",
       "status": "pass"
-    },
-    {
-      "id": "ComparisonSimpleTest.test_comparisons",
-      "status": "quarantined",
-      "reason": "uses-self.candidates"
     },
     {
       "id": "ComparisonSimpleTest.test_id_comparisons",
@@ -84,21 +98,6 @@
       "id": "ComparisonSimpleTest.test_ne_low_priority",
       "status": "quarantined",
       "reason": "self.assertSequenceEqual"
-    },
-    {
-      "id": "ComparisonSimpleTest.test_other_delegation",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "ComparisonFullTest.test_comp_classes_same",
-      "status": "quarantined",
-      "reason": "uses-self.all_comp_classes"
-    },
-    {
-      "id": "ComparisonFullTest.test_comp_classes_different",
-      "status": "quarantined",
-      "reason": "uses-self.all_comp_classes"
     }
   ]
 }

@@ -1,28 +1,41 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "c01c89da056bb6d42e60df316b7e375e687a90dd",
+  "jac_sha": "5542c0d7bed70fe5a119f442e06395e8f0cbb3d5",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_compare.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_compare.py",
     "-o",
-    "/var/tmp/sp6-out/test_compare",
+    "/var/tmp/lane8/jac-py/tests/conv_compare",
     "--name",
     "conv_compare"
   ],
-  "generated_at": "2026-08-24T13:51:37",
+  "generated_at": "2026-08-24T21:02:38",
   "hashes": {
-    "pins_jac": "f529ab3dd88a496e68f66735216edd7b694fe288cb261b048383e21e1b30783f"
+    "pins_jac": "bd88f4210dac9b12adaa35a87cfdddafdbb331b3444a0b1354dc82e9e1a0c8f6"
   },
-  "source_file": "reference/cpython/Lib/test/test_compare.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_compare.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "compare",
   "pins_file": "conv_compare_pins.jac",
   "pins": [
+    {
+      "ident": "ComparisonSimpleTest.test_comparisons",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'candidates'"
+    },
+    {
+      "ident": "ComparisonSimpleTest.test_other_delegation",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"No default delegation between operations except __ne__()\"\"\"\n    ops = (('__eq__', lambda a, b: a == b), ('__lt__', lambda a, b: a < b), ('__le__', lambda a, b: a <= b), ('__gt__', lambda a, b: a > b), ('__ge__', lambda a, b: a >= b))\n    for name, func in ops:\n\n        def unexpected(*args):\n            raise AssertionError('Unexpected operator method called')\n\n        class C:\n            __ne__ = unexpected\n        for other, _ in ops:\n            if other != name:\n                setattr(C, other, unexpected)\n        if name == '__eq__':\n            assert func(C(), object()) is False, ('assertIs', func(C(), object()), False)\n        else:\n            try:\n                func(*(C(), object()))\n            except TypeError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
     {
       "ident": "ComparisonSimpleTest.test_issue_1393",
       "status": "pinned",
@@ -38,6 +51,16 @@
         "status": "ok"
       },
       "snippet": "import re as _re\n\ndef assert_equality_only(a, b, equal):\n    \"\"\"Assert equality result and that ordering is not implemented.\n\n        a, b: Instances to be tested (of same or different type).\n        equal: Boolean indicating the expected equality comparison results.\n        \"\"\"\n    assert (a == b) == equal, ('assertEqual', (a == b), equal)\n    assert (b == a) == equal, ('assertEqual', (b == a), equal)\n    assert (a != b) == (not equal), ('assertEqual', (a != b), (not equal))\n    assert (b != a) == (not equal), ('assertEqual', (b != a), (not equal))\n    try:\n        a < b\n    except TypeError as _exc:\n        assert _re.search('not supported', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        a <= b\n    except TypeError as _exc:\n        assert _re.search('not supported', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        a > b\n    except TypeError as _exc:\n        assert _re.search('not supported', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        a >= b\n    except TypeError as _exc:\n        assert _re.search('not supported', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        b < a\n    except TypeError as _exc:\n        assert _re.search('not supported', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        b <= a\n    except TypeError as _exc:\n        assert _re.search('not supported', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        b > a\n    except TypeError as _exc:\n        assert _re.search('not supported', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        b >= a\n    except TypeError as _exc:\n        assert _re.search('not supported', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\ndef _t():\n    \"\"\"Compare instances of type 'object'.\"\"\"\n    a = object()\n    b = object()\n    assert_equality_only(a, a, True)\n    assert_equality_only(a, b, False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ComparisonFullTest.test_comp_classes_same",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'all_comp_classes'"
+    },
+    {
+      "ident": "ComparisonFullTest.test_comp_classes_different",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'all_comp_classes'"
     },
     {
       "ident": "ComparisonFullTest.test_str_subclass",
@@ -90,10 +113,6 @@
   ],
   "quarantined": [
     {
-      "ident": "ComparisonSimpleTest.test_comparisons",
-      "reason": "uses-self.candidates"
-    },
-    {
       "ident": "ComparisonSimpleTest.test_id_comparisons",
       "reason": "uses-self.Empty"
     },
@@ -108,23 +127,11 @@
     {
       "ident": "ComparisonSimpleTest.test_ne_low_priority",
       "reason": "self.assertSequenceEqual"
-    },
-    {
-      "ident": "ComparisonSimpleTest.test_other_delegation",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "ident": "ComparisonFullTest.test_comp_classes_same",
-      "reason": "uses-self.all_comp_classes"
-    },
-    {
-      "ident": "ComparisonFullTest.test_comp_classes_different",
-      "reason": "uses-self.all_comp_classes"
     }
   ],
   "counts": {
     "extracted": 16,
-    "pinned": 8,
-    "quarantined": 8
+    "pinned": 9,
+    "quarantined": 7
   }
 }
