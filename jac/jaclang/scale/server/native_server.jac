@@ -144,12 +144,15 @@ obj NativeJServer {
             user_id = request.state?.user_root_id if request?.state else None;
             if user_id {
                 root_ref: any = user_id;
+                ctx.mem.read_scope_enter();
                 try {
                     await ctx.aset_user_root(root_ref);
                 } except ValueError {
                     logger.warning(
                         f"Invalid user_root_id: {user_id}, using system root"
                     );
+                } finally {
+                    ctx.mem.read_scope_exit();
                 }
             }
             try {
