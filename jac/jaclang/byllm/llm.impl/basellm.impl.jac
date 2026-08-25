@@ -289,15 +289,7 @@ def _existing_cost(usage_obj: object) -> object {
 
 
 def _rebuild_stream_chunks(chunks: list, logging_obj: object) -> dict {
-    import inspect;
-    accepts_logging_obj = False;
-    builder: any = litellm.stream_chunk_builder;
-    try {
-        accepts_logging_obj = "logging_obj" in inspect.signature(builder).parameters;
-    } except Exception {
-        ;
-    }
-    if accepts_logging_obj {
+    if _STREAM_CHUNK_BUILDER_ACCEPTS_LOGGING_OBJ {
         return litellm.stream_chunk_builder(chunks, logging_obj=logging_obj);
     }
     return litellm.stream_chunk_builder(chunks);
@@ -353,7 +345,8 @@ def _usage_to_dict(usage_obj: object) -> dict {
         return usage_obj.model_dump()
             if usage_obj?.model_dump
             else dict(vars(usage_obj));
-    } except Exception {
+    } except Exception as e {
+        logger.debug(f"usage serialization failed, recording an empty payload: {e}");
         return {};
     }
 }
@@ -1549,14 +1542,20 @@ impl BaseLLM.dispatch_streaming(mt_run: MTRuntime) -> Generator[str, None, None]
     attempt = 0;
     usage_base = len(mt_run._usage_history);
     while True {
+        finish_reason = "";
         try {
             response = self.model_call_with_stream(params);
             for chunk in response {
+                if chunk?.choices and chunk?.choices?[0]?.finish_reason {
+                    finish_reason = str(chunk.choices[0].finish_reason);
+                }
                 chunk_usage = chunk?.usage;
                 if chunk_usage {
                     chunk_model: str = chunk?.model or self.model_name;
                     _attach_call_cost(chunk_usage, chunk_model);
-                    _record_usage(mt_run, chunk_usage, chunk_model);
+                    _record_usage(
+                        mt_run, chunk_usage, chunk_model, finish_reason=finish_reason
+                    );
                 }
                 if chunk?.choices and chunk?.choices?[0]?.delta {
                     delta = chunk?.choices?[0]?.delta;
@@ -1767,14 +1766,20 @@ impl BaseLLM.adispatch_streaming(mt_run: MTRuntime) {
     attempt = 0;
     usage_base = len(mt_run._usage_history);
     while True {
+        finish_reason = "";
         try {
             response = await self.model_call_with_stream_async(params);
             async for chunk in response {
+                if chunk?.choices and chunk?.choices?[0]?.finish_reason {
+                    finish_reason = str(chunk.choices[0].finish_reason);
+                }
                 chunk_usage = chunk?.usage;
                 if chunk_usage {
                     chunk_model: str = chunk?.model or self.model_name;
                     _attach_call_cost(chunk_usage, chunk_model);
-                    _record_usage(mt_run, chunk_usage, chunk_model);
+                    _record_usage(
+                        mt_run, chunk_usage, chunk_model, finish_reason=finish_reason
+                    );
                 }
                 if chunk?.choices and chunk?.choices?[0]?.delta {
                     delta = chunk.choices[0].delta;

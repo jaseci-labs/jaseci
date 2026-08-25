@@ -98,7 +98,7 @@ def _mt(
 
 
 # A typed by-model() env whose fake response calls finish_tool - shared by
-# the "hidden call" tagging tests and usage_step's recovery test.
+# the call_kind tagging cases and usage_step's recovery test.
 def _finish_env(arguments: str, usage: dict) -> tuple {
     model = Model(model_name="test-model");
     mt_run = _mt(resp_type=_Person, tools=[Tool.make_finish_tool(_Person)]);
@@ -128,6 +128,28 @@ def _with_callback(cb: Callable, fn: Callable) -> object {
         _agent_callbacks.clear();
         _agent_callbacks.extend(original);
     }
+}
+
+
+def _assert_tokens_via_callback(
+    label: str, fn: Callable, expected_requests: int, expected_total_tokens: int
+) -> tuple {
+    captured: list = [];
+    def cb(record: dict) {
+        captured.append(record);
+    }
+    result = _with_callback(cb, fn);
+    assert len(captured) == 1 , (
+        f"{label}: expected exactly one telemetry record, got {captured}"
+    );
+    tokens = captured[0]["tokens"];
+    assert tokens["requests"] == expected_requests , (
+        f"{label}: expected {expected_requests} recorded call(s), got {tokens}"
+    );
+    assert tokens["total"]["total_tokens"] == expected_total_tokens , (
+        f"{label}: expected total_tokens={expected_total_tokens}, got {tokens['total']}"
+    );
+    return (result, captured[0]);
 }
 
 
@@ -328,69 +350,77 @@ test "dispatch_streaming_with_tools passes the stream's own logging_obj to strea
 }
 
 
-test "_rebuild_stream_chunks only forwards logging_obj when the installed litellm accepts it" {
-    # litellm < 1.75.2's real stream_chunk_builder has no logging_obj parameter
-    # at all; passing it unconditionally raises TypeError there.
+test "_rebuild_stream_chunks only forwards logging_obj when the cached support flag is set" {
+    # The flag is a module-level constant computed once at import (litellm's
+    # answer cannot change at runtime), so branch coverage patches the flag
+    # itself rather than swapping stream_chunk_builder's own signature.
     fake_logging_obj = object();
-
-    def _old_style(chunks: list) -> dict {
-        return {"marker": "old", "n": len(chunks)};
-    }
-    def _new_style(chunks: list, logging_obj: object = None) -> dict {
-        return {"marker": "new", "logging_obj": logging_obj};
+    seen: list = [];
+    def _fake_builder(chunks: list, logging_obj: object = None) -> dict {
+        seen.append(logging_obj);
+        return {"n": len(chunks)};
     }
 
     with unittest.mock.patch.object(
-        _byllm_llm_mod.litellm, "stream_chunk_builder", _old_style
+        _byllm_llm_mod.litellm, "stream_chunk_builder", _fake_builder
     ) {
-        result = _byllm_llm_mod._rebuild_stream_chunks([1, 2], fake_logging_obj);
-        assert result == {"marker": "old", "n": 2} , (
-            f"an old-signature stream_chunk_builder must be called without "
-            f"logging_obj rather than raising, got {result}"
+        with unittest.mock.patch.object(
+            _byllm_llm_mod, "_STREAM_CHUNK_BUILDER_ACCEPTS_LOGGING_OBJ", False
+        ) {
+            _byllm_llm_mod._rebuild_stream_chunks([1, 2], fake_logging_obj);
+        }
+        with unittest.mock.patch.object(
+            _byllm_llm_mod, "_STREAM_CHUNK_BUILDER_ACCEPTS_LOGGING_OBJ", True
+        ) {
+            _byllm_llm_mod._rebuild_stream_chunks([1, 2], fake_logging_obj);
+        }
+    }
+
+    assert seen == [None, fake_logging_obj] , (
+        f"logging_obj must only be forwarded when the cached flag is True, "
+        f"got {seen}"
+    );
+}
+
+
+test "_stream_chunk_builder_accepts_logging_obj degrades to False and logs when introspection fails" {
+    # An old litellm without logging_obj support is a normal, silent False -
+    # inspect.signature itself raising is the unexpected case that must leave
+    # a trace, since this is what stands between an older litellm and a
+    # silently toolless agent.
+    with unittest.mock.patch(
+        "inspect.signature", side_effect=ValueError("boom")
+    ), unittest.mock.patch.object(_byllm_llm_mod, "logger") as mock_logger {
+        result = _byllm_llm_mod._stream_chunk_builder_accepts_logging_obj();
+        assert result == False , (
+            "an uninspectable stream_chunk_builder must degrade to False, not raise"
         );
-    }
-    with unittest.mock.patch.object(
-        _byllm_llm_mod.litellm, "stream_chunk_builder", _new_style
-    ) {
-        result = _byllm_llm_mod._rebuild_stream_chunks([1, 2], fake_logging_obj);
-        assert result == {"marker": "new", "logging_obj": fake_logging_obj} , (
-            "a new-signature stream_chunk_builder should still receive logging_obj"
+        assert mock_logger.debug.call_count >= 1 , (
+            "a signature-inspection failure must be logged, not silently swallowed"
         );
     }
 }
 
 
-test "a streaming, tool-calling by llm() call surfaces tokens via register_agent_callback too" {
-    llm = Model(
-        model_name="mockllm",
-        config={
-            "outputs": [
-                (
-                    MockToolCall(tool=finish_tool, args={"final_output": "ok"}),
-                    {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110}
-                ),
-                # A str-returning finish_tool call always triggers a
-                # final_answer_restream, consuming a second mock output.
-                "ok"
-            ]
+test "_usage_to_dict logs rather than silently swallowing a serialization failure" {
+    class _Unserializable {
+        def model_dump(self: _Unserializable) -> dict {
+            raise RuntimeError("boom");
         }
-    );
-
-    def my_task(q: str) -> str by llm(tools=[finish_tool], stream=True, logging=True);
-
-    captured: list = [];
-    def cb(record: dict) {
-        captured.append(record);
     }
-    _with_callback(cb, lambda { return list(my_task("test")); });
 
-    assert len(captured) == 1 , f"expected exactly one telemetry record, got {captured}";
-    tokens = captured[0]["tokens"];
-    assert tokens["requests"] == 2 , (
-        f"a streaming, tool-calling invocation must surface its usage via "
-        f"tokens too, not just the usage StreamEvent; got {tokens}"
-    );
-    assert tokens["total"]["total_tokens"] == 110;
+    with unittest.mock.patch.object(_byllm_llm_mod, "logger") as mock_logger {
+        result = _byllm_llm_mod._usage_to_dict(_Unserializable());
+        assert result == {} , (
+            "a usage object that fails to serialize must still degrade to an "
+            "empty payload"
+        );
+        assert mock_logger.debug.call_count >= 1 , (
+            "a usage object that fails to serialize must be logged, not "
+            "silently swallowed - it looks identical to a real zero-token "
+            "call otherwise"
+        );
+    }
 }
 
 
@@ -407,22 +437,39 @@ test "a call reporting no measurable usage is still counted, not dropped" {
 }
 
 
-test "streaming paths attribute usage to the model that actually served the call" {
+test "streaming records attribute the actual serving model and carry finish_reason" {
     llm = Model(model_name="requested-model");
     mt = _mt(stream=True);
 
-    fake_chunk = types.SimpleNamespace(
+    # Realistic shape: finish_reason lands on the last content chunk, usage
+    # arrives separately on a trailing chunk with empty choices.
+    content_chunk = types.SimpleNamespace(
+        usage=None,
+        choices=[
+            types.SimpleNamespace(
+                finish_reason="stop", delta=types.SimpleNamespace(content="hi")
+            )
+        ]
+    );
+    usage_chunk = types.SimpleNamespace(
         model="actual-served-model", usage=litellm.Usage(**TOKENS), choices=[]
     );
     with unittest.mock.patch.object(
-        llm, "model_call_with_stream", lambda (params: dict) { return [fake_chunk]; }
+        llm,
+        "model_call_with_stream",
+        lambda (params: dict) { return [content_chunk, usage_chunk]; }
     ) {
         list(llm.dispatch_streaming(mt));
     }
 
-    assert mt._usage_history[-1]["model"] == "actual-served-model" , (
+    rec = mt._usage_history[-1];
+    assert rec["model"] == "actual-served-model" , (
         "a router/pool fallback to a different model must be attributed to the "
         "model that actually served it, not the one configured on the client"
+    );
+    assert rec.get("finish_reason") == "stop" , (
+        "streaming records must carry finish_reason like the non-streaming "
+        "ones already do, even though it arrives on an earlier chunk than usage"
     );
 }
 
@@ -497,10 +544,10 @@ test "usage is recorded on mt_run, isolated per invocation, sync and async alike
 }
 
 
-test "a plain non-streaming by llm() call surfaces tokens via register_agent_callback" {
+test "tokens telemetry is populated via register_agent_callback for every invocation shape" {
     # Model wraps a MockLLM delegate but is the layer that actually owns
     # telemetry emission (Model.invoke) - a bare MockLLM never fires it.
-    llm = Model(
+    llm_plain = Model(
         model_name="mockllm",
         config={
             "outputs": [
@@ -511,27 +558,59 @@ test "a plain non-streaming by llm() call surfaces tokens via register_agent_cal
             ]
         }
     );
+    def plain_task(q: str) -> str by llm_plain(tools=[finish_tool]);
+    (plain_result, plain_rec) = _assert_tokens_via_callback(
+        "plain non-streaming", lambda { return plain_task("test"); }, 1, 110
+    );
+    assert plain_result == "ok";
+    assert "react_iteration" in plain_rec["tokens"]["by_kind"];
 
-    def my_task(q: str) -> str by llm(tools=[finish_tool]);
+    # A str-returning finish_tool call always triggers a final_answer_restream,
+    # consuming a second mock output - hence requests=2 here vs 1 above.
+    llm_stream = Model(
+        model_name="mockllm",
+        config={
+            "outputs": [
+                (
+                    MockToolCall(tool=finish_tool, args={"final_output": "ok"}),
+                    {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110}
+                ),
+                "ok"
+            ]
+        }
+    );
+    def stream_task(q: str) -> str by llm_stream(tools=[finish_tool], stream=True, logging=True);
+    _assert_tokens_via_callback(
+        "streaming, tool-calling",
+        lambda { return list(stream_task("test")); },
+        2,
+        110
+    );
 
-    captured: list = [];
-    def cb(record: dict) {
-        captured.append(record);
+    # Async, no tools - the branch BaseLLM.ainvoke dispatches directly rather
+    # than delegating to the already-telemetered sync Model.invoke.
+    llm_async = Model(model_name="test-model");
+    async def _fake_async(params: dict) -> dict {
+        return _response(
+            {"prompt_tokens": 12, "completion_tokens": 2, "total_tokens": 14},
+            content="async-ok"
+        );
     }
-
-    result = _with_callback(cb, lambda { return my_task("test"); });
-
-    assert result == "ok";
-    assert len(captured) == 1;
-    tokens = captured[0]["tokens"];
-    assert tokens["requests"] == 1 , f"Expected 1 recorded call, got {tokens}";
-    assert tokens["total"]["total_tokens"] == 110;
-    assert "react_iteration" in tokens["by_kind"];
-    assert tokens["by_kind"]["react_iteration"]["total_tokens"] == 110;
+    async def async_task(q: str) -> str by llm_async();
+    def _run_async -> str {
+        with unittest.mock.patch.object(llm_async, "model_call_no_stream_async", _fake_async) {
+            return asyncio.run(async_task("test"));
+        }
+    }
+    (async_result, async_rec) = _assert_tokens_via_callback(
+        "async, no tools", _run_async, 1, 14
+    );
+    assert async_result == "async-ok";
+    assert async_rec["status"] == "success";
 }
 
 
-test "final_answer_restream call is tagged separately from react iterations" {
+def _restream_case -> MTRuntime {
     (model, mt_run, _resp) = _finish_env(
         '{"output": {"name": "Gus", "age": 29}}',
         {"prompt_tokens": 50, "completion_tokens": 5, "total_tokens": 55}
@@ -558,15 +637,11 @@ test "final_answer_restream call is tagged separately from react iterations" {
     with unittest.mock.patch.object(model, "model_call_with_stream", _fake_stream) {
         list(model._stream_final_answer(mt_run));
     }
-
-    assert len(mt_run._usage_history) == 1;
-    assert mt_run._usage_history[0]["call_kind"] == "final_answer_restream";
-    # The temporary override must not leak onto later calls on the same mt_run.
-    assert mt_run._call_kind == "react_iteration";
+    return mt_run;
 }
 
 
-test "recovery call is tagged separately from react iterations" {
+def _recovery_case -> MTRuntime {
     (model, mt_run, fake_response) = _finish_env(
         '{"output": {"name": "Gus", "age": 29}}',
         {"prompt_tokens": 15, "completion_tokens": 3, "total_tokens": 18}
@@ -576,14 +651,11 @@ test "recovery call is tagged separately from react iterations" {
     ) {
         model._attempt_recovery(mt_run);
     }
-
-    assert len(mt_run._usage_history) == 1;
-    assert mt_run._usage_history[0]["call_kind"] == "recovery";
-    assert mt_run._call_kind == "react_iteration";
+    return mt_run;
 }
 
 
-test "default compactor's summarisation call is tagged compaction on the parent mt_run" {
+def _compaction_case -> MTRuntime {
     sys_msg = {"role": "system", "content": "You are a helpful assistant."};
     user_msg = {"role": "user", "content": "Do the thing."};
     round1 = [
@@ -621,43 +693,29 @@ test "default compactor's summarisation call is tagged compaction on the parent 
     ) {
         _byllm_llm_mod._default_compact(messages, 1, summariser, parent_mt);
     }
-
-    assert len(parent_mt._usage_history) == 1;
-    assert parent_mt._usage_history[0]["call_kind"] == "compaction";
-    assert parent_mt._usage_history[0]["total_tokens"] == 220;
+    return parent_mt;
 }
 
 
-test "async by llm() call with no tools surfaces telemetry and tokens the same as sync" {
-    # This is the branch BaseLLM.ainvoke dispatches directly rather than
-    # delegating to the already-telemetered sync Model.invoke.
-    llm = Model(model_name="test-model");
-
-    async def _fake(params: dict) -> dict {
-        return _response(
-            {"prompt_tokens": 12, "completion_tokens": 2, "total_tokens": 14},
-            content="async-ok"
+test "byLLM's own follow-up calls get a call_kind distinct from react_iteration" {
+    cases = [
+        ("final_answer_restream", _restream_case),
+        ("recovery", _recovery_case),
+        ("compaction", _compaction_case)
+    ];
+    for (expected_kind, run) in cases {
+        mt_run = run();
+        assert len(mt_run._usage_history) == 1 , (
+            f"{expected_kind}: expected exactly one recorded call"
+        );
+        assert mt_run._usage_history[0]["call_kind"] == expected_kind;
+        # The temporary override must not leak onto later calls on the same
+        # mt_run (compaction never touches parent_mt._call_kind at all, so
+        # this holds trivially true there too).
+        assert mt_run._call_kind == "react_iteration" , (
+            f"{expected_kind}: call_kind override must reset after the call"
         );
     }
-
-    async def my_async_task(q: str) -> str by llm();
-
-    captured: list = [];
-    def cb(record: dict) {
-        captured.append(record);
-    }
-
-    def _run -> str {
-        with unittest.mock.patch.object(llm, "model_call_no_stream_async", _fake) {
-            return asyncio.run(my_async_task("test"));
-        }
-    }
-    result = _with_callback(cb, _run);
-
-    assert result == "async-ok";
-    assert len(captured) == 1 , "async invocation should emit telemetry exactly once";
-    assert captured[0]["status"] == "success";
-    assert captured[0]["tokens"]["total"]["total_tokens"] == 14;
 }
 
 
@@ -745,7 +803,7 @@ test "cache token fields are normalized onto every recorded call, regardless of 
 # `usage` only fires once, after the whole invocation finishes. `usage_step`
 # fires once per individual call instead, reusing the exact `usage` shape.
 
-test "usage_step fires once per react call, scoped to that call's own usage, shape-matching usage" {
+test "usage_step fires once per underlying call, scoped to that call's own usage" {
     llm = MockLLM(
         model_name="mockllm",
         config={
@@ -758,7 +816,12 @@ test "usage_step fires once per react call, scoped to that call's own usage, sha
                     MockToolCall(tool=finish_tool, args={"final_output": "done"}),
                     {"prompt_tokens": 200, "completion_tokens": 20, "total_tokens": 220}
                 ),
-                "done"
+                # A str-returning finish_tool call always triggers a
+                # final_answer_restream - the 3rd underlying call.
+                (
+                    "done",
+                    {"prompt_tokens": 300, "completion_tokens": 30, "total_tokens": 330}
+                )
             ]
         }
     );
@@ -777,9 +840,6 @@ test "usage_step fires once per react call, scoped to that call's own usage, sha
         }
     }
 
-    # A str-returning finish_tool call is always followed by a
-    # final_answer_restream call, so this is 3 underlying calls: step_a,
-    # finish_tool, and the restream (which reports no usage of its own here).
     assert len(usage_steps) == 3 , (
         f"expected one usage_step per underlying call, got {len(usage_steps)}"
     );
@@ -789,9 +849,9 @@ test "usage_step fires once per react call, scoped to that call's own usage, sha
         "each usage_step must carry only its own call's usage, not a running "
         "cumulative sum"
     );
+    assert usage_steps[2]["total"]["total_tokens"] == 330;
     assert usage_steps[2]["per_call"][0]["call_kind"] == "final_answer_restream" , (
-        "the restream is its own call and gets its own usage_step, even when "
-        "it reports no measurable usage"
+        "the restream is its own call and gets its own usage_step"
     );
     assert final_usage is not None;
     assert set(usage_steps[0].keys()) == set(final_usage.keys()) , (
@@ -892,42 +952,6 @@ test "usage_step correctly attributes an interleaved compaction call" {
         "the usage_step must sum both the react call and the interleaved "
         "compaction call, not just one of them"
     );
-}
-
-
-test "usage_step fires for the final_answer_restream call" {
-    llm = MockLLM(
-        model_name="mockllm",
-        config={
-            "outputs": [
-                (
-                    MockToolCall(tool=finish_tool, args={"final_output": "done"}),
-                    {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110}
-                ),
-                (
-                    "final answer text",
-                    {"prompt_tokens": 300, "completion_tokens": 30, "total_tokens": 330}
-                )
-            ]
-        }
-    );
-
-    def task(q: str) -> str by llm(tools=[step_a], stream=True, logging=True);
-
-    usage_steps: list = [];
-    events = list(task("go"));
-    for event in events {
-        if event.event_type == "usage_step" {
-            usage_steps.append(event.data);
-        }
-    }
-
-    assert len(usage_steps) == 2 , (
-        f"expected the react call's own step plus the restream's, got "
-        f"{len(usage_steps)}"
-    );
-    assert usage_steps[1]["per_call"][0]["call_kind"] == "final_answer_restream";
-    assert usage_steps[1]["total"]["total_tokens"] == 330;
 }
 
 
