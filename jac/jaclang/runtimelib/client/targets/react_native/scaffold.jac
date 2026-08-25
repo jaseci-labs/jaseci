@@ -165,7 +165,7 @@ def _build_metro_config -> str {
         "\n"
         "// Resolve `@jac/runtime` to the *staged* native runtime that the\n"
         "// build copies into the Expo project's jac-src/. This deliberately does NOT\n"
-        "// point at the shared .jac/client/compiled dir: during `jac start\n"
+        "// point at the shared .jac/client/compiled dir: during `jac run\n"
         "// --dev` the Jac API backend rebuilds the *web* client into that\n"
         "// same dir, which would overwrite client_runtime.js with a\n"
         "// react-dom / react-router-dom bundle and break the native Metro\n"

@@ -191,7 +191,11 @@ impl JacAPIServerPodEnv.register_podenv_endpoints -> None {
         }
         return JSONResponse(content={"ok": True, "data": data});
     }
-    self.server.add_endpoint(
+    server = self.server;
+    if server is None {
+        return;
+    }
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/ops/podenv",

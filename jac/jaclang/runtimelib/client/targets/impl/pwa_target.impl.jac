@@ -569,7 +569,7 @@ impl PWATarget.setup(project_dir: Path) -> None {
     _ensure_pwa_config(project_dir);
     console.print("\n✅ PWA setup complete!", style="bold green");
     console.print(
-        "  Run 'jac build --client pwa' or 'jac start --client pwa'", style="muted"
+        "  Run 'jac build --client pwa' or 'jac run --client pwa'", style="muted"
     );
 }
 

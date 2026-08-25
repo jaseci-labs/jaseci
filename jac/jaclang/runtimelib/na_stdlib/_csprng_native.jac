@@ -6,7 +6,7 @@ def:pub csprng_bytes(n: int) -> bytes {
         return b"";
     }
     out = b"\x00" * n;
-    if RAND_bytes(out, n) != 1 {
+    if RAND_bytes(out, i32(n)) != 1 {
         raise ValueError("RAND_bytes failed (CSPRNG entropy unavailable)");
     }
     return out;

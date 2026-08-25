@@ -118,6 +118,50 @@ glob _T = TypeVar('_T', bound=es.Node),
          Tok.KW_IN: "emit_op_contains",
          Tok.KW_NIN: "emit_op_contains"
      },
+     FW_JS_PLAIN_OPS: frozenset = frozenset({"&", "|", "^"}),
+     FW_JS_CHECKED_OPS: frozenset = frozenset({"+", "-", "*"}),
+     FW_JS_HELPER_OPS: dict[(str, str)] = {
+         "/": "div",
+         "//": "fdiv",
+         "%": "mod",
+         "**": "pow",
+         "<<": "shl",
+         ">>": "shr"
+     },
+     FW_JS_FLOAT_HELPERS: dict[(str, str)] = {
+         "/": "div",
+         "//": "fdiv",
+         "%": "mod",
+         "**": "pow"
+     },
+     FW_BINARY_OPS: dict[(Tok, str)] = {
+         Tok.PLUS: "+",
+         Tok.MINUS: "-",
+         Tok.STAR_MUL: "*",
+         Tok.DIV: "/",
+         Tok.FLOOR_DIV: "//",
+         Tok.MOD: "%",
+         Tok.STAR_POW: "**",
+         Tok.BW_AND: "&",
+         Tok.BW_OR: "|",
+         Tok.BW_XOR: "^",
+         Tok.LSHIFT: "<<",
+         Tok.RSHIFT: ">>"
+     },
+     AUG_TO_BINARY_TOK: dict[(Tok, Tok)] = {
+         Tok.ADD_EQ: Tok.PLUS,
+         Tok.SUB_EQ: Tok.MINUS,
+         Tok.MUL_EQ: Tok.STAR_MUL,
+         Tok.DIV_EQ: Tok.DIV,
+         Tok.FLOOR_DIV_EQ: Tok.FLOOR_DIV,
+         Tok.MOD_EQ: Tok.MOD,
+         Tok.STAR_POW_EQ: Tok.STAR_POW,
+         Tok.BW_AND_EQ: Tok.BW_AND,
+         Tok.BW_OR_EQ: Tok.BW_OR,
+         Tok.BW_XOR_EQ: Tok.BW_XOR,
+         Tok.LSHIFT_EQ: Tok.LSHIFT,
+         Tok.RSHIFT_EQ: Tok.RSHIFT
+     },
      UNARY_EMIT_MAP: dict[(Tok, str)] = {
          Tok.MINUS: "emit_op_neg",
          Tok.PLUS: "emit_op_pos",
@@ -219,6 +263,20 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def before_pass -> None;
     def enter_node(nd: uni.UniNode) -> None;
     def exit_node(nd: uni.UniNode) -> None;
+    def _fw_call(
+        name: str, args: list[es.Expression], jac_node: uni.UniNode
+    ) -> es.Expression;
+
+    def _apply_fw_coercion(nd: uni.Expr) -> None;
+    def _fw_js_binop(
+        op: str, left: es.Expression, right: es.Expression, jac_node: uni.UniNode
+    ) -> es.Expression;
+
+    def _fw_to_number(expr: es.Expression, jac_node: uni.UniNode) -> es.Expression;
+    def _fw_binary(
+        nd: uni.Expr, op: str, left: es.Expression, right: es.Expression
+    ) -> (es.Expression | None);
+
     def sync_loc(es_node: _T, jac_node: (uni.UniNode | None) = None) -> _T;
     def _template_element(
         text: str, tail: bool, jac_node: uni.UniNode

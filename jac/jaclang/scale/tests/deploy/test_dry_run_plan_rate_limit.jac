@@ -1,4 +1,4 @@
-"""`jac start --scale --dry-run` must show the rate limit the project asked
+"""`jac scale deploy --dry-run` must show the rate limit the project asked
 for. The plan renderer read `requests_per_minute`, a key the config loader
 never emits, so every configured limit rendered as no line at all and the
 dry run could not confirm a limit before the deploy that applies it. Real
@@ -47,7 +47,7 @@ def _dry_run_plan(rate_limit: str) -> tuple[int, str] {
     }
     try {
         result = subprocess.run(
-            [jac_executable(), "start", "--scale", "--dry-run", "main.jac"],
+            [jac_executable(), "scale", "deploy", "main.jac", "--dry-run"],
             capture_output=True,
             text=True,
             cwd=str(project_dir),

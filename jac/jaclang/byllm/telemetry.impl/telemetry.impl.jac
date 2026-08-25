@@ -16,16 +16,18 @@ impl _emit_agent_telemetry(
 
     user_prompt = "";
     try {
-        user_prompt = str(mt_run.messages[1].content[0].text)[:2000];
+        messages = getattr(mt_run, "messages");
+        user_prompt = str(messages[1].content[0].text)[:2000];
     } except Exception as e {
         logger.debug(f"user_prompt extraction failed: {e}");
     }
 
     caller_args: dict = {};
     try {
-        if mt_run.mtir and mt_run.mtir.args {
-            for k in mt_run.mtir.args {
-                caller_args[str(k)] = str(mt_run.mtir.args[k])[:500];
+        mtir = getattr(mt_run, "mtir");
+        if mtir and mtir.args {
+            for k in mtir.args {
+                caller_args[str(k)] = str(mtir.args[k])[:500];
             }
         }
     } except Exception as e {
@@ -34,7 +36,7 @@ impl _emit_agent_telemetry(
 
     conv_history: list = [];
     try {
-        conv_history = mt_run.get_msg_list();
+        conv_history = getattr(mt_run, "get_msg_list")();
     } except Exception as e {
         logger.debug(f"conv_history extraction failed: {e}");
     }
@@ -48,10 +50,11 @@ impl _emit_agent_telemetry(
         }
     }
 
+    record_mtir = mt_run?.mtir;
     record = {
-        "invocation_id": mt_run._invocation_id,
+        "invocation_id": getattr(mt_run, "_invocation_id"),
         "parent_invocation_id": mt_run?._parent_invocation_id,
-        "caller_name": mt_run.mtir.caller.__name__ if mt_run.mtir else "unknown",
+        "caller_name": record_mtir.caller.__name__ if record_mtir else "unknown",
         "caller_args": caller_args,
         "user_prompt": user_prompt,
         "agent_response": agent_response,

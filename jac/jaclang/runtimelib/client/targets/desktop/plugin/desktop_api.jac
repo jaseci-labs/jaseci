@@ -16,7 +16,7 @@ async def _invoke(plugin: str, command: str, args: dict) -> any {
         }
         msg = "desktop invoke failed";
         try {
-            msg = parsed["error"]["message"];
+            msg = str(parsed["error"]["message"]);
         } except Exception { }
         raise Exception(msg);
     }

@@ -567,11 +567,11 @@ walker add_todo {
 Every public walker becomes an endpoint: its `has` properties become the request body and its `report` values become the response. See [Walkers as REST APIs](../../reference/language/osp.md#walkers-as-rest-apis) for the full treatment.
 
 !!! note
-    `main.jac` is the default entry point. If your file has a different name (e.g., `app.jac`), pass it explicitly: `jac start app.jac`.
+    `main.jac` is the default entry point. If your file has a different name (e.g., `app.jac`), pass it explicitly: `jac run app.jac`.
 
 ```bash
 # Run as API server
-jac start
+jac run
 
 # Call via HTTP
 curl -X POST http://localhost:8000/walker/add_todo \

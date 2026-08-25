@@ -26,7 +26,7 @@ test "pygen jac cli" {
 }
 
 """Basenames of the annex files whose statements were spliced into a module."""
-def _merged_annex_files(mod: object) -> set[str] {
+def _merged_annex_files(mod: any) -> set[str] {
     return {
         os.path.basename(st.loc.mod_path)
         for st in mod.body
