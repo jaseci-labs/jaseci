@@ -1,4 +1,5 @@
 import logging;
+import time;
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
     KubernetesTargetBase
 }
@@ -10,7 +11,10 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     ensure_namespace_exists,
     create_k8s_secret,
     delete_if_exists,
+    delete_k8s_secret,
+    delete_namespace,
     get_cluster_provider,
+    namespace_is_owned,
     privileged_pss_labels,
     PSS_ENFORCE_LABEL,
     _resolve_current_rs_hashes,
@@ -1647,28 +1651,19 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def destroy(app_name: str, component: str = "") {
-        if self.logger {
-            self.logger.info(
-                f"Destroying microservice topology in namespace "
-                f"'{self.k8s_config.namespace}'",
-                {"app_name": app_name}
-            );
-        }
-
-        self._load_cluster_config();
-        apps_v1 = client.AppsV1Api();
-        core_v1 = client.CoreV1Api();
-        policy_v1 = client.PolicyV1Api();
-        networking_v1 = client.NetworkingV1Api();
-        namespace: str = self.k8s_config.namespace;
-
-        selector: str = FLEET_SELECTOR;
+    def _destroy_fleet_workloads(
+        app_name: str,
+        namespace: str,
+        apps_v1: any,
+        core_v1: any,
+        policy_v1: any,
+        networking_v1: any
+    ) {
         ms_selector: str = "managed=jac-scale";
 
         try {
             apps_v1.delete_collection_namespaced_deployment(
-                namespace=namespace, label_selector=selector
+                namespace=namespace, label_selector=FLEET_SELECTOR
             );
         } except ApiException as e {
             if e.status != 404 {
@@ -1742,7 +1737,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 raise;
             }
         }
+    }
 
+    def _destroy_monitoring(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
         try {
             monitoring = MonitoringDeployer(self.k8s_config, self.logger);
             monitoring.destroy(app_name, namespace, apps_v1, core_v1);
@@ -1753,6 +1750,160 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     {"app_name": app_name}
                 );
             }
+        }
+    }
+
+    def _destroy_app_pvcs(app_name: str, namespace: str, core_v1: any) {
+        try {
+            pvcs = core_v1.list_namespaced_persistent_volume_claim(namespace=namespace);
+        } except ApiException as e {
+            if e.status == 404 {
+                return;
+            }
+            raise;
+        }
+        pvc_items: list[any] = pvcs.items;
+        for pvc in pvc_items {
+            pvc_name: str = pvc.metadata.name;
+            if not pvc_name.startswith(app_name) {
+                continue;
+            }
+            delete_if_exists(
+                core_v1.delete_namespaced_persistent_volume_claim,
+                pvc_name,
+                namespace,
+                'PersistentVolumeClaim'
+            );
+        }
+    }
+
+    def _destroy_ops_rbac(namespace: str) {
+        rbac_v1 = client.RbacAuthorizationV1Api();
+        ms_selector: str = "managed=jac-scale";
+        for delete_collection in [
+            rbac_v1.delete_collection_namespaced_role_binding,
+            rbac_v1.delete_collection_namespaced_role
+        ] {
+            try {
+                delete_collection(namespace=namespace, label_selector=ms_selector);
+            } except ApiException as e {
+                if e.status != 404 {
+                    raise;
+                }
+            }
+        }
+    }
+
+    def _wait_for_namespace_deletion(
+        namespace: str, core_v1: any, timeout: int = 300
+    ) -> bool {
+        elapsed = 0.0;
+        poll = 2.0;
+        while elapsed < timeout {
+            try {
+                core_v1.read_namespace(name=namespace);
+            } except ApiException as e {
+                if e.status == 404 {
+                    return True;
+                }
+                raise;
+            }
+            time.sleep(poll);
+            elapsed = elapsed + poll;
+        }
+        return False;
+    }
+
+    def _reclaim_namespace(namespace: str, core_v1: any) {
+        delete_namespace(namespace);
+        if self._wait_for_namespace_deletion(namespace, core_v1) {
+            if self.logger {
+                self.logger.info(f"Namespace '{namespace}' deleted");
+            }
+        } elif self.logger {
+            self.logger.warning(
+                f"Timed out waiting for namespace '{namespace}' to be deleted"
+            );
+        }
+    }
+
+    def _destroy_in_shared_namespace(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) {
+        self._destroy_database(app_name, namespace, apps_v1, core_v1);
+        self._destroy_app_pvcs(app_name, namespace, core_v1);
+        self._destroy_ops_rbac(namespace);
+        delete_k8s_secret(core_v1, namespace, f"{app_name}-secrets");
+    }
+
+    def destroy(app_name: str, component: str = "") {
+        if self.logger {
+            self.logger.info(
+                f"Destroying microservice topology in namespace "
+                f"'{self.k8s_config.namespace}'",
+                {"app_name": app_name}
+            );
+        }
+
+        self._load_cluster_config();
+        apps_v1 = client.AppsV1Api();
+        core_v1 = client.CoreV1Api();
+        policy_v1 = client.PolicyV1Api();
+        networking_v1 = client.NetworkingV1Api();
+        namespace: str = self.k8s_config.namespace;
+
+        if component {
+            self._destroy_named_component(
+                app_name,
+                namespace,
+                component,
+                apps_v1,
+                core_v1,
+                policy_v1,
+                networking_v1
+            );
+            return;
+        }
+
+        self._destroy_fleet_workloads(
+            app_name, namespace, apps_v1, core_v1, policy_v1, networking_v1
+        );
+
+        self._destroy_monitoring(app_name, namespace, apps_v1, core_v1);
+
+        if namespace_is_owned(core_v1, namespace) {
+            self._reclaim_namespace(namespace, core_v1);
+            return;
+        }
+        self._destroy_in_shared_namespace(app_name, namespace, apps_v1, core_v1);
+    }
+
+    def _destroy_named_component(
+        app_name: str,
+        namespace: str,
+        component: str,
+        apps_v1: any,
+        core_v1: any,
+        policy_v1: any,
+        networking_v1: any
+    ) {
+        if component == 'application' {
+            self._destroy_fleet_workloads(
+                app_name, namespace, apps_v1, core_v1, policy_v1, networking_v1
+            );
+        } elif component == 'database' {
+            self._destroy_database(app_name, namespace, apps_v1, core_v1);
+            self._destroy_app_pvcs(app_name, namespace, core_v1);
+        } elif component == 'monitoring' {
+            self._destroy_monitoring(app_name, namespace, apps_v1, core_v1);
+        } else {
+            raise ValueError(
+                f"Unknown component: '{component}'. Valid choices: application, "
+                f"database, monitoring"
+            );
+        }
+        if self.logger {
+            self.logger.info(f"Component '{component}' of '{app_name}' destroyed");
         }
     }
 }

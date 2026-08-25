@@ -405,11 +405,13 @@ impl ensure_namespace_exists(namespace: str) -> None {
     } except ApiException as e {
         if (e.status == 404) {
             console.print(f"Namespace '{namespace}' not found. Creating it...");
+            create_labels: dict = dict(default_pss_labels());
+            create_labels[NAMESPACE_OWNER_LABEL] = NAMESPACE_OWNER_VALUE;
             core_v1.create_namespace(
                 body={
                     'apiVersion': 'v1',
                     'kind': 'Namespace',
-                    'metadata': {'name': namespace, 'labels': default_pss_labels()}
+                    'metadata': {'name': namespace, 'labels': create_labels}
                 }
             );
             console.print(f"Namespace '{namespace}' created successfully.");
@@ -418,6 +420,23 @@ impl ensure_namespace_exists(namespace: str) -> None {
         }
     }
 }
+
+impl namespace_is_owned(core_v1: client.CoreV1Api, namespace: str) -> bool {
+    if (namespace == 'default') {
+        return False;
+    }
+    try {
+        ns = core_v1.read_namespace(name=namespace);
+    } except ApiException as e {
+        if (e.status == 404) {
+            return False;
+        }
+        raise;
+    }
+    labels: dict = dict(getattr(ns.metadata, "labels", {}) or {});
+    return labels.get(NAMESPACE_OWNER_LABEL) == NAMESPACE_OWNER_VALUE;
+}
+
 
 impl delete_if_exists(
     delete_func: Callable, name: str, namespace: str, kind: str
