@@ -101,6 +101,8 @@ def year_end_cleanup -> None {
 
 Static tasks run as the system user. Use them for app-wide work such as cache warming, digests, and cleanup, not for per-user logic.
 
+Every server replica registers and fires its own copy of each static task, so when you run more than one replica the task executes once per replica per tick. Keep static work idempotent, or route per-tick work through a dynamic job, which takes a per-fire lease when a database is configured.
+
 ## Cron Expressions
 
 Cron schedules use the standard 5-field layout, always interpreted in UTC:
@@ -300,18 +302,21 @@ The list response is paginated and scoped to the caller:
 
 | HTTP | Code | When |
 |------|------|------|
-| `400` | `INVALID_REQUEST` | Missing or invalid trigger spec, target lacks the `@schedule` decorator, or target is not `DYNAMIC` |
+| `400` | `INVALID_REQUEST` | Missing trigger fields, a malformed cron expression, a target without the `@schedule` decorator, or a target that is not `DYNAMIC` |
 | `401` | `UNAUTHORIZED` | Missing or invalid `Authorization` header |
 | `404` | `NOT_FOUND` | Unknown walker/function name, or job id that does not exist (or belongs to another user) |
-| `503` | `STORAGE_UNAVAILABLE` | The MongoDB job store is temporarily unreachable |
+| `503` | `STORAGE_UNAVAILABLE` | The database job store is temporarily unreachable |
 | `500` | `SCHEDULER_ERROR` | Unexpected internal failure |
+
+!!! note
+    A `date` string that does not parse passes request validation and only fails when the job is handed to the scheduling engine, so it currently surfaces as `500 SCHEDULER_ERROR` rather than `400`. Stick to the `"YYYY-MM-DD HH:MM:SS"` format shown above.
 
 ## Persistence and Run History
 
-Where jobs live depends on your database configuration:
+Where jobs live depends on the database connection, set as `url` under `[scale.database]` in `jac.toml` or via the `JAC_DB_URL` environment variable:
 
-- **No `MONGODB_URI`**: jobs are held in memory. Everything works, but dynamic jobs disappear when the server restarts. Fine for local development.
-- **`MONGODB_URI` set** (or provisioned automatically by `--scale` on Kubernetes): jobs are persisted to the `scheduled_jobs` collection, survive restarts, and are re-registered on boot.
+- **No reachable database**: jobs are held in memory. Dynamic jobs disappear when the server restarts and exist only on the replica that accepted the `POST`. There is also no duplicate-run protection: a schedule registered on more than one replica fires on every one of them, so this mode is for a single local server, not for multi-replica deployments.
+- **Database configured** (provisioned automatically by `--scale` on Kubernetes): jobs are persisted to the document store under the `scheduled_jobs` collection, survive restarts, and are re-registered on boot. A per-fire lease ensures each dynamic job fires on only one replica per tick.
 
 Each execution updates the job record with run bookkeeping, visible via `GET /jobs/{job_id}`:
 
@@ -337,11 +342,13 @@ shutdown_timeout = 10
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `enabled` | `false` | Turns the scheduler subsystem on and makes `jac install` resolve its dependencies (`apscheduler`) |
-| `collection` | `"scheduled_jobs"` | MongoDB collection used for the job store |
+| `enabled` | `None` | Install-time capability flag: declares that the project uses the scheduler so `jac install` resolves its dependencies (`apscheduler`). It is not a runtime switch; the server always starts the scheduler subsystem and registers `/jobs` and any static schedules, though cron, date, and dynamic scheduling fail without `apscheduler` installed |
+| `collection` | `"scheduled_jobs"` | Collection name for jobs in the database-backed job store |
 | `thread_pool_size` | `10` | Worker threads available for concurrently firing jobs |
 | `misfire_grace_time` | `60` | Seconds a late job may still fire after its scheduled time (for example after a restart) before the run is skipped |
 | `shutdown_timeout` | `10` | Seconds to wait for in-flight jobs when the server stops |
+| `system_user_password` | `"__no_login__"` | Password assigned to the internal `__system__` account that static tasks run as, created on first boot. The default is a sentinel; set a real value if you need to log in as that account |
+| `user_exists_ttl` | `30.0` | Seconds the scheduler caches the creator-still-exists check for dynamic jobs before re-querying the user store |
 
 ## Behavior Notes
 
