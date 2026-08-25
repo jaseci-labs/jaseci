@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_funcattrs.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_funcattrs",
+    "--name",
+    "conv_funcattrs"
+  ],
+  "generated_at": "2026-08-24T21:50:45",
+  "hashes": {
+    "pins_jac": "01ae8b17c6af27d00b758574c5557a86aec299058f3b512517b7d2c24f3c7029"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_funcattrs.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "funcattrs",
+  "pins_file": "conv_funcattrs_pins.jac",
+  "pins": [
+    {
+      "ident": "FunctionPropertiesTest.test_module",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    assert self.b.__module__ == __name__, ('assertEqual', self.b.__module__, __name__)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test_dir_includes_correct_attrs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    self.b.known_attr = 7\n    assert 'known_attr' in dir(self.b), ('assertIn', 'known_attr', dir(self.b))\n    self.F.a.known_attr = 7\n    assert 'known_attr' in dir(self.fi.a), ('assertIn', 'known_attr', dir(self.fi.a))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test_duplicate_function_equality",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\n    def duplicate():\n        \"\"\"my docstring\"\"\"\n        return 3\n    assert self.b != duplicate, ('assertNotEqual', self.b, duplicate)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test_copying___code__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\n    def test():\n        pass\n    assert test() == None, ('assertEqual', test(), None)\n    test.__code__ = self.b.__code__\n    assert test() == 3, ('assertEqual', test(), 3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test___globals__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef cannot_set_attr(obj, name, value, exceptions):\n    try:\n        setattr(obj, name, value)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to set %s to %r\" % (name, value))\n    try:\n        delattr(obj, name)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to del %s\" % name)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    assert self.b.__globals__ is globals(), ('assertIs', self.b.__globals__, globals())\n    cannot_set_attr(self.b, '__globals__', 2, (AttributeError, TypeError))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test___closure__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef cannot_set_attr(obj, name, value, exceptions):\n    try:\n        setattr(obj, name, value)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to set %s to %r\" % (name, value))\n    try:\n        delattr(obj, name)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to del %s\" % name)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    a = 12\n\n    def f():\n        print(a)\n    c = f.__closure__\n    assert isinstance(c, tuple), ('assertIsInstance', c, tuple)\n    assert len(c) == 1, ('assertEqual', len(c), 1)\n    assert c[0].__class__.__name__ == 'cell', ('assertEqual', c[0].__class__.__name__, 'cell')\n    cannot_set_attr(f, '__closure__', c, AttributeError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test_cell_new",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    cell_obj = types.CellType(1)\n    assert cell_obj.cell_contents == 1, ('assertEqual', cell_obj.cell_contents, 1)\n    cell_obj = types.CellType()\n    msg = \"shouldn't be able to read an empty cell\"\n    try:\n        cell_obj.cell_contents\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test_empty_cell",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\n    def f():\n        print(a)\n    try:\n        f.__closure__[0].cell_contents\n    except ValueError:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to read an empty cell\")\n    a = 12\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test_set_cell",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    a = 12\n\n    def f():\n        return a\n    c = f.__closure__\n    c[0].cell_contents = 9\n    assert c[0].cell_contents == 9, ('assertEqual', c[0].cell_contents, 9)\n    assert f() == 9, ('assertEqual', f(), 9)\n    assert a == 9, ('assertEqual', a, 9)\n    del c[0].cell_contents\n    try:\n        c[0].cell_contents\n    except ValueError:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to read an empty cell\")\n    try:\n        f()\n    except NameError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        print(a)\n    except UnboundLocalError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test___name__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef cannot_set_attr(obj, name, value, exceptions):\n    try:\n        setattr(obj, name, value)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to set %s to %r\" % (name, value))\n    try:\n        delattr(obj, name)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to del %s\" % name)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    assert self.b.__name__ == 'b', ('assertEqual', self.b.__name__, 'b')\n    self.b.__name__ = 'c'\n    assert self.b.__name__ == 'c', ('assertEqual', self.b.__name__, 'c')\n    self.b.__name__ = 'd'\n    assert self.b.__name__ == 'd', ('assertEqual', self.b.__name__, 'd')\n    cannot_set_attr(self.b, '__name__', 7, TypeError)\n    s = 'def f(): pass\\nf.__name__'\n    exec(s, {'__builtins__': {}})\n    assert self.fi.a.__name__ == 'a', ('assertEqual', self.fi.a.__name__, 'a')\n    cannot_set_attr(self.fi.a, '__name__', 'a', AttributeError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test___type_params__",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test___code__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    num_one, num_two = (7, 8)\n\n    def a():\n        pass\n\n    def b():\n        return 12\n\n    def c():\n        return num_one\n\n    def d():\n        return num_two\n\n    def e():\n        return (num_one, num_two)\n    for func in [a, b, c, d, e]:\n        assert type(func.__code__) == types.CodeType, ('assertEqual', type(func.__code__), types.CodeType)\n    assert c() == 7, ('assertEqual', c(), 7)\n    assert d() == 8, ('assertEqual', d(), 8)\n    d.__code__ = c.__code__\n    assert c.__code__ == d.__code__, ('assertEqual', c.__code__, d.__code__)\n    assert c() == 7, ('assertEqual', c(), 7)\n    try:\n        b.__code__ = c.__code__\n    except ValueError:\n        pass\n    else:\n        raise AssertionError('__code__ with different numbers of free vars should not be possible')\n    try:\n        e.__code__ = d.__code__\n    except ValueError:\n        pass\n    else:\n        raise AssertionError('__code__ with different numbers of free vars should not be possible')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test_blank_func_defaults",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    assert self.b.__defaults__ == None, ('assertEqual', self.b.__defaults__, None)\n    del self.b.__defaults__\n    assert self.b.__defaults__ == None, ('assertEqual', self.b.__defaults__, None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test_func_default_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\n    def first_func(a, b):\n        return a + b\n\n    def second_func(a=1, b=2):\n        return a + b\n    assert first_func.__defaults__ == None, ('assertEqual', first_func.__defaults__, None)\n    assert second_func.__defaults__ == (1, 2), ('assertEqual', second_func.__defaults__, (1, 2))\n    first_func.__defaults__ = (1, 2)\n    assert first_func.__defaults__ == (1, 2), ('assertEqual', first_func.__defaults__, (1, 2))\n    assert first_func() == 3, ('assertEqual', first_func(), 3)\n    assert first_func(3) == 5, ('assertEqual', first_func(3), 5)\n    assert first_func(3, 5) == 8, ('assertEqual', first_func(3, 5), 8)\n    del second_func.__defaults__\n    assert second_func.__defaults__ == None, ('assertEqual', second_func.__defaults__, None)\n    try:\n        second_func()\n    except TypeError:\n        pass\n    else:\n        raise AssertionError('__defaults__ does not update; deleting it does not remove requirement')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InstancemethodAttrTest.test___class__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef cannot_set_attr(obj, name, value, exceptions):\n    try:\n        setattr(obj, name, value)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to set %s to %r\" % (name, value))\n    try:\n        delattr(obj, name)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to del %s\" % name)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    assert self.fi.a.__self__.__class__ == self.F, ('assertEqual', self.fi.a.__self__.__class__, self.F)\n    cannot_set_attr(self.fi.a, '__class__', self.F, TypeError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InstancemethodAttrTest.test___func__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef cannot_set_attr(obj, name, value, exceptions):\n    try:\n        setattr(obj, name, value)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to set %s to %r\" % (name, value))\n    try:\n        delattr(obj, name)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to del %s\" % name)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    assert self.fi.a.__func__ == self.F.a, ('assertEqual', self.fi.a.__func__, self.F.a)\n    cannot_set_attr(self.fi.a, '__func__', self.F.a, AttributeError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InstancemethodAttrTest.test___self__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef cannot_set_attr(obj, name, value, exceptions):\n    try:\n        setattr(obj, name, value)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to set %s to %r\" % (name, value))\n    try:\n        delattr(obj, name)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to del %s\" % name)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    assert self.fi.a.__self__ == self.fi, ('assertEqual', self.fi.a.__self__, self.fi)\n    cannot_set_attr(self.fi.a, '__self__', self.fi, AttributeError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InstancemethodAttrTest.test___func___non_method",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef cannot_set_attr(obj, name, value, exceptions):\n    try:\n        setattr(obj, name, value)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to set %s to %r\" % (name, value))\n    try:\n        delattr(obj, name)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to del %s\" % name)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    self.fi.id = types.MethodType(id, self.fi)\n    assert self.fi.id() == id(self.fi), ('assertEqual', self.fi.id(), id(self.fi))\n    try:\n        self.fi.id.unknown_attr\n    except AttributeError:\n        pass\n    else:\n        raise AssertionError('using unknown attributes should raise AttributeError')\n    cannot_set_attr(self.fi.id, 'unknown_attr', 2, AttributeError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ArbitraryFunctionAttrTest.test_set_attr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    self.b.known_attr = 7\n    assert self.b.known_attr == 7, ('assertEqual', self.b.known_attr, 7)\n    try:\n        self.fi.a.known_attr = 7\n    except AttributeError:\n        pass\n    else:\n        raise AssertionError('setting attributes on methods should raise error')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ArbitraryFunctionAttrTest.test_delete_unknown_attr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    try:\n        del self.b.unknown_attr\n    except AttributeError:\n        pass\n    else:\n        raise AssertionError('deleting unknown attribute should raise TypeError')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ArbitraryFunctionAttrTest.test_unset_attr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    for func in [self.b, self.fi.a]:\n        try:\n            func.non_existent_attr\n        except AttributeError:\n            pass\n        else:\n            raise AssertionError('using unknown attributes should raise AttributeError')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionDictsTest.test_setting_dict_to_invalid",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef cannot_set_attr(obj, name, value, exceptions):\n    try:\n        setattr(obj, name, value)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to set %s to %r\" % (name, value))\n    try:\n        delattr(obj, name)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to del %s\" % name)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    cannot_set_attr(self.b, '__dict__', None, TypeError)\n    from collections import UserDict\n    d = UserDict({'known_attr': 7})\n    cannot_set_attr(self.fi.a.__func__, '__dict__', d, TypeError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionDictsTest.test_setting_dict_to_valid",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    d = {'known_attr': 7}\n    self.b.__dict__ = d\n    assert d is self.b.__dict__, ('assertIs', d, self.b.__dict__)\n    self.F.a.__dict__ = d\n    assert d is self.fi.a.__func__.__dict__, ('assertIs', d, self.fi.a.__func__.__dict__)\n    assert d is self.fi.a.__dict__, ('assertIs', d, self.fi.a.__dict__)\n    assert self.b.known_attr == 7, ('assertEqual', self.b.known_attr, 7)\n    assert self.b.__dict__['known_attr'] == 7, ('assertEqual', self.b.__dict__['known_attr'], 7)\n    assert self.fi.a.__func__.known_attr == 7, ('assertEqual', self.fi.a.__func__.known_attr, 7)\n    assert self.fi.a.known_attr == 7, ('assertEqual', self.fi.a.known_attr, 7)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionDictsTest.test_delete___dict__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    try:\n        del self.b.__dict__\n    except TypeError:\n        pass\n    else:\n        raise AssertionError('deleting function dictionary should raise TypeError')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionDictsTest.test_unassigned_dict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    assert self.b.__dict__ == {}, ('assertEqual', self.b.__dict__, {})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionDictsTest.test_func_as_dict_key",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    value = 'Some string'\n    d = {}\n    d[self.b] = value\n    assert d[self.b] == value, ('assertEqual', d[self.b], value)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionDocstringTest.test_set_docstring_attr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef cannot_set_attr(obj, name, value, exceptions):\n    try:\n        setattr(obj, name, value)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to set %s to %r\" % (name, value))\n    try:\n        delattr(obj, name)\n    except exceptions:\n        pass\n    else:\n        raise AssertionError(\"shouldn't be able to del %s\" % name)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    assert self.b.__doc__ == None, ('assertEqual', self.b.__doc__, None)\n    docstr = 'A test method that does nothing'\n    self.b.__doc__ = docstr\n    self.F.a.__doc__ = docstr\n    assert self.b.__doc__ == docstr, ('assertEqual', self.b.__doc__, docstr)\n    assert self.fi.a.__doc__ == docstr, ('assertEqual', self.fi.a.__doc__, docstr)\n    cannot_set_attr(self.fi.a, '__doc__', docstr, AttributeError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionDocstringTest.test_delete_docstring",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def setUp():\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F:\n\n        def a(self):\n            pass\n\n    def b():\n        return 3\n    self.fi = F()\n    self.F = F\n    self.b = b\n    self.b.__doc__ = 'The docstring'\n    del self.b.__doc__\n    assert self.b.__doc__ == None, ('assertEqual', self.b.__doc__, None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CellTest.test_comparison",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef _t():\n    assert cell(2) < cell(3), ('assertTrue', cell(2) < cell(3))\n    assert empty_cell() < cell('saturday'), ('assertTrue', empty_cell() < cell('saturday'))\n    assert empty_cell() == empty_cell(), ('assertTrue', empty_cell() == empty_cell())\n    assert cell(-36) == cell(-36.0), ('assertTrue', cell(-36) == cell(-36.0))\n    assert cell(True) > empty_cell(), ('assertTrue', cell(True) > empty_cell())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StaticMethodAttrsTest.test_func_attribute",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def cell(value):\n    \"\"\"Create a cell containing the given value.\"\"\"\n\n    def f():\n        print(a)\n    a = value\n    return f.__closure__[0]\n\ndef empty_cell(empty=True):\n    \"\"\"Create an empty cell.\"\"\"\n\n    def f():\n        print(a)\n    if not empty:\n        a = 1729\n    return f.__closure__[0]\n\ndef _t():\n\n    def f():\n        pass\n    c = classmethod(f)\n    assert c.__func__ is f, ('assertTrue', c.__func__ is f)\n    s = staticmethod(f)\n    assert s.__func__ is f, ('assertTrue', s.__func__ is f)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinFunctionPropertiesTest.test_builtin__qualname__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    import time\n    assert len.__qualname__ == 'len', ('assertEqual', len.__qualname__, 'len')\n    assert time.time.__qualname__ == 'time', ('assertEqual', time.time.__qualname__, 'time')\n    assert dict.fromkeys.__qualname__ == 'dict.fromkeys', ('assertEqual', dict.fromkeys.__qualname__, 'dict.fromkeys')\n    assert float.__getformat__.__qualname__ == 'float.__getformat__', ('assertEqual', float.__getformat__.__qualname__, 'float.__getformat__')\n    assert str.maketrans.__qualname__ == 'str.maketrans', ('assertEqual', str.maketrans.__qualname__, 'str.maketrans')\n    assert bytes.maketrans.__qualname__ == 'bytes.maketrans', ('assertEqual', bytes.maketrans.__qualname__, 'bytes.maketrans')\n    assert [1, 2, 3].append.__qualname__ == 'list.append', ('assertEqual', [1, 2, 3].append.__qualname__, 'list.append')\n    assert {'foo': 'bar'}.pop.__qualname__ == 'dict.pop', ('assertEqual', {'foo': 'bar'}.pop.__qualname__, 'dict.pop')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "BuiltinFunctionPropertiesTest.test_builtin__self__",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test_invalid___code___assignment",
+      "reason": "uses-self.assertWarnsRegex"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test___builtins__",
+      "reason": "unresolved-name:__builtins__"
+    },
+    {
+      "ident": "FunctionPropertiesTest.test___qualname__",
+      "reason": "unresolved-name:FuncAttrsTest"
+    }
+  ],
+  "counts": {
+    "extracted": 35,
+    "pinned": 30,
+    "quarantined": 5
+  }
+}

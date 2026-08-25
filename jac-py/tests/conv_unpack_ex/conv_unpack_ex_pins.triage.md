@@ -6,7 +6,7 @@
 
 | pin | result | got |
 |---|---|---|
-| unpack_ex.doctests:doctests | VM-CRASH |   jac dev mode - using compiler source at /var/tmp/lane8/jac  Error: 'int' object is not iterable 14178 \|                 return hiter_r[1] as PyObj; 14179 \|             } 14180 \|             for hostel in hiter {       \|                      ^^^^^ 14181 \|                 target_set.set_add(from_h |
+| unpack_ex.doctests:doctests | GUEST-WRONG-OUTPUT | RUN<"TypeError: 'CrazyDict' object is not a mapping"> |
 
 ## Quarantined at conversion
 
@@ -23,13 +23,7 @@
 
 ## Expected vs got
 
-### unpack_ex.doctests:doctests (VM-CRASH)
+### unpack_ex.doctests:doctests (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got:   jac dev mode - using compiler source at /var/tmp/lane8/jac
- Error: 'int' object is not iterable
-14178 |                 return hiter_r[1] as PyObj;
-14179 |             }
-14180 |             for hostel in hiter {
-      |                      ^^^^^
-14181 |                 target_set.set_add(from_h
+- got: RUN<"TypeError: 'CrazyDict' object is not a mapping">

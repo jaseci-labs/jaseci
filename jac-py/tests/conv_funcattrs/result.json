@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_funcattrs/conv_funcattrs_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:50:48",
+  "hashes": {
+    "pins_jac": "01ae8b17c6af27d00b758574c5557a86aec299058f3b512517b7d2c24f3c7029",
+    "conversion_json": "faa5b57fade6dd6ec4029e63da5dce57a6f9ce2f298088682d6aee9ce82aa9a6",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "funcattrs",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 35,
+    "runnable": 30,
+    "green": 12,
+    "quarantined": 5,
+    "failed": 18,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "FunctionPropertiesTest.test_dir_includes_correct_attrs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'known_attr'\">"
+    },
+    {
+      "id": "FunctionPropertiesTest.test_copying___code__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', None, 3)\"'>"
+    },
+    {
+      "id": "FunctionPropertiesTest.test___globals__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__globals__'\">"
+    },
+    {
+      "id": "FunctionPropertiesTest.test___closure__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__closure__'\">"
+    },
+    {
+      "id": "FunctionPropertiesTest.test_empty_cell",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__closure__'\">"
+    },
+    {
+      "id": "FunctionPropertiesTest.test_set_cell",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__closure__'\">"
+    },
+    {
+      "id": "FunctionPropertiesTest.test___name__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__name__'\">"
+    },
+    {
+      "id": "FunctionPropertiesTest.test___code__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <class \\'object\\'>, <class \\'code\\'>)\"'>"
+    },
+    {
+      "id": "FunctionPropertiesTest.test_func_default_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__defaults__'\">"
+    },
+    {
+      "id": "InstancemethodAttrTest.test___class__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__class__'\">"
+    },
+    {
+      "id": "ArbitraryFunctionAttrTest.test_set_attr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'known_attr'\">"
+    },
+    {
+      "id": "FunctionDictsTest.test_setting_dict_to_invalid",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__dict__'\">"
+    },
+    {
+      "id": "FunctionDictsTest.test_setting_dict_to_valid",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__dict__'\">"
+    },
+    {
+      "id": "FunctionDictsTest.test_func_as_dict_key",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"cannot use \\'bound_method\\' as a dict key (unhashable type: \\'bound_method\\')\"'>"
+    },
+    {
+      "id": "FunctionDocstringTest.test_set_docstring_attr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__doc__'\">"
+    },
+    {
+      "id": "FunctionDocstringTest.test_delete_docstring",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__doc__'\">"
+    },
+    {
+      "id": "CellTest.test_comparison",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__closure__'\">"
+    },
+    {
+      "id": "BuiltinFunctionPropertiesTest.test_builtin__qualname__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__qualname__'\">"
+    }
+  ]
+}

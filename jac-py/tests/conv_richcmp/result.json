@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_richcmp/conv_richcmp_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:50:52",
+  "hashes": {
+    "pins_jac": "af380f6ded7d22c6d95b335d1f6af3e9b37f6c4ecee8b19b90affb9a0c95a389",
+    "conversion_json": "d25ecb9d46c98aa3d8b3977dce50f7d8e967f47408d88782420e41a3e95f1df1",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "richcmp",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 11,
+    "runnable": 7,
+    "green": 4,
+    "quarantined": 4,
+    "failed": 3,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "NumberTest.test_values",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'int\\' and \\'Number\\'\"'>"
+    },
+    {
+      "id": "DictTest.test_dicts",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'seed\\'\"'>"
+    },
+    {
+      "id": "ListTest.test_goodentry",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'Good\\' and \\'Good\\'\"'>"
+    }
+  ]
+}

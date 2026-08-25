@@ -1,0 +1,276 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_fractions/conv_fractions_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:50:45",
+  "hashes": {
+    "pins_jac": "9e1233f8e4f647a4fbdce5a954091e681558e79565c4ec38ed12ca7940d17f23",
+    "conversion_json": "acdd2b90f18c80cf368d93f5b2245dfb51c859aeb2aeb7ab37a2a285ea0dc3f5",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "fractions",
+  "counts": {
+    "converted": 50,
+    "runnable": 36,
+    "green": 19,
+    "quarantined": 14
+  },
+  "pins": [
+    {
+      "id": "FractionTest.testInit",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'both arguments should be Rational instances'\">"
+    },
+    {
+      "id": "FractionTest.testInitFromFloat",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testInitFromDecimal",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testFromString",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testImmutable",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testFromFloat",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'Fraction.from_float() only takes floats, not 10 (int)'\">"
+    },
+    {
+      "id": "FractionTest.testFromDecimal",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'Fraction.from_decimal() only takes Decimals, not 10 (int)'\">"
+    },
+    {
+      "id": "FractionTest.test_is_integer",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.test_as_integer_ratio",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testLimitDenominator",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
+    },
+    {
+      "id": "FractionTest.testConversions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"type Fraction doesn\\'t define __trunc__ method\"'>"
+    },
+    {
+      "id": "FractionTest.testSupportsInt",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "FractionTest.testIntGuaranteesIntReturn",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "FractionTest.testBoolGuarateesBoolReturn",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'argument should be a string or a Rational instance or have the as_integer_ratio() method'\">"
+    },
+    {
+      "id": "FractionTest.testRound",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"type Fraction doesn\\'t define __round__ method\"'>"
+    },
+    {
+      "id": "FractionTest.testArithmetic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"unsupported operand type(s) for /: \\'Fraction\\' and \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "FractionTest.testLargeArithmetic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"unsupported operand type(s) for divmod(): \\'Fraction\\' and \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "FractionTest.testMixedArithmetic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (1.1+0j), (1.1+0j))\"'>"
+    },
+    {
+      "id": "FractionTest.testMixingWithDecimal",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testComparisons",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testMixedLess",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'int\\' and \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "FractionTest.testMixedLessEqual",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'>=\\' not supported between instances of \\'Fraction\\' and \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "FractionTest.testBigFloatComparisons",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'>\\' not supported between instances of \\'Fraction\\' and \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "FractionTest.testBigComplexComparisons",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertTrue\\', False)\"'>"
+    },
+    {
+      "id": "FractionTest.testMixedEqual",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testStringification",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testHash",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testApproximatePi",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'>\\' not supported between instances of \\'int\\' and \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "FractionTest.testApproximateCos1",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"bad operand type for abs(): \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "FractionTest.test_slots",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.test_int_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'both arguments should be Rational instances'\">"
+    },
+    {
+      "id": "FractionTest.test_format_no_presentation_type",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.test_format_e_presentation_type",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.test_format_f_presentation_type",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.test_format_g_presentation_type",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.test_invalid_formats",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.test_float_format_testfile",
+      "status": "quarantined",
+      "reason": "host-raised:FileNotFoundError: [Errno 2] No such file or directory: '/tmp/conv_suite_h5u84sdp/mathdata/formatfloat_testcases.txt'"
+    },
+    {
+      "id": "FractionTest.test_complex_handling",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.test_three_argument_pow",
+      "status": "pass"
+    },
+    {
+      "id": "FractionTest.testInitFromIntegerRatio",
+      "status": "quarantined",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "id": "FractionTest.test_limit_int",
+      "status": "quarantined",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "id": "FractionTest.testFromNumber",
+      "status": "quarantined",
+      "reason": "unresolved-name:DummyFraction"
+    },
+    {
+      "id": "FractionTest.testFromNumber_subclass",
+      "status": "quarantined",
+      "reason": "self.testFromNumber"
+    },
+    {
+      "id": "FractionTest.testMixedMultiplication",
+      "status": "quarantined",
+      "reason": "unresolved-name:DummyFraction"
+    },
+    {
+      "id": "FractionTest.testMixedDivision",
+      "status": "quarantined",
+      "reason": "unresolved-name:DummyFraction"
+    },
+    {
+      "id": "FractionTest.testMixedIntegerDivision",
+      "status": "quarantined",
+      "reason": "unresolved-name:DummyFraction"
+    },
+    {
+      "id": "FractionTest.testMixedPower",
+      "status": "quarantined",
+      "reason": "unresolved-name:Polar"
+    },
+    {
+      "id": "FractionTest.testComparisonsDummyRational",
+      "status": "quarantined",
+      "reason": "unresolved-name:DummyRational"
+    },
+    {
+      "id": "FractionTest.testComparisonsDummyFloat",
+      "status": "quarantined",
+      "reason": "unresolved-name:DummyFloat"
+    },
+    {
+      "id": "FractionTest.test_copy_deepcopy_pickle",
+      "status": "quarantined",
+      "reason": "unresolved-name:DummyFraction"
+    }
+  ]
+}

@@ -1,0 +1,529 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_configparser/conv_configparser_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:51:00",
+  "hashes": {
+    "pins_jac": "2373371e4f07b60e8606fb2d06e6aa30c8f3888e0d391c8aeb79844c520ac1dc",
+    "conversion_json": "b1dd27350968501dd4444dbe258b478532ef39583023727c50276444e74c6a83",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "configparser",
+  "counts": {
+    "converted": 94,
+    "runnable": 31,
+    "green": 0,
+    "quarantined": 63
+  },
+  "pins": [
+    {
+      "id": "ConfigParserTestCaseNoInterpolation.test_none_as_default_interpolation",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'ini'"
+    },
+    {
+      "id": "ConfigParserTestCaseInvalidInterpolationType.test_error_on_wrong_type_for_interpolation",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "Issue7005TestCase.test_none_as_value_stringified",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "Issue7005TestCase.test_none_as_value_stringified_raw",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'expected_output'"
+    },
+    {
+      "id": "ReadFileTestCase.test_file",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ReadFileTestCase.test_iterable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoverageOneHundredTestCase.test_duplicate_option_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoverageOneHundredTestCase.test_interpolation_depth_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoverageOneHundredTestCase.test_parsing_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoverageOneHundredTestCase.test_sectionproxy_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoverageOneHundredTestCase.test_inconsistent_converters_state",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_nosectionerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_nooptionerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_duplicatesectionerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_duplicateoptionerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_interpolationerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_interpolationmissingoptionerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_interpolationsyntaxerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_interpolationdeptherror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_parsingerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_missingsectionheadererror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "InlineCommentStrippingTestCase.test_stripping",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ConvertersTestCase.test_converters",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): __class__ cell not found"
+    },
+    {
+      "id": "BlatantOverrideConvertersTestCase.test_converters_at_init",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'config'"
+    },
+    {
+      "id": "SectionlessTestCase.test_no_first_section",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SectionlessTestCase.test_no_section",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SectionlessTestCase.test_empty_unnamed_section",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SectionlessTestCase.test_add_section",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SectionlessTestCase.test_disabled_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SectionlessTestCase.test_multiple_configs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "InvalidInputTestCase.test_delimiter_in_key",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "InvalidInputTestCase.test_section_bracket_in_key",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ReDoSTestCase.test_option_regex_does_not_backtrack",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ReDoSTestCase.test_option_regex_no_value_does_not_backtrack",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "MiscTestCase.test__all__",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "BasicTestCase.test_basic",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "BasicTestCase.test_basic_from_dict",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_case_sensitivity",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_case_sensitivity_mapping_access",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_default_case_sensitivity",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_parse_errors",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_query_errors",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_boolean",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "BasicTestCase.test_weird_errors",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_get_after_duplicate_option_error",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_write",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "BasicTestCase.test_set_string_types",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "BasicTestCase.test_read_returns_file_list",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_read_returns_file_list_with_bytestring_path",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_popitem",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "BasicTestCase.test_clear",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "BasicTestCase.test_setitem",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "BasicTestCase.test_invalid_multiline_value",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "ConfigParserTestCase.test_interpolation",
+      "status": "quarantined",
+      "reason": "helper:get_interpolation_config(helper:fromstring(helper:newconfig(uses-self.config_class)))"
+    },
+    {
+      "id": "ConfigParserTestCase.test_interpolation_missing_value",
+      "status": "quarantined",
+      "reason": "helper:get_interpolation_config(helper:fromstring(helper:newconfig(uses-self.config_class)))"
+    },
+    {
+      "id": "ConfigParserTestCase.test_items",
+      "status": "quarantined",
+      "reason": "helper:check_items_config(helper:fromstring(helper:newconfig(uses-self.config_class)))"
+    },
+    {
+      "id": "ConfigParserTestCase.test_safe_interpolation",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ConfigParserTestCase.test_set_malformatted_interpolation",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ConfigParserTestCase.test_set_nonstring_types",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ConfigParserTestCase.test_add_section_default",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "ConfigParserTestCase.test_defaults_keyword",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "ConfigParserTestCaseNoInterpolation.test_no_interpolation",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ConfigParserTestCaseNoInterpolation.test_empty_case",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "MultilineValuesTestCase.test_dominating_multiline_values",
+      "status": "quarantined",
+      "reason": "helper:setUp(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "RawConfigParserTestCase.test_interpolation",
+      "status": "quarantined",
+      "reason": "helper:get_interpolation_config(helper:fromstring(helper:newconfig(uses-self.config_class)))"
+    },
+    {
+      "id": "RawConfigParserTestCase.test_items",
+      "status": "quarantined",
+      "reason": "helper:check_items_config(helper:fromstring(helper:newconfig(uses-self.config_class)))"
+    },
+    {
+      "id": "RawConfigParserTestCase.test_set_nonstring_types",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "RawConfigParserTestCase.test_defaults_keyword",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "RawConfigParserTestSambaConf.test_reading",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "ConfigParserTestCaseExtendedInterpolation.test_extended_interpolation",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ConfigParserTestCaseExtendedInterpolation.test_endless_loop",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ConfigParserTestCaseExtendedInterpolation.test_strange_options",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ConfigParserTestCaseExtendedInterpolation.test_case_sensitivity_basic",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ConfigParserTestCaseExtendedInterpolation.test_case_sensitivity_conflicts",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ConfigParserTestCaseExtendedInterpolation.test_other_errors",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "NoValueAndExtendedInterpolation.test_interpolation_with_allow_no_value",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "NoValueAndExtendedInterpolation.test_explicit_none",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ConfigParserTestCaseTrickyFile.test_cfgparser_dot_3",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "ConfigParserTestCaseTrickyFile.test_unicode_failure",
+      "status": "quarantined",
+      "reason": "helper:newconfig(uses-self.config_class)"
+    },
+    {
+      "id": "SortedTestCase.test_sorted",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "CompatibleTestCase.test_comment_handling",
+      "status": "quarantined",
+      "reason": "helper:fromstring(helper:newconfig(uses-self.config_class))"
+    },
+    {
+      "id": "ReadFileTestCase.test_readline_generator",
+      "status": "quarantined",
+      "reason": "unresolved-name:FakeFile"
+    },
+    {
+      "id": "ReadFileTestCase.test_source_as_bytes",
+      "status": "quarantined",
+      "reason": "unresolved-name:dse"
+    },
+    {
+      "id": "ReadFileTestCase.test_keys_without_value_with_extra_whitespace",
+      "status": "quarantined",
+      "reason": "unresolved-name:dse"
+    },
+    {
+      "id": "CoverageOneHundredTestCase.test_interpolation_validation",
+      "status": "quarantined",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "id": "ExceptionPicklingTestCase.test_combine_error_linear_complexity",
+      "status": "quarantined",
+      "reason": "self.assertStartsWith"
+    },
+    {
+      "id": "ExceptionContextTestCase.test_get_basic_interpolation",
+      "status": "quarantined",
+      "reason": "uses-self.assertRaises"
+    },
+    {
+      "id": "ExceptionContextTestCase.test_get_extended_interpolation",
+      "status": "quarantined",
+      "reason": "uses-self.assertRaises"
+    },
+    {
+      "id": "ExceptionContextTestCase.test_missing_options",
+      "status": "quarantined",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "id": "ExceptionContextTestCase.test_missing_section",
+      "status": "quarantined",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "id": "ExceptionContextTestCase.test_remove_option",
+      "status": "quarantined",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "id": "BlatantOverrideConvertersTestCase.test_inheritance",
+      "status": "quarantined",
+      "reason": "uses-self._get_conv"
+    },
+    {
+      "id": "BlatantOverrideConvertersTestCase.test_instance_assignment",
+      "status": "quarantined",
+      "reason": "uses-self.assertEqual"
+    }
+  ]
+}

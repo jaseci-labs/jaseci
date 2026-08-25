@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_fileinput/conv_fileinput_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:51:07",
+  "hashes": {
+    "pins_jac": "ca4f9581d45ef10226b756e198c414890d46cf602962e67732d10ae2beac9d36",
+    "conversion_json": "e6c9c379cf4060f5cd2b00e869f16fdb5ded0cde81178ab577928c821d4239fc",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "fileinput",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 57,
+    "runnable": 14,
+    "green": 5,
+    "quarantined": 43,
+    "failed": 9,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "FileInputTests.test_stdin_binary_mode",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute '__init_subclass__'\">"
+    },
+    {
+      "id": "Test_fileinput_close.test_state_is_not_None",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "Test_fileinput_nextfile.test_state_is_not_None",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "Test_fileinput_filename.test_state_is_not_None",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "Test_fileinput_lineno.test_state_is_not_None",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "Test_fileinput_filelineno.test_state_is_not_None",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "Test_fileinput_fileno.test_state_is_not_None",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "Test_fileinput_isfirstline.test_state_is_not_None",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "Test_fileinput_isstdin.test_state_is_not_None",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    }
+  ]
+}

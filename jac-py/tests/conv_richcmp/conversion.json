@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_richcmp.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_richcmp",
+    "--name",
+    "conv_richcmp"
+  ],
+  "generated_at": "2026-08-24T21:50:50",
+  "hashes": {
+    "pins_jac": "af380f6ded7d22c6d95b335d1f6af3e9b37f6c4ecee8b19b90affb9a0c95a389"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_richcmp.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "richcmp",
+  "pins_file": "conv_richcmp_pins.jac",
+  "pins": [
+    {
+      "ident": "NumberTest.test_values",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nopmap = {'lt': (lambda a, b: a < b, operator.lt, operator.__lt__), 'le': (lambda a, b: a <= b, operator.le, operator.__le__), 'eq': (lambda a, b: a == b, operator.eq, operator.__eq__), 'ne': (lambda a, b: a != b, operator.ne, operator.__ne__), 'gt': (lambda a, b: a > b, operator.gt, operator.__gt__), 'ge': (lambda a, b: a >= b, operator.ge, operator.__ge__)}\n\ndef checkvalue(opname, a, b, expres):\n    for typea in (int, Number):\n        for typeb in (int, Number):\n            ta = typea(a)\n            tb = typeb(b)\n            for op in opmap[opname]:\n                realres = op(ta, tb)\n                realres = getattr(realres, 'x', realres)\n                assert realres is expres, ('assertTrue', realres is expres)\n\nclass Number:\n\n    def __init__(self, x):\n        self.x = x\n\n    def __lt__(self, other):\n        return self.x < other\n\n    def __le__(self, other):\n        return self.x <= other\n\n    def __eq__(self, other):\n        return self.x == other\n\n    def __ne__(self, other):\n        return self.x != other\n\n    def __gt__(self, other):\n        return self.x > other\n\n    def __ge__(self, other):\n        return self.x >= other\n\n    def __repr__(self):\n        return 'Number(%r)' % (self.x,)\n\ndef _t():\n    checkvalue('lt', 0, 0, False)\n    checkvalue('le', 0, 0, True)\n    checkvalue('eq', 0, 0, True)\n    checkvalue('ne', 0, 0, False)\n    checkvalue('gt', 0, 0, False)\n    checkvalue('ge', 0, 0, True)\n    checkvalue('lt', 0, 1, True)\n    checkvalue('le', 0, 1, True)\n    checkvalue('eq', 0, 1, False)\n    checkvalue('ne', 0, 1, True)\n    checkvalue('gt', 0, 1, False)\n    checkvalue('ge', 0, 1, False)\n    checkvalue('lt', 1, 0, False)\n    checkvalue('le', 1, 0, False)\n    checkvalue('eq', 1, 0, False)\n    checkvalue('ne', 1, 0, True)\n    checkvalue('gt', 1, 0, True)\n    checkvalue('ge', 1, 0, True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MiscTest.test_not",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\ndef _t():\n    import operator\n\n    class Exc(Exception):\n        pass\n\n    class Bad:\n\n        def __bool__(self):\n            raise Exc\n\n    def do(bad):\n        not bad\n    for func in (do, operator.not_):\n        try:\n            func(*(Bad(),))\n        except Exc:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MiscTest.test_exception_message",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n\n    class Spam:\n        pass\n    tests = [(lambda: 42 < None, \"'<' .* of 'int' and 'NoneType'\"), (lambda: None < 42, \"'<' .* of 'NoneType' and 'int'\"), (lambda: 42 > None, \"'>' .* of 'int' and 'NoneType'\"), (lambda: 'foo' < None, \"'<' .* of 'str' and 'NoneType'\"), (lambda: 'foo' >= 666, \"'>=' .* of 'str' and 'int'\"), (lambda: 42 <= None, \"'<=' .* of 'int' and 'NoneType'\"), (lambda: 42 >= None, \"'>=' .* of 'int' and 'NoneType'\"), (lambda: 42 < [], \"'<' .* of 'int' and 'list'\"), (lambda: () > [], \"'>' .* of 'tuple' and 'list'\"), (lambda: None >= None, \"'>=' .* of 'NoneType' and 'NoneType'\"), (lambda: Spam() < 42, \"'<' .* of 'Spam' and 'int'\"), (lambda: 42 < Spam(), \"'<' .* of 'int' and 'Spam'\"), (lambda: Spam() <= Spam(), \"'<=' .* of 'Spam' and 'Spam'\")]\n    for i, test in enumerate(tests):\n        try:\n            test[0]()\n        except TypeError as _exc:\n            assert _re.search(test[1], str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "DictTest.test_dicts",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nopmap = {'lt': (lambda a, b: a < b, operator.lt, operator.__lt__), 'le': (lambda a, b: a <= b, operator.le, operator.__le__), 'eq': (lambda a, b: a == b, operator.eq, operator.__eq__), 'ne': (lambda a, b: a != b, operator.ne, operator.__ne__), 'gt': (lambda a, b: a > b, operator.gt, operator.__gt__), 'ge': (lambda a, b: a >= b, operator.ge, operator.__ge__)}\n\ndef _t():\n    import random\n    imag1a = {}\n    for i in range(50):\n        imag1a[random.randrange(100) * 1j] = random.randrange(100) * 1j\n    items = list(imag1a.items())\n    random.shuffle(items)\n    imag1b = {}\n    for k, v in items:\n        imag1b[k] = v\n    imag2 = imag1b.copy()\n    imag2[k] = v + 1.0\n    assert imag1a == imag1a, ('assertEqual', imag1a, imag1a)\n    assert imag1a == imag1b, ('assertEqual', imag1a, imag1b)\n    assert imag2 == imag2, ('assertEqual', imag2, imag2)\n    assert imag1a != imag2, ('assertTrue', imag1a != imag2)\n    for opname in ('lt', 'le', 'gt', 'ge'):\n        for op in opmap[opname]:\n            try:\n                op(*(imag1a, imag2))\n            except TypeError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ListTest.test_coverage",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    x = [42]\n    assert (x < x) is False, ('assertIs', (x < x), False)\n    assert (x <= x) is True, ('assertIs', (x <= x), True)\n    assert (x == x) is True, ('assertIs', (x == x), True)\n    assert (x != x) is False, ('assertIs', (x != x), False)\n    assert (x > x) is False, ('assertIs', (x > x), False)\n    assert (x >= x) is True, ('assertIs', (x >= x), True)\n    y = [42, 42]\n    assert (x < y) is True, ('assertIs', (x < y), True)\n    assert (x <= y) is True, ('assertIs', (x <= y), True)\n    assert (x == y) is False, ('assertIs', (x == y), False)\n    assert (x != y) is True, ('assertIs', (x != y), True)\n    assert (x > y) is False, ('assertIs', (x > y), False)\n    assert (x >= y) is False, ('assertIs', (x >= y), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ListTest.test_badentry",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nopmap = {'lt': (lambda a, b: a < b, operator.lt, operator.__lt__), 'le': (lambda a, b: a <= b, operator.le, operator.__le__), 'eq': (lambda a, b: a == b, operator.eq, operator.__eq__), 'ne': (lambda a, b: a != b, operator.ne, operator.__ne__), 'gt': (lambda a, b: a > b, operator.gt, operator.__gt__), 'ge': (lambda a, b: a >= b, operator.ge, operator.__ge__)}\n\ndef _t():\n\n    class Exc(Exception):\n        pass\n\n    class Bad:\n\n        def __eq__(self, other):\n            raise Exc\n    x = [Bad()]\n    y = [Bad()]\n    for op in opmap['eq']:\n        try:\n            op(*(x, y))\n        except Exc:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ListTest.test_goodentry",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nopmap = {'lt': (lambda a, b: a < b, operator.lt, operator.__lt__), 'le': (lambda a, b: a <= b, operator.le, operator.__le__), 'eq': (lambda a, b: a == b, operator.eq, operator.__eq__), 'ne': (lambda a, b: a != b, operator.ne, operator.__ne__), 'gt': (lambda a, b: a > b, operator.gt, operator.__gt__), 'ge': (lambda a, b: a >= b, operator.ge, operator.__ge__)}\n\ndef _t():\n\n    class Good:\n\n        def __lt__(self, other):\n            return True\n    x = [Good()]\n    y = [Good()]\n    for op in opmap['lt']:\n        assert op(x, y) is True, ('assertIs', op(x, y), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "MiscTest.test_recursion",
+      "reason": "decorator:support.no_tracing"
+    },
+    {
+      "ident": "VectorTest.test_mixed",
+      "reason": "unresolved-name:Vector"
+    },
+    {
+      "ident": "NumberTest.test_basic",
+      "reason": "unresolved-name:Number"
+    },
+    {
+      "ident": "MiscTest.test_misbehavin",
+      "reason": "uses-self.fail"
+    }
+  ],
+  "counts": {
+    "extracted": 11,
+    "pinned": 7,
+    "quarantined": 4
+  }
+}
