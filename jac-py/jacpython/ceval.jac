@@ -16489,6 +16489,10 @@ def builtin_exec(
             return host_result_error(packed_src);
         }
         converted_src = unmarshal(packed_src[1] as list[int]);
+        if is_error(converted_src) {
+            # Surface load-time failures (e.g. opcode validation) verbatim.
+            return converted_src;
+        }
         if not isinstance(converted_src, PyCode) {
             return py_error("TypeError", "exec() argument 1 must be a code object");
         }

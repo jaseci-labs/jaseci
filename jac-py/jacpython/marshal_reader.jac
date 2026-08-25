@@ -1,6 +1,8 @@
 # CPython 3.14 marshal reader (jac-py/PLAN.md §4 marshal transport).
 # Acyclic leaf: imports objects only; consumed by ceval.jac and pyc_first.jac.
 
+import from opcode_allowlist { opcode_load_valid, opcode_load_name }
+import from opcode_meta { opcode_cache_count, OP_EXTENDED_ARG }
 import from objects {
     PyObj,
     PyInt,
@@ -463,6 +465,37 @@ obj Reader {
                     + str(len(co_code))
                     + " is not a whole number of instructions"
             );
+        }
+        # Load-time opcode validation: reject unknown/specialized/instrumented
+        # opcodes HERE with a clear error naming opcode and offset, instead of
+        # SystemError mid-frame when dispatch hits them. Allowlist = the
+        # run_frame-dispatched set (opcode_allowlist.jac, generated).
+        ci = 0;
+        ext = 0;
+        while ci < len(co_code) {
+            bop = co_code[ci];
+            carg = bop;
+            if ci + 1 < len(co_code) {
+                carg = co_code[ci + 1];
+            }
+            carg = carg | (ext << 8);
+            if not opcode_load_valid(bop) {
+                self.fail(
+                    "code object '"
+                        + str_value(name)
+                        + "': unknown opcode "
+                        + str(bop)
+                        + " ("
+                        + opcode_load_name(bop)
+                        + ") at co_code offset "
+                        + str(ci)
+                );
+            }
+            ext = 0;
+            if bop == OP_EXTENDED_ARG {
+                ext = carg;
+            }
+            ci = ci + 2 + 2 * opcode_cache_count(bop);
         }
         if len(lpnames) != len(lpkinds) {
             self.fail(
