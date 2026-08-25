@@ -246,6 +246,25 @@ test "resolver falls back to the peer when every hop is trusted" {
 }
 
 
+test "resolver ignores empty entries in the forwarded chain" {
+    trusted = _parse_trusted_proxies(["10.0.0.0/8"]);
+    trailing = _req(
+        path="/", headers={"X-Forwarded-For": "198.51.100.7,"}, client_host="10.0.0.1"
+    );
+    assert _resolve_client_ip(trailing, trusted) == "198.51.100.7";
+    leading = _req(
+        path="/", headers={"X-Forwarded-For": ",198.51.100.7"}, client_host="10.0.0.1"
+    );
+    assert _resolve_client_ip(leading, trusted) == "198.51.100.7";
+    interior = _req(
+        path="/",
+        headers={"X-Forwarded-For": "198.51.100.7, , 10.0.0.2"},
+        client_host="10.0.0.1"
+    );
+    assert _resolve_client_ip(interior, trusted) == "198.51.100.7";
+}
+
+
 test "resolver falls back to the peer on an unparseable hop" {
     trusted = _parse_trusted_proxies(["10.0.0.0/8"]);
     r = _req(path="/", headers={"X-Forwarded-For": "garbage"}, client_host="10.0.0.1");

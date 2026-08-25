@@ -188,7 +188,11 @@ def _resolve_client_ip(request: any, trusted_networks: list | None = None) -> st
     raw_values = request.headers.getlist("X-Forwarded-For");
     hops: list = [];
     for value in raw_values {
-        hops.extend(str(value).split(","));
+        for part in str(value).split(",") {
+            if part.strip() {
+                hops.append(part);
+            }
+        }
     }
     for hop in reversed(hops) {
         hop_ip = _parse_forwarded_ip(hop);
