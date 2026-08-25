@@ -1579,6 +1579,187 @@ def _native_lib_filename(stem: str) -> str {
     return f"libjac_{stem}.so";
 }
 
+glob NATIVE_SEAL_INDEX_NAME: str = "SEAL_INDEX.json",
+     NATIVE_SEAL_INDEX_FORMAT: int = 1;
+
+def seal_index_path(precompiled_dir: Path, triple: str) -> Path {
+    return precompiled_dir / "native" / triple / NATIVE_SEAL_INDEX_NAME;
+}
+
+def read_seal_index(precompiled_dir: Path, triple: str) -> dict[str, dict[str, any]] {
+    try {
+        doc = json.loads(
+            seal_index_path(precompiled_dir, triple).read_text(encoding="utf-8")
+        );
+    } except Exception {
+        return {};
+    }
+    if not isinstance(doc, dict)
+        or doc.get("format") != NATIVE_SEAL_INDEX_FORMAT
+        or doc.get("triple") != triple {
+        return {};
+    }
+    recorded = doc.get("artifacts");
+    if not isinstance(recorded, dict) {
+        return {};
+    }
+    return {
+        k: v
+        for (k, v) in recorded.items()
+        if isinstance(v, dict)
+    };
+}
+
+def write_seal_index(
+    precompiled_dir: Path, triple: str, records: dict[str, dict[str, any]]
+) {
+    path = seal_index_path(precompiled_dir, triple);
+    path.parent.mkdir(parents=True, exist_ok=True);
+    path.write_text(
+        json.dumps(
+            {
+                "format": NATIVE_SEAL_INDEX_FORMAT,
+                "triple": triple,
+                "artifacts": records
+            },
+            sort_keys=True,
+            indent=1
+        )
+            + "\n",
+        encoding="utf-8"
+    );
+}
+
+def seal_closure_sources(root_src: Path, deps: (list[str] | None) = None) -> list[str] {
+    base = root_src.resolve().parent;
+    found: list[str] = [str(root_src.resolve())];
+    for raw in (deps or []) {
+        if not raw {
+            continue;
+        }
+        dep = Path(raw);
+        if not dep.is_absolute() {
+            dep = base / raw;
+        }
+        if dep.is_file() {
+            found.append(str(dep.resolve()));
+        }
+    }
+    return sorted(set(found));
+}
+
+def seal_source_label(pkg_path: Path, path: Path) -> str {
+    try {
+        return path.resolve().relative_to(Path(pkg_path).resolve()).as_posix();
+    } except ValueError {
+        return path.resolve().as_posix();
+    }
+}
+
+def seal_source_keys(pkg_path: Path, paths: list[str]) -> (dict[str, str] | None) {
+    import from jaclang.compiler.driver.jir { module_cache_key }
+    pkg_root = Path(pkg_path).resolve();
+    keys: dict[str, str] = {};
+    for raw in sorted(set(paths)) {
+        if not raw {
+            continue;
+        }
+        src = Path(raw);
+        if not src.is_absolute() {
+            src = pkg_root / raw;
+        }
+        if not src.is_file() {
+            return None;
+        }
+        try {
+            keys[seal_source_label(pkg_path, src)] = module_cache_key(str(src));
+        } except Exception {
+            return None;
+        }
+    }
+    return keys or None;
+}
+
+def seal_artifact_key(rel: str, triple: str, source_keys: dict[str, str]) -> str {
+    h = hashlib.sha256();
+    h.update(f"{NATIVE_SEAL_INDEX_FORMAT}|{rel}|{triple}".encode());
+    for (label, key) in sorted(source_keys.items()) {
+        h.update(f"|{label}={key}".encode());
+    }
+    return h.hexdigest();
+}
+
+def seal_waiver_digest(
+    rel: str, waivers: (dict[str, tuple[str, ...]] | None) = None
+) -> str {
+    (qualified, _bare) = seal_waiver_names(rel, waivers);
+    h = hashlib.sha256();
+    for name in sorted(qualified) {
+        h.update(f"{name}|".encode());
+    }
+    return h.hexdigest();
+}
+
+def seal_reuse_decision(
+    record: (dict[str, any] | None),
+    precompiled_dir: Path,
+    rel: str,
+    triple: str,
+    identity: str,
+    waiver_digest: str,
+    source_keys: (dict[str, str] | None)
+) -> str {
+    if not record {
+        return "no artifact for it is recorded in the seal index";
+    }
+    if record.get("triple") != triple {
+        return f"it was built for {record.get('triple')!r}, not {triple!r}";
+    }
+    if record.get("compiler") != identity {
+        return "the compiler that built it is not the one running now";
+    }
+    if record.get("waivers") != waiver_digest {
+        return "its demotion waiver table changed, so the seal gate must re-run";
+    }
+    recorded = record.get("sources");
+    if not isinstance(recorded, dict) or not recorded {
+        return "the index records no source closure for it";
+    }
+    if source_keys is None {
+        return "a source in its recorded closure is gone or unreadable";
+    }
+    changed = sorted(
+        label
+        for label in recorded
+        if recorded.get(label) != source_keys.get(label)
+    );
+    if changed {
+        shown = ", ".join(changed[:4]);
+        more = f" and {len(changed) - 4} more" if len(changed) > 4 else "";
+        return f"{len(changed)} closure source(s) changed: {shown}{more}";
+    }
+    if record.get("key") != seal_artifact_key(rel, triple, source_keys) {
+        return "its recorded input key does not match the closure on disk";
+    }
+    for (path_field, sha_field) in (
+        ("lib", "lib_sha256"),
+        ("layout", "layout_sha256")
+    ) {
+        rel_out = record.get(path_field);
+        if not rel_out {
+            return f"the index records no {path_field} path for it";
+        }
+        out_file = precompiled_dir / str(rel_out);
+        if not out_file.is_file() {
+            return f"its {path_field} is missing from the output tree";
+        }
+        if hashlib.sha256(out_file.read_bytes()).hexdigest() != record.get(sha_field) {
+            return f"its {path_field} on disk does not match the recorded sha256";
+        }
+    }
+    return "";
+}
+
 def seal_export_symbols(
     layout_dict: dict[str, any], clib_symbols: any = None
 ) -> list[str] {
@@ -1714,7 +1895,9 @@ def seal_one_root(
     waivers: (dict[str, tuple[str, ...]] | None) = None,
     lib_stem: (str | None) = None,
     extra_layout_entries: (dict[str, any] | None) = None,
-    full_canaries: bool = False
+    full_canaries: bool = False,
+    ir_out: (str | None) = None,
+    deps_out: (list[str] | None) = None
 ) -> (dict[str, any] | None) {
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.driver.compile_options { CompileOptions }
@@ -1759,6 +1942,10 @@ def seal_one_root(
         closure_deps: list[str] = [];
         if ir is not None and ir.gen.interop_manifest is not None {
             closure_deps = list(ir.gen.interop_manifest.native_transitive_sources);
+        }
+        if deps_out is not None {
+            deps_out.clear();
+            deps_out.extend(closure_deps);
         }
         if prog.errors_had {
             for _err in prog.errors_had {
@@ -1901,6 +2088,10 @@ def seal_one_root(
     }
     exports = seal_export_symbols(layout_dict, _clib_syms);
     out_dir.mkdir(parents=True, exist_ok=True);
+    if ir_out {
+        Path(ir_out).parent.mkdir(parents=True, exist_ok=True);
+        Path(ir_out).write_text(llvm_ir_text, encoding="utf-8");
+    }
     lib_path.unlink(missing_ok=True);
     layout_path.unlink(missing_ok=True);
     (ok, err) = emit_shared_library(
@@ -1975,7 +2166,8 @@ def seal_one_root(
         "layout": layout_path.relative_to(precompiled_dir).as_posix(),
         "triple": triple,
         "lib_sha256": hashlib.sha256(lib_path.read_bytes()).hexdigest(),
-        "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest()
+        "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest(),
+        "clib_symbols": sorted(_clib_syms)
     };
     console.print(
         f"  Native artifact: {fullname} -> {lib_path.name} "
@@ -1987,7 +2179,8 @@ def seal_one_root(
 def seal_native_artifacts(
     pkg_path: Path,
     precompiled_dir: Path,
-    waivers: (dict[str, tuple[str, ...]] | None) = None
+    waivers: (dict[str, tuple[str, ...]] | None) = None,
+    ir_out: (str | None) = None
 ) -> (dict[str, any] | None) {
     if sys.platform.startswith("win") {
         stale_native = precompiled_dir / "native";
@@ -1999,6 +2192,58 @@ def seal_native_artifacts(
     import atexit;
     import from jaclang.dist.gen_native_materialize {
         generate as generate_materialize_root
+    }
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
+
+    # One record, one artifact: an unchanged source closure under the same
+    # compiler and waiver table reuses the sealed library outright (load
+    # canary re-run; the parity canaries proved these exact sha-verified
+    # bytes when they were built). Anything the record cannot prove is a
+    # fresh build.
+    triple = llvm.get_default_triple();
+    assert isinstance(triple, str);
+    identity = compiler_identity();
+    waiver_digest = seal_waiver_digest(NATIVE_SEAL_FUSED_ROOT, waivers);
+    record = read_seal_index(precompiled_dir, triple).get(NATIVE_SEAL_FUSED_ROOT);
+    if record is not None {
+        why = seal_reuse_decision(
+            record,
+            precompiled_dir,
+            NATIVE_SEAL_FUSED_ROOT,
+            triple,
+            identity,
+            waiver_digest,
+            seal_source_keys(pkg_path, sorted(record.get("sources") or {}))
+        );
+        if not why {
+            reuse_layout = json.loads(
+                (precompiled_dir / str(record["layout"])).read_text(encoding="utf-8")
+            );
+            reuse_exports = seal_export_symbols(
+                reuse_layout, record.get("clib_symbols")
+            );
+            canary = seal_native_canary(
+                str(precompiled_dir / str(record["lib"])), reuse_exports
+            );
+            if not canary {
+                console.print(
+                    f"  Native artifact: {record['lib']} reused "
+                    f"({len(record.get('modules') or [])} served module(s))"
+                );
+                return {
+                    "artifact": {
+                        "lib": record["lib"],
+                        "layout": record["layout"],
+                        "triple": triple,
+                        "lib_sha256": record["lib_sha256"],
+                        "layout_sha256": record["layout_sha256"]
+                    },
+                    "modules": list(record.get("modules") or [])
+                };
+            }
+            why = f"its load canary no longer passes: {canary}";
+        }
+        console.print(f"  Building {NATIVE_SEAL_FUSED_ROOT}: {why}.");
     }
 
     unitree_layout = derive_unitree_layout(pkg_path);
@@ -2019,6 +2264,7 @@ def seal_native_artifacts(
     }
     fused_src = generate_fused_seal_root(pkg_path);
     atexit.register(fused_src.unlink, missing_ok=True);
+    closure_deps: list[str] = [];
     try {
         artifact_entry = seal_one_root(
             pkg_path,
@@ -2027,7 +2273,9 @@ def seal_native_artifacts(
             waivers=waivers,
             lib_stem=NATIVE_SEAL_LIB_STEM,
             extra_layout_entries={"materialize_manifest": mat_result},
-            full_canaries=True
+            full_canaries=True,
+            ir_out=ir_out,
+            deps_out=closure_deps
         );
     } finally {
         fused_src.unlink(missing_ok=True);
@@ -2036,12 +2284,42 @@ def seal_native_artifacts(
     if artifact_entry is None {
         return None;
     }
-    prune_native_outputs(
-        precompiled_dir, {str(artifact_entry["lib"]), str(artifact_entry["layout"])}
-    );
+    clib_symbols = artifact_entry.pop("clib_symbols", []);
     modules = sorted(
         _seal_module_fullname(pkg_path.name, served_rel)
         for served_rel in NATIVE_SEAL_SERVED_MODULES
+    );
+    # The record's source set is every real file in the closure; the two
+    # generated files (the fused root, the materializer) are derived from
+    # those sources and are gone from disk by the next run, so keying on
+    # them would defeat every reuse.
+    generated = {str(fused_src.resolve()), str(mat_src.resolve())};
+    record_sources = [
+        s
+        for s in seal_closure_sources(pkg_path / NATIVE_SEAL_FUSED_ROOT, closure_deps)
+        if s not in generated
+    ];
+    built_keys = seal_source_keys(pkg_path, record_sources);
+    index_rel = seal_index_path(precompiled_dir, triple).relative_to(
+        precompiled_dir
+    ).as_posix();
+    if built_keys is not None {
+        new_record = dict(artifact_entry);
+        new_record["key"] = seal_artifact_key(
+            NATIVE_SEAL_FUSED_ROOT, triple, built_keys
+        );
+        new_record["compiler"] = identity;
+        new_record["waivers"] = waiver_digest;
+        new_record["clib_symbols"] = clib_symbols;
+        new_record["sources"] = built_keys;
+        new_record["modules"] = modules;
+        write_seal_index(
+            precompiled_dir, triple, {NATIVE_SEAL_FUSED_ROOT: new_record}
+        );
+    }
+    prune_native_outputs(
+        precompiled_dir,
+        {str(artifact_entry["lib"]), str(artifact_entry["layout"]), index_rel}
     );
     return {"artifact": artifact_entry, "modules": modules};
 }

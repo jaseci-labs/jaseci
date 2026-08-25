@@ -70,7 +70,13 @@ def _build_binding -> tuple {
     if _ARTIFACT_MEMO {
         return _ARTIFACT_MEMO[0];
     }
-    out_dir = Path(tempfile.mkdtemp(prefix="jac_sealed_parser_"));
+    # A shared, persistent seal cache instead of a throwaway tempdir: the
+    # seal's single-record index reuses an artifact whose compiler digest,
+    # source closure, and waiver table are unchanged (sha-verified, load
+    # canary re-run), so across these suites -- and across runs -- the fused
+    # build happens once instead of once per file.
+    out_dir = Path(os.path.expanduser("~/.cache/jac/seal-tests"));
+    out_dir.mkdir(parents=True, exist_ok=True);
     record = seal_native_artifacts(PKG_PATH, out_dir);
     assert record is not None and record.get("artifact") , (
         "seal_native_artifacts refused the fused root on this platform"
