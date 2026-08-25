@@ -39,6 +39,19 @@ jobs:
       - name: Pin CPython reference checkout
         run: python3 jac-py/tools/fetch_cpython_reference.py
 
+      # Warm JIR module cache: the first `jac test` compiles the ~200-module
+      # jaclang tree (~3 min) into ~/.cache/jac/jir; every step after reuses it.
+      # Cache it so only the FIRST run per compiler-tree pays that cost. Stale-safe
+      # by construction: each .jir embeds a content-addressed module key, so a
+      # mismatched entry is recompiled, never mis-served (accelerator, not oracle).
+      - name: Cache warm JIR compile
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/jac/jir
+          key: jacpy-gate-jir-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+          restore-keys: |
+            jacpy-gate-jir-${{ runner.os }}-${{ runner.arch }}-
+
       - name: P4 import boundary gate
         run: python3 jac-py/tools/p4_import_gate.py
 
@@ -53,6 +66,7 @@ jobs:
         uses: ./.github/actions/setup-jac
         with:
           skip-precompile: "true"
+          ninja: "false"
 
       - name: Layer 4 oracle contract tests
         run: jac test jac-py/jacpython/layer4_compile.jac
