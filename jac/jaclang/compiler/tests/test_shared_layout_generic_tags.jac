@@ -15,7 +15,7 @@ non-archetype names (`list`, `int`, ...) pass through untouched.
 import os;
 import from pathlib { Path }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.layout_pass { get_shared_layout_registry }
 
 glob FIXTURE_DIR = str(
@@ -27,7 +27,7 @@ glob FIXTURE_DIR = str(
      );
 
 
-def build_shared_registry() -> object {
+def build_shared_registry -> object {
     prog = JacProgram();
     main_mod = prog.compile(os.path.join(FIXTURE_DIR, "main.jac"));
     foo_mod = prog.compile(os.path.join(FIXTURE_DIR, "foo.jac"));
@@ -43,13 +43,13 @@ test "generic annotation resolves inner archetype to its tid" {
             bar = lay;
         }
     }
-    assert bar is not None, sorted(reg.layouts.keys());
+    assert bar is not None , sorted(reg.layouts.keys());
     tags = {};
     for f in bar.fields {
         tags[f.name] = f.type_tag;
     }
-    assert tags["direct"] == "foo__Foo", tags;
-    assert "foo__Foo" in tags["items"], tags;
+    assert tags["direct"] == "foo__Foo" , tags;
+    assert "foo__Foo" in tags["items"] , tags;
 }
 
 
@@ -61,8 +61,8 @@ test "non-archetype names in tags are left untouched" {
             foo = lay;
         }
     }
-    assert foo is not None, sorted(reg.layouts.keys());
+    assert foo is not None , sorted(reg.layouts.keys());
     for f in foo.fields {
-        assert f.type_tag == "int", f.type_tag;
+        assert f.type_tag == "int" , f.type_tag;
     }
 }

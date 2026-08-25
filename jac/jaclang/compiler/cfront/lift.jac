@@ -1,5 +1,5 @@
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.cast_load_pass { CastBuildPass, CLiftSite }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 
@@ -57,7 +57,7 @@ def lift_c_file(
     nostdinc: bool = False,
     lenient_c: bool = True
 ) -> LiftResult {
-    import from jaclang.jac0core.helpers { read_file_with_encoding }
+    import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
     c_src = read_file_with_encoding(filename);
     if not filename.endswith(".i") {
         import from jaclang.compiler.cfront.preprocess { preprocess_c }

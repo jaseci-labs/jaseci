@@ -11,7 +11,7 @@ and the linked binary must agree with the original `.c` under `cc`.
 import os;
 import tempfile;
 import from tests.support { JAC_ROOT }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.c.c_gen_pass { emit_translation_units }
 import from tests.compiler.c2jac.lift_oracle { run_c }
 import from tests.compiler.c2jac.emit_support { cc, link_and_run }

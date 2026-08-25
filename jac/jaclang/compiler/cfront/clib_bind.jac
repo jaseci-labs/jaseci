@@ -1,7 +1,7 @@
 import os;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.helpers { read_file_with_encoding }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.constant { CodeContext }
+import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
 
 
 def synthesize_clib_bindings(mod: uni.Module, importer_path: str) -> None {

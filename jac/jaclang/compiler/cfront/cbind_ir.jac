@@ -1,5 +1,5 @@
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { Tokens as Tok }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.cfront.c_common { assign_synthetic_token_positions }
 
 

@@ -1,12 +1,12 @@
 import os;
 import from typing { cast }
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from threading { Event }
-import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.diagnostics { DiagnosticInfo, DIAGNOSTICS }
-import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.helpers { pascal_to_snake }
-import type from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.diagnostics { DiagnosticInfo, DIAGNOSTICS }
+import from jaclang.compiler.passes.transform { Transform }
+import from jaclang.compiler.frontend.helpers { pascal_to_snake }
+import type from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.vendor.pycparser { c_ast }
 import from jaclang.compiler.cfront.c_common {
     BinKind,
@@ -74,7 +74,7 @@ import from jaclang.compiler.cfront.enum_prepass {
 }
 import from jaclang.compiler.cfront.c_common { eval_enumerators, jac_id, c_field }
 import from jaclang.compiler.cfront.fidelity { fidelity_band, band_quarantines }
-import from jaclang.jac0core.constant { VALUE_ARCH_DECORATOR }
+import from jaclang.compiler.frontend.constant { VALUE_ARCH_DECORATOR }
 
 obj CLiftSite {
     has code: str,
@@ -306,6 +306,7 @@ obj CastBuildPass(Transform) {
     def _char_string_table_listval(
         c_node: c_ast.Node, const_nd: c_ast.Node
     ) -> uni.ListVal;
+
     def _decl_array(nd: c_ast.Node) -> object;
     def proc_array_decl(nd: c_ast.Node) -> object;
     def proc_init_list(nd: c_ast.Node) -> object;
@@ -316,9 +317,7 @@ obj CastBuildPass(Transform) {
     def _init_value(c_init: c_ast.Node, c_type: c_ast.Node) -> uni.Expr | None;
     def _typed_init(c_init: c_ast.Node, c_type: c_ast.Node) -> uni.Expr | None;
     def _array_init_from_list(
-        c_init: c_ast.Node,
-        elem_type: c_ast.Node,
-        arr_decl: c_ast.Node | None = None
+        c_init: c_ast.Node, elem_type: c_ast.Node, arr_decl: c_ast.Node | None = None
     ) -> uni.ListVal | None;
 
     def _struct_init_from_list(

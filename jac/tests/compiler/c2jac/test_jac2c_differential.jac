@@ -42,8 +42,8 @@ import from tests.compiler.c2jac.emit_support {
     require_cc,
     FIXTURES
 }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 # Each fixture plus the ordered `run_*` entry points that both references
 # invoke. The expected output is whatever these calls print -- never a literal.

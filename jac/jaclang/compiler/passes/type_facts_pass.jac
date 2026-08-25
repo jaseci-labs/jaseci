@@ -1,7 +1,7 @@
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.constant { VALUE_ARCH_DECORATOR }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.passes.transform { Transform }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.constant { VALUE_ARCH_DECORATOR }
 import from jaclang.compiler.type_system.types { TypeBase }
 
 def is_ref_arch(arch: uni.Archetype) -> bool;
@@ -31,7 +31,6 @@ obj TypeFacts {
 
     def type_of_via_checker(e: uni.Expr) -> str;
     def typebase_to_typename(ty: TypeBase | None) -> str;
-
     def is_ref(name: str) -> bool;
 }
 

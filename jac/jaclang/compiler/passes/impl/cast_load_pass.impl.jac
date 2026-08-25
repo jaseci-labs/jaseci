@@ -247,8 +247,8 @@ impl CastBuildPass._cdiv_call(
 }
 
 impl CastBuildPass._cdiv_helpers -> list {
-    import from jaclang.jac0core.parser { parse as rd_parse }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.frontend.parser.frontend { parse as rd_parse }
+    import from jaclang.compiler.driver.program { JacProgram }
     helper_prog = JacProgram();
     (helper_mod, _) = rd_parse(
         _CDIV_HELPERS_SRC, self.orig_src.file_path, prog=helper_prog
@@ -1011,7 +1011,7 @@ impl CastBuildPass.proc_func_call(nd: c_ast.Node) -> object {
         return self._surrogate_expr(nd);
     }
     params: list[uni.Expr] = [];
-    args: any = getattr(nd, "args", None);
+    args: any = nd?.args;
     if args is not None {
         for a in getattr(args, "exprs", []) {
             pv = self.conv_expr(a);
@@ -1419,11 +1419,7 @@ impl CastBuildPass._py_clear_assign(
     }
     value = self._null_lit(c_node);
     return uni.Assignment(
-        target=[target],
-        value=value,
-        type_tag=None,
-        mutable=False,
-        kid=[target, value]
+        target=[target], value=value, type_tag=None, mutable=False, kid=[target, value]
     );
 }
 
@@ -1530,9 +1526,7 @@ impl CastBuildPass.proc_switch(nd: c_ast.Node) -> object {
         if tail_else {
             kid.append(tail_else);
         }
-        ifs = uni.IfStmt(
-            condition=condition, body=body, else_body=tail_else, kid=kid
-        );
+        ifs = uni.IfStmt(condition=condition, body=body, else_body=tail_else, kid=kid);
         chain = ifs;
         tail_else = uni.ElseIf(
             condition=ifs.condition, body=ifs.body, else_body=ifs.else_body, kid=ifs.kid
@@ -2190,11 +2184,7 @@ impl CastBuildPass._callback_params(
         pname = self._ident(p, p.name);
         params.append(
             uni.ParamVar(
-                name=pname,
-                type_tag=annot,
-                unpack=None,
-                value=None,
-                kid=[pname, annot]
+                name=pname, type_tag=annot, unpack=None, value=None, kid=[pname, annot]
             )
         );
     }
@@ -2627,14 +2617,12 @@ impl CastBuildPass._typed_init(
 }
 
 impl CastBuildPass._array_init_from_list(
-    c_init: c_ast.Node,
-    elem_type: c_ast.Node,
-    arr_decl: c_ast.Node | None = None
+    c_init: c_ast.Node, elem_type: c_ast.Node, arr_decl: c_ast.Node | None = None
 ) -> uni.ListVal | None {
     parsed = (
         sparse_designated_entries(c_init)
-        if isinstance(c_init, c_ast.InitList)
-        else None
+            if isinstance(c_init, c_ast.InitList)
+            else None
     );
     if parsed is not None {
         (sparse, positional) = parsed;

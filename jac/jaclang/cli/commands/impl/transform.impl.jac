@@ -52,10 +52,7 @@ impl c2jac(
     project: str | None = None
 ) -> int {
     import os;
-    import from jaclang.compiler.cfront.lift {
-        lift_c_file,
-        render_lifted_jac
-    }
+    import from jaclang.compiler.cfront.lift { lift_c_file, render_lifted_jac }
     import from jaclang.compiler.cfront.report {
         build_c2jac_report,
         write_c2jac_report
@@ -145,9 +142,7 @@ impl c2jac(
         );
         side = write_c2jac_report(output, rep);
         console.print(
-            f"[c2jac] wrote {output} (sidecar {side})",
-            markup=False,
-            highlight=False
+            f"[c2jac] wrote {output} (sidecar {side})", markup=False, highlight=False
         );
     } else {
         console.print(jac_str, markup=False, highlight=False);
@@ -165,8 +160,8 @@ impl c2jac(
         qn = len(res.quarantined_functions);
         console.warning(
             f"[c2jac] {n} best-effort site(s)"
-            + (f", {qn} function(s) quarantined" if qn else "")
-            + " — see the `# c2jac:` header / `.c2jac.report.json` sidecar"
+                + (f", {qn} function(s) quarantined" if qn else "")
+                + " — see the `# c2jac:` header / `.c2jac.report.json` sidecar"
         );
     }
     return 0;
@@ -310,7 +305,7 @@ impl jac2js(filename: str) -> int {
 }
 
 impl jac2c(filename: str) -> int {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.passes.c.c_gen_pass { emit_translation_units }
     if not filename.endswith('.jac') {
         console.error('Not a .jac file.');

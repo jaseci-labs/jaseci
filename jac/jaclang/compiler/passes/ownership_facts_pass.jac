@@ -1,6 +1,6 @@
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.passes.transform { Transform }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.rc_facts_pass { Ownership, result_ownership }
 import from jaclang.compiler.passes.type_facts_pass {
     TypeFacts,

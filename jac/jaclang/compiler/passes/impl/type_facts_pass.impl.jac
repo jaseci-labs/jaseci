@@ -339,9 +339,6 @@ impl build_type_id_index(modules: list[uni.Module]) -> TypeIdIndex {
     }
     used: set[str] = set();
 
-    # Namespace EVERY archetype struct name unconditionally as `module__Name`
-    # so separately-built TUs never emit a bare `struct Token` that would clash
-    # when fused/linked. The `_N` suffix still disambiguates genuine collisions.
     colliders: list[tuple[str, str]] = [];
     placed: set[str] = set();
     for (mp, nm) in defs {

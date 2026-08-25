@@ -9,7 +9,7 @@ owns the fixture path, the breadth inventory, and the round-trip recompile guard
 import os;
 import tempfile;
 import from tests.support { JAC_ROOT }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES: str = os.path.join(
          JAC_ROOT, "tests", "compiler", "c2jac", "fixtures"

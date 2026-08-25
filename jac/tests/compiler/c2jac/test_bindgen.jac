@@ -13,7 +13,7 @@ import ctypes;
 import tempfile;
 import from tests.compiler.c2jac.support { read_fixture }
 import from jaclang.compiler.c2jac.bindgen { bindings_from_source }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 def _bind(
     name: str, lib: str, allow: list | None = None, block: list | None = None

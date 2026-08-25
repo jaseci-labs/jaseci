@@ -303,9 +303,9 @@ impl OwnershipFactsPass.ownership_of(e: uni.Expr) -> Ownership {
 
 impl OwnershipFactsPass.is_str_concat(e: uni.Expr) -> bool {
     return isinstance(e, uni.BinaryExpr)
-    and isinstance(e.op, uni.Token)
-    and e.op.value == "+"
-    and (self.type_of(e.left) == "str" or self.type_of(e.right) == "str");
+        and isinstance(e.op, uni.Token)
+        and e.op.value == "+"
+        and (self.type_of(e.left) == "str" or self.type_of(e.right) == "str");
 }
 
 impl OwnershipFactsPass.type_of(e: object) -> str {

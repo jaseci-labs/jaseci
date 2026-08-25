@@ -10,7 +10,7 @@ CLI-only sidecar transpile.
 
 import os;
 import tempfile;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 def _compile_src(basename: str, src: str) -> tuple {
     # Write `src` to a temp file named `basename` and compile it. Returns

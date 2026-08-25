@@ -11,9 +11,9 @@ round-trips through `unparse`.
 import os;
 import ctypes;
 import tempfile;
-import from jaclang.jac0core.program { JacProgram }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.jir { _clib_header_deps, compute_module_key }
+import from jaclang.compiler.driver.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.jir { _clib_header_deps, compute_module_key }
 
 def _libm -> str | None {
     for cand in [

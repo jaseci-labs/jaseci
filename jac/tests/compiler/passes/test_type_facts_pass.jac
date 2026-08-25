@@ -13,8 +13,8 @@ import from jaclang.compiler.passes.type_facts_pass {
     get_type_facts,
     get_shared_type_facts
 }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
 import os;
 import from tests.support { JAC_ROOT }
 
@@ -62,8 +62,8 @@ test "expression typing resolves literals and locals" {
     # A string literal is typed str with no local context.
     for s in mod.body {
         if isinstance(s, uni.Ability)
-        and s.name_ref is not None
-        and s.name_ref.value == "run_counter" {
+            and s.name_ref is not None
+            and s.name_ref.value == "run_counter" {
             ctor_assign = list(s.body)[0];
             # c = Counter(10): the call target names a ref archetype -> Counter.
             assert tf.type_of(ctor_assign.value, {}) == "Counter" , "constructor call types as its class";
@@ -150,8 +150,8 @@ test "type_of resolves a local name through the local context" {
     (mod, tf) = _facts("obj_rc.jac");
     for s in mod.body {
         if isinstance(s, uni.Ability)
-        and s.name_ref is not None
-        and s.name_ref.value == "run_counter" {
+            and s.name_ref is not None
+            and s.name_ref.value == "run_counter" {
             # `c = Counter(10)` -- the assignment target is the local name `c`.
             name = list(list(s.body)[0].target)[0];
             assert tf.type_of(name, {"c": "Counter"}) == "Counter" , "local name resolves via local_types";

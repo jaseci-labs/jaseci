@@ -9,10 +9,10 @@ release: after destroy, the weakref dies, the handle slot is recycled, and a
 re-minted handle is not aliased to the dead anchor.
 """
 
-import jaclang.jac0core.osp_graph_sv as _sv;
+import jaclang.runtime.osp_graph_sv as _sv;
 import from gc { collect }
 import from weakref { ref }
-import from jaclang.jac0core.runtime { JacRuntimeInterface }
+import from jaclang.runtime.runtime { JacRuntimeInterface }
 
 node LeakNode {
     has tag: str = "";

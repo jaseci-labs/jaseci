@@ -1,19 +1,8 @@
-"""c2jac project mode: multi-TU lift with a cross-TU symbol registry.
-
-Mirrors jac2c's whole-program shape on the ingest side: index defined symbols,
-lift each translation unit, then wire `import from <stem> { ... }` for foreign
-calls so lifted modules can call each other.
-"""
-
 import os;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.helpers { read_file_with_encoding }
-import from jaclang.compiler.cfront.lift {
-    LiftResult,
-    lift_c_file,
-    render_lifted_jac
-}
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+import from jaclang.compiler.cfront.lift { LiftResult, lift_c_file, render_lifted_jac }
 import from jaclang.compiler.cfront.report {
     C2JacReport,
     build_c2jac_report,
@@ -32,10 +21,10 @@ obj ProjectLiftResult {
 def _stem(path: str) -> str {
     base = os.path.basename(path);
     if base.endswith(".c") {
-        return base[: -2];
+        return base[:-2];
     }
     if base.endswith(".i") {
-        return base[: -2];
+        return base[:-2];
     }
     return os.path.splitext(base)[0];
 }
@@ -67,9 +56,10 @@ def _make_import(src: uni.Source, mod_stem: str, names: list[str]) -> uni.Import
 }
 
 def _collect_c_defs(file_ast: object, stem: str, registry: dict[str, str]) {
-    # First-wins: the first defining TU owns the symbol.
     for ext_decl in (file_ast?.ext or []) {
-        if isinstance(ext_decl, c_ast.FuncDef) and ext_decl.decl and ext_decl.decl.name {
+        if isinstance(ext_decl, c_ast.FuncDef)
+            and ext_decl.decl
+            and ext_decl.decl.name {
             nm = ext_decl.decl.name;
             if nm not in registry {
                 registry[nm] = stem;
@@ -160,7 +150,7 @@ def wire_cross_tu_imports(mod: uni.Module, my_stem: str, registry: dict[str, str
             bucket.append(sym);
         }
     }
-    # Strip duplicate archetypes owned by another TU (shared-header first-wins).
+
     new_body: list[uni.ElementStmt | uni.String | uni.EmptyToken] = [];
     for el in list(mod.body) {
         if isinstance(el, uni.Archetype) {

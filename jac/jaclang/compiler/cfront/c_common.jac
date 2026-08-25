@@ -1,6 +1,6 @@
 import keyword;
-import from jaclang.jac0core.constant { TOKEN_MAP, Tokens as Tok }
-import from jaclang.jac0core { unitree as uni }
+import from jaclang.compiler.frontend.constant { TOKEN_MAP, Tokens as Tok }
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.vendor.pycparser { c_ast }
 import from jaclang.compiler.cfront.c_types { JacPrim }
 
@@ -42,7 +42,6 @@ glob C_BINOPS: dict[str, tuple[BinKind, str]] = {
      };
 
 def _c_int_autobase(raw: str) -> int {
-    # C legacy octal (0777) — Python 3 int(..., 0) rejects leading-zero octal.
     if (
         len(raw) > 1
         and raw[0] == "0"
@@ -250,7 +249,7 @@ def cast_scalar_target(nd: c_ast.Node) -> str | None {
     }
     inner = to_type?.type;
     if isinstance(inner, c_ast.TypeDecl)
-    and isinstance(inner.type, c_ast.IdentifierType) {
+        and isinstance(inner.type, c_ast.IdentifierType) {
         names = inner.type.names;
         return names[-1] if names else None;
     }

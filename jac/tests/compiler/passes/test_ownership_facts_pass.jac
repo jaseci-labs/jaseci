@@ -12,8 +12,8 @@ import from jaclang.compiler.passes.ownership_facts_pass {
     get_ownership_facts
 }
 import from jaclang.compiler.passes.rc_facts_pass { Ownership }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
 import os;
 import from tests.support { JAC_ROOT }
 
@@ -42,8 +42,8 @@ def _compile(fixture: str) -> tuple {
 def _find_fn(mod: uni.Module, name: str) -> object {
     for s in mod.body {
         if isinstance(s, uni.Ability)
-        and s.name_ref is not None
-        and s.name_ref.value == name {
+            and s.name_ref is not None
+            and s.name_ref.value == name {
             return s;
         }
     }

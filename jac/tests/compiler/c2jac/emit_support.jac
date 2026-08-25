@@ -20,7 +20,7 @@ import sys;
 import tempfile;
 import unittest;
 import from tests.support { JAC_ROOT }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.c.c_gen_pass { emit_translation_units }
 
 glob FIXTURES: str = os.path.join(
