@@ -109,6 +109,10 @@ obj NaIRGenRefcount(NaIRGenState) {
         recv: ir.Value, val: (ir.Value | None), op: str = "field_recv"
     ) -> (ir.Value | None);
 
+    def _field_read_consumes_receiver(
+        type_name: (str | None), field_name: str
+    ) -> bool;
+
     def _rc_call_with_ctx(
         fn: ir.Function, args: list, op: str, loc: str = "", name: str = ""
     ) -> ir.Value;

@@ -86,11 +86,25 @@ def retain_calls_in(fixture: str, fn_name: str) -> int {
     return body.count('call void @"__rc_retain"');
 }
 
-"""Count releases emitted against one SSA value inside a function's body."""
-def releases_of(fixture: str, fn_name: str, ssa_name: str, ty: str) -> int {
+"""Count RC ops of one kind against an SSA value in a function body.
+
+`kind` is "release" or "retain". Counting bare bitcasts of the value counts
+both, so a regression emitting a retain where a release belongs would leave the
+total unchanged and pass -- and a leak does not crash the runtime half either,
+so nothing else would catch it. The cast's own SSA name carries the kind, which
+is what makes the two distinguishable.
+"""
+def rc_ops_of(fixture: str, fn_name: str, ssa_name: str, ty: str, kind: str) -> int {
     (eng, ir) = compile_fixture(fixture);
     body = str(ir.gen.llvm_ir).split(f'define i64 @"{fn_name}"')[1].split("\n}")[0];
-    return body.count(f'bitcast %"{ty}"* %"{ssa_name}" to i8*');
+    n = 0;
+    for line in body.splitlines() {
+        if f'bitcast %"{ty}"* %"{ssa_name}" to i8*' in line
+            and f'%"rc.{kind}.cast' in line {
+            n += 1;
+        }
+    }
+    return n;
 }
 
 test "move-lowering elides exactly the `b = a` alias retain" {
@@ -147,10 +161,14 @@ test "a field read releases the owned receiver it consumed" {
     # its only consumer. Without a release the element's refcount climbs once
     # per read, so the stream that owns it can never be freed either -- the
     # shape the jac parser hits on every `self.current().kind`.
-    n = releases_of(
-        "field_read_owned_receiver.jac", "run_reads", "call.current", "Tok"
+    n = rc_ops_of(
+        "field_read_owned_receiver.jac", "run_reads", "call.current", "Tok", "release"
     );
     assert n == 1 , (f"the consumed receiver must be released exactly once; got {n}");
+    r = rc_ops_of(
+        "field_read_owned_receiver.jac", "run_reads", "call.current", "Tok", "retain"
+    );
+    assert r == 0 , (f"the receiver is dropped, not aliased; got {r} retain(s)");
 }
 
 test "releasing the field-read receiver is sound at runtime" {
@@ -160,4 +178,18 @@ test "releasing the field-read receiver is sound at runtime" {
     # Releasing a receiver still owned elsewhere would free the element early
     # and corrupt the heap over a heavy loop.
     assert f(400000) == 400000;
+}
+
+test "a property read is left alone, not double-retained" {
+    # A property read is a call and its return already retained what it hands
+    # back, but that value carries no ownership flag. Consuming the receiver
+    # here would retain it a second time -- trading the receiver leak for a
+    # value leak, which is strictly worse. Until accessor results are flagged
+    # owned at their source, this read keeps its old behaviour.
+    (eng, ir) = compile_fixture("property_read_owned_receiver.jac");
+    body = str(ir.gen.llvm_ir).split('define i64 @"run_props"')[1].split("\n}")[0];
+    assert '%"acc.v.__get__"' in body , "fixture must exercise a property read";
+    assert 'bitcast %"Val"* %"acc.v.__get__"' not in body , (
+        "the accessor result must not be RC-touched at the read site"
+    );
 }

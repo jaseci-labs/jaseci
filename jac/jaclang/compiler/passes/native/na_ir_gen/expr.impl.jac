@@ -1991,10 +1991,13 @@ impl NaIRGenExpr._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
                 obj_val = self._codegen_expr(nd.target);
                 if obj_val is not None {
-                    return self._consume_owned_receiver(
-                        obj_val,
-                        self._read_field_or_refuse(nd, obj_val, right_name, type_name)
+                    _fa = self._read_field_or_refuse(
+                        nd, obj_val, right_name, type_name
                     );
+                    if not self._field_read_consumes_receiver(type_name, right_name) {
+                        return _fa;
+                    }
+                    return self._consume_owned_receiver(obj_val, _fa);
                 }
             }
         }
@@ -2007,10 +2010,13 @@ impl NaIRGenExpr._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                     type_name = self._infer_type_name(obj_val);
                 }
                 if type_name is not None {
-                    return self._consume_owned_receiver(
-                        obj_val,
-                        self._read_field_or_refuse(nd, obj_val, right_name, type_name)
+                    _fa = self._read_field_or_refuse(
+                        nd, obj_val, right_name, type_name
                     );
+                    if not self._field_read_consumes_receiver(type_name, right_name) {
+                        return _fa;
+                    }
+                    return self._consume_owned_receiver(obj_val, _fa);
                 }
             }
         }

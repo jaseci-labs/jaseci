@@ -534,7 +534,7 @@ A link that can be nulled is nulled and a list is emptied, which is enough for
 `AstSymbolNode.name_spec` points back at it, and neither field is optional, so
 there is no value that means "no node". Those are repointed at a pin -- the first
 node of that type the walk saw -- which leaves exactly one self-referencing node
-per pinned type alive instead of one per parse.
+per pinned type alive per parse, instead of one per node.
 """
 def _sever_lines(
     g: _MatGen, sn: str, ind: str, pins: dict[(str, str)], shared: list[str]
@@ -800,6 +800,20 @@ glob _HEADER_LINES: tuple[str, ...] = (
          '# Repointing every node at the root location frees the per-node records,',
          '# and with them the token references they were holding open. Only the',
          '# root record and the two tokens it names outlive the walk.',
+         '#',
+         '# Two invariants make this safe, and neither is enforced by anything:',
+         '# the wired entries run no passes over the tree (so no pass-populated',
+         '# structure -- __sub_node_tab, names_in_scope, _sym -- exists to sever,',
+         '# and this walk would not reach it), and they never merge an annex (so',
+         '# no node here is also owned by _mat_annex). mat_parse_and_run_prefix',
+         '# breaks both and is deliberately NOT wired: it grafts annex bodies via',
+         '# merge_annex_into and runs the prefix passes. It still leaks its whole',
+         '# tree. Anything wired here in future must re-establish both invariants.',
+         '#',
+         '# The shared empty-list globals below rest on the same topology: nothing',
+         '# appends to a torn-down node because a torn-down tree is unreachable',
+         '# from Python and from every other entry. Wiring an entry that merges',
+         '# would corrupt them for every later parse in the process.',
          'def _mat_drop_tree(nd: @CHAIN_BASE@) -> None {',
          '@CHAIN_PINS@',
          '    stack: list[@CHAIN_BASE@] = [nd];',
@@ -842,8 +856,8 @@ glob _HEADER_LINES: tuple[str, ...] = (
          '    PyList_SetItem(out, 3, _emit_comment_list(comments));',
          '    PyList_SetItem(out, 4, _emit_diag_list(lex_diags));',
          '    PyList_SetItem(out, 5, PyLong_FromLongLong(lex_errs));',
-         '    _mat_drop_tree(mod);',
          '    _mat_flush();',
+         '    _mat_drop_tree(mod);',
          '    return out;',
          '}',
          '',
@@ -856,8 +870,8 @@ glob _HEADER_LINES: tuple[str, ...] = (
          '    PyList_SetItem(out, 1, PyLong_FromLongLong(lex_errs));',
          '    PyList_SetItem(out, 2, _emit_diag_list(p_diags));',
          '    PyList_SetItem(out, 3, _emit_diag_list(lex_diags));',
-         '    _mat_drop_tree(mod);',
          '    _mat_flush();',
+         '    _mat_drop_tree(mod);',
          '    return out;',
          '}',
          '',
