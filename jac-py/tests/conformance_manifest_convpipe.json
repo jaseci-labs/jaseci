@@ -2349,6 +2349,17 @@
       "libtest_snippets": [],
       "notes": "138 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
       "conversion_meta": "jac-py/tests/conv_datetime/datetime.conv.json"
+    },
+    {
+      "stem": "functools",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "jac-py/tests/conv_functools/conv_functools_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "105 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_functools/functools.conv.json"
     }
   ]
 }

@@ -643,6 +643,7 @@ def _scan_self_usage(body: list[ast.stmt], namespace_callable: set[str] | None =
 
 
 _NS_PRELUDE_SRC = "class _SelfNS:\n    pass\nself = _SelfNS()\n"
+_NS_CLASS_NAME = "_SelfNS"
 
 
 def _namespace_prelude() -> list[ast.stmt]:
@@ -915,6 +916,23 @@ def _helper_class_deps(
     return ordered
 
 
+def _guarded_class_stmts(body: list[ast.stmt]) -> list[ast.stmt]:
+    """Class-body statements, descending into guarded ``if`` blocks.
+
+    C/py dual-module test classes assign their ``module``/``partial``
+    attributes inside ``if c_functools:`` guards; those assignments are real
+    class attributes whenever the guard holds, so seeds must see them.
+    """
+    out: list[ast.stmt] = []
+    for stmt in body:
+        if isinstance(stmt, ast.If):
+            out.extend(_guarded_class_stmts(stmt.body))
+            out.extend(_guarded_class_stmts(stmt.orelse))
+        else:
+            out.append(stmt)
+    return out
+
+
 def _class_attr_seeds(
     cls_name: str | None, cmap: dict[str, _ClassInfo],
     mod_classes: dict[str, ast.ClassDef],
@@ -945,7 +963,7 @@ def _class_attr_seeds(
         cd = mod_classes.get(name)
         if cd is None:
             continue
-        for stmt in cd.body:
+        for stmt in _guarded_class_stmts(cd.body):
             if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 \
                     and isinstance(stmt.targets[0], ast.Name):
                 seeds[stmt.targets[0].id] = stmt.value
@@ -1026,13 +1044,17 @@ def _apply_fixture_vocab(
     if bool(ns_attrs) or session.needs_ns:
         ns_block = _namespace_prelude()
         for attr, value in _class_attr_seeds(cls_name, cmap, mod_classes):
-            assign = ast.Assign(
-                targets=[ast.Attribute(value=ast.Name(id="self", ctx=ast.Load()),
-                                       attr=attr, ctx=ast.Store())],
-                value=copy.deepcopy(value),
-            )
-            ast.fix_missing_locations(assign)
-            ns_block.append(assign)
+            for owner in ("self", _NS_CLASS_NAME):
+                # Seed both the instance and its class: tests that do
+                # ``cls = self.__class__; cls.<attr>`` resolve through the
+                # class, which under unittest holds the same attribute.
+                assign = ast.Assign(
+                    targets=[ast.Attribute(value=ast.Name(id=owner, ctx=ast.Load()),
+                                           attr=attr, ctx=ast.Store())],
+                    value=copy.deepcopy(value),
+                )
+                ast.fix_missing_locations(assign)
+                ns_block.append(assign)
     return rewritten, extra_prelude, ns_block, needs_re or session.needs_re
 
 
