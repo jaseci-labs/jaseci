@@ -39,6 +39,13 @@ glob registry = get_registry();
             config_key="run.cache"
         ),
         Arg.create(
+            "graphmend_disable",
+            `default="",
+            short="",
+            help="Comma-separated GraphMend transforms to skip: trap (guard lowering), where (branch predication), defer (side-effect deferral)",
+            config_key="run.graphmend_disable"
+        ),
+        Arg.create(
             "profile",
             `default="",
             short="",
@@ -204,6 +211,7 @@ def run(
     show: bool = False,
     main: bool = True,
     cache: bool = True,
+    graphmend_disable: str = "",
     diagnostics: str = "",
     entry_name: str = "",
     nd: str = "",
