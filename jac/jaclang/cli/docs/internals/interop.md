@@ -192,7 +192,7 @@ deduped, *writer* endpoints fetch then invalidate overlapping readers
 
 The HTTP server is **not** in the compiler -- it is the built-in `scale` subsystem
 (`jac/jaclang/scale/server/`, built on the Jac-native asyncio HTTP stack in
-`jaclang/runtimelib/serving/`).
+`jaclang/server/serving/`).
 `jac run` brings it up. For every public walker it registers two routes
 (`register_walkers_endpoints`):
 
