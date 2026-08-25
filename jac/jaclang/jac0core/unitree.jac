@@ -98,7 +98,7 @@ obj UniNode {
 
 obj Symbol {
     has defn: list[NameAtom] postinit,
-        uses: list[NameAtom] postinit,
+        _use_refs: list postinit,
         access: SymbolAccess postinit,
         parent_tab: (UniScopeNode | None) postinit,
         imported: bool postinit,
@@ -117,6 +117,7 @@ obj Symbol {
     ) -> None;
 
     has decl: NameAtom { getter; }
+    has uses: list[NameAtom] { getter; setter(value: list[NameAtom]); }
     has sym_name: str { getter; }
     has sym_type: SymbolType { getter; }
     has sym_dotted_name: str { getter; }

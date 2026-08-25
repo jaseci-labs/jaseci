@@ -330,8 +330,25 @@ impl Symbol.add_defn(nd: NameAtom) -> None {
     nd.sym = self;
 }
 
+impl Symbol.uses.getter -> list[NameAtom] {
+    live: list[NameAtom] = [];
+    for ref in self._use_refs {
+        nd = ref();
+        if nd is not None {
+            live.append(nd);
+        }
+    }
+    return live;
+}
+
+impl Symbol.uses.setter(value: list[NameAtom]) -> None {
+    import weakref;
+    self._use_refs = [weakref.ref(nd) for nd in value];
+}
+
 impl Symbol.add_use(nd: NameAtom) -> None {
-    self.uses.append(nd);
+    import weakref;
+    self._use_refs.append(weakref.ref(nd));
     nd.sym = self;
 }
 
