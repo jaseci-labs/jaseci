@@ -11,12 +11,12 @@ import asyncio;
 import http.client;
 import struct;
 import time;
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
-import from jaclang.runtimelib.serving.endpoint { HTTPMethod, JEndPoint, WSEndPoint }
-import from jaclang.runtimelib.serving.openapi { build_openapi }
-import from jaclang.runtimelib.serving.server { ServingServer }
-import from jaclang.runtimelib.serving.ws {
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.datatypes { JSONResponse }
+import from jaclang.server.serving.endpoint { HTTPMethod, JEndPoint, WSEndPoint }
+import from jaclang.server.serving.openapi { build_openapi }
+import from jaclang.server.serving.server { ServingServer }
+import from jaclang.server.serving.ws {
     OP_CONT,
     OP_PING,
     OP_PONG,

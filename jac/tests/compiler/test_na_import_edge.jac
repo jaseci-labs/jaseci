@@ -13,8 +13,8 @@ edge is placement-inferred; these tests pin the host module client via
 
 import os;
 import tempfile;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob KERNEL_SRC: str = (
          "def:pub fib(n: int) -> int {\n"

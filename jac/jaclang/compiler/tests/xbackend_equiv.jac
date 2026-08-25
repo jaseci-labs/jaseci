@@ -24,11 +24,11 @@ import subprocess;
 import sys;
 import from pathlib { Path }
 import jaclang;
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
-import from jaclang.jac0core.codeinfo { native_safe_sym }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.estree { Node as EsNode }
+import from jaclang.compiler.frontend.codeinfo { native_safe_sym }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = str(
          Path(jaclang.__file__).parent / "compiler" / "tests" / "fixtures"
@@ -58,7 +58,7 @@ def _fixture_shadow_dir -> str {
     return _FIXTURE_SHADOW[0];
 }
 
-def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
+def call_py_fixture(fixture_stem: str, func_name: str) -> any {
     shadow = _fixture_shadow_dir();
     added = False;
     if shadow not in sys.path {
@@ -69,7 +69,7 @@ def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
         sys.modules.pop(fixture_stem, None);
         mod = importlib.import_module(fixture_stem);
         fn = getattr(mod, func_name);
-        return json.loads(json.dumps(fn()));
+        return fn();
     } finally {
         if added {
             sys.path.remove(shadow);
@@ -78,11 +78,22 @@ def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
     }
 }
 
+def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
+    return json.loads(json.dumps(call_py_fixture(fixture_stem, func_name)));
+}
+
+"""The server lane's API encoder, which is what a walker response travels
+through: Serializer in api_mode applies the wire rule, json.dumps writes it."""
+def encode_py_wire(value: any) -> str {
+    import from jaclang.data.serializer { Serializer }
+    return json.dumps(Serializer.serialize(value, api_mode=True), sort_keys=True);
+}
+
 # -----------------------------------------------------------------------
 # ES (ECMAScript / JavaScript) helpers
 # -----------------------------------------------------------------------
 def compile_fixture_to_js(fixture_name: str) -> str {
-    import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+    import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
     fixture_path = os.path.join(FIXTURES, fixture_name);
     prog = JacProgram();
     # EsastGenPass consumes core call facts (call_kind/
@@ -103,7 +114,31 @@ def compile_fixture_to_js(fixture_name: str) -> str {
 }
 
 def run_js_function(js_code: str, func_name: str) -> dict {
-    wrapper = js_code + "\nconsole.log(JSON.stringify(" + func_name + "()));";
+    # The bundle's own replacer, not a BigInt.prototype patch: this is the same
+    # encoder the client transport uses, so what the harness reads is what a
+    # browser would put on the wire.
+    wrapper = js_code
+        + (
+            "\nconst __jac_enc = (typeof _jac !== 'undefined' && _jac.fw)"
+            " ? _jac.fw.stringify : JSON.stringify;"
+            "\nconsole.log(__jac_enc("
+            + func_name
+            + "()));"
+        );
+    result = subprocess.run(
+        ["node", "-e", wrapper], capture_output=True, text=True, timeout=10
+    );
+    assert result.returncode == 0 , f"Node.js failed: {result.stderr}";
+    return json.loads(result.stdout.strip());
+}
+
+"""Evaluate one JS expression against a compiled bundle and return its value.
+
+The bundle is in scope, so the expression can reach `_jac` and assert on the
+runtime itself rather than only on what a fixture function returns.
+"""
+def run_js_expr(js_code: str, expr: str) -> any {
+    wrapper = js_code + "\nconsole.log(JSON.stringify(" + expr + "));";
     result = subprocess.run(
         ["node", "-e", wrapper], capture_output=True, text=True, timeout=10
     );
@@ -341,13 +376,37 @@ def compare_results(
 # -----------------------------------------------------------------------
 # Dispatch helper: run py reference, then try ES and NA backends
 # -----------------------------------------------------------------------
+def assert_full_parity(
+    py_result: dict,
+    backend_result: dict,
+    label: str,
+    allow_missing: (list | None) = None
+) {
+    waived = set(allow_missing or []);
+    missing = sorted((set(py_result.keys()) - set(backend_result.keys())) - waived);
+    extra = sorted(set(backend_result.keys()) - set(py_result.keys()));
+    stale = sorted(waived - (set(py_result.keys()) - set(backend_result.keys())));
+    assert not missing and not extra , (
+        f"[{label}] required backend key set drifted from the py reference: "
+        f"missing {missing}, extra {extra}. A lane that genuinely cannot "
+        "produce a row declares it in allow_missing at the call site, so the "
+        "gap is visible rather than silently dropped from the comparison."
+    );
+    assert not stale , (
+        f"[{label}] allow_missing names rows the backend now produces: "
+        f"{stale} -- drop them from the waiver"
+    );
+}
+
 def run_with_both(
     fixture: str,
     py_fn: str,
     cl_fn: str,
     na_fn: str,
     tolerance: float = 1e-9,
-    require: (list | None) = None
+    require: (list | None) = None,
+    strict_keys: bool = True,
+    allow_missing: (list | None) = None
 ) {
     # `require` names backends ("cl"/"na") that must actually participate: if a
     # required backend fails to compile/run or shares no comparable keys with
@@ -362,6 +421,9 @@ def run_with_both(
         js_code = compile_fixture_to_js(fixture);
         cl_result = run_js_function(js_code, cl_fn);
         cl_keys = len(set(py_result.keys()) & set(cl_result.keys()));
+        if strict_keys and "cl" in reqd {
+            assert_full_parity(py_result, cl_result, f"{label} [ES]", allow_missing);
+        }
         compare_results(py_result, cl_result, f"{label} [ES]", tolerance);
     } except Exception {
         if "cl" in reqd {
@@ -378,6 +440,9 @@ def run_with_both(
         (eng, na_ir) = compile_native(fixture);
         na_result = run_native_function(eng, na_fn, na_ir);
         na_keys = len(set(py_result.keys()) & set(na_result.keys()));
+        if strict_keys and "na" in reqd {
+            assert_full_parity(py_result, na_result, f"{label} [NA]", allow_missing);
+        }
         compare_results(py_result, na_result, f"{label} [NA]", tolerance);
     } except Exception {
         if "na" in reqd {

@@ -488,7 +488,7 @@ test "parse build native_closure_cap" {
 }
 
 test "closure cap override resolves through effective_native_closure_cap" {
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.frontend.codeinfo {
         set_native_closure_cap,
         effective_native_closure_cap
     }
@@ -1464,12 +1464,12 @@ test "apply profile project kebab case" {
 test "apply profile dependencies and scripts" {
     config_mod._config = None;
     cfg = JacConfig.from_toml_str(
-        "[project]\nname = \"test\"\n\n[dependencies]\nrequests = \">=2.0\"\n\n[scripts]\ntest = \"jac test\"\n\n[environments.prod]\n[environments.prod.dependencies]\ngunicorn = \">=21.0\"\n\n[environments.prod.scripts]\nstart = \"jac start --port 80\"\n"
+        "[project]\nname = \"test\"\n\n[dependencies]\nrequests = \">=2.0\"\n\n[scripts]\ntest = \"jac test\"\n\n[environments.prod]\n[environments.prod.dependencies]\ngunicorn = \">=21.0\"\n\n[environments.prod.scripts]\nstart = \"jac run --port 80\"\n"
     );
     cfg.apply_profile("prod");
     assert cfg.dependencies.get("gunicorn") == ">=21.0";
     assert cfg.dependencies.get("requests") == ">=2.0";
-    assert cfg.scripts.get("start") == "jac start --port 80";
+    assert cfg.scripts.get("start") == "jac run --port 80";
     assert cfg.scripts.get("test") == "jac test";
 }
 

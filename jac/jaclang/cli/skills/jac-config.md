@@ -9,18 +9,18 @@ description: The jac.toml control plane - every section ([project], [dependencie
 
 | Section | Purpose |
 |---|---|
-| `[project]` | name (required), version, description, **`entry-point`** (default for `jac run`/`jac start`, defaults to `main.jac`), **`kind`** (project kind that makes a bare `jac run` execute / serve / build the project - empty = inferred from the entry-point codespace; see `jac-project-kinds`), `jac-version` compiler pin; publishing fields (`license`, `readme`, `requires-python`, `classifiers`, `authors`) feed `jac build --as wheel` (see `jac-packaging`) |
+| `[project]` | name (required), version, description, **`entry-point`** (default for `jac run`, defaults to `main.jac`), **`kind`** (project kind that makes a bare `jac run` execute / serve / build the project - empty = inferred from the entry-point codespace; see `jac-project-kinds`), `jac-version` compiler pin; publishing fields (`license`, `readme`, `requires-python`, `classifiers`, `authors`) feed `jac build --as wheel` (see `jac-packaging`) |
 | `[dependencies]` | PyPI packages, pip-style specs (`requests = ">=2.28.0"`) |
 | `[dependencies.npm]` / `[dependencies.npm.dev]` | npm packages for client code (see `jac-npm-packages`) |
 | `[dependencies.git]` | `mylib = { git = "https://...", branch = "main" }` |
 | `[dev-dependencies]` | dev-only tools; installed with `jac install --dev` |
 | `[optional-dependencies.<group>]` | extras: `jac install --extras <group>`, wheel extras on publish |
-| `[serve]` | `jac start` defaults: `port`, `base_route_app` (client app served at `/`), `cl_route_prefix` |
+| `[serve]` | `jac run` defaults: `port`, `base_route_app` (client app served at `/`), `cl_route_prefix` |
 | `[run]` | `jac run` defaults: `cache`, `session`, `diagnostics` (`"error"`/`"all"`/`"none"`) |
 | `[check]` | type-check behavior: `enforce_access` (promote `:pub`/`:protect`/`:priv` visibility violations from warnings to hard errors), `warn_native_seams` (warn when a native-eligible method falls back to Python) |
 | `[check.lint]` | lint rule selection: `select = ["default"]` / `["all"]`, `ignore = ["combine-has"]`, `exclude = ["legacy/*"]` |
 | `[test]` | `jac test` defaults: `directory`, `filter`, `verbose`, `fail_fast`, `max_failures` |
-| `[build]` | `typecheck`, `dir` (artifact root, default `.jac/` - holds `cache/`, `venv/`, `client/`, `data/`) |
+| `[build]` | `dir` (artifact root, default `.jac/` - holds `cache/`, `venv/`, `client/`, `data/`) |
 | `[gc]` / `[gc.enforce]` | native memory management: `default = "cycles"/"rc"/"none"` (mode when `--gc` not passed); `enforce.modules`/`enforce.grandfathered` glob patterns opt modules into zero-RC nogc enforcement (see `jac-native-memory`) |
 | `[scripts]` | named command shortcuts run via `jac x <name>` |
 | `[environments]` / `[environment]` | per-profile overrides (below) |
@@ -67,7 +67,7 @@ default_model = "${LLM_MODEL:-gpt-4o-mini}"    # default if unset
 base_url = "${BASE_URL:?Base URL is required}" # custom error if unset
 ```
 
-Profiles layer overrides per environment; activate with `JAC_PROFILE=production jac run main.jac` or the `--profile` flag on `jac run`/`jac start`/`jac test`:
+Profiles layer overrides per environment; activate with `JAC_PROFILE=production jac run main.jac` or the `--profile` flag on `jac run`/`jac test`:
 
 ```toml
 [environment]
@@ -84,17 +84,17 @@ cache = true
 
 ## Built-in capabilities
 
-byLLM, scale, the client/desktop framework, and the MCP server all ship inside the `jac` binary - there is no plugin system, nothing to enable or disable, and no `jac plugins` command. Configure a capability with its top-level table (`[byllm]`, `[scale.*]`, `[client]`, `[desktop]`) and run `jac install` to resolve its optional third-party dependencies into `.jac/venv` (e.g. a `[byllm]` model config pulls litellm/pillow; `[scale.database]` pulls pymongo). Old `[plugins.<name>]` config paths no longer parse - use the top-level names.
+byLLM, scale, the client/desktop framework, and the MCP server all ship inside the `jac` binary - there is no plugin system, nothing to enable or disable, and no `jac plugins` command. Configure a capability with its top-level table (`[byllm]`, `[scale.*]`, `[client]`, `[desktop]`) and run `jac install` to resolve its optional third-party dependencies into `.jac/venv` (e.g. a `[byllm]` model config pulls litellm/pillow; `[scale.deploy] target = "kubernetes"` pulls the kubernetes/docker clients -- `[scale.database]` pulls nothing, the Postgres wire client is built in). Old `[plugins.<name>]` config paths no longer parse - use the top-level names.
 
 ## .jacignore
 
-`.jacignore` at the project root excludes files from compilation/analysis - one pattern per line, `.gitignore`-style (`*.generated.jac`, `test_fixtures/`). A `--scale` deploy honors it too: a parked tree is not staged into the app bundle, so it never reaches the pods or their boot compile.
+`.jacignore` at the project root excludes files from compilation/analysis - one pattern per line, `.gitignore`-style (`*.generated.jac`, `test_fixtures/`). A `jac scale deploy` honors it too: a parked tree is not staged into the app bundle, so it never reaches the pods or their boot compile.
 
 ## Pitfalls
 
 - **Hyphen vs underscore is per-key and unforgiving**: `entry-point`, `requires-python`, `jac-version` (hyphens) but `fail_fast`, `max_failures`, `cl_route_prefix`, `base_route_app` (underscores). A wrong form is silently ignored - verify with `jac config get <key>`.
 - **`jac install <pkg>` without a version pins `~=major.minor`** of whatever pip resolved - pass an explicit spec (`jac install "requests>=2.28"`) when you need a different constraint.
-- **CLI flags override jac.toml for that run** (`jac start --port 3000`, `jac test -v`, `jac run -e all`); jac.toml only sets defaults.
+- **CLI flags override jac.toml for that run** (`jac run --port 3000`, `jac test -v`, `jac run -e all`); jac.toml only sets defaults.
 - **After editing `[dependencies*]`, run `jac install`** - editing the file alone installs nothing.
 
 ## See also
