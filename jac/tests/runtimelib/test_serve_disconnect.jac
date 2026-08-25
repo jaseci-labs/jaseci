@@ -14,9 +14,9 @@ import json;
 import socket;
 import struct;
 import urllib.request;
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.endpoint { HTTPMethod, JEndPoint }
-import from jaclang.runtimelib.serving.server { ServingServer }
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.endpoint { HTTPMethod, JEndPoint }
+import from jaclang.server.serving.server { ServingServer }
 
 def _ping -> dict {
     return {"ok": True};

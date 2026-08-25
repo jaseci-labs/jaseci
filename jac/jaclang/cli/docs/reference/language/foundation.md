@@ -226,13 +226,15 @@ Jac keywords are reserved and cannot be used as identifiers:
 
 Valid identifiers start with a letter or underscore, followed by letters, digits, or underscores.
 
-To use a reserved keyword as an identifier, escape it with a backtick prefix:
+To use a reserved keyword as an identifier, escape it with a backtick prefix. A bare keyword in a binding position is error **E0013**, whose message tells you to add the backtick:
 
 ```jac
 obj Example {
     has `edge: str;  # Backtick-escaped Jac keyword used as identifier
 }
 ```
+
+The escape is only for keywords: a backtick on a name that is *not* a keyword is error **E0014** (`'<name>' is not a keyword -- remove the backtick`).
 
 !!! note "The `any` Special Case"
     Because `any` is a built-in type in Jac, the backtick escape is used as a convention to refer to the Python/Jac built-in **`any()` function**. Always use `` `any `` when you want to call the function and `any` (without a backtick) when referring to the type.
@@ -241,7 +243,7 @@ obj Example {
     Backtick escaping cannot smuggle **Python reserved words** (`class`, `lambda`, `import`, `def`, ...) into `has`-field or parameter names -- the compiler rejects them with error **E0067**, because they would break the generated Python underneath. Choose a non-keyword identifier instead (e.g., `has cls: str;` or `has kind: str;`).
 
 !!! note "Special variable references don't need backtick escaping"
-    The following are **built-in references**, not regular identifiers. Use them directly without backticks: `self`, `Self`, `super`, `root`, `here`, `visitor`, `init`, `postinit`. `self` is the current instance; `Self` is the enclosing type. For example, write `self.name`, `root ++> node`, and `def init()` -- never `` `self ``, `` `root ``, or `` `init ``.
+    The following are **built-in references**, not regular identifiers. Use them directly without backticks: `self`, `super`, `root`, `here`, `visitor`, `props`, `init`, `postinit`. `self` is the current instance. (`Self`, the enclosing type, is an ordinary type-system name, not a special reference.) For example, write `self.name`, `root ++> node`, and `def init()` -- never `` `self ``, `` `root ``, or `` `init ``.
 
 ### 7 Entry Point Variants
 

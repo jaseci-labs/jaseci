@@ -16,3 +16,9 @@ def:pub client_page -> JsxElement {
         <button class={props.color} data-id="button">{props.label}</button>
     </div>
 }
+
+# The simple (no pages/) entry template mounts a root component named `app`,
+# so a bundleable module must export one -- same convention as `jac create`.
+def:pub app -> JsxElement {
+    <div class="root">{client_page()}</div>
+}

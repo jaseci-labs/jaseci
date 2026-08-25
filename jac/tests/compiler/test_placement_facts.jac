@@ -4,8 +4,8 @@ import os;
 import sys;
 import tempfile;
 import from tests.support { JAC_ROOT }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.placement_facts {
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.placement.placement_facts {
     client_only_paths,
     discover_spaces,
     emits_server_code,
@@ -94,7 +94,7 @@ test "a module with compile errors is never classified client-only" {
 
 test "sealed images persist placement and expose it without re-derivation" {
     import json;
-    import from jaclang.jac0core.placement_facts { sealed_spaces_for }
+    import from jaclang.compiler.placement.placement_facts { sealed_spaces_for }
     import from jaclang.jac0core.sealed { SealedImage, MANIFEST_FORMAT }
     d = tempfile.mkdtemp(prefix="jac-sealed-facts-");
     pre = os.path.join(d, "_precompiled");
@@ -124,15 +124,16 @@ test "placement_pins imports stay within the documented allowlist" {
     import from pathlib { Path }
     allow = {
         "jaclang/cli/commands/impl/fix.impl.jac",
-        "jaclang/jac0core/compiler.jac",
-        "jaclang/jac0core/impl/compiler.impl.jac",
-        "jaclang/jac0core/jir.jac",
-        "jaclang/jac0core/modresolver.jac",
-        "jaclang/jac0core/passes/impl/boundary_analysis_pass.impl.jac",
-        "jaclang/jac0core/placement.jac",
-        "jaclang/jac0core/placement_facts.jac",
-        "jaclang/jac0core/placement_pins.jac",
-        "jaclang/jac0core/placement_solver.jac"
+        "jaclang/compiler/driver/boundary_classify.jac",
+        "jaclang/compiler/driver/impl/compiler.impl.jac",
+        "jaclang/compiler/driver/jir.jac",
+        "jaclang/compiler/driver/na_coverage.jac",
+        "jaclang/compiler/driver/modresolver.jac",
+        "jaclang/compiler/passes/impl/boundary_analysis_pass.impl.jac",
+        "jaclang/compiler/placement/placement.jac",
+        "jaclang/compiler/placement/placement_facts.jac",
+        "jaclang/compiler/placement/placement_pins.jac",
+        "jaclang/compiler/placement/placement_solver.jac"
     };
     pkg = os.path.join(JAC_ROOT, "jaclang");
     offenders: list[str] = [];
@@ -155,8 +156,8 @@ test "placement_pins imports stay within the documented allowlist" {
 
 test "toolchain native policy matches na_stdlib and desktop native trees" {
     pkg = os.path.join(JAC_ROOT, "jaclang");
-    na = os.path.join(pkg, "runtimelib", "na_stdlib", "_bz2_native.jac");
+    na = os.path.join(pkg, "runtime", "na_stdlib", "_bz2_native.jac");
     assert toolchain_native_by_policy(pkg, na);
-    other = os.path.join(pkg, "utils", "precompile_bytecode.jac");
+    other = os.path.join(pkg, "dist", "precompile_bytecode.jac");
     assert not toolchain_native_by_policy(pkg, other);
 }
