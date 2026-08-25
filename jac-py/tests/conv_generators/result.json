@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "f4c990efa7a592cdcb4b31ce4bce0a44d7cff16e",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_generators/conv_generators_pins.jac"
+  ],
+  "generated_at": "2026-08-25T00:27:57",
+  "hashes": {
+    "pins_jac": "950362b837b35b201e6829505be7d5ae910bff7981bc6063cd84c9d260d3eb2b",
+    "conversion_json": "b7acf97f51c0ddc76f85b9517f047aca601012c098efb024bb49263eca721a0a",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "generators",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 59,
+    "runnable": 37,
+    "green": 20,
+    "quarantined": 22,
+    "failed": 17,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "FinalizationTest.test_frame_resurrect",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'compile failed'>"
+    },
+    {
+      "id": "FinalizationTest.test_refcycle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'gc_collect'\">"
+    },
+    {
+      "id": "FinalizationTest.test_generator_resurrect",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'gc_collect'\">"
+    },
+    {
+      "id": "FinalizationTest.test_exhausted_generator_frame_cycle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'f_back'\">"
+    },
+    {
+      "id": "GeneratorTest.test_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
+    },
+    {
+      "id": "GeneratorTest.test_handle_frame_object_in_creation",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'TypeError: EnumCheck.__init_subclass__() takes no keyword arguments'>"
+    },
+    {
+      "id": "GeneratorTest.test_ag_frame_f_back",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'f_back'\">"
+    },
+    {
+      "id": "GeneratorTest.test_cr_frame_f_back",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'cr_frame'\">"
+    },
+    {
+      "id": "GeneratorTest.test_gi_frame_f_back",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'f_back'\">"
+    },
+    {
+      "id": "ExceptionTest.test_except_gen_except",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError ''\">"
+    },
+    {
+      "id": "GeneratorCloseTest.test_close_releases_frame_locals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'compile failed'>"
+    },
+    {
+      "id": "GeneratorDeallocTest.test_frame_locals_outlive_generator_with_exec",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'exec() takes no keyword arguments'\">"
+    },
+    {
+      "id": "GeneratorThrowTest.test_exception_context_with_yield_inside_generator",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'args'\">"
+    },
+    {
+      "id": "YieldFromTests.test_generator_gi_yieldfrom",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'TypeError: EnumCheck.__init_subclass__() takes no keyword arguments'>"
+    },
+    {
+      "id": "generators.doctests:fun",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'RuntimeError: cannot re-enter the tee iterator'>"
+    },
+    {
+      "id": "generators.doctests:syntax",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: gi_code'>"
+    },
+    {
+      "id": "generators.doctests:weakref",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: proxy'>"
+    }
+  ]
+}
