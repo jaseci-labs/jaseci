@@ -6687,20 +6687,26 @@ def dict_mapping_pairs(source: PyObj, kwargs_call: bool) -> PyObj {
             if is_error(keys_res) {
                 return keys_res;
             }
-            key_list = members_of(keys_res);
-            if is_error(key_list) {
-                return key_list;
-            }
+            # LAZY drain over the keys() result (CPython PyMapping_Keys
+            # semantics): d.keys() views carry staleness, so a mapping whose
+            # underlying storage mutates mid-merge raises RuntimeError during
+            # this loop exactly like host (test_dict doctests exc62/65). An
+            # eager snapshot here would silently hide that mutation.
+            kit = py_iter(keys_res);
             out = PyDict(t="dict", items={});
-            kitems = (key_list as PyList).items;
-            ki = 0;
-            while ki < len(kitems) {
-                v = call_user_dunder(u, "__getitem__", [kitems[ki]]);
+            while True {
+                k = send_into(kit, py_none());
+                if k.t == "genstop" {
+                    break;
+                }
+                if is_error(k) {
+                    return k;
+                }
+                v = call_user_dunder(u, "__getitem__", [k]);
                 if is_error(v) {
                     return v;
                 }
-                out.dict_set(kitems[ki], v);
-                ki = ki + 1;
+                out.dict_set(k, v);
             }
             return out;
         }
