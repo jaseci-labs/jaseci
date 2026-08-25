@@ -700,9 +700,9 @@
       "conversion_meta": "jac-py/tests/conv_iter/iter.conv.json",
       "jacpython_results": {
         "iter": {
-          "passed": 16,
+          "passed": 17,
           "total": 32,
-          "notes": "16/32 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+          "notes": "17/32 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
         }
       }
     },
@@ -754,9 +754,9 @@
       "conversion_meta": "jac-py/tests/conv_listcomps/listcomps.conv.json",
       "jacpython_results": {
         "listcomps": {
-          "passed": 7,
+          "passed": 8,
           "total": 62,
-          "notes": "7/62 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+          "notes": "8/62 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
         }
       }
     },
@@ -1091,9 +1091,9 @@
       "conversion_meta": "jac-py/tests/conv_setcomps/setcomps.conv.json",
       "jacpython_results": {
         "setcomps": {
-          "passed": 0,
+          "passed": 1,
           "total": 1,
-          "notes": "0/1 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+          "notes": "1/1 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
         }
       }
     },

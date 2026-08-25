@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "5542c0d7bed70fe5a119f442e06395e8f0cbb3d5",
+  "jac_sha": "87412999bc7112d340c86f51f2b2fde1e0f7279c",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,29 +10,22 @@
     "diff_runner.py",
     "jac-py/tests/conv_setcomps/conv_setcomps_pins.jac"
   ],
-  "generated_at": "2026-08-24T21:02:38",
+  "generated_at": "2026-08-24T21:27:26",
   "hashes": {
     "pins_jac": "391c752d0c697997740ac803b8553df642b26789eb7a39273b9f6018250900e0",
     "conversion_json": "811206c70766559e6cb3c9e67325c8667f06aed30eb3d503cf00a9f0ceeff20f",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "setcomps",
-  "status": "failed",
+  "status": "passed",
   "timed_out": false,
   "counts": {
     "converted": 4,
     "runnable": 1,
-    "green": 0,
+    "green": 1,
     "quarantined": 3,
-    "failed": 1,
+    "failed": 0,
     "infra_failed": 0
   },
-  "failures": [
-    {
-      "id": "setcomps.doctests:doctests",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AssertionError: '>"
-    }
-  ]
+  "failures": []
 }

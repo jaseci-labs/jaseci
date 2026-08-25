@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "87412999bc7112d340c86f51f2b2fde1e0f7279c",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,7 +10,7 @@
     "diff_runner.py",
     "jac-py/tests/conv_genexps/conv_genexps_pins.jac"
   ],
-  "generated_at": "2026-08-24T13:35:41",
+  "generated_at": "2026-08-24T21:27:28",
   "hashes": {
     "pins_jac": "1896316f03fd4099b79892c7aa61686b4dcd00fc9fd04ba715f3eb759b6cb4aa",
     "conversion_json": "ebcc0afb97601ce93d0630524fff82a974592ece858bfbca78358edd6481d74c",

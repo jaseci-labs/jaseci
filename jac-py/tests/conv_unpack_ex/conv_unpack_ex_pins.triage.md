@@ -6,7 +6,7 @@
 
 | pin | result | got |
 |---|---|---|
-| unpack_ex.doctests:doctests | GUEST-WRONG-OUTPUT | RUN<'ValueError: not enough values to unpack (expected at least 6, got 0)'> |
+| unpack_ex.doctests:doctests | VM-CRASH |   jac dev mode - using compiler source at /var/tmp/lane8/jac  Error: 'int' object is not iterable 14178 \|                 return hiter_r[1] as PyObj; 14179 \|             } 14180 \|             for hostel in hiter {       \|                      ^^^^^ 14181 \|                 target_set.set_add(from_h |
 
 ## Quarantined at conversion
 
@@ -23,7 +23,13 @@
 
 ## Expected vs got
 
-### unpack_ex.doctests:doctests (GUEST-WRONG-OUTPUT)
+### unpack_ex.doctests:doctests (VM-CRASH)
 
 - expected: host oracle = `ok`
-- got: RUN<'ValueError: not enough values to unpack (expected at least 6, got 0)'>
+- got:   jac dev mode - using compiler source at /var/tmp/lane8/jac
+ Error: 'int' object is not iterable
+14178 |                 return hiter_r[1] as PyObj;
+14179 |             }
+14180 |             for hostel in hiter {
+      |                      ^^^^^
+14181 |                 target_set.set_add(from_h
