@@ -787,6 +787,102 @@ obj TBFmtExcOnlyFn(PyObj) {
     }
 }
 
+# Stack-family wrappers: the EXPLICIT-traceback forms are thin aliases over
+# the tb walkers. The NO-ARG forms (and frame arguments) require walking the
+# LIVE guest frame chain -- blocked until sys._getframe serves GUEST frames
+# (frame-inspect lane); registered anyway so attribute probes find them, and
+# they raise a clear RuntimeError instead of silently printing HOST frames.
+obj TBStackLikeFn(PyObj) {
+    has mode: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        target = py_none();
+        for wkey in kwargs {
+            if wkey == "file" {
+                target = kwargs[wkey];
+            }
+        }
+        tb_arg = py_none();
+        if len(args) > 0 {
+            tb_arg = args[0];
+        }
+        if not isinstance(tb_arg, PyTraceback) {
+            return py_error(
+                "RuntimeError",
+                self.mode
+                    + "() without an explicit traceback needs guest frame-chain"
+                    + " access (sys._getframe currently surfaces host frames)"
+            );
+        }
+        limit = py_none();
+        if self.mode == "extract" {
+            if len(args) > 1 {
+                limit = args[1];
+            }
+            return TBExtractFn(t="function").tp_call([tb_arg, limit], {});
+        }
+        text_fn = TBFormatTbFn(t="function");
+        pieces = text_fn.tp_call([tb_arg, limit], {});
+        if is_error(pieces) {
+            return pieces;
+        }
+        lines: list[PyObj] = [];
+        for piece in (pieces as PyList).items {
+            lines.append(piece);
+        }
+        if self.mode == "format" {
+            return PyList(t="list", items=lines);
+        }
+        text = "";
+        for piece2 in lines {
+            text = text + (piece2 as PyStr).val;
+        }
+        w = py_attr(target, "write");
+        if is_error(w) {
+            return w;
+        }
+        return py_invoke(w, [text], {});
+    }
+}
+
+# Shim type-tag registry for the isinstance marker protocol: maps exposed
+# class NAME -> PyObj.t tag its instances carry. The ceval install site wraps
+# each entry in a ShimTypeMarker.
+def _tb_shim_type_tags -> dict[str, PyStr] {
+    return {
+        "TracebackException": PyStr(t="str", val="traceback_exception"),
+        "FrameSummary": PyStr(t="str", val="frame_summary"),
+    };
+}
+
+obj TBFrameSummaryCtorFn(PyObj) {
+    # FrameSummary(filename, lineno, name, line=None): constructor for
+    # isinstance-matchable FrameSummary instances.
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 3 {
+            return py_error("TypeError", "FrameSummary expected at least 3 arguments");
+        }
+        fname = "";
+        if isinstance(args[0], PyStr) {
+            fname = (args[0] as PyStr).val;
+        }
+        lineno = 0;
+        if isinstance(args[1], PyInt) {
+            lineno = (args[1] as PyInt).val;
+        }
+        name = "";
+        if isinstance(args[2], PyStr) {
+            name = (args[2] as PyStr).val;
+        }
+        return TBFrameSummaryObj(
+            t="frame_summary",
+            fs_filename=fname,
+            fs_name=name,
+            fs_lineno=lineno,
+        );
+    }
+}
+
 def traceback_module_attrs -> dict[str, PyObj] {
     return {
         "extract_tb": TBExtractFn(t="function"),
@@ -795,6 +891,11 @@ def traceback_module_attrs -> dict[str, PyObj] {
         "format_exception": TBFmtExcFn(t="function"),
         "walk_tb": TBWalkFn(t="function"),
         "format_exception_only": TBFmtExcOnlyFn(t="function"),
+        "extract_stack": TBStackLikeFn(t="function", mode="extract"),
+        "format_stack": TBStackLikeFn(t="function", mode="format"),
+        "print_stack": TBStackLikeFn(t="function", mode="print"),
         "TracebackException": TBExcCtorFn(t="type"),
+        "FrameSummary": TBFrameSummaryCtorFn(t="type"),
+        "__jac_shim_types__": _tb_shim_type_tags(),
     };
 }

@@ -1370,7 +1370,7 @@ import from exceptions_core {
 }
 import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
-import from tracebackmodule { traceback_module_attrs, format_exception_text, tb_write_bound }
+import from tracebackmodule { traceback_module_attrs, format_exception_text, tb_write_bound, _tb_shim_type_tags }
 import from objects {
     _zero_step_error,
     DictEntry,
@@ -1833,6 +1833,19 @@ def import_native(absname: str) -> PyObj {
         (tbmod as PyModule).attrs["print_exception"] = PyNativeBuiltin(
             t="native_builtin", name="tb_print_exc_legacy"
         );
+        # Shim type markers: make exposed classes isinstance-matchable
+        # (ratified exception/tb-surface scope; hot-path guard lives in
+        # py_isinstance keyed on one t compare).
+        tagmap = _tb_shim_type_tags();
+        for tname in tagmap {
+            raw_ctor = (tbmod as PyModule).attrs[tname];
+            (tbmod as PyModule).attrs[tname] = ShimTypeMarker(
+                t="shim_type_marker",
+                tag=(tagmap[tname] as PyStr).val,
+                ctor=raw_ctor,
+            );
+        }
+
         shim_modules["traceback"] = tbmod;
     }
     if absname in sys3_modules {
@@ -4847,6 +4860,18 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         (tbmod as PyModule).attrs["print_exception"] = PyNativeBuiltin(
             t="native_builtin", name="tb_print_exc_legacy"
         );
+        # Shim type markers: make exposed classes isinstance-matchable
+        # (ratified exception/tb-surface scope; hot-path guard lives in
+        # py_isinstance keyed on one t compare).
+        tagmap = _tb_shim_type_tags();
+        for tname in tagmap {
+            raw_ctor = (tbmod as PyModule).attrs[tname];
+            (tbmod as PyModule).attrs[tname] = ShimTypeMarker(
+                t="shim_type_marker",
+                tag=(tagmap[tname] as PyStr).val,
+                ctor=raw_ctor,
+            );
+        }
         shim_modules["traceback"] = tbmod;
     }
     if name in shim_modules {
@@ -9491,6 +9516,11 @@ def py_isinstance(ob: PyObj, typ: PyObj) -> bool {
         }
         return False;
     }
+    # Shim type-marker fast path: one t compare on miss, exact tag match on
+    # hit (ratified exception/tb-surface scope; generic across future shims).
+    if typ.t == "shim_type_marker" {
+        return ob.t == ((typ as ShimTypeMarker).tag);
+    }
     if isinstance(ob, PyException) {
         if typ.t == "exception_type" {
             return exc_name_matches(
@@ -10333,6 +10363,27 @@ obj PyYield(PyObj) {
 
 # next()/iter() as native callables (host_builtin routes these here) so they
 # drive a native generator/iterator in-VM rather than draining it to a host list.
+# Native shim "type" marker (isinstance-matchable shim classes): wraps a
+# constructor callable and carries the PyObj.t tag its instances carry.
+# py_isinstance answers marker matches with a single value.t comparison --
+# no getattr probes, no host bridge. Registered by module shims that expose
+# real class-shaped surfaces (traceback.FrameSummary, TracebackException).
+obj ShimTypeMarker(PyObj) {
+    has tag: str,
+        ctor: PyObj;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return (self.ctor as PyObj).tp_call(args, kwargs);
+    }
+
+    def tp_getattro(name2: str) -> PyObj {
+        if name2 == "__jac_shim_tag__" {
+            return PyStr(t="str", val=self.tag);
+        }
+        return (self.ctor as PyObj).tp_getattro(name2);
+    }
+}
+
 obj PyNativeBuiltin(PyObj) {
     has name: str;
 
