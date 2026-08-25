@@ -104,16 +104,16 @@ jobs:
             # lane exists to catch, so a miss here is worse than an extra run.
             graphmend:
               # The transforms themselves.
-              - 'jac/jaclang/compiler/passes/main/graphmend/**'
+              - 'jac/jaclang/compiler/passes/graphmend/**'
               # The helpers that EXECUTE INSIDE THE TRACED REGION: se_emit /
               # log_emit / se_flush / se_region_enter / se_region_exit /
               # se_guard / trap_guard / tensor_eq_assert. The buffer-drain and
               # logging-passthrough edits that motivated this lane touched
               # runtime.impl.jac and nothing else.
-              - 'jac/jaclang/jac0core/impl/runtime.impl.jac'
-              - 'jac/jaclang/jac0core/runtime.jac'
-              - 'jac/jaclang/jac0core/jaclib.jac'
-              - 'jac/jaclang/jac0core/constant.jac'
+              - 'jac/jaclang/runtime/impl/runtime.impl.jac'
+              - 'jac/jaclang/runtime/runtime.jac'
+              - 'jac/jaclang/lib/jaclib.jac'
+              - 'jac/jaclang/compiler/frontend/constant.jac'
               # Whether a module is transformed at all, and which artifact is
               # served: the claim set and enable flag (compiler.impl.jac,
               # compile_options.jac), the graphmend cache-variant key that
@@ -121,17 +121,17 @@ jobs:
               # import hook that claims model packages (meta_importer.py). A
               # bug in any of them feeds untransformed bytecode to a run whose
               # source-text assertions still pass.
-              - 'jac/jaclang/jac0core/impl/compiler.impl.jac'
-              - 'jac/jaclang/jac0core/compile_options.jac'
-              - 'jac/jaclang/jac0core/jir.jac'
+              - 'jac/jaclang/compiler/driver/impl/compiler.impl.jac'
+              - 'jac/jaclang/compiler/driver/compile_options.jac'
+              - 'jac/jaclang/compiler/driver/jir.jac'
               - 'jac/jaclang/meta_importer.py'
               # Emits the graphmend helper imports into the generated module.
               # Dropping one is a NameError at exec time, and exec time is
               # exactly what no other lane reaches.
-              - 'jac/jaclang/jac0core/passes/impl/pyast_gen_pass.impl.jac'
+              - 'jac/jaclang/compiler/backends/py/impl/jcir_gen_pass.impl.jac'
               # The suites and their fixtures, and the lane's own definition.
-              - 'jac/tests/compiler/passes/main/test_graphmend_*.jac'
-              - 'jac/tests/compiler/passes/main/fixtures/graphmend/**'
+              - 'jac/tests/compiler/passes/test_graphmend_*.jac'
+              - 'jac/tests/compiler/passes/fixtures/graphmend/**'
               - '.github/actions/graphmend-torch/**'
               - '.github/workflows/ci.yml'
 

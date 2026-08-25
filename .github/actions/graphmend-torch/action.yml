@@ -59,10 +59,10 @@ runs:
         jac -c 'import warnings; warnings.simplefilter("error"); import torch; print("torch", torch.__version__, "cuda:", torch.version.cuda)'
         rc=0
         JAC_TEST_JOBS=auto jac test \
-          tests/compiler/passes/main/test_graphmend_trap_integration.jac \
-          tests/compiler/passes/main/test_graphmend_where_integration.jac \
-          tests/compiler/passes/main/test_graphmend_defer_integration.jac \
-          tests/compiler/passes/main/test_graphmend_import_integration.jac \
+          tests/compiler/passes/test_graphmend_trap_integration.jac \
+          tests/compiler/passes/test_graphmend_where_integration.jac \
+          tests/compiler/passes/test_graphmend_defer_integration.jac \
+          tests/compiler/passes/test_graphmend_import_integration.jac \
           | tee /tmp/graphmend-torch.log || rc=$?
 
         # The native jac test runner ends with "N passed, M skipped in T.TTs";
