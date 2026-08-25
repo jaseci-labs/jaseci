@@ -48,7 +48,7 @@ impl app.placeOrder -> None {
     # create_order handles everything server-side via sv import:
     # orders_app -> view_cart() on cart_app -> creates order -> clear_cart()
     result = await apiCall("orders", "create_order", {});
-    order = result.data.result if result.data and result.data.result else {};
+    order: any = result.data.result if result.data and result.data.result else {};
 
     if order.error {
         console.log("Order error:", order.error);
@@ -67,7 +67,7 @@ impl app.fetchOrders -> None {
 
 impl app.handleLogin -> None {
     error = "";
-    if not authUsername.trim() or not authPassword {
+    if not authUsername.strip() or not authPassword {
         error = "Please fill in all fields";
         return;
     }
@@ -85,11 +85,11 @@ impl app.handleLogin -> None {
 
 impl app.handleSignup -> None {
     error = "";
-    if not authUsername.trim() or not authPassword {
+    if not authUsername.strip() or not authPassword {
         error = "Please fill in all fields";
         return;
     }
-    if authPassword.length < 4 {
+    if len(authPassword) < 4 {
         error = "Password must be at least 4 characters";
         return;
     }
