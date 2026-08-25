@@ -2876,9 +2876,8 @@ impl EsastGenPass._try_type_is_compare(
     }
     spec: (es.Expression | None) = self._builtin_type_ref(type_name, jac_node);
     if spec is None {
-        import from jaclang.jac0core.constant { SymbolType }
-        import from jaclang.compiler.symbol_utils { resolve_expr_symbol }
-        symbol = resolve_expr_symbol(right_node, self.get_main_mod());
+        import from jaclang.compiler.frontend.constant { SymbolType }
+        symbol = right_node.sym;
         if (
             symbol is not None
             and symbol.sym_type
