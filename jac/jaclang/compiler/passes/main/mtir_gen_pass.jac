@@ -45,6 +45,7 @@ import from jaclang.jac0core.mtp {
 }
 
 import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 glob PRIMITIVE_TYPES: list[str] = [
          'int',
@@ -56,18 +57,9 @@ glob PRIMITIVE_TYPES: list[str] = [
          'list',
          'dict',
          'set',
-         'tuple',
-         'i8',
-         'u8',
-         'i16',
-         'u16',
-         'i32',
-         'u32',
-         'i64',
-         'u64',
-         'f32',
-         'f64'
-     ];
+         'tuple'
+     ]
+         + JAC_TYPE_REGISTRY.sized_scalar_names();
 
 obj MTIRGenPass(Transform) {
     has ir_in: Module,

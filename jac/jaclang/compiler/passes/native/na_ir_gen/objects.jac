@@ -21,7 +21,7 @@ import from jaclang.jac0core.codeinfo {
     RC_SENTINEL
 }
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
-import from jaclang.jac0core.constant { OwnershipKind }
+import from jaclang.jac0core.constant { OwnershipKind, SymbolAccess }
 import from jaclang.jac0core.diagnostics { E5090, E5091, E5092 }
 import from jaclang.jac0core.osp_model { stable_osp_tag }
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
@@ -189,6 +189,7 @@ obj NaIRGenObjects(NaIRGenState) {
     def _mro_of(arch_name: str) -> list[str];
     def _arch_layout(arch_name: str) -> (ArchetypeLayout | None);
     def _arch_has_vtable(arch_name: str) -> bool;
+    def _devirt_closed_world(arch_name: str) -> bool;
     def _hasvar_is_own(var: uni.UniNode) -> bool;
     def _store_inline_field(
         type_name: str,

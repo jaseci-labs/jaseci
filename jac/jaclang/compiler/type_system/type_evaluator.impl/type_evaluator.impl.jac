@@ -1,3 +1,17 @@
+impl TypeEvaluator._pass.getter -> (Transform | None) {
+    ref = self._pass_ref;
+    if ref is None {
+        return None;
+    }
+    held = ref();
+    return held if isinstance(held, Transform) else None;
+}
+
+impl TypeEvaluator._pass.setter(_pass: (Transform | None)) {
+    import weakref;
+    self._pass_ref = weakref.ref(_pass) if _pass is not None else None;
+}
+
 impl TypeEvaluator._walk_compr_clauses(comprs: list[InnerCompr]) -> None {
     for compr in comprs {
         self.get_type_of_expression(compr.collection);
@@ -711,7 +725,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                     return expr.right.type;
                 }
                 if isinstance(base_type, ModuleType) {
-                    if base_type.is_external {
+                    if base_type.is_external or base_type.symbol_table is None {
                         expr.right.type = AnyType(is_foreign=True);
                         return expr.right.type;
                     }
@@ -930,7 +944,13 @@ impl TypeEvaluator._get_type_of_expression_core(
                     _attr_arch = base_type.shared.symbol_table;
                     if isinstance(_attr_arch, Archetype)
                         and _attr_arch.find_parent_of_type(Import) is not None {
-                        expr.right.type = AnyType(is_foreign=True);
+                        if _ext_member
+                            := self._lookup_class_member(base_type, expr.right.value) {
+                            _ext_member.symbol.add_use(expr.right);
+                        }
+                        expr.right.type = self._extern_member_type(
+                            _attr_arch, expr.right.sym_name
+                        );
                         return expr.right.type;
                     }
                     if (
@@ -1737,6 +1757,18 @@ impl TypeEvaluator._get_type_of_expression_core(
                 }
 
                 if op.name in BINARY_OPERATOR_MAP {
+                    if both_numeric(left_type, right_type) {
+                        unify_numeric_operands(
+                            self,
+                            left_type,
+                            right_type,
+                            expr.left if i == 0 else expr.rights[i - 1],
+                            expr.rights[i],
+                            expr,
+                            op.value
+                        );
+                        continue;
+                    }
                     (magic, rmagic) = BINARY_OPERATOR_MAP[op.name];
                     result = self.get_type_of_magic_method_call(
                         left_type, magic, [expr.rights[i]], None
@@ -1938,6 +1970,10 @@ impl TypeEvaluator._get_type_of_expression_core(
                         self.emit_diag(E1010, expr, op=op_name, type=str(operand_type));
                         return UnknownType(is_diagnosed=True);
                     }
+                    if expr.op.name == Tok.MINUS and is_unsigned_type(operand_type) {
+                        self.emit_diag(E1129, expr, type=str(operand_type));
+                        return UnknownType(is_diagnosed=True);
+                    }
                     return operand_type;
                 }
             }
@@ -1947,20 +1983,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                 filter_type = self.get_type_of_expression(expr.f_type);
                 if isinstance(filter_type, ClassType) {
                     for cmp in expr.compares {
-                        if isinstance(cmp.left, Name)
-                            and (
-                                sym := filter_type.lookup_member_symbol(cmp.left.value)
-                            ) {
-                            self._set_symbol_to_expr(cmp.left, sym);
-                        } else {
-                            self.emit_diag(
-                                E1033,
-                                cmp.left,
-                                member=cmp.left.value,
-                                type=str(filter_type)
-                            );
-                        }
-
+                        self._bind_filter_compare(cmp, filter_type);
                         self.get_type_of_expression(cmp);
                     }
 
@@ -2226,6 +2249,84 @@ impl TypeEvaluator._get_type_of_expression_core(
 
     return UnknownType();
 }
+
+impl TypeEvaluator._bind_filter_compare(cmp: Expr, filter_type: ClassType) -> None {
+    if not isinstance(cmp, CompareExpr) {
+        term = self._filter_order_name(cmp);
+        if term is not None {
+            self._bind_filter_member(term, filter_type);
+            return;
+        }
+        self.emit_diag(E5094, cmp, reason="not a comparison or an ordering term");
+        return;
+    }
+    if len(cmp.ops) != 1 {
+        self.emit_diag(E5094, cmp, reason="chained comparisons are not admitted");
+        return;
+    }
+    left = cmp.left;
+    if isinstance(left, TupleVal) {
+        parts = list(left.values);
+        if not parts {
+            self.emit_diag(
+                E5094, left, reason="a composite key needs at least one field name"
+            );
+            return;
+        }
+        for part in parts {
+            if not isinstance(part, Name) {
+                self.emit_diag(
+                    E5094,
+                    part,
+                    reason="a composite key must be a tuple of declared field names"
+                );
+                return;
+            }
+        }
+        for part in parts {
+            if isinstance(part, Name) {
+                self._bind_filter_member(part, filter_type);
+            }
+        }
+        arity = len(parts);
+        right = cmp.rights[0] if cmp.rights else None;
+        if (not isinstance(right, TupleVal)) or len(right.values) != arity {
+            self.emit_diag(
+                E5094,
+                cmp,
+                reason=f"a composite key of arity {arity} needs a tuple value of the same arity"
+            );
+        }
+        return;
+    }
+    if not isinstance(left, Name) {
+        self.emit_diag(E5094, left, reason="left side must be a declared field name");
+        return;
+    }
+    self._bind_filter_member(left, filter_type);
+}
+
+
+impl TypeEvaluator._filter_order_name(expr: Expr) -> (Name | None) {
+    inner = expr;
+    if isinstance(inner, UnaryExpr) {
+        if inner.op.name != Tok.MINUS {
+            return None;
+        }
+        inner = inner.operand;
+    }
+    return inner if isinstance(inner, Name) else None;
+}
+
+
+impl TypeEvaluator._bind_filter_member(target: Name, filter_type: ClassType) -> None {
+    if sym := filter_type.lookup_member_symbol(target.value) {
+        self._set_symbol_to_expr(target, sym);
+        return;
+    }
+    self.emit_diag(E1033, target, member=target.value, type=str(filter_type));
+}
+
 
 impl TypeEvaluator._widen_literal_for_declaration(ty: TypeBase) -> TypeBase {
     if isinstance(ty, ClassType) {
@@ -2870,69 +2971,17 @@ impl TypeEvaluator._assign_class(
         return True;
     }
 
-    if src_type.is_builtin("int") and dest_type.is_builtin("float") {
-        return True;
-    }
-
     if src_type.is_builtin() and dest_type.is_builtin() {
-        import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
-        src_kind = JAC_TYPE_REGISTRY.numeric_kind_of(src_type.shared.class_name);
-        dest_kind = JAC_TYPE_REGISTRY.numeric_kind_of(dest_type.shared.class_name);
-        if src_kind != NumericKind.NotNumeric and dest_kind != NumericKind.NotNumeric {
-            if src_kind == dest_kind {
-                return True;
-            }
-            if src_kind == NumericKind.IntKind and dest_kind == NumericKind.FloatKind {
-                return True;
-            }
+        import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+        src_name = src_type.shared.class_name;
+        dest_name = dest_type.shared.class_name;
+        if JAC_TYPE_REGISTRY.is_numeric(src_name)
+            and JAC_TYPE_REGISTRY.is_numeric(dest_name) {
+            return JAC_TYPE_REGISTRY.widens_to(src_name, dest_name);
         }
     }
 
-    is_protocol = False;
-
-    for base_cls in dest_type.shared.base_classes {
-        if not isinstance(base_cls, ClassType) or base_cls._shared is None {
-            continue;
-        }
-
-        if base_cls.shared == self.prefetch.protocol_class.shared {
-            is_protocol = True;
-            break;
-        }
-
-        if base_cls.shared.is_builtin_class
-            and base_cls.shared.class_name in ('Protocol', '_SpecialForm') {
-            is_protocol = True;
-            break;
-        }
-    }
-
-    if not is_protocol {
-        class_name = dest_type.shared.class_name;
-        if (dest_type.shared.is_from_stdlib_stub or dest_type.shared.is_builtin_class)
-            and (
-                class_name.startswith('Supports') or class_name.startswith('_Supports')
-            ) {
-            is_protocol = True;
-        }
-    }
-
-    if not is_protocol {
-        for mro_cls in dest_type.shared.mro {
-            if isinstance(mro_cls, ClassType) {
-                if (
-                    mro_cls.shared.is_builtin_class
-                    or mro_cls.shared.is_from_stdlib_stub
-                )
-                    and mro_cls.shared.class_name in ('Protocol', '_SpecialForm') {
-                    is_protocol = True;
-                    break;
-                }
-            }
-        }
-    }
-
-    if is_protocol {
+    if self._is_protocol_class(dest_type) {
         if class_implements_protocol(src_type, dest_type, self) {
             return True;
         }
@@ -2947,6 +2996,76 @@ impl TypeEvaluator._assign_class(
     }
     return False;
 }
+
+impl TypeEvaluator._is_protocol_class(cls_type: ClassType) -> bool {
+    for base_cls in cls_type.shared.base_classes {
+        if not isinstance(base_cls, ClassType) or base_cls._shared is None {
+            continue;
+        }
+
+        if base_cls.shared == self.prefetch.protocol_class.shared {
+            return True;
+        }
+
+        if base_cls.shared.is_builtin_class
+            and base_cls.shared.class_name in ('Protocol', '_SpecialForm') {
+            return True;
+        }
+    }
+
+    class_name = cls_type.shared.class_name;
+    if (cls_type.shared.is_from_stdlib_stub or cls_type.shared.is_builtin_class)
+        and (class_name.startswith('Supports') or class_name.startswith('_Supports')) {
+        return True;
+    }
+
+    for mro_cls in cls_type.shared.mro {
+        if isinstance(mro_cls, ClassType) {
+            if (mro_cls.shared.is_builtin_class or mro_cls.shared.is_from_stdlib_stub)
+                and mro_cls.shared.class_name in ('Protocol', '_SpecialForm') {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+
+impl TypeEvaluator._solve_protocol_type_args(
+    src_type: ClassType, proto_type: ClassType, bindings: dict[str, TypeBase]
+) -> bool {
+    proto_symtab = proto_type.shared.symbol_table;
+    if not isinstance(proto_symtab, UniScopeNode) {
+        return False;
+    }
+
+    solved = False;
+    for (name, sym) in proto_symtab.names_in_scope.items() {
+        if not (sym.decl and isinstance(sym.decl.name_of, Ability)) {
+            continue;
+        }
+
+        member = self._lookup_class_member(src_type, name);
+        if member is None {
+            continue;
+        }
+
+        proto_func = self.get_type_of_ability(sym.decl.name_of);
+        impl_func = self.get_type_of_symbol(member.symbol);
+        if isinstance(impl_func, FunctionType) {
+            impl_func = impl_func.specialize(src_type);
+        }
+
+        if isinstance(proto_func, FunctionType)
+            and isinstance(impl_func, FunctionType) {
+            if self.assign_type_to_type_var(proto_func, impl_func, bindings) {
+                solved = True;
+            }
+        }
+    }
+    return solved;
+}
+
 
 impl TypeEvaluator.is_sub_class(super_cls: ClassType, sub_cls: ClassType) -> bool {
     if not sub_cls.shared.mro {
@@ -3200,6 +3319,20 @@ impl TypeEvaluator.is_type_var_tuple_class(ty: TypeBase) -> bool {
         return True;
     }
     return self._is_typing_special_form(ty, "TypeVarTuple");
+}
+
+impl TypeEvaluator.assign_expr(
+    expr: Expr | None,
+    src_type: TypeBase,
+    dest_type: TypeBase,
+    strict: bool = False,
+    probe: bool = False
+) -> AssignVerdict {
+    verdict = assign_numeric_expr(self, expr, src_type, dest_type, probe);
+    if verdict is not None {
+        return verdict;
+    }
+    return AssignVerdict(ok=self.assign_type(src_type, dest_type, strict));
 }
 
 impl TypeEvaluator.assign_type(
@@ -4401,7 +4534,14 @@ impl TypeEvaluator._get_type_from_flow_node(
                         )
                             is not None
                     );
+                    import from jaclang.compiler.type_system.fixed_width {
+                        numeric_name_of
+                    }
+                    _decl_num = numeric_name_of(declared_type);
+                    _assigned_num = numeric_name_of(assigned_type);
                     if _decl_extern {
+                        narrowed_from_assignment = None;
+                    } elif _decl_num is not None and _assigned_num is not None {
                         narrowed_from_assignment = None;
                     } elif self.is_none_type(declared_type) {
                         narrowed_from_assignment = assigned_type;

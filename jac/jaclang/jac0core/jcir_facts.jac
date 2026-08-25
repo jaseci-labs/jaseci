@@ -1,3 +1,5 @@
+import from jaclang.jac0core.scalars { sized_scalar_names }
+
 glob JCIR_BUILTIN_NAMES: frozenset = frozenset(
          {
              "APIProtocol",
@@ -35,8 +37,14 @@ glob JCIR_BUILTIN_NAMES: frozenset = frozenset(
              "testfail",
              "testraises",
              "testskip",
-             "unsafe_html"
+             "unsafe_html",
+             "wrapping_add",
+             "wrapping_mul",
+             "wrapping_neg",
+             "wrapping_shl",
+             "wrapping_sub"
          }
+             | set(sized_scalar_names())
      ),
      JCIR_AMBIENT_TYPING_NAMES: frozenset = frozenset(
          {

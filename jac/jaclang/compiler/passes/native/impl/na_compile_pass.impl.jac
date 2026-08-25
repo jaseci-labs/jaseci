@@ -24,10 +24,15 @@ impl native_compiler_fingerprint(options: any) -> str {
     _jl_dir = _cfp_os.path.dirname(_cfp_os.path.abspath(_jlm.__file__));
     _nat_dir = _cfp_os.path.join(_jl_dir, "compiler", "passes", "native");
     _comp_h = _cfh_hash.sha256();
+    import from jaclang.jac0core.jir { FORMAT_VERSION }
+    _comp_h.update(str(FORMAT_VERSION).encode());
     for _cp in [
         _cfp_os.path.join(_nat_dir, "impl", "*.jac"),
         _cfp_os.path.join(_nat_dir, "na_ir_gen", "*.jac"),
-
+        _cfp_os.path.join(_jl_dir, "compiler", "type_system", "*.jac"),
+        _cfp_os.path.join(_jl_dir, "compiler", "type_system", "*", "*.jac"),
+        _cfp_os.path.join(_jl_dir, "compiler", "type_registry.jac"),
+        _cfp_os.path.join(_jl_dir, "jac0core", "scalars.jac")
     ] {
         for _cf in sorted(_cgl.`glob(_cp)) {
             try {
