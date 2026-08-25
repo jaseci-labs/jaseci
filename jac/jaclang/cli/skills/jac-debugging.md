@@ -1,6 +1,6 @@
 ---
 name: jac-debugging
-description: The Jac fix loop - reading `jac check` diagnostics (E/W code anatomy, `jac guide` pointers), `# jac:ignore[CODE]` suppression, stale-cache triage (`jac clean` vs `jac purge` vs `.jac/data`), cross-boundary drift after server-contract changes (W1101/W1051 in client files), `jac check --lint --fix` vs `jac fmt`, graph inspection with `jac dot`. Load when a build fails, errors look wrong, or behavior is stale/inexplicable.
+description: The Jac fix loop - reading `jac check` diagnostics (E/W code anatomy, `jac guide` pointers), `# jac:ignore[CODE]` suppression, stale-cache triage (`jac clean` scopes vs the global `~/.cache/jac` vs `.jac/data`), cross-boundary drift after server-contract changes (W1101/W1051 in client files), `jac check --lint --fix` vs `jac fmt`, graph inspection with `jac dot`. Load when a build fails, errors look wrong, or behavior is stale/inexplicable.
 ---
 
 The core loop: write -> `jac check <paths>` -> read the diagnostic -> follow its guide pointer -> fix -> re-check -> `jac test`.
@@ -40,11 +40,11 @@ Compiled bytecode and persisted graph data both outlive your source edits. When 
 | Symptom | Fix |
 |---|---|
 | `NodeAnchor <id> is not a valid reference` / `Invalid anchor id` | `jac clean --all --force` (stale persisted graph vs recompiled types) |
-| Syntax/type errors on code you know is correct; edits seem ignored | `jac clean --cache` (project bytecode), then `jac purge` (global cache - survives even a corrupted cache; use after upgrading Jaseci packages) |
+| Syntax/type errors on code you know is correct; edits seem ignored | `jac clean --cache` (project bytecode), then `rm -rf ~/.cache/jac` (global per-user cache; use after upgrading Jaseci packages) |
 | A served app starts returning 500s with anchor/schema errors after model changes | Stop the server, `rm -rf .jac/data/`, restart (dev only - this deletes data; see `jac-sv-persistence` for migration-safe renames) |
 | Tests green once, red on re-run with leftover nodes | `jac clean --all --force` before the run (see `jac-testing`) |
 
-`jac clean` scopes: default = `.jac/data` only; `--cache` bytecode; `--all` data+cache+venv+client; `--force` skips the confirm prompt. `jac purge` clears the global (per-user) cache.
+`jac clean` scopes: default = `.jac/data` only; `--cache` bytecode; `--all` data+cache+venv+client; `--force` skips the confirm prompt. The global (per-user) cache is cleared by deleting `~/.cache/jac`.
 
 ## `jac check --lint --fix` vs `jac fmt`
 

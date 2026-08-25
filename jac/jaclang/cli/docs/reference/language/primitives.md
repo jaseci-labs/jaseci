@@ -395,9 +395,9 @@ Lazy integer sequence, typically used in `for` loops.
 
 ---
 
-### Fixed-Width Types (Native Codespace)
+### Fixed-Width Types
 
-The native codespace adds fixed-width types for C interop. These types map directly to hardware registers and C ABI types:
+The fixed-width types are first-class on every lane -- server, client, and native alike -- and double as the vocabulary of C interop. They map directly to hardware registers and C ABI types:
 
 | Jac Type | Width | Signed | C Equivalent |
 |----------|-------|--------|--------------|

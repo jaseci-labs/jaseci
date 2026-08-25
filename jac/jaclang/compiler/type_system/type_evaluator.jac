@@ -337,7 +337,7 @@ obj TypeEvaluator {
         _ENUM_STUB_FILE_PATH: str postinit,
         symbol_resolution_stack: list[Symbol] = [],
         prefetch: PrefetchedTypes postinit,
-        _pass: Transform | None = None,
+        _pass_ref: object | None = None,
         builtins_module: Module | None = None,
         _flow_node_type_cache: dict[tuple[int, int], TypeBase | None] = {},
         _flow_key_type_cache: dict[tuple[int, str], TypeBase | None] = {},
@@ -362,6 +362,8 @@ obj TypeEvaluator {
         dom_types_module: Module postinit,
         na_builtins_module: Module postinit,
         js_globals_module: Module postinit;
+
+    has _pass: (Transform | None) { getter; setter(_pass: (Transform | None)); }
 
     def postinit -> None;
     def _read_dunder_all(path: str) -> (set[str] | None);
@@ -505,6 +507,11 @@ obj TypeEvaluator {
     def _get_setter_value_type(symbol: Symbol, prop_name: str) -> (TypeBase | None);
     def _assign_class(
         src_type: ClassType, dest_type: ClassType, strict: bool = False
+    ) -> bool;
+
+    def _is_protocol_class(cls_type: ClassType) -> bool;
+    def _solve_protocol_type_args(
+        src_type: ClassType, proto_type: ClassType, bindings: dict[str, TypeBase]
     ) -> bool;
 
     def _get_type_of_symbol(symbol: Symbol) -> TypeBase;
@@ -661,6 +668,7 @@ obj TypeEvaluator {
         param_type: TypeBase, bindings: dict[str, TypeBase], fill: TypeBase
     ) -> None;
 
+    def _member_is_metaclass_only(cls_type: ClassType, expr: FuncCall) -> bool;
     def class_constructor_callables(cls_type: ClassType) -> list[FunctionType];
     def _infer_type_args_from_method(
         caller_type: ClassType, expr: FuncCall, matched_method: FunctionType | None
