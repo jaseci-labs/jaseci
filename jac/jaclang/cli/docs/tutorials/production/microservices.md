@@ -355,7 +355,7 @@ The gateway exposes a standard error envelope (`{ok, error: {code, message, serv
 
 WebSockets (`/ws/*`) and SSE / chunked responses flow through the gateway transparently -- no config. On `SIGTERM` (or `jac scale stop`), each service flips a drain flag (new requests get `503` with `Retry-After: 2`) and uvicorn waits up to `drain_timeout_seconds` for in-flight requests to complete before exiting. Mirrors K8s `terminationGracePeriodSeconds`.
 
-The gateway implementation lives under [`jac/jaclang/scale/microservices/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/scale/microservices) in the scale source tree.
+The gateway implementation lives under [`jac/jaclang/scale/runtime/gateway/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/scale/runtime/gateway) in the scale source tree.
 
 ### Kubernetes (microservice mode)
 

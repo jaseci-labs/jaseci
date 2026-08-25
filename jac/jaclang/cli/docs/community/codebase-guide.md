@@ -10,7 +10,7 @@ For setup instructions and PR workflow, see the [Contributing](contributing.md) 
 
 Before you open any files, these five ideas will save you a lot of confusion:
 
-**Jac is written in Jac.** Most of the compiler and runtime are `.jac` files, not Python. A small bootstrap transpiler (`jac0.py`) is pure Python -- it compiles just enough of the compiler infrastructure (`jac0core/`) so the full compiler can take over and compile itself. Once bootstrapped, the full compiler handles everything else. If you're wondering "how does a Jac compiler compile itself?" -- that's the answer.
+**Jac is written in Jac.** Most of the compiler and runtime are `.jac` files, not Python. A small bootstrap transpiler (`jac0.py`) is pure Python -- it compiles just enough of the compiler (the seed set declared in `jaclang/bootstrap_manifest.py`) so the full compiler can take over and compile itself. Once bootstrapped, the full compiler handles everything else. If you're wondering "how does a Jac compiler compile itself?" -- that's the answer.
 
 **Declaration and implementation are separate.** You'll see pairs like `foo.jac` (declarations/interfaces) and `foo.impl.jac` or `impl/foo.impl.jac` (implementations). This is a first-class Jac language feature, similar to header/source separation. When you're looking for where something is *defined*, check the `.jac` file; for how it *works*, check the `.impl.jac` file.
 
@@ -30,15 +30,15 @@ Here's a quick map from contribution type to the right part of the codebase:
 
 | I want to... | Look at... |
 |--------------|-----------|
-| Fix a compiler bug | `jac/jaclang/compiler/passes/` (Python target) |
-| Add a language feature | `jac/jaclang/jac0core/` (AST) + `compiler/passes/` (all targets) |
-| Fix type checking | `jac/jaclang/compiler/types/` + `passes/main/type_checker_pass.jac` |
+| Fix a compiler bug | `jac/jaclang/compiler/passes/` (shared analysis) + `compiler/backends/py/` (Python target) |
+| Add a language feature | `jac/jaclang/compiler/frontend/` (parser + AST) + `compiler/passes/` + `compiler/backends/` (all targets) |
+| Fix type checking | `jac/jaclang/compiler/types/` + `compiler/passes/type_checker_pass.jac` |
 | Work on native compilation | `jac/jaclang/compiler/backends/native/na_ir_gen/` |
 | Work on JS compilation | `jac/jaclang/compiler/backends/es/` |
 | Improve the CLI | `jac/jaclang/cli/commands/` |
-| Fix a runtime bug | `jac/jaclang/runtimelib/` |
+| Fix a runtime bug | `jac/jaclang/runtime/` |
 | Improve the formatter/linter | `jac/jaclang/compiler/tools/` |
-| Improve IDE support | `jac/jaclang/lsp/` + `langserve/` |
+| Improve IDE support | `jac/jaclang/lsp/` (`protocol/` + `server/`) |
 | Work on the scale subsystem | `jac/jaclang/scale/` (built-in deployment provider) |
 | Work on a built-in subsystem | `jac/jaclang/byllm/`, `jac/jaclang/cli/mcp/`, `jac/jaclang/scale/`, etc. |
 | Write or fix docs | `jac/jaclang/cli/docs/reference/` (most features go here) |
@@ -65,35 +65,37 @@ jaseci/
 
 This is the heart of the project -- the compiler, runtime, CLI, and language server. Everything below is relative to `jac/jaclang/`.
 
-### `jac0core/` -- Compiler Infrastructure
+### `compiler/frontend/` and `compiler/driver/` -- Compiler Infrastructure
 
-This layer defines the data structures and front-end passes that every compilation target depends on. The compiler orchestrator (`compiler.jac`) lives here and controls which passes run and in what order.
+These two layers define the data structures and orchestration that every compilation target depends on. The front end (`compiler/frontend/`) holds the parser and the shared AST; the driver (`compiler/driver/`) holds the orchestrator (`compiler.jac`) that controls which passes run and in what order.
 
 The most important files to know:
 
-- **`unitree.jac`** -- The unified AST that all backends share. If you're adding or changing syntax, you'll touch this.
-- **`compiler.jac`** -- The pass pipeline orchestrator. It defines schedules like `get_ir_gen_sched()` and `get_py_code_gen()` that chain passes together. This is the authoritative source for pass ordering.
-- **`jir.jac`** -- The JIR container: cached module bytecode plus typed sections (MTIR, placement, native objects), keyed by source content and the running compiler's identity. Trees are never persisted; they are working state, re-derived per process.
-- **`diagnostics.jac`** -- Error and warning reporting infrastructure.
-- **`modresolver.jac`** -- Module import and dependency resolution.
-- **`passes/`** -- Front-end passes: parsing (via Lark grammar), AST validation, symbol table construction, and declaration-implementation matching.
-- **`parser/`** -- The Lark grammar definition and lexer that parse Jac source into the initial AST.
+- **`frontend/unitree.jac`** -- The unified AST that all backends share. If you're adding or changing syntax, you'll touch this.
+- **`driver/compiler.jac`** -- The pass pipeline orchestrator. It defines schedules like `get_ir_gen_sched()` and `get_py_code_gen()` that chain passes together. This is the authoritative source for pass ordering.
+- **`driver/jir.jac`** -- The JIR container: cached module bytecode plus typed sections (MTIR, placement, native objects), keyed by source content and the running compiler's identity. Trees are never persisted; they are working state, re-derived per process.
+- **`frontend/diagnostics.jac`** -- Error and warning reporting infrastructure.
+- **`driver/modresolver.jac`** -- Module import and dependency resolution.
+- **`frontend/parser/`** -- The Lark grammar definition and lexer that parse Jac source into the initial AST.
+- **`passes/`** -- The shared analysis passes: AST validation, symbol table construction, declaration-implementation matching, semantic analysis, and more (see the pass ordering below).
+
+Which of these files the `jac0.py` bootstrap compiles is declared in `jaclang/bootstrap_manifest.py`, not by directory. A small `jac0core/` directory still exists, but it holds only the frozen pure-Python launcher boot modules (`sealed.py`, `cache_paths.py`, `ext_registry.py`, `cli_boot.py`) -- built binaries bake these paths in, so they cannot move.
 
 ### `compiler/` -- Multi-Target Compilation
 
 Jac compiles to **three targets** from the same unified AST:
 
 ```
-                            ┌─→ Python bytecode  (passes/main/)
-Jac Source → unitree AST  ──┼─→ LLVM IR / native (passes/native/)
-                            └─→ JavaScript        (passes/ecmascript/)
+                            ┌─→ Python bytecode  (backends/py/)
+Jac Source → unitree AST  ──┼─→ LLVM IR / native (backends/native/)
+                            └─→ JavaScript        (backends/es/)
 ```
 
 This means a single language change may need updates in up to three backends. The Python target is the default and most mature; the native and JavaScript targets are actively developed.
 
-The `type_system/` directory houses the type inference engine, type compatibility rules, and type operations shared across targets. The `primitives.jac` file defines core type primitives.
+The `types/` directory houses the type inference engine, type compatibility rules, and type operations shared across targets. The `primitives.jac` file defines core type primitives.
 
-A fourth category -- `passes/tool/` -- contains non-compilation passes for the formatter, linter, doc generator, and grammar extractor.
+A fourth category -- `compiler/tools/` -- contains non-compilation passes for the formatter, linter, doc generator, and grammar extractor.
 
 ### Compilation Pass Ordering
 
@@ -151,21 +153,23 @@ The native backend generates LLVM IR via `llvmlite`. `na_ir_gen_pass.jac` compos
 
 The CLI is organized as a command abstraction in `command.jac` with command groups (`execution`, `build`, `project`, `analysis`, `config`, ...) each in their own module under `commands/`. The core execution logic -- how `jac run` actually invokes the compiler and runs the result -- lives in `impl/execution.impl.jac`.
 
-### `runtimelib/` -- Runtime Library
+### `runtime/`, `server/`, `data/`, `testing/` -- The Runtime
 
-This is what Jac programs depend on at execution time. The key modules:
+This is what Jac programs depend on at execution time, split by concern: `runtime/` is the core language runtime, `server/` is the serving stack, `data/` is graph persistence, and `testing/` backs `jac test`. The key modules:
 
-- **`builtin.jac`** -- Builtin functions and types available in every Jac program.
-- **`memory.jac`** -- Memory management, including the shelved object store for graph persistence.
-- **`server.jac`** -- FastAPI-based HTTP server used by `jac run` to serve walkers as API endpoints.
-- **`context.jac`** -- Execution context -- tracks the current graph root, walker state, and runtime configuration.
-- **`scheduler.jac`** -- Async task scheduling for concurrent walker execution.
-- **`testing.jac`** -- Test runner integration backing `jac test`.
-- **`hmr.jac`** -- Hot module reloading -- watches `.jac` files and recompiles on change during development.
+- **`runtime/builtin.jac`** -- Builtin functions and types available in every Jac program.
+- **`runtime/context.jac`** -- Execution context -- tracks the current graph root, walker state, and runtime configuration.
+- **`server/server.jac`** -- FastAPI-based HTTP server used by `jac run` to serve walkers as API endpoints.
+- **`server/task_scheduler.jac`** -- Async task scheduling for concurrent walker execution.
+- **`server/hmr.jac`** -- Hot module reloading -- watches `.jac` files and recompiles on change during development.
+- **`data/store.jac`** -- The anchor store behind graph persistence.
+- **`testing/test_runner.jac`** -- Test runner integration backing `jac test`.
 
-### `lsp/` and `langserve/`
+Two sibling areas round out the picture: `client/` holds the client toolchain and browser runtime sources (JS compilation output plumbing, bundling, PWA/desktop hosting), and `dist/` holds distribution machinery (the sealer, fused binaries, payload and publish tooling).
 
-These two modules power IDE support. `lsp/` implements the Language Server Protocol (completions, diagnostics, go-to-definition, hover). `langserve/` is the engine underneath -- it manages open modules, coordinates incremental recompilation, and feeds semantic data to the LSP layer. If you're working on IDE features, you'll usually start in `lsp/` for the protocol handling and drop into `langserve/` for the semantic logic.
+### `lsp/`
+
+This module powers IDE support, in two halves. `lsp/protocol/` implements the Language Server Protocol surface (message types, URIs, the protocol server). `lsp/server/` is the engine underneath -- it manages open modules, coordinates incremental recompilation, and feeds semantic data to the protocol layer (completions, diagnostics, go-to-definition, hover). If you're working on IDE features, you'll usually start in `lsp/protocol/` for the protocol handling and drop into `lsp/server/` for the semantic logic.
 
 ### `project/`
 
@@ -192,10 +196,13 @@ Tests are organized in a parallel directory structure under `jac/tests/`, mirror
 
 ```
 tests/
-├── compiler/          # Compiler pass tests
-│   └── passes/        # Tests for individual passes
+├── compiler/          # Compiler tests
+│   ├── passes/        # Tests for individual passes
+│   ├── backends/      # Backend tests (native, es)
+│   └── tools/         # Formatter/linter/tooling tests
 ├── language/          # Language feature tests (fixture-based)
-├── runtimelib/        # Runtime library tests
+├── runtimelib/        # Runtime-area tests
+├── client/            # Client toolchain tests
 ├── langserve/         # Language server tests
 ├── project/           # Project system tests
 ├── utils/             # Utility tests

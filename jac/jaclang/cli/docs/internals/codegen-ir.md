@@ -495,8 +495,9 @@ assumed away.
 
 ## 11. Module placement
 
-- `compiler/backends/py/codegen_ir.jac`: the format module sits in jac0core beside
-  `jir.jac`, its container sibling, because it is a leaf (imports only
+- `compiler/backends/py/codegen_ir.jac`: the format module is
+  bootstrap-tier (covered by `bootstrap_manifest.py`) like `jir.jac`, its
+  container sibling in `compiler/driver/`, because it is a leaf (imports only
   `struct`/`sys`), both lanes need it (the seal-time emitter generator
   consumes the same constants), and the consumer must load in the runtime
   core without the full compiler.
@@ -509,7 +510,9 @@ assumed away.
   function it cannot be waived (section 10). `codegen_ir` keeps
   `read_container`, which does lower, so the writer and the container
   reader both reach zero seams.
-- One bootstrap-dialect note: jac0core is compiled by the jac0 bootstrap,
+- One bootstrap-dialect note: the bootstrap tier (the seed modules
+  declared in `bootstrap_manifest.py`, the shim included) is compiled by
+  the jac0 bootstrap,
   which has no `**kwargs` call splat, so the shim builds its single
   keyword-apply trampoline through one `eval` of a two-argument lambda at
   first use. The generated native transcriber has no such constraint (it

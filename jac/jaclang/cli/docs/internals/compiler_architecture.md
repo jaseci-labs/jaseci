@@ -304,13 +304,13 @@ and emit target code. The contract (tracked in jaseci-labs/jaseci#6542):
 | OSP archetype kind / event triggers | checker + unitree getters | `Archetype.arch_kind`, `Ability.event_triggers`, `Ability.event_trigger_type_names()` |
 | Closure captures | scope tables | `UniScopeNode.get_enclosing_captures`, `LambdaExpr.captures` |
 | Class hierarchy, MRO, vtable need | `LayoutPass` / `LayoutRegistry` | `get_layout_registry(module)` queries (no copies) |
-| Result ownership (+1 transfer) | `compiler/ownership.jac` | `result_ownership(expr)`, applied at one emission seam |
-| Borrowed-param promotion | `compiler/ownership.jac` | `param_plainly_rebound(sym)`, entry-block retain |
-| Loop-exit release lists | `compiler/ownership.jac` | `loop_body_locals(body)` |
+| Result ownership (+1 transfer) | `compiler/passes/rc_facts_pass.jac` | `result_ownership(expr)`, applied at one emission seam |
+| Borrowed-param promotion | `compiler/passes/rc_facts_pass.jac` | `Symbol.param_rebound` stamp, entry-block retain |
+| Loop-exit release lists | `compiler/passes/rc_facts_pass.jac` | `loop_body_locals(body)` |
 | Capability / portability | `capability_check_pass.jac` | declarative disqualifier + stdlib + explicit-native rejection tables, `native_capability_violations(mod)` pre-codegen sweep, W6001-W6004 |
 | Foreign declarations (clib surface) | `compiler/backends/native/foreign.jac` | `collect_foreign_structs/fns`, `foreign_struct_layout` (declared names in, layouts out) |
 | Foreign ABI classification + call plans | `compiler/backends/native/abi.jac` | `classify_struct(...)`, `classify_foreign_fn(...)` (pure, unit-tested) |
-| Codegen-time expression-type reads | `type_system/type_utils.jac` | `expr_primitive_name(prog, expr)`: stamp when present, lazy authority query otherwise |
+| Codegen-time expression-type reads | `compiler/types/type_utils.jac` | `expr_primitive_name(prog, expr)`: stamp when present, lazy authority query otherwise |
 
 What stays per-backend by design: target IR construction and emission,
 runtime libraries, backend-idiomatic lowering choices, emitter-created
@@ -588,7 +588,7 @@ skipped when nothing has changed.
 
 | Cache | Location | Invalidated when |
 |-------|----------|------------------|
-| **Bootstrap** | `~/.cache/jac/jir/bootstrap/` | A `jac0core/` file or `jac0.py` changes |
+| **Bootstrap** | `~/.cache/jac/jir/bootstrap/` | A bootstrap-tier module (declared in `jaclang/bootstrap_manifest.py`) or `jac0.py` changes |
 | **Module** | `~/.cache/jac/jir/modules/` | The full compiler's output format changes, or the source / its imports change |
 
 Each cache entry is a **JIR file** (Jac IR) with named sections defined in

@@ -71,7 +71,7 @@ about heap objects:
   value with no ownership state.
 - Flow-sensitivity is per-function CFG dataflow over those symbol ids (the
   `in_consumed` / live-borrow sets), solved on the compiler's shared worklist
-  framework (`passes/main/dataflow.jac`). Branches merge conservatively:
+  framework (`passes/dataflow.jac`). Branches merge conservatively:
   consumed on *some* path means consumed at the join.
 
 **3. Facts once, consumed everywhere.** The analysis is computed exactly once

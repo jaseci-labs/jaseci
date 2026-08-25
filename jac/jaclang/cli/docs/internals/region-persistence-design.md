@@ -14,14 +14,14 @@ into the anchor store as a **storage segment** and load it back.
   the handle and promotes the subgraph into the managed world. Pages
   stay live, teardown never runs. The seal is the membrane: after it,
   the subgraph traverses from the anchor like any managed graph.
-- **The anchor store** (`runtimelib/memory.jac`,
-  `runtimelib/impl/memory.impl.jac`): SQLite rows
+- **The anchor store** (`data/store.jac`,
+  `data/impl/store.impl.jac`): SQLite rows
   `anchors(id, type, arch_module, arch_type, fingerprint, data,
   format_version, updated_at)` plus a graph index
   (`graph_edges(edge_id, src, dst, edge_type, undirected)`,
   `graph_types`) that is the traversal contract (`hop_rows`,
   `edge_endpoints`, `node_pages`). Writes go through changesets
-  (`runtimelib/changeset.jac`: `WriteOp.NODE_CREATE`, `EDGE_CREATE`,
+  (`WriteOp.NODE_CREATE`, `EDGE_CREATE`,
   `FIELD_UPDATE`, ... with `cas_version`).
 - **Persistence by reachability** (`docs/reference/persistence.md`):
   what `root` reaches persists. A sealed subgraph becomes reachable

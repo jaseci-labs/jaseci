@@ -97,7 +97,7 @@ across all packages. The *shape* of the library, however, varies.
 ### Core Jac (`jac/jaclang/`)
 
 The user-facing entry point is
-[`jaclang/lib.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/lib.jac),
+[`jaclang/lib/__init__.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/lib/__init__.jac),
 which re-exports everything from
 [`lib/jaclib.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/lib/jaclib.jac).
 The consolidated `__all__` covers:
@@ -126,14 +126,13 @@ exposes its own `__all__` under the `jaclang.byllm` namespace:
 
 [`jaclang/scale/persistence/pg.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/scale/persistence/pg.jac)
 is intentionally minimal -- the shared Postgres store accessor
-(`shared_store()` / `scale_db_url()`). The substantive abstractions live in
-[`jaclang/scale/abstractions/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/scale/abstractions)
-as interface contracts:
+(`shared_store()` / `scale_db_url()`). The substantive abstractions live
+across the scale tree as interface contracts:
 
-- `deployment_target.jac` -- deployment abstraction
-- `logger.jac` -- logging abstraction
-- `metrics.jac` -- metrics interface
-- `models/` -- `deployment_result.jac`, `resource_status.jac`
+- [`deploy/target/deployment_target.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/scale/deploy/target/deployment_target.jac) -- deployment abstraction
+- [`observability/logger.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/scale/observability/logger.jac) -- logging abstraction
+- [`observability/metrics.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/scale/observability/metrics.jac) -- metrics interface
+- [`models/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/scale/models) -- `deployment_result.jac`, `resource_status.jac`
 
 ### Client framework (`jac/jaclang/client/`, formerly the `jac-client` plugin)
 
@@ -174,7 +173,7 @@ holds everywhere, but the four library packages do not share a common shape:
 |---|---|---|
 | `jaclang` | yes | single consolidated `__all__` re-exporting `lib/jaclib.jac` |
 | `jaclang.byllm` | yes | own `__all__` in own namespace |
-| `jaclang.scale` | yes (minimal) | `persistence/pg.jac` exposes only the shared store accessor; substantive abstractions in `abstractions/` directory |
+| `jaclang.scale` | yes (minimal) | `persistence/pg.jac` exposes only the shared store accessor; substantive abstractions in `deploy/target/`, `observability/`, and `models/` |
 | `jaclang.client` | no | built into core; no curated re-export |
 | `mcp` (`jaclang.cli.mcp`) | no | built into core; no curated re-export |
 
