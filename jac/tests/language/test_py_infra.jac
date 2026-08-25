@@ -55,8 +55,7 @@ test "pyfunc 1" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -78,8 +77,7 @@ test "pyfunc 2" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -99,8 +97,7 @@ test "pyfunc 3" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -120,8 +117,7 @@ test "pyfunc binop" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -157,8 +153,7 @@ test "py2jac" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -178,8 +173,7 @@ test "py2jac metaclass" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -198,8 +192,7 @@ test "py2jac params" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -221,8 +214,7 @@ test "py2jac empty file" {
         converted_ast = PyastBuildPass(
             ir_in=uni.PythonModuleAst(
                 py_ast.parse(file_source), orig_src=uni.Source(file_source, py_out_path)
-            ),
-            prog=JacProgram()
+            )
         ).ir_out;
     }
     assert isinstance(converted_ast, uni.Module);
@@ -238,8 +230,7 @@ test "py2jac augassign and doc" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -257,8 +248,7 @@ test "py2jac reassign semantics" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -300,8 +290,7 @@ test "py namedexpr" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -318,8 +307,7 @@ test "py bool parentheses" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }

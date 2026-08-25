@@ -68,8 +68,7 @@ test "str2doc" {
         PyastBuildPass(
             ir_in=PythonModuleAst(
                 py_ast.parse(file_source), orig_src=Source(file_source, "str2doc.py")
-            ),
-            prog=JacProgram()
+            )
         ).ir_out
     );
     assert '"""This is a test function."""\ndef foo()' in code;
@@ -87,8 +86,7 @@ test "fstring triple quotes" {
             ir_in=PythonModuleAst(
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_fstrings.py")
-            ),
-            prog=JacProgram()
+            )
         ).ir_out
     );
     assert 'f"""Hello\n{name}"""' in code;
@@ -106,8 +104,7 @@ test "py2jac escape sequences" {
             ir_in=PythonModuleAst(
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_escape_sequences.py")
-            ),
-            prog=JacProgram()
+            )
         ).ir_out
     );
 
@@ -140,8 +137,7 @@ test "py2jac named unicode escape stays loud" {
             ir_in=PythonModuleAst(
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_named_unicode.py")
-            ),
-            prog=JacProgram()
+            )
         ).ir_out,
         requires_format=False
     );
@@ -173,8 +169,7 @@ test "py2jac line continuation string concat" {
             ir_in=PythonModuleAst(
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_line_continuation.py")
-            ),
-            prog=JacProgram()
+            )
         ).ir_out,
         requires_format=False
     );
@@ -209,8 +204,7 @@ test "py2jac binop operator precedence" {
             ir_in=PythonModuleAst(
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_binop.py")
-            ),
-            prog=JacProgram()
+            )
         ).ir_out
     );
 

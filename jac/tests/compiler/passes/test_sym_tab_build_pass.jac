@@ -131,7 +131,7 @@ Always = "always_available"
     py_ast_node = py_ast.parse(code);
 
     mod = PyastBuildPass(
-        ir_in=uni.PythonModuleAst(py_ast_node, orig_src=source), prog=prog
+        ir_in=uni.PythonModuleAst(py_ast_node, orig_src=source)
     ).ir_out;
 
     run_pass(SymTabBuildPass, mod, prog);
@@ -170,7 +170,7 @@ if sys.version_info >= (3, 15):
     source = uni.Source(code, "test_stub_module.py");
     py_ast_node = py_ast.parse(code);
     mod = PyastBuildPass(
-        ir_in=uni.PythonModuleAst(py_ast_node, orig_src=source), prog=prog
+        ir_in=uni.PythonModuleAst(py_ast_node, orig_src=source)
     ).ir_out;
     run_pass(SymTabBuildPass, mod, prog);
 
@@ -208,7 +208,7 @@ class C:
     source = uni.Source(code, "test_guarded_class.py");
     py_ast_node = py_ast.parse(code);
     mod = PyastBuildPass(
-        ir_in=uni.PythonModuleAst(py_ast_node, orig_src=source), prog=prog
+        ir_in=uni.PythonModuleAst(py_ast_node, orig_src=source)
     ).ir_out;
     run_pass(SymTabBuildPass, mod, prog);
 

@@ -55,14 +55,11 @@ glob MICRO_JAC_FILES: list[str] = [
          "jaclang/__init__.py",
          "jaclang/__main__.py",
          "jaclang/compiler/__init__.py",
-         "jaclang/compiler/passes/__init__.py",
          "jaclang/compiler/backends/es/__init__.py",
-         "jaclang/compiler/passes/__init__.py",
-         "jaclang/compiler/tools/__init__.py",
-         "jaclang/compiler/types/__init__.py",
-         "jaclang/meta_importer.py",
-         "jaclang/jac0core/__init__.py",
+         "jaclang/compiler/backends/native/__init__.py",
          "jaclang/compiler/passes/__init__.py",
          "jaclang/compiler/passes/ast_gen/__init__.py",
-         "jaclang/dist/__init__.py"
+         "jaclang/compiler/types/__init__.py",
+         "jaclang/meta_importer.py",
+         "jaclang/jac0core/__init__.py"
      ];

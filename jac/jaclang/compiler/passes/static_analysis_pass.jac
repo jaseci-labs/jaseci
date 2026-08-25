@@ -236,13 +236,17 @@ glob BUILTIN_NAMES: set[str] = {
      };
 
 def is_bootstrap_compiled_module(mod_path: str) -> bool {
+    import from jaclang.bootstrap_manifest { is_seed_source }
     norm = mod_path.replace("\\", "/");
-    return (
-        norm.startswith(("jaclang/compiler/", "jaclang/runtime/", "jaclang/lib/"))
-        or "/jaclang/compiler/" in norm
-        or "/jaclang/runtime/" in norm
-        or "/jaclang/lib/" in norm
-    );
+    if norm.startswith("jaclang/") {
+        return is_seed_source(norm[len("jaclang/"):]);
+    }
+    marker = "/jaclang/";
+    idx = norm.rfind(marker);
+    if idx < 0 {
+        return False;
+    }
+    return is_seed_source(norm[idx + len(marker):]);
 }
 
 def is_ambient_provider_module(mod_path: str) -> bool {

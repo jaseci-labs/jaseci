@@ -23,8 +23,7 @@ def pyfile_parse_test(rel_path: str) {
     py_module = PyastBuildPass(
         ir_in=ast.PythonModuleAst(
             py_ast.parse(source), orig_src=ast.Source(source, filename)
-        ),
-        prog=JacProgram()
+        )
     ).ir_out;
 
     assert isinstance(py_module, ast.Module);

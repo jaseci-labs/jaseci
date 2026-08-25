@@ -353,8 +353,7 @@ test "version-condition comparisons match the operator table they replaced" {
     mod = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(code), orig_src=Source(code, "test_version_ops.py")
-        ),
-        prog=prog
+        )
     ).ir_out;
     got = [
         evaluate_version_condition(nd.condition)
