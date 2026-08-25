@@ -176,7 +176,7 @@ Give each test its own `base_path` to keep persisted graphs isolated. Also avail
 
 ## See also
 
-- `jac-debugging` - the check/fix loop, stale-cache triage (`jac clean` vs `jac purge`)
+- `jac-debugging` - the check/fix loop, stale-cache triage (`jac clean` scopes vs the global `~/.cache/jac`)
 - `jac-config` - `[test]` defaults, `[scripts]` (`test = "jac test -v"`)
 - `jac-walker-patterns` - report/reports semantics being asserted here
 

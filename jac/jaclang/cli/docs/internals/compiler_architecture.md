@@ -97,7 +97,7 @@ the interop boundaries become a compiler concern instead of a developer one.
 
 ```mermaid
 graph TD
-    SRC[".jac source<br/>(.jac / .jac)"] --> PARSE[Parser<br/>compiler/frontend/parser]
+    SRC[".jac source<br/>(.jac / .jac)"] --> PARSE[Parser<br/>compiler/driver/parser]
     PARSE --> UNI["UniTree (unified AST)<br/>compiler/frontend/unitree.jac"]
     UNI --> COERCE["Codespace Coercion<br/>_coerce_*_module"]
     COERCE --> FRONTEND[Shared Frontend Passes]
@@ -110,11 +110,12 @@ graph TD
         FE5[SemDefMatchPass]
         FE6[CFGBuildPass]
         FE7[MTIRGenPass]
-        FE8[CapabilityCheckPass]
+        FE8[JsxIntrinsicGuardPass]
+        FE9[PlacementApplyPass]
     end
 
-    FRONTEND --> FE1 --> FE2 --> FE3 --> FE4 --> FE5 --> FE6 --> FE7 --> FE8
-    FE8 --> TYPECK["Type Check<br/>TypeCheckPass / StaticAnalysisPass / PortabilityWarnPass"]
+    FRONTEND --> FE1 --> FE2 --> FE3 --> FE4 --> FE5 --> FE6 --> FE7 --> FE8 --> FE9
+    FE9 --> TYPECK["Analysis (unconditional)<br/>TypeCheckPass / StaticAnalysisPass / AccessCheckPass / OwnershipCheckPass /<br/>NativeCapabilityCheckPass / ClientCapabilityCheckPass / PortabilityWarnPass / JacLintCheckPass"]
     TYPECK --> INTEROP["BoundaryAnalysisPass<br/>(boundary discovery)"]
     INTEROP --> SV[JcirGenPass + JcirBytecodeGenPass]
     INTEROP --> CL[EsastGenPass]
@@ -125,7 +126,7 @@ graph TD
     NA --> NAOUT[".o / ELF / Mach-O"]
 ```
 
-The orchestration lives in [`compiler/driver/compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/compiler.jac).
+The orchestration lives in [`compiler/driver/schedules.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/schedules.jac).
 Each named "schedule" function returns a list of `Transform[uni.Module, uni.Module]`
 classes to run, and the `JacCompiler.compile` method walks them in order.
 
@@ -147,6 +148,33 @@ The bootstrap compiler (`jac0.py`) and the full compiler share this front end
 verbatim -- see [Abstractions Inventory](abstractions.md) for the full keyword
 table.
 
+### The sealed native front end (the default route)
+
+On a sealed image the front end does not run as staged bytecode passes:
+`parse_with_prefix`
+([`compiler/placement/prefix_flip.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/placement/prefix_flip.jac))
+crosses into the **natively compiled** parser-and-early-passes artifact and
+is the **default** compile route. The crossing covers parsing plus the head
+of the ir-gen schedule -- `ASTValidationPass`, `SymTabBuildPass`,
+`DeclImplMatchPass`, `SemanticAnalysisPass`, `SemDefMatchPass`,
+`CFGBuildPass`, and `JsxIntrinsicGuardPass` for no-codegen shapes -- and the
+driver then **trims the executed head off the staged schedule**, so each
+pass still runs exactly once.
+
+The flip is per-module and fails soft: a module the prefix cannot serve
+falls back to the staged route under one of the named decline clauses in
+`PREFIX_CLAUSES` (`disabled-by-env`, `image-unsealed`,
+`prefix-entry-absent`, `artifact-bind-failure`, `source-kind-unsupported`,
+`option-shape-unsupported`, `annex-present`, `codespace-pinned`,
+`absorbed-mod-present`, `prefix-declined`, `crossing-error`,
+`parity-guard-trip`). Environment surfaces: `JAC_PREFIX=off` forces the
+staged route for the whole process, `JAC_PREFIX_REPORT=1` prints a
+per-module admit/fallback report with the clause for each fallback, and
+`JAC_PREFIX_STRICT=1` turns loud fallbacks into failures. Analysis and
+codegen always stay staged -- the prefix only replaces the parse-and-early
+head. Dev trees without a seal always take the staged route (which is also
+the bootstrap that builds the seal).
+
 ---
 
 ## Stage 2: Codespace Coercion
@@ -158,7 +186,7 @@ verdict. Every other plain `.jac` module goes through placement inference
 instead.
 
 The coercion helpers live in
-[`compiler.jac:_coerce_module`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/compiler.jac#L250)
+[`compiler.jac:_coerce_module`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/schedules.jac#L250)
 and two wrappers around it:
 
 | Helper | Triggered by | What it does |
@@ -233,8 +261,10 @@ through the interop stubs.
 ## Stage 3: Shared Frontend Analysis
 
 These passes run regardless of codespace and are collected by
-`get_ir_gen_sched` and `get_type_check_sched` in
-[`compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/compiler.jac#L42).
+`get_ir_gen_sched` and `get_analysis_sched` in
+[`compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/schedules.jac#L42).
+
+The ir-gen schedule (`get_ir_gen_sched`):
 
 | Pass | Source | Role |
 |------|--------|------|
@@ -244,14 +274,33 @@ These passes run regardless of codespace and are collected by
 | `SemanticAnalysisPass` | [`compiler/passes/semantic_analysis_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/semantic_analysis_pass.jac) | Name resolution, scope analysis |
 | `SemDefMatchPass` | [`compiler/passes/sem_def_match_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/sem_def_match_pass.jac) | Matches `sem` blocks to definitions for `by llm` |
 | `CFGBuildPass` | [`compiler/passes/cfg_build_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/cfg_build_pass.jac) | Builds control-flow graphs |
-| `MTIRGenPass` | [`compiler/passes/mtir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/mtir_gen_pass.jac) | Generates Meaning-Typed IR for `by llm` calls |
-| `CapabilityCheckPass` | [`compiler/passes/capability_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/capability_check_pass.jac) | Stamps capability/portability facts (native-lowering eligibility for the placement verdict) on module nodes |
+| `MTIRGenPass` | [`compiler/passes/mtir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/mtir_gen_pass.jac) | Generates Meaning-Typed IR for `by llm` calls (scheduled unless MTIR generation is off) |
+| `JsxIntrinsicGuardPass` | [`compiler/passes/jsx_intrinsic_guard_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/jsx_intrinsic_guard_pass.jac) | Rejects raw HTML host tags per the project's client kind (`E1105`) |
 | `PlacementApplyPass` | [`compiler/placement/placement_solver.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/placement/placement_solver.jac) | Applies the placement solver's per-module stage: summary-driven seeding plus the CLIENT/NATIVE reference fixpoint (see Stage 2) |
+
+The analysis schedule (`get_analysis_sched`) -- **unconditional**, appended
+on every compile:
+
+| Pass | Source | Role |
+|------|--------|------|
 | `TypeCheckPass` | [`compiler/passes/type_checker_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/type_checker_pass.jac) | Static type checking against the type registry |
-| `PortabilityWarnPass` | [`compiler/passes/capability_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/capability_check_pass.jac) | Emits portability warnings (W6001-W6004) for JS-idiom violations; diagnostic-only, runs in the check-extras schedule |
+| `StaticAnalysisPass` | [`compiler/passes/static_analysis_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/static_analysis_pass.jac) | Unreachable code, unused variables, import refusals (`E1122`-`E1125`) |
+| `AccessCheckPass` | [`compiler/passes/access_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/access_check_pass.jac) | Access-modifier (`:pub`/`:protect`/`:priv`) enforcement |
+| `OwnershipCheckPass` | [`compiler/passes/ownership_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/ownership_check_pass.jac) | Ownership and borrow analysis (see the [Ownership Fact Schema](ownership-checker-spec.md)) |
+| `NativeCapabilityCheckPass` | [`compiler/passes/capability_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/capability_check_pass.jac) | Stamps native capability facts (native-lowering eligibility for the placement verdict) on module nodes |
+| `ClientCapabilityCheckPass` | [`compiler/passes/capability_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/capability_check_pass.jac) | Stamps client capability facts on module nodes |
+| `PortabilityWarnPass` | [`compiler/passes/capability_check_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/capability_check_pass.jac) | Emits portability warnings (W6001-W6004) for JS-idiom violations; diagnostic-only |
+| `JacLintCheckPass` | [`compiler/tools/jac_auto_lint_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/tools/jac_auto_lint_pass.jac) | Lint rules (W3xxx / E3xxx) |
+
+Type checking is not a mode: there is no gate on the analysis schedule, no
+`CompileOptions` flag or `jac.toml` key to turn it off, and the only way to
+stop a compile before analysis is `--parse_only`. Because type inference is
+on every compile's critical path, `get_analysis_sched` calls
+`require_typeshed_stubs()` first -- a missing vendored typeshed tree raises
+`TypeshedUnavailableError` rather than degrading to an unchecked compile.
 
 The pipeline uses a **re-entrancy guard** (`_ir_sched_loading`,
-`_codegen_sched_loading`, `_typecheck_sched_loading`) so that compiling the
+`_codegen_sched_loading`, `_analysis_sched_loading`) so that compiling the
 compiler's own pass modules degrades gracefully to the bootstrap subset
 instead of recursing forever.
 
@@ -304,13 +353,13 @@ and emit target code. The contract (tracked in jaseci-labs/jaseci#6542):
 | OSP archetype kind / event triggers | checker + unitree getters | `Archetype.arch_kind`, `Ability.event_triggers`, `Ability.event_trigger_type_names()` |
 | Closure captures | scope tables | `UniScopeNode.get_enclosing_captures`, `LambdaExpr.captures` |
 | Class hierarchy, MRO, vtable need | `LayoutPass` / `LayoutRegistry` | `get_layout_registry(module)` queries (no copies) |
-| Result ownership (+1 transfer) | `compiler/passes/rc_facts_pass.jac` | `result_ownership(expr)`, applied at one emission seam |
-| Borrowed-param promotion | `compiler/passes/rc_facts_pass.jac` | `Symbol.param_rebound` stamp, entry-block retain |
-| Loop-exit release lists | `compiler/passes/rc_facts_pass.jac` | `loop_body_locals(body)` |
+| Result ownership (+1 transfer) | `compiler/ownership.jac` | `result_ownership(expr)`, applied at one emission seam |
+| Borrowed-param promotion | `compiler/ownership.jac` | `param_plainly_rebound(sym)`, entry-block retain |
+| Loop-exit release lists | `compiler/ownership.jac` | `loop_body_locals(body)` |
 | Capability / portability | `capability_check_pass.jac` | declarative disqualifier + stdlib + explicit-native rejection tables, `native_capability_violations(mod)` pre-codegen sweep, W6001-W6004 |
-| Foreign declarations (clib surface) | `compiler/backends/native/foreign.jac` | `collect_foreign_structs/fns`, `foreign_struct_layout` (declared names in, layouts out) |
-| Foreign ABI classification + call plans | `compiler/backends/native/abi.jac` | `classify_struct(...)`, `classify_foreign_fn(...)` (pure, unit-tested) |
-| Codegen-time expression-type reads | `compiler/types/type_utils.jac` | `expr_primitive_name(prog, expr)`: stamp when present, lazy authority query otherwise |
+| Foreign declarations (clib surface) | `compiler/targets/foreign.jac` | `collect_foreign_structs/fns`, `foreign_struct_layout` (declared names in, layouts out) |
+| Foreign ABI classification + call plans | `compiler/targets/abi.jac` | `classify_struct(...)`, `classify_foreign_fn(...)` (pure, unit-tested) |
+| Codegen-time expression-type reads | `types/type_utils.jac` | `expr_primitive_name(prog, expr)`: stamp when present, lazy authority query otherwise |
 
 What stays per-backend by design: target IR construction and emission,
 runtime libraries, backend-idiomatic lowering choices, emitter-created
@@ -380,7 +429,7 @@ direct native symbol reference for `na → na`.
 ## Stage 5: Backend Code Generation
 
 `get_py_code_gen` returns the codegen schedule. All three backends share a
-common base class -- [`ModuleCodegenPass`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/module_codegen_pass.jac)
+common base class -- [`ModuleCodegenPass`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/module_codegen_pass.jac)
 (or `BaseAstGenPass` for AST-emitting passes) -- and **each pass only emits
 nodes whose `code_context` matches its target**. A node tagged `CLIENT` is
 invisible to the Python codegen and vice versa.
@@ -389,14 +438,14 @@ invisible to the Python codegen and vice versa.
 
 | Pass | Source | Output |
 |------|--------|--------|
-| `JcirGenPass` | [`compiler/backends/py/jcir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/jcir_gen_pass.jac) (+ [impl](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/impl/jcir_gen_pass.impl.jac)) | The compact codegen IR container (`module.gen.jcir`) |
-| `JcirBytecodeGenPass` | [`compiler/backends/py/jcir_bc_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/jcir_bc_gen_pass.jac) (+ [impl](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/impl/jcir_bc_gen_pass.impl.jac)) | Python `ast.Module`, unparsed source, and `types.CodeType` via `compile()` |
+| `JcirGenPass` | [`compiler/passes/jcir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/jcir_gen_pass.jac) (+ [impl](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/impl/jcir_gen_pass.impl.jac)) | The compact codegen IR container (`module.gen.jcir`) |
+| `JcirBytecodeGenPass` | [`compiler/passes/jcir_bc_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/jcir_bc_gen_pass.jac) (+ [impl](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/impl/jcir_bc_gen_pass.impl.jac)) | Python `ast.Module`, unparsed source, and `types.CodeType` via `compile()` |
 
 `JcirGenPass` makes every lowering decision -- it just writes container
 opcodes instead of building `ast` objects directly. The container format is
-declared in [`compiler/backends/py/codegen_ir.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/codegen_ir.jac);
+declared in [`compiler/driver/codegen_ir.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/codegen_ir.jac);
 `JcirBytecodeGenPass` is a thin seat over `transcribe` and `compile_ir` in
-[`compiler/backends/py/codegen_shim.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/codegen_shim.jac),
+[`compiler/driver/codegen_shim.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/codegen_shim.jac),
 which rebuild the Python AST, source, and code object from the container
 bytes.
 
@@ -451,7 +500,7 @@ browser handles all rendering.
 
 | Pass | Source | Output |
 |------|--------|--------|
-| `NaIRGenPass` | [`compiler/backends/native/na_ir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/native/na_ir_gen_pass.jac) | LLVM IR (`llvmlite.ir.Module`) |
+| `NaIRGenPass` | [`compiler/backends/native/na_ir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/native/na_ir_gen_pass.jac) | LLVM IR, built with the in-tree binding at [`compiler/backends/native/llvm/`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/native/llvm) over the `libjacllvm` shared library (llvmlite is not used) |
 | `NativeCompilePass` | [`compiler/backends/native/na_compile_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/native/na_compile_pass.jac) | Object code (ELF or Mach-O) |
 
 `NaIRGenPass` is unusual in that it does **not** use the visitor pattern;
@@ -482,8 +531,7 @@ closure carries the parser, lexer and `unitree` -- and
 `_precompiled/native/<triple>/libjac_native_materialize.*` /
 `libjac_unitree.*`, alongside persisted `NativeModuleLayout` JSON. The
 materializer is native jac, generated at seal time from the unitree
-layout by `jaclang/dist/gen_native_materialize.jac` (the generated
-output is never checked in),
+layout by `jaclang/dist/gen_native_materialize.jac` (never checked in),
 with per-class emitters that rebuild the parsed tree as
 real Python `unitree` objects through CPython C-API clib externs resolved
 from the host process (ELF lazy PLT / Mach-O flat lookup), feeding the
@@ -493,7 +541,7 @@ closed on mismatch, and the `native` record ({roots, skip_reason}) is the
 build's own statement of what it sealed, which `load_image` enforces at
 startup -- a jaclang image that cannot serve its declared roots on this
 host refuses to load. A sealed runtime binds the library with plain ctypes
-(`runtime/native_dylib.jac`) at startup -- no LLVM on the boot path, the
+(`compiler/driver/native_dylib.jac`) at startup -- no LLVM on the boot path, the
 materializer entries GIL-held via PYFUNCTYPE -- and `parse()` serves
 natively with no bytecode fallback: artifact damage raises rather than
 degrading. Dev trees without a seal parse on the bytecode tier, which is
@@ -548,7 +596,7 @@ semantics come from CPython directly.
 
 If a backend hasn't implemented an operation, the emitter returns `None`
 and the compiler raises a diagnostic at compile time -- see the diagnostic
-codes in [`compiler/frontend/diagnostics.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/diagnostics.jac).
+codes in [`compiler/driver/diagnostics.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/diagnostics.jac).
 
 The full list of primitives and operators per type lives in the
 user-facing reference, [Primitives & Codespace Semantics](../reference/language/primitives.md).
@@ -588,7 +636,7 @@ skipped when nothing has changed.
 
 | Cache | Location | Invalidated when |
 |-------|----------|------------------|
-| **Bootstrap** | `~/.cache/jac/jir/bootstrap/` | A bootstrap-tier module (declared in `jaclang/bootstrap_manifest.py`) or `jac0.py` changes |
+| **Bootstrap** | `~/.cache/jac/jir/bootstrap/` | A `compiler/driver/` file or `jac0.py` changes |
 | **Module** | `~/.cache/jac/jir/modules/` | The full compiler's output format changes, or the source / its imports change |
 
 Each cache entry is a **JIR file** (Jac IR) with named sections defined in
@@ -637,7 +685,7 @@ A short index, organised by the role each file plays in the pipeline.
 
 **Orchestration**
 
-- [`compiler/driver/compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/compiler.jac)
+- [`compiler/driver/schedules.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/schedules.jac)
   -- `JacCompiler`, schedule functions, codespace coercion
 - [`compiler/driver/program.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/program.jac)
   -- `JacProgram`, the module hub passes operate on
@@ -648,7 +696,7 @@ A short index, organised by the role each file plays in the pipeline.
 
 **Shared front end**
 
-- [`compiler/frontend/parser/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/compiler/frontend/parser)
+- [`compiler/frontend/parser/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/compiler/driver/parser)
   -- tokens and grammar
 - [`compiler/frontend/unitree.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/unitree.jac)
   -- UniTree AST nodes (`jac tool autodoc_uninode` prints the full catalogue)
@@ -659,13 +707,13 @@ A short index, organised by the role each file plays in the pipeline.
 
 **Server backend**
 
-- [`compiler/backends/py/jcir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/jcir_gen_pass.jac)
-  / [impl](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/impl/jcir_gen_pass.impl.jac)
-- [`compiler/backends/py/jcir_bc_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/jcir_bc_gen_pass.jac)
-  / [impl](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/impl/jcir_bc_gen_pass.impl.jac)
-- [`compiler/backends/py/codegen_ir.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/codegen_ir.jac)
+- [`compiler/passes/jcir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/jcir_gen_pass.jac)
+  / [impl](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/impl/jcir_gen_pass.impl.jac)
+- [`compiler/passes/jcir_bc_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/jcir_bc_gen_pass.jac)
+  / [impl](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/impl/jcir_bc_gen_pass.impl.jac)
+- [`compiler/driver/codegen_ir.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/codegen_ir.jac)
   -- the container format
-- [`compiler/backends/py/codegen_shim.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/codegen_shim.jac)
+- [`compiler/driver/codegen_shim.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/codegen_shim.jac)
   -- `transcribe` / `compile_ir`
 - [`compiler/backends/es/primitives_es.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/es/primitives_es.jac) and [`compiler/backends/native/primitives_native.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/native/primitives_native.jac)
 - [`runtime/runtime.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac)
@@ -693,7 +741,7 @@ A short index, organised by the role each file plays in the pipeline.
 **Interop**
 
 - [`compiler/passes/boundary_analysis_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/boundary_analysis_pass.jac)
-- [`runtime/interop_bridge.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/interop_bridge.jac)
+- [`compiler/driver/interop_bridge.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/interop_bridge.jac)
 
 **Caching**
 

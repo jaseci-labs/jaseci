@@ -748,7 +748,7 @@ with entry {
 }
 ```
 
-Fixed-width types (`f64`, `i32`, `c_void`, etc.) are only needed inside the `import from` declaration to match the C function's ABI signature. Everywhere else -- your own functions, variables, call sites -- you use standard Jac types (`int`, `float`, `str`, etc.) and the compiler handles coercion automatically.
+Inside the `import from` declaration, the fixed-width types (`f64`, `i32`, `c_void`, etc.) describe the C function's ABI signature. They are not interop-only vocabulary, though: the sized scalars are ordinary Jac types on every lane, usable in your own functions, variables, and call sites alongside `int`, `float`, and `str`. Conversions are explicit -- value-preserving widenings like `float -> f64` happen implicitly (which is why the `float`-typed code above can call `sqrt(x: f64)` directly), but a lossy conversion is a checked cast `T(x)`, never a silent coercion (`E1127`). See [Types and Values](types-and-values.md#fixed-width-semantics) for the full contract.
 
 ### Platform-neutral library names
 
