@@ -1,7 +1,7 @@
 """The pass-tier tripwire: a sealed pass's bytecode body refuses to run.
 
-Sealing wave 1 put four compiler passes into `NATIVE_SEAL_ROOTS`, so a
-sealed image's manifest now claims their method bodies exist natively.
+The fused seal serves the compiler passes from `NATIVE_SEAL_SERVED_MODULES`,
+so a sealed image's manifest claims their method bodies exist natively.
 The parser already had the runtime half of that claim
 (`_require_bootstrap_tier`: reaching the bytecode parser inside a sealed
 image raises); these tests pin the pass equivalent,

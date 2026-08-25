@@ -301,17 +301,14 @@ test "the unit is clean enough to link, and the sealed roots link it" {
     );
     import from jaclang.dist.precompile_bytecode {
         NATIVE_SEAL_CLOSURE,
-        NATIVE_SEAL_DEMOTION_WAIVERS
+        NATIVE_SEAL_DEMOTION_WAIVERS,
+        NATIVE_SEAL_FUSED_ROOT
     }
     assert "compiler/passes/transform.jac" in NATIVE_SEAL_CLOSURE , (
-        "the roots link transform.jac but NATIVE_SEAL_CLOSURE does not "
-        "account for it"
+        "the fused root links transform.jac but NATIVE_SEAL_CLOSURE does "
+        "not account for it"
     );
-    # Checked against an ordinary consumer root rather than one of the
-    # chain's own members: `uni_pass.jac` and `module_codegen_pass.jac`
-    # resolve some of these on their own and carry reduced, measured sets,
-    # so they are the wrong place to ask whether the seam is accounted for.
-    ordinary = NATIVE_SEAL_DEMOTION_WAIVERS["compiler/passes/ast_validation_pass.jac"];
+    ordinary = NATIVE_SEAL_DEMOTION_WAIVERS[NATIVE_SEAL_FUSED_ROOT];
     for seam in TRANSFORM_SEAM_WAIVERS {
         assert f"compiler/passes/transform.jac::{seam}" in ordinary , (
             f"{seam} is demoted inside a unit the roots now link, and no "

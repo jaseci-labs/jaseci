@@ -71,15 +71,14 @@ def _build_binding -> tuple {
         return _ARTIFACT_MEMO[0];
     }
     out_dir = Path(tempfile.mkdtemp(prefix="jac_sealed_parser_"));
-    artifacts = seal_native_artifacts(
-        PKG_PATH,
-        out_dir,
-        modules=("compiler/frontend/unitree.jac", "compiler/native_materialize.jac", )
+    record = seal_native_artifacts(PKG_PATH, out_dir);
+    assert record is not None and record.get("artifact") , (
+        "seal_native_artifacts refused the fused root on this platform"
     );
-    assert artifacts , (
-        "seal_native_artifacts refused the materializer root on this platform"
+    assert "jaclang.compiler.native_materialize" in record["modules"] , (
+        "the fused seal does not serve the materializer"
     );
-    rec = artifacts["jaclang.compiler.native_materialize"];
+    rec = record["artifact"];
     lib_path = str(out_dir / rec["lib"]);
     layout_dict = json.loads((out_dir / rec["layout"]).read_text(encoding="utf-8"));
     # Serve the local artifact through the real seam and bind via the real

@@ -133,8 +133,8 @@ test "the claimed prefix is exactly the schedule's head" {
 }
 
 test "the claimed prefix stops at the first unsealed pass" {
-    import from jaclang.dist.precompile_bytecode { NATIVE_SEAL_ROOTS }
-    sealed_mods = set(NATIVE_SEAL_ROOTS);
+    import from jaclang.dist.precompile_bytecode { NATIVE_SEAL_SERVED_MODULES }
+    sealed_mods = set(NATIVE_SEAL_SERVED_MODULES);
     cgen = get_ir_gen_sched(gen_mtir=True);
     nxt = cgen[len(PREFIX_IR_GEN)];
     assert nxt.__name__ == "MTIRGenPass" , (
