@@ -273,3 +273,6 @@ jobs:
       - name: Heapq native shim pins
         run: jac test jac-py/jacpython/test_heapq_shim.jac
 
+      - name: T-string runtime arm pins
+        run: jac test jac-py/jacpython/test_tstring_arms.jac
+

@@ -296,6 +296,19 @@ def _jac_wrap_mappingproxy(d):
     import types
     return types.MappingProxyType(d)
 
+def _jac_wrap_tstr_interp(value, expression, conversion, format_spec):
+    import string.templatelib as tl
+    return tl.Interpolation(
+        value=value,
+        expression=expression,
+        conversion=conversion,
+        format_spec=format_spec
+    )
+
+def _jac_wrap_tstr_template(strings, interpolations):
+    import string.templatelib as tl
+    return tl.Template(strings=strings, interpolations=interpolations)
+
 # Track B (builtin subclassing) host helpers.
 _JAC_BUILTIN_BASES = (
     "int", "str", "float", "bool", "list", "dict",
@@ -1537,6 +1550,8 @@ import from opcode_meta {
     OP_BUILD_LIST,
     OP_BUILD_MAP,
     OP_BUILD_TUPLE,
+    OP_BUILD_INTERPOLATION,
+    OP_BUILD_TEMPLATE,
     OP_CALL,
     OP_CALL_KW,
     OP_COMPARE_OP,
@@ -4460,7 +4475,7 @@ def to_host_policy(tag: str) -> BridgePolicy {
     if tag == "list" or tag == "dict" or tag == "set" {
         return BridgePolicy.MUTABLE_COPY;
     }
-    if tag == "mappingproxy" {
+    if tag == "mappingproxy" or tag == "interpolation" or tag == "template" {
         return BridgePolicy.DEEP_COPY;
     }
     if tag == "dictview_obj" or tag == "globals" {
@@ -4642,6 +4657,24 @@ def to_host(value: PyObj) -> any {
             # Host mappingproxy over a converted copy of the wrapped dict:
             # read-only view semantics survive the boundary.
             return _jac_wrap_mappingproxy(to_host(value.target));
+
+        case PyTStrInterpolation():
+            # Host templatelib requires str for format_spec; the guest default
+            # is None (CPython stores '' host-side, None surfaces via
+            # Interpolation only when unset -- normalize to empty string).
+            fs = to_host(value.format_spec);
+            if fs is None {
+                fs = "";
+            }
+            cv = to_host(value.conversion);
+            return _jac_wrap_tstr_interp(
+                to_host(value.value), value.expression, cv, fs
+            );
+
+        case PyTStrTemplate():
+            return _jac_wrap_tstr_template(
+                to_host(value.strings), to_host(value.interpolations)
+            );
 
         case PyIter():
             # LAZY_ITER: a lazy host iterator sharing position with the guest
@@ -13802,6 +13835,121 @@ obj PyHeapqFn(PyObj) {
     }
 }
 
+# PEP 750 t-string runtime surfaces (string.templatelib parity). Equality is
+# identity (CPython defines neither __eq__ nor __hash__ overrides); iteration
+# over a Template yields literal strings and interpolations interleaved.
+obj PyTStrInterpolation(PyObj) {
+    has value: PyObj,
+        expression: str,
+        conversion: PyObj,
+        format_spec: PyObj;
+
+    def tp_getattro(name: str) -> PyObj {
+        if name == "value" {
+            return self.value;
+        }
+        if name == "expression" {
+            return PyStr(t="str", val=self.expression);
+        }
+        if name == "conversion" {
+            return self.conversion;
+        }
+        if name == "format_spec" {
+            return self.format_spec;
+        }
+        if name == "__class__" {
+            # Type-identity surrogate: answers __name__ for introspection.
+            return PyExceptionType(t="exception_type", name="Interpolation");
+        }
+        return py_error("AttributeError", name);
+    }
+
+    def tp_repr -> PyObj {
+        return PyStr(
+            t="str",
+            val="Interpolation(" + str(py_repr(self.value)) + ", "
+                + str(py_repr(PyStr(t="str", val=self.expression))) + ", "
+                + str(py_repr(self.conversion)) + ", "
+                + str(py_repr(self.format_spec)) + ")"
+        );
+    }
+}
+
+obj PyTStrTemplate(PyObj) {
+    has strings: PyTuple,
+        interpolations: PyTuple;
+
+    def tp_getattro(name: str) -> PyObj {
+        if name == "strings" {
+            return self.strings as PyObj;
+        }
+        if name == "interpolations" {
+            return self.interpolations as PyObj;
+        }
+        if name == "values" {
+            vals: list[PyObj] = [];
+            for part in (self.interpolations as PyTuple).items {
+                vals.append((part as PyInterpolation).value);
+            }
+            return PyTuple(t="tuple", items=vals);
+        }
+        if name == "__class__" {
+            return PyExceptionType(t="exception_type", name="Template");
+        }
+        return py_error("AttributeError", name);
+    }
+
+    def tp_iter -> PyObj {
+        # Interleave literal strings with interpolations in source order.
+        items: list[PyObj] = [];
+        strs = (self.strings as PyTuple).items;
+        parts = (self.interpolations as PyTuple).items;
+        si = 0;
+        pi = 0;
+        while si < len(strs) or pi < len(parts) {
+            if si < len(strs) {
+                items.append(strs[si]);
+                si = si + 1;
+            }
+            if pi < len(parts) {
+                items.append(parts[pi]);
+                pi = pi + 1;
+            }
+        }
+        return PyIter(t="iter", items=items, index=0);
+    }
+
+    def tp_repr -> PyObj {
+        return PyStr(
+            t="str",
+            val="Template(strings=" + str(py_repr(self.strings)) + ", interpolations="
+                + str(py_repr(self.interpolations)) + ")"
+        );
+    }
+}
+
+# Factory indirection for the run_frame arms: direct obj construction inside
+# the interpreter loop fails name resolution at runtime, so mint through
+# module-level helpers instead.
+
+def make_interpolation(value_i: PyObj, expr_s: str, conv: PyObj, fmt: PyObj) -> PyObj {
+    return PyTStrInterpolation(
+        t="interpolation",
+        value=value_i,
+        expression=expr_s,
+        conversion=conv,
+        format_spec=fmt
+    ) as PyObj;
+}
+
+def make_template(strings_t: PyTuple, parts_t: PyTuple) -> PyObj {
+    return PyTStrTemplate(
+        t="template",
+        strings=strings_t,
+        interpolations=parts_t
+    ) as PyObj;
+}
+
 def build_heapq_module -> PyObj {
     return PyModule(
         t="module",
@@ -14696,6 +14844,38 @@ def run_frame(frame: PyFrame) -> PyObj {
                 values.insert(0, stack.pop());
             }
             stack.append(PyTuple(t="tuple", items=values));
+            continue;
+        }
+        if op == OP_BUILD_INTERPOLATION {
+            # PEP 750 t-strings. Stack at entry (CPython compile.c):
+            #   [literals_tuple, value, expr_source, (format_spec)]
+            # oparg: bit0 = format spec present; bits 3+ = conversion id
+            # (0 None, 1 r, 2 s, 3 a). The literals tuple stays put for
+            # BUILD_TEMPLATE.
+            fmt: PyObj = py_none();
+            if (arg & 1) != 0 {
+                fmt = stack.pop();
+            }
+            expr = stack.pop();
+            value_i = stack.pop();
+            conv_id = (arg >> 3) & 3;
+            conv: PyObj = py_none();
+            if conv_id == 1 {
+                conv = PyStr(t="str", val="r");
+            } elif conv_id == 2 {
+                conv = PyStr(t="str", val="s");
+            } elif conv_id == 3 {
+                conv = PyStr(t="str", val="a");
+            }
+            stack.append(make_interpolation(value_i, expect_str(expr), conv, fmt));
+            continue;
+        }
+        if op == OP_BUILD_TEMPLATE {
+            # Stack: [literals_tuple, parts_tuple] -- Template(strings,
+            # interpolations).
+            parts = stack.pop();
+            lits = stack.pop();
+            stack.append(make_template(lits, parts));
             continue;
         }
         if op == OP_BUILD_MAP {
