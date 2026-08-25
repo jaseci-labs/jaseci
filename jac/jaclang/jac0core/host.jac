@@ -86,7 +86,7 @@ def normalize_host_registry_name(name: str) -> str {
 }
 
 
-def resolve_registry_name(name: str, table: any) -> (str | None) {
+def resolve_registry_name(name: str, table: (dict[str, str] | list)) -> (str | None) {
     key = normalize_host_registry_name(name);
     if not key {
         return None;
