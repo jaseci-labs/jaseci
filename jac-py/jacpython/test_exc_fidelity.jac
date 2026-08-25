@@ -278,3 +278,29 @@ test "user exception subclass super().__init__ stores args" {
     assert vm_str(ns, "a2") == "(7, 8)";
     assert vm_str(ns, "s2") == "(7, 8)";
 }
+
+test "chain attribute __class__ synthesis (cause/context/traceback/None)" {
+    # object.__class__ NEVER raises AttributeError in CPython: every value
+    # served by the exception attribute surface must resolve it -- set chain
+    # entries to their concrete type, unset ones (None) to NoneType, and
+    # tracebacks to 'traceback'. Unset e.__cause__/e.__context__ used to
+    # raise through PyNoneType's missing tp_getattro arm.
+    ns = vm_exec(
+        "names = []\n"
+        "try:\n"
+        "    try:\n"
+        "        raise ValueError('inner')\n"
+        "    except ValueError:\n"
+        "        raise TypeError('outer')\n"
+        "except TypeError as e:\n"
+        "    names.append(e.__context__.__class__.__name__)\n"
+        "    names.append(e.__cause__.__class__.__name__)\n"
+        "    names.append(e.__traceback__.__class__.__name__)\n"
+        "    names.append(e.args.__class__.__name__)\n"
+        "    names.append(e.__suppress_context__.__class__.__name__)\n"
+        "    names.append(None.__class__.__name__)\n"
+    );
+    assert vm_str(ns, "names") == (
+        "['ValueError', 'NoneType', 'traceback', 'tuple', 'bool', 'NoneType']"
+    );
+}

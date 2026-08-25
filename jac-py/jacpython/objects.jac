@@ -685,6 +685,20 @@ obj PyBool(PyObj) {
 }
 
 obj PyNoneType(PyObj) {
+    # Identity dunder: CPython's object.__class__ descriptor NEVER raises
+    # AttributeError -- None.__class__ is NoneType. Unset exception chain
+    # attributes read as None (e.__cause__/e.__context__/e.__traceback__,
+    # StopIteration.value, OSError.errno when unset), so
+    # `e.__cause__.__class__.__name__` must resolve to 'NoneType' through
+    # this arm, not raise. PyExceptionType doubles as the type-identity
+    # surrogate here, matching the Interpolation/Template precedent.
+    def tp_getattro(name: str) -> PyObj {
+        if name == "__class__" {
+            return py_exception_type("NoneType");
+        }
+        return py_error("AttributeError", name);
+    }
+
     def tp_bool -> bool {
         return False;
     }
@@ -2343,6 +2357,11 @@ obj PyTraceback(PyObj) {
         tb_lasti: int = 0;
 
     def tp_getattro(name2: str) -> PyObj {
+        # Identity dunder: tb.__class__.__name__ reads 'traceback' like any
+        # CPython object (object.__class__ never raises AttributeError).
+        if name2 == "__class__" {
+            return py_exception_type("traceback");
+        }
         if name2 == "tb_next" {
             if self.tb_next is not None {
                 return self.tb_next as PyObj;
@@ -2373,6 +2392,10 @@ obj PyTracebackFrame(PyObj) {
         frame_lineno: int;
 
     def tp_getattro(name2: str) -> PyObj {
+        # Identity dunder: frame.__class__.__name__ reads 'frame' (CPython).
+        if name2 == "__class__" {
+            return py_exception_type("frame");
+        }
         if name2 == "f_code" {
             if self.frame_code is not None {
                 return self.frame_code as PyObj;
