@@ -257,7 +257,7 @@ impl NormalizePass.enter_archetype(nd: uni.Archetype) -> None {
         }
         new_kid.append(nd.gen_token(Tok.RSQUARE));
     }
-    inherit: list = list(nd.base_classes) + list(nd.keywords);
+    inherit: list = list(nd.base_classes or []) + list(nd.keywords or []);
     if inherit {
         new_kid.append(nd.gen_token(Tok.LPAREN));
         for idx in range(len(inherit)) {

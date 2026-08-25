@@ -121,7 +121,7 @@ class ExecutionEngine(ffi.ObjectRef) {
 
         It's a fatal error in LLVM if the symbol of *name* doesn't exist.
         """
-    def get_global_value_address(self: ExecutionEngine, name: any) -> object {
+    def get_global_value_address(self: ExecutionEngine, name: any) -> int {
         return ffi.lib.LLVMPY_GetGlobalValueAddress(self, name.encode("ascii"));
     }
 

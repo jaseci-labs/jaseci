@@ -260,7 +260,7 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
         since = (qp.get("since") or "15m").strip();
 
         try {
-            limit = int(qp.get("limit", "200"));
+            limit = int(qp.get("limit") or "200");
         } except (ValueError, TypeError) {
             limit = 200;
         }

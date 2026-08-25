@@ -682,12 +682,12 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
         }
         qp = request.query_params;
         try {
-            limit = int(qp.get("limit", "50"));
+            limit = int(qp.get("limit") or "50");
         } except (ValueError, TypeError) {
             limit = 50;
         }
         try {
-            offset = int(qp.get("offset", "0"));
+            offset = int(qp.get("offset") or "0");
         } except (ValueError, TypeError) {
             offset = 0;
         }

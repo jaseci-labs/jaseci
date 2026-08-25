@@ -227,7 +227,6 @@ impl ServiceProcessManager.start_all -> None {
 impl ServiceProcessManager.stop_service(name: str) -> bool {
     import os;
     import time;
-    import signal;
 
     `entry = self.registry.entries.get(name);
     proc = self.processes.get(name);
@@ -262,7 +261,7 @@ impl ServiceProcessManager.stop_service(name: str) -> bool {
         }
         logger.info(f"Stopping {name} (pid={pid}) via pidfile...");
         try {
-            os.kill(pid, int(signal.SIGTERM));
+            os.kill(pid, int(SIGTERM));
         } except ProcessLookupError {
             ;
         }
@@ -273,7 +272,7 @@ impl ServiceProcessManager.stop_service(name: str) -> bool {
         if _pid_alive(pid) {
             logger.warning(f"{name} did not exit gracefully, force killing");
             try {
-                os.kill(pid, int(signal.SIGKILL));
+                os.kill(pid, int(SIGKILL));
             } except ProcessLookupError {
                 ;
             }

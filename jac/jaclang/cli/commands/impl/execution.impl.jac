@@ -53,8 +53,8 @@ def _default_codespace_is_native -> bool {
 def _populate_native_argv(engine: ExecutionEngine, argv: list[str]) -> None {
     import ctypes;
 
-    argc_addr = int(engine.get_global_value_address("__jac_argc"));
-    argv_addr = int(engine.get_global_value_address("__jac_argv"));
+    argc_addr = engine.get_global_value_address("__jac_argc");
+    argv_addr = engine.get_global_value_address("__jac_argv");
     if argc_addr == 0 or argv_addr == 0 {
         return;
     }

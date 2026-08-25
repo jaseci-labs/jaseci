@@ -621,7 +621,7 @@ def seal_timeout_setting(project_dir: str) -> int {
         return DEFAULT_SEAL_TIMEOUT_S;
     }
     try {
-        val = int(section.get("seal_timeout"));
+        val = int(section["seal_timeout"]);
     } except (TypeError, ValueError) {
         logger.warning("Ignoring non-integer [scale] seal_timeout in jac.toml.");
         return DEFAULT_SEAL_TIMEOUT_S;

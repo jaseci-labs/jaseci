@@ -206,12 +206,12 @@ impl JacAPIServerTraces.register_traces_endpoints -> None {
         status = (qp.get("status") or "").strip();
         since = (qp.get("since") or "1h").strip();
         try {
-            min_dur = int(qp.get("min_duration_ms", "0"));
+            min_dur = int(qp.get("min_duration_ms") or "0");
         } except (ValueError, TypeError) {
             min_dur = 0;
         }
         try {
-            limit = int(qp.get("limit", "20"));
+            limit = int(qp.get("limit") or "20");
         } except (ValueError, TypeError) {
             limit = 20;
         }

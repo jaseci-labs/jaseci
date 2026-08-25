@@ -3327,11 +3327,12 @@ impl NaIRGenTypes._emit_comparison(
                     eb = self.builder.extract_value(
                         tcmp_right_val, i, name=f"tcmp.eb.{i}"
                     );
-                    if isinstance(ea.type, ir.IntType) {
+                    _ek = self._tb_kind(self._tb_elem(lty, i));
+                    if _ek in ("int", "bool", "enum") {
                         eq_i = self.builder.icmp_signed(
                             "==", ea, eb, name=f"tcmp.eq.{i}"
                         );
-                    } elif isinstance(ea.type, ir.DoubleType) {
+                    } elif _ek == "float" {
                         eq_i = self.builder.fcmp_ordered(
                             "==", ea, eb, name=f"tcmp.eq.{i}"
                         );
@@ -3365,14 +3366,22 @@ impl NaIRGenTypes._emit_comparison(
                     eb = self.builder.extract_value(
                         tcmp_right_val, i, name=f"tcmp.lex.eb.{i}"
                     );
-                    if isinstance(ea.type, ir.IntType) {
+                    _lek = self._tb_kind(self._tb_elem(lty, i));
+                    if _lek == "bool" {
+                        lt_i = self.builder.icmp_unsigned(
+                            "<", ea, eb, name=f"tcmp.lt.{i}"
+                        );
+                        gt_i = self.builder.icmp_unsigned(
+                            ">", ea, eb, name=f"tcmp.gt.{i}"
+                        );
+                    } elif _lek in ("int", "enum") {
                         lt_i = self.builder.icmp_signed(
                             "<", ea, eb, name=f"tcmp.lt.{i}"
                         );
                         gt_i = self.builder.icmp_signed(
                             ">", ea, eb, name=f"tcmp.gt.{i}"
                         );
-                    } elif isinstance(ea.type, ir.DoubleType) {
+                    } elif _lek == "float" {
                         lt_i = self.builder.fcmp_ordered(
                             "<", ea, eb, name=f"tcmp.lt.{i}"
                         );
