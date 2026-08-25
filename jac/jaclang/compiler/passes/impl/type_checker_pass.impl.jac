@@ -13,6 +13,7 @@ impl TypeCheckPass.exit_name(self: TypeCheckPass, nd: Name) -> None {
         and nd.sym.sym_type == SymbolType.HAS_VAR
         and isinstance(nd.sym.parent_tab, Archetype)
         and nd.expr_ctx == ExprCtx.LOAD
+        and self.evaluator._is_attr_receiver_name(nd)
     );
     if nd.sym is None or is_bare_field {
         self.evaluator.get_type_of_expression(nd);

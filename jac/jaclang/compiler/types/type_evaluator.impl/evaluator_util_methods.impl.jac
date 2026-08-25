@@ -921,6 +921,14 @@ impl TypeEvaluator._is_non_expression_name(expr: Name) -> bool {
     );
 }
 
+impl TypeEvaluator._is_attr_receiver_name(expr: Name) -> bool {
+    return (
+        isinstance(expr.parent, AtomTrailer)
+        and expr.parent.target is expr
+        and expr.parent.is_attr
+    );
+}
+
 impl TypeEvaluator._lookup_bare_runtime_name(
     scope: UniScopeNode, name: str
 ) -> Symbol | None {

@@ -2068,6 +2068,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                     and symbol.sym_type == SymbolType.HAS_VAR
                     and isinstance(symbol.parent_tab, Archetype)
                     and not self._is_non_expression_name(expr)
+                    and self._is_attr_receiver_name(expr)
                 ) {
                     expr.sym = None;
                     symbol = self._lookup_bare_runtime_name(scope, expr.value);

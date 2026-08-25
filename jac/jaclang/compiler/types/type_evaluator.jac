@@ -541,6 +541,7 @@ obj TypeEvaluator {
     def _set_symbol_to_expr(expr: Expr, sym: Symbol) -> TypeBase;
     def _resolution_scope_for(expr: UniNode) -> UniScopeNode | None;
     def _is_non_expression_name(expr: Name) -> bool;
+    def _is_attr_receiver_name(expr: Name) -> bool;
     def _lookup_bare_runtime_name(scope: UniScopeNode, name: str) -> Symbol | None;
     def _is_expr_self(expr: Expr) -> bool;
     def _is_expr_super(expr: Expr) -> bool;
