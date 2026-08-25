@@ -1,3 +1,12 @@
+impl NaIRGenObjects._devirt_closed_world(arch_name: str) -> bool {
+    arch = self.arch_ast_map.get(arch_name);
+    if arch is None {
+        return False;
+    }
+    return arch.access_type == SymbolAccess.PRIVATE;
+}
+
+
 impl NaIRGenObjects._native_archetypes(module: uni.Module) -> list[uni.Archetype] {
     result: dict[(str, uni.Archetype)] = {};
 
@@ -142,6 +151,9 @@ impl NaIRGenObjects._register_archetypes(module: uni.Module) -> None {
     }
     _no_reg = _no_glr(self.ir_in, self.prog);
     for (base_name, layout) in self.vtable_layouts.items() {
+        if not self._devirt_closed_world(base_name) {
+            continue;
+        }
         non_overridden: set[str] = set();
         _no_base_lay = _no_reg.get_layout(base_name);
         for method_name in layout {
@@ -3726,7 +3738,14 @@ impl NaIRGenObjects._codegen_field_aug_assign(
         return None;
     }
 
-    scalar = self._apply_scalar_aug_op(current, rhs, aug_op, rhs_node);
+    scalar = self._apply_scalar_aug_op(
+        current,
+        rhs,
+        aug_op,
+        rhs_node,
+        unsigned=self._is_unsigned_node(target),
+        checked=self._is_sized_node(target) or self._is_sized_node(rhs_node)
+    );
     if scalar is not None {
         return scalar;
     }

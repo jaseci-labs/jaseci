@@ -40,7 +40,7 @@ import jaclang;
 import jaclang.jac0core.sealed as sealed;
 import jaclang.jac0core.unitree as uni;
 import from pathlib { Path }
-import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
+import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.jac0core.passes.pass_rim {
     _NATIVE_PASS_TIER_MEMO,
     _NATIVE_SERVED_PASSES,
@@ -49,7 +49,7 @@ import from jaclang.jac0core.passes.pass_rim {
 import from jaclang.jac0core.passes.transform { BaseTransform, Transform }
 import from jaclang.jac0core.program { JacProgram }
 
-glob ANNEX_MODULE: str = "jaclang.jac0core.passes.annex_pass";
+glob TIER_MODULE: str = "jaclang.jac0core.passes.ast_validation_pass";
 
 obj LocalPass(Transform) {
     def transform(ir_in: uni.Module) -> uni.Module {
@@ -58,14 +58,14 @@ obj LocalPass(Transform) {
 }
 
 def _fake_artifact(fullname: str) -> (tuple | None) {
-    if fullname == ANNEX_MODULE {
-        return ("/nonexistent/libjac_annex_pass.so", {});
+    if fullname == TIER_MODULE {
+        return ("/nonexistent/libjac_ast_validation_pass.so", {});
     }
     return None;
 }
 
-def _run_annex -> any {
-    return JacAnnexPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
+def _run_tier_pass -> any {
+    return ASTValidationPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
 }
 
 """The sealable unit's source, read from the installed tree it compiles from."""
@@ -78,7 +78,7 @@ def _unit_source -> str {
 }
 
 def _skip_if_sealed {
-    if sealed.native_artifact_for(ANNEX_MODULE) is not None {
+    if sealed.native_artifact_for(TIER_MODULE) is not None {
         testskip(
             "this runtime seals the pass roots for real: the tripwire and "
             "binder are exercised by every pass construction in this suite, "
@@ -91,10 +91,10 @@ def _skip_if_sealed {
 
 test "an unsealed tree runs a pass's bytecode body" {
     _skip_if_sealed();
-    _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
-    inst = _run_annex();
-    assert isinstance(inst.ir_out, uni.Module) , "annex pass did not run";
-    assert _NATIVE_PASS_TIER_MEMO.get(JacAnnexPass) == "" , (
+    _NATIVE_PASS_TIER_MEMO.pop(ASTValidationPass, None);
+    inst = _run_tier_pass();
+    assert isinstance(inst.ir_out, uni.Module) , "the tier vehicle pass did not run";
+    assert _NATIVE_PASS_TIER_MEMO.get(ASTValidationPass) == "" , (
         "a clean verdict must be memoized so later constructions skip the "
         "image lookup"
     );
@@ -104,23 +104,23 @@ test "an unsealed tree runs a pass's bytecode body" {
 test "a natively sealed pass refuses its bytecode body" {
     _skip_if_sealed();
     real = sealed.native_artifact_for;
-    _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
+    _NATIVE_PASS_TIER_MEMO.pop(ASTValidationPass, None);
     sealed.native_artifact_for = _fake_artifact;
     try {
-        with testraises(RuntimeError, `match=ANNEX_MODULE) {
-            _run_annex();
+        with testraises(RuntimeError, `match=TIER_MODULE) {
+            _run_tier_pass();
         }
-        _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
+        _NATIVE_PASS_TIER_MEMO.pop(ASTValidationPass, None);
         with testraises(RuntimeError, `match="bytecode body") {
-            _run_annex();
+            _run_tier_pass();
         }
-        _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
+        _NATIVE_PASS_TIER_MEMO.pop(ASTValidationPass, None);
         with testraises(RuntimeError, `match="rebuild the payload") {
-            _run_annex();
+            _run_tier_pass();
         }
     } finally {
         sealed.native_artifact_for = real;
-        _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
+        _NATIVE_PASS_TIER_MEMO.pop(ASTValidationPass, None);
     }
 }
 
@@ -128,22 +128,22 @@ test "a natively sealed pass refuses its bytecode body" {
 test "the memoized verdict still refuses on the next construction" {
     _skip_if_sealed();
     real = sealed.native_artifact_for;
-    _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
+    _NATIVE_PASS_TIER_MEMO.pop(ASTValidationPass, None);
     sealed.native_artifact_for = _fake_artifact;
     try {
         with testraises(RuntimeError) {
-            _run_annex();
+            _run_tier_pass();
         }
-        assert _NATIVE_PASS_TIER_MEMO.get(JacAnnexPass) == ANNEX_MODULE;
+        assert _NATIVE_PASS_TIER_MEMO.get(ASTValidationPass) == TIER_MODULE;
     } finally {
         sealed.native_artifact_for = real;
     }
     try {
         with testraises(RuntimeError) {
-            _run_annex();
+            _run_tier_pass();
         }
     } finally {
-        _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
+        _NATIVE_PASS_TIER_MEMO.pop(ASTValidationPass, None);
     }
 }
 
@@ -151,22 +151,22 @@ test "the memoized verdict still refuses on the next construction" {
 test "registering the served pass lifts the refusal without cache games" {
     _skip_if_sealed();
     real = sealed.native_artifact_for;
-    _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
+    _NATIVE_PASS_TIER_MEMO.pop(ASTValidationPass, None);
     sealed.native_artifact_for = _fake_artifact;
     try {
         with testraises(RuntimeError) {
-            _run_annex();
+            _run_tier_pass();
         }
-        _NATIVE_SERVED_PASSES.add(ANNEX_MODULE);
-        inst = _run_annex();
+        _NATIVE_SERVED_PASSES.add(TIER_MODULE);
+        inst = _run_tier_pass();
         assert isinstance(inst.ir_out, uni.Module) , (
             "a served pass must run even though the refusing verdict is "
             "already memoized"
         );
     } finally {
-        _NATIVE_SERVED_PASSES.discard(ANNEX_MODULE);
+        _NATIVE_SERVED_PASSES.discard(TIER_MODULE);
         sealed.native_artifact_for = real;
-        _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
+        _NATIVE_PASS_TIER_MEMO.pop(ASTValidationPass, None);
     }
 }
 

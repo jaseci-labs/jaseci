@@ -40,7 +40,7 @@ def:pub ctx_new_verifying -> int {
     if ctx == 0 {
         return 0;
     }
-    SSL_CTX_set_verify(ctx, _SSL_VERIFY_PEER, 0);
+    SSL_CTX_set_verify(ctx, i32(_SSL_VERIFY_PEER), 0);
     return ctx;
 }
 
@@ -67,9 +67,14 @@ def:pub ssl_new_client(ctx: int, fd: int, hostname: str, check_hostname: bool) -
     if ssl == 0 {
         return 0;
     }
-    SSL_set_fd(ssl, fd);
+    SSL_set_fd(ssl, i32(fd));
 
-    SSL_ctrl(ssl, _SSL_CTRL_SET_TLSEXT_HOSTNAME, _TLSEXT_NAMETYPE_host_name, hostname);
+    SSL_ctrl(
+        ssl,
+        i32(_SSL_CTRL_SET_TLSEXT_HOSTNAME),
+        i64(_TLSEXT_NAMETYPE_host_name),
+        hostname
+    );
     if check_hostname {
         SSL_set1_host(ssl, hostname);
     }
@@ -88,7 +93,7 @@ def:pub verify_result(ssl: int) -> int {
 
 
 def:pub verify_message(code: int) -> str {
-    return X509_verify_cert_error_string(code);
+    return X509_verify_cert_error_string(i64(code));
 }
 
 
@@ -106,7 +111,7 @@ def:pub ssl_write_all(ssl: int, data: bytes) -> int {
     off = 0;
     while off < total {
         chunk = data[off:total];
-        n = SSL_write(ssl, chunk, len(chunk));
+        n = SSL_write(ssl, chunk, i32(len(chunk)));
         if n <= 0 {
             return -1;
         }
@@ -121,7 +126,7 @@ def:pub ssl_read(ssl: int, bufsize: int) -> bytes {
         return b"";
     }
     buf = b"\x00" * bufsize;
-    got = SSL_read(ssl, buf, bufsize);
+    got = SSL_read(ssl, buf, i32(bufsize));
     if got > 0 {
         return buf[0:got];
     }
@@ -130,7 +135,7 @@ def:pub ssl_read(ssl: int, bufsize: int) -> bytes {
         return b"";
     }
     if err == _SSL_ERROR_SSL {
-        reason = ERR_peek_error() & _ERR_REASON_MASK;
+        reason = int(ERR_peek_error()) & _ERR_REASON_MASK;
         if reason != _SSL_R_UNEXPECTED_EOF_WHILE_READING {
             raise OSError("TLS read failed: " + last_error());
         }

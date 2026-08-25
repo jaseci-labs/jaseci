@@ -567,7 +567,7 @@ Jac provides two ways to expose server logic: `def:pub` functions and `walker` t
 
 ### Walkers as REST APIs
 
-Public walkers automatically become HTTP endpoints when you run `jac start`:
+Public walkers automatically become HTTP endpoints when you run `jac run`:
 
 ```jac
 node Todo {
@@ -594,11 +594,11 @@ walker list_todos {
 ```
 
 !!! note
-    `main.jac` is the default entry point. If your file has a different name (e.g., `app.jac`), pass it explicitly: `jac start app.jac`.
+    `main.jac` is the default entry point. If your file has a different name (e.g., `app.jac`), pass it explicitly: `jac run app.jac`.
 
 ```bash
 # Run as API server
-jac start
+jac run
 
 # Call via HTTP
 curl -X POST http://localhost:8000/walker/add_todo \
@@ -1002,6 +1002,35 @@ walker FilteredWalker {
 
 !!! tip "Skip the `[?:Type]` filter"
     If an edge declares its endpoint node types (see [Typed Edge Endpoints](#4-typed-edge-endpoints)), a neighbour traversal already infers the concrete node type, so the trailing `[?:Type]` filter is only needed to narrow *further* to a subtype.
+
+#### Ordering and bounding a traversal
+
+A reference returns neighbours in edge-creation order. To ask for a different order, write an **ordering term** in the same comma list as the predicates -- a bare field name for ascending, its negation for descending. The position says which side the field is read from, exactly as it does for predicates: the hop slot names the edge, the filter bracket names the node.
+
+```jac
+def orderings(chan: Chan) -> list[Msg] {
+    by_edge = [chan ->:Posted:-sent:-> [?:Msg]];         # the edge's `sent`, descending
+    by_node = [chan ->:Posted:-> [?:Msg, -at]];          # the node's `at`, descending
+    narrowed = [chan ->:Posted:-> [?:Msg, at > 3, -at]]; # predicates first, then ordering
+    return [chan ->:Posted:-> [?:Msg, -at]][:50];        # ordering and bound, one query
+}
+```
+
+Ordering terms follow every predicate on their hop, and only the final hop of a multi-hop chain may carry one -- an earlier hop's ordering has no meaning for the result and is refused rather than silently applied to the wrong hop.
+
+Ordering by an **edge** field has no other spelling, because a reference returns nodes: no key over the result can name the edge that carried them. For a *node* field, `sorted(<reference>, key=lambda (m: Msg) { -m.at; })` is equivalent and resolves the same way.
+
+#### Paging with a composite key
+
+Ordering on a single field drops or repeats rows whenever two share a value, so a page boundary needs a tiebreak. A predicate may compare a tuple of field names against a tuple of the same arity:
+
+```jac
+def page_after(chan: Chan, cur: Cursor, n: int = 50) -> list[Msg] {
+    return [chan ->:Posted:-> [?:Msg, (at, seq) < (cur.at, cur.seq), -at, -seq]][:n];
+}
+```
+
+Left of the operator is field names; right is an ordinary expression evaluated where the reference is written.
 
 ### 3 Entry and Exit Events
 

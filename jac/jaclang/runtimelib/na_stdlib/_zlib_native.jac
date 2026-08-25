@@ -21,21 +21,21 @@ def _signed32(status: int) -> int {
 
 
 def:pub z_compress_bound(source_len: int) -> int {
-    return compressBound(source_len);
+    return int(compressBound(u64(source_len)));
 }
 
 
 def:pub z_compress2(
     dest: bytes, dest_len: bytes, source: bytes, source_len: int, level: int
 ) -> int {
-    return _signed32(compress2(dest, dest_len, source, source_len, level));
+    return _signed32(compress2(dest, dest_len, source, u64(source_len), i32(level)));
 }
 
 
 def:pub z_uncompress(
     dest: bytes, dest_len: bytes, source: bytes, source_len: int
 ) -> int {
-    return _signed32(uncompress(dest, dest_len, source, source_len));
+    return _signed32(uncompress(dest, dest_len, source, u64(source_len)));
 }
 
 
@@ -47,10 +47,10 @@ def:pub z_uncompress2(
 
 
 def:pub z_crc32(crc: int, buf: bytes, n: int) -> int {
-    return crc32_z(crc, buf, n);
+    return int(crc32_z(u64(crc), buf, u64(n)));
 }
 
 
 def:pub z_adler32(adler: int, buf: bytes, n: int) -> int {
-    return adler32_z(adler, buf, n);
+    return int(adler32_z(u64(adler), buf, u64(n)));
 }

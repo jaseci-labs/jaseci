@@ -105,9 +105,10 @@ impl TypeCheckPass.exit_return_stmt(self: TypeCheckPass, nd: ReturnStmt) -> None
         );
     }
 
-    if not self.evaluator.assign_type(
-        returning_type, return_type, strict=self.evaluator._is_strict_site(nd)
-    ) {
+    verdict = self.evaluator.assign_expr(
+        nd.expr, returning_type, return_type, strict=self.evaluator._is_strict_site(nd)
+    );
+    if not verdict.ok and not verdict.diagnosed {
         if self.evaluator._is_awaitable_type(returning_type)
             and not self.evaluator._is_awaitable_type(return_type) {
             self.emit(
@@ -615,15 +616,27 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                 nd.aug_op is None
                 and not is_evolving_reassign
                 and not is_module_fallback_rebind
-                and not self.evaluator.assign_type(
-                    right_type, left_type, strict=self.evaluator._is_strict_site(nd)
-                )
-                and not self.evaluator.slice_assignment_is_valid(target, nd.value)
             ) {
-                if self.evaluator._is_awaitable_type(right_type) {
-                    self.emit(E1042, actual=str(right_type), expected=str(left_type));
-                } else {
-                    self.emit(E1001, actual=str(right_type), expected=str(left_type));
+                verdict = self.evaluator.assign_expr(
+                    nd.value,
+                    right_type,
+                    left_type,
+                    strict=self.evaluator._is_strict_site(nd)
+                );
+                if (
+                    not verdict.ok
+                    and not verdict.diagnosed
+                    and not self.evaluator.slice_assignment_is_valid(target, nd.value)
+                ) {
+                    if self.evaluator._is_awaitable_type(right_type) {
+                        self.emit(
+                            E1042, actual=str(right_type), expected=str(left_type)
+                        );
+                    } else {
+                        self.emit(
+                            E1001, actual=str(right_type), expected=str(left_type)
+                        );
+                    }
                 }
             }
         }
@@ -644,14 +657,27 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                     if result is None {
                         base_op = AUG_TO_BINARY_MAP.get(aug_op.name);
                         if base_op is not None {
-                            if base_op in ARITHMETIC_OPERATORS {
+                            if base_op in ARITHMETIC_OPERATORS
+                                or base_op in BITWISE_OPERATORS
+                                or base_op in SHIFT_OPERATORS {
                                 if aug_op.value == "**=" {
                                     promoted = get_pow_result_type(
-                                        self.evaluator, left_type, right_type, nd.value
+                                        self.evaluator,
+                                        left_type,
+                                        right_type,
+                                        nd.value,
+                                        target,
+                                        nd
                                     );
                                 } else {
                                     promoted = get_numeric_promotion_type(
-                                        self.evaluator, left_type, right_type, base_op
+                                        self.evaluator,
+                                        left_type,
+                                        right_type,
+                                        base_op,
+                                        target,
+                                        nd.value,
+                                        nd
                                     );
                                 }
                                 if promoted is not None {
@@ -683,9 +709,15 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                             );
                         }
                     }
-                    if result is not None
-                        and not self.evaluator.assign_type(result, left_type) {
-                        self.emit(E1001, actual=str(result), expected=str(left_type));
+                    if result is not None and not isinstance(result, UnknownType) {
+                        verdict = self.evaluator.assign_expr(
+                            nd.value, result, left_type
+                        );
+                        if not verdict.ok and not verdict.diagnosed {
+                            self.emit(
+                                E1001, actual=str(result), expected=str(left_type)
+                            );
+                        }
                     }
                 }
             }
@@ -1182,7 +1214,8 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
 
 impl TypeCheckPass.after_pass(self: TypeCheckPass) -> None {
     self._check_unresolved_lambda_params();
-    if self._prev_eval_pass is not None and self.evaluator._pass is self {
+    self._stamp_fixed_width();
+    if self.evaluator._pass is self {
         self.evaluator._pass = self._prev_eval_pass;
     }
 }
@@ -1197,6 +1230,12 @@ impl TypeCheckPass.exit_param_var(self: TypeCheckPass, nd: ParamVar) -> None {
         ) {
             self._check_bare_generic(nd.type_tag.tag, declared_type);
             self._check_explicit_any(nd.type_tag.tag);
+        }
+        if nd.value is not None and nd.type_tag and nd.type_tag.tag {
+            default_type = self.evaluator.get_type_of_expression(
+                nd.value, expected_type=declared_type
+            );
+            self.evaluator.assign_expr(nd.value, default_type, declared_type);
         }
     }
 }
@@ -1238,9 +1277,10 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: HasVar) -> None {
             right_type = self.evaluator.get_type_of_expression(
                 nd.value, expected_type=nd.type
             );
-            if not self.evaluator.assign_type(
-                right_type, nd.type, strict=self.evaluator._is_strict_site(nd)
-            ) {
+            verdict = self.evaluator.assign_expr(
+                nd.value, right_type, nd.type, strict=self.evaluator._is_strict_site(nd)
+            );
+            if not verdict.ok and not verdict.diagnosed {
                 self.emit(
                     E1001,
                     node_override=nd,
@@ -1639,4 +1679,48 @@ impl TypeCheckPass._eval_unpacking_names(self: TypeCheckPass, container: Expr) -
             }
         }
     }
+}
+
+impl TypeCheckPass._stamp_fixed_width(self: TypeCheckPass) -> None {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    import from jaclang.compiler.type_system.fixed_width { numeric_name_of }
+    stack: list = [self.ir_in];
+    while stack {
+        nd = stack.pop();
+        if isinstance(nd, Expr) {
+            name = numeric_name_of(nd.type);
+            if name is not None and JAC_TYPE_REGISTRY.is_sized(name) {
+                nd.fw = name;
+                nd.fw_safe = self._provably_in_range(nd, name);
+            }
+        }
+        for k in nd.kid {
+            stack.append(k);
+        }
+    }
+}
+
+impl TypeCheckPass._provably_in_range(
+    self: TypeCheckPass, nd: Expr, name: str
+) -> bool {
+    import from jaclang.compiler.type_system.fixed_width {
+        interval_of_expr,
+        interval_of_op
+    }
+    if isinstance(nd, BinaryExpr) and isinstance(nd.op, Token) {
+        op = FW_INTERVAL_OPS.get(nd.op.name);
+        if op is None {
+            return False;
+        }
+        return interval_of_op(
+            op, interval_of_expr(nd.left), interval_of_expr(nd.right), name
+        );
+    }
+    if isinstance(nd, UnaryExpr) and isinstance(nd.op, Token) {
+        if nd.op.name != Tok.MINUS {
+            return False;
+        }
+        return interval_of_op("neg", interval_of_expr(nd.operand), (0, 0), name);
+    }
+    return False;
 }

@@ -67,7 +67,7 @@ A reference from the same module is always allowed regardless of tag.
 
 ## Service auth
 
-When a top-level `def` or `walker` is served via `jac serve` / `jac start`, the modifier additionally decides whether an HTTP caller must authenticate. This axis is **secure-by-default** and only distinguishes `:pub` from everything else:
+When a top-level `def` or `walker` is served via `jac serve` / `jac run`, the modifier additionally decides whether an HTTP caller must authenticate. This axis is **secure-by-default** and only distinguishes `:pub` from everything else:
 
 | tag on a served `def` / `walker` | auth required? | notes |
 |---|---|---|

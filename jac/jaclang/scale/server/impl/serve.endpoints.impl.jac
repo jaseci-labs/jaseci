@@ -148,10 +148,10 @@ impl JacAPIServerEndpoints.create_walker_callback(
                 );
             }
             return TransportResponse.fail(
-                code='EXECUTION_ERROR',
+                code=str(result.get('error_code') or 'EXECUTION_ERROR').upper(),
                 message=result.get('error', 'Walker execution failed'),
                 details=result.get('traceback') if 'traceback' in result else None,
-                meta=Meta(extra={'http_status': 500})
+                meta=Meta(extra={'http_status': int(result.get('http_status') or 500)})
             );
         }
         return TransportResponse.success(
@@ -301,10 +301,10 @@ impl JacAPIServerEndpoints.create_function_callback(
                 );
             }
             return TransportResponse.fail(
-                code='EXECUTION_ERROR',
+                code=str(result.get('error_code') or 'EXECUTION_ERROR').upper(),
                 message=result.get('error', 'Function execution failed'),
                 details=result.get('traceback') if 'traceback' in result else None,
-                meta=Meta(extra={'http_status': 500})
+                meta=Meta(extra={'http_status': int(result.get('http_status') or 500)})
             );
         }
         if raw_body {
