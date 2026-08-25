@@ -15276,6 +15276,16 @@ def run_frame(frame: PyFrame) -> PyObj {
             seq = stack.pop();
             it = py_iter(seq);
             if is_error(it) {
+                # CPython's UNPACK_SEQUENCE handler catches the TypeError from
+                # GetIter and reformats it with unpack-specific wording
+                # ("cannot unpack non-iterable int object"); mirror that so
+                # the message names the operand type instead of arriving empty.
+                if (it as PyError).exception.type_name == "TypeError" {
+                    it = py_error(
+                        "TypeError",
+                        "cannot unpack non-iterable " + seq.tp_type_name() + " object",
+                    );
+                }
                 target = recover_exception(co, it, offset, stack);
                 if target >= 0 {
                     ip = target;
@@ -15351,6 +15361,13 @@ def run_frame(frame: PyFrame) -> PyObj {
             seq = stack.pop();
             it = py_iter(seq);
             if is_error(it) {
+                # Same TypeError reformat as UNPACK_SEQUENCE above.
+                if (it as PyError).exception.type_name == "TypeError" {
+                    it = py_error(
+                        "TypeError",
+                        "cannot unpack non-iterable " + seq.tp_type_name() + " object",
+                    );
+                }
                 target = recover_exception(co, it, offset, stack);
                 if target >= 0 {
                     ip = target;
