@@ -21,7 +21,7 @@ def _signed32(status: int) -> int {
 
 
 def:pub z_compress_bound(source_len: int) -> int {
-    return compressBound(u64(source_len));
+    return int(compressBound(u64(source_len)));
 }
 
 
@@ -47,10 +47,10 @@ def:pub z_uncompress2(
 
 
 def:pub z_crc32(crc: int, buf: bytes, n: int) -> int {
-    return crc32_z(u64(crc), buf, u64(n));
+    return int(crc32_z(u64(crc), buf, u64(n)));
 }
 
 
 def:pub z_adler32(adler: int, buf: bytes, n: int) -> int {
-    return adler32_z(u64(adler), buf, u64(n));
+    return int(adler32_z(u64(adler), buf, u64(n)));
 }
