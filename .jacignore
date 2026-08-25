@@ -13,12 +13,6 @@
 # Each entry is a module that does not currently pass `jac check`. Adding to
 # this list is a debt, not a policy: the goal is an empty file.
 
-# Fetched at build time, not repo source.
-# `jac ninja` fetches third-party zig packages into jac/zig-pkg/ and the
-# tree-sitter-jac package ships its own examples/sample.jac. Bare name so
-# any zig-pkg path component is skipped.
-zig-pkg
-
 # llvmlite-bound native IR generation.
 # The NaIRGen* mixins reach llvmlite handles (ir.Function.args, .linkage,
 # IRBuilder.append_basic_block, Type.as_pointer) through the vendored
