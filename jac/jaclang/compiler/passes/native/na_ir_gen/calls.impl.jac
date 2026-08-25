@@ -3325,20 +3325,19 @@ impl NaIRGenCalls._emit_jid(nd: uni.FuncCall) -> (ir.Value | None) {
     if arg_val is None {
         return None;
     }
-    print("JIDDBG argtype", arg_val.type);
     if not isinstance(arg_val.type, ir.PointerType) or arg_val.type == ir.IntType(8).as_pointer() {
         self.emit(
             E5092,
             node_override=params_l[0],
             kind="builtin call",
             name="jid",
-            help_text="JIDDBG non-pointer arg"
+            help_text="`jid` lowers natively for node/edge/object values; primitives have no graph identity."
         );
         return None;
     }
     _fmt_fn = self._get_fmt_kernel_fn("jac_fmt_int");
     if _fmt_fn is None {
-        self.emit(E5092, node_override=nd, kind="builtin call", name="jid", help_text="JIDDBG no fmt kernel");
+        self.emit(E5092, node_override=nd, kind="builtin call", name="jid");
         return None;
     }
     addr = self.builder.ptrtoint(arg_val, i64, name="jid.addr");
