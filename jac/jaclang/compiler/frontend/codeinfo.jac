@@ -396,7 +396,6 @@ glob CLIENT_RUNTIME_SOURCE_PATHS: list[str] = [
          "client/solid_runtime.jac",
          "client/pwa_runtime.jac",
          "client/wasm_host.jac",
-         "bun_store.jac",
          "server_runtime.jac",
          "client/client_mobui.jac",
          "client/client_react_core.jac",

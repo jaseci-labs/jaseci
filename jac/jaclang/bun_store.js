@@ -143,15 +143,17 @@ export class BunStore {
   }
 
   async _applyPromotionDdl(sql, promotions) {
+    // Mirrors PgStore._apply_promotions exactly (impl/store.impl.jac): jsonb
+    // generated column plus an UNCONDITIONAL index. DDL divergence here breaks
+    // shared-database parity -- whoever migrates first wins via IF NOT EXISTS.
     for (const [arch, fld, col] of promotionColumns(promotions)) {
       try {
         await sql.unsafe(
-          `ALTER TABLE anchors ADD COLUMN IF NOT EXISTS ${col} text`
+          `ALTER TABLE anchors ADD COLUMN IF NOT EXISTS ${col} jsonb`
             + ` GENERATED ALWAYS AS (props->'archetype'->>'${fld}') STORED`
         );
         await sql.unsafe(
           `CREATE INDEX IF NOT EXISTS idx_${col} ON anchors (${col})`
-            + ` WHERE arch_type = '${arch}'`
         );
       } catch (e) {
         console.warn(`promotion ${arch}.${fld} failed: ${e}`);
@@ -202,7 +204,8 @@ export class BunStore {
   async getKv(key) {
     const sql = this._ensureSql();
     const result = await sql.unsafe(
-      "SELECT value FROM kv_state WHERE key = $1 LIMIT 1",
+      "SELECT value FROM kv_state WHERE key = $1"
+        + " AND (expires_at IS NULL OR expires_at > now()) LIMIT 1",
       [key]
     );
     if (Array.isArray(result) && result.length > 0) {
@@ -244,11 +247,25 @@ export function computeSchemaFingerprint(schemaVersion, serverMajor, schemaSql, 
   for (const stmt of schemaSql) {
     h.update(stmt);
   }
-  // str((arch, fld, col)) on the cpython side renders as this exact string.
-  for (const [arch, fld, col] of promotionColumns(promotions)) {
+  // str((arch, fld, col)) on the cpython side renders as this exact string,
+  // over sorted(_promotion_columns()) -- a FULL tuple sort, so field order
+  // within an arch must not affect the hash.
+  const cols = promotionColumns(promotions).sort(cmpTuple);
+  for (const [arch, fld, col] of cols) {
     h.update(`('${arch}', '${fld}', '${col}')`);
   }
   return `${schemaVersion}:${h.digest("hex").slice(0, 24)}`;
+}
+
+// Lexicographic tuple comparison over string triples -- same ordering as
+// Python's sorted() on list[tuple[str, str, str]].
+function cmpTuple(a, b) {
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) {
+      return a[i] < b[i] ? -1 : 1;
+    }
+  }
+  return 0;
 }
 
 // sha256("jac:ensure_schema")[:8] as signed big-endian int — the same

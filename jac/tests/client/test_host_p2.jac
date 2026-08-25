@@ -40,8 +40,8 @@ glob _STATELESS_SVC: str = 'def:pub ping() -> int {\n' '    return 42;\n' '}\n',
 
 
 test "BunStore implements the Store contract in JS over Bun.sql" {
-    # The Jac-side bun_store.jac is a documentation pointer only; the real
-    # implementation is the JS adapter bundled into service artifacts.
+    # The real BunStore implementation is the JS adapter bundled into service
+    # artifacts (the Jac-side shell was deleted as dead scaffolding).
     bun_store_js = _RUNTIMELIB / 'bun_store.js';
     assert bun_store_js.exists();
     js_text = bun_store_js.read_text(encoding='utf-8');
@@ -90,7 +90,9 @@ test "BunStore fingerprint matches the PgStore formula byte for byte" {
         return;
     }
 
-    promotions = {'arch_a': ['field1', 'field2'], 'b': ['x']};
+    # Deliberately UNORDERED: fields within an arch are not sorted, so this
+    # pins that JS sorts full tuples like Python's sorted() before hashing.
+    promotions = {'arch_a': ['z_field', 'a_field'], 'b': ['x']};
     stmts = [str(stmt) for stmt in SCHEMA_SQL];
     server_major = 17;
 
@@ -100,11 +102,13 @@ test "BunStore fingerprint matches the PgStore formula byte for byte" {
     for stmt in stmts {
         h.update(stmt.encode());
     }
-    for arch in sorted(promotions.keys()) {
-        for fld in promotions[arch] {
-            col = f"g_{arch}_{fld}";
-            h.update(f"('{arch}', '{fld}', '{col}')".encode());
-        }
+    cols = [
+        (arch, fld, f"g_{arch}_{fld}")
+        for arch in sorted(promotions.keys())
+        for fld in promotions[arch]
+    ];
+    for col in sorted(cols) {
+        h.update(str(col).encode());
     }
     expected = f"{SCHEMA_VERSION}:{h.hexdigest()[:24]}";
 

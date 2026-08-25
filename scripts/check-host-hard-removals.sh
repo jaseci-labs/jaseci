@@ -21,7 +21,7 @@ check_absent() {
 check_absent \
   "_seed_from_summary cap arm chain" \
   "if cap == 'FFI'" \
-  "$JAC/jac0core/placement_solver.jac"
+  "$JAC/compiler/placement/placement_solver.jac"
 
 # 2–3. PLACEMENT_SV_SIGNAL_NODES / PLACEMENT_NATIVE_REJECT_NODES
 check_absent \

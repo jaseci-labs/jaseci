@@ -14,7 +14,12 @@ def _is_pub(access: any) -> bool {
 
 def _inline_extra_deps(out_dir: Path, chunks: list[str], seen_jac: dict[str, bool]) {
     import re;
-    bundled_sources = ('server_runtime.js', 'bun_schema.js', 'bun_store.js');
+    bundled_sources = (
+        'server_runtime.js',
+        'bun_schema.js',
+        'bun_store.js',
+        'jac_runtime.js'
+    );
     extras = [
         p
         for p in sorted(out_dir.iterdir())
@@ -54,6 +59,7 @@ def _string_bundle_bun_artifact(out_dir: Path, module_name: str) -> str {
         'server_runtime.js',
         'bun_schema.js',
         'bun_store.js',
+        'jac_runtime.js',
         f'{module_name}.js'
     );
 
@@ -114,6 +120,23 @@ def _string_bundle_bun_artifact(out_dir: Path, module_name: str) -> str {
     bun_store_path = out_dir / 'bun_store.js';
     if bun_store_path.exists() {
         chunks.append(bun_store_path.read_text(encoding='utf-8'));
+    }
+    # jac_runtime.js defines `const _jac`; inline it here so the entry's
+    # import line can be dropped by _rewrite_entry_line without leaving
+    # `_jac` undefined. seen_jac keeps later copies (cl stdlib deps) out.
+    jac_rt_path = out_dir / 'jac_runtime.js';
+    if jac_rt_path.exists() and not seen_jac['seen'] {
+        kept_rt: list[str] = [];
+        for ln in jac_rt_path.read_text(encoding='utf-8').splitlines() {
+            if not _keep_line(ln) {
+                continue;
+            }
+            kept_rt.append(ln);
+            if 'const _jac' in ln {
+                seen_jac['seen'] = True;
+            }
+        }
+        chunks.append('\n'.join(kept_rt));
     }
     _inline_extra_deps(out_dir, chunks, seen_jac);
     module_js = out_dir / f'{module_name}.js';
