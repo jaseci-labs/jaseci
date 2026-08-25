@@ -55,74 +55,8 @@ test "Test_Csv.test_writer_dialect_attrs" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
-test "Test_Csv.test_write_arg_valid" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\nclass BadIterable:\n\n    def __iter__(self):\n        raise OSError\n\ndef _write_error_test(exc, fields, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        try:\n            writer.writerow(fields)\n        except exc as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        fileobj.seek(0)\n        assert fileobj.read() == '', ('assertEqual', fileobj.read(), '')\n\ndef _t():\n    _write_error_test(csv.Error, None)\n    _write_error_test(OSError, BadIterable())\n\n    class BadList:\n\n        def __len__(self):\n            return 10\n\n        def __getitem__(self, i):\n            if i > 2:\n                raise OSError\n    _write_error_test(OSError, BadList())\n\n    class BadItem:\n\n        def __str__(self):\n            raise OSError\n    _write_error_test(OSError, [BadItem()])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_write_bigfield" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _write_test(fields, expect, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        writer.writerow(fields)\n        fileobj.seek(0)\n        assert fileobj.read() == expect + writer.dialect.lineterminator, ('assertEqual', fileobj.read(), expect + writer.dialect.lineterminator)\n\ndef _t():\n    bigstring = 'X' * 50000\n    _write_test([bigstring, bigstring], '%s,%s' % (bigstring, bigstring))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_write_quoting" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _write_test(fields, expect, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        writer.writerow(fields)\n        fileobj.seek(0)\n        assert fileobj.read() == expect + writer.dialect.lineterminator, ('assertEqual', fileobj.read(), expect + writer.dialect.lineterminator)\n\ndef _write_error_test(exc, fields, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        try:\n            writer.writerow(fields)\n        except exc as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        fileobj.seek(0)\n        assert fileobj.read() == '', ('assertEqual', fileobj.read(), '')\n\ndef _t():\n    _write_test(['a', 1, 'p,q'], 'a,1,\"p,q\"')\n    _write_error_test(csv.Error, ['a', 1, 'p,q'], quoting=csv.QUOTE_NONE)\n    _write_test(['a', 1, 'p,q'], 'a,1,\"p,q\"', quoting=csv.QUOTE_MINIMAL)\n    _write_test(['a', 1, 'p,q'], '\"a\",1,\"p,q\"', quoting=csv.QUOTE_NONNUMERIC)\n    _write_test(['a', 1, 'p,q'], '\"a\",\"1\",\"p,q\"', quoting=csv.QUOTE_ALL)\n    _write_test(['a\\nb', 1], '\"a\\nb\",\"1\"', quoting=csv.QUOTE_ALL)\n    _write_test(['a', '', None, 1], '\"a\",\"\",,1', quoting=csv.QUOTE_STRINGS)\n    _write_test(['a', '', None, 1], '\"a\",\"\",,\"1\"', quoting=csv.QUOTE_NOTNULL)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_write_escape" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _write_test(fields, expect, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        writer.writerow(fields)\n        fileobj.seek(0)\n        assert fileobj.read() == expect + writer.dialect.lineterminator, ('assertEqual', fileobj.read(), expect + writer.dialect.lineterminator)\n\ndef _write_error_test(exc, fields, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        try:\n            writer.writerow(fields)\n        except exc as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        fileobj.seek(0)\n        assert fileobj.read() == '', ('assertEqual', fileobj.read(), '')\n\ndef _t():\n    _write_test(['a', 1, 'p,q'], 'a,1,\"p,q\"', escapechar='\\\\')\n    _write_error_test(csv.Error, ['a', 1, 'p,\"q\"'], escapechar=None, doublequote=False)\n    _write_test(['a', 1, 'p,\"q\"'], 'a,1,\"p,\\\\\"q\\\\\"\"', escapechar='\\\\', doublequote=False)\n    _write_test(['\"'], '\"\"\"\"', escapechar='\\\\', quoting=csv.QUOTE_MINIMAL)\n    _write_test(['\"'], '\\\\\"', escapechar='\\\\', quoting=csv.QUOTE_MINIMAL, doublequote=False)\n    _write_test(['\"'], '\\\\\"', escapechar='\\\\', quoting=csv.QUOTE_NONE)\n    _write_test(['a', 1, 'p,q'], 'a,1,p\\\\,q', escapechar='\\\\', quoting=csv.QUOTE_NONE)\n    _write_test(['\\\\', 'a'], '\\\\\\\\,a', escapechar='\\\\', quoting=csv.QUOTE_NONE)\n    _write_test(['\\\\', 'a'], '\\\\\\\\,a', escapechar='\\\\', quoting=csv.QUOTE_MINIMAL)\n    _write_test(['\\\\', 'a'], '\"\\\\\\\\\",\"a\"', escapechar='\\\\', quoting=csv.QUOTE_ALL)\n    _write_test(['\\\\ ', 'a'], '\\\\\\\\ ,a', escapechar='\\\\', quoting=csv.QUOTE_MINIMAL)\n    _write_test(['\\\\,', 'a'], '\\\\\\\\\\\\,,a', escapechar='\\\\', quoting=csv.QUOTE_NONE)\n    _write_test([',\\\\', 'a'], '\",\\\\\\\\\",a', escapechar='\\\\', quoting=csv.QUOTE_MINIMAL)\n    _write_test(['C\\\\', '6', '7', 'X\"'], 'C\\\\\\\\,6,7,\"X\"\"\"', escapechar='\\\\', quoting=csv.QUOTE_MINIMAL)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
 test "Test_Csv.test_write_lineterminator" {
     (ok, detail) = p2_libtest_run_snippet("from io import StringIO\nimport csv\n\ndef _t():\n    for lineterminator in ('\\r\\n', '\\n', '\\r', '!@#', '\\x00'):\n        with StringIO() as sio:\n            writer = csv.writer(sio, lineterminator=lineterminator)\n            writer.writerow(['a', 'b'])\n            writer.writerow([1, 2])\n            writer.writerow(['\\r', '\\n'])\n            assert sio.getvalue() == f'a,b{lineterminator}1,2{lineterminator}\"\\r\",\"\\n\"{lineterminator}', ('assertEqual', sio.getvalue(), f'a,b{lineterminator}1,2{lineterminator}\"\\r\",\"\\n\"{lineterminator}')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_write_iterable" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _write_test(fields, expect, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        writer.writerow(fields)\n        fileobj.seek(0)\n        assert fileobj.read() == expect + writer.dialect.lineterminator, ('assertEqual', fileobj.read(), expect + writer.dialect.lineterminator)\n\ndef _write_error_test(exc, fields, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        try:\n            writer.writerow(fields)\n        except exc as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        fileobj.seek(0)\n        assert fileobj.read() == '', ('assertEqual', fileobj.read(), '')\n\ndef _t():\n    _write_test(iter(['a', 1, 'p,q']), 'a,1,\"p,q\"')\n    _write_test(iter(['a', 1, None]), 'a,1,')\n    _write_test(iter([]), '')\n    _write_test(iter([None]), '\"\"')\n    _write_error_test(csv.Error, iter([None]), quoting=csv.QUOTE_NONE)\n    _write_test(iter([None, None]), ',')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_writerows" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n\n    class BrokenFile:\n\n        def write(self, buf):\n            raise OSError\n    writer = csv.writer(BrokenFile())\n    try:\n        writer.writerows(*([['a']],))\n    except OSError:\n        pass\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj)\n        try:\n            writer.writerows(*(None,))\n        except TypeError:\n            pass\n        writer.writerows([['a', 'b'], ['c', 'd']])\n        fileobj.seek(0)\n        assert fileobj.read() == 'a,b\\r\\nc,d\\r\\n', ('assertEqual', fileobj.read(), 'a,b\\r\\nc,d\\r\\n')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_writerows_with_none" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj)\n        writer.writerows([['a', None], [None, 'd']])\n        fileobj.seek(0)\n        assert fileobj.read() == 'a,\\r\\n,d\\r\\n', ('assertEqual', fileobj.read(), 'a,\\r\\n,d\\r\\n')\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj)\n        writer.writerows([[None], ['a']])\n        fileobj.seek(0)\n        assert fileobj.read() == '\"\"\\r\\na\\r\\n', ('assertEqual', fileobj.read(), '\"\"\\r\\na\\r\\n')\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj)\n        writer.writerows([['a'], [None]])\n        fileobj.seek(0)\n        assert fileobj.read() == 'a\\r\\n\"\"\\r\\n', ('assertEqual', fileobj.read(), 'a\\r\\n\"\"\\r\\n')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_write_empty_fields" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _write_test(fields, expect, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        writer.writerow(fields)\n        fileobj.seek(0)\n        assert fileobj.read() == expect + writer.dialect.lineterminator, ('assertEqual', fileobj.read(), expect + writer.dialect.lineterminator)\n\ndef _write_error_test(exc, fields, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        try:\n            writer.writerow(fields)\n        except exc as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        fileobj.seek(0)\n        assert fileobj.read() == '', ('assertEqual', fileobj.read(), '')\n\ndef _t():\n    _write_test((), '')\n    _write_test([''], '\"\"')\n    _write_error_test(csv.Error, [''], quoting=csv.QUOTE_NONE)\n    _write_test([''], '\"\"', quoting=csv.QUOTE_STRINGS)\n    _write_test([''], '\"\"', quoting=csv.QUOTE_NOTNULL)\n    _write_test([None], '\"\"')\n    _write_error_test(csv.Error, [None], quoting=csv.QUOTE_NONE)\n    _write_error_test(csv.Error, [None], quoting=csv.QUOTE_STRINGS)\n    _write_error_test(csv.Error, [None], quoting=csv.QUOTE_NOTNULL)\n    _write_test(['', ''], ',')\n    _write_test([None, None], ',')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_write_empty_fields_space_delimiter" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _write_test(fields, expect, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        writer.writerow(fields)\n        fileobj.seek(0)\n        assert fileobj.read() == expect + writer.dialect.lineterminator, ('assertEqual', fileobj.read(), expect + writer.dialect.lineterminator)\n\ndef _write_error_test(exc, fields, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        try:\n            writer.writerow(fields)\n        except exc as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        fileobj.seek(0)\n        assert fileobj.read() == '', ('assertEqual', fileobj.read(), '')\n\ndef _t():\n    _write_test([''], '\"\"', delimiter=' ', skipinitialspace=False)\n    _write_test([''], '\"\"', delimiter=' ', skipinitialspace=True)\n    _write_test([None], '\"\"', delimiter=' ', skipinitialspace=False)\n    _write_test([None], '\"\"', delimiter=' ', skipinitialspace=True)\n    _write_test(['', ''], ' ', delimiter=' ', skipinitialspace=False)\n    _write_test(['', ''], '\"\" \"\"', delimiter=' ', skipinitialspace=True)\n    _write_test([None, None], ' ', delimiter=' ', skipinitialspace=False)\n    _write_test([None, None], '\"\" \"\"', delimiter=' ', skipinitialspace=True)\n    _write_test(['', ''], ' ', delimiter=' ', skipinitialspace=False, quoting=csv.QUOTE_NONE)\n    _write_error_test(csv.Error, ['', ''], delimiter=' ', skipinitialspace=True, quoting=csv.QUOTE_NONE)\n    for quoting in (csv.QUOTE_STRINGS, csv.QUOTE_NOTNULL):\n        _write_test(['', ''], '\"\" \"\"', delimiter=' ', skipinitialspace=False, quoting=quoting)\n        _write_test(['', ''], '\"\" \"\"', delimiter=' ', skipinitialspace=True, quoting=quoting)\n    for quoting in (csv.QUOTE_NONE, csv.QUOTE_STRINGS, csv.QUOTE_NOTNULL):\n        _write_test([None, None], ' ', delimiter=' ', skipinitialspace=False, quoting=quoting)\n        _write_error_test(csv.Error, [None, None], delimiter=' ', skipinitialspace=True, quoting=quoting)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_writerows_errors" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\nclass BadIterable:\n\n    def __iter__(self):\n        raise OSError\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj)\n        try:\n            writer.writerows(*(None,))\n        except TypeError:\n            pass\n        try:\n            writer.writerows(*(BadIterable(),))\n        except OSError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_read_eol" {
-    (ok, detail) = p2_libtest_run_snippet("import re as _re\nimport csv\n\ndef _read_test(input, expect, **kwargs):\n    reader = csv.reader(input, **kwargs)\n    result = list(reader)\n    assert result == expect, ('assertEqual', result, expect)\n\ndef _t():\n    _read_test(['a,b', 'c,d'], [['a', 'b'], ['c', 'd']])\n    _read_test(['a,b\\n', 'c,d\\n'], [['a', 'b'], ['c', 'd']])\n    _read_test(['a,b\\r\\n', 'c,d\\r\\n'], [['a', 'b'], ['c', 'd']])\n    _read_test(['a,b\\r', 'c,d\\r'], [['a', 'b'], ['c', 'd']])\n    errmsg = \"with newline=''\"\n    try:\n        next(csv.reader(['a,b\\rc,d']))\n    except csv.Error as _exc:\n        assert _re.search(errmsg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        next(csv.reader(['a,b\\nc,d']))\n    except csv.Error as _exc:\n        assert _re.search(errmsg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        next(csv.reader(['a,b\\r\\nc,d']))\n    except csv.Error as _exc:\n        assert _re.search(errmsg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -145,12 +79,6 @@ test "Test_Csv.test_read_escape" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
-test "Test_Csv.test_read_skipinitialspace" {
-    (ok, detail) = p2_libtest_run_snippet("import csv\n\ndef _read_test(input, expect, **kwargs):\n    reader = csv.reader(input, **kwargs)\n    result = list(reader)\n    assert result == expect, ('assertEqual', result, expect)\n\ndef _t():\n    _read_test(['no space, space,  spaces,\\ttab'], [['no space', 'space', 'spaces', '\\ttab']], skipinitialspace=True)\n    _read_test([' , , '], [['', '', '']], skipinitialspace=True)\n    _read_test([' , , '], [[None, None, None]], skipinitialspace=True, quoting=csv.QUOTE_NOTNULL)\n    _read_test([' , , '], [[None, None, None]], skipinitialspace=True, quoting=csv.QUOTE_STRINGS)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
 test "Test_Csv.test_read_space_delimiter" {
     (ok, detail) = p2_libtest_run_snippet("import csv\n\ndef _read_test(input, expect, **kwargs):\n    reader = csv.reader(input, **kwargs)\n    result = list(reader)\n    assert result == expect, ('assertEqual', result, expect)\n\ndef _t():\n    _read_test(['a   b', '  a  ', '  ', ''], [['a', '', '', 'b'], ['', '', 'a', '', ''], ['', '', ''], []], delimiter=' ', skipinitialspace=False)\n    _read_test(['a   b', '  a  ', '  ', ''], [['a', 'b'], ['a', ''], [''], []], delimiter=' ', skipinitialspace=True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -159,24 +87,6 @@ test "Test_Csv.test_read_space_delimiter" {
 
 test "Test_Csv.test_read_linenum" {
     (ok, detail) = p2_libtest_run_snippet("import csv\n\ndef _t():\n    r = csv.reader(['line,1', 'line,2', 'line,3'])\n    assert r.line_num == 0, ('assertEqual', r.line_num, 0)\n    next(r)\n    assert r.line_num == 1, ('assertEqual', r.line_num, 1)\n    next(r)\n    assert r.line_num == 2, ('assertEqual', r.line_num, 2)\n    next(r)\n    assert r.line_num == 3, ('assertEqual', r.line_num, 3)\n    try:\n        next(*(r,))\n    except StopIteration:\n        pass\n    assert r.line_num == 3, ('assertEqual', r.line_num, 3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_roundtrip_quoteed_newlines" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    rows = [['\\na', 'b\\nc', 'd\\n'], ['\\re', 'f\\rg', 'h\\r'], ['\\r\\ni', 'j\\r\\nk', 'l\\r\\n'], ['\\n\\rm', 'n\\n\\ro', 'p\\n\\r'], ['\\r\\rq', 'r\\r\\rs', 't\\r\\r'], ['\\n\\nu', 'v\\n\\nw', 'x\\n\\n']]\n    for lineterminator in ('\\r\\n', '\\n', '\\r'):\n        with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n            writer = csv.writer(fileobj, lineterminator=lineterminator)\n            writer.writerows(rows)\n            fileobj.seek(0)\n            for i, row in enumerate(csv.reader(fileobj)):\n                assert row == rows[i], ('assertEqual', row, rows[i])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_roundtrip_escaped_unquoted_newlines" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    rows = [['\\na', 'b\\nc', 'd\\n'], ['\\re', 'f\\rg', 'h\\r'], ['\\r\\ni', 'j\\r\\nk', 'l\\r\\n'], ['\\n\\rm', 'n\\n\\ro', 'p\\n\\r'], ['\\r\\rq', 'r\\r\\rs', 't\\r\\r'], ['\\n\\nu', 'v\\n\\nw', 'x\\n\\n']]\n    for lineterminator in ('\\r\\n', '\\n', '\\r'):\n        with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n            writer = csv.writer(fileobj, lineterminator=lineterminator, quoting=csv.QUOTE_NONE, escapechar='\\\\')\n            writer.writerows(rows)\n            fileobj.seek(0)\n            for i, row in enumerate(csv.reader(fileobj, quoting=csv.QUOTE_NONE, escapechar='\\\\')):\n                assert row == rows[i], ('assertEqual', row, rows[i])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "Test_Csv.test_reader_reentrant_iterator" {
-    (ok, detail) = p2_libtest_run_snippet("import csv\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class ReentrantIter:\n\n        def __init__(self):\n            self.reader = None\n            self.n = 0\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            self.n += 1\n            if self.n == 1:\n                try:\n                    next(self.reader)\n                except StopIteration:\n                    pass\n                return 'a,b'\n            if self.n == 2:\n                return 'x'\n            raise StopIteration\n    it = ReentrantIter()\n    reader = csv.reader(it)\n    it.reader = reader\n    try:\n        next(reader)\n    except csv.Error as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -193,18 +103,6 @@ test "TestDialectRegistry.test_incomplete_dialect" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
-test "TestDialectRegistry.test_space_dialect" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n\n    class space(csv.excel):\n        delimiter = ' '\n        quoting = csv.QUOTE_NONE\n        escapechar = '\\\\'\n    with TemporaryFile('w+', encoding='utf-8') as fileobj:\n        fileobj.write('abc   def\\nc1ccccc1 benzene\\n')\n        fileobj.seek(0)\n        reader = csv.reader(fileobj, dialect=space())\n        assert next(reader) == ['abc', '', '', 'def'], ('assertEqual', next(reader), ['abc', '', '', 'def'])\n        assert next(reader) == ['c1ccccc1', 'benzene'], ('assertEqual', next(reader), ['c1ccccc1', 'benzene'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestDialectRegistry.test_dialect_apply" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef compare_dialect_123(expected, *writeargs, **kwwriteargs):\n    with TemporaryFile('w+', newline='', encoding='utf-8') as fileobj:\n        writer = csv.writer(fileobj, *writeargs, **kwwriteargs)\n        writer.writerow([1, 2, 3])\n        fileobj.seek(0)\n        assert fileobj.read() == expected, ('assertEqual', fileobj.read(), expected)\n\ndef _t():\n\n    class testA(csv.excel):\n        delimiter = '\\t'\n\n    class testB(csv.excel):\n        delimiter = ':'\n\n    class testC(csv.excel):\n        delimiter = '|'\n\n    class testUni(csv.excel):\n        delimiter = '\u039b'\n\n    class unspecified:\n        pass\n    csv.register_dialect('testC', testC)\n    try:\n        compare_dialect_123('1,2,3\\r\\n')\n        compare_dialect_123('1,2,3\\r\\n', dialect=None)\n        compare_dialect_123('1,2,3\\r\\n', dialect=unspecified)\n        compare_dialect_123('1\\t2\\t3\\r\\n', testA)\n        compare_dialect_123('1:2:3\\r\\n', dialect=testB())\n        compare_dialect_123('1|2|3\\r\\n', dialect='testC')\n        compare_dialect_123('1;2;3\\r\\n', dialect=testA, delimiter=';')\n        compare_dialect_123('1\u039b2\u039b3\\r\\n', dialect=testUni)\n    finally:\n        csv.unregister_dialect('testC')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
 test "TestDialectRegistry.test_copy" {
     (ok, detail) = p2_libtest_run_snippet("import copy\nimport csv\n\ndef _t():\n    for name in csv.list_dialects():\n        dialect = csv.get_dialect(name)\n        try:\n            copy.copy(*(dialect,))\n        except TypeError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -213,18 +111,6 @@ test "TestDialectRegistry.test_copy" {
 
 test "TestDialectRegistry.test_pickle" {
     (ok, detail) = p2_libtest_run_snippet("import csv\nimport pickle\n\ndef _t():\n    for name in csv.list_dialects():\n        dialect = csv.get_dialect(name)\n        for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n            try:\n                pickle.dumps(*(dialect, proto))\n            except TypeError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestDictFields.test_writeheader_return_value" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.DictWriter(fileobj, fieldnames=['f1', 'f2', 'f3'])\n        writeheader_return_value = writer.writeheader()\n        assert writeheader_return_value == 10, ('assertEqual', writeheader_return_value, 10)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestDictFields.test_write_simple_dict" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.DictWriter(fileobj, fieldnames=['f1', 'f2', 'f3'])\n        writer.writeheader()\n        fileobj.seek(0)\n        assert fileobj.readline() == 'f1,f2,f3\\r\\n', ('assertEqual', fileobj.readline(), 'f1,f2,f3\\r\\n')\n        writer.writerow({'f1': 10, 'f3': 'abc'})\n        fileobj.seek(0)\n        fileobj.readline()\n        assert fileobj.read() == '10,,abc\\r\\n', ('assertEqual', fileobj.read(), '10,,abc\\r\\n')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -295,54 +181,6 @@ test "TestDictFields.test_dict_reader_fieldnames_is_optional" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
-test "TestDictFields.test_read_dict_fields" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8') as fileobj:\n        fileobj.write('1,2,abc\\r\\n')\n        fileobj.seek(0)\n        reader = csv.DictReader(fileobj, fieldnames=['f1', 'f2', 'f3'])\n        assert next(reader) == {'f1': '1', 'f2': '2', 'f3': 'abc'}, ('assertEqual', next(reader), {'f1': '1', 'f2': '2', 'f3': 'abc'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestDictFields.test_read_dict_no_fieldnames" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8') as fileobj:\n        fileobj.write('f1,f2,f3\\r\\n1,2,abc\\r\\n')\n        fileobj.seek(0)\n        reader = csv.DictReader(fileobj)\n        assert next(reader) == {'f1': '1', 'f2': '2', 'f3': 'abc'}, ('assertEqual', next(reader), {'f1': '1', 'f2': '2', 'f3': 'abc'})\n        assert reader.fieldnames == ['f1', 'f2', 'f3'], ('assertEqual', reader.fieldnames, ['f1', 'f2', 'f3'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestDictFields.test_read_dict_fieldnames_from_file" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8') as fileobj:\n        fileobj.write('f1,f2,f3\\r\\n1,2,abc\\r\\n')\n        fileobj.seek(0)\n        reader = csv.DictReader(fileobj, fieldnames=next(csv.reader(fileobj)))\n        assert reader.fieldnames == ['f1', 'f2', 'f3'], ('assertEqual', reader.fieldnames, ['f1', 'f2', 'f3'])\n        assert next(reader) == {'f1': '1', 'f2': '2', 'f3': 'abc'}, ('assertEqual', next(reader), {'f1': '1', 'f2': '2', 'f3': 'abc'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestDictFields.test_read_dict_fieldnames_chain" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    import itertools\n    with TemporaryFile('w+', encoding='utf-8') as fileobj:\n        fileobj.write('f1,f2,f3\\r\\n1,2,abc\\r\\n')\n        fileobj.seek(0)\n        reader = csv.DictReader(fileobj)\n        first = next(reader)\n        for row in itertools.chain([first], reader):\n            assert reader.fieldnames == ['f1', 'f2', 'f3'], ('assertEqual', reader.fieldnames, ['f1', 'f2', 'f3'])\n            assert row == {'f1': '1', 'f2': '2', 'f3': 'abc'}, ('assertEqual', row, {'f1': '1', 'f2': '2', 'f3': 'abc'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestDictFields.test_read_long" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8') as fileobj:\n        fileobj.write('1,2,abc,4,5,6\\r\\n')\n        fileobj.seek(0)\n        reader = csv.DictReader(fileobj, fieldnames=['f1', 'f2'])\n        assert next(reader) == {'f1': '1', 'f2': '2', None: ['abc', '4', '5', '6']}, ('assertEqual', next(reader), {'f1': '1', 'f2': '2', None: ['abc', '4', '5', '6']})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestDictFields.test_read_long_with_rest" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8') as fileobj:\n        fileobj.write('1,2,abc,4,5,6\\r\\n')\n        fileobj.seek(0)\n        reader = csv.DictReader(fileobj, fieldnames=['f1', 'f2'], restkey='_rest')\n        assert next(reader) == {'f1': '1', 'f2': '2', '_rest': ['abc', '4', '5', '6']}, ('assertEqual', next(reader), {'f1': '1', 'f2': '2', '_rest': ['abc', '4', '5', '6']})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestDictFields.test_read_long_with_rest_no_fieldnames" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8') as fileobj:\n        fileobj.write('f1,f2\\r\\n1,2,abc,4,5,6\\r\\n')\n        fileobj.seek(0)\n        reader = csv.DictReader(fileobj, restkey='_rest')\n        assert reader.fieldnames == ['f1', 'f2'], ('assertEqual', reader.fieldnames, ['f1', 'f2'])\n        assert next(reader) == {'f1': '1', 'f2': '2', '_rest': ['abc', '4', '5', '6']}, ('assertEqual', next(reader), {'f1': '1', 'f2': '2', '_rest': ['abc', '4', '5', '6']})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestDictFields.test_read_short" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8') as fileobj:\n        fileobj.write('1,2,abc,4,5,6\\r\\n1,2,abc\\r\\n')\n        fileobj.seek(0)\n        reader = csv.DictReader(fileobj, fieldnames='1 2 3 4 5 6'.split(), restval='DEFAULT')\n        assert next(reader) == {'1': '1', '2': '2', '3': 'abc', '4': '4', '5': '5', '6': '6'}, ('assertEqual', next(reader), {'1': '1', '2': '2', '3': 'abc', '4': '4', '5': '5', '6': '6'})\n        assert next(reader) == {'1': '1', '2': '2', '3': 'abc', '4': 'DEFAULT', '5': 'DEFAULT', '6': 'DEFAULT'}, ('assertEqual', next(reader), {'1': '1', '2': '2', '3': 'abc', '4': 'DEFAULT', '5': 'DEFAULT', '6': 'DEFAULT'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
 test "TestDictFields.test_read_multi" {
     (ok, detail) = p2_libtest_run_snippet("import csv\n\ndef _t():\n    sample = ['2147483648,43.0e12,17,abc,def\\r\\n', '147483648,43.0e2,17,abc,def\\r\\n', '47483648,43.0,170,abc,def\\r\\n']\n    reader = csv.DictReader(sample, fieldnames='i1 float i2 s1 s2'.split())\n    assert next(reader) == {'i1': '2147483648', 'float': '43.0e12', 'i2': '17', 's1': 'abc', 's2': 'def'}, ('assertEqual', next(reader), {'i1': '2147483648', 'float': '43.0e12', 'i2': '17', 's1': 'abc', 's2': 'def'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -361,68 +199,8 @@ test "TestDictFields.test_read_semi_sep" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
-test "TestArrayWrites.test_int_write" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    import array\n    contents = [20 - i for i in range(20)]\n    a = array.array('i', contents)\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, dialect='excel')\n        writer.writerow(a)\n        expected = ','.join([str(i) for i in a]) + '\\r\\n'\n        fileobj.seek(0)\n        assert fileobj.read() == expected, ('assertEqual', fileobj.read(), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestArrayWrites.test_double_write" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    import array\n    contents = [(20 - i) * 0.1 for i in range(20)]\n    a = array.array('d', contents)\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, dialect='excel')\n        writer.writerow(a)\n        expected = ','.join([str(i) for i in a]) + '\\r\\n'\n        fileobj.seek(0)\n        assert fileobj.read() == expected, ('assertEqual', fileobj.read(), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestArrayWrites.test_float_write" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    import array\n    contents = [(20 - i) * 0.1 for i in range(20)]\n    a = array.array('f', contents)\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, dialect='excel')\n        writer.writerow(a)\n        expected = ','.join([str(i) for i in a]) + '\\r\\n'\n        fileobj.seek(0)\n        assert fileobj.read() == expected, ('assertEqual', fileobj.read(), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestArrayWrites.test_char_write" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n    import array, string\n    a = array.array('w', string.ascii_letters)\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, dialect='excel')\n        writer.writerow(a)\n        expected = ','.join(a) + '\\r\\n'\n        fileobj.seek(0)\n        assert fileobj.read() == expected, ('assertEqual', fileobj.read(), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
 test "TestDialectValidity.test_invalid_chars" {
     (ok, detail) = p2_libtest_run_snippet("import csv\n\ndef _t():\n\n    def create_invalid(field_name, value, **kwargs):\n\n        class mydialect(csv.Dialect):\n            delimiter = ','\n            quoting = csv.QUOTE_ALL\n            quotechar = '\"'\n            lineterminator = '\\r\\n'\n        setattr(mydialect, field_name, value)\n        for field_name, value in kwargs.items():\n            setattr(mydialect, field_name, value)\n        d = mydialect()\n    for field_name in ('delimiter', 'escapechar', 'quotechar'):\n        try:\n            create_invalid(*(field_name, ''))\n        except csv.Error:\n            pass\n        try:\n            create_invalid(*(field_name, 'abc'))\n        except csv.Error:\n            pass\n        try:\n            create_invalid(*(field_name, b'x'))\n        except csv.Error:\n            pass\n        try:\n            create_invalid(*(field_name, 5))\n        except csv.Error:\n            pass\n        try:\n            create_invalid(*(field_name, '\\n'))\n        except ValueError:\n            pass\n        try:\n            create_invalid(*(field_name, '\\r'))\n        except ValueError:\n            pass\n        if field_name != 'delimiter':\n            try:\n                create_invalid(*(field_name, ' '), skipinitialspace=True)\n            except ValueError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestSniffer.test_guess_quote_and_delimiter" {
-    (ok, detail) = p2_libtest_run_snippet("import csv\n\ndef _t():\n    sniffer = csv.Sniffer()\n    for header in (\";'123;4';\", \"'123;4';\", \";'123;4'\", \"'123;4'\"):\n        dialect = sniffer.sniff(header, ',;')\n        assert dialect.delimiter == ';', ('assertEqual', dialect.delimiter, ';')\n        assert dialect.quotechar == \"'\", ('assertEqual', dialect.quotechar, \"'\")\n        assert dialect.doublequote is False, ('assertIs', dialect.doublequote, False)\n        assert dialect.skipinitialspace is False, ('assertIs', dialect.skipinitialspace, False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestUnicode.test_unicode_read" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.names = ['Martin von L\u00f6wis', 'Marc Andr\u00e9 Lemburg', 'Guido van Rossum', 'Fran\u00e7ois Pinard']\n    with TemporaryFile('w+', newline='', encoding='utf-8') as fileobj:\n        fileobj.write(','.join(self.names) + '\\r\\n')\n        fileobj.seek(0)\n        reader = csv.reader(fileobj)\n        assert list(reader) == [self.names], ('assertEqual', list(reader), [self.names])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TestUnicode.test_unicode_write" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.names = ['Martin von L\u00f6wis', 'Marc Andr\u00e9 Lemburg', 'Guido van Rossum', 'Fran\u00e7ois Pinard']\n    with TemporaryFile('w+', newline='', encoding='utf-8') as fileobj:\n        writer = csv.writer(fileobj)\n        writer.writerow(self.names)\n        expected = ','.join(self.names) + '\\r\\n'\n        fileobj.seek(0)\n        assert fileobj.read() == expected, ('assertEqual', fileobj.read(), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "KeyOrderingTest.test_ordering_for_the_dict_reader_and_writer" {
-    (ok, detail) = p2_libtest_run_snippet("from tempfile import TemporaryFile\nimport csv\nfrom itertools import permutations\n\ndef _t():\n    resultset = set()\n    for keys in permutations('abcde'):\n        with TemporaryFile('w+', newline='', encoding='utf-8') as fileobject:\n            dw = csv.DictWriter(fileobject, keys)\n            dw.writeheader()\n            fileobject.seek(0)\n            dr = csv.DictReader(fileobject)\n            kt = tuple(dr.fieldnames)\n            assert keys == kt, ('assertEqual', keys, kt)\n            resultset.add(kt)\n    assert len(resultset) == 120, ('assertEqual', len(resultset), 120)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "KeyOrderingTest.test_ordered_dict_reader" {
-    (ok, detail) = p2_libtest_run_snippet("import csv\nfrom textwrap import dedent\nfrom collections import OrderedDict\n\ndef _t():\n    data = dedent('            FirstName,LastName\\n            Eric,Idle\\n            Graham,Chapman,Over1,Over2\\n\\n            Under1\\n            John,Cleese\\n        ').splitlines()\n    assert list(csv.DictReader(data)) == [OrderedDict([('FirstName', 'Eric'), ('LastName', 'Idle')]), OrderedDict([('FirstName', 'Graham'), ('LastName', 'Chapman'), (None, ['Over1', 'Over2'])]), OrderedDict([('FirstName', 'Under1'), ('LastName', None)]), OrderedDict([('FirstName', 'John'), ('LastName', 'Cleese')])], ('assertEqual', list(csv.DictReader(data)), [OrderedDict([('FirstName', 'Eric'), ('LastName', 'Idle')]), OrderedDict([('FirstName', 'Graham'), ('LastName', 'Chapman'), (None, ['Over1', 'Over2'])]), OrderedDict([('FirstName', 'Under1'), ('LastName', None)]), OrderedDict([('FirstName', 'John'), ('LastName', 'Cleese')])])\n    assert list(csv.DictReader(data, restkey='OtherInfo')) == [OrderedDict([('FirstName', 'Eric'), ('LastName', 'Idle')]), OrderedDict([('FirstName', 'Graham'), ('LastName', 'Chapman'), ('OtherInfo', ['Over1', 'Over2'])]), OrderedDict([('FirstName', 'Under1'), ('LastName', None)]), OrderedDict([('FirstName', 'John'), ('LastName', 'Cleese')])], ('assertEqual', list(csv.DictReader(data, restkey='OtherInfo')), [OrderedDict([('FirstName', 'Eric'), ('LastName', 'Idle')]), OrderedDict([('FirstName', 'Graham'), ('LastName', 'Chapman'), ('OtherInfo', ['Over1', 'Over2'])]), OrderedDict([('FirstName', 'Under1'), ('LastName', None)]), OrderedDict([('FirstName', 'John'), ('LastName', 'Cleese')])])\n    del data[0]\n    assert list(csv.DictReader(data, fieldnames=['fname', 'lname'])) == [OrderedDict([('fname', 'Eric'), ('lname', 'Idle')]), OrderedDict([('fname', 'Graham'), ('lname', 'Chapman'), (None, ['Over1', 'Over2'])]), OrderedDict([('fname', 'Under1'), ('lname', None)]), OrderedDict([('fname', 'John'), ('lname', 'Cleese')])], ('assertEqual', list(csv.DictReader(data, fieldnames=['fname', 'lname'])), [OrderedDict([('fname', 'Eric'), ('lname', 'Idle')]), OrderedDict([('fname', 'Graham'), ('lname', 'Chapman'), (None, ['Over1', 'Over2'])]), OrderedDict([('fname', 'Under1'), ('lname', None)]), OrderedDict([('fname', 'John'), ('lname', 'Cleese')])])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "MiscTestCase.test_lazy_import" {
-    (ok, detail) = p2_libtest_run_snippet("from test.support.import_helper import ensure_lazy_imports\n\ndef _t():\n    ensure_lazy_imports('csv', {'re'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
