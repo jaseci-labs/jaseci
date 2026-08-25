@@ -1240,6 +1240,56 @@ glob CHECKER_DIRS: dict[(str, str)] = {
              ]
          ),
          (
+             "membership_narrowing",
+             "checker",
+             "checker_membership_narrowing.jac",
+             6,
+             True,
+             [
+                 (
+                     0,
+                     """
+Cannot return str | NoneType, expected str
+        return v;  # <-- Error: an f-string is not a literal, v is still str | None
+    """
+                 ),
+                 (
+                     1,
+                     """
+Cannot return str | NoneType, expected str
+        return v;  # <-- Error: != only rules out "node", v is still str | None
+    """
+                 ),
+                 (
+                     2,
+                     """
+Cannot return str | NoneType, expected str
+        return ak;  # <-- Error: not in only rules out the literals, ak is still str | None
+    """
+                 ),
+                 (
+                     3,
+                     """
+Cannot return int | NoneType, expected int
+        return n;  # <-- Error: != only rules out 5, n is still int | None
+    """
+                 ),
+                 (
+                     4,
+                     """
+        return ak if ak in (other, "walker") else "obj";  # <-- Error: tuple has a non-literal element, no narrowing possible
+    """
+                 ),
+                 (
+                     5,
+                     """
+Cannot return str | NoneType, expected str
+    return ak;  # <-- Error: `in` only narrows the true branch, ak is still str | None here
+    """
+                 )
+             ]
+         ),
+         (
              "type_alias_narrowing",
              "checker",
              "checker_type_alias_narrowing.jac",

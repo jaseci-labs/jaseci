@@ -310,7 +310,9 @@ enum NarrowingKind {
     LITERAL_NE = "literal_ne",
     HASATTR = "hasattr",
     TYPE_IS = "type_is",
-    TYPE_GUARD = "type_guard"
+    TYPE_GUARD = "type_guard",
+    MEMBERSHIP_IN = "membership_in",
+    MEMBERSHIP_NOT_IN = "membership_not_in"
 }
 
 obj ConditionInfo {
@@ -716,6 +718,8 @@ obj TypeEvaluator {
     def create_key_for_reference(expr: Expr) -> str | None;
     def _find_symbol_by_key(key: str, condition: Expr) -> Symbol | None;
     def classify_condition(condition: Expr) -> ConditionInfo | None;
+    def _literal_type_of(expr: Expr) -> TypeBase | None;
+    def _is_exact_literal(narrow_type: TypeBase | None) -> bool;
     def flow_pred_never_returns(pred: UniCFGNode) -> bool;
     def get_narrowed_type(symbol: Symbol, at_node: UniNode) -> TypeBase | None;
     def get_narrowed_type_for_expr(
@@ -763,6 +767,7 @@ obj TypeEvaluator {
     ) -> (TypeBase | None);
 
     def exclude_type_from_union(original: TypeBase, to_exclude: TypeBase) -> TypeBase;
+    def _excluded_by(member: TypeBase, to_exclude: TypeBase) -> bool;
     def _get_type_from_match_pattern(pattern: MatchPattern) -> TypeBase | None;
     def _union_contains_none(union_type: TypeBase) -> bool;
     def _extract_isinstance_info(condition: Expr) -> tuple[str, TypeBase] | None;

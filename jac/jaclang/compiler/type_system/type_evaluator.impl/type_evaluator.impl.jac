@@ -4819,6 +4819,29 @@ impl TypeEvaluator._find_symbol_by_key(key: str, condition: Expr) -> Symbol | No
     return None;
 }
 
+impl TypeEvaluator._literal_type_of(expr: Expr) -> TypeBase | None {
+    if const_type := self._literal_type_from_expr(expr) {
+        return const_type;
+    }
+    operand = expr.operand
+        if isinstance(expr, UnaryExpr) and expr.op.name == Tok.MINUS
+        else expr;
+    if isinstance(operand, Float) {
+        return self.get_type_of_expression(expr);
+    }
+    return None;
+}
+
+impl TypeEvaluator._is_exact_literal(narrow_type: TypeBase | None) -> bool {
+    if narrow_type is None {
+        return False;
+    }
+    members = narrow_type.types
+        if isinstance(narrow_type, UnionType)
+        else [narrow_type];
+    return all(isinstance(m, ClassType) and m.is_literal_type() for m in members);
+}
+
 impl TypeEvaluator.classify_condition(condition: Expr) -> ConditionInfo | None {
     import from jaclang.jac0core.constant { Tokens as Tok }
     import from jaclang.compiler.type_system.type_evaluator {
@@ -4875,9 +4898,8 @@ impl TypeEvaluator.classify_condition(condition: Expr) -> ConditionInfo | None {
     ) {
         left_key = self.create_key_for_reference(condition.left);
         right_expr = condition.rights[0];
-        if left_key is not None
-            and isinstance(right_expr, (String, Int, Float, Bool)) {
-            literal_type = self.get_type_of_expression(right_expr);
+        literal_type = self._literal_type_of(right_expr);
+        if left_key is not None and literal_type is not None {
             op_name = condition.ops[0].name;
             if op_name == Tok.EE {
                 return ConditionInfo(
@@ -4891,6 +4913,44 @@ impl TypeEvaluator.classify_condition(condition: Expr) -> ConditionInfo | None {
                     key=left_key,
                     narrow_type=literal_type
                 );
+            }
+        }
+
+        if left_key is not None
+            and isinstance(right_expr, (TupleVal, ListVal))
+            and right_expr.values {
+            elem_types: list[TypeBase] = [];
+            all_literal = True;
+            for elem in right_expr.values {
+                elem_type = self._literal_type_of(elem)
+                    if isinstance(elem, Expr)
+                    else None;
+                if elem_type is None {
+                    all_literal = False;
+                    break;
+                }
+                elem_types.append(elem_type);
+            }
+            if all_literal and elem_types {
+                op_name = condition.ops[0].name;
+                narrow_type = (
+                    elem_types[0]
+                        if len(elem_types) == 1
+                        else UnionType(types=elem_types)
+                );
+                if op_name == Tok.KW_IN {
+                    return ConditionInfo(
+                        kind=NarrowingKind.MEMBERSHIP_IN,
+                        key=left_key,
+                        narrow_type=narrow_type
+                    );
+                } elif op_name == Tok.KW_NIN {
+                    return ConditionInfo(
+                        kind=NarrowingKind.MEMBERSHIP_NOT_IN,
+                        key=left_key,
+                        narrow_type=narrow_type
+                    );
+                }
             }
         }
     }
@@ -5121,14 +5181,22 @@ impl TypeEvaluator._find_predicate_for(
                     );
                 }
 
-            case NarrowingKind.LITERAL_EQ:
+            case NarrowingKind.LITERAL_EQ | NarrowingKind.MEMBERSHIP_IN:
+                exact = self._is_exact_literal(info.narrow_type);
                 return NarrowingPredicate(
-                    key=key, narrow_type=info.narrow_type, is_inverted=False
+                    key=key,
+                    narrow_type=info.narrow_type,
+                    is_inverted=False,
+                    narrows_on_false=exact
                 );
 
-            case NarrowingKind.LITERAL_NE:
+            case NarrowingKind.LITERAL_NE | NarrowingKind.MEMBERSHIP_NOT_IN:
+                exact = self._is_exact_literal(info.narrow_type);
                 return NarrowingPredicate(
-                    key=key, narrow_type=info.narrow_type, is_inverted=True
+                    key=key,
+                    narrow_type=info.narrow_type,
+                    is_inverted=True,
+                    narrows_on_true=exact
                 );
 
             case NarrowingKind.TRUTHINESS:
@@ -5447,32 +5515,35 @@ impl TypeEvaluator._union_narrowed_types(types_list: list) -> TypeBase {
     return UnionType(types=unique);
 }
 
+impl TypeEvaluator._excluded_by(member: TypeBase, to_exclude: TypeBase) -> bool {
+    if not (isinstance(member, ClassType) and isinstance(to_exclude, ClassType)) {
+        return member is to_exclude;
+    }
+    member_key = member.shared.canonical_key() or id(member.shared);
+    exclude_key = to_exclude.shared.canonical_key() or id(to_exclude.shared);
+    if member_key != exclude_key {
+        return False;
+    }
+    if not to_exclude.is_literal_type() {
+        return True;
+    }
+    return member.is_literal_type()
+        and (member.get_literal_value() == to_exclude.get_literal_value());
+}
+
 impl TypeEvaluator.exclude_type_from_union(
     original: TypeBase, to_exclude: TypeBase
 ) -> TypeBase {
     if isinstance(original, UnionType) and original.types {
-        exclude_shareds: set = set();
-        exclude_ids: set = set();
         to_exclude_list: list[TypeBase] = [];
         if isinstance(to_exclude, UnionType) and to_exclude.types {
             to_exclude_list = to_exclude.types;
         } else {
             to_exclude_list = [to_exclude];
         }
-        for excl_t in to_exclude_list {
-            if isinstance(excl_t, ClassType) {
-                exclude_shareds.add(excl_t.shared.canonical_key() or id(excl_t.shared));
-            } else {
-                exclude_ids.add(id(excl_t));
-            }
-        }
         remaining: list[TypeBase] = [];
         for t in original.types {
-            if isinstance(t, ClassType) {
-                if (t.shared.canonical_key() or id(t.shared)) in exclude_shareds {
-                    continue;
-                }
-            } elif id(t) in exclude_ids {
+            if any(self._excluded_by(t, excl_t) for excl_t in to_exclude_list) {
                 continue;
             }
             remaining.append(t);
@@ -5488,7 +5559,8 @@ impl TypeEvaluator.exclude_type_from_union(
 
     if isinstance(original, ClassType)
         and isinstance(to_exclude, ClassType)
-        and original.shared.same_class(to_exclude.shared) {
+        and original.shared.same_class(to_exclude.shared)
+        and self._excluded_by(original, to_exclude) {
         return NeverType();
     }
 
