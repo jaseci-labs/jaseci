@@ -23,10 +23,10 @@ glob PAYLOAD_ZSTD_LEVEL: int = 19,
      ),
      ENTRY_POINTS_TXT: str = (
          "[jac.modules]\n"
-         "desktop = jaclang.runtimelib.client.desktop_plugin_config:desktop_sdk_path\n"
+         "desktop = jaclang.client.desktop_plugin_config:desktop_sdk_path\n"
          "\n"
          "[jac.module_exports]\n"
-         "desktop = jaclang.runtimelib.client.desktop_plugin_config:desktop_sdk_exports\n"
+         "desktop = jaclang.client.desktop_plugin_config:desktop_sdk_exports\n"
      ),
      PRECOMPILE_BOOT_SRC: str = (
          "import os, sys\n"

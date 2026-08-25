@@ -23,7 +23,7 @@ import jaclang;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang.runtime.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.context { ExecutionContext }
 
 glob SCAN_ROOTS: list[str] = ["jac0core", "runtimelib", "scale", "byllm"],
      SANCTIONED: dict[str, tuple] = {
@@ -48,18 +48,18 @@ glob SCAN_ROOTS: list[str] = ["jac0core", "runtimelib", "scale", "byllm"],
              "persistence record into the store is the one sanctioned live "
              "read"
          ),
-         "runtimelib/impl/query_planner.impl.jac": (
+         "data/impl/query_planner.impl.jac": (
              1,
              "_walk_memory's volatile arm enumerates live anchor objects "
              "directly; detach keeps node.edges and the sv store in step, "
              "and the persistent arm is pure SQL (epic #7945)"
          ),
-         "runtimelib/impl/serializer.impl.jac": (
+         "data/impl/serializer.impl.jac": (
              3,
              "serialization proper: writing data.edges on save and "
              "rebuilding the stub list plus _initial_edge_ids on load"
          ),
-         "runtimelib/impl/session.impl.jac": (
+         "server/impl/session.impl.jac": (
              1,
              "hydration: _materialize rebuilds the stub list from the "
              "store's src/dst adjacency (ordered by seq) since node rows "

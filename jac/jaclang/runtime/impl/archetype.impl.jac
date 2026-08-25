@@ -203,7 +203,7 @@ impl Archetype.__init_subclass__(cls: any, **kwargs: object) -> None {
         import from jaclang { JacRuntimeInterface as _ }
         _.make_archetype(cls);
         if 'drop' in cls.__dict__ {
-            import from jaclang.runtimelib.builtin { _jac_region_instrument }
+            import from jaclang.runtime.builtin { _jac_region_instrument }
             _jac_region_instrument(cls);
         }
         for hook in Archetype._subclass_hooks {

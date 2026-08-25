@@ -4,7 +4,7 @@
 //! Both halves are produced by Jac:
 //!
 //!   * the launcher stub is `launcher/launcher.jac` over the fused-runtime
-//!     library (`jaclang/runtimelib/fused`), compiled by the in-checkout
+//!     library (`jaclang/dist/fused`), compiled by the in-checkout
 //!     compiler with `jac build --as native` (the Jac-native linkers; no
 //!     external toolchain) -- it links only libc/libdl and dlopens the bundled
 //!     CPython at runtime;
@@ -172,12 +172,12 @@ pub fn build(b: *std.Build) void {
     }
 
     // Standalone: place the pinned, contained bun runtime into the source tree at
-    // jaclang/runtimelib/client/_bun/ for the HOST. Editable/source checkouts,
+    // jaclang/client/_bun/ for the HOST. Editable/source checkouts,
     // the test suite, and -Ddev linked binaries resolve it there via get_bun()'s
     // __file__-relative lookup. (Normal/release builds instead bundle a
     // target-matched bun into the payload; see the payload block below.)
     {
-        const fetch_bun = tool.run("payload", &.{ "fetch-bun", host_osarch, b.pathFromRoot("jaclang/runtimelib/client/_bun") });
+        const fetch_bun = tool.run("payload", &.{ "fetch-bun", host_osarch, b.pathFromRoot("jaclang/client/_bun") });
         fetch_bun.has_side_effects = true;
         b.step("fetch-bun", "Place the pinned bun into the source tree (editable/dev + tests)")
             .dependOn(&fetch_bun.step);
@@ -340,7 +340,7 @@ pub fn build(b: *std.Build) void {
             mk.step.dependOn(&fetch_bun.step);
             mk.addArg(b.fmt("--bun={s}/bun", .{bun_dir}));
         } else {
-            const fetch_bun = tool.run("payload", &.{ "fetch-bun", host_osarch, b.fmt("{s}/jaclang/runtimelib/client/_bun", .{link_dir.?}) });
+            const fetch_bun = tool.run("payload", &.{ "fetch-bun", host_osarch, b.fmt("{s}/jaclang/client/_bun", .{link_dir.?}) });
             fetch_bun.has_side_effects = true;
             mk.step.dependOn(&fetch_bun.step);
         }

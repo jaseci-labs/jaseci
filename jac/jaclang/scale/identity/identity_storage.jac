@@ -1,5 +1,5 @@
 import json;
-import from jaclang.runtimelib.serving.authcrypt {
+import from jaclang.server.serving.authcrypt {
     hash_password as _scrypt_hash,
     verify_password as _scrypt_verify,
     is_prescrypt_hash as _is_prescrypt

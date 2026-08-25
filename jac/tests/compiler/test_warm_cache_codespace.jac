@@ -37,7 +37,7 @@ import from jaclang.compiler.driver.jir {
     module_cache_key,
     module_env_fingerprint
 }
-import from jaclang.runtimelib.cl_test_runner { _COLOR_CACHE, module_is_client }
+import from jaclang.testing.cl_test_runner { _COLOR_CACHE, module_is_client }
 
 glob SYMBOL_UTILS: str = os.path.join(
          os.path.dirname(str(jaclang.__file__)), "compiler", "symbol_utils.jac"

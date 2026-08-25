@@ -2,7 +2,7 @@
 
 The codegen string tests prove what the host SOURCE contains; this proves the
 whole chain RUNS in a real binary. Build a tiny na host over the fused runtime
-library (jaclang/runtimelib/fused, staged beside it exactly as the desktop
+library (jaclang/dist/fused, staged beside it exactly as the desktop
 builder does), bundle THIS jac's runtime trailer onto it, run it, and confirm
 engine_boot() materialized the trailer payload, dlopened the bundled CPython,
 initialized it, and imported jaclang + oauth_broker straight from the fused
@@ -15,7 +15,7 @@ import shutil;
 import subprocess;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.runtimelib.client.targets.desktop.desktop_build {
+import from jaclang.client.targets.desktop.desktop_build {
     _jac_bin,
     _stage_fused_runtime,
     _bundle_runtime
@@ -29,7 +29,7 @@ test "na host boots the fused runtime (no display)" {
         "import from fused.bringup { engine_boot }\n"
         "with entry {\n"
         "    api = engine_boot().api;\n"
-        "    api.PyRun_SimpleString(\"import jaclang; from jaclang.runtimelib.client.targets.desktop.native import oauth_broker; print('ENGINE_BOOT_OK', flush=True)\");\n"
+        "    api.PyRun_SimpleString(\"import jaclang; from jaclang.client.targets.desktop.native import oauth_broker; print('ENGINE_BOOT_OK', flush=True)\");\n"
         "    api.Py_Finalize();\n"
         "}\n"
     );

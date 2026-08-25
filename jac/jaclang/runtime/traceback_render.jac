@@ -22,8 +22,7 @@ def dump_traceback(e: Exception) -> str {
     def is_internal_runtime_frame(filename: str) -> bool {
         normalized: str = filename.replace('\\', '/');
         return (
-            ('/jaclang/runtimelib/' in normalized)
-            or ('/jaclang/compiler/' in normalized)
+            ('/jaclang/compiler/' in normalized)
             or ('/jaclang/runtime/' in normalized)
             or ('/jaclang/lib/' in normalized)
             or ('/jaclang/vendor/' in normalized)

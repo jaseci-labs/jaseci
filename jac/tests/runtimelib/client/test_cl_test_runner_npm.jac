@@ -6,7 +6,7 @@ resolve.  These cover that rewriting for modules that are not `@jac/runtime`.
 """
 
 import from pathlib { Path }
-import from jaclang.runtimelib.cl_test_runner { module_is_client, run_cl_test_file }
+import from jaclang.testing.cl_test_runner { module_is_client, run_cl_test_file }
 
 glob FIXTURES = Path(__file__).parent / "fixtures" / "cl_npm";
 

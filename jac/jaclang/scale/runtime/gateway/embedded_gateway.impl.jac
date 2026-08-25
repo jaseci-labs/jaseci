@@ -140,7 +140,7 @@ impl EmbeddedGateway.serve -> None {
         self.setup();
     }
     _logger.info(f"Embedded gateway serving in-process on {self.host}:{self.port}");
-    import from jaclang.runtimelib.serving.server { ServingServer }
+    import from jaclang.server.serving.server { ServingServer }
     serving = ServingServer(app=self.app, host=self.host, port=self.port);
     serving.run();
 }

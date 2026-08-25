@@ -181,7 +181,7 @@ Features that once shipped as separate plugin packages now live inside `jaclang`
 |--------|-------------|
 | `byllm` (`jac/jaclang/byllm/`) | LLM-powered functions -- annotate a function signature with a docstring and byLLM calls an LLM to implement it at runtime. `litellm` and other model deps are optional, pulled per-project via `[byllm]` config + `jac install`. |
 | `scale` (`jac/jaclang/scale/`) | Cloud deployment -- wraps `jac run` with FastAPI, adds Kubernetes deployment, Docker builds, MongoDB/Redis storage backends. Its optional deps are pulled per-project via `[scale.*]` config + `jac install`. |
-| client framework (`jac/jaclang/runtimelib/client/`) | Full-stack web, desktop, and mobile -- compiles `.jac` to JavaScript, bundles with Vite, and hosts desktop webview apps. |
+| client framework (`jac/jaclang/client/`) | Full-stack web, desktop, and mobile -- compiles `.jac` to JavaScript, bundles with Vite, and hosts desktop webview apps. |
 | MCP server (`jac/jaclang/cli/mcp/`) | `jac mcp` -- exposes the live Jac compiler and project to AI coding assistants. See the [MCP reference](../reference/mcp.md). |
 
 ---

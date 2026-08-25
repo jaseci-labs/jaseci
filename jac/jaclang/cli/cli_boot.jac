@@ -73,7 +73,7 @@ def _run_bundled_app -> (int | None) {
     if not off or not length {
         return None;
     }
-    import from jaclang.runtimelib.jab { materialize_jab_bytes }
+    import from jaclang.dist.jab { materialize_jab_bytes }
     import from jaclang.cli.commands.execution { run_jab_image }
 
     try {

@@ -32,7 +32,7 @@ came from.
 """
 
 import from pathlib { Path }
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 import from jaclang.utils.precompile_bytecode {
     NATIVE_SEAL_CLOSURE,
     NATIVE_SEAL_ROOTS,
@@ -61,12 +61,12 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              ),
              "compiler/passes/uni_pass.jac": (
                  "compiler/type_registry.jac",
@@ -83,12 +83,12 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              ),
              "compiler/passes/endpoint_effect_pass.jac": (
                  "compiler/type_registry.jac",
@@ -106,12 +106,12 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              )
          },
          "wave-2": {
@@ -131,13 +131,13 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/keyword.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/keyword.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              ),
              "compiler/passes/semantic_analysis_pass.jac": (
                  "compiler/type_registry.jac",
@@ -155,12 +155,12 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              ),
              "compiler/passes/main/sem_def_match_pass.jac": (
                  "compiler/passes/main/sem_def_match_pass.jac",
@@ -178,12 +178,12 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              )
          },
          "wave-3": {
@@ -205,12 +205,12 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              )
          },
          "wave-4": {
@@ -230,12 +230,12 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              ),
              "compiler/passes/decl_impl_match_pass.jac": (
                  "compiler/type_registry.jac",
@@ -253,12 +253,12 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              )
          },
          "wave-5": {
@@ -279,13 +279,13 @@ glob WAVE_CLOSURES: dict = {
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
                  "project/client_kind_paths.jac",
-                 "runtimelib/client/targets/react_native/html_tag_map.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "client/targets/react_native/html_tag_map.jac",
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              ),
              "compiler/passes/main/access_check_pass.jac": (
                  "compiler/passes/main/access_check_pass.jac",
@@ -303,12 +303,12 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              )
          },
          "wave-7": {
@@ -329,12 +329,12 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/scalars.jac",
                  "compiler/frontend/srcloc.jac",
                  "compiler/frontend/unitree.jac",
-                 "runtimelib/na_stdlib/_hashlib_native.jac",
-                 "runtimelib/na_stdlib/contextvars.jac",
-                 "runtimelib/na_stdlib/fnmatch.jac",
-                 "runtimelib/na_stdlib/hashlib.jac",
-                 "runtimelib/na_stdlib/logging.jac",
-                 "runtimelib/na_stdlib/pathlib.jac"
+                 "runtime/na_stdlib/_hashlib_native.jac",
+                 "runtime/na_stdlib/contextvars.jac",
+                 "runtime/na_stdlib/fnmatch.jac",
+                 "runtime/na_stdlib/hashlib.jac",
+                 "runtime/na_stdlib/logging.jac",
+                 "runtime/na_stdlib/pathlib.jac"
              )
          }
      },

@@ -4553,7 +4553,7 @@ impl EsastGenPass._view_push_stmt(
 impl EsastGenPass._jsx_fragment(
     children: es.Expression, anchor: uni.UniNode
 ) -> es.CallExpression {
-    import from jaclang.runtimelib.client_surface { backend_jsx_factory_name }
+    import from jaclang.client.client_surface { backend_jsx_factory_name }
     self._ensure_backend();
     factory_name = backend_jsx_factory_name(self.backend);
     return self.sync_loc(
@@ -4710,7 +4710,7 @@ impl EsastGenPass._register_jac_runtime_import -> None {
 }
 
 impl EsastGenPass._inject_runtime_import(name: str, nd: uni.UniNode) -> None {
-    import from jaclang.runtimelib.client_surface { runtime_import_source }
+    import from jaclang.client.client_surface { runtime_import_source }
     self._ensure_backend();
     if name in self.injected_imports or self._has_import(name) {
         return;

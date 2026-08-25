@@ -107,13 +107,13 @@ glob JCIR_CLOSURE: tuple = (
          "runtime/scalars.jac",
          "compiler/frontend/srcloc.jac",
          "compiler/frontend/unitree.jac",
-         "runtimelib/na_stdlib/_hashlib_native.jac",
-         "runtimelib/na_stdlib/contextvars.jac",
-         "runtimelib/na_stdlib/fnmatch.jac",
-         "runtimelib/na_stdlib/hashlib.jac",
-         "runtimelib/na_stdlib/logging.jac",
-         "runtimelib/na_stdlib/pathlib.jac",
-         "runtimelib/na_stdlib/textwrap.jac"
+         "runtime/na_stdlib/_hashlib_native.jac",
+         "runtime/na_stdlib/contextvars.jac",
+         "runtime/na_stdlib/fnmatch.jac",
+         "runtime/na_stdlib/hashlib.jac",
+         "runtime/na_stdlib/logging.jac",
+         "runtime/na_stdlib/pathlib.jac",
+         "runtime/na_stdlib/textwrap.jac"
      );
 
 """Closure members that must carry no seam of their own."""
@@ -123,7 +123,7 @@ glob JCIR_CLEAN_MEMBERS: tuple = (
          "compiler/frontend/diagnostics.jac",
          "compiler/backends/py/jcir_facts.jac",
          "compiler/frontend/srcloc.jac",
-         "runtimelib/na_stdlib/textwrap.jac"
+         "runtime/na_stdlib/textwrap.jac"
      );
 
 glob _COVERAGE_MEMO: dict[(str, tuple)] = {};

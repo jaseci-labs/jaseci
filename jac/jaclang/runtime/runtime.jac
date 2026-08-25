@@ -50,10 +50,10 @@ import type from jaclang.cli.console { JacConsole as ConsoleImpl }
 import type from jaclang.compiler.driver.compiler { JacCompiler }
 import type from jaclang.compiler.driver.program { JacProgram }
 import type from jaclang.compiler.driver.selfhost { SelfHostCache }
-import type from jaclang.runtimelib.client_bundle { ClientBundle, ClientBundleBuilder }
-import type from jaclang.runtimelib.context { ExecutionContext }
-import type from jaclang.runtimelib.server { JacAPIServer as JacServer }
-import type from jaclang.runtimelib.server { ModuleIntrospector, UserManager }
+import type from jaclang.client.client_bundle { ClientBundle, ClientBundleBuilder }
+import type from jaclang.runtime.context { ExecutionContext }
+import type from jaclang.server.server { JacAPIServer as JacServer }
+import type from jaclang.server.server { ModuleIntrospector, UserManager }
 
 glob logger = getLogger(__name__),
      T = TypeVar('T'),

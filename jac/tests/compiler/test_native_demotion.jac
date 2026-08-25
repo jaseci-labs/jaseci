@@ -30,7 +30,7 @@ import from jaclang.compiler.placement.placement_pins {
     effective_module_pin
 }
 import from jaclang.compiler.placement.placement_solver { invalidate_importers_es }
-import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
+import from jaclang.client.client_bundle { _ensure_js_generated }
 
 glob PIN_FIXTURE_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "codespace", "native_demoted_pin"

@@ -16,7 +16,7 @@ import from tests.support { JAC_ROOT }
 glob _HEAVY_IMPORTS: set[str] = {
          "jaclang.compiler",
          "jaclang.cli.commands",
-         "jaclang.runtimelib.client",
+         "jaclang.client",
          "jaclang.scale",
          "jaclang.byllm",
 
@@ -122,7 +122,7 @@ test "purge avoids heavy imports" {
 # import stays cheap is tracked separately in PLAN.md "Slim eager package
 # initializers".)
 glob _FEATURE_FAMILIES: set[str] = {
-         "jaclang.runtimelib.client",
+         "jaclang.client",
          "jaclang.scale",
          "jaclang.byllm",
          "jaclang.cli.shadcn"
@@ -150,8 +150,8 @@ test "feature command help stays within its own family" {
     # Each feature command's help may load its own family but must not leak into
     # a sibling feature family.
     owners: dict[str, str] = {
-        "setup": "jaclang.runtimelib.client",
-        "build": "jaclang.runtimelib.client",
+        "setup": "jaclang.client",
+        "build": "jaclang.client",
         "scale": "jaclang.scale",
         "model": "jaclang.byllm",
         "retheme": "jaclang.cli.shadcn"

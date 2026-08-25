@@ -8,7 +8,7 @@ Pins the three things that, if they regress, silently break desktop --dev:
 import os;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.runtimelib.watcher { ChangeType, FileChangeEvent }
+import from jaclang.server.watcher { ChangeType, FileChangeEvent }
 
 
 def _write_min_jac_toml(project_dir: str) {
@@ -33,7 +33,7 @@ def _mock_client_entry(project_dir: str) -> Path {
 """Desktop dev must emit the compiled-dir reload plugin (the thing mobile relies
 on) plus the /__jac broker proxy and a loopback-bound, strictPort server."""
 test "vite config emits reload plugin + broker proxy for desktop dev" {
-    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+    import from jaclang.client.vite_bundler { ViteBundler }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         original_cwd = os.getcwd();
@@ -72,7 +72,7 @@ test "vite config emits reload plugin + broker proxy for desktop dev" {
 """Without for_desktop_dev, neither the reload plugin nor the broker proxy is
 emitted (so web/mobile builds stay untouched)."""
 test "vite config omits reload plugin + broker proxy by default" {
-    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+    import from jaclang.client.vite_bundler { ViteBundler }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         original_cwd = os.getcwd();
@@ -107,7 +107,7 @@ test "vite config omits reload plugin + broker proxy by default" {
 """The host reads _ctx.dev_port and, when > 0, navigates to the Vite dev server;
 otherwise it falls back to the loopback port (unchanged prod behaviour)."""
 test "generated host source branches on dev_port" {
-    import from jaclang.runtimelib.client.targets.desktop._host_bootstrap {
+    import from jaclang.client.targets.desktop._host_bootstrap {
         _generate_host_source
     }
 
@@ -146,7 +146,7 @@ obj _FakeCompiler {
 }
 
 test "hmr handler recompiles on in-tree .jac change" {
-    import from jaclang.runtimelib.client.targets.client_dev_common {
+    import from jaclang.client.targets.client_dev_common {
         _ClientHmrHandler
     }
 
@@ -170,7 +170,7 @@ test "hmr handler recompiles on in-tree .jac change" {
 }
 
 test "hmr handler ignores non-.jac and out-of-tree files" {
-    import from jaclang.runtimelib.client.targets.client_dev_common {
+    import from jaclang.client.targets.client_dev_common {
         _ClientHmrHandler
     }
 

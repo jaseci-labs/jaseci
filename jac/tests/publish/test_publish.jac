@@ -738,11 +738,11 @@ test "WheelBuilder vendors the fixed-width runtime a sized-typed program needs" 
         data = builder.build();
         with zipfile.ZipFile(io.BytesIO(data)) as zf {
             names = zf.namelist();
-            assert "sizeddemo/_jac_vendor/jaclang/runtimelib/sized.py" in names;
+            assert "sizeddemo/_jac_vendor/jaclang/runtime/sized.py" in names;
             assert "sizeddemo/_jac_vendor/jaclang/jac0core/scalars.py" in names;
             main_py = zf.read("sizeddemo/main.py").decode("utf-8");
         }
-        assert "jaclang.runtimelib.sized" in main_py , main_py;
+        assert "jaclang.runtime.sized" in main_py , main_py;
         assert "_fw_wrapping" in main_py , main_py;
     } finally {
         shutil.rmtree(tmpdir, ignore_errors=True);

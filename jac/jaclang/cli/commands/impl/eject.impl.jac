@@ -127,7 +127,7 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
     }
 
     import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.runtimelib.client_surface { prepend_active_runtime_globals }
+    import from jaclang.client.client_surface { prepend_active_runtime_globals }
 
     import jaclang.compiler.frontend.unitree as uni;
     import from jaclang.compiler.frontend.constant { SymbolType }
@@ -573,7 +573,7 @@ def _eject_config(src: Path, project_name: str) -> JacConfig {
 
 def _emit_frontend_package_json(src: Path, frontend_dir: Path, project_name: str) {
     import from jaclang.project.providers { EMIT_EJECT }
-    import from jaclang.runtimelib.client.npm_provider { NpmProvider }
+    import from jaclang.client.npm_provider { NpmProvider }
     config = _eject_config(src, project_name);
     npm = NpmProvider();
     npm.emit_standalone(config, npm.resolve(config), frontend_dir, EMIT_EJECT);

@@ -17,7 +17,7 @@ import sysconfig;
 import tempfile;
 import from pathlib { Path }
 
-"""Locate the shipped CEF binding (under jaclang/runtimelib/client/)."""
+"""Locate the shipped CEF binding (under jaclang/client/)."""
 def _cef_dir -> Path {
     here = Path(os.path.abspath(__file__)).parent;
     probe = here;
@@ -36,7 +36,7 @@ def _cef_dir -> Path {
         probe = probe.parent;
     }
     raise RuntimeError(
-        "jaclang/runtimelib/client/targets/desktop/native/cef/cef.jac not found from "
+        "jaclang/client/targets/desktop/native/cef/cef.jac not found from "
             + str(here)
     );
 }
@@ -220,7 +220,7 @@ test "JAC_CEF_DISABLE_GPU wires through to --disable-gpu in cef_dispatch" {
 # The Phase J4 (#6596) in-process sv backend + sv_bridge wiring live in
 # host_boot._start_loopback's cef branch, not in generated strings.
 test "cef host source boots inprocess and wires the sv bridge (#6596)" {
-    import from jaclang.runtimelib.client.targets.desktop.cef_desktop_target {
+    import from jaclang.client.targets.desktop.cef_desktop_target {
         _generate_host_source
     }
     src = _generate_host_source(

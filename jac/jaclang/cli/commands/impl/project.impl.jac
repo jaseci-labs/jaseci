@@ -597,7 +597,7 @@ impl install(
         return run_shadcn_add(packages);
     }
     if npm {
-        import from jaclang.runtimelib.client.cli { run_npm_add }
+        import from jaclang.client.cli { run_npm_add }
         return run_npm_add(packages, dev, install_global);
     }
     import from pathlib { Path }
@@ -959,7 +959,7 @@ impl remove(
         return run_shadcn_remove(packages);
     }
     if npm {
-        import from jaclang.runtimelib.client.cli { run_npm_remove }
+        import from jaclang.client.cli { run_npm_remove }
         return run_npm_remove(packages, dev);
     }
     import from jaclang.project.config { get_config }
@@ -1530,7 +1530,7 @@ def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.compiler.frontend.constant { Tokens as Tok }
     import from jaclang.compiler.driver.schedules { get_boundary_analysis_sched }
-    import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
+    import from jaclang.client.client_bundle { _ensure_js_generated }
     import from jaclang.utils.precompile_bytecode {
         find_jac_files,
         _nested_project_dirs
@@ -1678,8 +1678,8 @@ def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
 }
 
 def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
-    import from jaclang.runtimelib.client { get_bun }
-    import from jaclang.runtimelib.client.targets.web_target { WebTarget }
+    import from jaclang.client { get_bun }
+    import from jaclang.client.targets.web_target { WebTarget }
 
     client_dir: Path = config.get_client_dir();
     dist = client_dir / 'dist';
@@ -1718,7 +1718,7 @@ def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
     import os;
     import from jaclang.jac0core.ext_registry { base_stem }
     import from jaclang.compiler.placement.placement_solver { native_default_path_ok }
-    import from jaclang.runtimelib.sealed_serve { NATIVE_DIR_REL }
+    import from jaclang.server.sealed_serve { NATIVE_DIR_REL }
 
     entry_file = _resolve_entry_file(config);
     if entry_file is None or not native_default_path_ok(str(entry_file)) {
@@ -1747,7 +1747,7 @@ def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
 def _bake_serve_payloads(config: any, pkg_copy: Path) -> bool {
     import json;
     import shutil;
-    import from jaclang.runtimelib.sealed_serve { SERVE_MANIFEST_REL, CLIENT_DIST_REL }
+    import from jaclang.server.sealed_serve { SERVE_MANIFEST_REL, CLIENT_DIST_REL }
 
     entry_file = _resolve_entry_file(config);
     if entry_file is None {
@@ -1880,7 +1880,7 @@ def _bundle_sealed(config: any, output: str) -> int {
 def _vendor_jab_deps(config: any, img: Path) -> bool {
     import from jaclang.project.providers { resolve_plan, get_python_provider }
     import from jaclang.jac0core.sealed { python_tag }
-    import from jaclang.runtimelib.jab_vendor {
+    import from jaclang.dist.jab_vendor {
         wheels_dir,
         download_wheels,
         write_vendor_manifest
@@ -1980,12 +1980,12 @@ def _bundle_binary(config: any, output: str, fat: bool = False) -> int {
     import subprocess;
     import tempfile;
     import from jaclang.jac0core.sealed { MANIFEST_NAME }
-    import from jaclang.runtimelib.jab { jab_app_meta }
+    import from jaclang.dist.jab { jab_app_meta }
 
     name = config.project.name;
     jac_bin = os.path.realpath(sys.executable);
 
-    import from jaclang.runtimelib.fused_binary { has_runtime, append_overlay }
+    import from jaclang.dist.fused_binary { has_runtime, append_overlay }
     if not has_runtime(jac_bin) {
         console.error(
             "jac build --as binary needs a bundled single-file jac to carry the "

@@ -114,8 +114,8 @@ def install_structured_logging {
     }
 
     for noisy_name in [
-        "jaclang.runtimelib.serving.server",
-        "jaclang.runtimelib.serving.app"
+        "jaclang.server.serving.server",
+        "jaclang.server.serving.app"
     ] {
         noisy = logging.getLogger(noisy_name);
         if noisy.handlers or not noisy.propagate {

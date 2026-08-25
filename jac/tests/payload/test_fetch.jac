@@ -31,7 +31,7 @@ import from jaclang.payload.pins {
     py_minor,
     py_ver
 }
-import from jaclang.runtimelib.client.bun_installer {
+import from jaclang.client.bun_installer {
     BUN_VERSION as INSTALLER_BUN_VERSION
 }
 

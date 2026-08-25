@@ -7,7 +7,7 @@ The script tests assert whole tags, so an exact match also proves that
 nothing the config could not express was emitted.
 """
 
-import from jaclang.runtimelib.client.serving { HeaderBuilder }
+import from jaclang.client.serving { HeaderBuilder }
 
 
 test "attribute values are quoted so spaces survive crawlers" {

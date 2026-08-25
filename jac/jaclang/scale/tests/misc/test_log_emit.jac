@@ -250,8 +250,8 @@ test "install_structured_logging routes serving loggers through root" {
     install_structured_logging();
 
     for name in [
-        "jaclang.runtimelib.serving.server",
-        "jaclang.runtimelib.serving.app"
+        "jaclang.server.serving.server",
+        "jaclang.server.serving.app"
     ] {
         lg = logging.getLogger(name);
         assert lg.propagate is True , f"{name} should propagate to root";

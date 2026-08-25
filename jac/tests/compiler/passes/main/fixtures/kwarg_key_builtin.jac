@@ -1,6 +1,6 @@
 """Fixture: a keyword-argument key spelled like an ambient runtime builtin.
 
-`store` is in `jaclang.runtimelib.builtin.__all__`, so a name that reaches
+`store` is in `jaclang.runtime.builtin.__all__`, so a name that reaches
 the reference lowering pulls a module-level import in behind it. A keyword
 key names a parameter of the callee and must pull nothing.
 """

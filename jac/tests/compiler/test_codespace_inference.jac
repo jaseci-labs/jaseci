@@ -556,7 +556,7 @@ test "client import pulls a pure markerless module cross-module" {
 }
 
 test "cross-module pulled elements dual-emit for the server side" {
-    import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
+    import from jaclang.client.client_bundle { _ensure_js_generated }
     import from jaclang.compiler.passes { JcirBytecodeGenPass, JcirGenPass }
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"), no_cgen=False);
@@ -616,7 +616,7 @@ test "unpullable closure bridges as a wire type instead of pulling" {
 test "codespace stamps invalidate stale module codegen" {
     import from jaclang.compiler.driver.compile_options { CompileOptions }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
-    import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
+    import from jaclang.client.client_bundle { _ensure_js_generated }
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"),
@@ -639,7 +639,7 @@ test "codespace stamps invalidate stale module codegen" {
 }
 
 test "a client-pulled module that will not lower fails loudly (#8375)" {
-    import from jaclang.runtimelib.client_bundle {
+    import from jaclang.client.client_bundle {
         ClientBundleError,
         _ensure_js_generated
     }

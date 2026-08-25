@@ -12,9 +12,9 @@ import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang.runtime.archetype { EdgeAnchor, GenericEdge }
 import from jaclang.runtime.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.context { ExecutionContext }
 import from jaclang.runtime.graph_query { GraphQuery, QHop }
-import from jaclang.runtimelib.query_planner { resolve_query }
+import from jaclang.data.query_planner { resolve_query }
 
 node SecretNode {
     has label: str = "";

@@ -147,7 +147,7 @@ Every PR that changes package code must include a release note fragment file:
 
 1. Create a file at `release_notes/unreleased/<package>/<PR#>.<category>.md`
    - **Packages**: `jaclang`, `byllm`
-   - **Note**: The Jac client and desktop runtimes, the `scale` deployment subsystem, and the MCP server are now part of `jaclang` core (under `jac/jaclang/runtimelib/client/`, `jac/jaclang/scale/`, and `jac/jaclang/cli/mcp/`); changes to them use the `jaclang` package fragment.
+   - **Note**: The Jac client and desktop runtimes, the `scale` deployment subsystem, and the MCP server are now part of `jaclang` core (under `jac/jaclang/client/`, `jac/jaclang/scale/`, and `jac/jaclang/cli/mcp/`); changes to them use the `jaclang` package fragment.
    - **Categories**: `feature`, `bugfix`, `breaking`, `refactor`, or `docs`
    - **Example**: `release_notes/unreleased/jaclang/1234.bugfix.md`
 

@@ -14,7 +14,7 @@ files that were NOT this shape -- ones that assert on drop counts, help text,
 cross-mode output or the absence of non-ownership errors -- stayed in place.
 """
 
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 import from tests.ownership_helpers { compile_fixture, expect_ownership_codes }
 
 # (group, case name, fixture, expected E13xx codes, [enforce nogc])

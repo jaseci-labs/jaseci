@@ -17,8 +17,8 @@ mechanical guard behind that.
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID, uuid4 }
-import from jaclang.runtimelib.session { Session }
-import from jaclang.runtimelib.store { Store, TxnIsolation }
+import from jaclang.server.session { Session }
+import from jaclang.data.store { Store, TxnIsolation }
 
 
 def _mk_session(td: str) -> Session {

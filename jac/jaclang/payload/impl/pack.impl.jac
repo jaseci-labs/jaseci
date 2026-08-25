@@ -1,7 +1,7 @@
 import os;
 
 import from jaclang.payload.fsutil { die, read_bytes, sha256_hex }
-import from jaclang.runtimelib.fused.trailer { MAGIC, TRAILER_LEN, build_trailer }
+import from jaclang.dist.fused.trailer { MAGIC, TRAILER_LEN, build_trailer }
 
 impl pack(stub: str, payload: str, out: str) {
     try {

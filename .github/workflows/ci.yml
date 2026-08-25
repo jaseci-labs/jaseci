@@ -62,7 +62,7 @@ jobs:
               - 'jac/jaclang/cli/skills/**'
               - 'release_notes/**'
             desktop:
-              - 'jac/jaclang/runtimelib/client/targets/desktop/**'
+              - 'jac/jaclang/client/targets/desktop/**'
             installer:
               - 'scripts/install.sh'
               # The lane's own definition lives here, so a change to what it
@@ -83,8 +83,8 @@ jobs:
               - 'jac/build.zig.zon'
               - 'jac/bootstrap/**'
               - 'jac/launcher/**'
-              - 'jac/jaclang/runtimelib/fused/**'
-              - 'jac/jaclang/runtimelib/na_stdlib/**'
+              - 'jac/jaclang/dist/fused/**'
+              - 'jac/jaclang/runtime/na_stdlib/**'
               - 'jac/jaclang/payload/**'
               - '.github/workflows/ci.yml'
               # Payload-baked inputs. The host kit's binary predates a PR that
@@ -760,11 +760,11 @@ jobs:
         env:
           TEST_ENV: "true"
           JAC_TEST_JOBS: "0"
-        run: jac test jac/tests/runtimelib/client --ignore jac/tests/runtimelib/client/test_inprocess_dispatch.jac
+        run: jac test jac/tests/client --ignore jac/tests/client/test_inprocess_dispatch.jac
       - name: Re-run in-process sv dispatch against the built-in scale backend
         run: |
           jac install "python-dotenv>=1.2.1,<2.0.0" --global
-          jac test -vv jac/tests/runtimelib/client/test_inprocess_dispatch.jac
+          jac test -vv jac/tests/client/test_inprocess_dispatch.jac
 
   test-solid-and-desktop:
     needs: [changes, host-kit]
@@ -796,7 +796,7 @@ jobs:
             jac/tests/runtimelib/test_react_auth_jsdom.jac \
             -x
       - name: Run dependency-free desktop tests
-        run: jac test jac/tests/runtimelib/client/test_desktop_binding.jac
+        run: jac test jac/tests/client/test_desktop_binding.jac
 
   test-packages-and-docs:
     needs: [changes, host-kit]
@@ -997,7 +997,7 @@ jobs:
           jac test jac/tests/compiler/passes/native/test_walkup_imports.jac
           jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac -f "environ"
       - name: Fused-runtime boot of a fresh na host
-        run: jac test jac/tests/runtimelib/client/test_fused_runtime_boot.jac
+        run: jac test jac/tests/client/test_fused_runtime_boot.jac
 
   # Bootstrap unit tests: the Zig seed that fetches the pbs CPython before any
   # Python exists (bootstrap/fetch_pbs.zig). Cross-platform on purpose. The
@@ -1034,20 +1034,20 @@ jobs:
         with:
           name: jac-host
       - name: Build dispatch shim and subprocess binary
-        working-directory: jac/jaclang/runtimelib/client/targets/desktop/native/cef
+        working-directory: jac/jaclang/client/targets/desktop/native/cef
         run: jac run build.jac
       - name: Verify shared-object exports
-        working-directory: jac/jaclang/runtimelib/client/targets/desktop/native/cef
+        working-directory: jac/jaclang/client/targets/desktop/native/cef
         run: |
           nm -D libcef_dispatch.so | grep -q cef_dispatch_startup
           nm -D libcef_dispatch.so | grep -q cef_dispatch_execute_process
           nm -D libcef_dispatch.so | grep -q cef_platform_bootstrap
       - name: Check RPATH
-        working-directory: jac/jaclang/runtimelib/client/targets/desktop/native/cef
+        working-directory: jac/jaclang/client/targets/desktop/native/cef
         run: |
           readelf -d libcef_dispatch.so | grep -qE '(RUN)?PATH.*\$ORIGIN'
       - name: ldd audit (no missing deps against libc + libcef stub)
-        working-directory: jac/jaclang/runtimelib/client/targets/desktop/native/cef
+        working-directory: jac/jaclang/client/targets/desktop/native/cef
         run: |
           MISSING=$(ldd libcef_dispatch.so 2>&1 | grep 'not found' | grep -v libcef || true)
           [ -z "$MISSING" ] || (echo "Unexpected missing deps: $MISSING" && exit 1)

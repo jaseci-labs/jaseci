@@ -10,7 +10,7 @@ authors, and a re-export with no import would not resolve.
 import os;
 import from pathlib { Path }
 
-# The mobui module ships with core under jaclang/runtimelib/client/.
+# The mobui module ships with core under jaclang/client/.
 glob _mobui_file = (
          Path(os.path.dirname(__file__)).parent.parent.parent
          / "jaclang"

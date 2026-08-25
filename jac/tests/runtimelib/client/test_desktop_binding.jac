@@ -14,7 +14,7 @@ import sysconfig;
 import tempfile;
 import from pathlib { Path }
 
-"""Locate the shipped webview binding (now under jaclang/runtimelib/client/)."""
+"""Locate the shipped webview binding (now under jaclang/client/)."""
 def _webview_dir -> Path {
     here = Path(os.path.abspath(__file__)).parent;
     probe = here;
@@ -33,7 +33,7 @@ def _webview_dir -> Path {
         probe = probe.parent;
     }
     raise RuntimeError(
-        "jaclang/runtimelib/client/targets/desktop/native/webview/webview.jac not found from "
+        "jaclang/client/targets/desktop/native/webview/webview.jac not found from "
             + str(here)
     );
 }
@@ -56,7 +56,7 @@ def _native_dir -> Path {
         probe = probe.parent;
     }
     raise RuntimeError(
-        "jaclang/runtimelib/client/targets/desktop/native/plugin_bridge.jac not found from "
+        "jaclang/client/targets/desktop/native/plugin_bridge.jac not found from "
             + str(here)
     );
 }

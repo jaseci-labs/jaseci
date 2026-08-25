@@ -104,12 +104,12 @@ glob CAPABILITY_CLOSURE: tuple = (
          "runtime/scalars.jac",
          "compiler/frontend/srcloc.jac",
          "compiler/frontend/unitree.jac",
-         "runtimelib/na_stdlib/_hashlib_native.jac",
-         "runtimelib/na_stdlib/contextvars.jac",
-         "runtimelib/na_stdlib/fnmatch.jac",
-         "runtimelib/na_stdlib/hashlib.jac",
-         "runtimelib/na_stdlib/logging.jac",
-         "runtimelib/na_stdlib/pathlib.jac"
+         "runtime/na_stdlib/_hashlib_native.jac",
+         "runtime/na_stdlib/contextvars.jac",
+         "runtime/na_stdlib/fnmatch.jac",
+         "runtime/na_stdlib/hashlib.jac",
+         "runtime/na_stdlib/logging.jac",
+         "runtime/na_stdlib/pathlib.jac"
      );
 
 """capability's own seams, each mapped to the mechanism that clears it.

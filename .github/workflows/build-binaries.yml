@@ -249,7 +249,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.bun-build
-          key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
+          key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/client/bun_installer.jac') }}
 
       # The payload's compressed deps-layer frame (mkpayload --layer-cache):
       # content-addressed and verified by decompress + byte-compare before
@@ -260,7 +260,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.payload-layers
-          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
           restore-keys: |
             payload-layers-${{ runner.os }}-${{ runner.arch }}-
 

@@ -8,12 +8,12 @@ glob _api_names_cache: dict[str, set[str]] = {},
      _runtime_js_cache: dict[str, str] = {};
 
 def _runtime_source_path(framework: str = "") -> Path {
-    import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
+    import from jaclang.client.runtime_source { resolve_client_runtime_cl_path }
     return Path(resolve_client_runtime_cl_path(framework));
 }
 
 impl runtime_pkg_name(framework: str = "") -> str {
-    import from jaclang.runtimelib.runtime_source { client_runtime_cl_basename }
+    import from jaclang.client.runtime_source { client_runtime_cl_basename }
     base = client_runtime_cl_basename(framework);
 
     if base == "client_runtime.jac" {
@@ -246,7 +246,7 @@ impl build_runtime_tarball(
 
     import posixpath;
     import jaclang;
-    import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
+    import from jaclang.client.runtime_source { resolve_client_runtime_cl_path }
     base = Path(jaclang.__file__).parent.parent;
     entry_dir = posixpath.dirname(
         Path(resolve_client_runtime_cl_path()).relative_to(base).as_posix()

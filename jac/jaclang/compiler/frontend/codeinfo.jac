@@ -307,7 +307,7 @@ def native_stdlib_root -> (str | None) {
         return None;
     }
     stdlib_dir = os.path.join(
-        os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib"
+        os.path.dirname(jaclang.__file__), "runtime", "na_stdlib"
     );
     return stdlib_dir if os.path.isdir(stdlib_dir) else None;
 }
@@ -320,19 +320,19 @@ def is_native_by_location(file_path: str) -> bool {
     }
     ap = os.path.abspath(file_path);
     pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
-    return ap.startswith(os.path.join(pkg, "runtimelib", "na_stdlib") + os.sep);
+    return ap.startswith(os.path.join(pkg, "runtime", "na_stdlib") + os.sep);
 }
 
 glob CLIENT_RUNTIME_SOURCE_PATHS: list[str] = [
-         "runtimelib/client_runtime.jac",
-         "runtimelib/client_runtime_core.jac",
-         "runtimelib/solid_runtime.jac",
-         "runtimelib/pwa_runtime.jac",
-         "runtimelib/wasm_host.jac",
-         "runtimelib/client/client_mobui.jac",
-         "runtimelib/client/client_react_core.jac",
-         "runtimelib/client/client_runtime_native.jac",
-         "runtimelib/client/targets/desktop/plugin/desktop_api.jac"
+         "client/client_runtime.jac",
+         "client/client_runtime_core.jac",
+         "client/solid_runtime.jac",
+         "client/pwa_runtime.jac",
+         "client/wasm_host.jac",
+         "client/client_mobui.jac",
+         "client/client_react_core.jac",
+         "client/client_runtime_native.jac",
+         "client/targets/desktop/plugin/desktop_api.jac"
      ];
 
 

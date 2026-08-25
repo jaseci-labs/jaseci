@@ -153,12 +153,12 @@ def _resolve_jac_virtual_module(target: str) -> (tuple[(str, str)] | None) {
     if not target.startswith('@jac/') {
         return None;
     }
-    import jaclang.runtimelib as _runtimelib;
-    runtime_dir = os.path.dirname(_runtimelib.__file__);
+    import jaclang.client as _client_pkg;
+    runtime_dir = os.path.dirname(_client_pkg.__file__);
     module_name = target[len('@jac/'):];
 
     if module_name == 'runtime' {
-        import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
+        import from jaclang.client.runtime_source { resolve_client_runtime_cl_path }
         path = resolve_client_runtime_cl_path();
         if os.path.isfile(path) {
             return (path, 'jac');

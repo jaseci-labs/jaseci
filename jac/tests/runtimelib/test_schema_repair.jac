@@ -10,8 +10,8 @@ test_persistence_migration.jac (fingerprints).
 
 import os;
 import from jaclang.runtime.archetype { NodeAnchor, Root }
-import from jaclang.runtimelib.serializer { Serializer }
-import from jaclang.runtimelib.schema_rules {
+import from jaclang.data.serializer { Serializer }
+import from jaclang.data.schema_rules {
     SchemaRules,
     merged_rules_for,
     schema_alias as direct_schema_alias,

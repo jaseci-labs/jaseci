@@ -10,7 +10,7 @@ import tempfile;
 
 import from jaclang.payload.cli { main }
 import from jaclang.payload.pack { pack }
-import from jaclang.runtimelib.fused.trailer { MAGIC, TRAILER_LEN, parse_trailer }
+import from jaclang.dist.fused.trailer { MAGIC, TRAILER_LEN, parse_trailer }
 
 def read(path: str) -> bytes {
     with open(path, "rb") as f {

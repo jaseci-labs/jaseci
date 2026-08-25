@@ -16,7 +16,7 @@ import shutil;
 import subprocess;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.runtimelib.sealed_serve {
+import from jaclang.server.sealed_serve {
     client_dist_for,
     sealed_root_for,
     serve_manifest_for

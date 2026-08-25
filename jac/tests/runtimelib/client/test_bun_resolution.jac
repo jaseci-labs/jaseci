@@ -5,7 +5,7 @@ failing -- every fresh editable dev loop hit the hard error otherwise."""
 import os;
 import stat;
 import from tempfile { TemporaryDirectory }
-import from jaclang.runtimelib.client.bun_installer { _find_path_bun }
+import from jaclang.client.bun_installer { _find_path_bun }
 
 test "path fallback finds a bun on PATH" {
     with TemporaryDirectory() as td {

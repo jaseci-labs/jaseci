@@ -420,7 +420,7 @@ def _remove_stage_roots {
 
 
 def seal_step_env -> dict[str, str] {
-    import from jaclang.runtimelib.session { SCRATCH_ENV }
+    import from jaclang.server.session { SCRATCH_ENV }
     env = release_binary_env();
     env[SCRATCH_ENV] = "1";
     return env;

@@ -9,7 +9,7 @@ import jaclang;
 import from pathlib { Path }
 
 # The desktop plugin modules ship inside jaclang core at
-# jaclang/runtimelib/client/targets/desktop/plugin/ and import each other with
+# jaclang/client/targets/desktop/plugin/ and import each other with
 # bare names (e.g. `import from desktop_plugin`), so that dir must be on
 # sys.path before the bare imports below resolve. Top-level statements run in
 # source order, so this entry block puts it on the path before the imports.

@@ -76,7 +76,7 @@ impl dot(
     format: str = "dot"
 ) -> int {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
-    import from jaclang.runtimelib.builtin { printgraph }
+    import from jaclang.runtime.builtin { printgraph }
     (base, mod, jac_machine) = _proc_file(filename);
     if filename.endswith('.jac') {
         Jac.jac_import(target=mod, base_path=base, override_name='__main__');

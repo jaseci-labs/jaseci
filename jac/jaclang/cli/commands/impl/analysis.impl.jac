@@ -1230,7 +1230,7 @@ impl `test(
     ignore: (list | None) = None
 ) -> int {
     import os;
-    import from jaclang.runtimelib.test_runner { run_tests }
+    import from jaclang.testing.test_runner { run_tests }
     if isinstance(paths, str) {
         paths = [paths];
     }

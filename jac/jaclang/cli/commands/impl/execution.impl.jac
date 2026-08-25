@@ -268,7 +268,7 @@ def _show_run(plan: (RunPlan | None), filename: str, want_serve: bool) -> int {
 def _run_jab(
     filename: str, port: (int | None), args: list[str], serve_only: bool
 ) -> int {
-    import from jaclang.runtimelib.jab { materialize_jab }
+    import from jaclang.dist.jab { materialize_jab }
 
     try {
         img_root = materialize_jab(filename);
@@ -282,7 +282,7 @@ def _run_jab(
 impl run_jab_image(
     img_root: Path, port: (int | None), args: list[str], serve_only: bool, label: str
 ) -> int {
-    import from jaclang.runtimelib.jab { jab_app_meta }
+    import from jaclang.dist.jab { jab_app_meta }
 
     meta = jab_app_meta(img_root);
     kind = str(meta.get("kind") or "cli");
@@ -335,7 +335,7 @@ impl run_jab_image(
 
 def _jab_native_bin(img_root: Path, entry_rel: str) -> (str | None) {
     import from jaclang.jac0core.ext_registry { base_stem }
-    import from jaclang.runtimelib.sealed_serve { NATIVE_DIR_REL }
+    import from jaclang.server.sealed_serve { NATIVE_DIR_REL }
     try {
         import jaclang.compiler.passes.native.llvm.binding as llvm;
         triple = str(llvm.get_default_triple());
@@ -704,7 +704,7 @@ impl serve(
     use_line_buffered_output();
     set_effective_default_codespace('server');
 
-    import from jaclang.runtimelib.client.cli { run_client_start }
+    import from jaclang.client.cli { run_client_start }
     client_rc = run_client_start(
         filename, client, host, platform, port, api_port, dev, no_client
     );
@@ -736,7 +736,7 @@ impl serve(
     _discover_config_from_file(filename);
     if takeover {
         import os;
-        import from jaclang.runtimelib.session { takeover_project }
+        import from jaclang.server.session { takeover_project }
         tk_base = Jac.get_base_path_dir() or (os.path.split(filename)[0] or './');
         tk_target = Jac.get_full_target_path() or filename;
         evicted = takeover_project(tk_base, tk_target);
@@ -815,8 +815,8 @@ impl serve(
             return 1;
         }
         try {
-            import from jaclang.runtimelib.hmr { HotReloader }
-            import from jaclang.runtimelib.watcher { JacFileWatcher }
+            import from jaclang.server.hmr { HotReloader }
+            import from jaclang.server.watcher { JacFileWatcher }
 
             watcher = JacFileWatcher(watch_paths=[base]);
             client_compiler = None;
@@ -1079,7 +1079,7 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
     import from pathlib { Path }
 
     try {
-        import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+        import from jaclang.client.vite_bundler { ViteBundler }
 
         project_dir = Path(base_path);
         bundler = ViteBundler(project_dir);
@@ -1255,7 +1255,7 @@ def _run_entry_point(
 def _run_node_tool(name: str, bin_path: Path, args: list[str]) -> int {
     import subprocess;
     import from jaclang.project.config { get_config }
-    import from jaclang.runtimelib.client.bun_installer { get_bun }
+    import from jaclang.client.bun_installer { get_bun }
 
     bun = get_bun();
     if bun is None {

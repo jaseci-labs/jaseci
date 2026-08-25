@@ -4,7 +4,7 @@
 
 This monorepo contains:
 
-- `jac/`: Jac language compiler, runtime, language server, and the client/desktop runtimes (`jac/jaclang/runtimelib/client/`)
+- `jac/`: Jac language compiler, runtime, language server, and the client/desktop runtimes (`jac/jaclang/client/`)
 - `jac-byllm/`: LLM integration and model-driven features
 - `docs/`: Documentation site and reference materials
 - `scripts/`: Build, test, and maintenance scripts
@@ -45,7 +45,7 @@ jac precommit
 
 ### Client & Desktop Runtimes
 
-- Now part of `jaclang` core: `jac/jaclang/runtimelib/client/`
+- Now part of `jaclang` core: `jac/jaclang/client/`
 
 ## Jac Language Conventions
 

@@ -171,7 +171,7 @@ the way back -- a `list[Message]` becomes
 ### The HTTP call
 
 The runtime helpers live in
-`runtimelib/impl/client_runtime.impl.jac`. The base URL comes from a Vite
+`client/impl/client_runtime.impl.jac`. The base URL comes from a Vite
 build-time define (`globalThis.__JAC_API_BASE_URL__`, defaulting to
 same-origin). A walker call resolves to:
 
@@ -225,7 +225,7 @@ intrinsic HTML string). Reactivity maps onto React: a `has` becomes
 
 ### Bundle and serve
 
-The pipeline lives in `runtimelib/client/`:
+The pipeline lives in `client/`:
 
 1. **Jac → JS** -- `ViteCompiler.compile` runs the normal compile and reads
    each module's `mod.gen.js`, plus compiles the client runtime.
@@ -547,7 +547,7 @@ Python AST so they participate in the same compilation hub.
 
 Everything crossing a marshalled boundary is **JSON** (for `cl↔sv` and the
 `sv→sv` split) or a **C-ABI value** (for `na`). The wire serialiser is
-`runtimelib/impl/serializer.impl.jac`.
+`data/impl/serializer.impl.jac`.
 
 ### JSON wire format (`cl↔sv`, `sv→sv`)
 
@@ -616,7 +616,7 @@ list.
 A Jac **desktop app** is the most integrated use of the matrix: it bundles
 the `cl` UI, a native (`na`) host binary, the OS's own webview, and an
 embedded CPython into a single shippable artefact. The desktop target is
-built into `jaclang` core (`jac/jaclang/runtimelib/client/targets/desktop/`).
+built into `jaclang` core (`jac/jaclang/client/targets/desktop/`).
 
 > **Status note.** Older release notes mention a "PyTauri shell +
 > PyInstaller sidecar" and a `jac desktop` CLI -- those are **stale**. The
@@ -713,16 +713,16 @@ RPC to the backend). It is the matrix in miniature.
 |---------|-------|
 | Boundary discovery | `compiler/passes/impl/boundary_analysis_pass.impl.jac`; `BoundaryAnalysisPass`; [`codeinfo.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/codeinfo.jac) (`InteropBinding`, `InteropManifest`) |
 | Context split / coercion | [`compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/compiler.jac) (`_coerce_module`); `constant.jac` (`CodeContext`) |
-| `cl → sv` | `compiler/passes/ecmascript/impl/esast_gen_pass.impl.jac` (`__jacSpawn`/`__jacCallFunction`); `runtimelib/impl/client_runtime.impl.jac`; `jac/jaclang/scale/server/impl/serve.endpoints.impl.jac` |
-| `sv → cl` | `runtimelib/client/impl/{compiler,vite_bundler}.impl.jac`; `runtimelib/impl/server.impl.jac`; `passes/ast_gen/impl/jsx_processor.impl.jac` |
+| `cl → sv` | `compiler/passes/ecmascript/impl/esast_gen_pass.impl.jac` (`__jacSpawn`/`__jacCallFunction`); `client/impl/client_runtime.impl.jac`; `jac/jaclang/scale/server/impl/serve.endpoints.impl.jac` |
+| `sv → cl` | `client/impl/{compiler,vite_bundler}.impl.jac`; `server/impl/server.impl.jac`; `passes/ast_gen/impl/jsx_processor.impl.jac` |
 | `sv ↔ na` | `runtime/interop_bridge.jac`; `compiler/frontend/parser/materialize.jac` + `utils/gen_native_materialize.jac` (sealed parse-tree crossing); `passes/impl/jcir_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `passes/native/impl/na_compile_pass.impl.jac` |
 | `na ↔ C` | `compiler/targets/{foreign,abi}.jac`; `passes/native/na_ir_gen/{clib_abi,clib_vtable}.impl.jac` |
 | `na → C host` | `cli/commands/impl/nacompile.impl.jac` (`_inject_shared_init`); `passes/native/impl/{elf,macho,pe}_linker.impl.jac` |
-| `na ↔ cl` (wasm) | `passes/native/{wasm_build,wasm_linker}.jac`; `runtimelib/client/impl/compiler.impl.jac` |
+| `na ↔ cl` (wasm) | `passes/native/{wasm_build,wasm_linker}.jac`; `client/impl/compiler.impl.jac` |
 | Python interop | [`meta_importer.py`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/meta_importer.py); `_jac_finder.py` (launcher `BOOT_SRC`); `passes/impl/jcir_gen_pass.impl.jac` (`exit_import`, `exit_py_inline_code`) |
 | Marshalling | `runtimelib/impl/{serializer,server,transport}.impl.jac` |
 | Capability boundary | `compiler/passes/main/capability_check_pass.jac`; [`diagnostics.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/diagnostics.jac) (`E5090`) |
-| Desktop | `runtimelib/client/targets/desktop/native_desktop_target.jac` (+ impl); `runtimelib/client/targets/desktop/native/webview/webview.jac`; `runtimelib/client/targets/registry.jac` |
+| Desktop | `client/targets/desktop/native_desktop_target.jac` (+ impl); `client/targets/desktop/native/webview/webview.jac`; `client/targets/registry.jac` |
 
 ---
 

@@ -43,7 +43,7 @@ def _make_fake_dist(dist_dir: Path) {
 
 """inline_dist_assets must fold the JS bundle and CSS into index.html."""
 test "static inline produces self-contained index html" {
-    import from jaclang.runtimelib.client.targets.static_target { inline_dist_assets }
+    import from jaclang.client.targets.static_target { inline_dist_assets }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         dist_dir = Path(temp_dir) / "dist";
@@ -71,7 +71,7 @@ test "static inline produces self-contained index html" {
 
 """inline_dist_assets is a no-op (returns False) when there is no index.html."""
 test "static inline is a no-op without index html" {
-    import from jaclang.runtimelib.client.targets.static_target { inline_dist_assets }
+    import from jaclang.client.targets.static_target { inline_dist_assets }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         dist_dir = Path(temp_dir) / "dist";
@@ -82,8 +82,8 @@ test "static inline is a no-op without index html" {
 
 """The static target registers and resolves through the factory."""
 test "static target is registered and resolvable" {
-    import from jaclang.runtimelib.client.targets.register { register_targets }
-    import from jaclang.runtimelib.client.targets.registry { get_target_factory }
+    import from jaclang.client.targets.register { register_targets }
+    import from jaclang.client.targets.registry { get_target_factory }
 
     register_targets();
     factory = get_target_factory();
@@ -136,7 +136,7 @@ test "static server maps static prefix to dist root" {
     import functools;
     import from http.server { ThreadingHTTPServer }
     import from urllib.request { urlopen }
-    import from jaclang.runtimelib.client.targets.static_target { _DistRequestHandler }
+    import from jaclang.client.targets.static_target { _DistRequestHandler }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         dist = Path(temp_dir);

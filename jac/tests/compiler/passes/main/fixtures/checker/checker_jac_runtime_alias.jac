@@ -1,7 +1,7 @@
 """Regression: `@jac/runtime` virtual module must be resolvable by the type checker.
 
 The ECMAScript bundler already maps `@jac/runtime` to
-`jaclang/runtimelib/client_runtime.jac`. The type checker should agree so that
+`jaclang/client/client_runtime.jac`. The type checker should agree so that
 imported symbols keep their declared types instead of collapsing to Unknown.
 """
 

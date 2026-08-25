@@ -28,10 +28,10 @@ import from tempfile { TemporaryDirectory }
 
 """Locate the core client runtime directory."""
 def _jac_client_plugin_dir -> str {
-    plugin = importlib.import_module("jaclang.runtimelib.client");
+    plugin = importlib.import_module("jaclang.client");
     paths = `list(getattr(plugin, "__path__", []) or []);
     if not paths {
-        testfail("jaclang.runtimelib.client has no __path__");
+        testfail("jaclang.client has no __path__");
     }
     return paths[0];
 }

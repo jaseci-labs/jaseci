@@ -20,7 +20,7 @@ The four ambient access-level constants - `NoPerm`, `ReadPerm`, `ConnectPerm`, `
 
 This also unifies the vocabulary with the Scale reference's `perm_grant` / `allow_root` API, which already spoke in `NO_ACCESS` / `READ` / `CONNECT` / `WRITE` levels, and it makes the honest hook signature type-check: `def __jac_access__ -> AccessLevel { return AccessLevel.WRITE; }` (the constants were stub-typed `int`, so the checker rejected exactly that form). String (`"WRITE"`) and int returns remain accepted at runtime for policies stored in data, but enum members are the canonical spelling - a typo'd string literal raises `KeyError` at access-check time.
 
-**Impact:** a mechanical 1:1 rename. A bare removed name is now an unresolved-name error at compile time; importing one from `jaclang.runtimelib.builtin` raises an `AttributeError` that names the replacement member.
+**Impact:** a mechanical 1:1 rename. A bare removed name is now an unresolved-name error at compile time; importing one from `jaclang.runtime.builtin` raises an `AttributeError` that names the replacement member.
 
 ---
 
@@ -68,7 +68,7 @@ the .na.jac marker was retired in 0.35 -- rename the file to .jac
 | `jac nacompile mod.na.jac` | `jac nacompile mod.jac` (forces native) |
 | `mod.na.impl.jac` | `mod.impl.jac` (the `.na.impl.jac` annex variant no longer exists) |
 
-**Impact:** rename every `*.na.jac` to `*.jac` and rely on inference; where native must be mandatory (AOT binaries, `--shared` libraries, wasm), use `jac nacompile` / `jac build --as native` / `force_codespace='native'`. The `.sv.jac` and `.cl.jac` variants were unchanged by this PR (they were retired separately -- see the entry above); the `.impl.jac` / `.test.jac` annexes are unchanged. One clarification makes the old native-library idiom carry over unchanged: `pub` elements anchor a *standalone* module to the server (endpoint semantics), but a module pulled in as a **native dependency** may freely use `pub` as its C-ABI export marker. The bundled native stdlib (`jaclang/runtimelib/na_stdlib/`) is native **by location**; its files are plain `.jac`, with per-OS variants as `<name>.<os>.jac` (e.g. `_dirent_native.darwin.jac`).
+**Impact:** rename every `*.na.jac` to `*.jac` and rely on inference; where native must be mandatory (AOT binaries, `--shared` libraries, wasm), use `jac nacompile` / `jac build --as native` / `force_codespace='native'`. The `.sv.jac` and `.cl.jac` variants were unchanged by this PR (they were retired separately -- see the entry above); the `.impl.jac` / `.test.jac` annexes are unchanged. One clarification makes the old native-library idiom carry over unchanged: `pub` elements anchor a *standalone* module to the server (endpoint semantics), but a module pulled in as a **native dependency** may freely use `pub` as its C-ABI export marker. The bundled native stdlib (`jaclang/runtime/na_stdlib/`) is native **by location**; its files are plain `.jac`, with per-OS variants as `<name>.<os>.jac` (e.g. `_dirent_native.darwin.jac`).
 
 ---
 

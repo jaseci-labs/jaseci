@@ -7,8 +7,8 @@ import from uuid { UUID }
 import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor, Root }
 import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
 import from jaclang.runtime.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.query_planner { resolve_query }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.data.query_planner { resolve_query }
 
 def _as_any(v: any) -> any {
     return v;

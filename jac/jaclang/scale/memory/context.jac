@@ -1,6 +1,6 @@
 import from contextvars { ContextVar }
 import from dataclasses { MISSING }
-import from jaclang.runtimelib.context { ExecutionContext, CallState }
+import from jaclang.runtime.context { ExecutionContext, CallState }
 
 class JScaleExecutionContext(ExecutionContext) {
     def init(self: JScaleExecutionContext) -> None;

@@ -77,7 +77,7 @@ dist/
 # (jaclang/payload/) and bundled into the payload (never committed). See
 # build.zig's fetch-bun step.
 .bun-build/
-jaclang/runtimelib/client/_bun/
+jaclang/client/_bun/
 
 # Vendored typeshed stdlib stubs are fetched at the pinned commit by the
 # payload tool's fetch-typeshed subcommand (zig build fetch-typeshed), not

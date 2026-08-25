@@ -168,18 +168,18 @@ test "cl: new with multiple args produces a JS array of args" {
 # ─────────────────────────────────────────────────────────────────────
 #  Server (Python) backend: `new(...)` works as an ambient builtin
 # ─────────────────────────────────────────────────────────────────────
-test "server: new is auto-imported from runtimelib.builtin" {
+test "server: new is auto-imported from runtime.builtin" {
     code = "with entry { x = new(list, [1, 2, 3]); print(x); }\n";
     mod = compile_inline(code);
     py = mod.gen.py;
-    assert "from jaclang.runtimelib.builtin import" in py , (
+    assert "from jaclang.runtime.builtin import" in py , (
         "Expected builtin import preamble; got:\n" + py
     );
     assert "new" in py , "Expected `new` to appear in generated Python";
 }
 
 test "server: new(Cls, *args) returns Cls(*args) at runtime" {
-    import from jaclang.runtimelib.builtin { new }
+    import from jaclang.runtime.builtin { new }
     class Box {
         def init(self: Box, x: int, y: int) {
             self.x = x;
@@ -192,7 +192,7 @@ test "server: new(Cls, *args) returns Cls(*args) at runtime" {
 }
 
 test "server: new with builtin types works end-to-end" {
-    import from jaclang.runtimelib.builtin { new }
+    import from jaclang.runtime.builtin { new }
     assert new(list, [1, 2, 3]) == [1, 2, 3];
     assert new(dict, {"a": 1}) == {"a": 1};
     assert new(set, [1, 2, 2, 3]) == {1, 2, 3};

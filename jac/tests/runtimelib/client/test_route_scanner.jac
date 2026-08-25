@@ -19,7 +19,7 @@ import re;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
-import from jaclang.runtimelib.client.route_scanner {
+import from jaclang.client.route_scanner {
     RouteScanner,
     describe_pages_without_routes
 }
@@ -206,7 +206,7 @@ test "dynamic index and catch-all urls still derive from the filename" {
 """A page and a layout whose paths sanitize to the same JS identifier are a
 build error - caught across routes and layouts, keyed on the return type."""
 test "a page and a layout that sanitize to the same identifier raise ClientBundleError" {
-    import from jaclang.runtimelib.client_bundle { ClientBundleError }
+    import from jaclang.client.client_bundle { ClientBundleError }
     with TemporaryDirectory() as tmp {
         proj = Path(tmp);
         _write(

@@ -408,15 +408,15 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "compiler/type_system/type_utils.jac",
          "compiler/type_system/types.jac",
          "project/client_kind_paths.jac",
-         "runtimelib/client/targets/react_native/html_tag_map.jac",
-         "runtimelib/na_stdlib/_hashlib_native.jac",
-         "runtimelib/na_stdlib/contextvars.jac",
-         "runtimelib/na_stdlib/fnmatch.jac",
-         "runtimelib/na_stdlib/hashlib.jac",
-         "runtimelib/na_stdlib/keyword.jac",
-         "runtimelib/na_stdlib/logging.jac",
-         "runtimelib/na_stdlib/pathlib.jac",
-         "runtimelib/na_stdlib/textwrap.jac",
+         "client/targets/react_native/html_tag_map.jac",
+         "runtime/na_stdlib/_hashlib_native.jac",
+         "runtime/na_stdlib/contextvars.jac",
+         "runtime/na_stdlib/fnmatch.jac",
+         "runtime/na_stdlib/hashlib.jac",
+         "runtime/na_stdlib/keyword.jac",
+         "runtime/na_stdlib/logging.jac",
+         "runtime/na_stdlib/pathlib.jac",
+         "runtime/na_stdlib/textwrap.jac",
 
      );
 
@@ -3062,7 +3062,7 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
     }
     import from jaclang.project.config { get_config_for_path }
     import from jaclang.project.kinds { resolve_project_kind, resolve_entry }
-    import from jaclang.runtimelib.sealed_serve { CLIENT_DIST_REL, NATIVE_DIR_REL }
+    import from jaclang.server.sealed_serve { CLIENT_DIST_REL, NATIVE_DIR_REL }
 
     config = get_config_for_path(pkg_path);
     if config is None {
@@ -3115,7 +3115,7 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
 }
 
 def collect_payloads(pkg_path: Path) -> dict[str, str] {
-    import from jaclang.runtimelib.sealed_serve {
+    import from jaclang.server.sealed_serve {
         SERVE_MANIFEST_REL,
         CLIENT_DIST_REL,
         NATIVE_DIR_REL

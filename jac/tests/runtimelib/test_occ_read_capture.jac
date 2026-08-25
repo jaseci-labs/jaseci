@@ -26,8 +26,8 @@ import shutil;
 import from tempfile { mkdtemp }
 
 import from jaclang.runtime.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.exceptions { WriteConflict }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.runtime.exceptions { WriteConflict }
 import from jaclang.project.config { JacConfig, set_config }
 
 

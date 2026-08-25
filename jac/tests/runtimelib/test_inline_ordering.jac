@@ -19,7 +19,7 @@ can order on an edge field, since the result list holds nodes.
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang.runtime.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.context { ExecutionContext }
 
 node IBoard {
     has name: str = "";

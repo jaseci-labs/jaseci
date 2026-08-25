@@ -1,7 +1,7 @@
 """Test the canonical `@jac/runtime` routing surface.
 
 Routing is React Router v6-shaped and backed by react-router-dom in the single
-canonical client runtime (`jaclang/runtimelib/client_runtime.jac`). The old
+canonical client runtime (`jaclang/client/client_runtime.jac`). The old
 bare-serve DOM router (popstate/pushState/createSignal path-signal) has been
 removed in favour of one React-backed runtime, so these tests verify the
 runtime exposes the routing surface the compiler emits against rather than

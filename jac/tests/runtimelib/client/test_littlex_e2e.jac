@@ -36,7 +36,7 @@ import from .test_helpers {
 # ===========================================================================
 """Resolve the in-tree littleX example dir.
 
-The test file lives at ``jac/tests/runtimelib/client/``; walking up three
+The test file lives at ``jac/tests/client/``; walking up three
 directories lands on ``jac/``, then ``examples/littleX``. Asserts the dir
 exists so a misplaced/renamed fixture fails loudly instead of mid-build.
 """

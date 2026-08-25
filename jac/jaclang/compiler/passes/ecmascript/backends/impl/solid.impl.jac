@@ -54,14 +54,14 @@ impl SolidBackend.vite_plugin_lines -> (tuple[str, str] | None) {
 impl SolidBackend.build_entry_script(
     entry_module: str, install_global_handlers: bool = True
 ) -> str {
-    import from jaclang.runtimelib.solid_entry { build_simple_solid_entry_script }
+    import from jaclang.client.solid_entry { build_simple_solid_entry_script }
     return build_simple_solid_entry_script(entry_module, install_global_handlers);
 }
 
 impl SolidBackend.build_pages_entry_script(
     entry_module: str, auth_redirect: str, has_app_wrapper: bool
 ) -> str {
-    import from jaclang.runtimelib.solid_entry { build_pages_solid_entry_script }
+    import from jaclang.client.solid_entry { build_pages_solid_entry_script }
     return build_pages_solid_entry_script(entry_module, auth_redirect, has_app_wrapper);
 }
 

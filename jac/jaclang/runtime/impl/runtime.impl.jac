@@ -328,7 +328,7 @@ impl JacBuiltin.printgraph(
     file: (str | None),
     format: str
 ) -> str {
-    import from jaclang.runtimelib.utils { traverse_graph }
+    import from jaclang.runtime.graph_utils { traverse_graph }
     edge_type = edge_type or [];
     visited_nodes: list[NodeArchetype] = [];
     node_depths: dict[(NodeArchetype, int)] = {nd: 0};
@@ -802,7 +802,7 @@ impl JacModule.jac_import(
 }
 
 impl JacTest.jac_test(description: str = "") -> Callable {
-    import from jaclang.runtimelib.test { JacTestCheck }
+    import from jaclang.testing.test { JacTestCheck }
     def decorator(test_fun: Callable) -> Callable {
         file_path = getfile(test_fun);
         func_name = test_fun.__name__;
@@ -837,8 +837,8 @@ impl JacTest.run_test(
     directory: (str | None) = None,
     verbose: bool = False
 ) -> int {
-    import from jaclang.runtimelib.test { JacTestCheck }
-    import from jaclang.runtimelib.cl_test_runner {
+    import from jaclang.testing.test { JacTestCheck }
+    import from jaclang.testing.cl_test_runner {
         is_cl_test_file,
         is_cl_test_file_for_discovery,
         run_cl_test_file,
@@ -974,7 +974,7 @@ impl JacGraph.refs(
     if not isinstance(path, GraphQuery) {
         path = GraphQuery(path, hops=[QHop(dir=EdgeDir.OUT.value)]);
     }
-    import from jaclang.runtimelib.query_planner {
+    import from jaclang.data.query_planner {
         LazyRefs,
         resolve_query,
         resolve_query_edges
@@ -1253,7 +1253,7 @@ impl JacArchetype.set_trigger(
 }
 
 impl JacServe.get_client_bundle_builder -> ClientBundleBuilder {
-    import from jaclang.runtimelib.client.vite_client_bundle {
+    import from jaclang.client.vite_client_bundle {
         make_client_bundle_builder
     }
     return make_client_bundle_builder();
@@ -1269,7 +1269,7 @@ impl JacServe.build_client_bundle(
 impl JacServe.format_build_error(
     error_output: str, project_dir: Path, config: object = None
 ) -> str {
-    import from jaclang.runtimelib.client.serving { JacClient }
+    import from jaclang.client.serving { JacClient }
     return JacClient.format_build_error(error_output, project_dir, config);
 }
 
@@ -1286,7 +1286,7 @@ impl JacServe.get_api_server_class -> type {
             return _scaled;
         }
     }
-    import from jaclang.runtimelib.server { JacAPIServer }
+    import from jaclang.server.server { JacAPIServer }
     return JacAPIServer;
 }
 
@@ -1300,9 +1300,9 @@ impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
     import time;
     import urllib.request;
     import from http.client { HTTPResponse }
-    import from jaclang.runtimelib { sv_client }
-    import from jaclang.runtimelib.server { JacAPIServer as CoreJacAPIServer }
-    import from jaclang.runtimelib.serving.server { ServingServer }
+    import from jaclang.server { sv_client }
+    import from jaclang.server.server { JacAPIServer as CoreJacAPIServer }
+    import from jaclang.server.serving.server { ServingServer }
     if module_name in sv_client._registry {
         return;
     }
@@ -1351,9 +1351,9 @@ impl JacServe.sv_service_call(module_name: str, func_name: str, args: dict) -> a
     if _sp is not None and _sp.sv_transport_available() {
         return _sp.sv_service_call(module_name, func_name, args);
     }
-    import from jaclang.runtimelib { sv_client }
-    import from jaclang.runtimelib.serving.client { post_stream_aware_sync }
-    import from jaclang.runtimelib.serving.sse { consume_sse_events }
+    import from jaclang.server { sv_client }
+    import from jaclang.server.serving.client { post_stream_aware_sync }
+    import from jaclang.server.serving.sse { consume_sse_events }
 
     func_label = f"{module_name}.{func_name}";
 
@@ -1398,8 +1398,8 @@ impl JacServe.sv_walker_call(
     if _sp is not None and _sp.sv_transport_available() {
         return _sp.sv_walker_call(module_name, walker_name, args, stub_cls);
     }
-    import from jaclang.runtimelib { sv_client }
-    import from jaclang.runtimelib.serving.client { request_sync }
+    import from jaclang.server { sv_client }
+    import from jaclang.server.serving.client { request_sync }
 
     label = f"{module_name}.{walker_name}";
 
@@ -1444,7 +1444,7 @@ impl JacServe.get_sv_registry -> dict[str, str] {
     if _sp is not None {
         return _sp.get_sv_registry();
     }
-    import from jaclang.runtimelib { sv_client }
+    import from jaclang.server { sv_client }
     return dict(sv_client._registry);
 }
 
@@ -1470,12 +1470,12 @@ impl JacServe.render_page(
     args: dict[(str, any)],
     username: str
 ) -> dict[(str, any)] {
-    import from jaclang.runtimelib.client.serving { JacClient }
+    import from jaclang.client.serving { JacClient }
     return JacClient.render_page(introspector, function_name, args, username);
 }
 
 impl JacServe.get_client_js(introspector: ModuleIntrospector) -> str {
-    import from jaclang.runtimelib.client.serving { JacClient }
+    import from jaclang.client.serving { JacClient }
     return JacClient.get_client_js(introspector);
 }
 
@@ -1641,7 +1641,7 @@ impl JacContext.create_j_context(
             return _scaled;
         }
     }
-    import from jaclang.runtimelib.context { ExecutionContext }
+    import from jaclang.runtime.context { ExecutionContext }
     ctx = ExecutionContext(
         base_path_dir=base_path_dir, full_target_path=full_target_path
     );
@@ -1850,7 +1850,7 @@ impl JacPersistence.get_user_manager(base_path: str) -> UserManager {
             return _scaled;
         }
     }
-    import from jaclang.runtimelib.server { UserManager }
+    import from jaclang.server.server { UserManager }
     return UserManager(base_path=base_path);
 }
 
@@ -1861,7 +1861,7 @@ impl JacPersistence.store(
     if _sp is not None {
         return _sp.store(base_path, create_dirs);
     }
-    import from jaclang.runtimelib.storage { LocalStorage }
+    import from jaclang.data.storage { LocalStorage }
     return LocalStorage(base_path=base_path, create_dirs=create_dirs);
 }
 

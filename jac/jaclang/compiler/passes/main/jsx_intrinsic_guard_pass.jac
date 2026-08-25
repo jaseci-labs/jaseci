@@ -9,7 +9,7 @@ glob _GENERIC_SUGGESTION: str = "an @jac/mobui component",
 def _suggestion_for(tag: str) -> str {
     if _tag_suggestions is None {
         try {
-            import from jaclang.runtimelib.client.targets.react_native.html_tag_map {
+            import from jaclang.client.targets.react_native.html_tag_map {
                 rn_tag_suggestions
             }
             _tag_suggestions = rn_tag_suggestions();

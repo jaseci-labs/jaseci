@@ -1777,7 +1777,7 @@ def _command_routes -> list[CommandMeta] {
             group='project',
             tier='',
             hidden=False,
-            handler_module='jaclang.runtimelib.client.cli',
+            handler_module='jaclang.client.cli',
             handler_name='setup',
             examples=[
                 ('jac setup mobile', 'Setup mobile target (default platform)'),

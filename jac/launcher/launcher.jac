@@ -20,9 +20,9 @@ Dispatch, before any Python bring-up:
 
 import os;
 import sys;
-import from jaclang.runtimelib.fused.bringup { open_runtime }
-import from jaclang.runtimelib.fused.materialize { overlay_for_path }
-import from jaclang.runtimelib.fused.report { die }
+import from jaclang.dist.fused.bringup { open_runtime }
+import from jaclang.dist.fused.materialize { overlay_for_path }
+import from jaclang.dist.fused.report { die }
 import from _exec_native { executable_path }
 
 """The validated boot dance: pin `sys.executable` to THIS binary (under

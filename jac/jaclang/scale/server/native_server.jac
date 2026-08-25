@@ -1,7 +1,7 @@
 import logging;
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.endpoint { JEndPoint, WSEndPoint }
-import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME, ServingServer }
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.endpoint { JEndPoint, WSEndPoint }
+import from jaclang.server.serving.server { ACCESS_LOGGER_NAME, ServingServer }
 
 
 glob logger: logging.Logger = logging.getLogger(__name__),

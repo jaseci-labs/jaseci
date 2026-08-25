@@ -897,7 +897,7 @@ impl JcirGenPass.exit_module(nd: Module) -> None {
     mod_path = nd.loc.mod_path;
     is_builtin_module = (
         (mod_path.endswith('builtin.jac') or mod_path.endswith('builtin.py'))
-        and ('runtimelib' in mod_path)
+        and ('runtime' in mod_path)
     );
     if (self.builtin_imports and not is_builtin_module) {
         self.preamble.append(
@@ -905,7 +905,7 @@ impl JcirGenPass.exit_module(nd: Module) -> None {
                 'ImportFrom',
                 ['module', 'names', 'level'],
                 [
-                    'jaclang.runtimelib.builtin',
+                    'jaclang.runtime.builtin',
                     [
                         self.nod(
                             'alias',
@@ -927,7 +927,7 @@ impl JcirGenPass.exit_module(nd: Module) -> None {
                 'ImportFrom',
                 ['module', 'names', 'level'],
                 [
-                    'jaclang.runtimelib.sized',
+                    'jaclang.runtime.sized',
                     [
                         self.nod(
                             'alias',
@@ -5040,7 +5040,7 @@ impl JcirGenPass._native_test_shim_stmts(nd: Test) -> list {
     init_syms.append("__jac_glob_init");
     init_list = "[" + ", ".join(f"'{sy}'" for sy in init_syms) + "]";
     src_lines = [
-        "from jaclang.runtimelib.test import invoke_native_test as _jac_invoke",
+        "from jaclang.testing.test import invoke_native_test as _jac_invoke",
         "_jac_invoke(globals().get('__jac_native_engine__'), '"
             + symbol
             + "', '"
@@ -5075,7 +5075,7 @@ impl JcirGenPass._generate_sv_to_sv_stubs(nd: Import) -> bool {
     }
     boundary_types = manifest.boundary_types;
     parts: list = [
-        "from jaclang.runtimelib import sv_client as __jac_sv_client",
+        "from jaclang.server import sv_client as __jac_sv_client",
         "__jac_sv_client._declare_consumer_provider(__name__, '" + module_name + "')"
     ];
     names: list = ['__jac_sv_client'];

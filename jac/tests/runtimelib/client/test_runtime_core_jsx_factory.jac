@@ -14,7 +14,7 @@ import from tempfile { TemporaryDirectory }
 """Drive the real client compile path over a throwaway project and return the
 compiled runtime-core JS it writes to disk."""
 def _compile_runtime_core_js(proj: Path) -> str {
-    import from jaclang.runtimelib.client.vite_client_bundle { ViteClientBundleBuilder }
+    import from jaclang.client.vite_client_bundle { ViteClientBundleBuilder }
 
     (proj / "package.json").write_text('{"name":"t","version":"0.0.0"}');
     out_dir = proj / "out";

@@ -10,7 +10,7 @@ import from jaclang.cli.manifest {
 glob FEATURE_MODULES: list[str] = [
          "jaclang.byllm.cli",
          "jaclang.cli.shadcn.cli",
-         "jaclang.runtimelib.client.cli",
+         "jaclang.client.cli",
          "jaclang.scale.plugin",
 
      ],

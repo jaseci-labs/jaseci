@@ -247,7 +247,7 @@ def is_bootstrap_compiled_module(mod_path: str) -> bool {
 
 def is_ambient_provider_module(mod_path: str) -> bool {
     return (mod_path.endswith("builtin.jac") or mod_path.endswith("builtin.py"))
-        and "runtimelib" in mod_path;
+        and "runtime" in mod_path;
 }
 
 obj StaticAnalysisPass(Transform) {

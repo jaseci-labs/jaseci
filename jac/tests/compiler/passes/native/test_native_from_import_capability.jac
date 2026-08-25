@@ -257,7 +257,7 @@ test "a consumer links a ClassVar-importing dependency" {
 
 test "a from import of an na_stdlib-shimmed module lowers" {
     assert _rejected_imports("from_import_shimmed_stdlib.jac") == [] , (
-        "`keyword` ships as Jac source under `runtimelib/na_stdlib`, so a "
+        "`keyword` ships as Jac source under `runtime/na_stdlib`, so a "
         "native unit supplies the name the import binds; classifying "
         "`from`-import items must not read a shimmed module as Python"
     );

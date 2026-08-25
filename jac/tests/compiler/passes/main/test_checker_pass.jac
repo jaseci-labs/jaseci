@@ -9,7 +9,7 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.pass_driver { run_pass }
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
@@ -1655,7 +1655,7 @@ test "checker_import_missing_module" {
 
 test "checker_jac_runtime_alias" {
     # `@jac/runtime` is a virtual module resolved by the bundler to
-    # jaclang/runtimelib/client_runtime.jac. The type checker must use the
+    # jaclang/client/client_runtime.jac. The type checker must use the
     # same mapping so imported symbols keep their declared types (e.g.
     # jacIsLoggedIn -> bool) instead of decaying to Unknown and producing
     # spurious assignment errors.

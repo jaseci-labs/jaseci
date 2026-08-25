@@ -29,11 +29,11 @@ import from jaclang.compiler.passes.ecmascript.reactive_intent {
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.project.config { JacConfig, ClientConfig, set_config }
-import from jaclang.runtimelib.solid_entry {
+import from jaclang.client.solid_entry {
     build_simple_solid_entry_script,
     build_pages_solid_entry_script
 }
-import from jaclang.runtimelib.runtime_source {
+import from jaclang.client.runtime_source {
     client_runtime_cl_basename,
     resolve_client_runtime_cl_path
 }

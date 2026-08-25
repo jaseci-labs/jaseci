@@ -11,8 +11,8 @@ The desktop targets ship with core now and register directly via
 `register_targets()` instead of a secondary `jac_client` pluggy plugin group.
 """
 test "register_targets registers the desktop targets" {
-    import from jaclang.runtimelib.client.targets.register { register_targets }
-    import from jaclang.runtimelib.client.targets.registry { get_target_registry }
+    import from jaclang.client.targets.register { register_targets }
+    import from jaclang.client.targets.registry { get_target_registry }
 
     register_targets();
     registry = get_target_registry();
@@ -29,7 +29,7 @@ test "register_targets registers the desktop targets" {
 
 """Window geometry is read from [desktop.window]."""
 test "desktop window config loads from jac.toml" {
-    import from jaclang.runtimelib.client.desktop_config {
+    import from jaclang.client.desktop_config {
         get_desktop_config,
         reset_desktop_config
     }
@@ -55,7 +55,7 @@ test "desktop window config loads from jac.toml" {
 
 """Engine defaults to 'native' and validates 'native'/'cef'."""
 test "desktop engine config defaults to native" {
-    import from jaclang.runtimelib.client.desktop_config {
+    import from jaclang.client.desktop_config {
         get_desktop_config,
         reset_desktop_config
     }
@@ -79,7 +79,7 @@ test "desktop engine config defaults to native" {
 """In-process dispatch tuning is read from [desktop.dispatch], with
 sensible defaults when the section is absent (P1-A, issue #6596)."""
 test "desktop dispatch config loads from jac.toml" {
-    import from jaclang.runtimelib.client.desktop_config {
+    import from jaclang.client.desktop_config {
         get_desktop_config,
         reset_desktop_config
     }
@@ -122,7 +122,7 @@ test "desktop dispatch config loads from jac.toml" {
 build-machine state. All boot behavior lives in the host_boot runtime module; the generated
 source only carries configuration plus the native bridge."""
 test "host source boots the fused runtime and bakes no build-machine state" {
-    import from jaclang.runtimelib.client.targets.desktop._host_bootstrap {
+    import from jaclang.client.targets.desktop._host_bootstrap {
         _generate_host_source
     }
 
@@ -147,7 +147,7 @@ grepping generated strings."""
 test "host_boot applies the runtime extra-deps seam" {
     import os;
     import sys;
-    import from jaclang.runtimelib.client.targets.desktop.native { host_boot }
+    import from jaclang.client.targets.desktop.native { host_boot }
 
     _saved_path = list(sys.path);
     _saved_env = os.environ.get("JAC_DESKTOP_DEPS");
@@ -179,7 +179,7 @@ test "desktop launch wires JAC_DESKTOP_DEPS from the project venv" {
     import tempfile;
     import shutil;
     import from pathlib { Path }
-    import from jaclang.runtimelib.client.targets.desktop._dev_launch {
+    import from jaclang.client.targets.desktop._dev_launch {
         desktop_app_runtime_env,
         jac_desktop_deps_shell_export,
         jac_desktop_webkit_shell_export
@@ -228,7 +228,7 @@ raw payload dicts, and the webview bind form (a one-element argument array
 holding the payload as a JSON string). Plugin-style requests fall through."""
 test "host_boot routes runtime payloads and passes plugin requests through" {
     import json;
-    import from jaclang.runtimelib.client.targets.desktop.native { host_boot }
+    import from jaclang.client.targets.desktop.native { host_boot }
 
     walker_req = json.dumps({"kind": "walker", "name": "w", "fields": {}});
     func_req = json.dumps({"kind": "function", "name": "f", "fields": {}});
@@ -249,7 +249,7 @@ test "host_boot routes runtime payloads and passes plugin requests through" {
 """Generated host source must call inprocess_dispatch.shutdown() after run_main_loop()
 and before Py_Finalize() so the dispatch worker and transport tear down cleanly."""
 test "generated host calls shutdown after run_main_loop()" {
-    import from jaclang.runtimelib.client.targets.desktop._host_bootstrap {
+    import from jaclang.client.targets.desktop._host_bootstrap {
         _generate_host_source
     }
 
@@ -292,7 +292,7 @@ bootstrap + the broker/dispatch imports in THIS runtime (the same fused runtime 
 desktop app boots): the closest dependency-free proxy for the embedded host,
 catching an import-from-runtime regression without a display."""
 test "host bootstrap modules import + run from the fused runtime" {
-    import from jaclang.runtimelib.client.targets.desktop.native {
+    import from jaclang.client.targets.desktop.native {
         host_boot,
         oauth_broker,
         inprocess_dispatch
@@ -328,7 +328,7 @@ test "host bootstrap modules import + run from the fused runtime" {
 test "dev launch detects editable worktree roots" {
     import os;
     import from pathlib { Path }
-    import from jaclang.runtimelib.client.targets.desktop._dev_launch {
+    import from jaclang.client.targets.desktop._dev_launch {
         _editable_roots_from_site
     }
 

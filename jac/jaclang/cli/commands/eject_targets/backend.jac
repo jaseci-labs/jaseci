@@ -515,7 +515,7 @@ def _emit_main_py(
 
     lines += [
         '',
-        'from jaclang.runtimelib.server import UserManager, ExecutionManager'
+        'from jaclang.server.server import UserManager, ExecutionManager'
     ];
 
     if entry_module {

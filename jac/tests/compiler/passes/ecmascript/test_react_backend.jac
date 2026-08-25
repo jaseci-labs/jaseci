@@ -11,7 +11,7 @@ These pin the calling convention; the behavioral proof lives in
 """
 
 import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.runtimelib.react_entry {
+import from jaclang.client.react_entry {
     build_pages_react_entry_script,
     build_simple_react_entry_script
 }

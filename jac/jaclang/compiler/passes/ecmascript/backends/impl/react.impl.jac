@@ -41,14 +41,14 @@ impl ReactBackend.vite_aliases -> dict[str, str] {
 impl ReactBackend.build_entry_script(
     entry_module: str, install_global_handlers: bool = True
 ) -> str {
-    import from jaclang.runtimelib.react_entry { build_simple_react_entry_script }
+    import from jaclang.client.react_entry { build_simple_react_entry_script }
     return build_simple_react_entry_script(entry_module, install_global_handlers);
 }
 
 impl ReactBackend.build_pages_entry_script(
     entry_module: str, auth_redirect: str, has_app_wrapper: bool
 ) -> str {
-    import from jaclang.runtimelib.react_entry { build_pages_react_entry_script }
+    import from jaclang.client.react_entry { build_pages_react_entry_script }
     return build_pages_react_entry_script(entry_module, auth_redirect, has_app_wrapper);
 }
 

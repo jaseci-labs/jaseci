@@ -120,7 +120,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: jac/.bun-build
-        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
+        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/client/bun_installer.jac') }}
 
     # Identity of the compiler this build runs, as git blob ids over the same
     # file set jir.jac hashes for its module keys (jaclang.compiler.driver.jir:
@@ -196,7 +196,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: jac/.payload-layers
-        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
         restore-keys: |
           payload-layers-${{ runner.os }}-${{ runner.arch }}-
 
@@ -401,7 +401,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: jac/.bun-build
-        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
+        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/client/bun_installer.jac') }}
 
     # cache-hit is only 'true' on an exact-key match, so a restore-keys prefix
     # hit still saves here -- that is what keeps main's entry tracking HEAD
@@ -425,7 +425,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: jac/.payload-layers
-        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
 
     # Seed the Zig package store from main only (see the restore note). Like the
     # precompile cache, a restore-keys prefix hit still leaves cache-hit != true,

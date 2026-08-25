@@ -16,7 +16,7 @@ import from tempfile { TemporaryDirectory }
 import from jaclang.runtime.archetype { EdgeAnchor }
 import from jaclang.runtime.osp_graph_sv { handle_of, sv_conn, sv_live_edges }
 import from jaclang.runtime.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.context { ExecutionContext }
 
 def _as_any(v: any) -> any {
     return v;

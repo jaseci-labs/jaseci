@@ -139,7 +139,7 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
 
     bb = opts.bun_bin;
     if bb is not None {
-        bun_dir = os.path.join(site, "jaclang", "runtimelib", "client", "_bun");
+        bun_dir = os.path.join(site, "jaclang", "client", "_bun");
         make_dirs(bun_dir);
         log(f"==> bundling contained bun runtime ({bb})");
         copy_file(bb, os.path.join(bun_dir, os.path.basename(bb)));
@@ -490,7 +490,7 @@ impl is_volatile_path(p: str) -> bool {
         if "compiler/passes/native/llvm" in p {
             return False;
         }
-        if "runtimelib/client/_bun" in p {
+        if "client/_bun" in p {
             return False;
         }
         return True;

@@ -4,7 +4,7 @@ import json;
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.runtimelib.source_mapping {
+import from jaclang.client.source_mapping {
     SourceMapper,
     SourceMap,
     _decode_vlq,
@@ -380,13 +380,13 @@ test "source mapper invalidates on file change" {
 # Rate Limiter
 # =============================================================================
 test "rate limiter allows first error" {
-    import from jaclang.runtimelib.source_mapping { ErrorRateLimiter }
+    import from jaclang.client.source_mapping { ErrorRateLimiter }
     limiter = ErrorRateLimiter();
     assert limiter.should_log("first error") == True;
 }
 
 test "rate limiter deduplicates same message" {
-    import from jaclang.runtimelib.source_mapping { ErrorRateLimiter }
+    import from jaclang.client.source_mapping { ErrorRateLimiter }
     limiter = ErrorRateLimiter(dedup_seconds=10.0);
     assert limiter.should_log("same error") == True;
     assert limiter.should_log("same error") == False;  # deduped
@@ -394,7 +394,7 @@ test "rate limiter deduplicates same message" {
 }
 
 test "rate limiter enforces window cap" {
-    import from jaclang.runtimelib.source_mapping { ErrorRateLimiter }
+    import from jaclang.client.source_mapping { ErrorRateLimiter }
     limiter = ErrorRateLimiter(max_per_window=3, dedup_seconds=0.0);
     assert limiter.should_log("error 1") == True;
     assert limiter.should_log("error 2") == True;
@@ -406,7 +406,7 @@ test "rate limiter enforces window cap" {
 # Source Map Generation
 # =============================================================================
 test "generate source map json produces valid map" {
-    import from jaclang.runtimelib.source_mapping { generate_source_map_json }
+    import from jaclang.client.source_mapping { generate_source_map_json }
     map_json = generate_source_map_json(
         source_file="test.jac",
         output_file="test.js",
@@ -425,7 +425,7 @@ test "generate source map json produces valid map" {
 }
 
 test "generate source map json handles empty line map" {
-    import from jaclang.runtimelib.source_mapping { generate_source_map_json }
+    import from jaclang.client.source_mapping { generate_source_map_json }
     map_json = generate_source_map_json("test.jac", "test.js", []);
     data = json.loads(map_json);
     assert data["mappings"] == "";
@@ -446,7 +446,7 @@ test "two-layer resolution chains bundle and per-file maps" {
             "/* Source: /project/app.jac */\nline1\nline2\nline3\n"
         );
         # Create per-file .map: app.js line 3 -> app.jac line 42
-        import from jaclang.runtimelib.source_mapping { generate_source_map_json }
+        import from jaclang.client.source_mapping { generate_source_map_json }
         per_file_map = generate_source_map_json(
             source_file="/project/app.jac",
             output_file="app.js",

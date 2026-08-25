@@ -21,8 +21,8 @@ import from jaclang.compiler.passes.ecmascript.reactive_intent {
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.project.config { JacConfig, ClientConfig, set_config }
-import from jaclang.runtimelib.preact_entry { build_simple_preact_entry_script }
-import from jaclang.runtimelib.runtime_source {
+import from jaclang.client.preact_entry { build_simple_preact_entry_script }
+import from jaclang.client.runtime_source {
     client_runtime_cl_basename,
     resolve_client_runtime_cl_path
 }

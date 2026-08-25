@@ -1,4 +1,4 @@
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.config.config_loader {
     get_scale_config,

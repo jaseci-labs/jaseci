@@ -52,28 +52,28 @@ bootstrap compiler (`jac0.py`) and the full compiler share this front end.
 ## Category 2 -- Builtins
 
 Builtins are co-located in a single module
-([`jaclang/runtimelib/builtin.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac))
+([`jaclang/runtime/builtin.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac))
 and resolved through one mechanism -- except for `printgraph`, which is the
 documented exception.
 
 The pattern for every builtin except `printgraph`: a `def _get_X` thunk in
 `builtin.jac`, an implementation in
-[`runtimelib/impl/builtin.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac)
+[`runtime/impl/builtin.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac)
 that returns `_get_jac().<method>`, and a module-level `__getattr__` that
 resolves the public name on first access. Every backing implementation lives
 on `JacRuntimeInterface` in `runtime/runtime.jac`.
 
 | Builtin | Declaration | Resolver | Runtime impl |
 |---|---|---|---|
-| `jid()` | [builtin.jac:33](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac#L33) `_get_jid` | [builtin.impl.jac:164](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac#L164) → `object_ref` | `JacRuntimeInterface.object_ref` -- [runtime.jac:390](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L390) |
-| `jobj()` | [builtin.jac:35](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac#L35) | [builtin.impl.jac:159](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac#L159) → `get_object` | [runtime.jac:383](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L383) |
-| `grant()` | [builtin.jac:37](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac#L37) | [builtin.impl.jac:154](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac#L154) → `perm_grant` | `JacAccessValidation.perm_grant` -- [runtime.jac:117](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L117) |
-| `revoke()` | [builtin.jac:39](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac#L39) | [builtin.impl.jac:149](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac#L149) → `perm_revoke` | [runtime.jac:122](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L122) |
-| `allroots()` | [builtin.jac:41](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac#L41) | [builtin.impl.jac:144](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac#L144) → `get_all_root` | [runtime.jac:526](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L526) |
-| `save()` | [builtin.jac:43](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac#L43) | [builtin.impl.jac:139](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac#L139) → `save` | [runtime.jac:536](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L536) |
-| `commit()` | [builtin.jac:45](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac#L45) | [builtin.impl.jac:100](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac#L100) → `commit` | [runtime.jac:373](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L373) |
-| `store()` | [builtin.jac:47](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac#L47) | [builtin.impl.jac:105](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac#L105) → `store` | [runtime.jac:953](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L953) |
-| `printgraph()` | [builtin.jac:55-65](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac#L55) -- direct `def` (not a thunk) | [builtin.impl.jac:36-63](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac#L36) -- full body, dispatches DOT vs JSON | [runtime.jac:345](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L345) |
+| `jid()` | [builtin.jac:33](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac#L33) `_get_jid` | [builtin.impl.jac:164](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac#L164) → `object_ref` | `JacRuntimeInterface.object_ref` -- [runtime.jac:390](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L390) |
+| `jobj()` | [builtin.jac:35](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac#L35) | [builtin.impl.jac:159](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac#L159) → `get_object` | [runtime.jac:383](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L383) |
+| `grant()` | [builtin.jac:37](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac#L37) | [builtin.impl.jac:154](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac#L154) → `perm_grant` | `JacAccessValidation.perm_grant` -- [runtime.jac:117](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L117) |
+| `revoke()` | [builtin.jac:39](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac#L39) | [builtin.impl.jac:149](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac#L149) → `perm_revoke` | [runtime.jac:122](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L122) |
+| `allroots()` | [builtin.jac:41](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac#L41) | [builtin.impl.jac:144](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac#L144) → `get_all_root` | [runtime.jac:526](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L526) |
+| `save()` | [builtin.jac:43](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac#L43) | [builtin.impl.jac:139](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac#L139) → `save` | [runtime.jac:536](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L536) |
+| `commit()` | [builtin.jac:45](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac#L45) | [builtin.impl.jac:100](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac#L100) → `commit` | [runtime.jac:373](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L373) |
+| `store()` | [builtin.jac:47](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac#L47) | [builtin.impl.jac:105](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac#L105) → `store` | [runtime.jac:953](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L953) |
+| `printgraph()` | [builtin.jac:55-65](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac#L55) -- direct `def` (not a thunk) | [builtin.impl.jac:36-63](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac#L36) -- full body, dispatches DOT vs JSON | [runtime.jac:345](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac#L345) |
 
 `printgraph` is declared with a complete signature instead of a lazy thunk
 because it has a rich keyword-argument surface (depth, traversal, edge type,
@@ -135,7 +135,7 @@ as interface contracts:
 - `metrics.jac` -- metrics interface
 - `models/` -- `deployment_result.jac`, `resource_status.jac`
 
-### Client framework (`jac/jaclang/runtimelib/client/`, formerly the `jac-client` plugin)
+### Client framework (`jac/jaclang/client/`, formerly the `jac-client` plugin)
 
 No `lib.jac`. Client-side code is written in `.jac` files that are
 compiled to TypeScript/JavaScript by the client toolchain; the framework
@@ -160,7 +160,7 @@ to methods on `JacRuntimeInterface`. There is no syntactic-sugar path that
 bypasses the AST. Bootstrap and full compiler share the front end.
 
 **Builtins -- near-uniform.** Eight of the nine use the lazy-thunk
-registration pattern in `runtimelib/builtin.jac`. `printgraph` is the
+registration pattern in `runtime/builtin.jac`. `printgraph` is the
 deliberate exception, declared with a full signature for IDE/type-checker
 ergonomics. All nine ultimately delegate to `JacRuntimeInterface`. The same
 module also exports several adjacent names (`llm`, access levels, decorators)
@@ -175,7 +175,7 @@ holds everywhere, but the four library packages do not share a common shape:
 | `jaclang` | yes | single consolidated `__all__` re-exporting `lib/jaclib.jac` |
 | `jaclang.byllm` | yes | own `__all__` in own namespace |
 | `jaclang.scale` | yes (minimal) | `persistence/pg.jac` exposes only the shared store accessor; substantive abstractions in `abstractions/` directory |
-| `jaclang.runtimelib.client` | no | built into core; no curated re-export |
+| `jaclang.client` | no | built into core; no curated re-export |
 | `mcp` (`jaclang.cli.mcp`) | no | built into core; no curated re-export |
 
 For someone learning the ecosystem, this means the surface for "what's
@@ -197,9 +197,9 @@ When adding a new abstraction:
    and the runtime entry point belongs on `JacRuntimeInterface` in
    [`runtime/runtime.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/runtime.jac).
 2. **Builtin** -- add the `_get_X` thunk in
-   [`runtimelib/builtin.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/builtin.jac),
+   [`runtime/builtin.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/builtin.jac),
    the resolver in
-   [`runtimelib/impl/builtin.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/impl/builtin.impl.jac),
+   [`runtime/impl/builtin.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtime/impl/builtin.impl.jac),
    the implementation on `JacRuntimeInterface`, and the public name in `__all__`.
 3. **Standard-library export** -- add it to the relevant package's `lib.jac`
    `__all__`. If the package does not yet have a `lib.jac`, consider adding

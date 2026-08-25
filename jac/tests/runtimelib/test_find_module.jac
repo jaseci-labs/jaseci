@@ -61,7 +61,7 @@ test "find_module resolves a user-program module and returns None for unknown" {
 }
 
 test "public endpoints of a jaclang-bundled app do not require auth" {
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
 
     (d, f) = _bundled_app(
         "auth",

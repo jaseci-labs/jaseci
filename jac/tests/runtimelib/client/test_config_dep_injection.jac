@@ -26,7 +26,7 @@ def _write_toml(temp_dir: str, content: str) -> tuple[Path, bytes] {
 # =============================================================================
 """A project without [client] still sees the core deps, with jac.toml untouched."""
 test "no client table project gets deps injected without jac toml mutation" {
-    import from jaclang.runtimelib.client.config_loader { JacClientConfig }
+    import from jaclang.client.config_loader { JacClientConfig }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         original_cwd = os.getcwd();
@@ -77,7 +77,7 @@ test "no client table project gets deps injected without jac toml mutation" {
 # =============================================================================
 """A [client] project sees core deps in its effective package config."""
 test "client project gets dependencies injected on load" {
-    import from jaclang.runtimelib.client.config_loader { JacClientConfig }
+    import from jaclang.client.config_loader { JacClientConfig }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         original_cwd = os.getcwd();
@@ -116,7 +116,7 @@ test "client project gets dependencies injected on load" {
 """NpmProvider.resolve reports manifest vs self-healed entries by origin."""
 test "npm provider plan carries self-heal origins for client projects" {
     import from jaclang.project.config { JacConfig }
-    import from jaclang.runtimelib.client.npm_provider { NpmProvider }
+    import from jaclang.client.npm_provider { NpmProvider }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         (config_path, _) = _write_toml(
@@ -152,7 +152,7 @@ test "npm provider rolls back the manifest when the install fails" {
     import from unittest.mock { patch }
     import from jaclang.project.config { JacConfig }
     import from jaclang.project.providers { InstallContext }
-    import from jaclang.runtimelib.client.npm_provider { NpmProvider }
+    import from jaclang.client.npm_provider { NpmProvider }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         (config_path, original_bytes) = _write_toml(
@@ -166,7 +166,7 @@ test "npm provider rolls back the manifest when the install fails" {
         config = JacConfig.load(config_path);
         raised = False;
         with patch(
-            "jaclang.runtimelib.client.npm_provider.regenerate_and_install",
+            "jaclang.client.npm_provider.regenerate_and_install",
             side_effect=RuntimeError("bun unavailable")
         ) {
             try {
@@ -181,7 +181,7 @@ test "npm provider rolls back the manifest when the install fails" {
         # add over an existing dep: the previous version spec is restored.
         config = JacConfig.load(config_path);
         with patch(
-            "jaclang.runtimelib.client.npm_provider.regenerate_and_install",
+            "jaclang.client.npm_provider.regenerate_and_install",
             side_effect=RuntimeError("bun unavailable")
         ) {
             try {
@@ -192,7 +192,7 @@ test "npm provider rolls back the manifest when the install fails" {
         # remove: a failed reinstall restores the removed dep.
         config = JacConfig.load(config_path);
         with patch(
-            "jaclang.runtimelib.client.npm_provider.regenerate_and_install",
+            "jaclang.client.npm_provider.regenerate_and_install",
             side_effect=RuntimeError("bun unavailable")
         ) {
             try {

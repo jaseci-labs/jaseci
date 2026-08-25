@@ -19,10 +19,10 @@ import sys;
 import unittest.mock;
 import from contextlib { redirect_stdout, redirect_stderr }
 
-import from jaclang.runtimelib.client.targets.mobile.deps {
+import from jaclang.client.targets.mobile.deps {
     _check_android_dependencies
 }
-import from jaclang.runtimelib.client.targets.mobile.dev {
+import from jaclang.client.targets.mobile.dev {
     _mobile_setup_android_port_reverse
 }
 
@@ -75,7 +75,7 @@ test "android dep check flags missing javac when java is present" {
 # be printed when `cap run` returned nonzero.
 # =============================================================================
 test "cap run completion message reflects nonzero return code" {
-    import from jaclang.runtimelib.client.targets.mobile.dev {
+    import from jaclang.client.targets.mobile.dev {
         _describe_cap_run_completion
     }
     ok_info = _describe_cap_run_completion(0, "http://10.0.2.2:8000");
@@ -151,7 +151,7 @@ test "adb reverse is skipped silently when adb is missing" {
 # what the API server actually binds.
 # =============================================================================
 test "port availability check raises when port is already bound" {
-    import from jaclang.runtimelib.client.targets.mobile.dev {
+    import from jaclang.client.targets.mobile.dev {
         _assert_mobile_port_available
     }
 
@@ -177,7 +177,7 @@ test "port availability check raises when port is already bound" {
 }
 
 test "port availability check passes for an unbound port" {
-    import from jaclang.runtimelib.client.targets.mobile.dev {
+    import from jaclang.client.targets.mobile.dev {
         _assert_mobile_port_available
     }
 

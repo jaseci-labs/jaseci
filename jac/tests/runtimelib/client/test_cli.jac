@@ -868,7 +868,7 @@ test "config files from jac toml" {
             }
 
             # Import and use ViteBundler to generate config files
-            import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+            import from jaclang.client.vite_bundler { ViteBundler }
 
             bundler = ViteBundler(Path(temp_dir));
             created_files = bundler.create_config_files();
@@ -921,7 +921,7 @@ test "raw template config files from jac toml" {
                 f.write(toml_content);
             }
 
-            import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+            import from jaclang.client.vite_bundler { ViteBundler }
 
             bundler = ViteBundler(Path(temp_dir));
             created_files = bundler.create_config_files();
@@ -964,7 +964,7 @@ test "npmrc from jac toml" {
             }
 
             # Import and use ViteBundler to generate .npmrc
-            import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+            import from jaclang.client.vite_bundler { ViteBundler }
 
             bundler = ViteBundler(Path(temp_dir));
             npmrc_path = bundler.create_npmrc();
@@ -1062,7 +1062,7 @@ test "create cl and run no root files" {
 
 """Test that ViteBundler.build() injects core deps without prompting or writing jac.toml."""
 test "vite build injects core deps without prompting" {
-    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+    import from jaclang.client.vite_bundler { ViteBundler }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         project_dir = Path(temp_dir);
@@ -1071,7 +1071,7 @@ test "vite build injects core deps without prompting" {
         bundler = ViteBundler(project_dir);
         with unittest.mock.patch("builtins.input", return_value="Y") as mock_input {
             with unittest.mock.patch(
-                "jaclang.runtimelib.client.bun_installer.get_bun", return_value="bun"
+                "jaclang.client.bun_installer.get_bun", return_value="bun"
             ) {
                 with unittest.mock.patch("subprocess.run") as mock_subprocess {
                     # bun install returns success, vite build returns failure
@@ -1211,7 +1211,7 @@ test "vite config generation" {
             }
 
             # Import ViteBundler
-            import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+            import from jaclang.client.vite_bundler { ViteBundler }
 
             # Initialize bundler
             bundler = ViteBundler(Path(temp_dir));
@@ -1286,7 +1286,7 @@ test "path aliases in generated vite and tsconfig" {
                 f.write(toml_content);
             }
 
-            import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+            import from jaclang.client.vite_bundler { ViteBundler }
 
             bundler = ViteBundler(Path(temp_dir));
 

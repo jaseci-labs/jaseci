@@ -194,7 +194,7 @@ test "an unrunnable pod binary fails the seal instead of shipping unsealed" {
 
 test "the seal and vendor subprocesses run without persistent storage (issue 8094)" {
     import from jaclang.scale.injector.bundle { seal_step_env }
-    import from jaclang.runtimelib.session { SCRATCH_ENV }
+    import from jaclang.server.session { SCRATCH_ENV }
     env = seal_step_env();
     assert env.get(SCRATCH_ENV) == "1" , (
         "the seal/vendor children stage the app under a fresh temp path, so a "

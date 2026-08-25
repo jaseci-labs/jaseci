@@ -26,7 +26,7 @@ import from jaclang.cli.registry { get_registry }
 import from jaclang.compiler.frontend.diagnostic_utils { resolve_diagnostic_tokens }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.project.config { set_config }
-import from jaclang.runtimelib.builtin { printgraph }
+import from jaclang.runtime.builtin { printgraph }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures"),
      _template_state = {"initialized": False},
@@ -581,7 +581,7 @@ test "directory discovery skips impl annexes and dedupes test annexes" {
     # Collection rules, asserted against the runner's discovery directly, on a
     # tree built for the purpose. The end-to-end CLI path for the same rules
     # lives in tests/cli/test_test_discovery.jac.
-    import from jaclang.runtimelib.test_runner { discover }
+    import from jaclang.testing.test_runner { discover }
     tree_root = tempfile.mkdtemp();
     try {
         Path(os.path.join(tree_root, "widget.jac")).write_text("def area -> int;\n");

@@ -4,7 +4,7 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.frontend.unitree { Module }
 import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
 import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.compiler.driver.program { JacProgram }

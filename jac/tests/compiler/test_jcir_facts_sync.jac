@@ -18,7 +18,7 @@ here instead of on the first container read.
 import os;
 import sys;
 import jaclang;
-import jaclang.runtimelib.builtin as builtin_mod;
+import jaclang.runtime.builtin as builtin_mod;
 import from pathlib { Path }
 import from jaclang.compiler.backends.py.codegen_ir { cir_python_version }
 import from jaclang.compiler.frontend.constant { Tokens }
@@ -37,7 +37,7 @@ import from jaclang.compiler.backends.py.jcir_facts {
 }
 
 
-test "the baked builtin surface matches runtimelib.builtin.__all__" {
+test "the baked builtin surface matches runtime.builtin.__all__" {
     live = set(builtin_mod.__all__);
     baked = set(JCIR_BUILTIN_NAMES);
     assert baked == live , (

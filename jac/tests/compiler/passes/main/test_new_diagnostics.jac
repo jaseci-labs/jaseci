@@ -23,7 +23,7 @@ import jaclang;
 import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.frontend.parser.frontend { parse }
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(

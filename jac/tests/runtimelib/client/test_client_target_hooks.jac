@@ -16,8 +16,8 @@ glob _client_dir = Path(__file__).parent.parent.parent.parent
      _cli_jac = _client_dir / "cli.jac";
 
 test "register_targets registers the built-in client targets directly" {
-    import from jaclang.runtimelib.client.targets.register { register_targets }
-    import from jaclang.runtimelib.client.targets.registry { get_target_registry }
+    import from jaclang.client.targets.register { register_targets }
+    import from jaclang.client.targets.registry { get_target_registry }
 
     register_targets();
     registry = get_target_registry();

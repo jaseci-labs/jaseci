@@ -6,11 +6,11 @@ glob _SEEDS: list[str] = [
          "jaclang.lib.jaclib",
          "jaclang.runtime.runtime",
          "jaclang.runtime.archetype",
-         "jaclang.runtimelib.server",
-         "jaclang.runtimelib.session",
-         "jaclang.runtimelib.store",
-         "jaclang.runtimelib.serializer",
-         "jaclang.runtimelib.builtin"
+         "jaclang.server.server",
+         "jaclang.server.session",
+         "jaclang.data.store",
+         "jaclang.data.serializer",
+         "jaclang.runtime.builtin"
      ],
      _BYLLM_SEEDS: list[str] = [
          "jaclang.byllm",
@@ -28,18 +28,18 @@ glob _SEEDS: list[str] = [
          "jaclang.byllm.cli",
          "jaclang.jac0core",
          "jaclang.runtime.interop_bridge",
-         "jaclang.runtimelib.client",
-         "jaclang.runtimelib.hmr",
-         "jaclang.runtimelib.watcher",
-         "jaclang.runtimelib.cl_test_runner",
-         "jaclang.runtimelib.preact_entry",
-         "jaclang.runtimelib.react_entry",
-         "jaclang.runtimelib.solid_entry"
+         "jaclang.client",
+         "jaclang.server.hmr",
+         "jaclang.server.watcher",
+         "jaclang.testing.cl_test_runner",
+         "jaclang.client.preact_entry",
+         "jaclang.client.react_entry",
+         "jaclang.client.solid_entry"
      ],
      _ALLOW_EXACT: list[str] = [
          "jaclang.cli.console",
          "jaclang.cli.banners",
-         "jaclang.runtimelib.serving.endpoint"
+         "jaclang.server.serving.endpoint"
      ],
      _VENDORED_INIT: str = '''"""Vendored jaclang runtime.
 
@@ -57,7 +57,6 @@ from jaclang.runtime.runtime import (
     JacRuntimeInterface,
 )
 
-sys.modules.setdefault("jaclang.runtimelib.runtime", _runtime_mod)
 
 __all__ = ["JacRuntime", "JacRuntimeInterface"]
 ''',

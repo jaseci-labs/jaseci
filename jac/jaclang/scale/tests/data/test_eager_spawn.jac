@@ -6,8 +6,8 @@ import tempfile;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.compiler.frontend.constant { Constants as Con }
-import from jaclang.runtimelib { sv_client as __jac_sv }
-import from jaclang.runtimelib.serving.testkit { ServingTestClient as TestClient }
+import from jaclang.server { sv_client as __jac_sv }
+import from jaclang.testing.testkit { ServingTestClient as TestClient }
 import from jaclang.scale.server.serve { JacAPIServer }
 
 glob FIXTURES: Path = Path(__file__).parent.parent / "fixtures" / "microservice";

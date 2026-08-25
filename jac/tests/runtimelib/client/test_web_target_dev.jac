@@ -66,13 +66,13 @@ def _record_dev_calls(target: any, watcher: any = None) -> list {
     }
 
     with unittest.mock.patch(
-        "jaclang.runtimelib.client.targets.client_dev_common.prepare_vite_dev_compilation",
+        "jaclang.client.targets.client_dev_common.prepare_vite_dev_compilation",
         _fake_prepare
     ), unittest.mock.patch(
-        "jaclang.runtimelib.client.targets.client_dev_common.ensure_watchdog_common",
+        "jaclang.client.targets.client_dev_common.ensure_watchdog_common",
         _fake_ensure_watchdog
     ), unittest.mock.patch(
-        "jaclang.runtimelib.watcher.JacFileWatcher", _fake_watcher_cls
+        "jaclang.server.watcher.JacFileWatcher", _fake_watcher_cls
     ) {
         target.dev(Path("app.jac"), Path("."), port=0, api_port=0);
     }
@@ -84,7 +84,7 @@ def _record_dev_calls(target: any, watcher: any = None) -> list {
 before starting the Vite dev server (start_dev_server) -- the exact ordering
 the bug violated (server started first; compile step never ran at all)."""
 test "web target dev compiles client entry before starting vite" {
-    import from jaclang.runtimelib.client.targets.web_target { WebTarget }
+    import from jaclang.client.targets.web_target { WebTarget }
 
     calls = _record_dev_calls(WebTarget());
 
@@ -100,7 +100,7 @@ stopped on the way out -- including when start_dev_server hands back a falsy
 process, which skips the wait/interrupt block entirely and would otherwise
 leak the watcher thread."""
 test "web target dev wires up the hmr watcher and always stops it" {
-    import from jaclang.runtimelib.client.targets.web_target { WebTarget }
+    import from jaclang.client.targets.web_target { WebTarget }
 
     watcher = _FakeWatcher(events=[]);
     _record_dev_calls(WebTarget(), watcher=watcher);
@@ -117,8 +117,8 @@ runs StaticTarget.dev(), which is WebTarget's inherited one; PWATarget defines
 its own only to print a notice before delegating via super.dev(). Both must end
 up on the fixed compile-then-serve path."""
 test "static and pwa dev flows inherit the compile-before-serve fix" {
-    import from jaclang.runtimelib.client.targets.pwa_target { PWATarget }
-    import from jaclang.runtimelib.client.targets.static_target { StaticTarget }
+    import from jaclang.client.targets.pwa_target { PWATarget }
+    import from jaclang.client.targets.static_target { StaticTarget }
 
     assert _record_dev_calls(StaticTarget()) == ["compile", "serve"] , (
         "StaticTarget must inherit WebTarget.dev(), so web-static projects "
@@ -144,7 +144,7 @@ compiler runs from source rather than the sealed payload)."""
 test "configured scripts reach the dev server index.html" {
     import tempfile;
     import from jaclang.project.config { JacConfig }
-    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+    import from jaclang.client.vite_bundler { ViteBundler }
 
     def _fake_plugin_config(self: JacConfig, name: str) -> dict {
         return {

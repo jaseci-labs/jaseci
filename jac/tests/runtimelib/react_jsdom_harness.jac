@@ -24,8 +24,8 @@ import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
 import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-import from jaclang.runtimelib.client_surface { with_runtime_globals }
-import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
+import from jaclang.client.client_surface { with_runtime_globals }
+import from jaclang.client.runtime_source { resolve_client_runtime_cl_path }
 
 # Mirrors `_default_client_deps("react")` runtime deps; jsdom is test-only.
 glob REACT_JSDOM_DEPS: dict[str, str] = {

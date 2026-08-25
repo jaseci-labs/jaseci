@@ -18,7 +18,7 @@ import shutil;
 import tempfile;
 import time;
 import from pathlib { Path }
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 import from jaclang.scale.plugin { JacScalePlugin, stop_sv_sibling }
 

@@ -102,11 +102,11 @@ test "the compiler's own package stays with the running compiler" {
     (Path(home) / 'jaclang' / '__init__.jac').write_text('');
     (copy / 'app.jac').write_text('obj ServingApp {}\n');
     (copy / 'openapi.jac').write_text(
-        'import from jaclang.runtimelib.serving.app { ServingApp }\n'
+        'import from jaclang.server.serving.app { ServingApp }\n'
     );
     try {
         resolved = resolve_relative_path(
-            'jaclang.runtimelib.serving.openapi', str(copy / 'app.jac')
+            'jaclang.server.serving.openapi', str(copy / 'app.jac')
         );
         running = os.path.dirname(os.path.realpath(jaclang.__file__));
         assert os.path.realpath(resolved).startswith(running + os.sep) , f"resolved into the foreign copy: {resolved}";

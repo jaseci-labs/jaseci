@@ -1782,7 +1782,7 @@ Alternatively, omit the env vars entirely and run `jac run order_service.jac` on
 To test cross-service behavior without real network I/O, wire each provider up as an in-process `TestClient` before constructing the consumer. `sv_client.register_test_client(module_name, client)` routes the consumer's calls through the registered client directly; no sockets, no port allocation, no background threads.
 
 ```jac
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 import from starlette.testclient { TestClient }
 
 test "consumer reaches provider" {
@@ -1807,7 +1807,7 @@ Always call `sv_client.clear_test_clients()` between tests to avoid bleed-over f
 
 ### sv_client API Reference
 
-`jaclang.runtimelib.sv_client` exposes a small control surface for telling the runtime where to find providers. You rarely need it under normal use -- `JAC_SV_<MODULE>_URL` covers most production wiring, and automatic startup covers single-host setups. Reach for these functions when you are writing tests or a custom orchestrator.
+`jaclang.server.sv_client` exposes a small control surface for telling the runtime where to find providers. You rarely need it under normal use -- `JAC_SV_<MODULE>_URL` covers most production wiring, and automatic startup covers single-host setups. Reach for these functions when you are writing tests or a custom orchestrator.
 
 | Function | Purpose |
 |---|---|

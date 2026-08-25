@@ -4,7 +4,7 @@ The wasm import contract lives in four places kept in sync by hand:
 `_ABI64_ADAPTED` (wasm_build.jac) must mirror the `__jac64_*` adapters defined
 in wasm_rt/jac_abi64.c, and `WASM_HOST_ABI` (wasm_host_abi.jac) must mirror
 the host functions actually implemented by make_jac_host in
-runtimelib/wasm_host.jac. A missed edit surfaces at link time at best and
+client/wasm_host.jac. A missed edit surfaces at link time at best and
 as a silent `unreachable` trap in the browser at worst; these tests fail it
 in CI instead.
 """

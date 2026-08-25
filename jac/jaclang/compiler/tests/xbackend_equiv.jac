@@ -85,7 +85,7 @@ def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
 """The server lane's API encoder, which is what a walker response travels
 through: Serializer in api_mode applies the wire rule, json.dumps writes it."""
 def encode_py_wire(value: any) -> str {
-    import from jaclang.runtimelib.serializer { Serializer }
+    import from jaclang.data.serializer { Serializer }
     return json.dumps(Serializer.serialize(value, api_mode=True), sort_keys=True);
 }
 

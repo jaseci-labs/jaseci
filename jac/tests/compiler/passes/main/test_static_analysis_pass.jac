@@ -267,10 +267,10 @@ test "bootstrap-compiled modules keep the ambient-import advisory" {
 }
 
 test "the ambient provider module keeps its typing imports" {
-    # jaclang/runtimelib/builtin.jac is the runtime side of the ambient set,
+    # jaclang/runtime/builtin.jac is the runtime side of the ambient set,
     # and its own typing imports are its export surface: JcirGenPass routes
     # synthesized names (builtin_name('ClassVar'), 'override',
-    # 'abstractmethod') through `from jaclang.runtimelib.builtin import ...`,
+    # 'abstractmethod') through `from jaclang.runtime.builtin import ...`,
     # which resolves only because builtin.jac imports those names itself.
     # Stripping them breaks every module whose codegen wraps a static field in
     # ClassVar. The predicate mirrors JcirGenPass.exit_module's
@@ -278,9 +278,9 @@ test "the ambient provider module keeps its typing imports" {
     import from jaclang.compiler.passes.main.static_analysis_pass {
         is_ambient_provider_module
     }
-    assert is_ambient_provider_module("/repo/jac/jaclang/runtimelib/builtin.jac");
-    assert is_ambient_provider_module("/x/jaclang/runtimelib/builtin.py");
-    assert not is_ambient_provider_module("/repo/jac/jaclang/runtimelib/server.jac");
+    assert is_ambient_provider_module("/repo/jac/jaclang/runtime/builtin.jac");
+    assert is_ambient_provider_module("/x/jaclang/runtime/builtin.py");
+    assert not is_ambient_provider_module("/repo/jac/jaclang/server/server.jac");
     assert not is_ambient_provider_module("/repo/apps/builtin.jac");
     assert not is_ambient_provider_module("");
 }

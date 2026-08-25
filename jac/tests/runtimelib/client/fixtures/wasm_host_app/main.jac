@@ -1,7 +1,7 @@
 # Regression fixture for issue #7189: a fullstack app whose client code imports
 # the versioned `jac_host1` provider from `@jac/wasm_host` (added in #7136). The
 # vite client build must resolve that specifier to the runtime's provider
-# (`runtimelib/wasm_host.jac`); before the fix it was left a bare specifier
+# (`client/wasm_host.jac`); before the fix it was left a bare specifier
 # and the build failed with a Rollup "failed to resolve import" error.
 #
 # There is deliberately no `na {}` block here: the resolution failure happens at

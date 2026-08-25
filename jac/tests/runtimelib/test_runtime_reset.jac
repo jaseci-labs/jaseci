@@ -24,7 +24,7 @@ every test.
 import types;
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.project.config { JacConfig, get_explicit_config, set_config }
-import from jaclang.runtimelib.test_runner { _fresh_jac_state }
+import from jaclang.testing.test_runner { _fresh_jac_state }
 
 glob PER_RUN_SLOTS: set = {
          "compiler",

@@ -782,7 +782,7 @@ def _floor_ca_bundle -> (str | None) {
 
 def _musl_lib_dir(triple: str) -> (str | None) {
     import os;
-    import from jaclang.runtimelib.utils { triple_arch }
+    import from jaclang.runtime.graph_utils { triple_arch }
     env = os.environ.get("JAC_NATIVE_MUSL_DIR", "");
     if env and os.path.isdir(env) {
         return env;
@@ -802,7 +802,7 @@ def _musl_lib_dir(triple: str) -> (str | None) {
         }
     }
 
-    import from jaclang.runtimelib.fused_binary { bundled_floor_roots }
+    import from jaclang.dist.fused_binary { bundled_floor_roots }
     for floor in bundled_floor_roots(pkg_root) {
         if not os.path.isdir(floor) {
             continue;

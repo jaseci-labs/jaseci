@@ -28,7 +28,7 @@ import from pathlib { Path }
 """Locate the desktop target package root.
 
 Desktop now ships inside jaclang core at
-``jaclang/runtimelib/client/targets/desktop/``; resolve it from the installed
+``jaclang/client/targets/desktop/``; resolve it from the installed
 ``jaclang`` package rather than walking the test file's parents."""
 def _pkg_root -> Path {
     import jaclang;
@@ -54,7 +54,7 @@ def _plugin_src_dir -> Path {
 """Locate the desktop plugin config module (desktop_plugin_config.jac).
 
 It lives one level up from the desktop target package, directly under
-``jaclang/runtimelib/client/``."""
+``jaclang/client/``."""
 def _plugin_config_path -> Path {
     return _pkg_root().parent.parent / "desktop_plugin_config.jac";
 }
@@ -258,7 +258,7 @@ def _get_generate_host_source -> object {
     import sys;
     # The installed package has precompiled bytecode. If the module is already
     # loaded (it was imported when the desktop target was loaded), use it directly.
-    mod_name = "jaclang.runtimelib.client.targets.desktop.native_desktop_target";
+    mod_name = "jaclang.client.targets.desktop.native_desktop_target";
     if mod_name in sys.modules {
         return sys.modules[mod_name]._generate_host_source;
     }
@@ -999,7 +999,7 @@ structure using the known format.
 """
 test "generated host source contains required elements" {
     import sys;
-    mod_name = "jaclang.runtimelib.client.targets.desktop.native_desktop_target";
+    mod_name = "jaclang.client.targets.desktop.native_desktop_target";
     if mod_name not in sys.modules {
         return;  # Skip: module not loaded in this test runner
     }
@@ -1044,7 +1044,7 @@ test "generated host source contains required elements" {
 """_generate_host_source with empty plugin_configs still produces valid host."""
 test "generated host source with no plugins" {
     import sys;
-    mod_name = "jaclang.runtimelib.client.targets.desktop.native_desktop_target";
+    mod_name = "jaclang.client.targets.desktop.native_desktop_target";
     if mod_name not in sys.modules {
         return;  # Skip: module not loaded in this test runner
     }
@@ -1220,7 +1220,7 @@ test "desktop_sdk exports match api declarations" {
 # ---------------------------------------------------------------------------
 """Plugin config from jac.toml correctly enables/disables plugins."""
 test "plugin configs from toml control registration" {
-    import from jaclang.runtimelib.client.desktop_config {
+    import from jaclang.client.desktop_config {
         get_desktop_config,
         reset_desktop_config
     }
@@ -1256,7 +1256,7 @@ test "plugin configs from toml control registration" {
 
 """Plugin config with all plugins disabled returns empty dict."""
 test "plugin configs empty when no plugins section" {
-    import from jaclang.runtimelib.client.desktop_config {
+    import from jaclang.client.desktop_config {
         get_desktop_config,
         reset_desktop_config
     }
@@ -1395,7 +1395,7 @@ runtime host_boot module from the bundled jaclang tree -- no transpiled .py
 staged beside the binary, no behavior baked into generated strings."""
 test "build pipeline wires the runtime-imported bootstrap" {
     import sys;
-    mod_name = "jaclang.runtimelib.client.targets.desktop.native_desktop_target";
+    mod_name = "jaclang.client.targets.desktop.native_desktop_target";
     if mod_name not in sys.modules {
         return;  # Skip: module not loaded in this test runner
     }
@@ -1411,7 +1411,7 @@ test "build pipeline wires the runtime-imported bootstrap" {
     # No transpiled-plugin staging: everything imports from the runtime.
     assert "spec_from_file_location" not in host_src , "must not load staged .py via spec_from_file_location";
     # The one generated Python statement: host_boot.boot(<config json>).
-    assert "from jaclang.runtimelib.client.targets.desktop.native import host_boot"
+    assert "from jaclang.client.targets.desktop.native import host_boot"
         in host_src;
     assert "host_boot.boot(" in host_src;
     # Plugin bootstrap / broker / dispatch wiring live in host_boot, not here.

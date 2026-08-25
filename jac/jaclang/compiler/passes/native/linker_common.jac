@@ -44,7 +44,7 @@ def select_ar_members(data: bytes, root_undef: list[str]) -> list[ArMember];
 
 def resolve_floor_dir(pkg_root: str, triple: str) -> (str | None) {
     import os;
-    import from jaclang.runtimelib.utils { triple_arch }
+    import from jaclang.runtime.graph_utils { triple_arch }
     want = triple_arch(triple);
 
     pbs = os.path.join(pkg_root, ".pbs-build");
@@ -63,7 +63,7 @@ def resolve_floor_dir(pkg_root: str, triple: str) -> (str | None) {
         }
     }
 
-    import from jaclang.runtimelib.fused_binary { bundled_floor_roots }
+    import from jaclang.dist.fused_binary { bundled_floor_roots }
     for floor in bundled_floor_roots(pkg_root) {
         if not os.path.isdir(floor) {
             continue;

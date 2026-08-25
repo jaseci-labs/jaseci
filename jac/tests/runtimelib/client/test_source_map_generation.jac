@@ -39,7 +39,7 @@ temp project containing `app.jac`, with `compile_module` wrapped to clear
 the hub after each compile. Returns the compiler and the compiled-output
 directory."""
 def _make_compiler(proj: Path) -> tuple[any, Path] {
-    import from jaclang.runtimelib.client.vite_client_bundle { ViteClientBundleBuilder }
+    import from jaclang.client.vite_client_bundle { ViteClientBundleBuilder }
     (proj / "package.json").write_text('{"name":"t","version":"0.0.0"}');
     # A multi-statement component: `marker` is assigned on .jac line 6, but lands
     # several lines deep in the generated JS (after the runtime-import prefix and
@@ -83,7 +83,7 @@ test "client compile writes a per-file source map even when the hub is empty" {
 }
 
 test "per-file source map resolves a deep JS line to the exact .jac line" {
-    import from jaclang.runtimelib.source_mapping { SourceMap, _parse_mappings }
+    import from jaclang.client.source_mapping { SourceMap, _parse_mappings }
 
     with TemporaryDirectory() as tmp {
         (compiler, out_dir) = _make_compiler(Path(tmp));

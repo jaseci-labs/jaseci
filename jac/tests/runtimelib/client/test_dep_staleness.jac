@@ -6,7 +6,7 @@ import hashlib;
 import shutil;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.runtimelib.client.vite_bundler { client_deps_stale }
+import from jaclang.client.vite_bundler { client_deps_stale }
 
 def _tree -> Path {
     d = Path(tempfile.mkdtemp(prefix="jacdeps_"));

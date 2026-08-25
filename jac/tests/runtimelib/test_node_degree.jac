@@ -15,7 +15,7 @@ import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
 import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor, Root }
 import from jaclang.runtime.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.context { ExecutionContext }
 
 def _as_any(v: any) -> any {
     return v;

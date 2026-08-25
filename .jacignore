@@ -68,7 +68,7 @@ jac/jaclang/compiler/type_system/type_evaluator.impl/type_evaluator.impl.jac
 jac/jaclang/compiler/type_system/type_evaluator.jac
 
 # Runtime library.
-jac/jaclang/runtimelib/client/targets/desktop/native/cef/cef_subprocess.jac
+jac/jaclang/client/targets/desktop/native/cef/cef_subprocess.jac
 
 # ECMAScript backend.
 jac/jaclang/compiler/passes/ecmascript/esast_gen_pass.jac

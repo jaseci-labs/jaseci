@@ -249,7 +249,7 @@ When you write tests for the consumer, you do not want them to hit a real provid
 The core pattern is three lines:
 
 ```jac
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 
 with entry {
     sv_client.clear_test_clients();
