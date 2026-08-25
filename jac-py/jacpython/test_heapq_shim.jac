@@ -57,3 +57,27 @@ test "heapq shim: replace/pushpop semantics" {
     assert result.failed == 0;
     assert result.errored == 0;
 }
+
+# ---------------- DictEntry drain-path guard (49e9728a2) ----------------
+# The KeyError-state drain fix that made Counter construction live was
+# initially framed as static-only; these pins lock the runtime behavior so
+# the drain path stays honest if touched again.
+test "dict drain: Counter construction from iterable is live" {
+    src = "class TestCounterConstruction(unittest.TestCase):\n"
+    "    def test_counter_from_str(self):\n"
+    "        from collections import Counter\n"
+    "        self.assertEqual(dict(Counter('aab')), {'a': 2, 'b': 1})\n"
+    "    def test_counter_from_list(self):\n"
+    "        from collections import Counter\n"
+    "        self.assertEqual(dict(Counter(['a', 'a', 'b'])), {'a': 2, 'b': 1})\n"
+    "    def test_counter_update_then_str(self):\n"
+    "        from collections import Counter\n"
+    "        c = Counter()\n"
+    "        c.update('aab')\n"
+    "        self.assertEqual(str(c), str(Counter({'a': 2, 'b': 1})))\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 3;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
