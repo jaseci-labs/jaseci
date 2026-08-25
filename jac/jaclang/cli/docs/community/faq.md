@@ -7,16 +7,16 @@ Answers to common questions about Jac, organized by topic. Click a category to e
 ??? "Getting Started & Setup"
 
     ??? question "I updated to the latest Jac toolchain and my project won't `jac run` properly."
-        Run `jac purge` to clear the global bytecode cache. This is the recommended approach after upgrading packages:
+        Clear the project cache, then the global per-user cache. This is the recommended approach after upgrading packages:
         ```bash
-        jac purge
+        jac clean --cache
         ```
 
-        This command works even when the cache is corrupted. If `jac purge` is not available (older versions), manually clear the cache:
+        If the problem persists, delete the global per-user cache manually:
         ```
-        Linux:   rm -rf ~/.cache/jac/bytecode/
-        macOS:   rm -rf ~/Library/Caches/jac/bytecode/
-        Windows: rmdir /s /q %LOCALAPPDATA%\jac\cache\bytecode
+        Linux:   rm -rf ~/.cache/jac
+        macOS:   rm -rf ~/Library/Caches/jac
+        Windows: rmdir /s /q %LOCALAPPDATA%\jac\cache
         ```
 
     ??? question "What do I need to install to get started with Jac?"

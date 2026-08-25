@@ -12,9 +12,9 @@ import os;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.session { project_db_name, shared_pg_data_dir }
-import from jaclang.runtimelib.store { PgStore, TxnIsolation }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.server.session { project_db_name, shared_pg_data_dir }
+import from jaclang.data.store { PgStore, TxnIsolation }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 

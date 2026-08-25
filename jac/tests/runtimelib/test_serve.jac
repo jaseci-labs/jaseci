@@ -11,8 +11,8 @@ import from unittest.mock { MagicMock, patch }
 import from http.server { ThreadingHTTPServer }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
-import from jaclang.runtimelib.server { JacAPIServer }
-import from jaclang.runtimelib.server { UserManager as CoreUserManager }
+import from jaclang.server.server { JacAPIServer }
+import from jaclang.server.server { UserManager as CoreUserManager }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -325,7 +325,7 @@ test "dev banner headlines vite port not api port" {
 lazily at start() so test-mode servers (port=0) stay socket-free and the app
 can be built and dispatched fully in-process."""
 test "api server construction is socket-free and builds a serving app" {
-    import from jaclang.runtimelib.serving.app { ServingApp }
+    import from jaclang.server.serving.app { ServingApp }
     with TemporaryDirectory() as tmpdir {
         port = get_free_port();
         Jac.set_base_path(tmpdir);

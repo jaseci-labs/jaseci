@@ -2,8 +2,8 @@
 
 import from dataclasses { dataclass, field }
 import from uuid { UUID, uuid4 }
-import from jaclang.runtimelib.typecache { get_field_types, invalidate, clear }
-import from jaclang.jac0core.constructs { Root }
+import from jaclang.runtime.typecache { get_field_types, invalidate, clear }
+import from jaclang.runtime.constructs { Root }
 
 
 @dataclass

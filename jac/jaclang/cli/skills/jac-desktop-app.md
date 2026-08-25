@@ -23,7 +23,7 @@ Build machine needs the OS web engine + a C toolchain (a small `libwebview.so` w
 sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
-(`jaclang` ships a helper: `jaclang/runtimelib/client/targets/desktop/native/webview/install_webkit_deps.sh`.)
+(`jaclang` ships a helper: `jaclang/client/targets/desktop/native/webview/install_webkit_deps.sh`.)
 
 ## Configuration - `[desktop]` in `jac.toml`
 

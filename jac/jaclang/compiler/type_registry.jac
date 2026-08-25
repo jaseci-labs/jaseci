@@ -1,4 +1,4 @@
-import from jaclang.jac0core.scalars {
+import from jaclang.runtime.scalars {
     ScalarShape,
     numeric_shapes,
     sized_scalar_names,

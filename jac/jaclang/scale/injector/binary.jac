@@ -9,7 +9,7 @@ import from pathlib { Path }
 import from urllib.request { urlopen }
 import from urllib.error { HTTPError }
 import from jaclang.scale.injector.bundle { TOOLCHAIN_SUBDIR }
-import from jaclang.runtimelib.utils { release_arch, host_arch, host_os }
+import from jaclang.runtime.graph_utils { release_arch, host_arch, host_os }
 
 glob logger = logging.getLogger(__name__);
 

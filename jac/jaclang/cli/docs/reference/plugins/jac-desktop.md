@@ -36,7 +36,7 @@ sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.
 ```
 
 (`jaclang` ships a helper,
-`jaclang/runtimelib/client/targets/desktop/native/webview/install_webkit_deps.sh`,
+`jaclang/client/targets/desktop/native/webview/install_webkit_deps.sh`,
 that installs these.)
 
 ---
@@ -212,9 +212,9 @@ notification = true
    (no `cc`/`ld`), recording the renderer libraries with an `$ORIGIN` runpath.
 
 The native webview binding, build tooling, and a dependency-free test suite live
-inside `jaclang` core under `jaclang/runtimelib/client/targets/desktop/native/webview/`.
+inside `jaclang` core under `jaclang/client/targets/desktop/native/webview/`.
 The CEF binding, pinned CEF fetch tooling, and QA checklist live under
-`jaclang/runtimelib/client/targets/desktop/native/cef/`.
+`jaclang/client/targets/desktop/native/cef/`.
 
 ---
 

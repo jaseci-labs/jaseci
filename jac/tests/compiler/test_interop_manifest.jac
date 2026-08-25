@@ -9,9 +9,9 @@ EndpointEffectPass in the same schedule.
 
 import os;
 import tempfile;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
 
 def write_mods(mods: dict[str, str]) -> str {
     tmp = tempfile.mkdtemp(prefix="jac_interop_manifest_");

@@ -1,0 +1,3965 @@
+impl NaIRGenTypes._tb_solve(t: any) -> any {
+    if isinstance(t, TypeVarType) {
+        _sol = self._mono_solution;
+        if _sol is not None and t.name in _sol {
+            return self._tb_solve(_sol[t.name]);
+        }
+    }
+    return t;
+}
+
+impl NaIRGenTypes._tb_class_name(t: any) -> (str | None) {
+    t = self._tb_solve(t);
+    if isinstance(t, EnumMemberType) {
+        return (t.enum_class.shared.class_name if t.enum_class is not None else None);
+    }
+    if isinstance(t, ClassType) and t._shared is not None {
+        return t.shared.class_name;
+    }
+    return None;
+}
+
+impl NaIRGenTypes._tb_is(t: any, names: tuple) -> bool {
+    _name = self._tb_class_name(t);
+    return _name is not None and _name in names;
+}
+
+impl NaIRGenTypes._tb_args(t: any) -> list {
+    t = self._tb_solve(t);
+    if isinstance(t, ClassType) and t.private is not None {
+        out: list = [];
+        for _a in (t.private.type_args or []) {
+            _s = self._tb_solve(_a);
+            if isinstance(_s, ClassType) and not _s.is_instance() {
+                _s = convert_to_instance(_s);
+            }
+            out.append(_s);
+        }
+        return out;
+    }
+    return [];
+}
+
+impl NaIRGenTypes._tb_members(t: any) -> list {
+    t = self._tb_solve(t);
+    if isinstance(t, UnionType) {
+        out: list = [];
+        for m in (t.types or []) {
+            out.extend(self._tb_members(m));
+        }
+        return out;
+    }
+    return [t] if t is not None else [];
+}
+
+impl NaIRGenTypes._tb_non_none(t: any) -> list {
+    return [
+        m
+        for m in self._tb_members(t)
+        if not self._tb_is(m, ("NoneType", "None"))
+    ];
+}
+
+impl NaIRGenTypes._tb_has_none(t: any) -> bool {
+    return any(self._tb_is(m, ("NoneType", "None")) for m in self._tb_members(t));
+}
+
+impl NaIRGenTypes._tb_opt_payload(t: any) -> (any | None) {
+    if not self._tb_has_none(t) {
+        return None;
+    }
+    _rest = self._tb_non_none(t);
+    return _rest[0] if len(_rest) == 1 else None;
+}
+
+impl NaIRGenTypes._tb_elem(t: any, idx: int = 0) -> (any | None) {
+    _payload = self._tb_opt_payload(t);
+    _base = _payload if _payload is not None else t;
+    if isinstance(self._tb_solve(_base), UnionType) {
+        _member_elems: list = [];
+        for _m in self._tb_non_none(_base) {
+            _me = self._tb_elem(_m, idx);
+            if _me is None {
+                return None;
+            }
+            if not any(str(_me) == str(_seen) for _seen in _member_elems) {
+                _member_elems.append(_me);
+            }
+        }
+        if not _member_elems {
+            return None;
+        }
+        return _member_elems[0]
+            if len(_member_elems) == 1
+            else UnionType(types=_member_elems);
+    }
+    _args = self._tb_args(_base);
+    _view = self._tb_class_name(_base);
+    if _view == "dict_keys" and len(_args) >= 1 and idx == 0 {
+        return _args[0];
+    }
+    if _view == "dict_values" and len(_args) >= 2 and idx == 0 {
+        return _args[1];
+    }
+    if _view == "dict_items" and len(_args) >= 2 and idx == 0 {
+        return self._tuple_type_of([_args[0], _args[1]]);
+    }
+    if idx < len(_args) {
+        return _args[idx];
+    }
+    if (
+        not _args
+        and isinstance(_base, ClassType)
+        and _base._shared is not None
+        and _base.is_instance()
+        and _base.is_builtin(["list", "set", "frozenset", "dict", "Sequence"])
+        and idx < (2 if _view == "dict" else 1)
+    ) {
+        return self._tb_builtin("Any");
+    }
+    return None;
+}
+
+impl NaIRGenTypes._tuple_type_of(args: list) -> any {
+    _inst = self._tb_builtin("tuple");
+    _inst.private.type_args = list(args);
+    return _inst;
+}
+
+impl NaIRGenTypes._tb_builtin(name: str) -> any {
+    _ev = self.prog.type_evaluator;
+    _cls = getattr(_ev.prefetch, f"{name}_class", None);
+    if not isinstance(_cls, ClassType) {
+        _cls = getattr(_ev.prefetch, f"{name.lower()}_class", None);
+    }
+    if not isinstance(_cls, ClassType) {
+        _cls = _ev._get_type_from_module(_ev.jac_builtins_module, name);
+    }
+    if not isinstance(_cls, ClassType) {
+        _cls = _ev._get_type_from_module(_ev.builtins_module, name);
+    }
+    if not isinstance(_cls, ClassType) {
+        raise AssertionError(
+            f"native codegen: the checker has no builtin class '{name}'"
+        );
+    }
+    return convert_to_instance(_cls);
+}
+
+impl NaIRGenTypes._tb_decl(t: any) -> (uni.UniNode | None) {
+    t = self._tb_solve(t);
+    if isinstance(t, EnumMemberType) {
+        t = t.enum_class;
+    }
+    if isinstance(t, ClassType) and t._shared is not None {
+        _decl = t.shared.symbol_table;
+        if isinstance(_decl, (uni.Archetype, uni.Enum)) {
+            return _decl;
+        }
+    }
+    return None;
+}
+
+impl NaIRGenTypes._tb_kind(t: any) -> str {
+    t = self._tb_solve(t);
+    if t is None {
+        return "unknown";
+    }
+    if isinstance(t, TypeVarType) {
+        return "typevar";
+    }
+    if isinstance(t, (AnyType, UnknownType))
+        or t.is_any_type()
+        or t.is_any_instance() {
+        return "any";
+    }
+    if isinstance(t, NeverType) {
+        return "never";
+    }
+    if isinstance(t, FunctionType) {
+        return "fn";
+    }
+    if isinstance(t, EnumMemberType) {
+        return "enum";
+    }
+    if isinstance(t, UnionType) {
+        _payload = self._tb_opt_payload(t);
+        if _payload is not None {
+            return "optional";
+        }
+        _kinds = {self._tb_kind(m) for m in self._tb_members(t)};
+        return _kinds.pop() if len(_kinds) == 1 else "union";
+    }
+    if not isinstance(t, ClassType) or t._shared is None {
+        return "unknown";
+    }
+    if t.shared.is_enum_class {
+        return "enum";
+    }
+    if not t.is_instance() and t.is_instantiable() {
+        return "class";
+    }
+    _name = t.shared.class_name;
+    _nk = JAC_TYPE_REGISTRY.numeric_kind_of(_name);
+    if _name == "bool" {
+        return "bool";
+    }
+    if _nk == NumericKind.IntKind {
+        return "int";
+    }
+    if _nk == NumericKind.FloatKind {
+        return "float";
+    }
+    _by_name = {
+        "str": "str",
+        "LiteralString": "str",
+        "bytes": "bytes",
+        "bytearray": "bytearray",
+        "list": "list",
+        "Sequence": "list",
+        "dict": "dict",
+        "set": "set",
+        "frozenset": "set",
+        "tuple": "tuple",
+        "range": "range",
+        "complex": "complex",
+        "slice": "slice",
+        "NoneType": "none",
+        "None": "none",
+        "object": "any",
+        "Region": "region",
+        "File": "file",
+        "BinaryFile": "binary_file",
+        "Iterator": "iterator",
+        "Iterable": "iterator",
+        "Generator": "iterator",
+        "dict_keys": "list",
+        "dict_values": "list",
+        "dict_items": "list",
+        "type": "class"
+    };
+    if _name in _by_name {
+        return _by_name[_name];
+    }
+    _stub = t.shared.is_builtin_class or t.shared.is_from_stdlib_stub;
+    if isinstance(t.shared.symbol_table, uni.Archetype) and not _stub {
+        return "struct";
+    }
+    if _stub and t.lookup_member_symbol("__next__") is not None {
+        return "iterator";
+    }
+    return "object";
+}
+
+impl NaIRGenTypes._tb_payload_kind(t: any) -> str {
+    _k = self._tb_kind(t);
+    if _k == "optional" {
+        return self._tb_kind(self._tb_opt_payload(t));
+    }
+    return _k;
+}
+
+impl NaIRGenTypes._tb_shape(t: any) -> (ScalarShape | None) {
+    import from jaclang.compiler.types.type_utils { primitive_type_name_of }
+    _t = self._tb_solve(t);
+    if self._tb_kind(_t) == "optional" {
+        _t = self._tb_opt_payload(_t);
+    }
+    _name = primitive_type_name_of(_t);
+    return shape_of(_name) if _name is not None else None;
+}
+
+impl NaIRGenTypes._tb_unsigned(t: any) -> bool {
+    _sh = self._tb_shape(t);
+    return _sh is not None and _sh.sized and not _sh.is_float and not _sh.signed;
+}
+
+impl NaIRGenTypes._tb_sized(t: any) -> bool {
+    _sh = self._tb_shape(t);
+    return _sh is not None and _sh.sized;
+}
+
+impl NaIRGenTypes._lower_type(t: any) -> (ir.Type | None) {
+    if t is None {
+        return None;
+    }
+    if isinstance(t, TypeVarType) {
+        _solved = self._tb_solve(t);
+        return self._lower_type(_solved) if _solved is not t else None;
+    }
+    key: any = self._lower_cache_key(t);
+    if key is not None and key in self._lowered_type_cache {
+        return self._lowered_type_cache[key];
+    }
+    lowered: (ir.Type | None) = None;
+    if isinstance(t, NeverType) {
+        lowered = ir.VoidType();
+    } elif isinstance(t, AnyType) {
+        lowered = self.jacval_type;
+    } elif isinstance(t, EnumMemberType) {
+        lowered = self._lower_type(t.enum_class) if t.enum_class is not None else None;
+    } elif isinstance(t, ClassType) {
+        lowered = self._lower_class_type(t);
+    } elif isinstance(t, UnionType) {
+        lowered = self._lower_union(t);
+    } elif isinstance(t, FunctionType) {
+        lowered = self._lower_function_type(t);
+    }
+    if key is not None and lowered is not None {
+        self._lowered_type_cache[key] = lowered;
+    }
+    return lowered;
+}
+
+impl NaIRGenTypes._lower_cache_key(t: any) -> (tuple | None) {
+    t = self._tb_solve(t);
+    if t is None or isinstance(t, TypeVarType) {
+        return None;
+    }
+    if isinstance(t, EnumMemberType) {
+        return (
+            self._lower_cache_key(t.enum_class) if t.enum_class is not None else None
+        );
+    }
+    if isinstance(t, ClassType) {
+        if t._shared is None {
+            return None;
+        }
+        _ck = t.shared.canonical_key();
+        if _ck is None {
+            return None;
+        }
+        _arg_keys: list = [];
+        for _a in self._tb_args(t) {
+            _ak = self._lower_cache_key(_a);
+            if _ak is None {
+                return None;
+            }
+            _arg_keys.append(_ak);
+        }
+        return ("class", _ck, t.is_instance(), tuple(_arg_keys));
+    }
+    if isinstance(t, UnionType) {
+        _mkeys: list = [];
+        for _m in (t.types or []) {
+            _mk = self._lower_cache_key(_m);
+            if _mk is None {
+                return None;
+            }
+            _mkeys.append(_mk);
+        }
+        return ("union", tuple(_mkeys));
+    }
+    if isinstance(t, AnyType) {
+        return ("any", );
+    }
+    if isinstance(t, NeverType) {
+        return ("never", );
+    }
+    if isinstance(t, FunctionType) {
+        _pkeys: list = [];
+        for _p in (t.parameters or []) {
+            if _p.param_type is None {
+                _pkeys.append(("unannotated", ));
+                continue;
+            }
+            _pk = self._lower_cache_key(_p.param_type);
+            if _pk is None {
+                return None;
+            }
+            _pkeys.append(_pk);
+        }
+        _rk: any = ("unannotated", );
+        if t.return_type is not None {
+            _rk = self._lower_cache_key(t.return_type);
+            if _rk is None {
+                return None;
+            }
+        }
+        return ("fn", tuple(_pkeys), _rk);
+    }
+    return None;
+}
+
+impl NaIRGenTypes._na_loc -> str {
+    _nd = self.cur_node;
+    _loc = _nd.loc if _nd is not None else None;
+    if _loc is None {
+        return "<no location>";
+    }
+    return f"{_loc.mod_path}:{_loc.first_line}";
+}
+
+impl NaIRGenTypes._lower_union(t: any) -> (ir.Type | None) {
+    _members = self._tb_non_none(t);
+    if not _members {
+        return ir.VoidType();
+    }
+    _mreprs: list = [];
+    for _m in _members {
+        _mr = self._lower_type(_m);
+        if self._str_desc_ty is not None and _mr == self._str_desc_ty {
+            _mr = ir.IntType(8).as_pointer();
+        }
+        _mreprs.append(_mr);
+    }
+    _mlow = self._unify_repr_lowering(_mreprs);
+    if (
+        self._tb_has_none(t)
+        and len(_members) == 1
+        and _mlow is not None
+        and not isinstance(_mlow, ir.VoidType)
+    ) {
+        return self._jac_optional_type(_mlow);
+    }
+    return _mlow;
+}
+
+impl NaIRGenTypes._unify_repr_lowering(reprs: list) -> (ir.Type | None) {
+    if not reprs {
+        return None;
+    }
+    _first = reprs[0];
+    _rest = reprs[1:];
+    if _first is None or not _rest {
+        return _first;
+    }
+    _shared = True;
+    _all_ptr = isinstance(_first, ir.PointerType);
+    for _r in _rest {
+        if _r is None {
+            return _first;
+        }
+        if _r != _first {
+            _shared = False;
+        }
+        if not isinstance(_r, ir.PointerType) {
+            _all_ptr = False;
+        }
+    }
+    if _shared or _all_ptr or not self?.jacval_type {
+        return _first;
+    }
+    return self.jacval_type;
+}
+
+impl NaIRGenTypes._tuple_key_of(expr: (uni.UniNode | None)) -> (str | None) {
+    _t = self._flow_narrowed_type_of(expr);
+    if not self._tb_is(_t, ("tuple", )) or not self._tb_args(_t) {
+        return None;
+    }
+    lowered = self._lower_type(_t);
+    if lowered is None
+        or not isinstance(lowered, ir.PointerType)
+        or not isinstance(lowered.pointee, ir.LiteralStructType) {
+        return None;
+    }
+    elems = lowered.pointee.elements;
+    return f"Tuple.{len(elems)}." + ".".join([str(x) for x in elems]);
+}
+
+impl NaIRGenTypes._set_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
+    return self._spec_of(expr, ("set", "frozenset"), self.set_types);
+}
+
+impl NaIRGenTypes._dict_key_of(expr: (uni.UniNode | None)) -> (str | None) {
+    return self._spec_of(expr, ("dict", ), self.dict_types);
+}
+
+impl NaIRGenTypes._list_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
+    return self._spec_of(expr, ("list", "bytearray", "Sequence"), self.list_types);
+}
+
+impl NaIRGenTypes._tb_spec_match(t: any, names: tuple) -> (any | None) {
+    if t is None {
+        return None;
+    }
+    if self._tb_is(t, names) {
+        return t;
+    }
+    _payload = self._tb_opt_payload(t);
+    if _payload is not None and self._tb_is(_payload, names) {
+        return _payload;
+    }
+    return self._spec_union_agreement(t, names);
+}
+
+impl NaIRGenTypes._spec_of(
+    expr: (uni.UniNode | None), names: tuple, registry: dict
+) -> (str | None) {
+    return self._tb_spec_key(self._flow_narrowed_type_of(expr), names, registry);
+}
+
+impl NaIRGenTypes._tb_spec_key(t: any, names: tuple, registry: dict) -> (str | None) {
+    _t = self._tb_spec_match(t, names);
+    if _t is None {
+        return None;
+    }
+    lowered = self._lower_type(_t);
+    if lowered is None {
+        return None;
+    }
+    for (spec, st) in registry.items() {
+        if lowered == st.as_pointer() {
+            return spec;
+        }
+    }
+    return None;
+}
+
+impl NaIRGenTypes._spec_union_agreement(t: any, names: tuple) -> (any | None) {
+    _members = self._tb_non_none(t);
+    if len(_members) < 2 {
+        return None;
+    }
+    _low: any = None;
+    for m in _members {
+        if not self._tb_is(m, names) {
+            return None;
+        }
+        _ml = self._lower_type(m);
+        if _ml is None {
+            return None;
+        }
+        if _low is None {
+            _low = _ml;
+        } elif _ml != _low {
+            return None;
+        }
+    }
+    return _members[0];
+}
+
+impl NaIRGenTypes._struct_name_of(expr: (uni.UniNode | None)) -> (str | None) {
+    return self._struct_name_for_key(self._flow_narrowed_type_of(expr));
+}
+
+impl NaIRGenTypes._struct_name_for_key(tk: any) -> (str | None) {
+    if tk is None {
+        return None;
+    }
+    _names: list[str] = [];
+    _parts: list = [];
+    for _m in self._tb_non_none(tk) {
+        if self._tb_kind(_m) == "class" {
+            continue;
+        }
+        _name = self._tb_class_name(_m);
+        if _name is not None and _name in self.struct_types and _name not in _names {
+            _names.append(_name);
+            _parts.append(self._tb_solve(_m));
+        }
+    }
+    if len(_names) == 1 {
+        return _names[0];
+    }
+    if not _names {
+        return None;
+    }
+    _first = _parts[0];
+    if not isinstance(_first, ClassType) {
+        return None;
+    }
+    for _anc in (_first.shared.mro or [_first]) {
+        if _anc._shared is None or _anc.shared.class_name not in self.struct_types {
+            continue;
+        }
+        _in_all = True;
+        for _other in _parts[1:] {
+            if not isinstance(_other, ClassType) {
+                _in_all = False;
+                break;
+            }
+            _lineage = _other.shared.mro or [_other];
+            if not any(
+                _c._shared is not None and _c.shared.same_class(_anc.shared)
+                for _c in _lineage
+            ) {
+                _in_all = False;
+                break;
+            }
+        }
+        if _in_all {
+            return _anc.shared.class_name;
+        }
+    }
+    return None;
+}
+
+impl NaIRGenTypes._flow_narrowed_type_of(expr: (uni.UniNode | None)) -> (any | None) {
+    if not isinstance(expr, uni.Expr) or expr.type is None {
+        return None;
+    }
+    if expr.coerce_to is not None {
+        _ct = self._tb_builtin(expr.coerce_to);
+        if _ct is not None {
+            return _ct;
+        }
+    }
+    if isinstance(expr, uni.GenCompr) {
+        _gen_elem = self._tb_elem(expr.type);
+        _gen_list = self._tb_builtin("list");
+        if _gen_elem is not None and isinstance(_gen_list, ClassType) {
+            return _gen_list.specialize_generics([_gen_elem]);
+        }
+    }
+    _nt = expr.narrowed_type;
+    if _nt is not None {
+        return _nt;
+    }
+    if isinstance(expr, uni.FuncCall)
+        and expr.call_kind == "clib"
+        and isinstance(expr.type, AnyType) {
+        _decl = expr.callee_decl;
+        _sig = _decl.signature if isinstance(_decl, uni.Ability) else None;
+        if isinstance(_sig, uni.FuncSignature) and _sig.return_type is not None {
+            _declared = self._annotation_type_of(_sig.return_type);
+            if _declared is not None {
+                return _declared;
+            }
+        }
+    }
+    return expr.type;
+}
+
+impl NaIRGenTypes._struct_ptr_pointee_name(val: ir.Value) -> (str | None) {
+    _vt = val.type;
+    if isinstance(_vt, ir.PointerType)
+        and isinstance(_vt.pointee, ir.IdentifiedStructType) {
+        _name = _vt.pointee.name;
+        if _name in self.struct_types and self.struct_types[_name] == _vt.pointee {
+            return _name;
+        }
+    }
+    return None;
+}
+
+impl NaIRGenTypes._struct_array_elem_ptr(ptr: ir.Value, idx_val: ir.Value) -> ir.Value {
+    _i64 = ir.IntType(64);
+    _wide_idx = (
+        idx_val
+            if idx_val.type == _i64
+            else self.builder.sext(idx_val, _i64, name="arr.idx.i64")
+    );
+    return self.builder.gep(ptr, [_wide_idx], name="ptr.elem.ptr");
+}
+
+impl NaIRGenTypes._elem_storage_llvm(t: any) -> (ir.Type | None) {
+    if t is None {
+        return None;
+    }
+    _members = self._tb_non_none(t);
+    _had_none = self._tb_has_none(t);
+    if not _members or (len(_members) == 1 and not _had_none) {
+        return self._lower_type(t);
+    }
+    _lowered: list = [];
+    for m in _members {
+        _ml = self._lower_type(m);
+        if _ml is None {
+            return self.jacval_type;
+        }
+        _lowered.append(_ml);
+    }
+    _first = _lowered[0];
+    _all_same = True;
+    _all_ptr = isinstance(_first, ir.PointerType);
+    for _ml in _lowered[1:] {
+        if _ml != _first {
+            _all_same = False;
+        }
+        if not isinstance(_ml, ir.PointerType) {
+            _all_ptr = False;
+        }
+    }
+    if _all_ptr {
+        return _first if _all_same else ir.IntType(8).as_pointer();
+    }
+    if _had_none or not _all_same {
+        return self.jacval_type;
+    }
+    return _first;
+}
+
+impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
+    cname = t.shared.class_name;
+    if (
+        not t.is_instance()
+        and t.is_instantiable()
+        and not t.shared.is_enum_class
+        and "type" in self.type_map
+    ) {
+        return self.type_map["type"];
+    }
+    if cname in self.type_map {
+        return self.type_map[cname];
+    }
+    if cname in ("NoneType", "None") {
+        return ir.VoidType();
+    }
+
+    if cname in ("any", "Any", "object") {
+        return self.jacval_type;
+    }
+
+    if cname == "File" {
+        return self._get_file_struct_type().as_pointer();
+    }
+
+    if cname == "BinaryFile" {
+        return self._get_binary_file_struct_type().as_pointer();
+    }
+
+    if cname == "bytes" {
+        return self._get_bytes_struct_type().as_pointer();
+    }
+
+    if cname == "bytearray" {
+        return self._ensure_bytearray_type();
+    }
+
+    _enum_ty = self._ensure_enum_lowered(t);
+    if _enum_ty is not None {
+        return _enum_ty;
+    }
+    if cname in self.struct_types {
+        return self.struct_types[cname].as_pointer();
+    }
+    type_args = self._tb_args(t);
+
+    if cname in ("Iterator", "Iterable") {
+        self._ensure_iter_types();
+        return self._jac_iter_type.as_pointer();
+    }
+
+    if cname in ("list", "Sequence") {
+        _list_elem = type_args[0] if type_args else self._tb_elem(t);
+        if _list_elem is None {
+            return None;
+        }
+        elem_llvm = self._elem_storage_llvm(_list_elem);
+        if elem_llvm is None {
+            return None;
+        }
+        return self._lower_list_for_elem(elem_llvm);
+    }
+
+    if cname in ("dict_keys", "dict_values", "dict_items") {
+        _view_elem = self._tb_elem(t);
+        if _view_elem is None {
+            return None;
+        }
+        _ve = self._elem_storage_llvm(_view_elem);
+        if _ve is None {
+            return None;
+        }
+        return self._lower_list_for_elem(_ve);
+    }
+
+    if cname == "dict" {
+        _kt = type_args[0] if len(type_args) >= 2 else self._tb_elem(t, 0);
+        _vt = type_args[1] if len(type_args) >= 2 else self._tb_elem(t, 1);
+        if _kt is None or _vt is None {
+            return None;
+        }
+        _k = self._elem_storage_llvm(_kt);
+        _v = self._elem_storage_llvm(_vt);
+        if _k is None or _v is None {
+            return None;
+        }
+        if self?.jacval_type and _k == self.jacval_type {
+            return None;
+        }
+        k_llvm: ir.Type = _k;
+        v_llvm: ir.Type = _v;
+        if self._str_desc_ty is not None {
+            if k_llvm == self._str_desc_ty {
+                k_llvm = ir.IntType(8).as_pointer();
+            }
+            if v_llvm == self._str_desc_ty {
+                v_llvm = ir.IntType(8).as_pointer();
+            }
+        }
+
+        (k_spec, k_size) = self._dict_key_spec(k_llvm);
+        v_spec = self._dict_val_spec(v_llvm);
+        self._emit_dict_helpers(k_spec, v_spec, k_llvm, v_llvm, k_size);
+        return self.dict_types[f"{k_spec}:{v_spec}"].as_pointer();
+    }
+
+    if cname in ("set", "frozenset") {
+        _set_elem = type_args[0] if type_args else self._tb_elem(t);
+        if _set_elem is None {
+            return None;
+        }
+        _e = self._elem_storage_llvm(_set_elem);
+        if _e is None {
+            return None;
+        }
+        if self?.jacval_type and _e == self.jacval_type {
+            return None;
+        }
+        elem_llvm: ir.Type = _e;
+        if self._str_desc_ty is not None and elem_llvm == self._str_desc_ty {
+            elem_llvm = ir.IntType(8).as_pointer();
+        }
+        spec = "i64";
+        esize = 0;
+        if isinstance(elem_llvm, ir.DoubleType) {
+            spec = "f64";
+        } elif isinstance(elem_llvm, ir.PointerType) {
+            spec = "ptr";
+            if isinstance(elem_llvm.pointee, ir.LiteralStructType) {
+                esize = self._get_struct_size(elem_llvm.pointee);
+                spec = self._tuple_spec_name(elem_llvm.pointee);
+            }
+        }
+        self._emit_set_helpers(spec, elem_llvm, esize);
+        return self.set_types[spec].as_pointer();
+    }
+
+    if cname == "tuple" {
+        if not type_args {
+            return None;
+        }
+        _var_seq = self._variadic_tuple_seq_type(type_args);
+        if _var_seq is not None {
+            return _var_seq;
+        }
+        elem_types: list[ir.Type] = [];
+        for a in type_args {
+            _et = self._lower_type(a);
+            if _et is None {
+                return None;
+            }
+            if self._str_desc_ty is not None and _et == self._str_desc_ty {
+                _et = ir.IntType(8).as_pointer();
+            }
+            elem_types.append(_et);
+        }
+        return self._tuple_struct_of(elem_types).as_pointer();
+    }
+    return None;
+}
+
+impl NaIRGenTypes._lower_function_type(t: any) -> ir.Type {
+    raw = self._lower_function_type_raw(t);
+    (_sig_name, sig_st, _fnty_env) = self._closure_sig_struct(raw.pointee);
+    return sig_st.as_pointer();
+}
+
+impl NaIRGenTypes._lower_function_type_raw(t: any) -> ir.Type {
+    ret_type: ir.Type = ir.VoidType();
+    if t.return_type is not None {
+        _r = self._lower_type(t.return_type);
+        if _r is None {
+            if self._tb_erased(t.return_type) {
+                _r = ir.IntType(8).as_pointer();
+            } else {
+                self.emit(
+                    E5092,
+                    node_override=self.cur_node,
+                    kind="function type",
+                    name=self._mangled_of(t) or "fn",
+                    help_text="The return type of this callable has no native layout."
+                );
+                _r = ir.VoidType();
+            }
+        }
+        ret_type = _r;
+    }
+    param_types: list[ir.Type] = [];
+    for (i, p) in enumerate(t.parameters or []) {
+        _p = self._lower_type(p.param_type);
+        if _p is None {
+            if p.param_type is not None and self._tb_erased(p.param_type) {
+                _p = ir.IntType(8).as_pointer();
+            } else {
+                self.emit(
+                    E5092,
+                    node_override=self.cur_node,
+                    kind="function type",
+                    name=self._mangled_of(t) or "fn",
+                    help_text=f"Parameter {i
+                        + 1} of this callable has no native layout."
+                );
+                _p = ir.IntType(8).as_pointer();
+            }
+        }
+        param_types.append(_p);
+    }
+    return ir.FunctionType(ret_type, param_types).as_pointer();
+}
+
+impl NaIRGenTypes._aos_elem_of(type_expr: (uni.UniNode | None)) -> (str | None) {
+    if not self._nogc_headerless() {
+        return None;
+    }
+    nd = type_expr;
+    if isinstance(nd, uni.SubTag) {
+        nd = nd.tag;
+    }
+    if isinstance(nd, uni.ParamVar) {
+        return self._aos_elem_of(nd.type_tag);
+    }
+    if isinstance(nd, uni.UnaryExpr) {
+        nd = nd.operand;
+    }
+    if not isinstance(nd, uni.Expr) {
+        return None;
+    }
+    _t = self._annotation_type_of(nd);
+    if not self._tb_is(_t, ("list", "Sequence")) {
+        return None;
+    }
+    _tn = self._tb_class_name(self._tb_elem(_t));
+    if _tn is None or _tn not in self.struct_types {
+        return None;
+    }
+    _arg = (
+        nd.right.slices[0].start
+            if isinstance(nd, uni.AtomTrailer)
+                and isinstance(nd.right, uni.IndexSlice)
+                and len(nd.right.slices) == 1
+            else None
+    );
+    if not (isinstance(_arg, uni.UnaryExpr) and _arg.ownership == OwnershipKind.OWN) {
+        return None;
+    }
+    _fields = self.struct_field_types.get(_tn) or {};
+    for (_fname, _fty) in _fields.items() {
+        if isinstance(_fty, ir.PointerType) {
+            return None;
+        }
+    }
+    return _tn;
+}
+
+impl NaIRGenTypes._tb_erased(t: any) -> bool {
+    _k = self._tb_kind(t);
+    if _k == "typevar" {
+        return self._lower_type(t) is None;
+    }
+    if _k in ("struct", "object") {
+        return self._lower_type(t) is None;
+    }
+    return False;
+}
+
+impl NaIRGenTypes._resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type {
+    _ptb = self._annotation_type_of(type_expr);
+    if _ptb is not None {
+        lowered = self._lower_type(_ptb);
+        if lowered is not None {
+            if self._str_desc_ty is not None and lowered == self._str_desc_ty {
+                lowered = ir.IntType(8).as_pointer();
+            }
+            return lowered;
+        }
+        if self._foreign_optional_field(_ptb) or self._typevar_optional_field(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
+        _sig_seq = self._erased_seq_type(_ptb);
+        if _sig_seq is not None {
+            return _sig_seq;
+        }
+        if self._tb_erased(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
+    }
+    _sig_out = self._resolve_jac_type(type_expr);
+    if self._str_desc_ty is not None and _sig_out == self._str_desc_ty {
+        return ir.IntType(8).as_pointer();
+    }
+    return _sig_out;
+}
+
+impl NaIRGenTypes._annotation_type_of(type_expr: (uni.UniNode | None)) -> (any | None) {
+    nd = type_expr;
+    if isinstance(nd, uni.SubTag) {
+        nd = nd.tag;
+    }
+    if isinstance(nd, (uni.HasVar, uni.ParamVar)) {
+        if nd.type is not None {
+            return nd.type;
+        }
+        nd = nd.type_tag.tag if nd.type_tag is not None else None;
+    }
+    _t = nd?.type if nd is not None else None;
+    if _t is None {
+        return None;
+    }
+    return convert_to_instance(_t);
+}
+
+impl NaIRGenTypes._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
+    if type_expr is None {
+        return ir.IntType(64);
+    }
+    _aos_t = self._aos_elem_of(type_expr);
+    if _aos_t is not None {
+        return self._emit_aos_list_helpers(_aos_t).as_pointer();
+    }
+    _ptb = self._annotation_type_of(type_expr);
+    if _ptb is None {
+        raise AssertionError(
+            f"native codegen: annotation at {type_expr.loc.mod_path}:"
+            f"{type_expr.loc.first_line} ({type(type_expr).__name__}) carries no "
+            f"checker type; the analysis pipeline must stamp every annotation"
+        );
+    }
+    lowered = self._lower_type(_ptb);
+    if lowered is not None {
+        return lowered;
+    }
+    return self._emit_unlowerable_type(
+        type_expr, _ptb, declaration=self._sig_decl_kind is not None
+    );
+}
+
+impl NaIRGenTypes._resolve_decl_type(
+    type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+) -> ir.Type {
+    if self._quiet_glob_type(type_expr) is None {
+        widened = self._widened_tuple_decl_type(type_expr, value);
+        if widened is not None {
+            return widened;
+        }
+    }
+    return self._resolve_jac_type(type_expr);
+}
+
+impl NaIRGenTypes._widened_tuple_decl_type(
+    type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+) -> (ir.Type | None) {
+    if value is None or type_expr is None {
+        return None;
+    }
+    _tb = self._annotation_type_of(type_expr);
+    if not self._tb_is(_tb, ("tuple", )) or self._tb_args(_tb) {
+        return None;
+    }
+    if isinstance(value, uni.TupleVal) and not value.values {
+        return self._tuple_struct_of([]).as_pointer();
+    }
+    return self._infer_global_init_type(value);
+}
+
+impl NaIRGenTypes._tuple_struct_of(elem_types: list) -> ir.Type {
+    tuple_key = f"Tuple.{len(elem_types)}." + ".".join([str(x) for x in elem_types]);
+    if tuple_key not in self.tuple_types {
+        self.tuple_types[tuple_key] = ir.LiteralStructType(elem_types);
+    }
+    return self.tuple_types[tuple_key];
+}
+
+impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
+    _ptb = var.type if isinstance(var, (uni.HasVar, uni.ParamVar)) else None;
+    if _ptb is None {
+        raise AssertionError(
+            f"native codegen: field at {var.loc.mod_path}:{var.loc.first_line} "
+            f"carries no checker type; HasVar.type must be stamped"
+        );
+    }
+    if isinstance(_ptb, FunctionType) {
+        return self._lower_function_type_raw(_ptb);
+    }
+    lowered = self._lower_type(_ptb);
+    if lowered is not None {
+        if self._str_desc_ty is not None and lowered == self._str_desc_ty {
+            lowered = ir.IntType(8).as_pointer();
+        }
+        return lowered;
+    }
+    if (
+        self._foreign_optional_field(_ptb)
+        or self._typevar_optional_field(_ptb)
+        or self._tb_kind(_ptb) == "typevar"
+    ) {
+        return ir.IntType(8).as_pointer();
+    }
+    return self._emit_unlowerable_type(var, _ptb, declaration=True);
+}
+
+impl NaIRGenTypes._foreign_optional_field(tb: any) -> bool {
+    if not self._tb_has_none(tb) {
+        return False;
+    }
+    _non_none = self._tb_non_none(tb);
+    if not _non_none {
+        return False;
+    }
+    for m in _non_none {
+        _k = self._tb_kind(m);
+        if _k == "any" and isinstance(self._tb_solve(m), UnknownType) {
+            continue;
+        }
+        if _k == "typevar" {
+            return False;
+        }
+        if isinstance(self._tb_solve(m), ClassType) and self._lower_type(m) is None {
+            continue;
+        }
+        return False;
+    }
+    return True;
+}
+
+impl NaIRGenTypes._erased_typevar_names(tb: any) -> list[str] {
+    if self._tb_kind(tb) == "typevar" and self._lower_type(tb) is None {
+        return [tb.name];
+    }
+    if not self._typevar_optional_field(tb) {
+        return [];
+    }
+    out: list[str] = [];
+    for m in self._tb_non_none(tb) {
+        if m.name not in out {
+            out.append(m.name);
+        }
+    }
+    return out;
+}
+
+impl NaIRGenTypes._typevar_optional_field(tb: any) -> bool {
+    if not self._tb_has_none(tb) {
+        return False;
+    }
+    _non_none = self._tb_non_none(tb);
+    if not _non_none {
+        return False;
+    }
+    for m in _non_none {
+        if self._tb_kind(m) != "typevar" or self._lower_type(m) is not None {
+            return False;
+        }
+    }
+    return True;
+}
+
+impl NaIRGenTypes._erased_seq_type(tb: any) -> (ir.Type | None) {
+    if not self._tb_is(tb, ("list", "Sequence")) {
+        return None;
+    }
+    _args = self._tb_args(tb);
+    if len(_args) != 1 or not self._erased_typevar_names(_args[0]) {
+        return None;
+    }
+    self._emit_list_helpers("ptr", ir.IntType(8).as_pointer());
+    return self.list_types["ptr"].as_pointer();
+}
+
+impl NaIRGenTypes._emit_unlowerable_type(
+    type_expr: uni.UniNode, tb: any, declaration: bool = False
+) -> ir.Type {
+    if isinstance(type_expr, uni.Expr) {
+        import from jaclang.compiler.tools.unparse_pass { unparse_node }
+        _label = unparse_node(type_expr);
+    } else {
+        _tag = type_expr?.type_tag;
+        _label = self._get_name(_tag?.tag) or str(tb);
+    }
+    self.emit(
+        E5092, node_override=type_expr, kind=self._sig_decl_kind or "type", name=_label
+    );
+    if declaration {
+        return ir.IntType(8).as_pointer();
+    }
+    raise AssertionError(
+        f"native codegen: no layout for type '{_label}' ({tb}) at "
+        f"{type_expr.loc.mod_path}:{type_expr.loc.first_line}"
+    );
+}
+
+impl NaIRGenTypes._resolve_clib_type(type_expr: (uni.UniNode | None)) -> ir.Type {
+    if type_expr is None {
+        return ir.VoidType();
+    }
+    _t = self._annotation_type_of(type_expr);
+    if self._tb_is(_t, ("str", )) {
+        return ir.IntType(8).as_pointer();
+    }
+    _name = self._tb_class_name(_t);
+    if _name is not None and _name in self.clib_struct_names {
+        if _name in self.clib_struct_abi_types {
+            return self.clib_struct_abi_types[_name];
+        }
+        return self.struct_types[_name];
+    }
+    if self._tb_kind(_t) in ("bytes", "bytearray") {
+        return ir.IntType(8).as_pointer();
+    }
+    if isinstance(_t, FunctionType) {
+        return self._lower_function_type_raw(_t);
+    }
+    return self._resolve_jac_type(type_expr);
+}
+
+impl NaIRGenTypes._get_name(nd: (uni.UniNode | None)) -> (str | None) {
+    if nd is None {
+        return None;
+    }
+    if isinstance(nd, uni.Name) {
+        return nd.value;
+    }
+    if nd?.sym_name {
+        return nd.sym_name;
+    }
+    if nd?.value and isinstance(getattr(nd, "value"), str) {
+        return nd.value;
+    }
+    return None;
+}
+
+impl NaIRGenTypes._entry_alloca(var_type: ir.Type, name: str) -> ir.Value {
+    func = self.builder.function;
+
+    _gc = self._gen_ctx;
+    if _gc is not None and func is _gc["resume_fn"] {
+        i64 = ir.IntType(64);
+        size = self._abi_sizeof(var_type);
+        offset = (_gc["cursor"] + 7) // 8 * 8;
+        _gc["cursor"] = offset + size;
+        _gc["slots"].append((name, offset, var_type));
+        cur_block = self.builder.block;
+        entry_block = func.entry_basic_block;
+        if entry_block.instructions {
+            self.builder.position_before(entry_block.instructions[0]);
+        } else {
+            self.builder.position_at_start(entry_block);
+        }
+        raw = self.builder.gep(
+            _gc["frame_i8"], [ir.Constant(i64, offset)], name=f"{name}.slot"
+        );
+        slot = self.builder.bitcast(raw, var_type.as_pointer(), name=f"{name}.frame");
+        self.builder.position_at_end(cur_block);
+        return slot;
+    }
+
+    entry_block = func.entry_basic_block;
+
+    cur_block = self.builder.block;
+
+    if entry_block.instructions {
+        self.builder.position_before(entry_block.instructions[0]);
+    } else {
+        self.builder.position_at_start(entry_block);
+    }
+    alloca = self.builder.alloca(var_type, name=name);
+
+    self.builder.store(self._zero_const(var_type), alloca);
+
+    self.builder.position_at_end(cur_block);
+    return alloca;
+}
+
+impl NaIRGenTypes._stack_entry_alloca(var_type: ir.Type, name: str) -> ir.Value {
+    func = self.builder.function;
+    entry_block = func.entry_basic_block;
+    cur_block = self.builder.block;
+    if entry_block.instructions {
+        self.builder.position_before(entry_block.instructions[0]);
+    } else {
+        self.builder.position_at_start(entry_block);
+    }
+    alloca = self.builder.alloca(var_type, name=name);
+    self.builder.position_at_end(cur_block);
+    return alloca;
+}
+
+impl NaIRGenTypes._abi_sizeof(t: ir.Type) -> int {
+    if isinstance(t, (ir.IntType, ir.DoubleType, ir.PointerType, ir.FloatType)) {
+        return 8;
+    }
+    if isinstance(t, ir.ArrayType) {
+        return t.count * ((self._abi_sizeof(t.element) + 7) // 8 * 8);
+    }
+    elems = t?.elements;
+    if elems {
+        total = 0;
+        for e in elems {
+            total += (self._abi_sizeof(e) + 7) // 8 * 8;
+        }
+        return total;
+    }
+    raise RuntimeError(
+        f"native codegen internal error: _abi_sizeof has no layout for {t!r}. "
+        f"A generator-frame slot of unknown size would silently corrupt "
+        f"adjacent slots; teach _abi_sizeof this type instead."
+    );
+}
+
+impl NaIRGenTypes._to_bool(val: ir.Value, ty: any) -> ir.Value {
+    if val.type == ir.IntType(1) {
+        return val;
+    }
+    if ty is None and isinstance(val.type, ir.IntType) {
+        return self.builder.icmp_signed(
+            "!=", val, ir.Constant(val.type, 0), name="to_bool.int"
+        );
+    }
+    if ty is None {
+        raise AssertionError(
+            f"native codegen: _to_bool needs the checker type of its operand "
+            f"(llvm {val.type}) at {self._na_loc()}"
+        );
+    }
+    _i1 = ir.IntType(1);
+    _k = self._tb_kind(ty);
+    if self._is_jacval_ty(val.type) {
+        return self._jacval_truthy(val);
+    }
+    if self._opt_payload_of(val.type) is not None {
+        _payload_ty = self._tb_opt_payload(ty);
+        if _payload_ty is None {
+            if _k == "none" {
+                return ir.Constant(_i1, 0);
+            }
+            _payload_ty = ty;
+        }
+        return self._to_bool_optional(val, _payload_ty);
+    }
+    if _k == "none" {
+        return ir.Constant(_i1, 0);
+    }
+    if _k == "bool" {
+        return (
+            val
+                if isinstance(val.type, ir.IntType) and val.type.width == 1
+                else self._coerce_type(val, _i1, ty)
+        );
+    }
+    if _k == "str" {
+        if self._str_desc_ty is not None and val.type == self._str_desc_ty {
+            return self._to_bool_str_desc(val);
+        }
+        return self._call_str_truthy(self.builder, val, name="tobool.str");
+    }
+    if _k in ("int", "enum") {
+        if not isinstance(val.type, ir.IntType) {
+            raise AssertionError(
+                f"native codegen: {_k}-typed value lowered to {val.type}, not an "
+                f"integer, at {self._na_loc()}"
+            );
+        }
+        return self.builder.icmp_unsigned(
+            "!=", val, ir.Constant(val.type, 0), name="tobool"
+        );
+    }
+    if _k == "float" {
+        if not isinstance(val.type, (ir.DoubleType, ir.FloatType)) {
+            raise AssertionError(
+                f"native codegen: float-typed value lowered to {val.type} at "
+                f"{self._na_loc()}"
+            );
+        }
+        return self.builder.fcmp_unordered(
+            "!=", val, ir.Constant(val.type, 0.0), name="tobool"
+        );
+    }
+    if _k in ("list", "dict", "set", "bytearray") {
+        return self._to_bool_container(val);
+    }
+    if _k == "bytes" {
+        return self._emit_bytes_truthy(val);
+    }
+    if _k == "optional" {
+        _payload = self._tb_opt_payload(ty);
+        if isinstance(val.type, ir.PointerType) {
+            _null = self.builder.icmp_unsigned(
+                "==", val, ir.Constant(val.type, None), name="tobool.opt.null"
+            );
+            _func = self.builder.basic_block.function;
+            _entry = self.builder.basic_block;
+            _pay_bb = _func.append_basic_block(name="tobool.opt.payload");
+            _done_bb = _func.append_basic_block(name="tobool.opt.done");
+            self.builder.cbranch(_null, _done_bb, _pay_bb);
+            self.builder.position_at_start(_pay_bb);
+            _pt = self._to_bool(val, _payload);
+            _pay_end = self.builder.basic_block;
+            self.builder.branch(_done_bb);
+            self.builder.position_at_start(_done_bb);
+            _phi = self.builder.phi(_i1, name="tobool.opt");
+            _phi.add_incoming(ir.Constant(_i1, 0), _entry);
+            _phi.add_incoming(_pt, _pay_end);
+            return _phi;
+        }
+        return self._to_bool(val, _payload);
+    }
+    if isinstance(val.type, ir.PointerType) {
+        return self.builder.icmp_unsigned(
+            "!=", val, ir.Constant(val.type, None), name="tobool"
+        );
+    }
+    if isinstance(val.type, ir.IntType) and val.type.width == 1 {
+        return val;
+    }
+    if _k == "union" {
+        _member_kinds = {self._tb_kind(_m) for _m in self._tb_non_none(ty)};
+        if _member_kinds <= {"int", "bool", "enum"} {
+            return self.builder.icmp_unsigned(
+                "!=", val, ir.Constant(val.type, 0), name="tobool"
+            );
+        }
+        if _member_kinds <= {"float"} {
+            return self.builder.fcmp_unordered(
+                "!=", val, ir.Constant(val.type, 0.0), name="tobool"
+            );
+        }
+    }
+    self.emit(
+        E5092,
+        node_override=self.cur_node,
+        kind="truthiness",
+        name=f"{_k} value ({val.type})",
+        help_text="This value's native representation carries no truth test; annotate it with a concrete type that lowers to a scalar, string, container or object."
+    );
+    return ir.Constant(_i1, 1);
+}
+
+impl NaIRGenTypes._to_bool_str_desc(val: ir.Value) -> ir.Value {
+    return self.builder.icmp_signed(
+        "!=",
+        self.builder.extract_value(
+            val, len(list(self._str_desc_ty.elements)) - 1, name="s.tlen"
+        ),
+        ir.Constant(ir.IntType(64), 0),
+        name="s.truthy"
+    );
+}
+
+impl NaIRGenTypes._to_bool_optional(val: ir.Value, payload_ty: any) -> ir.Value {
+    _tb_tag = self.builder.extract_value(val, 0, name="tobool.opt.tag");
+    _tb_set = self.builder.icmp_signed(
+        "!=", _tb_tag, ir.Constant(ir.IntType(8), 0), name="tobool.opt.set"
+    );
+    _tb_func = self.builder.basic_block.function;
+    _tb_entry = self.builder.basic_block;
+    _tb_pay_bb = _tb_func.append_basic_block(name="tobool.opt.payload");
+    _tb_merge_bb = _tb_func.append_basic_block(name="tobool.opt.done");
+    self.builder.cbranch(_tb_set, _tb_pay_bb, _tb_merge_bb);
+    self.builder.position_at_start(_tb_pay_bb);
+    _tb_pv = self.builder.extract_value(val, 1, name="tobool.opt.pv");
+    _tb_t = self._to_bool(_tb_pv, payload_ty);
+    _tb_pay_end = self.builder.basic_block;
+    self.builder.branch(_tb_merge_bb);
+    self.builder.position_at_start(_tb_merge_bb);
+    _tb_phi = self.builder.phi(ir.IntType(1), name="tobool.opt");
+    _tb_phi.add_incoming(ir.Constant(ir.IntType(1), 0), _tb_entry);
+    _tb_phi.add_incoming(_tb_t, _tb_pay_end);
+    return _tb_phi;
+}
+
+impl NaIRGenTypes._to_bool_container(val: ir.Value) -> ir.Value {
+    _i32 = ir.IntType(32);
+    _tc_null = self.builder.icmp_unsigned(
+        "==", val, ir.Constant(val.type, None), name="tobool.cont.null"
+    );
+    _tc_func = self.builder.basic_block.function;
+    _tc_entry = self.builder.basic_block;
+    _tc_len_bb = _tc_func.append_basic_block(name="tobool.cont.len");
+    _tc_end_bb = _tc_func.append_basic_block(name="tobool.cont.end");
+    self.builder.cbranch(_tc_null, _tc_end_bb, _tc_len_bb);
+    self.builder.position_at_start(_tc_len_bb);
+    _len_ptr = self.builder.gep(
+        val, [ir.Constant(_i32, 0), ir.Constant(_i32, 0)], name="tobool.len.ptr"
+    );
+    _len = self.builder.load(_len_ptr, name="tobool.len");
+    _tc_nonempty = self.builder.icmp_unsigned(
+        "!=", _len, ir.Constant(ir.IntType(64), 0), name="tobool.cont.nonempty"
+    );
+    _tc_len_end = self.builder.basic_block;
+    self.builder.branch(_tc_end_bb);
+    self.builder.position_at_start(_tc_end_bb);
+    _tc_phi = self.builder.phi(ir.IntType(1), name="tobool");
+    _tc_phi.add_incoming(ir.Constant(ir.IntType(1), 0), _tc_entry);
+    _tc_phi.add_incoming(_tc_nonempty, _tc_len_end);
+    return _tc_phi;
+}
+
+impl NaIRGenTypes._jacval_truthy(jv: ir.Value) -> ir.Value {
+    b = self.builder;
+    i1 = ir.IntType(1);
+    i8 = ir.IntType(8);
+    i64 = ir.IntType(64);
+    tag = b.extract_value(jv, 0, name="jv.truthy.tag");
+    payload = b.extract_value(jv, 1, name="jv.truthy.payload");
+    func = b.function;
+    str_bb = func.append_basic_block(name="jv.truthy.str");
+    cont_chk_bb = func.append_basic_block(name="jv.truthy.cont.chk");
+    cont_len_bb = func.append_basic_block(name="jv.truthy.cont.len");
+    scalar_bb = func.append_basic_block(name="jv.truthy.scalar");
+    merge_bb = func.append_basic_block(name="jv.truthy.end");
+
+    is_str = b.icmp_unsigned("==", tag, ir.Constant(i8, 2), name="jv.truthy.isstr");
+    str_nn = b.icmp_unsigned(
+        "!=", payload, ir.Constant(i64, 0), name="jv.truthy.str.nn"
+    );
+    do_str = b.and_(is_str, str_nn, name="jv.truthy.dostr");
+    b.cbranch(do_str, str_bb, cont_chk_bb);
+
+    b.position_at_end(str_bb);
+    str_ptr = b.inttoptr(payload, i8.as_pointer(), name="jv.truthy.strp");
+    _slen = self._call_str_len(b, str_ptr, name="jv.truthy.slen");
+    str_res = b.icmp_unsigned("!=", _slen, ir.Constant(i64, 0), name="jv.truthy.snz");
+    str_exit_bb = b.block;
+    b.branch(merge_bb);
+
+    b.position_at_end(cont_chk_bb);
+    is_list = b.icmp_unsigned("==", tag, ir.Constant(i8, 3), name="jv.truthy.islist");
+    is_dict = b.icmp_unsigned("==", tag, ir.Constant(i8, 4), name="jv.truthy.isdict");
+    is_set = b.icmp_unsigned("==", tag, ir.Constant(i8, 5), name="jv.truthy.isset");
+    is_cont = b.or_(
+        b.or_(is_list, is_dict, name="jv.truthy.ld"), is_set, name="jv.truthy.iscont"
+    );
+    cont_nonnull = b.icmp_unsigned(
+        "!=", payload, ir.Constant(i64, 0), name="jv.truthy.cont.nn"
+    );
+    read_len = b.and_(is_cont, cont_nonnull, name="jv.truthy.readlen");
+    b.cbranch(read_len, cont_len_bb, scalar_bb);
+
+    b.position_at_end(cont_len_bb);
+    len_ptr = b.inttoptr(payload, i64.as_pointer(), name="jv.truthy.lenp");
+    cont_len = b.load(len_ptr, name="jv.truthy.len");
+    len_res = b.icmp_unsigned(
+        "!=", cont_len, ir.Constant(i64, 0), name="jv.truthy.lennz"
+    );
+    b.branch(merge_bb);
+
+    b.position_at_end(scalar_bb);
+    is_none = b.icmp_unsigned("==", tag, ir.Constant(i8, 8), name="jv.truthy.isnone");
+    is_float = b.icmp_unsigned("==", tag, ir.Constant(i8, 1), name="jv.truthy.isfloat");
+    as_f64 = b.bitcast(payload, ir.DoubleType(), name="jv.truthy.f64");
+    f_nz = b.fcmp_unordered(
+        "!=", as_f64, ir.Constant(ir.DoubleType(), 0.0), name="jv.truthy.fnz"
+    );
+    p_nz = b.icmp_unsigned("!=", payload, ir.Constant(i64, 0), name="jv.truthy.pnz");
+    num_res = b.select(is_float, f_nz, p_nz, name="jv.truthy.num");
+    scalar_res = b.select(
+        is_none, ir.Constant(i1, 0), num_res, name="jv.truthy.scalar"
+    );
+    b.branch(merge_bb);
+
+    b.position_at_end(merge_bb);
+    phi = b.phi(i1, name="jv.truthy");
+    phi.add_incoming(str_res, str_exit_bb);
+    phi.add_incoming(len_res, cont_len_bb);
+    phi.add_incoming(scalar_res, scalar_bb);
+    return phi;
+}
+
+impl NaIRGenTypes._jacval_is_none(jv: ir.Value, negate: bool) -> ir.Value {
+    i8 = ir.IntType(8);
+    tag = self.builder.extract_value(jv, 0, name="jv.nonetest.tag");
+    cmp_op = "!=" if negate else "==";
+    return self.builder.icmp_unsigned(
+        cmp_op, tag, ir.Constant(i8, 8), name="jv.nonetest"
+    );
+}
+
+impl NaIRGenTypes._zero_const(ty: ir.Type) -> ir.Constant {
+    if isinstance(ty, (ir.PointerType, ir.Aggregate)) {
+        return ir.Constant(ty, None);
+    }
+    return ir.Constant(ty, 0);
+}
+
+impl NaIRGenTypes._coerce_type(
+    val: ir.Value, target_type: ir.Type, src_ty: any = None
+) -> ir.Value {
+    _was_owned = self._is_owned(val);
+    _result = self._coerce_type_inner(val, target_type, src_ty);
+    if _was_owned and _result is not val {
+        self._mark_owned(_result);
+    }
+    return _result;
+}
+
+impl NaIRGenTypes._jac_optional_type(payload: ir.Type) -> ir.Type {
+    key = str(payload);
+    _existing = self._opt_struct_types.get(key);
+    if _existing is not None {
+        return _existing;
+    }
+    n = len(self._opt_struct_types) + 1;
+    st = self.llvm_module.context.get_identified_type(f"JacOpt.{n}");
+    st.set_body(ir.IntType(8), payload);
+    self._opt_struct_types[key] = st;
+    return st;
+}
+
+impl NaIRGenTypes._opt_payload_of(t: ir.Type) -> (ir.Type | None) {
+    _nm: any = t?.name;
+    if isinstance(_nm, str) and _nm.startswith("JacOpt.") {
+        return t.elements[1];
+    }
+    return None;
+}
+
+impl NaIRGenTypes._narrowed_flow_type(nd: uni.UniNode) -> (any | None) {
+    return nd.narrowed_type if isinstance(nd, uni.Expr) else None;
+}
+
+impl NaIRGenTypes._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Value {
+    _nt = self._narrowed_flow_type(nd);
+    if _nt is None {
+        return val;
+    }
+    _k = self._tb_kind(_nt);
+    if _k in ("none", "never", "unknown", "any", "class", "typevar") {
+        return val;
+    }
+    _src_opt = self._opt_payload_of(val.type);
+    _is_jv = bool(self?.jacval_type) and val.type == self.jacval_type;
+    _is_ptr = _src_opt is None and not _is_jv and isinstance(val.type, ir.PointerType);
+    if _src_opt is None and not _is_jv and not _is_ptr {
+        return val;
+    }
+    _want = self._lower_type(_nt);
+    _bare_list = _k == "list"
+        and (not self._tb_args(_nt) or self._tb_kind(self._tb_elem(_nt)) == "any");
+    if _bare_list and _is_jv and self?.jacval_type {
+        self._emit_list_helpers("jacval", self.jacval_type);
+        _want = self.list_types["jacval"].as_pointer();
+    }
+    if _want is None or isinstance(_want, ir.VoidType) or _want == val.type {
+        return val;
+    }
+    if _is_ptr {
+        if not isinstance(_want, ir.PointerType) {
+            return val;
+        }
+        if _k in ("list", "dict", "set", "tuple") and not self._tb_args(_nt) {
+            return val;
+        }
+        return self.builder.bitcast(val, _want, name="ptr.narrowed");
+    }
+    _src_ty = nd.type if isinstance(nd, uni.Expr) else None;
+    if _src_opt is not None {
+        if self._opt_payload_of(_want) is not None {
+            return self._coerce_type(val, _want, _src_ty);
+        }
+        _payload = self.builder.extract_value(val, 1, name="opt.narrowed");
+        if _payload.type == _want {
+            return _payload;
+        }
+        return self._coerce_type(_payload, _want, _nt);
+    }
+    _ub_want = _want;
+    if self._str_desc_ty is not None and _want == self._str_desc_ty {
+        _ub_want = ir.IntType(8).as_pointer();
+    }
+    if self._opt_payload_of(_ub_want) is not None {
+        return self._coerce_type(val, _ub_want, _src_ty);
+    }
+    if not isinstance(
+        _ub_want, (ir.IntType, ir.DoubleType, ir.FloatType, ir.PointerType)
+    ) {
+        return val;
+    }
+    _ub = self._unbox_from_jacval(val, _ub_want);
+    if _ub_want != _want {
+        return self._coerce_type(_ub, _want, _nt);
+    }
+    return _ub;
+}
+
+impl NaIRGenTypes._opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None) {
+    _pt = self._opt_payload_of(t);
+    if (
+        _pt is not None
+        and isinstance(_pt, ir.PointerType)
+        and not isinstance(_pt.pointee, ir.FunctionType)
+    ) {
+        return _pt;
+    }
+    return None;
+}
+
+impl NaIRGenTypes._coerce_type_inner(
+    val: ir.Value, target_type: ir.Type, src_ty: any = None
+) -> ir.Value {
+    if val.type == target_type {
+        return val;
+    }
+    _src_kind = self._tb_kind(src_ty) if src_ty is not None else None;
+
+    _tseq = self._tuple_seq_coerce(val, target_type);
+    if _tseq is not None {
+        return _tseq;
+    }
+
+    _sd = self._str_desc_ty;
+    if _sd is not None {
+        _i8p_sd = ir.IntType(8).as_pointer();
+        if target_type == _sd and val.type == _i8p_sd {
+            if self.str_unwrap_fn is None {
+                self._emit_str_desc_helpers();
+            }
+
+            return self.builder.call(self.str_wrap_raw_fn, [val], name="s.desc");
+        }
+        if val.type == _sd and target_type == _i8p_sd {
+            if self.str_unwrap_fn is None {
+                self._emit_str_desc_helpers();
+            }
+            return self.builder.call(self.str_unwrap_fn, [val], name="s.raw");
+        }
+        if target_type == _sd and self?.jacval_type and val.type == self.jacval_type {
+            if self.str_unwrap_fn is None {
+                self._emit_str_desc_helpers();
+            }
+            return self.builder.call(
+                self.str_wrap_raw_fn,
+                [self._unbox_from_jacval(val, _i8p_sd)],
+                name="s.desc"
+            );
+        }
+        if target_type == _sd
+            and isinstance(val.type, ir.IntType)
+            and val.type.width == 64 {
+            if self.str_unwrap_fn is None {
+                self._emit_str_desc_helpers();
+            }
+            return self.builder.call(
+                self.str_wrap_raw_fn,
+                [self.builder.inttoptr(val, _i8p_sd, name="s.unbox")],
+                name="s.desc"
+            );
+        }
+        if val.type == _sd
+            and isinstance(target_type, ir.IntType)
+            and target_type.width == 64 {
+            if self.str_unwrap_fn is None {
+                self._emit_str_desc_helpers();
+            }
+            return self.builder.ptrtoint(
+                self.builder.call(self.str_unwrap_fn, [val], name="s.raw"),
+                target_type,
+                name="s.box"
+            );
+        }
+    }
+
+    _opt_tgt = self._opt_payload_of(target_type);
+    if _opt_tgt is not None {
+        _tgt_is_ptr = isinstance(_opt_tgt, ir.PointerType);
+        if _src_kind == "none" {
+            return ir.Constant(target_type, None);
+        }
+        _none_shaped = isinstance(val.type, ir.VoidType)
+            or (
+                isinstance(val, ir.Constant)
+                and isinstance(val.type, ir.PointerType)
+                and val.constant is None
+            )
+            or (
+                isinstance(val.type, ir.PointerType)
+                and not _tgt_is_ptr
+                and self._opt_payload_of(val.type) is None
+                and _src_kind in ("any", "union", "optional", "unknown", None)
+            );
+        if _none_shaped and _src_kind is None {
+            raise AssertionError(
+                f"native codegen: coercing a None-shaped value ({val.type}) into "
+                f"the optional {target_type} needs the checker type of the source "
+                f"at {self._na_loc()}"
+            );
+        }
+        if self?.jacval_type
+            and val.type == self.jacval_type
+            and _opt_tgt != self.jacval_type {
+            _jv_tag = self.builder.extract_value(val, 0, name="opt.jv.tag");
+            _jv_is_none = self.builder.icmp_unsigned(
+                "==", _jv_tag, ir.Constant(ir.IntType(8), 8), name="opt.jv.isnone"
+            );
+            _jv_pl = self._unbox_from_jacval(val, _opt_tgt);
+            _jv_ov = self.builder.insert_value(
+                ir.Constant(target_type, None),
+                ir.Constant(ir.IntType(8), 1),
+                0,
+                name="opt.jv.tagset"
+            );
+            _jv_ov = self.builder.insert_value(_jv_ov, _jv_pl, 1, name="opt.jv.wrap");
+            return self.builder.select(
+                _jv_is_none, ir.Constant(target_type, None), _jv_ov, name="opt.jv.sel"
+            );
+        }
+        _pv = self._coerce_type_inner(val, _opt_tgt, src_ty);
+        _ov = self.builder.insert_value(
+            ir.Constant(target_type, None),
+            ir.Constant(ir.IntType(8), 1),
+            0,
+            name="opt.tag"
+        );
+        _ov = self.builder.insert_value(_ov, _pv, 1, name="opt.wrap");
+        if _tgt_is_ptr {
+            _pv_nn = self.builder.icmp_unsigned(
+                "!=", _pv, ir.Constant(_opt_tgt, None), name="opt.wrap.nn"
+            );
+            return self.builder.select(
+                _pv_nn, _ov, ir.Constant(target_type, None), name="opt.wrap.sel"
+            );
+        }
+        return _ov;
+    }
+    _opt_src = self._opt_payload_of(val.type);
+    if _opt_src is not None {
+        _tag = self.builder.extract_value(val, 0, name="opt.tag.rd");
+        _tag_set = self.builder.icmp_signed(
+            "!=", _tag, ir.Constant(ir.IntType(8), 0), name="opt.has"
+        );
+        _src_payload_ty = self._tb_opt_payload(src_ty) if src_ty is not None else None;
+        if isinstance(target_type, ir.IntType) and target_type.width == 1 {
+            _pl_t = self.builder.extract_value(val, 1, name="opt.payload.t");
+            _pl_b = self._coerce_type_inner(_pl_t, target_type, _src_payload_ty);
+            return self.builder.and_(_tag_set, _pl_b, name="opt.truthy");
+        }
+        _pl = self.builder.extract_value(val, 1, name="opt.payload");
+        if self?.jacval_type and target_type == self.jacval_type {
+            _boxed = self._box_to_jacval(_pl, ty=_src_payload_ty);
+            _none_jv = self.builder.insert_value(
+                ir.Constant(self.jacval_type, None),
+                ir.Constant(ir.IntType(8), 8),
+                0,
+                name="opt.none.jv"
+            );
+            return self.builder.select(_tag_set, _boxed, _none_jv, name="opt.tojv");
+        }
+
+        if isinstance(target_type, ir.PointerType)
+            and isinstance(_pl.type, ir.PointerType) {
+            _pl_c = self._coerce_type_inner(_pl, target_type, _src_payload_ty);
+            return self.builder.select(
+                _tag_set, _pl_c, ir.Constant(target_type, None), name="opt.ornull"
+            );
+        }
+        _is_none = self.builder.icmp_signed(
+            "==", _tag, ir.Constant(ir.IntType(8), 0), name="opt.isnone"
+        );
+        self._emit_runtime_raise(
+            _is_none, "TypeError", "value is None where a value is required"
+        );
+        return self._coerce_type_inner(_pl, target_type, _src_payload_ty);
+    }
+
+    if self?.jacval_type {
+        if target_type == self.jacval_type and val.type != self.jacval_type {
+            return self._box_to_jacval(val, ty=src_ty);
+        }
+        if val.type == self.jacval_type and target_type != self.jacval_type {
+            return self._unbox_from_jacval(val, target_type);
+        }
+    }
+
+    if isinstance(val.type, ir.IntType) and isinstance(target_type, ir.DoubleType) {
+        return self.builder.sitofp(val, target_type, name="cast");
+    }
+
+    if isinstance(val.type, ir.IntType) and isinstance(target_type, ir.FloatType) {
+        return self.builder.sitofp(val, target_type, name="cast.f32");
+    }
+
+    if isinstance(val.type, ir.DoubleType) and isinstance(target_type, ir.IntType) {
+        return self.builder.fptosi(val, target_type, name="cast");
+    }
+
+    if isinstance(val.type, ir.FloatType) and isinstance(target_type, ir.IntType) {
+        return self.builder.fptosi(val, target_type, name="cast.i");
+    }
+
+    if isinstance(val.type, ir.DoubleType) and isinstance(target_type, ir.FloatType) {
+        return self.builder.fptrunc(val, target_type, name="fptrunc");
+    }
+
+    if isinstance(val.type, ir.FloatType) and isinstance(target_type, ir.DoubleType) {
+        return self.builder.fpext(val, target_type, name="fpext");
+    }
+
+    _clos_tgt = self._closure_struct_of(target_type);
+    if _clos_tgt is not None {
+        _src_is_fn = isinstance(val.type, ir.FunctionType)
+            or (
+                isinstance(val.type, ir.PointerType)
+                and isinstance(val.type.pointee, ir.FunctionType)
+            );
+        if _src_is_fn {
+            if self._pending_lambda_captures is not None {
+                self._pending_lambda_captures = None;
+                self.emit(
+                    E5092,
+                    kind="expression",
+                    name="capturing lambda used as a value",
+                    help_text="This lambda captures enclosing locals that could not be promoted to shared heap cells in this frame, so it cannot escape as a value here. Bind the lambda's inputs through parameters, or use a named nested function."
+                );
+                return ir.Constant(target_type, None);
+            }
+            if self.rc_alloc_fn is None {
+                self._emit_rc_helpers();
+            }
+            _wi32 = ir.IntType(32);
+            _wi64 = ir.IntType(64);
+            _wi8p = ir.IntType(8).as_pointer();
+            _wfn = val;
+            if isinstance(_wfn.type, ir.FunctionType) {
+                _wfn = self.builder.bitcast(
+                    _wfn, _wfn.type.as_pointer(), name="clos.wrap.fnp"
+                );
+            }
+            _wclos = self._alloc_iter_struct(_clos_tgt);
+            _wfn_slot = self.builder.gep(
+                _wclos,
+                [ir.Constant(_wi32, 0), ir.Constant(_wi32, 0)],
+                name="clos.wrap.fn.slot"
+            );
+            self.builder.store(
+                self.builder.ptrtoint(_wfn, _wi64, name="clos.wrap.fn.i64"), _wfn_slot
+            );
+            _wenv_slot = self.builder.gep(
+                _wclos,
+                [ir.Constant(_wi32, 0), ir.Constant(_wi32, 1)],
+                name="clos.wrap.env.slot"
+            );
+            self.builder.store(ir.Constant(_wi8p, None), _wenv_slot);
+            self._mark_owned(_wclos);
+            return _wclos;
+        }
+    }
+
+    if isinstance(val.type, ir.PointerType)
+        and isinstance(target_type, ir.PointerType) {
+        _lc_src = self._spec_from_list_slot_type(val.type);
+        _lc_dst = self._spec_from_list_slot_type(target_type);
+        if (
+            _lc_src is not None
+            and _lc_dst is not None
+            and _lc_src != _lc_dst
+            and (_lc_src == "jacval") != (_lc_dst == "jacval")
+        ) {
+            _lc_re = self._reflavor_list(
+                val,
+                _lc_src,
+                _lc_dst,
+                src_elem_ty=(self._tb_elem(src_ty) if src_ty is not None else None)
+            );
+            if _lc_re is not None {
+                return _lc_re;
+            }
+            self.emit(
+                E5092,
+                node_override=self.ir_in,
+                kind="coercion",
+                name=f"list[{_lc_src}] -> list[{_lc_dst}]",
+                help_text=(
+                    "These list layouts store elements at different slot "
+                    "widths, so a cast would corrupt the elements; construct "
+                    "the list with the destination's element flavor instead."
+                )
+            );
+            return val;
+        }
+        return self.builder.bitcast(val, target_type, name="ptrcast");
+    }
+
+    if isinstance(val.type, ir.FunctionType)
+        and isinstance(target_type, ir.PointerType) {
+        return self.builder.bitcast(val, target_type, name="fn.cast");
+    }
+
+    if isinstance(val.type, ir.FunctionType) and isinstance(target_type, ir.IntType) {
+        fn_ptr = self.builder.bitcast(val, val.type.as_pointer(), name="fn.ptr");
+        return self.builder.ptrtoint(fn_ptr, target_type, name="fn.ptrtoint");
+    }
+
+    if isinstance(val.type, ir.PointerType)
+        and isinstance(val.type.pointee, ir.FunctionType)
+        and isinstance(target_type, ir.IntType) {
+        return self.builder.ptrtoint(val, target_type, name="fn.ptrtoint");
+    }
+
+    if isinstance(val.type, ir.PointerType)
+        and not isinstance(target_type, ir.PointerType) {
+        if val.type?.pointee and val.type.pointee == target_type {
+            return self.builder.load(val, name="struct.unbox");
+        }
+
+        if isinstance(target_type, ir.IntType) and val.type?.pointee {
+            for (sname, abi_type) in self.clib_struct_abi_types.items() {
+                if val.type.pointee == self.struct_types.get(sname)
+                    and abi_type == target_type {
+                    int_ptr = self.builder.bitcast(
+                        val, target_type.as_pointer(), name="struct.abi.cast"
+                    );
+                    return self.builder.load(int_ptr, name="struct.abi.unbox");
+                }
+            }
+        }
+
+        if isinstance(target_type, ir.IntType) and isinstance(val, ir.Constant) {
+            return ir.Constant(target_type, -1);
+        }
+
+        if isinstance(target_type, ir.IntType) {
+            return self.builder.ptrtoint(val, target_type, name="ptr.toint");
+        }
+    }
+
+    if not isinstance(val.type, ir.PointerType)
+        and isinstance(target_type, ir.PointerType) {
+        if isinstance(val.type, ir.LiteralStructType)
+            and target_type?.pointee
+            and isinstance(target_type.pointee, ir.LiteralStructType)
+            and val.type != target_type.pointee
+            and len(val.type.elements) == len(target_type.pointee.elements) {
+            val = self._coerce_tuple_to_struct(val, target_type.pointee, src_ty=src_ty);
+        }
+        if target_type?.pointee and target_type.pointee == val.type {
+            if isinstance(val.type, ir.LiteralStructType) {
+                return self._box_value_tuple(val);
+            }
+            null_ptr = ir.Constant(target_type, None);
+            size_gep = self.builder.gep(
+                null_ptr, [ir.Constant(ir.IntType(32), 1)], name="clib.sizeof.gep"
+            );
+            size = self.builder.ptrtoint(size_gep, ir.IntType(64), name="clib.sizeof");
+
+            _clib_loc = getattr(val, 'jac_loc', '');
+            raw_ptr = self._rc_call_with_ctx(
+                self.rc_alloc_fn, [size], op="box", loc=_clib_loc, name="clib.box.raw"
+            );
+            typed_ptr = self.builder.bitcast(raw_ptr, target_type, name="clib.box.ptr");
+            self.builder.store(val, typed_ptr);
+
+            self._mark_owned(typed_ptr);
+
+            self._emit_set_type_tag(self.builder, raw_ptr, "tuple");
+            return typed_ptr;
+        }
+
+        if isinstance(val.type, ir.IntType) and target_type?.pointee {
+            for (sname, abi_type) in self.clib_struct_abi_types.items() {
+                if target_type.pointee == self.struct_types.get(sname)
+                    and abi_type == val.type {
+                    null_ptr = ir.Constant(target_type, None);
+                    size_gep = self.builder.gep(
+                        null_ptr,
+                        [ir.Constant(ir.IntType(32), 1)],
+                        name="clib.sizeof.gep"
+                    );
+                    size = self.builder.ptrtoint(
+                        size_gep, ir.IntType(64), name="clib.sizeof"
+                    );
+                    raw_ptr = self._rc_call_with_ctx(
+                        self.rc_alloc_fn, [size], op="box", name="clib.box.raw"
+                    );
+                    int_ptr = self.builder.bitcast(
+                        raw_ptr, val.type.as_pointer(), name="clib.abi.cast"
+                    );
+                    self.builder.store(val, int_ptr);
+                    typed_ptr = self.builder.bitcast(
+                        raw_ptr, target_type, name="clib.box.ptr"
+                    );
+
+                    self._mark_owned(typed_ptr);
+
+                    self._emit_set_type_tag(self.builder, raw_ptr, sname);
+                    return typed_ptr;
+                }
+            }
+        }
+    }
+
+    if isinstance(val.type, ir.IntType) and isinstance(target_type, ir.PointerType) {
+        return self.builder.inttoptr(val, target_type, name="int.toptr");
+    }
+
+    if isinstance(val.type, ir.IntType) and isinstance(target_type, ir.IntType) {
+        if val.type.width < target_type.width {
+            if val.type.width == 1 {
+                return self.builder.zext(val, target_type, name="zext");
+            }
+            _src_sh = self._tb_shape(src_ty) if src_ty is not None else None;
+            if _src_sh is None {
+                raise AssertionError(
+                    f"native codegen: widening {val.type} into {target_type} needs the checker type of the source (got {src_ty}) at {self._na_loc()}"
+                );
+            }
+            if _src_sh.signed and not _src_sh.is_float {
+                return self.builder.sext(val, target_type, name="sext");
+            }
+            return self.builder.zext(val, target_type, name="zext");
+        } elif val.type.width > target_type.width {
+            if target_type.width == 1 {
+                return self.builder.icmp_signed(
+                    "!=", val, ir.Constant(val.type, 0), name="int.truth"
+                );
+            }
+            if isinstance(val, ir.Constant) and isinstance(val.constant, int) {
+                _w = target_type.width;
+                if -(1 << (_w - 1)) <= val.constant < (1 << _w) {
+                    return ir.Constant(target_type, val.constant);
+                }
+            }
+            self.emit(
+                E5092,
+                node_override=self.cur_node,
+                kind="silent narrowing",
+                name=f"{val.type} into {target_type}"
+            );
+            return val;
+        }
+    }
+
+    if isinstance(val.type, ir.LiteralStructType)
+        and val.type != target_type
+        and len(val.type.elements) >= 1 {
+        _tls_spec = self._spec_from_list_slot_type(target_type);
+        _tls_h = self.list_helpers.get(_tls_spec) if _tls_spec is not None else None;
+        if (
+            _tls_h is not None
+            and self.list_types.get(_tls_spec) is not None
+            and self.list_types[_tls_spec].as_pointer() == target_type
+        ) {
+            _tls_out = self.builder.call(_tls_h["new"], [], name="tuple.to.list");
+            _tls_tys = val?.na_tuple_elem_tys;
+            for _ti in range(len(val.type.elements)) {
+                _tf = self.builder.extract_value(val, _ti, name=f"t2l.{_ti}");
+                _tf_ty = (
+                    _tls_tys[_ti]
+                        if _tls_tys is not None and _ti < len(_tls_tys)
+                        else (
+                            self._tb_elem(src_ty, _ti) if src_ty is not None else None
+                        )
+                );
+                _tf = self._coerce_type(_tf, _tls_h["elem_type"], src_ty=_tf_ty);
+                self.builder.call(
+                    _tls_h["append"], [_tls_out, _tf], name=f"t2l.app.{_ti}"
+                );
+            }
+            return self._mark_owned(_tls_out);
+        }
+        if len(val.type.elements) < 2 {
+            return val;
+        }
+        _all_prim = True;
+        for _el in val.type.elements {
+            if not isinstance(
+                _el, (ir.IntType, ir.DoubleType, ir.FloatType, ir.PointerType)
+            ) {
+                _all_prim = False;
+                break;
+            }
+        }
+        if _all_prim {
+            boxed = self._box_value_tuple(val);
+            if boxed.type == target_type {
+                return boxed;
+            }
+
+            if isinstance(boxed.type, ir.PointerType)
+                and isinstance(target_type, ir.PointerType) {
+                _cast = self.builder.bitcast(boxed, target_type, name="tuple.box.cast");
+
+                self._mark_owned(_cast);
+                return _cast;
+            }
+        }
+    }
+    return val;
+}
+
+impl NaIRGenTypes._promote_to_float(
+    left: ir.Value, right: ir.Value, lty: any, rty: any
+) -> tuple[(ir.Value, ir.Value)] {
+    if lty is None or rty is None {
+        raise AssertionError(
+            f"native codegen: _promote_to_float needs both operand types "
+            f"(got {lty}, {rty}) at {self._na_loc()}"
+        );
+    }
+    _lsh = self._tb_shape(lty);
+    _rsh = self._tb_shape(rty);
+    target: ir.Type = (
+        ir.FloatType()
+            if _lsh is not None
+                and _rsh is not None
+                and _lsh.is_float
+                and _rsh.is_float
+                and _lsh.width == 32
+                and _rsh.width == 32
+            else ir.DoubleType()
+    );
+    return (
+        self._to_float_type(left, target, lty),
+        self._to_float_type(right, target, rty)
+    );
+}
+
+impl NaIRGenTypes._to_float_type(
+    val: ir.Value, target: ir.Type, src_ty: any
+) -> ir.Value {
+    if val.type == target {
+        return val;
+    }
+    _k = self._tb_payload_kind(src_ty);
+    if _k in ("int", "bool", "enum") {
+        if self._tb_unsigned(src_ty) or _k == "bool" {
+            return self.builder.uitofp(val, target, name="u2f");
+        }
+        return self.builder.sitofp(val, target, name="s2f");
+    }
+    if _k == "float" {
+        if isinstance(target, ir.DoubleType) {
+            return self.builder.fpext(val, target, name="fpext");
+        }
+        return self.builder.fptrunc(val, target, name="fptrunc");
+    }
+    return val;
+}
+
+impl NaIRGenTypes._unify_int_widths(
+    left: ir.Value, right: ir.Value
+) -> tuple[(ir.Value, ir.Value)] {
+    if left.type.width == 1 and right.type.width > 1 {
+        left = self.builder.zext(left, right.type, name="bool.widen");
+    } elif right.type.width == 1 and left.type.width > 1 {
+        right = self.builder.zext(right, left.type, name="bool.widen");
+    }
+    return (left, right);
+}
+
+impl NaIRGenTypes._codegen_int_floor_divmod(
+    left: ir.Value, right: ir.Value
+) -> tuple[(ir.Value, ir.Value)] {
+    int_ty = left.type;
+    q = self.builder.sdiv(left, right, name="floordiv.quot");
+    r = self.builder.srem(left, right, name="floordiv.rem");
+    izero = ir.Constant(int_ty, 0);
+    rone = ir.Constant(int_ty, 1);
+    r_ne_zero = self.builder.icmp_signed("!=", r, izero, name="floordiv.r.nz");
+    r_neg = self.builder.icmp_signed("<", r, izero, name="floordiv.r.neg");
+    b_neg = self.builder.icmp_signed("<", right, izero, name="floordiv.b.neg");
+    sign_diff = self.builder.icmp_unsigned("!=", r_neg, b_neg, name="floordiv.sdiff");
+    need_adj = self.builder.and_(r_ne_zero, sign_diff, name="floordiv.adj");
+    q_one_less = self.builder.sub(q, rone, name="floordiv.q.dec");
+    q_final = self.builder.select(need_adj, q_one_less, q, name="floordiv.q");
+    r_plus_b = self.builder.add(r, right, name="floordiv.r.fix");
+    r_final = self.builder.select(need_adj, r_plus_b, r, name="floordiv.r");
+    return (q_final, r_final);
+}
+
+impl NaIRGenTypes._codegen_float_floor_div(
+    left: ir.Value, right: ir.Value
+) -> ir.Value {
+    raw = self.builder.fdiv(left, right, name="ffloordiv.raw");
+    floor_fn = self._get_or_declare_extern("floor", ir.DoubleType(), [ir.DoubleType()]);
+    return self.builder.call(floor_fn, [raw], name="ffloordiv");
+}
+
+impl NaIRGenTypes._codegen_float_floor_mod(
+    left: ir.Value, right: ir.Value
+) -> ir.Value {
+    floored = self._codegen_float_floor_div(left, right);
+    prod = self.builder.fmul(right, floored, name="fmod.prod");
+    return self.builder.fsub(left, prod, name="fmod");
+}
+
+impl NaIRGenTypes._emit_binary_op(
+    op: str,
+    left: ir.Value,
+    right: ir.Value,
+    lty: any,
+    rty: any,
+    resolved: (ResolvedOperator | None) = None
+) -> (ir.Value | None) {
+    if lty is None or rty is None {
+        raise AssertionError(
+            f"native codegen: binary operator {op} needs both operand types "
+            f"(got {lty}, {rty}) at {self._na_loc()}"
+        );
+    }
+    unsigned = self._tb_unsigned(lty) or self._tb_unsigned(rty);
+    checked = self._tb_sized(lty) or self._tb_sized(rty);
+    left = self._str_norm(left);
+    right = self._str_norm(right);
+    _lk = self._tb_payload_kind(lty);
+    _rk = self._tb_payload_kind(rty);
+    _intish = ("int", "bool", "enum");
+    _want_dunder = resolved is not None
+        or _lk in ("struct", "object")
+        or _rk in ("struct", "object");
+    if _want_dunder {
+        _dunder_res = self._emit_arch_dunder_binop(op, left, right, lty, rty, resolved);
+        if _dunder_res is not None {
+            return _dunder_res;
+        }
+    }
+
+    if self._opt_payload_of(left.type) is not None {
+        left = self._coerce_type(left, self._opt_payload_of(left.type), lty);
+    }
+    if self._opt_payload_of(right.type) is not None {
+        right = self._coerce_type(right, self._opt_payload_of(right.type), rty);
+    }
+    _str_cat = _lk == "str" and _rk == "str";
+    _bytes_cat = _lk == "bytes" and _rk == "bytes";
+    _bytes_rep_l = _lk == "bytes" and _rk in _intish;
+    _bytes_rep_r = _rk == "bytes" and _lk in _intish;
+    _str_rep_l = _lk == "str" and _rk in _intish;
+    _str_rep_r = _rk == "str" and _lk in _intish;
+    _list_rep_l = _lk == "list" and _rk in _intish;
+    _list_rep_r = _rk == "list" and _lk in _intish;
+    _list_cat = _lk == "list" and _rk == "list";
+    _set_op = _lk == "set" and _rk == "set";
+    _complex_op = _lk == "complex" and _rk == "complex";
+    _tagged = ("any", "union", "unknown", "typevar");
+    _any_operand = _lk in _tagged or _rk in _tagged;
+    _is_float = _lk == "float" or _rk == "float" or op == Tok.DIV;
+    if op == Tok.PLUS and _str_cat {
+        return self._emit_str_concat(left, right);
+    }
+
+    if op == Tok.PLUS and _bytes_cat {
+        i8p = ir.IntType(8).as_pointer();
+        i64 = ir.IntType(64);
+        llen = self._bytes_len_val(left);
+        rlen = self._bytes_len_val(right);
+        total = self.builder.add(llen, rlen, name="by.cat.total");
+        result = self._bytes_alloc(total);
+        dst = self._bytes_data_ptr(result);
+        memcpy_fn = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
+        self.builder.call(memcpy_fn, [dst, self._bytes_data_ptr(left), llen]);
+        rdst = self.builder.gep(dst, [llen], name="by.cat.rdst");
+        self.builder.call(memcpy_fn, [rdst, self._bytes_data_ptr(right), rlen]);
+        return result;
+    }
+
+    if op == Tok.STAR_MUL {
+        by_val: (ir.Value | None) = None;
+        rep_val: (ir.Value | None) = None;
+        if _bytes_rep_l {
+            by_val = left;
+            rep_val = right;
+        } elif _bytes_rep_r {
+            by_val = right;
+            rep_val = left;
+        }
+        if by_val is not None and rep_val is not None {
+            return self._emit_bytes_repeat(by_val, rep_val);
+        }
+    }
+
+    if op == Tok.STAR_MUL {
+        str_val: (ir.Value | None) = None;
+        int_val: (ir.Value | None) = None;
+        if _str_rep_l {
+            str_val = left;
+            int_val = right;
+        } elif _str_rep_r {
+            str_val = right;
+            int_val = left;
+        }
+        if str_val is not None and int_val is not None {
+            i8 = ir.IntType(8);
+            i8p = i8.as_pointer();
+            i64 = ir.IntType(64);
+            memcpy_fn = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
+            slen = self._call_str_len(self.builder, str_val, name="rep.slen");
+
+            _rep_neg = self.builder.icmp_signed(
+                "<", int_val, ir.Constant(i64, 0), name="rep.neg"
+            );
+            int_val = self.builder.select(
+                _rep_neg, ir.Constant(i64, 0), int_val, name="rep.n"
+            );
+            total = self.builder.mul(slen, int_val, name="rep.total");
+            alloc = self.builder.add(total, ir.Constant(i64, 1), name="rep.alloc");
+            self._set_rc_ctx("str_repeat", "");
+            buf = self._str_alloc(self.builder, alloc, name="rep.buf");
+            self._clear_rc_ctx();
+            func = self.builder.basic_block.function;
+            entry_bb = self.builder.basic_block;
+            loop_bb = func.append_basic_block(name="rep.loop");
+            body_bb = func.append_basic_block(name="rep.body");
+            done_bb = func.append_basic_block(name="rep.done");
+            self.builder.branch(loop_bb);
+            self.builder.position_at_start(loop_bb);
+            offset = self.builder.phi(i64, name="rep.off");
+            count = self.builder.phi(i64, name="rep.cnt");
+            offset.add_incoming(ir.Constant(i64, 0), entry_bb);
+            count.add_incoming(ir.Constant(i64, 0), entry_bb);
+            at_end = self.builder.icmp_unsigned(">=", count, int_val, name="rep.atend");
+            self.builder.cbranch(at_end, done_bb, body_bb);
+            self.builder.position_at_start(body_bb);
+            dst = self.builder.gep(buf, [offset], name="rep.dst");
+            self.builder.call(memcpy_fn, [dst, str_val, slen]);
+            new_off = self.builder.add(offset, slen, name="rep.newoff");
+            new_cnt = self.builder.add(count, ir.Constant(i64, 1), name="rep.newcnt");
+            offset.add_incoming(new_off, body_bb);
+            count.add_incoming(new_cnt, body_bb);
+            self.builder.branch(loop_bb);
+            self.builder.position_at_start(done_bb);
+            self._str_finish(self.builder, buf, total);
+            return buf;
+        }
+    }
+
+    if op == Tok.STAR_MUL and (_list_rep_l or _list_rep_r) {
+        _lmul_ty = lty if _list_rep_l else rty;
+        lmul_key = self._tb_spec_key(_lmul_ty, ("list", "Sequence"), self.list_types);
+        lmul_helpers = self.list_helpers.get(lmul_key)
+            if lmul_key is not None
+            else None;
+        if lmul_helpers is None {
+            self.emit(
+                E5092,
+                node_override=self.cur_node,
+                kind="binary operator",
+                name=f"list repetition on {self._mangled_of(_lmul_ty)}",
+                help_text="This list's element type has no native layout, so the list cannot be repeated natively."
+            );
+            return None;
+        }
+        _lmul_ptr = self.list_types[lmul_key].as_pointer();
+        lmul_list = self._coerce_type(
+            left if _list_rep_l else right, _lmul_ptr, _lmul_ty
+        );
+        lmul_int = self._coerce_type(
+            right if _list_rep_l else left, ir.IntType(64), rty if _list_rep_l else lty
+        );
+        i64 = ir.IntType(64);
+        lmul_new = self.builder.call(lmul_helpers["new"], [], name="lmul.new");
+        lmul_len = self.builder.call(lmul_helpers["len"], [lmul_list], name="lmul.len");
+        func = self.builder.basic_block.function;
+        lmul_entry_bb = self.builder.basic_block;
+        lmul_outer_bb = func.append_basic_block(name="lmul.outer");
+        lmul_iinit_bb = func.append_basic_block(name="lmul.iinit");
+        lmul_inner_bb = func.append_basic_block(name="lmul.inner");
+        lmul_ibody_bb = func.append_basic_block(name="lmul.ibody");
+        lmul_onext_bb = func.append_basic_block(name="lmul.onext");
+        lmul_done_bb = func.append_basic_block(name="lmul.done");
+        self.builder.branch(lmul_outer_bb);
+        self.builder.position_at_start(lmul_outer_bb);
+        lmul_rep = self.builder.phi(i64, name="lmul.rep");
+        lmul_rep.add_incoming(ir.Constant(i64, 0), lmul_entry_bb);
+        lmul_rend = self.builder.icmp_signed(
+            ">=", lmul_rep, lmul_int, name="lmul.rend"
+        );
+        self.builder.cbranch(lmul_rend, lmul_done_bb, lmul_iinit_bb);
+        self.builder.position_at_start(lmul_iinit_bb);
+        self.builder.branch(lmul_inner_bb);
+        self.builder.position_at_start(lmul_inner_bb);
+        lmul_ei = self.builder.phi(i64, name="lmul.ei");
+        lmul_ei.add_incoming(ir.Constant(i64, 0), lmul_iinit_bb);
+        lmul_eend = self.builder.icmp_unsigned(
+            ">=", lmul_ei, lmul_len, name="lmul.eend"
+        );
+        self.builder.cbranch(lmul_eend, lmul_onext_bb, lmul_ibody_bb);
+        self.builder.position_at_start(lmul_ibody_bb);
+        lmul_elem = self.builder.call(
+            lmul_helpers["get"], [lmul_list, lmul_ei], name="lmul.elem"
+        );
+        self._rc_call_with_ctx(
+            lmul_helpers["append"], [lmul_new, lmul_elem], op="list_mul"
+        );
+        lmul_ne = self.builder.add(lmul_ei, ir.Constant(i64, 1), name="lmul.ne");
+        lmul_ei.add_incoming(lmul_ne, lmul_ibody_bb);
+        self.builder.branch(lmul_inner_bb);
+        self.builder.position_at_start(lmul_onext_bb);
+        lmul_nr = self.builder.add(lmul_rep, ir.Constant(i64, 1), name="lmul.nr");
+        lmul_rep.add_incoming(lmul_nr, lmul_onext_bb);
+        self.builder.branch(lmul_outer_bb);
+        self.builder.position_at_start(lmul_done_bb);
+        return self._mark_owned(lmul_new);
+    }
+
+    if op == Tok.PLUS and _list_cat {
+        _lcat_lkey = self._tb_spec_key(lty, ("list", "Sequence"), self.list_types);
+        _lcat_rkey = self._tb_spec_key(rty, ("list", "Sequence"), self.list_types);
+        helpers = self.list_helpers.get(_lcat_lkey) if _lcat_lkey is not None else None;
+        if helpers is None or _lcat_lkey != _lcat_rkey {
+            self.emit(
+                E5092,
+                node_override=self.cur_node,
+                kind="binary operator",
+                name=f"list concatenation of {self._mangled_of(lty)} and {self._mangled_of(
+                    rty
+                )}",
+                help_text="Both lists must share one native element layout to be concatenated natively; annotate them with the same element type."
+            );
+            return None;
+        }
+        _lcat_ptr = self.list_types[_lcat_lkey].as_pointer();
+        left = self._coerce_type(left, _lcat_ptr, lty);
+        right = self._coerce_type(right, _lcat_ptr, rty);
+        i64 = ir.IntType(64);
+        new_list = self.builder.call(helpers["new"], [], name="lcat.new");
+
+        left_len = self.builder.call(helpers["len"], [left], name="lcat.llen");
+        func = self.builder.basic_block.function;
+        entry_bb = self.builder.basic_block;
+        loop1_bb = func.append_basic_block(name="lcat.l1");
+        body1_bb = func.append_basic_block(name="lcat.b1");
+        mid_bb = func.append_basic_block(name="lcat.mid");
+        loop2_bb = func.append_basic_block(name="lcat.l2");
+        body2_bb = func.append_basic_block(name="lcat.b2");
+        done_bb = func.append_basic_block(name="lcat.done");
+        self.builder.branch(loop1_bb);
+        self.builder.position_at_start(loop1_bb);
+        i1 = self.builder.phi(i64, name="lcat.i1");
+        i1.add_incoming(ir.Constant(i64, 0), entry_bb);
+        end1 = self.builder.icmp_unsigned(">=", i1, left_len, name="lcat.end1");
+        self.builder.cbranch(end1, mid_bb, body1_bb);
+        self.builder.position_at_start(body1_bb);
+        e1 = self.builder.call(helpers["get"], [left, i1], name="lcat.e1");
+        self._rc_call_with_ctx(helpers["append"], [new_list, e1], op="list_cat");
+        n1 = self.builder.add(i1, ir.Constant(i64, 1), name="lcat.n1");
+        i1.add_incoming(n1, body1_bb);
+        self.builder.branch(loop1_bb);
+
+        self.builder.position_at_start(mid_bb);
+        right_len = self.builder.call(helpers["len"], [right], name="lcat.rlen");
+        self.builder.branch(loop2_bb);
+        self.builder.position_at_start(loop2_bb);
+        i2 = self.builder.phi(i64, name="lcat.i2");
+        i2.add_incoming(ir.Constant(i64, 0), mid_bb);
+        end2 = self.builder.icmp_unsigned(">=", i2, right_len, name="lcat.end2");
+        self.builder.cbranch(end2, done_bb, body2_bb);
+        self.builder.position_at_start(body2_bb);
+        e2 = self.builder.call(helpers["get"], [right, i2], name="lcat.e2");
+        self._rc_call_with_ctx(helpers["append"], [new_list, e2], op="list_cat");
+        n2 = self.builder.add(i2, ir.Constant(i64, 1), name="lcat.n2");
+        i2.add_incoming(n2, body2_bb);
+        self.builder.branch(loop2_bb);
+        self.builder.position_at_start(done_bb);
+        return self._mark_owned(new_list);
+    }
+
+    if _set_op {
+        sk = self._tb_spec_key(lty, ("set", "frozenset"), self.set_types);
+        _rsk = self._tb_spec_key(rty, ("set", "frozenset"), self.set_types);
+        if sk is None or sk != _rsk {
+            self.emit(
+                E5092,
+                node_override=self.cur_node,
+                kind="binary operator",
+                name=f"{op} on {self._mangled_of(lty)} and {self._mangled_of(rty)}",
+                help_text="Both sets must share one native element layout; annotate them with the same element type."
+            );
+            return None;
+        }
+        _set_ptr = self.set_types[sk].as_pointer();
+        left = self._coerce_type(left, _set_ptr, lty);
+        right = self._coerce_type(right, _set_ptr, rty);
+        self._ensure_emitters();
+        _ctx = self._native_emit_ctx_class(pass_ref=self, type_key=sk);
+        _se = self._native_emitters.get("set");
+        if _se is not None {
+            if op == Tok.BW_OR {
+                return _se.emit_union(_ctx, left, [right]);
+            }
+            if op == Tok.BW_AND {
+                return _se.emit_intersection(_ctx, left, [right]);
+            }
+            if op == Tok.MINUS {
+                return _se.emit_difference(_ctx, left, [right]);
+            }
+            if op == Tok.BW_XOR {
+                return _se.emit_symmetric_difference(_ctx, left, [right]);
+            }
+        }
+    }
+
+    ctype_ptr = self.complex_struct_type.as_pointer();
+    if _complex_op {
+        f64 = ir.DoubleType();
+        i64 = ir.IntType(64);
+        i32 = ir.IntType(32);
+        z0 = ir.Constant(i32, 0);
+        z1 = ir.Constant(i32, 1);
+        ar = self.builder.load(
+            self.builder.gep(left, [z0, z0], name="c.ar.p"), name="c.ar"
+        );
+        ai = self.builder.load(
+            self.builder.gep(left, [z0, z1], name="c.ai.p"), name="c.ai"
+        );
+        br = self.builder.load(
+            self.builder.gep(right, [z0, z0], name="c.br.p"), name="c.br"
+        );
+        bi = self.builder.load(
+            self.builder.gep(right, [z0, z1], name="c.bi.p"), name="c.bi"
+        );
+        rr: (ir.Value | None) = None;
+        ri: (ir.Value | None) = None;
+        if op == Tok.PLUS {
+            rr = self.builder.fadd(ar, br, name="c.add.r");
+            ri = self.builder.fadd(ai, bi, name="c.add.i");
+        } elif op == Tok.MINUS {
+            rr = self.builder.fsub(ar, br, name="c.sub.r");
+            ri = self.builder.fsub(ai, bi, name="c.sub.i");
+        } elif op == Tok.STAR_MUL {
+            rr = self.builder.fsub(
+                self.builder.fmul(ar, br, name="c.m1"),
+                self.builder.fmul(ai, bi, name="c.m2"),
+                name="c.mul.r"
+            );
+            ri = self.builder.fadd(
+                self.builder.fmul(ar, bi, name="c.m3"),
+                self.builder.fmul(ai, br, name="c.m4"),
+                name="c.mul.i"
+            );
+        } elif op == Tok.DIV {
+            denom = self.builder.fadd(
+                self.builder.fmul(br, br, name="c.d1"),
+                self.builder.fmul(bi, bi, name="c.d2"),
+                name="c.denom"
+            );
+            rr = self.builder.fdiv(
+                self.builder.fadd(
+                    self.builder.fmul(ar, br, name="c.d3"),
+                    self.builder.fmul(ai, bi, name="c.d4"),
+                    name="c.div.rn"
+                ),
+                denom,
+                name="c.div.r"
+            );
+            ri = self.builder.fdiv(
+                self.builder.fsub(
+                    self.builder.fmul(ai, br, name="c.d5"),
+                    self.builder.fmul(ar, bi, name="c.d6"),
+                    name="c.div.in"
+                ),
+                denom,
+                name="c.div.i"
+            );
+        }
+        if rr is not None and ri is not None {
+            raw = self.builder.call(
+                self.rc_alloc_fn, [ir.Constant(i64, 16)], name="c.res.raw"
+            );
+            ptr = self.builder.bitcast(raw, ctype_ptr, name="c.res.ptr");
+            self.builder.store(rr, self.builder.gep(ptr, [z0, z0], name="c.res.rp"));
+            self.builder.store(ri, self.builder.gep(ptr, [z0, z1], name="c.res.ip"));
+            return ptr;
+        }
+    }
+
+    if _any_operand {
+        self.emit(
+            E5092,
+            node_override=self.cur_node,
+            kind="binary operator",
+            name=f"{op} on a tagged `any` operand"
+        );
+        return None;
+    }
+
+    is_float = _is_float;
+    if is_float {
+        (left, right) = self._promote_to_float(left, right, lty, rty);
+    }
+    if is_float {
+        if op == Tok.PLUS {
+            return self.builder.fadd(left, right, name="fadd");
+        } elif op == Tok.MINUS {
+            return self.builder.fsub(left, right, name="fsub");
+        } elif op == Tok.STAR_MUL {
+            return self.builder.fmul(left, right, name="fmul");
+        } elif op == Tok.DIV {
+            fzero = ir.Constant(right.type, 0.0);
+            is_zero = self.builder.fcmp_ordered(
+                "==", right, fzero, name="fdiv.zero.chk"
+            );
+            self._emit_runtime_raise(
+                is_zero, "ZeroDivisionError", "float division by zero"
+            );
+            return self.builder.fdiv(left, right, name="fdiv");
+        } elif op == Tok.MOD {
+            fzero = ir.Constant(right.type, 0.0);
+            is_zero = self.builder.fcmp_ordered(
+                "==", right, fzero, name="fmod.zero.chk"
+            );
+            self._emit_runtime_raise(
+                is_zero, "ZeroDivisionError", "float modulo by zero"
+            );
+            return self._codegen_float_floor_mod(left, right);
+        } elif op == Tok.FLOOR_DIV {
+            fzero = ir.Constant(right.type, 0.0);
+            is_zero = self.builder.fcmp_ordered(
+                "==", right, fzero, name="ffloordiv.zero.chk"
+            );
+            self._emit_runtime_raise(
+                is_zero, "ZeroDivisionError", "float floor division by zero"
+            );
+            return self._codegen_float_floor_div(left, right);
+        }
+    } else {
+        if _lk not in _intish or _rk not in _intish {
+            self.emit(
+                E5092,
+                node_override=self.cur_node,
+                kind="binary operator",
+                name=f"{op} on {_lk} and {_rk} operands"
+            );
+            return None;
+        }
+        if not isinstance(left.type, ir.IntType)
+            or not isinstance(right.type, ir.IntType) {
+            raise AssertionError(
+                f"native codegen: {op} on {_lk}/{_rk} operands lowered to "
+                f"{left.type} and {right.type} at {self._na_loc()}"
+            );
+        }
+        (left, right) = self._unify_int_widths(left, right);
+        if op == Tok.LSHIFT {
+            if checked {
+                return self._emit_checked_shl(left, right, unsigned);
+            }
+            return self.builder.shl(left, right, name="shl");
+        } elif op == Tok.RSHIFT {
+            if checked {
+                return self._emit_shr(left, right, unsigned);
+            }
+            return self.builder.ashr(left, right, name="ashr");
+        }
+        if left.type != right.type {
+            raise AssertionError(
+                f"native codegen: {op} on {lty}/{rty} operands lowered to "
+                f"different integer widths {left.type} and {right.type} "
+                f"at {self._na_loc()}"
+            );
+        }
+        int_ty = left.type;
+        if op == Tok.PLUS {
+            return self._emit_overflow_op("add", left, right, unsigned);
+        } elif op == Tok.MINUS {
+            return self._emit_overflow_op("sub", left, right, unsigned);
+        } elif op == Tok.STAR_MUL {
+            return self._emit_overflow_op("mul", left, right, unsigned);
+        } elif op == Tok.FLOOR_DIV {
+            izero = ir.Constant(int_ty, 0);
+            is_zero = self.builder.icmp_signed(
+                "==", right, izero, name="floordiv.zero.chk"
+            );
+            self._emit_runtime_raise(
+                is_zero, "ZeroDivisionError", "integer division or modulo by zero"
+            );
+            (q, _) = self._emit_int_divmod(left, right, unsigned);
+            return q;
+        } elif op == Tok.MOD {
+            izero = ir.Constant(int_ty, 0);
+            is_zero = self.builder.icmp_signed("==", right, izero, name="mod.zero.chk");
+            self._emit_runtime_raise(
+                is_zero, "ZeroDivisionError", "integer division or modulo by zero"
+            );
+            (_, r) = self._emit_int_divmod(left, right, unsigned, trap_min=False);
+            return r;
+        }
+    }
+
+    if op == Tok.BW_AND {
+        return self.builder.and_(left, right, name="bwand");
+    }
+    if op == Tok.BW_OR {
+        return self.builder.or_(left, right, name="bwor");
+    }
+    if op == Tok.BW_XOR {
+        return self.builder.xor(left, right, name="bwxor");
+    }
+
+    if op == Tok.KW_AND {
+        return self.builder.and_(left, right, name="and");
+    }
+    if op == Tok.KW_OR {
+        return self.builder.or_(left, right, name="or");
+    }
+
+    self.emit(E5092, node_override=self.cur_node, kind="binary operator", name=op);
+    return None;
+}
+
+impl NaIRGenTypes._emit_str_concat(left: ir.Value, right: ir.Value) -> ir.Value {
+    left = self._str_norm(left);
+    right = self._str_norm(right);
+    _i8p_cc = ir.IntType(8).as_pointer();
+    _i64_cc = ir.IntType(64);
+    memcpy_cc = self._get_or_declare_extern(
+        "memcpy", _i8p_cc, [_i8p_cc, _i8p_cc, _i64_cc]
+    );
+    len1 = self._call_str_len(self.builder, left, name="len1");
+    len2 = self._call_str_len(self.builder, right, name="len2");
+    total = self.builder.add(len1, len2, name="total_len");
+    buf_size = self.builder.add(total, ir.Constant(ir.IntType(64), 1), name="buf_size");
+    _concat_loc = getattr(left, 'jac_loc', getattr(right, 'jac_loc', ''));
+    self._set_rc_ctx("str_concat", _concat_loc);
+    buf = self._str_alloc(self.builder, buf_size, name="concat.buf");
+    self._clear_rc_ctx();
+    self.builder.call(memcpy_cc, [buf, left, len1]);
+    _cc_dst2 = self.builder.gep(buf, [len1], name="concat.dst2");
+    self.builder.call(memcpy_cc, [_cc_dst2, right, len2]);
+    self._str_finish(self.builder, buf, total);
+    self._mark_owned(buf);
+    return buf;
+}
+
+impl NaIRGenTypes._emit_arch_dunder_binop(
+    op: str,
+    left: ir.Value,
+    right: ir.Value,
+    lty: any,
+    rty: any,
+    resolved: (ResolvedOperator | None) = None
+) -> (ir.Value | None) {
+    import from jaclang.compiler.types.operations { BINARY_OPERATOR_MAP }
+    if lty is None or rty is None {
+        raise AssertionError(
+            f"native codegen: dunder dispatch for {op} needs both operand types "
+            f"(got {lty}, {rty}) at {self._na_loc()}"
+        );
+    }
+
+    def _dispatch(
+        pass_ref: NaIRGenState, recv: ir.Value, arg: ir.Value, arch: str, mname: str
+    ) -> (ir.Value | None) {
+        mfn = pass_ref._resolve_method(arch, mname);
+        if mfn is None or len(mfn.args) != 2 {
+            return None;
+        }
+        _dargs = [
+            pass_ref._coerce_type(recv, mfn.args[0].type),
+            pass_ref._coerce_type(arg, mfn.args[1].type)
+        ];
+        _dres = pass_ref.builder.call(mfn, _dargs, name=f"dunder.{mname}");
+        pass_ref._release_owned_args(_dargs, op="call_arg");
+        return _dres;
+    }
+
+    if resolved is not None {
+        _owner = self._struct_name_for_key(resolved.owner);
+        if _owner is None {
+            return None;
+        }
+        if resolved.reflected {
+            return _dispatch(self, right, left, _owner, resolved.method);
+        }
+        return _dispatch(self, left, right, _owner, resolved.method);
+    }
+    _pair = BINARY_OPERATOR_MAP.get(op);
+    if _pair is None {
+        return None;
+    }
+    (magic, rmagic) = _pair;
+    _larch = self._struct_name_for_key(lty);
+    if _larch is not None {
+        _res = _dispatch(self, left, right, _larch, magic);
+        if _res is not None {
+            return _res;
+        }
+    }
+    _rarch = self._struct_name_for_key(rty);
+    if _rarch is not None {
+        return _dispatch(self, right, left, _rarch, rmagic);
+    }
+    return None;
+}
+
+impl NaIRGenTypes._opt_membership_operand(left: ir.Value, slot_type: ir.Type) -> tuple {
+    _pt = self._opt_payload_of(left.type);
+    if _pt is None or (self?.jacval_type and slot_type == self.jacval_type) {
+        return (self._coerce_type(left, slot_type), None);
+    }
+    i8p = ir.IntType(8).as_pointer();
+    _tag = self.builder.extract_value(left, 0, name="opt.in.tag");
+    _tag_set = self.builder.icmp_signed(
+        "!=", _tag, ir.Constant(ir.IntType(8), 0), name="opt.in.has"
+    );
+    _pv = self.builder.extract_value(left, 1, name="opt.in.pv");
+    if _pv.type == i8p and slot_type == i8p {
+        _pv = self.builder.select(
+            _tag_set,
+            _pv,
+            self.builder.bitcast(
+                self._make_global_string(""), i8p, name="opt.in.empty"
+            ),
+            name="opt.in.safe"
+        );
+    }
+    return (self._coerce_type(_pv, slot_type), _tag_set);
+}
+
+impl NaIRGenTypes._emit_jacval_eq(left: ir.Value, right: ir.Value) -> ir.Value {
+    i1 = ir.IntType(1);
+    i8 = ir.IntType(8);
+    i8p = ir.IntType(8).as_pointer();
+    ltag = self.builder.extract_value(left, 0, name="jv.eq.ltag");
+    rtag = self.builder.extract_value(right, 0, name="jv.eq.rtag");
+    lpay = self.builder.extract_value(left, 1, name="jv.eq.lpay");
+    rpay = self.builder.extract_value(right, 1, name="jv.eq.rpay");
+    tag_eq = self.builder.icmp_signed("==", ltag, rtag, name="jv.eq.tag");
+    both_str = self.builder.and_(
+        self.builder.icmp_signed("==", ltag, ir.Constant(i8, 2), name="jv.eq.lstr"),
+        self.builder.icmp_signed("==", rtag, ir.Constant(i8, 2), name="jv.eq.rstr"),
+        name="jv.eq.bothstr"
+    );
+    func = self.builder.basic_block.function;
+    entry_bb = self.builder.basic_block;
+    str_bb = func.append_basic_block(name="jv.eq.str");
+    bits_bb = func.append_basic_block(name="jv.eq.bits");
+    merge_bb = func.append_basic_block(name="jv.eq.done");
+    self.builder.cbranch(both_str, str_bb, bits_bb);
+    self.builder.position_at_start(str_bb);
+    strcmp_fn = self._get_or_declare_extern("strcmp", ir.IntType(32), [i8p, i8p]);
+    sres = self.builder.call(
+        strcmp_fn,
+        [
+            self.builder.inttoptr(lpay, i8p, name="jv.eq.lsp"),
+            self.builder.inttoptr(rpay, i8p, name="jv.eq.rsp")
+        ],
+        name="jv.eq.strcmp"
+    );
+    str_eq = self.builder.icmp_signed(
+        "==", sres, ir.Constant(ir.IntType(32), 0), name="jv.eq.streq"
+    );
+    self.builder.branch(merge_bb);
+    self.builder.position_at_start(bits_bb);
+    pay_eq = self.builder.icmp_signed("==", lpay, rpay, name="jv.eq.pay");
+    bits_eq = self.builder.and_(tag_eq, pay_eq, name="jv.eq.bitseq");
+    self.builder.branch(merge_bb);
+    self.builder.position_at_start(merge_bb);
+    res = self.builder.phi(i1, name="jv.eq");
+    res.add_incoming(str_eq, str_bb);
+    res.add_incoming(bits_eq, bits_bb);
+    return res;
+}
+
+impl NaIRGenTypes._emit_optional_eq(
+    op: str, left: ir.Value, right: ir.Value, is_float: bool, lty: any, rty: any
+) -> (ir.Value | None) {
+    if lty is None or rty is None {
+        raise AssertionError(
+            f"native codegen: optional equality needs both operand types "
+            f"(got {lty}, {rty}) at {self._na_loc()}"
+        );
+    }
+    i1 = ir.IntType(1);
+    i8 = ir.IntType(8);
+    _lp = self._opt_payload_of(left.type);
+    _rp = self._opt_payload_of(right.type);
+    _lpt = self._tb_opt_payload(lty);
+    _rpt = self._tb_opt_payload(rty);
+    func = self.builder.basic_block.function;
+    if _lp is not None and _rp is not None {
+        if str(_lp) != str(_rp) {
+            return None;
+        }
+        ltag = self.builder.extract_value(left, 0, name="opt.eq.ltag");
+        rtag = self.builder.extract_value(right, 0, name="opt.eq.rtag");
+        lset = self.builder.icmp_signed(
+            "!=", ltag, ir.Constant(i8, 0), name="opt.eq.lset"
+        );
+        rset = self.builder.icmp_signed(
+            "!=", rtag, ir.Constant(i8, 0), name="opt.eq.rset"
+        );
+        both_set = self.builder.and_(lset, rset, name="opt.eq.bothset");
+        both_none = self.builder.and_(
+            self.builder.not_(lset, name="opt.eq.lnone"),
+            self.builder.not_(rset, name="opt.eq.rnone"),
+            name="opt.eq.bothnone"
+        );
+        entry_bb = self.builder.basic_block;
+        pay_bb = func.append_basic_block(name="opt.eq.payload");
+        merge_bb = func.append_basic_block(name="opt.eq.done");
+        self.builder.cbranch(both_set, pay_bb, merge_bb);
+        self.builder.position_at_start(pay_bb);
+        pl = self.builder.extract_value(left, 1, name="opt.eq.lpayload");
+        pr = self.builder.extract_value(right, 1, name="opt.eq.rpayload");
+        pcmp = self._emit_comparison(Tok.EE, pl, pr, is_float, _lpt, _rpt);
+        if pcmp is None {
+            return None;
+        }
+        pay_end = self.builder.basic_block;
+        self.builder.branch(merge_bb);
+        self.builder.position_at_start(merge_bb);
+        res = self.builder.phi(i1, name="opt.eq.res");
+        res.add_incoming(both_none, entry_bb);
+        res.add_incoming(pcmp, pay_end);
+        if op == Tok.NE {
+            return self.builder.not_(res, name="opt.eq.ne");
+        }
+        return res;
+    }
+    opt_v = left if _lp is not None else right;
+    pt = _lp if _lp is not None else _rp;
+    other = right if _lp is not None else left;
+    _opt_pt = _lpt if _lp is not None else _rpt;
+    _other_ty = rty if _lp is not None else lty;
+    tag = self.builder.extract_value(opt_v, 0, name="opt.eq.tag");
+    tag_set = self.builder.icmp_signed(
+        "!=", tag, ir.Constant(i8, 0), name="opt.eq.set"
+    );
+    _other_is_none = self._tb_kind(_other_ty) == "none";
+    if _other_is_none {
+        if op == Tok.NE {
+            return tag_set;
+        }
+        return self.builder.not_(tag_set, name="opt.eq.isnone");
+    }
+    entry_bb = self.builder.basic_block;
+    pay_bb = func.append_basic_block(name="opt.eq.payload");
+    merge_bb = func.append_basic_block(name="opt.eq.done");
+    self.builder.cbranch(tag_set, pay_bb, merge_bb);
+    self.builder.position_at_start(pay_bb);
+    pv = self.builder.extract_value(opt_v, 1, name="opt.eq.payloadval");
+    ov = self._coerce_type(other, pt, _other_ty);
+    pcmp = self._emit_comparison(
+        Tok.EE,
+        pv if _lp is not None else ov,
+        ov if _lp is not None else pv,
+        is_float,
+        _opt_pt if _lp is not None else _other_ty,
+        _other_ty if _lp is not None else _opt_pt
+    );
+    if pcmp is None {
+        return None;
+    }
+    pay_end = self.builder.basic_block;
+    self.builder.branch(merge_bb);
+    self.builder.position_at_start(merge_bb);
+    res = self.builder.phi(i1, name="opt.eq.res");
+    res.add_incoming(ir.Constant(i1, 0), entry_bb);
+    res.add_incoming(pcmp, pay_end);
+    if op == Tok.NE {
+        return self.builder.not_(res, name="opt.eq.ne");
+    }
+    return res;
+}
+
+impl NaIRGenTypes._is_jacval_ty(t: ir.Type) -> bool {
+    if not self?.jacval_type {
+        return False;
+    }
+    return isinstance(t, ir.IdentifiedStructType) and t.name == self.jacval_type.name;
+}
+
+impl NaIRGenTypes._is_jacval_boxable(t: ir.Type) -> bool {
+    if self._is_jacval_ty(t) {
+        return True;
+    }
+    if isinstance(t, (ir.IntType, ir.DoubleType, ir.PointerType)) {
+        return True;
+    }
+    _sd = self._str_desc_ty;
+    return (
+        _sd is not None
+        and isinstance(t, ir.IdentifiedStructType)
+        and t.name == _sd.name
+    );
+}
+
+impl NaIRGenTypes._emit_jacval_ordering(
+    op: str, jv: ir.Value, peer: ir.Value, jv_on_left: bool
+) -> (ir.Value | None) {
+    i8 = ir.IntType(8);
+    i64 = ir.IntType(64);
+    _dbl = ir.DoubleType();
+    _sym = {Tok.LT: "<", Tok.GT: ">", Tok.LTE: "<=", Tok.GTE: ">="}.get(op, "<");
+    _tag = self.builder.extract_value(jv, 0, name="jv.ord.tag");
+    _pay = self.builder.extract_value(jv, 1, name="jv.ord.pay");
+    _is_flt = self.builder.icmp_signed(
+        "==", _tag, ir.Constant(i8, 1), name="jv.ord.isflt"
+    );
+    _is_int = self.builder.icmp_signed(
+        "==", _tag, ir.Constant(i8, 0), name="jv.ord.isint"
+    );
+    _is_bool = self.builder.icmp_signed(
+        "==", _tag, ir.Constant(i8, 7), name="jv.ord.isbool"
+    );
+    _numeric = self.builder.or_(
+        _is_flt,
+        self.builder.or_(_is_int, _is_bool, name="jv.ord.intish"),
+        name="jv.ord.num"
+    );
+    self._emit_runtime_raise(
+        self.builder.not_(_numeric, name="jv.ord.bad"),
+        "TypeError",
+        f"'{_sym}' not supported between these operand types"
+    );
+    _jv_f = self.builder.select(
+        _is_flt,
+        self.builder.bitcast(_pay, _dbl, name="jv.ord.f.bits"),
+        self.builder.sitofp(_pay, _dbl, name="jv.ord.f.conv"),
+        name="jv.ord.f"
+    );
+    if isinstance(peer.type, ir.DoubleType) {
+        _fl = _jv_f if jv_on_left else peer;
+        _fr = peer if jv_on_left else _jv_f;
+        return self._emit_scalar_cmp(op, _fl, _fr, True);
+    }
+    _peer_i = self._coerce_type(peer, i64);
+    _peer_f = self.builder.sitofp(_peer_i, _dbl, name="jv.ord.peer.f");
+    _il = _pay if jv_on_left else _peer_i;
+    _ir_ = _peer_i if jv_on_left else _pay;
+    _int_res = self._emit_scalar_cmp(op, _il, _ir_, False);
+    _ml = _jv_f if jv_on_left else _peer_f;
+    _mr = _peer_f if jv_on_left else _jv_f;
+    _flt_res = self._emit_scalar_cmp(op, _ml, _mr, True);
+    if _int_res is None or _flt_res is None {
+        return None;
+    }
+    return self.builder.select(_is_flt, _flt_res, _int_res, name="jv.ord.res");
+}
+
+impl NaIRGenTypes._emit_scalar_cmp(
+    op: str, left: ir.Value, right: ir.Value, is_float: bool
+) -> (ir.Value | None) {
+    if is_float {
+        if op == Tok.NE {
+            return self.builder.fcmp_unordered("!=", left, right, name="fcmp");
+        }
+        fcmp_map: dict[(str, str)] = {
+            Tok.EE: "==",
+            Tok.LT: "<",
+            Tok.GT: ">",
+            Tok.LTE: "<=",
+            Tok.GTE: ">="
+        };
+        if op in fcmp_map {
+            return self.builder.fcmp_ordered(fcmp_map[op], left, right, name="fcmp");
+        }
+        return None;
+    }
+    icmp_map: dict[(str, str)] = {
+        Tok.EE: "==",
+        Tok.NE: "!=",
+        Tok.LT: "<",
+        Tok.GT: ">",
+        Tok.LTE: "<=",
+        Tok.GTE: ">="
+    };
+    if op not in icmp_map {
+        return None;
+    }
+    if not isinstance(left.type, ir.IntType)
+        or not isinstance(right.type, ir.IntType) {
+        raise AssertionError(
+            f"native codegen: integer comparison {op} on {left.type} and "
+            f"{right.type} at {self._na_loc()}"
+        );
+    }
+    if left.type.width < right.type.width {
+        left = self.builder.sext(left, right.type, name="sext.l");
+    } elif right.type.width < left.type.width {
+        right = self.builder.sext(right, left.type, name="sext.r");
+    }
+    return self.builder.icmp_signed(icmp_map[op], left, right, name="icmp");
+}
+
+impl NaIRGenTypes._emit_mixed_jacval_comparison(
+    op: str, left: ir.Value, right: ir.Value, lty: any, rty: any
+) -> (ir.Value | None) {
+    if lty is None or rty is None {
+        raise AssertionError(
+            f"native codegen: mixed tagged comparison needs both operand types "
+            f"(got {lty}, {rty}) at {self._na_loc()}"
+        );
+    }
+    _left_boxed = self._is_jacval_ty(left.type);
+    _peer = right.type if _left_boxed else left.type;
+    _peer_ty = rty if _left_boxed else lty;
+    _peer_numeric = self._tb_payload_kind(_peer_ty) in ("int", "float", "bool", "enum");
+    if op in (Tok.EE, Tok.NE) and self._is_jacval_boxable(_peer) {
+        if _left_boxed {
+            right = self._coerce_type(right, self.jacval_type, rty);
+        } else {
+            left = self._coerce_type(left, self.jacval_type, lty);
+        }
+        _mx_res = self._emit_jacval_eq(left, right);
+        if op == Tok.NE {
+            return self.builder.not_(_mx_res, name="jv.mixed.ne");
+        }
+        return _mx_res;
+    }
+    if op in (Tok.LT, Tok.GT, Tok.LTE, Tok.GTE) and _peer_numeric {
+        return self._emit_jacval_ordering(
+            op,
+            left if _left_boxed else right,
+            right if _left_boxed else left,
+            _left_boxed
+        );
+    }
+    self.emit(
+        E5090,
+        kind="comparison",
+        name=f"tagged `any` value against {_peer}",
+        help_text="The element type of this container could not be inferred, so its values are stored as tagged `any`. Annotate the container (for example `list[int]`) so both sides of the comparison lower to the same representation."
+    );
+    return None;
+}
+
+impl NaIRGenTypes._emit_comparison(
+    op: str, left: ir.Value, right: ir.Value, is_float: bool, lty: any, rty: any
+) -> (ir.Value | None) {
+    if lty is None or rty is None {
+        raise AssertionError(
+            f"native codegen: comparison {op} needs both operand types "
+            f"(got {lty}, {rty}) at {self._na_loc()}"
+        );
+    }
+    _lk = self._tb_kind(lty);
+    _rk = self._tb_kind(rty);
+    if _lk == "enum" and self._enum_value_is_text(lty) {
+        _lk = "str";
+    }
+    if _rk == "enum" and self._enum_value_is_text(rty) {
+        _rk = "str";
+    }
+    _l_opt = self._opt_payload_of(left.type);
+    _r_opt = self._opt_payload_of(right.type);
+    _l_jv = self._is_jacval_ty(left.type);
+    _r_jv = self._is_jacval_ty(right.type);
+    _tagged = ("any", "union", "unknown", "typevar", "optional");
+    _l_dyn = _l_jv and _lk in _tagged;
+    _r_dyn = _r_jv and _rk in _tagged;
+    if (_l_jv and not _l_dyn) or (_r_jv and not _r_dyn) {
+        raise AssertionError(
+            f"native codegen: comparison {op} on tagged values whose checker "
+            f"types are {_lk} and {_rk} at {self._na_loc()}"
+        );
+    }
+    _both_any = _l_dyn and _r_dyn;
+    _mixed_any = _l_dyn != _r_dyn and _l_opt is None and _r_opt is None;
+    _has_opt = (_lk == "optional" and _l_opt is not None)
+        or (_rk == "optional" and _r_opt is not None);
+    _str_cmp = _lk == "str" and _rk == "str";
+    _tuple_cmp = _lk == "tuple" and _rk == "tuple";
+    _bytes_cmp = _lk == "bytes" and _rk == "bytes";
+    _list_cmp = _lk == "list" and _rk == "list";
+    _set_cmp = _lk == "set" and _rk == "set";
+    _range_cmp = _lk == "range" and _rk == "range";
+    _complex_cmp = _lk == "complex" and _rk == "complex";
+    is_float = is_float or _lk == "float" or _rk == "float";
+    if _both_any and op in (Tok.EE, Tok.NE) {
+        _jv_res = self._emit_jacval_eq(left, right);
+        if op == Tok.NE {
+            return self.builder.not_(_jv_res, name="jv.ne");
+        }
+        return _jv_res;
+    }
+    if _mixed_any {
+        return self._emit_mixed_jacval_comparison(op, left, right, lty, rty);
+    }
+    if _has_opt {
+        if op in (Tok.EE, Tok.NE) {
+            return self._emit_optional_eq(op, left, right, is_float, lty, rty);
+        }
+        if _l_opt is not None {
+            left = self._coerce_type(left, _l_opt, lty);
+            lty = self._tb_opt_payload(lty);
+        }
+        if _r_opt is not None {
+            right = self._coerce_type(right, _r_opt, rty);
+            rty = self._tb_opt_payload(rty);
+        }
+        return self._emit_comparison(op, left, right, is_float, lty, rty);
+    }
+    _dty = self._str_desc_ty;
+    if _str_cmp
+        and _dty is not None
+        and (left.type == _dty or right.type == _dty)
+        and op in (Tok.EE, Tok.NE, Tok.LT, Tok.GT, Tok.LTE, Tok.GTE) {
+        _lp = self._str_cmp_parts_of(left);
+        _rp = self._str_cmp_parts_of(right);
+        if _lp is not None and _rp is not None {
+            _sc3 = self._call_str_cmp3(self.builder, _lp[0], _lp[1], _rp[0], _rp[1]);
+            _z32c = ir.Constant(ir.IntType(32), 0);
+            _cmp_op = {
+                Tok.EE: "==",
+                Tok.NE: "!=",
+                Tok.LT: "<",
+                Tok.GT: ">",
+                Tok.LTE: "<=",
+                Tok.GTE: ">="
+            }[op];
+            return self.builder.icmp_signed(_cmp_op, _sc3, _z32c, name="scmp3");
+        }
+    }
+    left = self._str_norm(left);
+    right = self._str_norm(right);
+    _l_is_tval = isinstance(left.type, ir.LiteralStructType);
+    _r_is_tval = isinstance(right.type, ir.LiteralStructType);
+    _l_is_tptr = isinstance(left.type, ir.PointerType)
+        and isinstance(left.type.pointee, ir.LiteralStructType);
+    _r_is_tptr = isinstance(right.type, ir.PointerType)
+        and isinstance(right.type.pointee, ir.LiteralStructType);
+    if _tuple_cmp and (_l_is_tval or _r_is_tval or _l_is_tptr or _r_is_tptr) {
+        tcmp_struct: (ir.LiteralStructType | None) = None;
+        tcmp_left_val: (ir.Value | None) = None;
+        tcmp_right_val: (ir.Value | None) = None;
+        if _l_is_tval and _r_is_tval and str(left.type) == str(right.type) {
+            tcmp_struct = left.type;
+            tcmp_left_val = left;
+            tcmp_right_val = right;
+        } elif _l_is_tptr
+            and _r_is_tptr
+            and str(left.type.pointee) == str(right.type.pointee) {
+            tcmp_struct = left.type.pointee;
+            tcmp_left_val = self.builder.load(left, name="tcmp.l.val");
+            tcmp_right_val = self.builder.load(right, name="tcmp.r.val");
+        } elif _l_is_tval
+            and _r_is_tptr
+            and str(left.type) == str(right.type.pointee) {
+            tcmp_struct = left.type;
+            tcmp_left_val = left;
+            tcmp_right_val = self.builder.load(right, name="tcmp.r.val");
+        } elif _r_is_tval
+            and _l_is_tptr
+            and str(right.type) == str(left.type.pointee) {
+            tcmp_struct = right.type;
+            tcmp_left_val = self.builder.load(left, name="tcmp.l.val");
+            tcmp_right_val = right;
+        }
+        if tcmp_struct is not None
+            and tcmp_left_val is not None
+            and tcmp_right_val is not None {
+            n = len(tcmp_struct.elements);
+            i1_t = ir.IntType(1);
+            if op == Tok.EE or op == Tok.NE {
+                result = ir.Constant(i1_t, 1);
+                for i in range(n) {
+                    ea = self.builder.extract_value(
+                        tcmp_left_val, i, name=f"tcmp.ea.{i}"
+                    );
+                    eb = self.builder.extract_value(
+                        tcmp_right_val, i, name=f"tcmp.eb.{i}"
+                    );
+                    if isinstance(ea.type, ir.IntType) {
+                        eq_i = self.builder.icmp_signed(
+                            "==", ea, eb, name=f"tcmp.eq.{i}"
+                        );
+                    } elif isinstance(ea.type, ir.DoubleType) {
+                        eq_i = self.builder.fcmp_ordered(
+                            "==", ea, eb, name=f"tcmp.eq.{i}"
+                        );
+                    } else {
+                        tcmp_sc = self._call_str_cmp(
+                            self.builder, ea, eb, name=f"tcmp.sc.{i}"
+                        );
+                        eq_i = self.builder.icmp_signed(
+                            "==",
+                            tcmp_sc,
+                            ir.Constant(ir.IntType(32), 0),
+                            name=f"tcmp.eq.{i}"
+                        );
+                    }
+                    result = self.builder.and_(result, eq_i, name=f"tcmp.all.{i}");
+                }
+                if op == Tok.NE {
+                    return self.builder.not_(result, name="tcmp.ne");
+                }
+                return result;
+            }
+            if op in (Tok.LT, Tok.GT, Tok.LTE, Tok.GTE) and n > 0 {
+                func = self.builder.basic_block.function;
+                tcmp_true_bb = func.append_basic_block(name="tcmp.lex.true");
+                tcmp_false_bb = func.append_basic_block(name="tcmp.lex.false");
+                tcmp_done_bb = func.append_basic_block(name="tcmp.lex.done");
+                for i in range(n) {
+                    ea = self.builder.extract_value(
+                        tcmp_left_val, i, name=f"tcmp.lex.ea.{i}"
+                    );
+                    eb = self.builder.extract_value(
+                        tcmp_right_val, i, name=f"tcmp.lex.eb.{i}"
+                    );
+                    if isinstance(ea.type, ir.IntType) {
+                        lt_i = self.builder.icmp_signed(
+                            "<", ea, eb, name=f"tcmp.lt.{i}"
+                        );
+                        gt_i = self.builder.icmp_signed(
+                            ">", ea, eb, name=f"tcmp.gt.{i}"
+                        );
+                    } elif isinstance(ea.type, ir.DoubleType) {
+                        lt_i = self.builder.fcmp_ordered(
+                            "<", ea, eb, name=f"tcmp.lt.{i}"
+                        );
+                        gt_i = self.builder.fcmp_ordered(
+                            ">", ea, eb, name=f"tcmp.gt.{i}"
+                        );
+                    } else {
+                        tcmp_sc2 = self._call_str_cmp(
+                            self.builder, ea, eb, name=f"tcmp.lex.sc.{i}"
+                        );
+                        tcmp_z32 = ir.Constant(ir.IntType(32), 0);
+                        lt_i = self.builder.icmp_signed(
+                            "<", tcmp_sc2, tcmp_z32, name=f"tcmp.lt.{i}"
+                        );
+                        gt_i = self.builder.icmp_signed(
+                            ">", tcmp_sc2, tcmp_z32, name=f"tcmp.gt.{i}"
+                        );
+                    }
+                    next_bb = func.append_basic_block(name=f"tcmp.lex.next.{i}");
+                    if op == Tok.LT or op == Tok.LTE {
+                        self.builder.cbranch(lt_i, tcmp_true_bb, next_bb);
+                        self.builder.position_at_start(next_bb);
+                        next2_bb = func.append_basic_block(name=f"tcmp.lex.eq.{i}");
+                        self.builder.cbranch(gt_i, tcmp_false_bb, next2_bb);
+                        self.builder.position_at_start(next2_bb);
+                    } else {
+                        self.builder.cbranch(gt_i, tcmp_true_bb, next_bb);
+                        self.builder.position_at_start(next_bb);
+                        next2_bb = func.append_basic_block(name=f"tcmp.lex.eq.{i}");
+                        self.builder.cbranch(lt_i, tcmp_false_bb, next2_bb);
+                        self.builder.position_at_start(next2_bb);
+                    }
+                }
+                if op == Tok.LTE or op == Tok.GTE {
+                    self.builder.branch(tcmp_true_bb);
+                } else {
+                    self.builder.branch(tcmp_false_bb);
+                }
+                self.builder.position_at_start(tcmp_true_bb);
+                self.builder.branch(tcmp_done_bb);
+                self.builder.position_at_start(tcmp_false_bb);
+                self.builder.branch(tcmp_done_bb);
+                self.builder.position_at_start(tcmp_done_bb);
+                tcmp_res = self.builder.phi(i1_t, name="tcmp.lex.res");
+                tcmp_res.add_incoming(ir.Constant(i1_t, 1), tcmp_true_bb);
+                tcmp_res.add_incoming(ir.Constant(i1_t, 0), tcmp_false_bb);
+                return tcmp_res;
+            }
+        }
+    }
+
+    if isinstance(left.type, ir.PointerType)
+        and isinstance(right.type, ir.PointerType) {
+        i8_ptr = ir.IntType(8).as_pointer();
+
+        if _bytes_cmp {
+            if op == Tok.EE or op == Tok.NE {
+                return self._emit_bytes_eq(left, right, negate=op == Tok.NE);
+            }
+            if op in (Tok.LT, Tok.GT, Tok.LTE, Tok.GTE) {
+                _sym = "<"
+                    if op == Tok.LT
+                    else (">" if op == Tok.GT else ("<=" if op == Tok.LTE else ">="));
+                _ord = self._emit_bytes_cmp(left, right, _sym);
+                _zero = ir.Constant(ir.IntType(32), 0);
+                if op == Tok.LT {
+                    return self.builder.icmp_signed("<", _ord, _zero, name="by.lt");
+                }
+                if op == Tok.GT {
+                    return self.builder.icmp_signed(">", _ord, _zero, name="by.gt");
+                }
+                if op == Tok.LTE {
+                    return self.builder.icmp_signed("<=", _ord, _zero, name="by.lte");
+                }
+                return self.builder.icmp_signed(">=", _ord, _zero, name="by.gte");
+            }
+        }
+
+        if _str_cmp {
+            if left.type != i8_ptr or right.type != i8_ptr {
+                raise AssertionError(
+                    f"native codegen: str comparison on {left.type} and "
+                    f"{right.type} at {self._na_loc()}"
+                );
+            }
+            cmp_result = self._call_str_cmp(self.builder, left, right, name="strcmp");
+            zero = ir.Constant(ir.IntType(32), 0);
+            if op == Tok.EE or op == Tok.NE {
+                _sym = "==" if op == Tok.EE else "!=";
+                _nm = "streq" if op == Tok.EE else "strne";
+                return self.builder.icmp_signed(_sym, cmp_result, zero, name=_nm);
+            }
+            if op == Tok.LT {
+                return self.builder.icmp_signed("<", cmp_result, zero, name="strlt");
+            } elif op == Tok.GT {
+                return self.builder.icmp_signed(">", cmp_result, zero, name="strgt");
+            } elif op == Tok.LTE {
+                return self.builder.icmp_signed("<=", cmp_result, zero, name="strle");
+            } elif op == Tok.GTE {
+                return self.builder.icmp_signed(">=", cmp_result, zero, name="strge");
+            }
+            return None;
+        }
+
+        if _list_cmp {
+            lcmp_key = self._tb_spec_key(lty, ("list", "Sequence"), self.list_types);
+            _rcmp_key = self._tb_spec_key(rty, ("list", "Sequence"), self.list_types);
+            lcmp_h = self.list_helpers.get(lcmp_key) if lcmp_key is not None else None;
+            if lcmp_h is None or lcmp_key != _rcmp_key {
+                self.emit(
+                    E5092,
+                    node_override=self.cur_node,
+                    kind="comparison",
+                    name=f"{op} on {self._mangled_of(lty)} and {self._mangled_of(rty)}",
+                    help_text="Both lists must share one native element layout to be compared natively; annotate them with the same element type."
+                );
+                return None;
+            }
+            _lcmp_ptr = self.list_types[lcmp_key].as_pointer();
+            left = self._coerce_type(left, _lcmp_ptr, lty);
+            right = self._coerce_type(right, _lcmp_ptr, rty);
+            i64 = ir.IntType(64);
+            i1_t = ir.IntType(1);
+            lcmp_la = self.builder.call(lcmp_h["len"], [left], name="lcmp.la");
+            lcmp_lb = self.builder.call(lcmp_h["len"], [right], name="lcmp.lb");
+            func = self.builder.basic_block.function;
+            lcmp_entry_bb = self.builder.basic_block;
+            lcmp_et = lcmp_h["elem_type"];
+            if op == Tok.EE or op == Tok.NE {
+                lcmp_len_eq = self.builder.icmp_unsigned(
+                    "==", lcmp_la, lcmp_lb, name="lcmp.leq"
+                );
+                lcmp_chk_bb = func.append_basic_block(name="lcmp.eq.chk");
+                lcmp_false_bb = func.append_basic_block(name="lcmp.eq.false");
+                lcmp_loop_bb = func.append_basic_block(name="lcmp.eq.loop");
+                lcmp_body_bb = func.append_basic_block(name="lcmp.eq.body");
+                lcmp_ne_bb = func.append_basic_block(name="lcmp.eq.ne");
+                lcmp_next_bb = func.append_basic_block(name="lcmp.eq.next");
+                lcmp_done_bb = func.append_basic_block(name="lcmp.eq.done");
+                self.builder.cbranch(lcmp_len_eq, lcmp_chk_bb, lcmp_false_bb);
+                self.builder.position_at_start(lcmp_chk_bb);
+                self.builder.branch(lcmp_loop_bb);
+                self.builder.position_at_start(lcmp_loop_bb);
+                lcmp_i = self.builder.phi(i64, name="lcmp.eq.i");
+                lcmp_i.add_incoming(ir.Constant(i64, 0), lcmp_chk_bb);
+                lcmp_iend = self.builder.icmp_unsigned(
+                    ">=", lcmp_i, lcmp_la, name="lcmp.eq.iend"
+                );
+                self.builder.cbranch(lcmp_iend, lcmp_done_bb, lcmp_body_bb);
+                self.builder.position_at_start(lcmp_body_bb);
+                lcmp_ea = self.builder.call(
+                    lcmp_h["get"], [left, lcmp_i], name="lcmp.ea"
+                );
+                lcmp_eb = self.builder.call(
+                    lcmp_h["get"], [right, lcmp_i], name="lcmp.eb"
+                );
+                if isinstance(lcmp_et, ir.IntType) {
+                    lcmp_elem_ne = self.builder.icmp_signed(
+                        "!=", lcmp_ea, lcmp_eb, name="lcmp.ene"
+                    );
+                } elif isinstance(lcmp_et, ir.DoubleType) {
+                    lcmp_elem_ne = self.builder.fcmp_ordered(
+                        "!=", lcmp_ea, lcmp_eb, name="lcmp.ene"
+                    );
+                } elif self?.jacval_type and lcmp_et == self.jacval_type {
+                    lcmp_elem_ne = self.builder.not_(
+                        self._emit_jacval_eq(lcmp_ea, lcmp_eb), name="lcmp.ene"
+                    );
+                } else {
+                    lcmp_scmp = self._call_str_cmp(
+                        self.builder, lcmp_ea, lcmp_eb, name="lcmp.scmp"
+                    );
+                    lcmp_elem_ne = self.builder.icmp_signed(
+                        "!=", lcmp_scmp, ir.Constant(ir.IntType(32), 0), name="lcmp.ene"
+                    );
+                }
+                self.builder.cbranch(lcmp_elem_ne, lcmp_ne_bb, lcmp_next_bb);
+                self.builder.position_at_start(lcmp_ne_bb);
+                self.builder.branch(lcmp_false_bb);
+                self.builder.position_at_start(lcmp_next_bb);
+                lcmp_ni = self.builder.add(lcmp_i, ir.Constant(i64, 1), name="lcmp.ni");
+                lcmp_i.add_incoming(lcmp_ni, lcmp_next_bb);
+                self.builder.branch(lcmp_loop_bb);
+                self.builder.position_at_start(lcmp_false_bb);
+                self.builder.branch(lcmp_done_bb);
+                self.builder.position_at_start(lcmp_done_bb);
+                lcmp_result = self.builder.phi(i1_t, name="lcmp.eq.result");
+                lcmp_result.add_incoming(ir.Constant(i1_t, 1), lcmp_loop_bb);
+                lcmp_result.add_incoming(ir.Constant(i1_t, 0), lcmp_false_bb);
+                if op == Tok.NE {
+                    return self.builder.not_(lcmp_result, name="lcmp.ne");
+                }
+                return lcmp_result;
+            }
+
+            if op in (Tok.LT, Tok.GT, Tok.LTE, Tok.GTE) {
+                if self?.jacval_type and lcmp_et == self.jacval_type {
+                    self.emit(
+                        E5092,
+                        kind="comparison",
+                        name="ordering on tagged-element lists"
+                    );
+                    return None;
+                }
+                lcmp_lt_len = self.builder.icmp_unsigned(
+                    "<", lcmp_la, lcmp_lb, name="lcmp.lex.ltl"
+                );
+                lcmp_min = self.builder.select(
+                    lcmp_lt_len, lcmp_la, lcmp_lb, name="lcmp.min"
+                );
+                lcmp_lex_loop = func.append_basic_block(name="lcmp.lex.loop");
+                lcmp_lex_body = func.append_basic_block(name="lcmp.lex.body");
+                lcmp_lex_lbody = func.append_basic_block(name="lcmp.lex.lbody");
+                lcmp_lex_next = func.append_basic_block(name="lcmp.lex.next");
+                lcmp_lex_after = func.append_basic_block(name="lcmp.lex.after");
+                lcmp_lex_true = func.append_basic_block(name="lcmp.lex.true");
+                lcmp_lex_false = func.append_basic_block(name="lcmp.lex.false");
+                lcmp_lex_done = func.append_basic_block(name="lcmp.lex.done");
+                self.builder.branch(lcmp_lex_loop);
+                self.builder.position_at_start(lcmp_lex_loop);
+                lcmp_li = self.builder.phi(i64, name="lcmp.lex.i");
+                lcmp_li.add_incoming(ir.Constant(i64, 0), lcmp_entry_bb);
+                lcmp_lend = self.builder.icmp_unsigned(
+                    ">=", lcmp_li, lcmp_min, name="lcmp.lex.lend"
+                );
+                self.builder.cbranch(lcmp_lend, lcmp_lex_after, lcmp_lex_body);
+                self.builder.position_at_start(lcmp_lex_body);
+                lcmp_lea = self.builder.call(
+                    lcmp_h["get"], [left, lcmp_li], name="lcmp.lex.ea"
+                );
+                lcmp_leb = self.builder.call(
+                    lcmp_h["get"], [right, lcmp_li], name="lcmp.lex.eb"
+                );
+                if isinstance(lcmp_et, ir.IntType) {
+                    lcmp_lex_lt = self.builder.icmp_signed(
+                        "<", lcmp_lea, lcmp_leb, name="lcmp.lex.lt"
+                    );
+                    lcmp_lex_gt = self.builder.icmp_signed(
+                        ">", lcmp_lea, lcmp_leb, name="lcmp.lex.gt"
+                    );
+                } elif isinstance(lcmp_et, ir.DoubleType) {
+                    lcmp_lex_lt = self.builder.fcmp_ordered(
+                        "<", lcmp_lea, lcmp_leb, name="lcmp.lex.lt"
+                    );
+                    lcmp_lex_gt = self.builder.fcmp_ordered(
+                        ">", lcmp_lea, lcmp_leb, name="lcmp.lex.gt"
+                    );
+                } else {
+                    lcmp_scmp2 = self._call_str_cmp(
+                        self.builder, lcmp_lea, lcmp_leb, name="lcmp.lex.sc"
+                    );
+                    lcmp_zero32 = ir.Constant(ir.IntType(32), 0);
+                    lcmp_lex_lt = self.builder.icmp_signed(
+                        "<", lcmp_scmp2, lcmp_zero32, name="lcmp.lex.lt"
+                    );
+                    lcmp_lex_gt = self.builder.icmp_signed(
+                        ">", lcmp_scmp2, lcmp_zero32, name="lcmp.lex.gt"
+                    );
+                }
+
+                if op == Tok.LT or op == Tok.LTE {
+                    self.builder.cbranch(lcmp_lex_lt, lcmp_lex_true, lcmp_lex_lbody);
+                    self.builder.position_at_start(lcmp_lex_lbody);
+                    self.builder.cbranch(lcmp_lex_gt, lcmp_lex_false, lcmp_lex_next);
+                } else {
+                    self.builder.cbranch(lcmp_lex_gt, lcmp_lex_true, lcmp_lex_lbody);
+                    self.builder.position_at_start(lcmp_lex_lbody);
+                    self.builder.cbranch(lcmp_lex_lt, lcmp_lex_false, lcmp_lex_next);
+                }
+                self.builder.position_at_start(lcmp_lex_next);
+                lcmp_lni = self.builder.add(
+                    lcmp_li, ir.Constant(i64, 1), name="lcmp.lni"
+                );
+                lcmp_li.add_incoming(lcmp_lni, lcmp_lex_next);
+                self.builder.branch(lcmp_lex_loop);
+                self.builder.position_at_start(lcmp_lex_after);
+
+                if op == Tok.LT {
+                    lcmp_len_res = self.builder.icmp_unsigned(
+                        "<", lcmp_la, lcmp_lb, name="lcmp.llen"
+                    );
+                } elif op == Tok.GT {
+                    lcmp_len_res = self.builder.icmp_unsigned(
+                        ">", lcmp_la, lcmp_lb, name="lcmp.llen"
+                    );
+                } elif op == Tok.LTE {
+                    lcmp_len_res = self.builder.icmp_unsigned(
+                        "<=", lcmp_la, lcmp_lb, name="lcmp.llen"
+                    );
+                } else {
+                    lcmp_len_res = self.builder.icmp_unsigned(
+                        ">=", lcmp_la, lcmp_lb, name="lcmp.llen"
+                    );
+                }
+                self.builder.cbranch(lcmp_len_res, lcmp_lex_true, lcmp_lex_false);
+                self.builder.position_at_start(lcmp_lex_true);
+                self.builder.branch(lcmp_lex_done);
+                self.builder.position_at_start(lcmp_lex_false);
+                self.builder.branch(lcmp_lex_done);
+                self.builder.position_at_start(lcmp_lex_done);
+                lcmp_lex_res = self.builder.phi(i1_t, name="lcmp.lex.res");
+                lcmp_lex_res.add_incoming(ir.Constant(i1_t, 1), lcmp_lex_true);
+                lcmp_lex_res.add_incoming(ir.Constant(i1_t, 0), lcmp_lex_false);
+                return lcmp_lex_res;
+            }
+        }
+
+        if _set_cmp {
+            sk = self._tb_spec_key(lty, ("set", "frozenset"), self.set_types);
+            _rsk = self._tb_spec_key(rty, ("set", "frozenset"), self.set_types);
+            if sk is None or sk != _rsk {
+                self.emit(
+                    E5092,
+                    node_override=self.cur_node,
+                    kind="comparison",
+                    name=f"{op} on {self._mangled_of(lty)} and {self._mangled_of(rty)}",
+                    help_text="Both sets must share one native element layout to be compared natively; annotate them with the same element type."
+                );
+                return None;
+            }
+            _scmp_ptr = self.set_types[sk].as_pointer();
+            left = self._coerce_type(left, _scmp_ptr, lty);
+            right = self._coerce_type(right, _scmp_ptr, rty);
+            shelpers = self.set_helpers.get(sk);
+            if shelpers is not None {
+                self._ensure_emitters();
+                _ctx = self._native_emit_ctx_class(pass_ref=self, type_key=sk);
+                _se = self._native_emitters.get("set");
+                if _se is not None {
+                    i64 = ir.IntType(64);
+                    i1_t = ir.IntType(1);
+                    if op == Tok.LTE {
+                        sub_val = _se.emit_issubset(_ctx, left, [right]);
+                        return self.builder.icmp_unsigned(
+                            "!=", sub_val, ir.Constant(i64, 0), name="sle"
+                        );
+                    }
+                    if op == Tok.GTE {
+                        sub_val = _se.emit_issubset(_ctx, right, [left]);
+                        return self.builder.icmp_unsigned(
+                            "!=", sub_val, ir.Constant(i64, 0), name="sge"
+                        );
+                    }
+
+                    len_a = self.builder.call(shelpers["len"], [left], name="scmp.la");
+                    len_b = self.builder.call(shelpers["len"], [right], name="scmp.lb");
+                    if op == Tok.EE or op == Tok.NE {
+                        len_eq = self.builder.icmp_unsigned(
+                            "==", len_a, len_b, name="scmp.leq"
+                        );
+                        func = self.builder.basic_block.function;
+                        check_bb = func.append_basic_block(name="scmp.check");
+                        false_bb = func.append_basic_block(name="scmp.false");
+                        done_bb = func.append_basic_block(name="scmp.done");
+                        self.builder.cbranch(len_eq, check_bb, false_bb);
+                        self.builder.position_at_start(check_bb);
+                        sub_val = _se.emit_issubset(_ctx, left, [right]);
+                        after_bb = self.builder.basic_block;
+                        is_sub = self.builder.icmp_unsigned(
+                            "!=", sub_val, ir.Constant(i64, 0), name="scmp.issub"
+                        );
+                        self.builder.branch(done_bb);
+                        self.builder.position_at_start(false_bb);
+                        self.builder.branch(done_bb);
+                        self.builder.position_at_start(done_bb);
+                        result = self.builder.phi(i1_t, name="scmp.result");
+                        result.add_incoming(is_sub, after_bb);
+                        result.add_incoming(ir.Constant(i1_t, 0), false_bb);
+                        if op == Tok.NE {
+                            return self.builder.not_(result, name="scmp.ne");
+                        }
+                        return result;
+                    }
+                    if op == Tok.LT {
+                        len_lt = self.builder.icmp_unsigned(
+                            "<", len_a, len_b, name="slt.lcmp"
+                        );
+                        func = self.builder.basic_block.function;
+                        check_bb = func.append_basic_block(name="slt.check");
+                        false_bb = func.append_basic_block(name="slt.false");
+                        done_bb = func.append_basic_block(name="slt.done");
+                        self.builder.cbranch(len_lt, check_bb, false_bb);
+                        self.builder.position_at_start(check_bb);
+                        sub_val = _se.emit_issubset(_ctx, left, [right]);
+                        after_bb = self.builder.basic_block;
+                        is_sub = self.builder.icmp_unsigned(
+                            "!=", sub_val, ir.Constant(i64, 0), name="slt.issub"
+                        );
+                        self.builder.branch(done_bb);
+                        self.builder.position_at_start(false_bb);
+                        self.builder.branch(done_bb);
+                        self.builder.position_at_start(done_bb);
+                        result = self.builder.phi(i1_t, name="slt.result");
+                        result.add_incoming(is_sub, after_bb);
+                        result.add_incoming(ir.Constant(i1_t, 0), false_bb);
+                        return result;
+                    }
+                    if op == Tok.GT {
+                        len_gt = self.builder.icmp_unsigned(
+                            "<", len_b, len_a, name="sgt.lcmp"
+                        );
+                        func = self.builder.basic_block.function;
+                        check_bb = func.append_basic_block(name="sgt.check");
+                        false_bb = func.append_basic_block(name="sgt.false");
+                        done_bb = func.append_basic_block(name="sgt.done");
+                        self.builder.cbranch(len_gt, check_bb, false_bb);
+                        self.builder.position_at_start(check_bb);
+                        sub_val = _se.emit_issubset(_ctx, right, [left]);
+                        after_bb = self.builder.basic_block;
+                        is_sub = self.builder.icmp_unsigned(
+                            "!=", sub_val, ir.Constant(i64, 0), name="sgt.issub"
+                        );
+                        self.builder.branch(done_bb);
+                        self.builder.position_at_start(false_bb);
+                        self.builder.branch(done_bb);
+                        self.builder.position_at_start(done_bb);
+                        result = self.builder.phi(i1_t, name="sgt.result");
+                        result.add_incoming(is_sub, after_bb);
+                        result.add_incoming(ir.Constant(i1_t, 0), false_bb);
+                        return result;
+                    }
+                }
+            }
+        }
+
+        if _range_cmp and (op == Tok.EE or op == Tok.NE) {
+            i1_t = ir.IntType(1);
+            i32 = ir.IntType(32);
+            z0 = ir.Constant(i32, 0);
+
+            as_ = self.builder.load(
+                self.builder.gep(left, [z0, ir.Constant(i32, 0)], name="rcmp.as.p"),
+                name="rcmp.as"
+            );
+            bs_ = self.builder.load(
+                self.builder.gep(right, [z0, ir.Constant(i32, 0)], name="rcmp.bs.p"),
+                name="rcmp.bs"
+            );
+            ae = self.builder.load(
+                self.builder.gep(left, [z0, ir.Constant(i32, 1)], name="rcmp.ae.p"),
+                name="rcmp.ae"
+            );
+            be = self.builder.load(
+                self.builder.gep(right, [z0, ir.Constant(i32, 1)], name="rcmp.be.p"),
+                name="rcmp.be"
+            );
+            at = self.builder.load(
+                self.builder.gep(left, [z0, ir.Constant(i32, 2)], name="rcmp.at.p"),
+                name="rcmp.at"
+            );
+            bt = self.builder.load(
+                self.builder.gep(right, [z0, ir.Constant(i32, 2)], name="rcmp.bt.p"),
+                name="rcmp.bt"
+            );
+            seq = self.builder.icmp_signed("==", as_, bs_, name="rcmp.seq");
+            eeq = self.builder.icmp_signed("==", ae, be, name="rcmp.eeq");
+            teq = self.builder.icmp_signed("==", at, bt, name="rcmp.teq");
+            result = self.builder.and_(
+                seq, self.builder.and_(eeq, teq, name="rcmp.et"), name="rcmp.all"
+            );
+            if op == Tok.NE {
+                return self.builder.not_(result, name="rcmp.ne");
+            }
+            return result;
+        }
+
+        if _complex_cmp {
+            i1_t = ir.IntType(1);
+            i32 = ir.IntType(32);
+            z0 = ir.Constant(i32, 0);
+            z1 = ir.Constant(i32, 1);
+            ar = self.builder.load(
+                self.builder.gep(left, [z0, z0], name="ceq.ar.p"), name="ceq.ar"
+            );
+            ai = self.builder.load(
+                self.builder.gep(left, [z0, z1], name="ceq.ai.p"), name="ceq.ai"
+            );
+            br = self.builder.load(
+                self.builder.gep(right, [z0, z0], name="ceq.br.p"), name="ceq.br"
+            );
+            bi = self.builder.load(
+                self.builder.gep(right, [z0, z1], name="ceq.bi.p"), name="ceq.bi"
+            );
+            req = self.builder.fcmp_ordered("==", ar, br, name="ceq.r");
+            ieq = self.builder.fcmp_ordered("==", ai, bi, name="ceq.i");
+            result = self.builder.and_(req, ieq, name="ceq.both");
+            if op == Tok.EE {
+                return result;
+            } elif op == Tok.NE {
+                return self.builder.not_(result, name="ceq.ne");
+            }
+        }
+
+        if op == Tok.EE {
+            return self.builder.icmp_unsigned("==", left, right, name="ptreq");
+        } elif op == Tok.NE {
+            return self.builder.icmp_unsigned("!=", left, right, name="ptrne");
+        }
+        self.emit(
+            E5092,
+            node_override=self.cur_node,
+            kind="comparison",
+            name=f"{op} on {_lk} and {_rk} operands"
+        );
+        return None;
+    }
+    if is_float {
+        (left, right) = self._promote_to_float(left, right, lty, rty);
+    }
+    if is_float {
+        if op == Tok.NE {
+            return self.builder.fcmp_unordered("!=", left, right, name="fcmp");
+        }
+        fcmp_map: dict[(str, str)] = {
+            Tok.EE: "==",
+            Tok.LT: "<",
+            Tok.GT: ">",
+            Tok.LTE: "<=",
+            Tok.GTE: ">="
+        };
+        if op in fcmp_map {
+            return self.builder.fcmp_ordered(fcmp_map[op], left, right, name="fcmp");
+        }
+    } else {
+        icmp_map: dict[(str, str)] = {
+            Tok.EE: "==",
+            Tok.NE: "!=",
+            Tok.LT: "<",
+            Tok.GT: ">",
+            Tok.LTE: "<=",
+            Tok.GTE: ">="
+        };
+        if op in icmp_map {
+            _intish = ("int", "bool", "enum");
+            if _lk not in _intish or _rk not in _intish {
+                self.emit(
+                    E5092,
+                    node_override=self.cur_node,
+                    kind="comparison",
+                    name=f"{op} on {_lk} and {_rk} operands"
+                );
+                return None;
+            }
+            if not isinstance(left.type, ir.IntType)
+                or not isinstance(right.type, ir.IntType) {
+                raise AssertionError(
+                    f"native codegen: {op} on {_lk}/{_rk} operands lowered to "
+                    f"{left.type} and {right.type} at {self._na_loc()}"
+                );
+            }
+            (left, right) = self._unify_int_widths(left, right);
+            if left.type != right.type {
+                raise AssertionError(
+                    f"native codegen: comparison {op} on {lty}/{rty} operands "
+                    f"lowered to different integer widths {left.type} and "
+                    f"{right.type} at {self._na_loc()}"
+                );
+            }
+            if self._tb_unsigned(lty) or self._tb_unsigned(rty) {
+                return self.builder.icmp_unsigned(
+                    icmp_map[op], left, right, name="icmp"
+                );
+            }
+            return self.builder.icmp_signed(icmp_map[op], left, right, name="icmp");
+        }
+    }
+    return None;
+}
+
+impl NaIRGenTypes._lower_list_for_elem(elem_llvm: ir.Type) -> ir.Type {
+    _elem = elem_llvm;
+    if self._str_desc_ty is not None and _elem == self._str_desc_ty {
+        _elem = ir.IntType(8).as_pointer();
+    }
+    spec = "i64";
+    if isinstance(_elem, ir.DoubleType) {
+        spec = "f64";
+    } elif isinstance(_elem, ir.PointerType) {
+        spec = "ptr";
+    } elif self?.jacval_type and _elem == self.jacval_type {
+        spec = "jacval";
+    }
+    self._emit_list_helpers(spec, _elem);
+    return self.list_types[spec].as_pointer();
+}
