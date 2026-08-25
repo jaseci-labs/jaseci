@@ -252,34 +252,11 @@ impl NaIRGenCore._llvm_type_str(ty: ir.Type) -> str {
                 return "i8*";
             }
 
-            for (sname, stype) in self.struct_types.items() {
-                if ty.pointee == stype {
-                    return f"{sname}*";
-                }
+            if isinstance(ty.pointee, ir.IdentifiedStructType) {
+                return f"{ty.pointee.name}*";
             }
-
-            for (ename, ltype) in self.list_types.items() {
-                if ty.pointee == ltype {
-                    return f"List.{ename}*";
-                }
-            }
-
-            for (tkey, ttype) in self.tuple_types.items() {
-                if ty.pointee == ttype {
-                    return f"Tuple*";
-                }
-            }
-
-            for (dkey, dtype) in self.dict_types.items() {
-                if ty.pointee == dtype {
-                    return f"{dtype.name}*";
-                }
-            }
-
-            for (sekey, setype) in self.set_types.items() {
-                if ty.pointee == setype {
-                    return f"{setype.name}*";
-                }
+            if isinstance(ty.pointee, ir.LiteralStructType) {
+                return "Tuple*";
             }
         }
         return "ptr";
@@ -376,6 +353,7 @@ impl NaIRGenCore._export_native_layout -> None {
         );
     }
 
+    _tuple_key_by_shape: dict[str, str] = {};
     for (tkey, ttype) in self.tuple_types.items() {
         elem_types = [self._llvm_type_str(e) for e in ttype.elements];
         layout.tuples[tkey] = NativeTupleLayout(
@@ -383,6 +361,7 @@ impl NaIRGenCore._export_native_layout -> None {
             element_types=elem_types,
             element_struct_hints=[None] * len(elem_types)
         );
+        _tuple_key_by_shape[str(ttype)] = tkey;
     }
 
     _fn_types: dict[str, any] = {};
@@ -418,21 +397,19 @@ impl NaIRGenCore._export_native_layout -> None {
             ret_struct = self._struct_ptr_pointee_name(func.return_value);
 
             if ret_type.startswith("Tuple") {
-                for (tkey, ttype) in self.tuple_types.items() {
-                    if func.function_type.return_type.pointee == ttype {
-                        ret_tuple = layout.tuples.get(tkey);
-                        if ret_tuple is not None {
-                            hints = self._ret_tuple_hints(_ret_tb, ret_tuple);
-                            if hints is not None {
-                                ret_tuple = NativeTupleLayout(
-                                    key=ret_tuple.key,
-                                    element_types=ret_tuple.element_types,
-                                    element_struct_hints=hints
-                                );
-                                layout.tuples[tkey] = ret_tuple;
-                            }
-                        }
-                        break;
+                tkey = _tuple_key_by_shape.get(
+                    str(func.function_type.return_type.pointee)
+                );
+                ret_tuple = layout.tuples.get(tkey) if tkey is not None else None;
+                if ret_tuple is not None and tkey is not None {
+                    hints = self._ret_tuple_hints(_ret_tb, ret_tuple);
+                    if hints is not None {
+                        ret_tuple = NativeTupleLayout(
+                            key=ret_tuple.key,
+                            element_types=ret_tuple.element_types,
+                            element_struct_hints=hints
+                        );
+                        layout.tuples[tkey] = ret_tuple;
                     }
                 }
             }
