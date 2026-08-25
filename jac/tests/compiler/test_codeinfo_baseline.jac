@@ -83,6 +83,7 @@ glob CODEINFO_CLOSURE: tuple = (
          "compiler/type_registry.jac",
          "compiler/types/type_utils.jac",
          "compiler/types/types.jac",
+         "jac0core/host.jac",
          "runtime/na_stdlib/_hashlib_native.jac",
          "runtime/na_stdlib/contextvars.jac",
          "runtime/na_stdlib/fnmatch.jac",
@@ -97,6 +98,8 @@ glob CODEINFO_SEAMS: tuple = (
          "CodeGenTarget.doc_ir.__get__",
          "_func_layout_to_dict",
          "_inferred_native_path",
+         "cl_stdlib_root",
+         "clear_bun_host_decision_cache",
          "effective_default_codespace",
          "effective_native_closure_cap",
          "install_native_static_init",
@@ -106,6 +109,8 @@ glob CODEINFO_SEAMS: tuple = (
          "native_layout_to_dict",
          "native_stdlib_root",
          "native_wasm_stem",
+         "project_uses_bun_host",
+         "resolve_cl_module",
          "resolve_native_module"
      );
 

@@ -10,9 +10,7 @@ import from jaclang.jac0core.sv_service_host {
     resolve_sv_service_host,
     sv_host_env_key
 }
-import from jaclang.compiler.backends.es.backends.registry {
-    resolve_framework_backend
-}
+import from jaclang.compiler.backends.es.backends.registry { resolve_framework_backend }
 
 
 test "bun host provides NPM, JS_GLOBALS, and PERSIST but not DOM" {

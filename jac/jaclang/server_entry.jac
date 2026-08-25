@@ -59,9 +59,7 @@ def emit_server_entry(
     }
     (out_dir / 'server_runtime.js').write_text(runtime_js, encoding='utf-8');
 
-    import from jaclang.compiler.backends.es.jac_runtime_js {
-        build_jac_runtime_js
-    }
+    import from jaclang.compiler.backends.es.jac_runtime_js { build_jac_runtime_js }
     (out_dir / 'jac_runtime.js').write_text(
         f'const _jac = {build_jac_runtime_js()};\nexport {{ _jac }};\n',
         encoding='utf-8'

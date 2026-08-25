@@ -238,7 +238,6 @@ def clear_bun_host_decision_cache {
 }
 
 glob NATIVE_ERASED_FIELD_MARKERS: frozenset = frozenset({"field"}),
-     PASS_RIM_MODULE: str = "jaclang.compiler.passes.pass_rim",
      NATIVE_ERASED_IMPORTS: dict[str, frozenset] = {
          "abc": NATIVE_ERASED_ABC_BASES,
          "dataclasses": NATIVE_ERASED_FIELD_MARKERS,
@@ -330,9 +329,7 @@ def cl_stdlib_root -> (str | None) {
     if not jaclang?.__file__ {
         return None;
     }
-    stdlib_dir = os.path.join(
-        os.path.dirname(jaclang.__file__), "cl_stdlib"
-    );
+    stdlib_dir = os.path.join(os.path.dirname(jaclang.__file__), "cl_stdlib");
     return stdlib_dir if os.path.isdir(stdlib_dir) else None;
 }
 
@@ -347,13 +344,6 @@ def project_uses_bun_host(base_path: str = '') -> bool {
         import from jaclang.jac0core.host { resolve_project_host_kind, HOST_BUN }
         uses_bun = resolve_project_host_kind(base_path) == HOST_BUN;
     } except ImportError {
-        # Bootstrap-order guard, not a silent config fallback: codeinfo runs
-        # inside compiler schedules, so this import can execute while
-        # jaclang.jac0core.host itself is still being compiled/imported by
-        # the meta importer ('partially initialized module'). During
-        # self-boot there is no user project config, so False matches what
-        # a fully-loaded module would answer; NOT caching lets later calls
-        # recompute once the host module is bound.
         return False;
     }
     if key {
@@ -407,7 +397,7 @@ glob CLIENT_RUNTIME_SOURCE_PATHS: list[str] = [
          "client/solid_runtime.jac",
          "client/pwa_runtime.jac",
          "client/wasm_host.jac",
-         "server_runtime.jac",
+         "client/server_runtime.jac",
          "client/client_mobui.jac",
          "client/client_react_core.jac",
          "client/client_runtime_native.jac",

@@ -2,10 +2,7 @@ import from pathlib { Path }
 import hashlib;
 import from jaclang.jac0core.sv_service_host { resolve_sv_service_host }
 import from jaclang.jac0core.host { HOST_BUN, HOST_TEST }
-import from jaclang.test_sv_host {
-    prepare_test_sv_service,
-    get_test_adapter
-}
+import from jaclang.test_sv_host { prepare_test_sv_service, get_test_adapter }
 import from jaclang.bun_sv_spawn { spawn_bun_sv_service }
 import from jaclang.server { sv_client }
 
@@ -44,9 +41,7 @@ def dispatch_sv_service(
         spawn_port = port;
         if spawn_port <= 0 {
             import from jaclang.scale.runtime.context.util { pick_free_port }
-            # Derive the base from the same stable sha1 scheme as
-            # default_sv_base_port; pick_free_port's default base uses
-            # Python's per-process-salted hash() and would defeat stability.
+
             spawn_port = pick_free_port(
                 module_name, base=default_sv_base_port(module_name)
             );

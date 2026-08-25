@@ -35,14 +35,14 @@ glob _STATELESS_SVC: str = 'def:pub ping() -> int {\n' '    return 42;\n' '}\n',
          'kv_state',
          'quarantine'
      ),
-     _RUNTIMELIB: Path = Path(JAC_ROOT) / 'jaclang' / 'runtimelib',
-     _BUILDER: Path = _RUNTIMELIB / 'bun_service_builder.jac';
+     _JAC_PKG: Path = Path(JAC_ROOT) / 'jaclang',
+     _BUILDER: Path = _JAC_PKG / 'bun_service_builder.jac';
 
 
 test "BunStore implements the Store contract in JS over Bun.sql" {
     # The real BunStore implementation is the JS adapter bundled into service
     # artifacts (the Jac-side shell was deleted as dead scaffolding).
-    bun_store_js = _RUNTIMELIB / 'bun_store.js';
+    bun_store_js = _JAC_PKG / 'bun_store.js';
     assert bun_store_js.exists();
     js_text = bun_store_js.read_text(encoding='utf-8');
     assert 'class BunStore' in js_text , (
@@ -60,7 +60,7 @@ test "BunStore implements the Store contract in JS over Bun.sql" {
 test "BunStore shares the PgStore anchor schema and version stamp" {
     import from jaclang.data.store { SCHEMA_SQL }
     pg_ddl = '\n'.join(str(stmt) for stmt in SCHEMA_SQL);
-    bun_schema = _RUNTIMELIB / 'bun_store.js';
+    bun_schema = _JAC_PKG / 'bun_store.js';
     assert bun_schema.exists();
     bun_text = bun_schema.read_text(encoding='utf-8');
     for table in _PERSIST_SCHEMA_TABLES {
@@ -103,8 +103,7 @@ test "BunStore fingerprint matches the PgStore formula byte for byte" {
         h.update(stmt.encode());
     }
     cols = [
-        (arch, fld, f"g_{arch}_{fld}")
-        for arch in sorted(promotions.keys())
+        (arch, fld, f"g_{arch}_{fld}") for arch in sorted(promotions.keys())
         for fld in promotions[arch]
     ];
     for col in sorted(cols) {
@@ -115,7 +114,7 @@ test "BunStore fingerprint matches the PgStore formula byte for byte" {
     with tempfile.TemporaryDirectory(dir=None) as tmp {
         tmp_path = Path(tmp);
         (tmp_path / 'bun_store.js').write_bytes(
-            (_RUNTIMELIB / 'bun_store.js').read_bytes()
+            (_JAC_PKG / 'bun_store.js').read_bytes()
         );
         stub = (
             'export const SCHEMA_SQL = '
@@ -152,7 +151,7 @@ test "BunStore fingerprint matches the PgStore formula byte for byte" {
 
 
 test "server_runtime wires BunStore into walker spawn context" {
-    runtime_jac = _RUNTIMELIB / 'server_runtime.jac';
+    runtime_jac = _JAC_PKG / 'client' / 'server_runtime.jac';
     text = runtime_jac.read_text(encoding='utf-8');
     assert 'BunStore' in text or '__jacInitBunStore' in text , (
         "server runtime must bootstrap a Bun-backed Store for walkers"

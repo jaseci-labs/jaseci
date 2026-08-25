@@ -28,7 +28,7 @@ glob _STATELESS_SVC: str = 'def:pub ping() -> int {\n' '    return 42;\n' '}\n',
          '    }\n'
          '}\n'
      ),
-     _CLIENT_DIR: Path = Path(JAC_ROOT) / 'jaclang' / 'runtimelib' / 'client';
+     _CLIENT_DIR: Path = Path(JAC_ROOT) / 'jaclang' / 'client';
 
 
 test "resolve_sv_service_host defaults to cpython without a bun artifact" {

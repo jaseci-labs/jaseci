@@ -599,9 +599,7 @@ impl install(
     }
     if npm {
         if server {
-            import from jaclang.client.server_npm_provider {
-                install_server_npm
-            }
+            import from jaclang.client.server_npm_provider { install_server_npm }
             import from jaclang.project.config { get_config }
             cfg = get_config();
             if cfg is None or cfg.project_root is None {

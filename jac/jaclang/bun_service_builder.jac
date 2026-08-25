@@ -121,9 +121,6 @@ def _string_bundle_bun_artifact(out_dir: Path, module_name: str) -> str {
     if bun_store_path.exists() {
         chunks.append(bun_store_path.read_text(encoding='utf-8'));
     }
-    # jac_runtime.js defines `const _jac`; inline it here so the entry's
-    # import line can be dropped by _rewrite_entry_line without leaving
-    # `_jac` undefined. seen_jac keeps later copies (cl stdlib deps) out.
     jac_rt_path = out_dir / 'jac_runtime.js';
     if jac_rt_path.exists() and not seen_jac['seen'] {
         kept_rt: list[str] = [];
@@ -150,9 +147,7 @@ def _string_bundle_bun_artifact(out_dir: Path, module_name: str) -> str {
     chunks.append('\n'.join(entry_lines));
     bundle = '\n'.join(chunks) + '\n';
     if 'const _jac' not in bundle and '_jac.' in bundle {
-        import from jaclang.compiler.backends.es.jac_runtime_js {
-            build_jac_runtime_js
-        }
+        import from jaclang.compiler.backends.es.jac_runtime_js { build_jac_runtime_js }
         bundle = f'const _jac = {build_jac_runtime_js()};\n' + bundle;
     }
     return bundle;

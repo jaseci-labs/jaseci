@@ -43,9 +43,7 @@ def resolve_module_backend(module: (uni.Module | None) = None) -> FrameworkBacke
         fw = framework_for_module(module);
     } else {
         import from jaclang.project.config { get_config }
-        import from jaclang.client.npm_provider {
-            resolve_client_target_name
-        }
+        import from jaclang.client.npm_provider { resolve_client_target_name }
         cfg = get_config();
         if cfg is not None {
             import from jaclang.jac0core.host {

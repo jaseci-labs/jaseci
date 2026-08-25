@@ -119,9 +119,7 @@ def host_kind_for_target(name: str) -> str {
 def resolve_project_host_kind(mod_path: str = '') -> str {
     try {
         import from jaclang.project.config { get_config, get_config_for_dir }
-        import from jaclang.client.npm_provider {
-            resolve_client_target_name
-        }
+        import from jaclang.client.npm_provider { resolve_client_target_name }
         cfg = None;
         if mod_path.strip() {
             cfg = get_config_for_dir(os.path.dirname(os.path.abspath(mod_path)));

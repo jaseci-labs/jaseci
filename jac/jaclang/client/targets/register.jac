@@ -3,12 +3,8 @@ import from jaclang.client.targets.web_target { WebTarget }
 import from jaclang.client.targets.pwa_target { PWATarget }
 import from jaclang.client.targets.static_target { StaticTarget }
 import from jaclang.client.targets.mobile_target { MobileTarget }
-import from jaclang.client.targets.desktop.native_desktop_target {
-    NativeDesktopTarget
-}
-import from jaclang.client.targets.desktop.cef_desktop_target {
-    CefDesktopTarget
-}
+import from jaclang.client.targets.desktop.native_desktop_target { NativeDesktopTarget }
+import from jaclang.client.targets.desktop.cef_desktop_target { CefDesktopTarget }
 import from jaclang.client.targets.react_native_target { ReactNativeTarget }
 import from jaclang.client.targets.bun_target { BunTarget }
 import from jaclang.client.targets.test_host_target { TestHost }

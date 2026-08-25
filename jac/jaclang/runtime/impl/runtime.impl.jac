@@ -1304,10 +1304,7 @@ impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
     if module_name in sv_client._registry {
         return;
     }
-    import from jaclang.sv_dispatch {
-        dispatch_sv_service,
-        default_sv_base_port
-    }
+    import from jaclang.sv_dispatch { dispatch_sv_service, default_sv_base_port }
     import atexit;
 
     def _track_bun_child(spawn_result: any) {
