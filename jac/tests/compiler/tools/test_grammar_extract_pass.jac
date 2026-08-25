@@ -29,10 +29,10 @@ import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob PARSER_PATH = str(
          Path(jaclang.__file__).parent
-         / "compiler"
-         / "frontend"
-         / "parser"
-         / "parser.jac"
+             / "compiler"
+             / "frontend"
+             / "parser"
+             / "parser.jac"
      ),
      SPEC_PATH = os.path.join(JAC_ROOT, "jaclang", "jac.spec");
 

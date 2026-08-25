@@ -28,13 +28,14 @@ obj SelfHostCache {
     }
 
     def owns(file_path: str) -> bool {
+        # Everything under the jaclang tree, tests and fixtures included:
+        # in-tree suites carry latent checker findings that the self-host
+        # program has always absorbed (see always_type_error.jac), so
+        # narrowing this to "toolchain sources only" surfaces them as
+        # import-blocking errors. Excluding tests/fixtures is a real
+        # cleanup, but it has to land together with fixing those findings.
         normalized_path = os.path.realpath(file_path);
-        jl_root = self.jaclang_root();
-        if not normalized_path.startswith((jl_root + os.sep)) {
-            return False;
-        }
-        parts = normalized_path[len(jl_root) + 1:].split(os.sep);
-        return ("tests" not in parts) and ("fixtures" not in parts);
+        return normalized_path.startswith((self.jaclang_root() + os.sep));
     }
 
     def resolve(
