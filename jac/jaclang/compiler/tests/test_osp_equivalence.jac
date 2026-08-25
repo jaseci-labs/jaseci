@@ -481,6 +481,33 @@ test "osp field access: reading a field off an edge-ref / filtered node-ref elem
     );
 }
 
+test "osp bound endpoints: edge objects / nodes between two bound nodes + jid shape" {
+    # Native gap closing: `[edge p ->:T:-> c]` (edge OBJECTS between two
+    # bound nodes, fields read off them), the backward form, and the plain
+    # `[p ->:T:-> c]` node form all lower natively; `jid` returns a stable
+    # per-process 32-char id (shape-only comparison -- exact bytes are
+    # backend-specific).
+    assert run_py_fixture("osp_bound_endpoint", "bound_endpoint_py")
+        == {
+            "fwd": 7,
+            "loop": 7,
+            "bwd": 7,
+            "count_po": 1,
+            "other_rank": 9,
+            "is_c": True,
+            "jid_stable": True,
+            "jid_distinct": True,
+            "jid_len32": True
+        };
+    run_with_both(
+        "osp_bound_endpoint.jac",
+        "bound_endpoint_py",
+        "bound_endpoint_na",
+        "bound_endpoint_na",
+        require=["na"]
+    );
+}
+
 test "osp typed edge endpoints: field read off an unfiltered neighbour traversal" {
     # Issue #6657: with `edge Portal: Spot --> Spot`, an UNFILTERED neighbour
     # traversal `[here ->:Portal:->]` narrows to list[Spot], so native recovers
