@@ -1,0 +1,1258 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_statistics/conv_statistics_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:13:03",
+  "hashes": {
+    "pins_jac": "1a4022a1b316096af8a390d16cb9e7be6e7e3797ad3add3d1b3953f3a26bf16c",
+    "conversion_json": "65dad64605a10cf1f10b1fd6200214252a7242c64f05558561233974a0bf115e",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "statistics",
+  "counts": {
+    "converted": 232,
+    "runnable": 100,
+    "green": 15,
+    "quarantined": 132
+  },
+  "pins": [
+    {
+      "id": "TestModules.test_py_functions",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'func_names'"
+    },
+    {
+      "id": "TestSign.testZeroes",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualSymmetryTest.test_relative_symmetry",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'host\\' and \\'int\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualSymmetryTest.test_symmetry",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'host\\' and \\'int\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_ints",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_floats",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'must be real number, not Fraction'\">"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_absolute",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'must be real number, not Fraction'\">"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_absolute_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'host\\' and \\'int\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_relative",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'must be real number, not Fraction'\">"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_both",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'must be real number, not Fraction'\">"
+    },
+    {
+      "id": "ApproxEqualUnequalTest.test_exactly_unequal_ints",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualUnequalTest.test_exactly_unequal_floats",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualUnequalTest.test_exactly_unequal_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
+    },
+    {
+      "id": "ApproxEqualUnequalTest.test_exactly_unequal_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_absolute_ints",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_absolute_floats",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_absolute_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"unsupported operand type(s) for *: \\'int\\' and \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_absolute_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'host\\' and \\'int\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_cross_zero",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_relative_ints",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_relative_floats",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_relative_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"unsupported operand type(s) for +: \\'int\\' and \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_relative_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'host\\' and \\'int\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_both1",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_both2",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_both3",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_both4",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ApproxEqualSpecialsTest.test_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
+    },
+    {
+      "id": "ApproxEqualSpecialsTest.test_nan",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualSpecialsTest.test_float_zeroes",
+      "status": "pass"
+    },
+    {
+      "id": "ApproxEqualSpecialsTest.test_decimal_zeroes",
+      "status": "pass"
+    },
+    {
+      "id": "TestApproxEqualErrors.test_bad_tol",
+      "status": "pass"
+    },
+    {
+      "id": "TestApproxEqualErrors.test_bad_rel",
+      "status": "pass"
+    },
+    {
+      "id": "TestNumericTestCase.test_error_msg_numeric",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute '__init_subclass__'\">"
+    },
+    {
+      "id": "TestNumericTestCase.test_error_msg_sequence",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'result' from 'unittest' (/home/jac/.cache/jac/rt/553c250071fd962f-c152554fd6e7fdad/python/lib/python3.14/unittest/__init__.py)\">"
+    },
+    {
+      "id": "ExactRatioTest.test_int",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExactRatioTest.test_fraction",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExactRatioTest.test_float",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "ExactRatioTest.test_decimal",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExactRatioTest.test_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExactRatioTest.test_float_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExactRatioTest.test_decimal_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_infinity",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_sign",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_negative_exponent",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_positive_exponent",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_regression_20536",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "IsFiniteTest.test_finite",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "IsFiniteTest.test_infinity",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "IsFiniteTest.test_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_bool",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_int",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_fraction",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_decimal",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_float",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_non_numeric_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_incompatible_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ConvertTest.test_int",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ConvertTest.test_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ConvertTest.test_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ConvertTest.test_invalid_input_type",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "FailNegTest.test_pass_through",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "FailNegTest.test_negatives_raise",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "FailNegTest.test_error_msg",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "SumTortureTest.test_torture",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "SumSpecialValues.test_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_float_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_decimal_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_float_mismatched_infs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_decimal_extendedcontext_mismatched_infs_to_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_decimal_basiccontext_mismatched_infs_to_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_decimal_snan_raises",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestMean.test_regression_20561",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestMean.test_regression_25177",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestMultiMode.test_basics",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestFMean.test_basics",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestFMean.test_error_cases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestFMean.test_special_values",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestFMean.test_weights",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestSqrtHelpers.test_integer_sqrt_of_frac_rto",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestSqrtHelpers.test_decimal_sqrt_of_frac",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestGeometricMean.test_basics",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestGeometricMean.test_various_input_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestGeometricMean.test_big_and_small",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestGeometricMean.test_error_cases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestGeometricMean.test_special_values",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestGeometricMean.test_mixed_int_and_float",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestKDE.test_kde_kernel_specs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestQuantiles.test_specific_cases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestQuantiles.test_specific_cases_inclusive",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestQuantiles.test_equal_inputs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestQuantiles.test_equal_sized_groups",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestQuantiles.test_error_cases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestBivariateStatistics.test_unequal_size_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestBivariateStatistics.test_small_sample_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestCorrelationAndCovariance.test_results",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestCorrelationAndCovariance.test_different_scales",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestCorrelationAndCovariance.test_sqrtprod_helper_function_fundamentals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestCorrelationAndCovariance.test_correlation_spearman",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestLinearRegression.test_constant_input_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestLinearRegression.test_results",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestLinearRegression.test_proportional",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestLinearRegression.test_float_output",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestNormalDist.test_slots",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_instantiation_and_attributes",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_alternative_constructor",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_sample_generation",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_pdf",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_cdf",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_quantiles",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_overlap",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_zscore",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_properties",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_same_type_addition_and_subtraction",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_translation_and_scaling",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_unary_operations",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_equality",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_copy",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_pickle",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_hashability",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestNormalDist.test_repr",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'module'"
+    },
+    {
+      "id": "TestModules.test_c_functions",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestSqrtHelpers.test_float_sqrt_of_frac",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "id": "TestKDE.test_kde",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "id": "TestKDE.test_kde_random",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "id": "TestCorrelationAndCovariance.test_sqrtprod_helper_function_improved_accuracy",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestNormalDist.test_inv_cdf",
+      "status": "quarantined",
+      "reason": "decorator:support.skip_if_pgo_task"
+    },
+    {
+      "id": "TestNumericTestCase.test_numerictestcase_is_testcase",
+      "status": "quarantined",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "id": "GlobalsTest.test_meta",
+      "status": "quarantined",
+      "reason": "self.assertHasAttr"
+    },
+    {
+      "id": "GlobalsTest.test_check_all",
+      "status": "quarantined",
+      "reason": "self.assertNotStartsWith"
+    },
+    {
+      "id": "StatisticsErrorTest.test_has_exception",
+      "status": "quarantined",
+      "reason": "self.assertHasAttr"
+    },
+    {
+      "id": "ConvertTest.test_fraction",
+      "status": "quarantined",
+      "reason": "uses-self.__class__"
+    },
+    {
+      "id": "ConvertTest.test_float",
+      "status": "quarantined",
+      "reason": "uses-self.__class__"
+    },
+    {
+      "id": "ConvertTest.test_decimal",
+      "status": "quarantined",
+      "reason": "uses-self.__class__"
+    },
+    {
+      "id": "UnivariateCommonMixin.test_no_args",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "UnivariateCommonMixin.test_empty_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "UnivariateCommonMixin.test_no_inplace_modifications",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "UnivariateCommonMixin.test_order_doesnt_matter",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "UnivariateCommonMixin.test_type_of_data_collection",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "UnivariateCommonMixin.test_range_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "UnivariateCommonMixin.test_bad_arg_types",
+      "status": "quarantined",
+      "reason": "helper:check_for_type_error(uses-self.func)"
+    },
+    {
+      "id": "UnivariateCommonMixin.test_type_of_data_element",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "UnivariateTypeMixin.test_types_conserved",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestSum.test_empty_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestSum.test_ints",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestSum.test_floats",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestSum.test_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestSum.test_decimals",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestSum.test_compare_with_math_fsum",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestSum.test_strings_fail",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestSum.test_bytes_fail",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestSum.test_mixed_sum",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "AverageMixin.test_single_value",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "AverageMixin.test_repeated_single_value",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMean.test_torture_pep",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMean.test_ints",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMean.test_floats",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMean.test_decimals",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMean.test_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMean.test_inf",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMean.test_mismatched_infs",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMean.test_nan",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMean.test_big_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMean.test_doubled_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_zero",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_negative_error",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_invalid_type_error",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_ints",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_floats_exact",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_singleton_lists",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_decimals_exact",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_inf",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_nan",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_multiply_data_points",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_doubled_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestHarmonicMean.test_with_weights",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedian.test_even_ints",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedian.test_odd_ints",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedian.test_odd_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedian.test_even_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedian.test_odd_decimals",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedian.test_even_decimals",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianLow.test_even_ints",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianLow.test_even_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianLow.test_even_decimals",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianHigh.test_even_ints",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianHigh.test_even_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianHigh.test_even_decimals",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianGrouped.test_odd_number_repeated",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianGrouped.test_even_number_repeated",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianGrouped.test_repeated_single_value",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianGrouped.test_single_value",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianGrouped.test_odd_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianGrouped.test_even_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianGrouped.test_odd_decimals",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianGrouped.test_even_decimals",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianGrouped.test_interval",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMedianGrouped.test_data_type_error",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMode.test_range_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMode.test_nominal_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMode.test_discrete_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMode.test_bimodal_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMode.test_unique_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMode.test_none_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestMode.test_counter_data",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "VarianceStdevMixin.test_single_value",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "VarianceStdevMixin.test_repeated_single_value",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "VarianceStdevMixin.test_domain_error_regression",
+      "status": "quarantined",
+      "reason": "self.assertApproxEqual"
+    },
+    {
+      "id": "VarianceStdevMixin.test_shift_data",
+      "status": "quarantined",
+      "reason": "self.assertApproxEqual"
+    },
+    {
+      "id": "VarianceStdevMixin.test_shift_data_exact",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "VarianceStdevMixin.test_iter_list_same",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestPVariance.test_exact_uniform",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestPVariance.test_ints",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestPVariance.test_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestPVariance.test_decimals",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestPVariance.test_accuracy_bug_20499",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestVariance.test_single_value",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestVariance.test_ints",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestVariance.test_fractions",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestVariance.test_decimals",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestVariance.test_center_not_at_mean",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestVariance.test_accuracy_bug_20499",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestPStdev.test_compare_to_variance",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestPStdev.test_center_not_at_mean",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestPStdev.test_gh_140938",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestStdev.test_single_value",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestStdev.test_compare_to_variance",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    },
+    {
+      "id": "TestStdev.test_center_not_at_mean",
+      "status": "quarantined",
+      "reason": "uses-self.func"
+    }
+  ]
+}

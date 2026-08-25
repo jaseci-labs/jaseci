@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_pyclbr.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_pyclbr",
+    "--name",
+    "conv_pyclbr"
+  ],
+  "generated_at": "2026-08-24T21:13:25",
+  "hashes": {
+    "pins_jac": "3709a6846f93ced26315d0c70ee97c41b4669e1049e83eb87431e927cd8f3ab4"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_pyclbr.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "pyclbr",
+  "pins_file": "conv_pyclbr_pins.jac",
+  "pins": [
+    {
+      "ident": "PyclbrTest.test_nested",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import dedent\nimport pyclbr\n\ndef _t():\n    mb = pyclbr\n    m, p, f, t, i = ('test', '', 'test.py', {}, None)\n    source = dedent('        def f0():\\n            def f1(a,b,c):\\n                def f2(a=1, b=2, c=3): pass\\n                return f1(a,b,d)\\n            class c1: pass\\n        class C0:\\n            \"Test class.\"\\n            def F1():\\n                \"Method.\"\\n                return \\'return\\'\\n            class C1():\\n                class C2:\\n                    \"Class nested within nested class.\"\\n                    def F3(): return 1+1\\n\\n        ')\n    actual = mb._create_tree(m, p, f, source, t, i)\n    f0 = mb.Function(m, 'f0', f, 1, end_lineno=5)\n    f1 = mb._nest_function(f0, 'f1', 2, 4)\n    f2 = mb._nest_function(f1, 'f2', 3, 3)\n    c1 = mb._nest_class(f0, 'c1', 5, 5)\n    C0 = mb.Class(m, 'C0', None, f, 6, end_lineno=14)\n    F1 = mb._nest_function(C0, 'F1', 8, 10)\n    C1 = mb._nest_class(C0, 'C1', 11, 14)\n    C2 = mb._nest_class(C1, 'C2', 12, 14)\n    F3 = mb._nest_function(C2, 'F3', 14, 14)\n    expected = {'f0': f0, 'C0': C0}\n\n    def compare(parent1, children1, parent2, children2):\n        \"\"\"Return equality of tree pairs.\n\n            Each parent,children pair define a tree.  The parents are\n            assumed equal.  Comparing the children dictionaries as such\n            does not work due to comparison by identity and double\n            linkage.  We separate comparing string and number attributes\n            from comparing the children of input children.\n            \"\"\"\n        assert children1.keys() == children2.keys(), ('assertEqual', children1.keys(), children2.keys())\n        for ob in children1.values():\n            assert ob.parent is parent1, ('assertIs', ob.parent, parent1)\n        for ob in children2.values():\n            assert ob.parent is parent2, ('assertIs', ob.parent, parent2)\n        for key in children1.keys():\n            o1, o2 = (children1[key], children2[key])\n            t1 = (type(o1), o1.name, o1.file, o1.module, o1.lineno, o1.end_lineno)\n            t2 = (type(o2), o2.name, o2.file, o2.module, o2.lineno, o2.end_lineno)\n            assert t1 == t2, ('assertEqual', t1, t2)\n            if type(o1) is mb.Class:\n                assert o1.methods == o2.methods, ('assertEqual', o1.methods, o2.methods)\n            compare(o1, o1.children, o2, o2.children)\n    compare(None, actual, None, expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PyclbrTest.test_others",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'checkModule'"
+    },
+    {
+      "ident": "ReadmoduleTests.test_dotted_name_not_a_package",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pyclbr\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._modules = pyclbr._modules.copy()\n    try:\n        pyclbr.readmodule_ex(*('asyncio.foo',))\n    except ImportError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReadmoduleTests.test_module_has_no_spec",
+      "status": "quarantined",
+      "reason": "harness-error:unittest.case.SkipTest: No module named '_testmultiphase'"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "PyclbrTest.test_easy",
+      "reason": "helper:checkModule(self.assertHasAttr)"
+    },
+    {
+      "ident": "PyclbrTest.test_cases",
+      "reason": "helper:checkModule(self.assertHasAttr)"
+    }
+  ],
+  "counts": {
+    "extracted": 6,
+    "pinned": 2,
+    "quarantined": 4
+  }
+}

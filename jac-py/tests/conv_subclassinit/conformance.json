@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_subclassinit/conv_subclassinit_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:12:42",
+  "hashes": {
+    "pins_jac": "4899fe6169ef0ae3902ca6d9febcfaa528f27acce88a20a031b8e2e8129ff4ab",
+    "conversion_json": "4b27250f78489949f723a3f33f5bb22f532814c0530e62f012d344786e34e66e",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "subclassinit",
+  "counts": {
+    "converted": 17,
+    "runnable": 14,
+    "green": 8,
+    "quarantined": 3
+  },
+  "pins": [
+    {
+      "id": "Test.test_init_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "Test.test_init_subclass_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "Test.test_init_subclass_kwargs",
+      "status": "pass"
+    },
+    {
+      "id": "Test.test_init_subclass_error",
+      "status": "pass"
+    },
+    {
+      "id": "Test.test_init_subclass_wrong",
+      "status": "pass"
+    },
+    {
+      "id": "Test.test_init_subclass_skipped",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "Test.test_init_subclass_diamond",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "Test.test_set_name",
+      "status": "pass"
+    },
+    {
+      "id": "Test.test_set_name_lookup",
+      "status": "pass"
+    },
+    {
+      "id": "Test.test_set_name_init_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'owner'\">"
+    },
+    {
+      "id": "Test.test_set_name_modifying_dict",
+      "status": "pass"
+    },
+    {
+      "id": "Test.test_errors",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases'\">"
+    },
+    {
+      "id": "Test.test_errors_changed_pep487",
+      "status": "pass"
+    },
+    {
+      "id": "Test.test_type",
+      "status": "pass"
+    },
+    {
+      "id": "Test.test_set_name_metaclass",
+      "status": "quarantined",
+      "reason": "uses-self.assertEqual"
+    },
+    {
+      "id": "Test.test_set_name_error",
+      "status": "quarantined",
+      "reason": "self.assertRegex"
+    },
+    {
+      "id": "Test.test_set_name_wrong",
+      "status": "quarantined",
+      "reason": "self.assertRegex"
+    }
+  ]
+}

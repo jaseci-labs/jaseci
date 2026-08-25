@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_print/conv_print_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:13:25",
+  "hashes": {
+    "pins_jac": "e9ea529ce228b419251eb33f1f8f358b4d9ee187c5b136991621b48f3d153be5",
+    "conversion_json": "2ff135b0b2be74b5a877d884c9c1fbbf1f86c8ccf489d9cfbcf0283ab3ae5511",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "print",
+  "counts": {
+    "converted": 9,
+    "runnable": 2,
+    "green": 0,
+    "quarantined": 7
+  },
+  "pins": [
+    {
+      "id": "TestPrint.test_print_flush",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\'\\', \\'123\\\\\\\\n\\')\"'>"
+    },
+    {
+      "id": "TestPrint.test_gh130163",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'swap_attr'\">"
+    },
+    {
+      "id": "TestPrint.test_print",
+      "status": "quarantined",
+      "reason": "unresolved-name:ClassWith__str__"
+    },
+    {
+      "id": "TestPy2MigrationHint.test_normal_string",
+      "status": "quarantined",
+      "reason": "unresolved-name:context"
+    },
+    {
+      "id": "TestPy2MigrationHint.test_string_with_soft_space",
+      "status": "quarantined",
+      "reason": "unresolved-name:context"
+    },
+    {
+      "id": "TestPy2MigrationHint.test_string_with_excessive_whitespace",
+      "status": "quarantined",
+      "reason": "unresolved-name:context"
+    },
+    {
+      "id": "TestPy2MigrationHint.test_string_with_leading_whitespace",
+      "status": "quarantined",
+      "reason": "unresolved-name:context"
+    },
+    {
+      "id": "TestPy2MigrationHint.test_string_with_semicolon",
+      "status": "quarantined",
+      "reason": "unresolved-name:context"
+    },
+    {
+      "id": "TestPy2MigrationHint.test_string_in_loop_on_same_line",
+      "status": "quarantined",
+      "reason": "unresolved-name:context"
+    }
+  ]
+}

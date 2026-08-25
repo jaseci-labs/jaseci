@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_timeit.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_timeit",
+    "--name",
+    "conv_timeit"
+  ],
+  "generated_at": "2026-08-24T21:13:03",
+  "hashes": {
+    "pins_jac": "f60caba84b705d0f52943108c8b8680ba4f3adef1934c9a2ef13aeef4e9a1798"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_timeit.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "timeit",
+  "pins_file": "conv_timeit_pins.jac",
+  "pins": [
+    {
+      "ident": "TestTimeit.test_reindent_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import timeit\n\ndef _t():\n    assert timeit.reindent('', 0) == '', ('assertEqual', timeit.reindent('', 0), '')\n    assert timeit.reindent('', 4) == '', ('assertEqual', timeit.reindent('', 4), '')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTimeit.test_reindent_single",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import timeit\n\ndef _t():\n    assert timeit.reindent('pass', 0) == 'pass', ('assertEqual', timeit.reindent('pass', 0), 'pass')\n    assert timeit.reindent('pass', 4) == 'pass', ('assertEqual', timeit.reindent('pass', 4), 'pass')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTimeit.test_reindent_multi_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import timeit\n\ndef _t():\n    assert timeit.reindent('\\n\\n', 0) == '\\n\\n', ('assertEqual', timeit.reindent('\\n\\n', 0), '\\n\\n')\n    assert timeit.reindent('\\n\\n', 4) == '\\n    \\n    ', ('assertEqual', timeit.reindent('\\n\\n', 4), '\\n    \\n    ')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTimeit.test_reindent_multi",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import timeit\n\ndef _t():\n    assert timeit.reindent('print()\\npass\\nbreak', 0) == 'print()\\npass\\nbreak', ('assertEqual', timeit.reindent('print()\\npass\\nbreak', 0), 'print()\\npass\\nbreak')\n    assert timeit.reindent('print()\\npass\\nbreak', 4) == 'print()\\n    pass\\n    break', ('assertEqual', timeit.reindent('print()\\npass\\nbreak', 4), 'print()\\n    pass\\n    break')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTimeit.test_timer_invalid_stmt",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import timeit\n\ndef _t():\n    try:\n        timeit.Timer(stmt=None)\n    except ValueError:\n        pass\n    try:\n        timeit.Timer(stmt='return')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(stmt='yield')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(stmt='yield from ()')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(stmt='break')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(stmt='continue')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(stmt='from timeit import *')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(stmt='  pass')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(setup='while False:\\n  pass', stmt='  break')\n    except SyntaxError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTimeit.test_timer_invalid_setup",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import timeit\n\ndef _t():\n    try:\n        timeit.Timer(setup=None)\n    except ValueError:\n        pass\n    try:\n        timeit.Timer(setup='return')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(setup='yield')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(setup='yield from ()')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(setup='break')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(setup='continue')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(setup='from timeit import *')\n    except SyntaxError:\n        pass\n    try:\n        timeit.Timer(setup='  pass')\n    except SyntaxError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTimeit.test_timer_empty_stmt",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import timeit\n\ndef _t():\n    timeit.Timer(stmt='')\n    timeit.Timer(stmt=' \\n\\t\\x0c')\n    timeit.Timer(stmt='# comment')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTimeit.test_timeit_zero_iters",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_timeit_few_iters",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_timeit_callable_stmt",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_callable_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_timeit_callable_setup",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_timeit_callable_stmt_and_setup",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_callable_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_repeat_zero_reps",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_repeat_zero_iters",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_repeat_few_reps_and_iters",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_repeat_callable_stmt",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_callable_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_repeat_callable_setup",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_repeat_callable_stmt_and_setup",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'fake_callable_stmt'"
+    },
+    {
+      "ident": "TestTimeit.test_main_bad_switch",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_seconds",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_milliseconds",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_microseconds",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_fixed_iters",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_setup",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_multiple_setups",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_fixed_reps",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_negative_reps",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_verbose",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_very_verbose",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_main_with_time_unit",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_autorange",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_autorange_second",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestTimeit.test_autorange_with_callback",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestTimeit.test_main_help",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestTimeit.test_timeit_function_zero_iters",
+      "reason": "unresolved-name:FakeTimer"
+    },
+    {
+      "ident": "TestTimeit.test_timeit_globals_args",
+      "reason": "unresolved-name:FakeTimer"
+    },
+    {
+      "ident": "TestTimeit.test_repeat_function_zero_reps",
+      "reason": "unresolved-name:FakeTimer"
+    },
+    {
+      "ident": "TestTimeit.test_repeat_function_zero_iters",
+      "reason": "unresolved-name:FakeTimer"
+    },
+    {
+      "ident": "TestTimeit.test_print_exc",
+      "reason": "helper:assert_exc_string(self.assertStartsWith)"
+    },
+    {
+      "ident": "TestTimeit.test_main_exception",
+      "reason": "helper:assert_exc_string(self.assertStartsWith)"
+    },
+    {
+      "ident": "TestTimeit.test_main_exception_fixed_reps",
+      "reason": "helper:assert_exc_string(self.assertStartsWith)"
+    }
+  ],
+  "counts": {
+    "extracted": 41,
+    "pinned": 7,
+    "quarantined": 34
+  }
+}

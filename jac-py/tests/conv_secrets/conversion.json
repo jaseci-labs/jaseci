@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_secrets.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_secrets",
+    "--name",
+    "conv_secrets"
+  ],
+  "generated_at": "2026-08-24T21:12:46",
+  "hashes": {
+    "pins_jac": "5852e1360fcdb59b10355b109c7de8d86233594d75e7afa95cacb7b8e2b9303c"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_secrets.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "secrets",
+  "pins_file": "conv_secrets_pins.jac",
+  "pins": [
+    {
+      "ident": "Compare_Digest_Tests.test_equal",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\n\ndef _t():\n    for s in ('a', 'bcd', 'xyz123'):\n        a = s * 100\n        b = s * 100\n        assert secrets.compare_digest(a, b), ('assertTrue', secrets.compare_digest(a, b))\n        assert secrets.compare_digest(a.encode('utf-8'), b.encode('utf-8')), ('assertTrue', secrets.compare_digest(a.encode('utf-8'), b.encode('utf-8')))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Compare_Digest_Tests.test_unequal",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\n\ndef _t():\n    assert not secrets.compare_digest('abc', 'abcd'), ('assertFalse', secrets.compare_digest('abc', 'abcd'))\n    assert not secrets.compare_digest(b'abc', b'abcd'), ('assertFalse', secrets.compare_digest(b'abc', b'abcd'))\n    for s in ('x', 'mn', 'a1b2c3'):\n        a = s * 100 + 'q'\n        b = s * 100 + 'k'\n        assert not secrets.compare_digest(a, b), ('assertFalse', secrets.compare_digest(a, b))\n        assert not secrets.compare_digest(a.encode('utf-8'), b.encode('utf-8')), ('assertFalse', secrets.compare_digest(a.encode('utf-8'), b.encode('utf-8')))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Compare_Digest_Tests.test_bad_types",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\n\ndef _t():\n    a = 'abcde'\n    b = a.encode('utf-8')\n    assert isinstance(a, str)\n    assert isinstance(b, bytes)\n    try:\n        secrets.compare_digest(*(a, b))\n    except TypeError:\n        pass\n    try:\n        secrets.compare_digest(*(b, a))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Compare_Digest_Tests.test_bool",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\n\ndef _t():\n    assert isinstance(secrets.compare_digest('abc', 'abc'), bool), ('assertIsInstance', secrets.compare_digest('abc', 'abc'), bool)\n    assert isinstance(secrets.compare_digest('abc', 'xyz'), bool), ('assertIsInstance', secrets.compare_digest('abc', 'xyz'), bool)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Random_Tests.test_randbits",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\n\ndef _t():\n    errmsg = 'randbits(%d) returned %d'\n    for numbits in (3, 12, 30):\n        for i in range(6):\n            n = secrets.randbits(numbits)\n            assert 0 <= n < 2 ** numbits, ('assertTrue', 0 <= n < 2 ** numbits)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Random_Tests.test_choice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\n\ndef _t():\n    items = [1, 2, 4, 8, 16, 32, 64]\n    for i in range(10):\n        assert secrets.choice(items) in items, ('assertTrue', secrets.choice(items) in items)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Random_Tests.test_randbelow",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\n\ndef _t():\n    for i in range(2, 10):\n        assert secrets.randbelow(i) in range(i), ('assertIn', secrets.randbelow(i), range(i))\n    try:\n        secrets.randbelow(*(0,))\n    except ValueError:\n        pass\n    try:\n        secrets.randbelow(*(-1,))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Token_Tests.test_token_defaults",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\n\ndef _t():\n    for func in (secrets.token_bytes, secrets.token_hex, secrets.token_urlsafe):\n        name = func.__name__\n        try:\n            func()\n        except TypeError:\n            raise AssertionError('%s cannot be called with no argument' % name)\n        try:\n            func(None)\n        except TypeError:\n            raise AssertionError('%s cannot be called with None' % name)\n    size = secrets.DEFAULT_ENTROPY\n    assert len(secrets.token_bytes(None)) == size, ('assertEqual', len(secrets.token_bytes(None)), size)\n    assert len(secrets.token_hex(None)) == 2 * size, ('assertEqual', len(secrets.token_hex(None)), 2 * size)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Token_Tests.test_token_bytes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\n\ndef _t():\n    for n in (1, 8, 17, 100):\n        assert isinstance(secrets.token_bytes(n), bytes), ('assertIsInstance', secrets.token_bytes(n), bytes)\n        assert len(secrets.token_bytes(n)) == n, ('assertEqual', len(secrets.token_bytes(n)), n)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Token_Tests.test_token_hex",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\nimport string\n\ndef _t():\n    for n in (1, 12, 25, 90):\n        s = secrets.token_hex(n)\n        assert isinstance(s, str), ('assertIsInstance', s, str)\n        assert len(s) == 2 * n, ('assertEqual', len(s), 2 * n)\n        assert all((c in string.hexdigits for c in s)), ('assertTrue', all((c in string.hexdigits for c in s)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Token_Tests.test_token_urlsafe",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import secrets\nimport string\n\ndef _t():\n    legal = string.ascii_letters + string.digits + '-_'\n    for n in (1, 11, 28, 76):\n        s = secrets.token_urlsafe(n)\n        assert isinstance(s, str), ('assertIsInstance', s, str)\n        assert all((c in legal for c in s)), ('assertTrue', all((c in legal for c in s)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [],
+  "counts": {
+    "extracted": 11,
+    "pinned": 11,
+    "quarantined": 0
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_pyclbr/conv_pyclbr_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:13:27",
+  "hashes": {
+    "pins_jac": "3709a6846f93ced26315d0c70ee97c41b4669e1049e83eb87431e927cd8f3ab4",
+    "conversion_json": "cd9f2d76f0708d737919eb0f6170e419f6fd7032fc646e40da81c61d5713d551",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "pyclbr",
+  "counts": {
+    "converted": 6,
+    "runnable": 2,
+    "green": 1,
+    "quarantined": 4
+  },
+  "pins": [
+    {
+      "id": "PyclbrTest.test_nested",
+      "status": "pass"
+    },
+    {
+      "id": "PyclbrTest.test_others",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'checkModule'"
+    },
+    {
+      "id": "ReadmoduleTests.test_dotted_name_not_a_package",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'sys\\' is not defined\"'>"
+    },
+    {
+      "id": "ReadmoduleTests.test_module_has_no_spec",
+      "status": "quarantined",
+      "reason": "harness-error:unittest.case.SkipTest: No module named '_testmultiphase'"
+    },
+    {
+      "id": "PyclbrTest.test_easy",
+      "status": "quarantined",
+      "reason": "helper:checkModule(self.assertHasAttr)"
+    },
+    {
+      "id": "PyclbrTest.test_cases",
+      "status": "quarantined",
+      "reason": "helper:checkModule(self.assertHasAttr)"
+    }
+  ]
+}
