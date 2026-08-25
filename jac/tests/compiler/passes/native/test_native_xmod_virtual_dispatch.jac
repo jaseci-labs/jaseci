@@ -42,6 +42,13 @@ The subprocess pair is the contract, the same one
 server pathway (CPython) and as a native binary, and the two must print
 identical lines. Pinning the values is the point -- a dispatch that lands
 on the wrong body still lowers, links and exits 0.
+
+Each pathway runs once per process, not once per test. `nacompile` is a
+full native build, the four tests below all want the same fixture's
+output, and `ForkPool._dispatch` hands a worker a whole FILE rather than
+a test -- so they share this process and the memo turns four builds into
+one. On the four-vCPU box `test-native` runs on, that is the difference
+between this file costing one native compile and costing four.
 """
 
 import os;
@@ -53,7 +60,8 @@ import from tests.support { TESTS_DIR }
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      ),
-     MAIN_FIXTURE = "xmod_dispatch_main.jac";
+     MAIN_FIXTURE = "xmod_dispatch_main.jac",
+     _RUN_MEMO: dict[(str, str)] = {};
 
 """Run a fixture through the server pathway and hand back its stdout."""
 def sv_run(fixture: str) -> str {
@@ -105,8 +113,26 @@ def kept_lines(text: str) -> list[str] {
     ];
 }
 
+"""The native binary's output lines, built at most once per process."""
+def na_lines(fixture: str) -> list[str] {
+    key = f"na:{fixture}";
+    if key not in _RUN_MEMO {
+        _RUN_MEMO[key] = na_run(fixture);
+    }
+    return kept_lines(_RUN_MEMO[key]);
+}
+
+"""The server pathway's output lines, built at most once per process."""
+def sv_lines(fixture: str) -> list[str] {
+    key = f"sv:{fixture}";
+    if key not in _RUN_MEMO {
+        _RUN_MEMO[key] = sv_run(fixture);
+    }
+    return kept_lines(_RUN_MEMO[key]);
+}
+
 test "an imported base's own call reaches the importer's override" {
-    na = kept_lines(na_run(MAIN_FIXTURE));
+    na = na_lines(MAIN_FIXTURE);
     assert "consumer_mark=7" in na , (
         f"Driver.drive() did not reach Consumer.hook natively; got {na}"
     );
@@ -116,21 +142,21 @@ test "an imported base's own call reaches the importer's override" {
 }
 
 test "the importing module's own call site keeps dispatching" {
-    na = kept_lines(na_run(MAIN_FIXTURE));
+    na = na_lines(MAIN_FIXTURE);
     assert "consumer_label=consumer" in na , (
         f"a call from the importing module lost its override; got {na}"
     );
 }
 
 test "an unsubclassed base instance still runs the base body" {
-    na = kept_lines(na_run(MAIN_FIXTURE));
+    na = na_lines(MAIN_FIXTURE);
     assert "base_tick=1" in na , f"Driver.hook did not run for a Driver; got {na}";
     assert "base_label=base" in na , f"Driver.label did not run for a Driver; got {na}";
 }
 
 test "the native binary and the server pathway agree line for line" {
-    sv = kept_lines(sv_run(MAIN_FIXTURE));
-    na = kept_lines(na_run(MAIN_FIXTURE));
+    sv = sv_lines(MAIN_FIXTURE);
+    na = na_lines(MAIN_FIXTURE);
     assert sv , "the server pathway produced no output";
     assert len(sv) == len(na) , f"line count: sv {len(sv)} vs na {len(na)}";
     for idx in range(len(sv)) {

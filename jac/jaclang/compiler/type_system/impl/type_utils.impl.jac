@@ -911,6 +911,12 @@ impl build_solution_from_specialized_class(
                 }
             }
         }
+    } elif class_type.shared.type_params {
+        for tp in class_type.shared.type_params {
+            if tp.name {
+                solution[tp.name] = AnyType();
+            }
+        }
     }
 
     return solution;
