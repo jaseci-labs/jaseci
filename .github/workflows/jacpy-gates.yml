@@ -15,7 +15,9 @@ on:
 
 concurrency:
   group: jacpy-gates-${{ github.ref }}
-  cancel-in-progress: true
+  # Supersede stale push-triggered runs, but never kill an explicit
+  # workflow_dispatch run mid-flight (expressions are supported here).
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 permissions:
   contents: read
