@@ -12,6 +12,7 @@ from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
 _REPO = _HERE.parent.parent
+sys.path.insert(0, str(_HERE))
 
 
 def _generator_python() -> str:
@@ -38,7 +39,7 @@ class OpcodeMeta2JacTests(unittest.TestCase):
     def test_cache_defaults_are_zero_not_opcode_index(self) -> None:
         import os
 
-        from opcode_meta2jac import _CPY, parse_defines, parse_sparse_array
+        from opcode_meta2jac import _CPY, parse_defines, parse_sparse_array  # noqa: E402
 
         opcode_ids = parse_defines(
             open(os.path.join(_CPY, "Include", "opcode_ids.h")).read()
@@ -66,10 +67,12 @@ class OpcodeMeta2JacTests(unittest.TestCase):
                 root = Path(tmp) / name
                 (root / "jac-py" / "tools").mkdir(parents=True)
                 (root / "jac-py" / "jacpython").mkdir(parents=True)
-                subprocess.run(
-                    ["cp", "-r", str(_REPO / "reference"), str(root / "reference")],
-                    check=True,
-                )
+                # The generator only reads headers under reference/cpython/Include;
+                # copying the full vendored cpython checkout (with .git) is ~1 GB.
+                include_src = _REPO / "reference" / "cpython" / "Include"
+                include_dst = root / "reference" / "cpython" / "Include"
+                include_dst.mkdir(parents=True)
+                shutil.copytree(include_src, include_dst, dirs_exist_ok=True)
                 subprocess.run(
                     [
                         "cp",
