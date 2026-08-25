@@ -714,9 +714,7 @@ class JacScalePlugin {
             return;
         }
 
-        url = dispatch_sv_service(
-            module_name, base_path, kinds=frozenset({HOST_TEST})
-        );
+        url = dispatch_sv_service(module_name, base_path, kinds=frozenset({HOST_TEST}));
         if url is not None {
             return;
         }
