@@ -55,7 +55,7 @@ impl BunBackend.build_entry_script(
 ) -> str {
     return (
         'import { startBunServer } from "./server_runtime.js";\n'
-            + '// Bun service bootstrap is emitted as server.mjs by the server builder.\n'
+        + '// Bun service bootstrap is emitted as server.mjs by the server builder.\n'
     );
 }
 

@@ -42,8 +42,6 @@ def resolve_module_backend(module: (uni.Module | None) = None) -> FrameworkBacke
     if module is not None {
         fw = framework_for_module(module);
     } else {
-        # No blanket fallback: a broken config or resolver must surface as an
-        # error, not silently select the react backend.
         import from jaclang.project.config { get_config }
         import from jaclang.runtimelib.client.npm_provider {
             resolve_client_target_name

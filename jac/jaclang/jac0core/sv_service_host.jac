@@ -39,7 +39,6 @@ def _resolve_sv_host_override(raw: str) -> (str | None) {
         valid = ', '.join(sorted(set(list(SV_SERVICE_HOST_KINDS) + list(names))));
         raise ValueError(f"Unknown sv host '{raw}'; valid hosts: {valid}");
     } except ImportError {
-        # Registry unavailable: cannot validate extended names.
         ;
     }
     return None;
@@ -48,9 +47,7 @@ def _resolve_sv_host_override(raw: str) -> (str | None) {
 
 def resolve_sv_service_host(module_name: str, base_path: str = '.') -> str {
     env_raw = os.environ.get(sv_host_env_key(module_name), '');
-    # Absent/blank override falls through to config + artifact detection; an
-    # explicit but unrecognized value must be loud, not silently ignored
-    # (a typo would otherwise change the execution host invisibly).
+
     env_host = _resolve_sv_host_override(env_raw);
     if env_host is not None {
         return env_host;

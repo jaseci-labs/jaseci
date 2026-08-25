@@ -226,10 +226,7 @@ glob NATIVE_ERASED_IDENTITY_CALLS: frozenset = frozenset({"cast"});
 glob _bun_host_decision_cache: dict[str, bool] = {};
 
 
-def clear_bun_host_decision_cache() -> None {
-    # Drop memoized project_uses_bun_host verdicts AND the discovered-config
-    # cache they were derived from, so tests/watchers that flip
-    # [plugin.client].target mid-process are honored on the next call.
+def clear_bun_host_decision_cache {
     _bun_host_decision_cache.clear();
     try {
         import from jaclang.project.config { clear_discovered_config_cache }
@@ -239,11 +236,9 @@ def clear_bun_host_decision_cache() -> None {
     }
 }
 
-glob NATIVE_ERASED_FIELD_MARKERS: frozenset = frozenset({"field"});
-
-glob PASS_RIM_MODULE: str = "jaclang.jac0core.passes.pass_rim";
-
-glob NATIVE_ERASED_IMPORTS: dict[str, frozenset] = {
+glob NATIVE_ERASED_FIELD_MARKERS: frozenset = frozenset({"field"}),
+     PASS_RIM_MODULE: str = "jaclang.jac0core.passes.pass_rim",
+     NATIVE_ERASED_IMPORTS: dict[str, frozenset] = {
          "abc": NATIVE_ERASED_ABC_BASES,
          "dataclasses": NATIVE_ERASED_FIELD_MARKERS,
          PASS_RIM_MODULE: NATIVE_ERASED_RIM_BASES,
@@ -357,9 +352,6 @@ def project_uses_bun_host(base_path: str = '') -> bool {
 
 
 obj ClModuleRef {
-    # Resolution result for a client-stdlib module import: `src_name` is the
-    # dotted module path as addressable from the stdlib root (os.sep-joined
-    # relative path), `path` the on-disk .jac file. Both None when unresolved.
     has src_name: (str | None) = None,
         path: (str | None) = None;
 }

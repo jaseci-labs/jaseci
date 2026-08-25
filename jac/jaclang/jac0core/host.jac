@@ -19,9 +19,7 @@ glob HOST_DOM: str = 'DOM',
      HOST_CLI_JS: str = 'cli-js',
      HOST_CPYTHON: str = 'cpython',
      HOST_BARE_METAL: str = 'bare-metal',
-     SV_SERVICE_HOST_KINDS: frozenset = frozenset(
-         {HOST_BUN, HOST_TEST, HOST_CPYTHON}
-     ),
+     SV_SERVICE_HOST_KINDS: frozenset = frozenset({HOST_BUN, HOST_TEST, HOST_CPYTHON}),
      P3_JS_HOST_KINDS: tuple = (
          HOST_WEB_WORKER,
          HOST_SERVICE_WORKER,
@@ -106,13 +104,11 @@ def resolve_registry_name(name: str, table: any) -> (str | None) {
 def host_kind_for_target(name: str) -> str {
     key = resolve_registry_name(name, TARGET_HOST_KIND);
     if key is None {
-        # Absent target resolves to the browser default upstream; an explicit
-        # but unknown target is a configuration error and must be loud.
         if str(name or '').strip() {
             valid = ', '.join(sorted(TARGET_HOST_KIND.keys()));
             raise ValueError(
                 f"Unknown client target '{name}' (set via [client] target in "
-                + f'jac.toml); valid targets: {valid}'
+                    + f'jac.toml); valid targets: {valid}'
             );
         }
         return HOST_BROWSER;
@@ -139,9 +135,6 @@ def resolve_project_host_kind(mod_path: str = '') -> str {
         target = resolve_client_target_name(cfg);
         return host_kind_for_target(target);
     } except ImportError {
-        # Optional dependency missing (config loader unavailable): fall back
-        # to the default host. Invalid *values* raise — see
-        # host_kind_for_target.
         return HOST_CPYTHON;
     }
 }
@@ -219,8 +212,6 @@ def framework_for_host_kind(kind: str) -> str {
             return cfg.client.framework;
         }
     } except ImportError {
-        # Only the optional config loader may be missing here. AttributeError
-        # would hide real bugs in the config object shape.
         ;
     }
     return 'react';
