@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "e84f92cd07cc811e9f06ea896c3131e0241dc64d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_iterlen.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_iterlen",
+    "--name",
+    "conv_iterlen"
+  ],
+  "generated_at": "2026-08-24T21:10:49",
+  "hashes": {
+    "pins_jac": "d5eb6068f6c7d74482be3e04e20c67e3389ecc373225ba6b149ca7f7da83d90e"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_iterlen.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "iterlen",
+  "pins_file": "conv_iterlen_pins.jac",
+  "pins": [
+    {
+      "ident": "TestInvariantWithoutMutations.test_invariant",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'it'"
+    },
+    {
+      "ident": "TestList.test_mutation",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from operator import length_hint\nn = 10\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.it = iter(range(n))\n    d = list(range(n))\n    it = iter(d)\n    next(it)\n    next(it)\n    assert length_hint(it) == n - 2, ('assertEqual', length_hint(it), n - 2)\n    d.append(n)\n    assert length_hint(it) == n - 1, ('assertEqual', length_hint(it), n - 1)\n    d[1:] = []\n    assert length_hint(it) == 0, ('assertEqual', length_hint(it), 0)\n    assert list(it) == [], ('assertEqual', list(it), [])\n    d.extend(range(20))\n    assert length_hint(it) == 0, ('assertEqual', length_hint(it), 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestListReversed.test_mutation",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from operator import length_hint\nn = 10\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.it = reversed(range(n))\n    d = list(range(n))\n    it = reversed(d)\n    next(it)\n    next(it)\n    assert length_hint(it) == n - 2, ('assertEqual', length_hint(it), n - 2)\n    d.append(n)\n    assert length_hint(it) == n - 2, ('assertEqual', length_hint(it), n - 2)\n    d[1:] = []\n    assert length_hint(it) == 0, ('assertEqual', length_hint(it), 0)\n    assert list(it) == [], ('assertEqual', list(it), [])\n    d.extend(range(20))\n    assert length_hint(it) == 0, ('assertEqual', length_hint(it), 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestTemporarilyImmutable.test_immutable_during_iteration",
+      "reason": "self.mutate"
+    },
+    {
+      "ident": "TestLengthHintExceptions.test_issue1242657",
+      "reason": "unresolved-name:BadLen"
+    },
+    {
+      "ident": "TestLengthHintExceptions.test_invalid_hint",
+      "reason": "unresolved-name:NoneLengthHint"
+    }
+  ],
+  "counts": {
+    "extracted": 6,
+    "pinned": 2,
+    "quarantined": 4
+  }
+}

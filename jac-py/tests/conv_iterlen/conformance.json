@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "e84f92cd07cc811e9f06ea896c3131e0241dc64d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_iterlen/conv_iterlen_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:10:51",
+  "hashes": {
+    "pins_jac": "d5eb6068f6c7d74482be3e04e20c67e3389ecc373225ba6b149ca7f7da83d90e",
+    "conversion_json": "9284d4ab49cd7cd74e46b418288a911bb3a26d017b49d3e70c4a5a714fbb758b",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "iterlen",
+  "counts": {
+    "converted": 6,
+    "runnable": 2,
+    "green": 0,
+    "quarantined": 4
+  },
+  "pins": [
+    {
+      "id": "TestInvariantWithoutMutations.test_invariant",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'it'"
+    },
+    {
+      "id": "TestList.test_mutation",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 0, 8)\"'>"
+    },
+    {
+      "id": "TestListReversed.test_mutation",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 8, 0)\"'>"
+    },
+    {
+      "id": "TestTemporarilyImmutable.test_immutable_during_iteration",
+      "status": "quarantined",
+      "reason": "self.mutate"
+    },
+    {
+      "id": "TestLengthHintExceptions.test_issue1242657",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadLen"
+    },
+    {
+      "id": "TestLengthHintExceptions.test_invalid_hint",
+      "status": "quarantined",
+      "reason": "unresolved-name:NoneLengthHint"
+    }
+  ]
+}
