@@ -389,7 +389,7 @@ test "_stream_chunk_builder_accepts_logging_obj degrades to False and logs when 
         _byllm_llm_mod.logger, "debug"
     ) as mock_debug {
         result = _byllm_llm_mod._stream_chunk_builder_accepts_logging_obj();
-        assert result == False , (
+        assert not result , (
             "an uninspectable stream_chunk_builder must degrade to False, not raise"
         );
         assert mock_debug.call_count >= 1 , (
