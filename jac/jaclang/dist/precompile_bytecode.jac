@@ -1805,12 +1805,14 @@ def _sym_table_fingerprint(mod: any) -> list[str] {
     out: list[str] = [];
     for nd in mod._in_mod_nodes {
         if isinstance(nd, uni.UniScopeNode) {
-            names = ",".join(sorted((nd.names_in_scope or {}).keys()));
-            over = ",".join(sorted((nd.names_in_scope_overload or {}).keys()));
-            reb = ",".join(sorted((nd.implicit_rebinds or {}).keys()));
-            kids = len(nd.kid_scope or []);
+            scope_names: dict[str, any] = dict(nd.names_in_scope or {});
+            over_names: dict[str, any] = dict(nd.names_in_scope_overload or {});
+            rebind_names: dict[str, any] = dict(nd.implicit_rebinds or {});
+            names = ",".join(sorted(scope_names.keys()));
+            over = ",".join(sorted(over_names.keys()));
+            reb = ",".join(sorted(rebind_names.keys()));
+            kids = len(list(nd.kid_scope or []));
             has_parent = "y" if nd.parent_scope is not None else "n";
-            scope_names = nd.names_in_scope or {};
             sem_parts: list[str] = [];
             for nm in sorted(scope_names.keys()) {
                 scope_sym = scope_names[nm];

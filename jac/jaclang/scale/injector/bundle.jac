@@ -500,6 +500,13 @@ def _precompile_app(
             result.returncode != 0
             or not (stage / "_precompiled" / "MANIFEST.json").is_file()
         ) {
+            for stream_line in (
+                (result.stderr or "") + "\n" + (result.stdout or "")
+            ).splitlines() {
+                if stream_line.strip() {
+                    logger.error(f"seal stderr: {stream_line.rstrip()}");
+                }
+            }
             raise RuntimeError(
                 f"App seal did not complete, so the deploy cannot produce a "
                 f".jab: {(result.stderr or result.stdout).strip()[-2000:]}"
