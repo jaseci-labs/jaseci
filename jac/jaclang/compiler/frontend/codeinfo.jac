@@ -343,8 +343,19 @@ def project_uses_bun_host(base_path: str = '') -> bool {
     if key in _bun_host_decision_cache {
         return _bun_host_decision_cache[key];
     }
-    import from jaclang.jac0core.host { resolve_project_host_kind, HOST_BUN }
-    uses_bun = resolve_project_host_kind(base_path) == HOST_BUN;
+    try {
+        import from jaclang.jac0core.host { resolve_project_host_kind, HOST_BUN }
+        uses_bun = resolve_project_host_kind(base_path) == HOST_BUN;
+    } except ImportError {
+        # Bootstrap-order guard, not a silent config fallback: codeinfo runs
+        # inside compiler schedules, so this import can execute while
+        # jaclang.jac0core.host itself is still being compiled/imported by
+        # the meta importer ('partially initialized module'). During
+        # self-boot there is no user project config, so False matches what
+        # a fully-loaded module would answer; NOT caching lets later calls
+        # recompute once the host module is bound.
+        return False;
+    }
     if key {
         _bun_host_decision_cache[key] = uses_bun;
     }
