@@ -111,7 +111,7 @@ file (default `<name>.jac`).
 ### 3. Start
 
 ```bash
-jac start main.jac
+jac run main.jac
 ```
 
 Runtime automatically:
@@ -146,8 +146,8 @@ jac scale logs products_app              # view logs
 jac scale destroy                        # stop everything
 
 # Preview before applying (no cluster contact, no docker build)
-jac start main.jac --scale --dry-run               # per-service plan + lint
-jac start main.jac --scale --dry-run --show-yaml   # + raw multi-doc YAML
+jac scale deploy main.jac --dry-run                # per-service plan + lint
+jac scale deploy main.jac --dry-run --show-yaml    # + raw multi-doc YAML
 ```
 
 `--dry-run` runs the same manifest generation as the real deploy but
@@ -295,7 +295,7 @@ No manual token passing. The hook reads it from the execution context.
 
 Same code, different deployer:
 
-| | Local | K8s (`--scale`) |
+| | Local | K8s (`jac scale deploy`) |
 |-|-------|-----------------|
 | Spawning | Subprocess per service | Pod per service |
 | URLs | `http://127.0.0.1:18xxx` | `http://svc.ns.svc.cluster.local:8000` |
@@ -306,7 +306,7 @@ Same code, different deployer:
 
 ## Kubernetes Deployment
 
-`jac start <file>.jac --scale` with services declared in
+`jac scale deploy <file>.jac` with services declared in
 `[scale.microservices.routes]`
 auto-routes to the microservice K8s target: one image built and pushed,
 then per-service `Deployment` + `ClusterIP Service` + autoscaler (HPA or KEDA `ScaledObject`) + PDB applied
@@ -433,7 +433,7 @@ kubectl delete deployment,service,hpa,pdb,ingress -l managed=jac-scale -n <ns>
 
 Every pod runs the same image, only needs `jac` + `jac-scale[deploy]`.
 The pod-spec's `command`/`args` reads `JAC_SV_NAME` and dispatches:
-`<svc>` -> `jac start <svc>.jac`, `__gateway__` -> `jac scale gateway`.
+`<svc>` -> `jac run <svc>.jac`, `__gateway__` -> `jac scale gateway`.
 `JAC_SV_SIBLING=1` is set so the JacScalePlugin pre-hook skips the
 local-mode orchestrator.
 

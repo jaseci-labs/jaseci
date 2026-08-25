@@ -6,7 +6,7 @@ The SendGridEmailer subclass lives in emailer.jac. jac.toml points
 automatically. No further wiring needed.
 
   export SENDGRID_API_KEY=SG.xxxxx
-  jac start app.jac
+  jac run --serve app.jac
 """
 
 walker ping {

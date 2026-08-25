@@ -11,8 +11,8 @@ on every pod without a restart.
 
 import time;
 import from tempfile { mkdtemp }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.store { PgStore }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.data.store { PgStore }
 import from jaclang.scale._optdeps.apscheduler { HAS_APSCHEDULER }
 import from jaclang.scale.scheduler.scheduler {
     JOBS_CHANGED_CHANNEL,

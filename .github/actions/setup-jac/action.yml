@@ -11,7 +11,7 @@ description: >
   of rebuilding (PR branches cross-restore main's entry, and build their own on
   a miss). Exact-key match only (no restore-keys), so a stale binary can never
   be served -- which is why this is safe even though zig's own incremental cache
-  stays disabled (it doesn't reliably invalidate on a jaclang/payload change).
+  stays disabled (it doesn't reliably invalidate on a jaclang/dist/payload change).
 inputs:
   skip-precompile:
     description: >
@@ -92,7 +92,7 @@ runs:
       if: steps.cache.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v4
       with:
-        path: jac/jaclang/compiler/passes/native/llvm/libjacllvm.*
+        path: jac/jaclang/compiler/backends/native/llvm/libjacllvm.*
         key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
 
     # The native (na) backend statically links a pinned LLVM into the LLVMPY_*
@@ -120,10 +120,10 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: jac/.bun-build
-        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
+        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/client/bun_installer.jac') }}
 
     # Identity of the compiler this build runs, as git blob ids over the same
-    # file set jir.jac hashes for its module keys (jaclang.jac0core.jir:
+    # file set jir.jac hashes for its module keys (jaclang.compiler.driver.jir:
     # COMPILER_DIGEST_ROOTS, .jac/.py only, test material excluded). Keep the
     # two rules in lockstep. Git ids rather than hashFiles: git enumerates the
     # roots exhaustively, and the listing is immune to step ordering and to
@@ -136,16 +136,22 @@ runs:
       run: |
         list="$(git ls-tree -r HEAD -- \
           jac/jaclang/jac0.py \
+          jac/jaclang/bootstrap_manifest.py \
+          jac/jaclang/meta_importer.py \
           jac/jaclang/jac0core \
           jac/jaclang/compiler \
-          jac/jaclang/utils/precompile_bytecode.jac \
+          jac/jaclang/runtime \
+          jac/jaclang/lib \
+          jac/jaclang/cli/cli_boot.jac \
+          jac/jaclang/project/tomlio.jac \
+          jac/jaclang/dist/precompile_bytecode.jac \
           | grep -E '\.(jac|py)$' \
           | grep -vE '(^|/)(tests|test)/|\.test\.jac$' || true)"
         n="$(printf '%s\n' "$list" | grep -c . || true)"
         # A moved root would silently fingerprint nothing, which is the
         # unsoundness this scoping exists to remove. ~289 files today.
         if [ "$n" -lt 100 ]; then
-          echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/jac0core/jir.jac together."
+          echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/compiler/driver/jir.jac together."
           exit 1
         fi
         fp="$(printf '%s\n' "$list" | git hash-object --stdin)"
@@ -190,7 +196,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: jac/.payload-layers
-        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/backends/native/wasm_rt/**') }}
         restore-keys: |
           payload-layers-${{ runner.os }}-${{ runner.arch }}-
 
@@ -312,7 +318,7 @@ runs:
         SHIM_ARG=()
         if [ "${{ steps.shim-cache.outputs.cache-hit }}" = "true" ]; then
           mkdir -p .shim-build
-          cp jaclang/compiler/passes/native/llvm/libjacllvm.* .shim-build/
+          cp jaclang/compiler/backends/native/llvm/libjacllvm.* .shim-build/
           SHIM_ARG=(-Dshim-bin=".shim-build/$(ls .shim-build | head -1)")
         fi
         PRE_ARG=()
@@ -373,7 +379,7 @@ runs:
         steps.shim-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
-        path: jac/jaclang/compiler/passes/native/llvm/libjacllvm.*
+        path: jac/jaclang/compiler/backends/native/llvm/libjacllvm.*
         key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
 
     - name: Save LLVM cache (main only)
@@ -395,7 +401,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: jac/.bun-build
-        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
+        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/client/bun_installer.jac') }}
 
     # cache-hit is only 'true' on an exact-key match, so a restore-keys prefix
     # hit still saves here -- that is what keeps main's entry tracking HEAD
@@ -419,7 +425,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: jac/.payload-layers
-        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/backends/native/wasm_rt/**') }}
 
     # Seed the Zig package store from main only (see the restore note). Like the
     # precompile cache, a restore-keys prefix hit still leaves cache-hit != true,

@@ -58,7 +58,7 @@ def _start_server(port: int) -> subprocess.Popen {
     env = dict(os.environ);
     env['PYTHONPATH'] = str(FIXTURES_DIR) + os.pathsep + env.get('PYTHONPATH', '');
     proc = subprocess.Popen(
-        [jac_executable(), "start", "test_api.jac", "--port", str(port)],
+        [jac_executable(), "run", "--serve", "--port", str(port), "test_api.jac"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

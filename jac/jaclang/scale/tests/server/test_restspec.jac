@@ -715,8 +715,8 @@ test "restspec without method registers a live POST route (#8000 f3)" {
 
 
 test "restspec decoration-time validation rejects bad specs (#8000 f3)" {
-    import from jaclang.runtimelib.builtin { APIProtocol }
-    import jaclang.runtimelib.builtin as blt;
+    import from jaclang.runtime.builtin { APIProtocol }
+    import jaclang.runtime.builtin as blt;
 
     with testraises(ValueError) as exc {
         blt.restspec(method="HEAD")(lambda { 1; });
