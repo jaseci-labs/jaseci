@@ -49,7 +49,7 @@ curl -X POST http://localhost:8002/function/sum_list \
 
 ## Discovery chain (first match wins)
 
-1. **Test client** - `sv_client.register_test_client(module, client)` routes calls in-process for tests (`import from jaclang.runtimelib { sv_client }`; call `clear_test_clients()` between tests).
+1. **Test client** - `sv_client.register_test_client(module, client)` routes calls in-process for tests (`import from jaclang.server { sv_client }`; call `clear_test_clients()` between tests).
 2. **Registered URL** - `sv_client.register(module, url)` programmatically.
 3. **`JAC_SV_<UPPERCASED_MODULE>_URL` env var** - the production knob. Module name = exactly the routes-table key, upper-cased (hyphens→underscores): `JAC_SV_MATH_SERVICE_URL=http://localhost:8001`.
 4. **Auto-spawn** - the built-in scale subsystem starts the provider as a sibling at `jac run` time.

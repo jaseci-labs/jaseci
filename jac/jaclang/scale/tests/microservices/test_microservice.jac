@@ -6,9 +6,9 @@ import glob;
 import tempfile;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.jac0core.constant { Constants as Con }
-import from jaclang.runtimelib { sv_client as __jac_sv }
-import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+import from jaclang.compiler.frontend.constant { Constants as Con }
+import from jaclang.server { sv_client as __jac_sv }
+import from jaclang.testing.testkit { ServingTestClient as TestClient }
 import from jaclang.scale.server.serve { JacAPIServer }
 
 glob FIXTURES: Path = Path(__file__).parent.parent / "fixtures" / "microservice";
@@ -318,7 +318,7 @@ test "sv boundary: private function rejects malformed token (401)" {
 
 test "sv boundary: private function rejects expired token (401)" {
     import from datetime { datetime, UTC, timedelta }
-    import from jaclang.runtimelib.serving.authcrypt { jwt_encode }
+    import from jaclang.server.serving.authcrypt { jwt_encode }
     import from jaclang.scale.identity.user_manager { JWT_SECRET, JWT_ALGORITHM }
 
     tmp = setup_env();

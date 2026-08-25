@@ -244,12 +244,12 @@ A few things to know:
 
 ## 6. Test the Boundary In-Process
 
-When you write tests for the consumer, you do not want them to hit a real provider over HTTP. Instead, register an in-process `TestClient` for each provider, and the consumer's calls route through it directly -- no sockets, no port allocation, no background threads.
+When you write tests for the consumer, you do not want them to hit a real provider over HTTP. Instead, register an in-process test client (a `JacTestClient`) for each provider, and the consumer's calls route through it directly -- no sockets, no port allocation, no background threads.
 
 The core pattern is three lines:
 
 ```jac
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 
 with entry {
     sv_client.clear_test_clients();
@@ -260,7 +260,7 @@ with entry {
 
 Always call `sv_client.clear_test_clients()` between tests to avoid bleed-over from a previous test's registrations.
 
-The pieces left unshown here -- building a `TestClient` over a consumer and provider from the same source tree -- require hands-on use of scale's server-construction APIs and are currently more verbose than the tutorial should be. The sv-to-sv test suite in the scale source tree (`jac/jaclang/scale/`) has a worked example that copies fixtures into a temp directory and stands both sides up end-to-end. Start there if you need a ready-to-run harness.
+The pieces left unshown here -- building a `JacTestClient` over a consumer and provider from the same source tree -- require hands-on use of scale's server-construction APIs and are currently more verbose than the tutorial should be. The sv-to-sv test suite in the scale source tree (`jac/jaclang/scale/`) has a worked example that copies fixtures into a temp directory and stands both sides up end-to-end. Start there if you need a ready-to-run harness.
 
 ---
 
@@ -353,9 +353,9 @@ The gateway exposes a standard error envelope (`{ok, error: {code, message, serv
 | Rate limiting | `[...rate_limit] enabled = true, per_ip_rpm = 600, per_user_rpm = 120` | disabled |
 | Centralised logs (Loki + Alloy) | `[...logs] enabled = true` | disabled -- see [Centralised Logs](../../reference/plugins/jac-scale-kubernetes.md#centralised-logs) for the deployed components, dashboard, and storage caveats |
 
-WebSockets (`/ws/*`) and SSE / chunked responses flow through the gateway transparently -- no config. On `SIGTERM` (or `jac scale stop`), each service flips a drain flag (new requests get `503` with `Retry-After: 2`) and uvicorn waits up to `drain_timeout_seconds` for in-flight requests to complete before exiting. Mirrors K8s `terminationGracePeriodSeconds`.
+WebSockets (`/ws/*`) and SSE / chunked responses flow through the gateway transparently -- no config. On `SIGTERM` (or `jac scale stop`), each service flips a drain flag (new requests get `503` with `Retry-After: 2`) and the server waits up to `drain_timeout_seconds` for in-flight requests to complete before exiting. Mirrors K8s `terminationGracePeriodSeconds`.
 
-The gateway implementation lives under [`jac/jaclang/scale/microservices/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/scale/microservices) in the scale source tree.
+The gateway implementation lives under [`jac/jaclang/scale/runtime/gateway/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/scale/runtime/gateway) in the scale source tree.
 
 ### Kubernetes (microservice mode)
 

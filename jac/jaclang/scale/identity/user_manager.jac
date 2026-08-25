@@ -1,4 +1,4 @@
-import from jaclang.runtimelib.serving.authcrypt {
+import from jaclang.server.serving.authcrypt {
     JWTError,
     JWTExpiredError,
     jwt_decode,
@@ -6,10 +6,10 @@ import from jaclang.runtimelib.serving.authcrypt {
 }
 import logging;
 import from datetime { UTC, datetime, timedelta }
-import from jaclang.runtimelib.serving.datatypes { Request, Response }
+import from jaclang.server.serving.datatypes { Request, Response }
 import from contextvars { ContextVar }
-import from jaclang.runtimelib.server { UserManager }
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
+import from jaclang.server.server { UserManager }
+import from jaclang.server.transport { TransportResponse, Meta }
 import from jaclang.scale.shared.enums { Platforms, Operations }
 import from jaclang.scale.shared.utils {
     generate_random_password,
@@ -22,7 +22,7 @@ import from jaclang.scale.identity.identity_storage {
     IdentityStorage,
     PgIdentityStorage
 }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 
 glob _jwt_config = get_scale_config().get_jwt_config(),
      _sso_config = get_scale_config().get_sso_config(),

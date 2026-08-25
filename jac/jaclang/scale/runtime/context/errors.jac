@@ -1,4 +1,4 @@
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+import from jaclang.server.serving.datatypes { JSONResponse }
 
 def error_response(
     code: str,

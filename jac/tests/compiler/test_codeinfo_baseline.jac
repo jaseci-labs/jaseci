@@ -50,13 +50,13 @@ the 16GB compiler-suite runner.
 
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     CODEINFO: str = "jac0core/codeinfo.jac";
+     CODEINFO: str = "compiler/frontend/codeinfo.jac";
 
 """codeinfo's exact native closure, as package-relative paths.
 
@@ -68,26 +68,28 @@ set below did not move with it: the thirteen are filesystem, config and
 Python-codegen machinery, none of which the base chain touches.
 """
 glob CODEINFO_CLOSURE: tuple = (
+         "compiler/backends/py/module_codegen_pass.jac",
+         "compiler/frontend/codeinfo.jac",
+         "compiler/frontend/constant.jac",
+         "compiler/frontend/diagnostic_utils.jac",
+         "compiler/frontend/diagnostics.jac",
+         "compiler/frontend/helpers.jac",
+         "compiler/frontend/srcloc.jac",
+         "compiler/frontend/unitree.jac",
+         "compiler/passes/pass_rim.jac",
+         "compiler/passes/pass_serve.jac",
+         "compiler/passes/transform.jac",
+         "compiler/passes/uni_pass.jac",
          "compiler/type_registry.jac",
-         "compiler/type_system/type_utils.jac",
-         "compiler/type_system/types.jac",
-         "jac0core/codeinfo.jac",
-         "jac0core/constant.jac",
-         "jac0core/diagnostic_utils.jac",
-         "jac0core/diagnostics.jac",
-         "jac0core/helpers.jac",
-         "jac0core/passes/module_codegen_pass.jac",
-         "jac0core/passes/transform.jac",
-         "jac0core/passes/uni_pass.jac",
-         "jac0core/scalars.jac",
-         "jac0core/srcloc.jac",
-         "jac0core/unitree.jac",
-         "runtimelib/na_stdlib/_hashlib_native.jac",
-         "runtimelib/na_stdlib/contextvars.jac",
-         "runtimelib/na_stdlib/fnmatch.jac",
-         "runtimelib/na_stdlib/hashlib.jac",
-         "runtimelib/na_stdlib/logging.jac",
-         "runtimelib/na_stdlib/pathlib.jac"
+         "compiler/types/type_utils.jac",
+         "compiler/types/types.jac",
+         "runtime/na_stdlib/_hashlib_native.jac",
+         "runtime/na_stdlib/contextvars.jac",
+         "runtime/na_stdlib/fnmatch.jac",
+         "runtime/na_stdlib/hashlib.jac",
+         "runtime/na_stdlib/logging.jac",
+         "runtime/na_stdlib/pathlib.jac",
+         "runtime/scalars.jac"
      );
 
 """codeinfo's own seams: filesystem, config and Python-codegen machinery."""
