@@ -1,0 +1,149 @@
+impl traverse_graph(
+    nd: NodeArchetype,
+    cur_depth: int,
+    depth: int,
+    edge_type: list[str],
+    traverse: bool,
+    connections: list,
+    node_depths: dict[(NodeArchetype, int)],
+    visited_nodes: list,
+    queue: list[tuple[NodeArchetype, int]],
+    bfs: bool,
+    dfs: Callable,
+    node_limit: int,
+    edge_limit: int
+) -> None {
+    import from jaclang.runtime.archetype { EdgeAnchor }
+    import from jaclang.runtime.osp_graph_sv { sv_live_edges, sv_register_hydrated }
+    nd_anchor = nd.__jac__;
+    sv_register_hydrated(nd_anchor, fetch_stubs=True);
+    for `edge in sv_live_edges(nd_anchor, 3, None, True) {
+        if not isinstance(`edge, EdgeAnchor) {
+            continue;
+        }
+        is_self_loop = id(`edge.source) == id(`edge.target);
+        is_in_edge = `edge.target == nd_anchor;
+        if (
+            (traverse and is_in_edge)
+            or (`edge.archetype.__class__.__name__ in edge_type)
+        ) {
+            continue;
+        }
+        if is_self_loop {
+            continue;
+        } elif (
+            (other_nda := (`edge.target if not is_in_edge else `edge.source))
+            and (other_nd := other_nda.archetype)
+        ) {
+            new_con = (nd, other_nd, `edge.archetype)
+                if not is_in_edge
+                else (other_nd, nd, `edge.archetype);
+            if ((nd in node_depths) and (node_depths[nd] is not None)) {
+                if (other_nd in node_depths) {
+                    node_depths[nd] = min(
+                        cur_depth, node_depths[nd], (node_depths[other_nd] + 1)
+                    );
+                    node_depths[other_nd] = min(
+                        (cur_depth + 1), (node_depths[nd] + 1), node_depths[other_nd]
+                    );
+                } elif other_nd {
+                    node_depths[other_nd] = min((cur_depth + 1), (node_depths[nd] + 1));
+                } else {
+                    raise ValueError('Edge is detached from node in graph');
+                }
+            }
+            if (
+                other_nd
+                and (new_con not in connections)
+                and (
+                    (
+                        (depth < 0)
+                        or ((min(node_depths[nd], node_depths[other_nd]) + 1) <= depth)
+                    )
+                    and (node_limit > len(visited_nodes))
+                    and (edge_limit > len(connections))
+                )
+            ) {
+                connections.append(new_con);
+                if bfs {
+                    queue.append((other_nd, (cur_depth + 1)));
+                } else {
+                    dfs(other_nd, (cur_depth + 1));
+                }
+            }
+        }
+    }
+}
+
+impl collect_node_connections(
+    current_node: NodeArchetype, visited_nodes: set, connections: set, edge_ids: set
+) -> None {
+    import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor }
+    import from jaclang.runtime.osp_graph_sv { sv_live_edges, sv_register_hydrated }
+    import from jaclang.runtime.runtime { resolve_ref }
+    if (current_node not in visited_nodes) {
+        visited_nodes.add(current_node);
+        node_anchor = current_node.__jac__;
+        sv_register_hydrated(node_anchor, fetch_stubs=True);
+        for edge_ in sv_live_edges(node_anchor, 3, None, True) {
+            if not isinstance(edge_, EdgeAnchor) or (edge_.id in edge_ids) {
+                continue;
+            }
+            edge_ids.add(edge_.id);
+            source = resolve_ref(edge_.source, edge_);
+            target = resolve_ref(edge_.target, edge_);
+            if isinstance(source, NodeAnchor) and isinstance(target, NodeAnchor) {
+                connections.add(
+                    (edge_.id, source.archetype, target.archetype, edge_.archetype)
+                );
+                collect_node_connections(
+                    target.archetype, visited_nodes, connections, edge_ids
+                );
+            }
+        }
+    }
+}
+
+impl get_name(target_path: (str | None) = None) -> str | None {
+    import from pathlib { Path }
+    import from jaclang.project.config { get_config }
+    import from jaclang.runtime.runtime { JacRuntime }
+
+    effective_target = target_path or JacRuntime.get_full_target_path();
+    if not effective_target {
+        return None;
+    }
+    file_path = Path(effective_target);
+
+    try {
+        cfg = get_config(start_path=file_path.parent, force_discover=False);
+        if cfg and cfg.toml_path and cfg.project.name {
+            if cfg.toml_path.parent == file_path.parent {
+                return cfg.project.name;
+            }
+        }
+    } except Exception {
+        ;
+    }
+
+    stem = file_path.stem;
+    return stem if stem not in ['jac', '__main__'] else None;
+}
+
+impl get_db_path(base_path: str, target_path: (str | None) = None) -> (str | None) {
+    import os;
+    import from pathlib { Path }
+
+    data_path_override = os.environ.get('JAC_DATA_PATH');
+    if data_path_override {
+        data_dir = Path(data_path_override) / ".jac" / "data";
+    } else {
+        data_dir = Path(base_path) / ".jac" / "data";
+    }
+
+    if (project_name := get_name(target_path=target_path)) {
+        return str(data_dir / f"{project_name}.db");
+    }
+
+    return str(data_dir / "main.db");
+}

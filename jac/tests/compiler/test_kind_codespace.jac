@@ -14,8 +14,8 @@ import os;
 import shutil;
 import tempfile;
 import from tests.support { JAC_ROOT }
-import from jaclang.jac0core.placement_pins { config_kind_space }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.placement.placement_pins { config_kind_space }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURE = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "codespace", "kind_pub_exports.jac"

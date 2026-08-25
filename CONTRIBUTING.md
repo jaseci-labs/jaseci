@@ -147,7 +147,7 @@ Every PR that changes package code must include a release note fragment file:
 
 1. Create a file at `release_notes/unreleased/<package>/<PR#>.<category>.md`
    - **Packages**: `jaclang`, `byllm`
-   - **Note**: The Jac client and desktop runtimes, the `scale` deployment subsystem, and the MCP server are now part of `jaclang` core (under `jac/jaclang/runtimelib/client/`, `jac/jaclang/scale/`, and `jac/jaclang/cli/mcp/`); changes to them use the `jaclang` package fragment.
+   - **Note**: The Jac client and desktop runtimes, the `scale` deployment subsystem, and the MCP server are now part of `jaclang` core (under `jac/jaclang/client/`, `jac/jaclang/scale/`, and `jac/jaclang/cli/mcp/`); changes to them use the `jaclang` package fragment.
    - **Categories**: `feature`, `bugfix`, `breaking`, `refactor`, or `docs`
    - **Example**: `release_notes/unreleased/jaclang/1234.bugfix.md`
 
@@ -186,6 +186,32 @@ Write type-safe code. Avoid stringly-typed interfaces:
 Before submitting, use an AI assistant to audit your diff for unnecessary code. A good prompt:
 
 > "Can you look at the local changes to see if there is any bloat or inefficient implementation given what these changes are achieving."
+
+**The jaclang Tree (charters and layering)**
+
+Every top-level package under `jac/jaclang/` has one charter; a module that does not fit its package's charter is in the wrong place:
+
+- `compiler/` builds programs: `frontend/` (parser, unitree, constants, code info, diagnostics), `driver/` (JacProgram + progstate organs, JacCompiler, the self-host cache, schedules, module resolution, JIR and caches), `passes/` (pass bases + analysis passes), `types/` (the type system), `backends/` (`py/`, `es/`, `native/`, kernel units), `placement/` (codespace planning), `tools/` (formatter, linter, unparse, doc IR, treeprinter, grammar extract, lang tools).
+- `runtime/` runs programs: JacRuntime, archetypes, OSP kernels, execution context, builtin surface, na_stdlib.
+- `lib/` is the public jaclib surface. `client/` is the browser runtime plus the build toolchain. `server/` serves (serving/, session, transport, scheduler, hmr). `data/` persists (store, pg wire/embed, serializer, storage). `testing/` is the test runner and test clients. `dist/` distributes (payload, publish, sealer, fused, jab). `cli/`, `lsp/` (`protocol/` + `server/`), `project/`, `byllm/`, and `scale/` keep their own concerns.
+- `jac0core/` is only the frozen launcher boot seam (pure-Python `sealed`/`cache_paths`/`ext_registry`/`cli_boot`): built binaries bake these import paths, so they never move. Which `.jac` files compile under the jac0 seed transpiler is declared in `jaclang/bootstrap_manifest.py`, never by directory, and `scripts/check_seed_manifest.py` gates it in CI (a seed module may import the full compiler only inside function bodies).
+
+Layering: `frontend` never imports `driver`; `runtime`/`lib` never import compiler internals at module scope; `tools` and `backends` sit on `frontend`+`driver`; `server`/`client`/`data`/`testing` sit on `runtime`.
+
+**Impl Annex Placement**
+
+A module's `impl` blocks live in the shared `impl/` directory beside the module by default: `foo.jac` pairs with `impl/foo.impl.jac`. Use a per-module annex directory (`foo.impl/` holding several `*.impl.jac` files) only when the implementation genuinely needs a multi-file split (for example a generated annex beside hand-written ones, or a very large implementation split by concern). Inline `impl` blocks in the module file itself are for small modules where an annex would be ceremony. Do not mix placements for one module, and prefer the shared `impl/` directory when in doubt.
+
+**Generated Files**
+
+Every generated file that is tracked in git must carry the standard marker as its first lines, naming the regeneration command:
+
+```
+# Auto-generated <what this is>.
+# DO NOT EDIT MANUALLY - regenerate with `<command>`.
+```
+
+Generated artifacts that are not meant to be tracked must be written to a cache or build-output directory (or be reliably cleaned up), never left in the source tree. If CI can cheaply verify the file is in sync (like `jac gen-cli-manifest --verify`), wire that up; otherwise guard it with a snapshot test.
 
 **Issue Assignment**
 
