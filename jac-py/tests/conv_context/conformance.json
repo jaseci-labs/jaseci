@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "8c79425ea7806815f4f88b6ef263536c01e3a92e",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp2-out/test_context-r4/conv_context_pins.jac"
+  ],
+  "generated_at": "2026-08-24T23:17:15",
+  "hashes": {
+    "pins_jac": "c40926f274ce3eb0c560208030e29144a4617c85107fcb3ca185f11fb150370e",
+    "conversion_json": "f7805f7944463a0e8b53cd047bd166c0f01b430fee989f88b2fea98f8d53c778",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "context",
+  "counts": {
+    "converted": 56,
+    "runnable": 27,
+    "green": 17,
+    "quarantined": 29
+  },
+  "pins": [
+    {
+      "id": "ContextTest.test_context_var_new_1",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_var_repr_1",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \\'(\\\\\\'assertIn\\\\\\', \\\\\\'...\\\\\\', \"<ContextVar name=\\\\\\'a\\\\\\' default=[] at 0x7f20173c32e0>\")\\''>"
+    },
+    {
+      "id": "ContextTest.test_context_subclassing_1",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
+    },
+    {
+      "id": "ContextTest.test_context_new_1",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_new_unhashable_str_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
+    },
+    {
+      "id": "ContextTest.test_context_typerrors_1",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_get_context_1",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_run_1",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_run_2",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_run_3",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_run_4",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_run_5",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_run_6",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_run_7",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_getset_1",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 2, 1)\"'>"
+    },
+    {
+      "id": "ContextTest.test_context_getset_2",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_getset_3",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_getset_4",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_getset_5",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [], [42])\"'>"
+    },
+    {
+      "id": "ContextTest.test_context_copy_1",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_token_contextmanager_with_default",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'Token.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "ContextTest.test_token_contextmanager_without_default",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'Token.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "ContextTest.test_token_contextmanager_on_exception",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'Token.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "ContextTest.test_token_contextmanager_multiple_c_set",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'Token.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "ContextTest.test_token_contextmanager_with_explicit_reset_another_token",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'Token.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "ContextTest.test_context_eq_reentrant_contextvar_set",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_eq_reentrant_contextvar_set_in_hash",
+      "status": "pass"
+    },
+    {
+      "id": "ContextTest.test_context_threads_1",
+      "status": "quarantined",
+      "reason": "decorator:threading_helper.requires_working_threading"
+    },
+    {
+      "id": "ContextTest.test_context_thread_inherit",
+      "status": "quarantined",
+      "reason": "decorator:threading_helper.requires_working_threading"
+    },
+    {
+      "id": "HamtTest.test_hashkey_helper_1",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_basics_1",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_basics_2",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_basics_3",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_basics_4",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_collision_1",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_collision_3",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_stress",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_delete_1",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_delete_2",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_delete_3",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_delete_4",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_delete_5",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_items_1",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_items_2",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_keys_1",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_items_3",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_eq_1",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_eq_2",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_gc_1",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_gc_2",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_in_1",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "HamtTest.test_hamt_getitem_1",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "ContextTest.test_token_repr_1",
+      "status": "quarantined",
+      "reason": "self.assertRegex"
+    },
+    {
+      "id": "ContextTest.test_context_isinstance",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "ContextTest.test_token_contextmanager_reentrant",
+      "status": "quarantined",
+      "reason": "uses-self.assertEqual"
+    },
+    {
+      "id": "ContextTest.test_token_contextmanager_with_explicit_reset_the_same_token",
+      "status": "quarantined",
+      "reason": "uses-self.assertEqual"
+    }
+  ]
+}

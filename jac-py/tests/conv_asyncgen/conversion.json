@@ -1,0 +1,653 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "8cbc51382b93e32dc94556867b2695640fbb1527",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_asyncgen.py",
+    "-o",
+    "/var/tmp/sp1-out/test_asyncgen-r4",
+    "--name",
+    "conv_asyncgen"
+  ],
+  "generated_at": "2026-08-24T23:20:50",
+  "hashes": {
+    "pins_jac": "481f8e9fba539e6628b089c59fd94009a431e6f7c7fc6623c67e149827a749e1"
+  },
+  "source_file": "reference/cpython/Lib/test/test_asyncgen.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "asyncgen",
+  "pins_file": "conv_asyncgen_pins.jac",
+  "pins": [
+    {
+      "ident": "AsyncGenSyntaxTest.test_async_gen_syntax_01",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    code = 'async def foo():\\n            await abc\\n            yield from 123\\n        '\n    try:\n        exec(code, {}, {})\n    except SyntaxError as _exc:\n        assert _re.search('yield from.*inside async', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenSyntaxTest.test_async_gen_syntax_02",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    code = 'async def foo():\\n            yield from 123\\n        '\n    try:\n        exec(code, {}, {})\n    except SyntaxError as _exc:\n        assert _re.search('yield from.*inside async', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenSyntaxTest.test_async_gen_syntax_03",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    code = 'async def foo():\\n            await abc\\n            yield\\n            return 123\\n        '\n    try:\n        exec(code, {}, {})\n    except SyntaxError as _exc:\n        assert _re.search('return.*value.*async gen', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenSyntaxTest.test_async_gen_syntax_04",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    code = 'async def foo():\\n            yield\\n            return 123\\n        '\n    try:\n        exec(code, {}, {})\n    except SyntaxError as _exc:\n        assert _re.search('return.*value.*async gen', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenSyntaxTest.test_async_gen_syntax_05",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    code = 'async def foo():\\n            if 0:\\n                yield\\n            return 12\\n        '\n    try:\n        exec(code, {}, {})\n    except SyntaxError as _exc:\n        assert _re.search('return.*value.*async gen', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_iteration_01",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\nclass AwaitException(Exception):\n    pass\n\n@types.coroutine\ndef awaitable(*, throw=False):\n    if throw:\n        yield ('throw',)\n    else:\n        yield ('result',)\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    async def gen():\n        await awaitable()\n        a = (yield 123)\n        assert a is None, ('assertIs', a, None)\n        await awaitable()\n        yield 456\n        await awaitable()\n        yield 789\n    assert to_list(gen()) == [123, 456, 789], ('assertEqual', to_list(gen()), [123, 456, 789])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_iteration_02",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\nclass AwaitException(Exception):\n    pass\n\n@types.coroutine\ndef awaitable(*, throw=False):\n    if throw:\n        yield ('throw',)\n    else:\n        yield ('result',)\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    async def gen():\n        await awaitable()\n        yield 123\n        await awaitable()\n    g = gen()\n    ai = g.__aiter__()\n    an = ai.__anext__()\n    assert an.__next__() == ('result',), ('assertEqual', an.__next__(), ('result',))\n    try:\n        an.__next__()\n    except StopIteration as ex:\n        assert ex.args[0] == 123, ('assertEqual', ex.args[0], 123)\n    else:\n        raise AssertionError('StopIteration was not raised')\n    an = ai.__anext__()\n    assert an.__next__() == ('result',), ('assertEqual', an.__next__(), ('result',))\n    try:\n        an.__next__()\n    except StopAsyncIteration as ex:\n        assert not ex.args, ('assertFalse', ex.args)\n    else:\n        raise AssertionError('StopAsyncIteration was not raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_exception_03",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\nclass AwaitException(Exception):\n    pass\n\n@types.coroutine\ndef awaitable(*, throw=False):\n    if throw:\n        yield ('throw',)\n    else:\n        yield ('result',)\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    async def gen():\n        await awaitable()\n        yield 123\n        await awaitable(throw=True)\n        yield 456\n    try:\n        to_list(gen())\n    except AwaitException as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_exception_04",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\nclass AwaitException(Exception):\n    pass\n\n@types.coroutine\ndef awaitable(*, throw=False):\n    if throw:\n        yield ('throw',)\n    else:\n        yield ('result',)\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    async def gen():\n        await awaitable()\n        yield 123\n        1 / 0\n    g = gen()\n    ai = g.__aiter__()\n    an = ai.__anext__()\n    assert an.__next__() == ('result',), ('assertEqual', an.__next__(), ('result',))\n    try:\n        an.__next__()\n    except StopIteration as ex:\n        assert ex.args[0] == 123, ('assertEqual', ex.args[0], 123)\n    else:\n        raise AssertionError('StopIteration was not raised')\n    try:\n        ai.__anext__().__next__()\n    except ZeroDivisionError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_exception_05",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    async def gen():\n        yield 123\n        raise StopAsyncIteration\n    try:\n        to_list(gen())\n    except RuntimeError as _exc:\n        assert _re.search('async generator.*StopAsyncIteration', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_exception_06",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    async def gen():\n        yield 123\n        raise StopIteration\n    try:\n        to_list(gen())\n    except RuntimeError as _exc:\n        assert _re.search('async generator.*StopIteration', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_exception_07",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "class AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef compare_generators(sync_gen, async_gen):\n\n    def sync_iterate(g):\n        res = []\n        while True:\n            try:\n                res.append(g.__next__())\n            except StopIteration:\n                res.append('STOP')\n                break\n            except Exception as ex:\n                res.append(str(type(ex)))\n        return res\n\n    def async_iterate(g):\n        res = []\n        while True:\n            an = g.__anext__()\n            try:\n                while True:\n                    try:\n                        an.__next__()\n                    except StopIteration as ex:\n                        if ex.args:\n                            res.append(ex.args[0])\n                            break\n                        else:\n                            res.append('EMPTY StopIteration')\n                            break\n                    except StopAsyncIteration:\n                        raise\n                    except Exception as ex:\n                        res.append(str(type(ex)))\n                        break\n            except StopAsyncIteration:\n                res.append('STOP')\n                break\n        return res\n    sync_gen_result = sync_iterate(sync_gen)\n    async_gen_result = async_iterate(async_gen)\n    assert sync_gen_result == async_gen_result, ('assertEqual', sync_gen_result, async_gen_result)\n    return async_gen_result\n\ndef _t():\n\n    def sync_gen():\n        try:\n            yield 1\n            1 / 0\n        finally:\n            yield 2\n            yield 3\n        yield 100\n\n    async def async_gen():\n        try:\n            yield 1\n            1 / 0\n        finally:\n            yield 2\n            yield 3\n        yield 100\n    compare_generators(sync_gen(), async_gen())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_exception_08",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\nclass AwaitException(Exception):\n    pass\n\n@types.coroutine\ndef awaitable(*, throw=False):\n    if throw:\n        yield ('throw',)\n    else:\n        yield ('result',)\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef compare_generators(sync_gen, async_gen):\n\n    def sync_iterate(g):\n        res = []\n        while True:\n            try:\n                res.append(g.__next__())\n            except StopIteration:\n                res.append('STOP')\n                break\n            except Exception as ex:\n                res.append(str(type(ex)))\n        return res\n\n    def async_iterate(g):\n        res = []\n        while True:\n            an = g.__anext__()\n            try:\n                while True:\n                    try:\n                        an.__next__()\n                    except StopIteration as ex:\n                        if ex.args:\n                            res.append(ex.args[0])\n                            break\n                        else:\n                            res.append('EMPTY StopIteration')\n                            break\n                    except StopAsyncIteration:\n                        raise\n                    except Exception as ex:\n                        res.append(str(type(ex)))\n                        break\n            except StopAsyncIteration:\n                res.append('STOP')\n                break\n        return res\n    sync_gen_result = sync_iterate(sync_gen)\n    async_gen_result = async_iterate(async_gen)\n    assert sync_gen_result == async_gen_result, ('assertEqual', sync_gen_result, async_gen_result)\n    return async_gen_result\n\ndef _t():\n\n    def sync_gen():\n        try:\n            yield 1\n        finally:\n            yield 2\n            1 / 0\n            yield 3\n        yield 100\n\n    async def async_gen():\n        try:\n            yield 1\n            await awaitable()\n        finally:\n            await awaitable()\n            yield 2\n            1 / 0\n            yield 3\n        yield 100\n    compare_generators(sync_gen(), async_gen())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_exception_09",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\nclass AwaitException(Exception):\n    pass\n\n@types.coroutine\ndef awaitable(*, throw=False):\n    if throw:\n        yield ('throw',)\n    else:\n        yield ('result',)\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef compare_generators(sync_gen, async_gen):\n\n    def sync_iterate(g):\n        res = []\n        while True:\n            try:\n                res.append(g.__next__())\n            except StopIteration:\n                res.append('STOP')\n                break\n            except Exception as ex:\n                res.append(str(type(ex)))\n        return res\n\n    def async_iterate(g):\n        res = []\n        while True:\n            an = g.__anext__()\n            try:\n                while True:\n                    try:\n                        an.__next__()\n                    except StopIteration as ex:\n                        if ex.args:\n                            res.append(ex.args[0])\n                            break\n                        else:\n                            res.append('EMPTY StopIteration')\n                            break\n                    except StopAsyncIteration:\n                        raise\n                    except Exception as ex:\n                        res.append(str(type(ex)))\n                        break\n            except StopAsyncIteration:\n                res.append('STOP')\n                break\n        return res\n    sync_gen_result = sync_iterate(sync_gen)\n    async_gen_result = async_iterate(async_gen)\n    assert sync_gen_result == async_gen_result, ('assertEqual', sync_gen_result, async_gen_result)\n    return async_gen_result\n\ndef _t():\n\n    def sync_gen():\n        try:\n            yield 1\n            1 / 0\n        finally:\n            yield 2\n            yield 3\n        yield 100\n\n    async def async_gen():\n        try:\n            await awaitable()\n            yield 1\n            1 / 0\n        finally:\n            yield 2\n            await awaitable()\n            yield 3\n        yield 100\n    compare_generators(sync_gen(), async_gen())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_exception_10",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    async def gen():\n        yield 123\n    try:\n        gen().__anext__().send(100)\n    except TypeError as _exc:\n        assert _re.search('non-None value .* async generator', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_exception_11",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "class AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef compare_generators(sync_gen, async_gen):\n\n    def sync_iterate(g):\n        res = []\n        while True:\n            try:\n                res.append(g.__next__())\n            except StopIteration:\n                res.append('STOP')\n                break\n            except Exception as ex:\n                res.append(str(type(ex)))\n        return res\n\n    def async_iterate(g):\n        res = []\n        while True:\n            an = g.__anext__()\n            try:\n                while True:\n                    try:\n                        an.__next__()\n                    except StopIteration as ex:\n                        if ex.args:\n                            res.append(ex.args[0])\n                            break\n                        else:\n                            res.append('EMPTY StopIteration')\n                            break\n                    except StopAsyncIteration:\n                        raise\n                    except Exception as ex:\n                        res.append(str(type(ex)))\n                        break\n            except StopAsyncIteration:\n                res.append('STOP')\n                break\n        return res\n    sync_gen_result = sync_iterate(sync_gen)\n    async_gen_result = async_iterate(async_gen)\n    assert sync_gen_result == async_gen_result, ('assertEqual', sync_gen_result, async_gen_result)\n    return async_gen_result\n\ndef _t():\n\n    def sync_gen():\n        yield 10\n        yield 20\n\n    def sync_gen_wrapper():\n        yield 1\n        sg = sync_gen()\n        sg.send(None)\n        try:\n            sg.throw(GeneratorExit())\n        except GeneratorExit:\n            yield 2\n        yield 3\n\n    async def async_gen():\n        yield 10\n        yield 20\n\n    async def async_gen_wrapper():\n        yield 1\n        asg = async_gen()\n        await asg.asend(None)\n        try:\n            await asg.athrow(GeneratorExit())\n        except GeneratorExit:\n            yield 2\n        yield 3\n    compare_generators(sync_gen_wrapper(), async_gen_wrapper())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_asend_throw_concurrent_with_send",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport types\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n    import types\n\n    @types.coroutine\n    def _async_yield(v):\n        return (yield v)\n\n    class MyExc(Exception):\n        pass\n\n    async def agenfn():\n        while True:\n            try:\n                await _async_yield(None)\n            except MyExc:\n                pass\n        return\n        yield\n    agen = agenfn()\n    gen = agen.asend(None)\n    gen.send(None)\n    gen2 = agen.asend(None)\n    try:\n        gen2.throw(MyExc)\n    except RuntimeError as _exc:\n        assert _re.search('anext\\\\(\\\\): asynchronous generator is already running', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        gen2.send(None)\n    except RuntimeError as _exc:\n        assert _re.search('cannot reuse already awaited __anext__\\\\(\\\\)/asend\\\\(\\\\)', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_athrow_throw_concurrent_with_send",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport types\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n    import types\n\n    @types.coroutine\n    def _async_yield(v):\n        return (yield v)\n\n    class MyExc(Exception):\n        pass\n\n    async def agenfn():\n        while True:\n            try:\n                await _async_yield(None)\n            except MyExc:\n                pass\n        return\n        yield\n    agen = agenfn()\n    gen = agen.asend(None)\n    gen.send(None)\n    gen2 = agen.athrow(MyExc)\n    try:\n        gen2.throw(MyExc)\n    except RuntimeError as _exc:\n        assert _re.search('athrow\\\\(\\\\): asynchronous generator is already running', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        gen2.send(None)\n    except RuntimeError as _exc:\n        assert _re.search('cannot reuse already awaited aclose\\\\(\\\\)/athrow\\\\(\\\\)', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_asend_throw_concurrent_with_throw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport types\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n    import types\n\n    @types.coroutine\n    def _async_yield(v):\n        return (yield v)\n\n    class MyExc(Exception):\n        pass\n\n    async def agenfn():\n        try:\n            yield\n        except MyExc:\n            pass\n        while True:\n            try:\n                await _async_yield(None)\n            except MyExc:\n                pass\n    agen = agenfn()\n    try:\n        agen.asend(None).send(None)\n    except StopIteration as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    gen = agen.athrow(MyExc)\n    gen.throw(MyExc)\n    gen2 = agen.asend(MyExc)\n    try:\n        gen2.throw(MyExc)\n    except RuntimeError as _exc:\n        assert _re.search('anext\\\\(\\\\): asynchronous generator is already running', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        gen2.send(None)\n    except RuntimeError as _exc:\n        assert _re.search('cannot reuse already awaited __anext__\\\\(\\\\)/asend\\\\(\\\\)', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_athrow_throw_concurrent_with_throw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport types\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n    import types\n\n    @types.coroutine\n    def _async_yield(v):\n        return (yield v)\n\n    class MyExc(Exception):\n        pass\n\n    async def agenfn():\n        try:\n            yield\n        except MyExc:\n            pass\n        while True:\n            try:\n                await _async_yield(None)\n            except MyExc:\n                pass\n    agen = agenfn()\n    try:\n        agen.asend(None).send(None)\n    except StopIteration as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    gen = agen.athrow(MyExc)\n    gen.throw(MyExc)\n    gen2 = agen.athrow(None)\n    try:\n        gen2.throw(MyExc)\n    except RuntimeError as _exc:\n        assert _re.search('athrow\\\\(\\\\): asynchronous generator is already running', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        gen2.send(None)\n    except RuntimeError as _exc:\n        assert _re.search('cannot reuse already awaited aclose\\\\(\\\\)/athrow\\\\(\\\\)', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_api_01",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import inspect\nimport types\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    async def gen():\n        yield 123\n    g = gen()\n    assert g.__name__ == 'gen', ('assertEqual', g.__name__, 'gen')\n    g.__name__ = '123'\n    assert g.__name__ == '123', ('assertEqual', g.__name__, '123')\n    assert '.gen' in g.__qualname__, ('assertIn', '.gen', g.__qualname__)\n    g.__qualname__ = '123'\n    assert g.__qualname__ == '123', ('assertEqual', g.__qualname__, '123')\n    assert g.ag_await is None, ('assertIsNone', g.ag_await)\n    assert isinstance(g.ag_frame, types.FrameType), ('assertIsInstance', g.ag_frame, types.FrameType)\n    assert not g.ag_running, ('assertFalse', g.ag_running)\n    assert isinstance(g.ag_code, types.CodeType), ('assertIsInstance', g.ag_code, types.CodeType)\n    aclose = g.aclose()\n    assert inspect.isawaitable(aclose), ('assertTrue', inspect.isawaitable(aclose))\n    aclose.close()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_asend_close_runtime_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport types\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n    import types\n\n    @types.coroutine\n    def _async_yield(v):\n        return (yield v)\n\n    async def agenfn():\n        try:\n            await _async_yield(None)\n        except GeneratorExit:\n            await _async_yield(None)\n        return\n        yield\n    agen = agenfn()\n    gen = agen.asend(None)\n    gen.send(None)\n    try:\n        gen.close()\n    except RuntimeError as _exc:\n        assert _re.search('coroutine ignored GeneratorExit', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_athrow_close_runtime_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport types\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n    import types\n\n    @types.coroutine\n    def _async_yield(v):\n        return (yield v)\n\n    class MyExc(Exception):\n        pass\n\n    async def agenfn():\n        try:\n            yield\n        except MyExc:\n            try:\n                await _async_yield(None)\n            except GeneratorExit:\n                await _async_yield(None)\n    agen = agenfn()\n    try:\n        agen.asend(None).send(None)\n    except StopIteration as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    gen = agen.athrow(MyExc)\n    gen.send(None)\n    try:\n        gen.close()\n    except RuntimeError as _exc:\n        assert _re.search('coroutine ignored GeneratorExit', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_generator_anext",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_python_async_iterator_anext",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_python_async_iterator_types_coroutine_anext",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_aiter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def gen():\n        yield 1\n        yield 2\n    g = gen()\n\n    async def consume():\n        return [i async for i in aiter(g)]\n    res = self.loop.run_until_complete(consume())\n    assert res == [1, 2], ('assertEqual', res, [1, 2])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_aiter_class",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    results = []\n\n    class Gen:\n\n        async def __aiter__(self):\n            yield 1\n            yield 2\n    g = Gen()\n\n    async def consume():\n        ait = aiter(g)\n        while True:\n            try:\n                results.append(await anext(ait))\n            except StopAsyncIteration:\n                break\n    self.loop.run_until_complete(consume())\n    assert results == [1, 2], ('assertEqual', results, [1, 2])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_aiter_idempotent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def gen():\n        yield 1\n    applied_once = aiter(gen())\n    applied_twice = aiter(applied_once)\n    assert applied_once is applied_twice, ('assertIs', applied_once, applied_twice)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_anext_bad_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def gen():\n        yield 1\n\n    async def call_with_too_few_args():\n        await anext()\n\n    async def call_with_too_many_args():\n        await anext(gen(), 1, 3)\n\n    async def call_with_wrong_type_args():\n        await anext(1, gen())\n\n    async def call_with_kwarg():\n        await anext(aiterator=gen())\n    try:\n        self.loop.run_until_complete(call_with_too_few_args())\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        self.loop.run_until_complete(call_with_too_many_args())\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        self.loop.run_until_complete(call_with_wrong_type_args())\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        self.loop.run_until_complete(call_with_kwarg())\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_anext_bad_await",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport types\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\n@types.coroutine\ndef awaitable(*, throw=False):\n    if throw:\n        yield ('throw',)\n    else:\n        yield ('result',)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def bad_awaitable():\n\n        class BadAwaitable:\n\n            def __await__(self):\n                return 42\n\n        class MyAsyncIter:\n\n            def __aiter__(self):\n                return self\n\n            def __anext__(self):\n                return BadAwaitable()\n        regex = '__await__.*iterator'\n        awaitable = anext(MyAsyncIter(), 'default')\n        try:\n            await awaitable\n        except TypeError as _exc:\n            assert _re.search(regex, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        awaitable = anext(MyAsyncIter())\n        try:\n            await awaitable\n        except TypeError as _exc:\n            assert _re.search(regex, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        return 'completed'\n    result = self.loop.run_until_complete(bad_awaitable())\n    assert result == 'completed', ('assertEqual', result, 'completed')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_anext_await_raises",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\n@types.coroutine\ndef awaitable(*, throw=False):\n    if throw:\n        yield ('throw',)\n    else:\n        yield ('result',)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    class RaisingAwaitable:\n\n        def __await__(self):\n            raise ZeroDivisionError()\n            yield\n\n    class WithRaisingAwaitableAnext:\n\n        def __aiter__(self):\n            return self\n\n        def __anext__(self):\n            return RaisingAwaitable()\n\n    async def do_test():\n        awaitable = anext(WithRaisingAwaitableAnext())\n        try:\n            await awaitable\n        except ZeroDivisionError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        awaitable = anext(WithRaisingAwaitableAnext(), 'default')\n        try:\n            await awaitable\n        except ZeroDivisionError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        return 'completed'\n    result = self.loop.run_until_complete(do_test())\n    assert result == 'completed', ('assertEqual', result, 'completed')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_aiter_bad_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def gen():\n        yield 1\n\n    async def call_with_too_few_args():\n        await aiter()\n\n    async def call_with_too_many_args():\n        await aiter(gen(), 1)\n\n    async def call_with_wrong_type_arg():\n        await aiter(1)\n    try:\n        self.loop.run_until_complete(call_with_too_few_args())\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        self.loop.run_until_complete(call_with_too_many_args())\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        self.loop.run_until_complete(call_with_wrong_type_arg())\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_anext_04",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def foo():\n        yield 1\n        await asyncio.sleep(0.01)\n        try:\n            yield 2\n            yield 3\n        except ZeroDivisionError:\n            yield 1000\n        await asyncio.sleep(0.01)\n        yield 4\n\n    async def run1():\n        it = foo().__aiter__()\n        assert await it.__anext__() == 1, ('assertEqual', await it.__anext__(), 1)\n        assert await it.__anext__() == 2, ('assertEqual', await it.__anext__(), 2)\n        assert await it.__anext__() == 3, ('assertEqual', await it.__anext__(), 3)\n        assert await it.__anext__() == 4, ('assertEqual', await it.__anext__(), 4)\n        try:\n            await it.__anext__()\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        try:\n            await it.__anext__()\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n\n    async def run2():\n        it = foo().__aiter__()\n        assert await it.__anext__() == 1, ('assertEqual', await it.__anext__(), 1)\n        assert await it.__anext__() == 2, ('assertEqual', await it.__anext__(), 2)\n        try:\n            it.__anext__().throw(ZeroDivisionError)\n        except StopIteration as ex:\n            assert ex.args[0] == 1000, ('assertEqual', ex.args[0], 1000)\n        else:\n            raise AssertionError('StopIteration was not raised')\n        assert await it.__anext__() == 4, ('assertEqual', await it.__anext__(), 4)\n        try:\n            await it.__anext__()\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    self.loop.run_until_complete(run1())\n    self.loop.run_until_complete(run2())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_anext_05",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def foo():\n        v = (yield 1)\n        v = (yield v)\n        yield (v * 100)\n\n    async def run():\n        it = foo().__aiter__()\n        try:\n            it.__anext__().send(None)\n        except StopIteration as ex:\n            assert ex.args[0] == 1, ('assertEqual', ex.args[0], 1)\n        else:\n            raise AssertionError('StopIteration was not raised')\n        try:\n            it.__anext__().send(10)\n        except StopIteration as ex:\n            assert ex.args[0] == 10, ('assertEqual', ex.args[0], 10)\n        else:\n            raise AssertionError('StopIteration was not raised')\n        try:\n            it.__anext__().send(12)\n        except StopIteration as ex:\n            assert ex.args[0] == 1200, ('assertEqual', ex.args[0], 1200)\n        else:\n            raise AssertionError('StopIteration was not raised')\n        try:\n            await it.__anext__()\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    self.loop.run_until_complete(run())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_anext_06",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    def foo():\n        try:\n            yield\n        except:\n            pass\n    g = foo()\n    g.send(None)\n    try:\n        g.send(None)\n    except StopIteration as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    async def gen():\n        nonlocal DONE\n        try:\n            yield\n        except:\n            pass\n        DONE = 1\n\n    async def run():\n        nonlocal DONE\n        g = gen()\n        await g.asend(None)\n        try:\n            await g.asend(None)\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        DONE += 10\n    self.loop.run_until_complete(run())\n    assert DONE == 11, ('assertEqual', DONE, 11)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_anext_tuple_no_exceptions",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def foo():\n        if False:\n            yield (1, 2)\n\n    async def run():\n        it = foo().__aiter__()\n        try:\n            await it.__anext__()\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        res = await anext(it, ('a', 'b'))\n        assert res == ('a', 'b'), ('assertTupleEqual', res, ('a', 'b'))\n    self.loop.run_until_complete(run())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_sync_anext_raises_exception",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    msg = 'custom'\n    for exc_type in [StopAsyncIteration, StopIteration, ValueError, Exception]:\n        exc = exc_type(msg)\n\n        class A:\n\n            def __anext__(self):\n                raise exc\n        try:\n            anext(A())\n        except exc_type as _exc:\n            assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        try:\n            anext(A(), 1)\n        except exc_type as _exc:\n            assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_aclose_06",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def foo():\n        try:\n            yield 1\n            1 / 0\n        finally:\n            await asyncio.sleep(0.01)\n            yield 12\n\n    async def run():\n        gen = foo()\n        it = gen.__aiter__()\n        await it.__anext__()\n        await gen.aclose()\n    try:\n        self.loop.run_until_complete(run())\n    except RuntimeError as _exc:\n        assert _re.search('async generator ignored GeneratorExit', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_aclose_07",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    async def foo():\n        nonlocal DONE\n        try:\n            yield 1\n            1 / 0\n        finally:\n            await asyncio.sleep(0.01)\n            await asyncio.sleep(0.01)\n            DONE += 1\n        DONE += 1000\n\n    async def run():\n        gen = foo()\n        it = gen.__aiter__()\n        await it.__anext__()\n        await gen.aclose()\n    self.loop.run_until_complete(run())\n    assert DONE == 1, ('assertEqual', DONE, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_aclose_08",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n    fut = asyncio.Future(loop=self.loop)\n\n    async def foo():\n        nonlocal DONE\n        try:\n            yield 1\n            await fut\n            DONE += 1000\n            yield 2\n        finally:\n            await asyncio.sleep(0.01)\n            await asyncio.sleep(0.01)\n            DONE += 1\n        DONE += 1000\n\n    async def run():\n        gen = foo()\n        it = gen.__aiter__()\n        assert await it.__anext__() == 1, ('assertEqual', await it.__anext__(), 1)\n        await gen.aclose()\n    self.loop.run_until_complete(run())\n    assert DONE == 1, ('assertEqual', DONE, 1)\n    fut.cancel()\n    self.loop.run_until_complete(asyncio.sleep(0.01))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_gc_aclose_09",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nfrom test.support import gc_collect, requires_working_socket\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    async def gen():\n        nonlocal DONE\n        try:\n            while True:\n                yield 1\n        finally:\n            await asyncio.sleep(0)\n            DONE = 1\n\n    async def run():\n        g = gen()\n        await g.__anext__()\n        await g.__anext__()\n        del g\n        gc_collect()\n        await asyncio.sleep(0)\n        await asyncio.sleep(0)\n    self.loop.run_until_complete(run())\n    assert DONE == 1, ('assertEqual', DONE, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_aclose_10",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    def foo():\n        try:\n            yield\n        except:\n            pass\n    g = foo()\n    g.send(None)\n    g.close()\n\n    async def gen():\n        nonlocal DONE\n        try:\n            yield\n        except:\n            pass\n        DONE = 1\n\n    async def run():\n        nonlocal DONE\n        g = gen()\n        await g.asend(None)\n        await g.aclose()\n        DONE += 10\n    self.loop.run_until_complete(run())\n    assert DONE == 11, ('assertEqual', DONE, 11)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_aclose_11",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    def foo():\n        try:\n            yield\n        except:\n            pass\n        yield\n    g = foo()\n    g.send(None)\n    try:\n        g.close()\n    except RuntimeError as _exc:\n        assert _re.search('ignored GeneratorExit', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    async def gen():\n        nonlocal DONE\n        try:\n            yield\n        except:\n            pass\n        yield\n        DONE += 1\n\n    async def run():\n        nonlocal DONE\n        g = gen()\n        await g.asend(None)\n        try:\n            await g.aclose()\n        except RuntimeError as _exc:\n            assert _re.search('ignored GeneratorExit', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        DONE += 10\n    self.loop.run_until_complete(run())\n    assert DONE == 10, ('assertEqual', DONE, 10)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_aclose_12",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    async def target():\n        await asyncio.sleep(0.01)\n        1 / 0\n\n    async def foo():\n        nonlocal DONE\n        task = asyncio.create_task(target())\n        try:\n            yield 1\n        finally:\n            try:\n                await task\n            except ZeroDivisionError:\n                DONE = 1\n\n    async def run():\n        gen = foo()\n        it = gen.__aiter__()\n        await it.__anext__()\n        await gen.aclose()\n    self.loop.run_until_complete(run())\n    assert DONE == 1, ('assertEqual', DONE, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_asend_01",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    def sgen():\n        v = (yield 1)\n        yield (v * 2)\n    sg = sgen()\n    v = sg.send(None)\n    assert v == 1, ('assertEqual', v, 1)\n    v = sg.send(100)\n    assert v == 200, ('assertEqual', v, 200)\n\n    async def gen():\n        nonlocal DONE\n        try:\n            await asyncio.sleep(0.01)\n            v = (yield 1)\n            await asyncio.sleep(0.01)\n            yield (v * 2)\n            await asyncio.sleep(0.01)\n            return\n        finally:\n            await asyncio.sleep(0.01)\n            await asyncio.sleep(0.01)\n            DONE = 1\n\n    async def run():\n        g = gen()\n        v = await g.asend(None)\n        assert v == 1, ('assertEqual', v, 1)\n        v = await g.asend(100)\n        assert v == 200, ('assertEqual', v, 200)\n        try:\n            await g.asend(None)\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    self.loop.run_until_complete(run())\n    assert DONE == 1, ('assertEqual', DONE, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_asend_02",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    async def sleep_n_crash(delay):\n        await asyncio.sleep(delay)\n        1 / 0\n\n    async def gen():\n        nonlocal DONE\n        try:\n            await asyncio.sleep(0.01)\n            v = (yield 1)\n            await sleep_n_crash(0.01)\n            DONE += 1000\n            yield (v * 2)\n        finally:\n            await asyncio.sleep(0.01)\n            await asyncio.sleep(0.01)\n            DONE = 1\n\n    async def run():\n        g = gen()\n        v = await g.asend(None)\n        assert v == 1, ('assertEqual', v, 1)\n        await g.asend(100)\n    try:\n        self.loop.run_until_complete(run())\n    except ZeroDivisionError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    assert DONE == 1, ('assertEqual', DONE, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_asend_03",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    async def sleep_n_crash(delay):\n        fut = asyncio.ensure_future(asyncio.sleep(delay), loop=self.loop)\n        self.loop.call_later(delay / 2, lambda: fut.cancel())\n        return await fut\n\n    async def gen():\n        nonlocal DONE\n        try:\n            await asyncio.sleep(0.01)\n            v = (yield 1)\n            await sleep_n_crash(0.01)\n            DONE += 1000\n            yield (v * 2)\n        finally:\n            await asyncio.sleep(0.01)\n            await asyncio.sleep(0.01)\n            DONE = 1\n\n    async def run():\n        g = gen()\n        v = await g.asend(None)\n        assert v == 1, ('assertEqual', v, 1)\n        await g.asend(100)\n    try:\n        self.loop.run_until_complete(run())\n    except asyncio.CancelledError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    assert DONE == 1, ('assertEqual', DONE, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_athrow_01",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    class FooEr(Exception):\n        pass\n\n    def sgen():\n        try:\n            v = (yield 1)\n        except FooEr:\n            v = 1000\n        yield (v * 2)\n    sg = sgen()\n    v = sg.send(None)\n    assert v == 1, ('assertEqual', v, 1)\n    v = sg.throw(FooEr)\n    assert v == 2000, ('assertEqual', v, 2000)\n    try:\n        sg.send(None)\n    except StopIteration as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    async def gen():\n        nonlocal DONE\n        try:\n            await asyncio.sleep(0.01)\n            try:\n                v = (yield 1)\n            except FooEr:\n                v = 1000\n                await asyncio.sleep(0.01)\n            yield (v * 2)\n            await asyncio.sleep(0.01)\n        finally:\n            await asyncio.sleep(0.01)\n            await asyncio.sleep(0.01)\n            DONE = 1\n\n    async def run():\n        g = gen()\n        v = await g.asend(None)\n        assert v == 1, ('assertEqual', v, 1)\n        v = await g.athrow(FooEr)\n        assert v == 2000, ('assertEqual', v, 2000)\n        try:\n            await g.asend(None)\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    self.loop.run_until_complete(run())\n    assert DONE == 1, ('assertEqual', DONE, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_athrow_02",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    class FooEr(Exception):\n        pass\n\n    async def sleep_n_crash(delay):\n        fut = asyncio.ensure_future(asyncio.sleep(delay), loop=self.loop)\n        self.loop.call_later(delay / 2, lambda: fut.cancel())\n        return await fut\n\n    async def gen():\n        nonlocal DONE\n        try:\n            await asyncio.sleep(0.01)\n            try:\n                v = (yield 1)\n            except FooEr:\n                await sleep_n_crash(0.01)\n            yield (v * 2)\n            await asyncio.sleep(0.01)\n        finally:\n            await asyncio.sleep(0.01)\n            await asyncio.sleep(0.01)\n            DONE = 1\n\n    async def run():\n        g = gen()\n        v = await g.asend(None)\n        assert v == 1, ('assertEqual', v, 1)\n        try:\n            await g.athrow(FooEr)\n        except asyncio.CancelledError:\n            assert DONE == 1, ('assertEqual', DONE, 1)\n            raise\n        else:\n            raise AssertionError('CancelledError was not raised')\n    try:\n        self.loop.run_until_complete(run())\n    except asyncio.CancelledError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    assert DONE == 1, ('assertEqual', DONE, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_athrow_03",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    DONE = 0\n\n    def foo():\n        try:\n            yield\n        except:\n            pass\n    g = foo()\n    g.send(None)\n    try:\n        g.throw(ValueError)\n    except StopIteration as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    async def gen():\n        nonlocal DONE\n        try:\n            yield\n        except:\n            pass\n        DONE = 1\n\n    async def run():\n        nonlocal DONE\n        g = gen()\n        await g.asend(None)\n        try:\n            await g.athrow(ValueError)\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        DONE += 10\n    self.loop.run_until_complete(run())\n    assert DONE == 11, ('assertEqual', DONE, 11)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_athrow_tuple",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def gen():\n        try:\n            yield 1\n        except ZeroDivisionError:\n            yield (2,)\n\n    async def run():\n        g = gen()\n        v = await g.asend(None)\n        assert v == 1, ('assertEqual', v, 1)\n        v = await g.athrow(ZeroDivisionError)\n        assert v == (2,), ('assertEqual', v, (2,))\n        try:\n            await g.asend(None)\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    self.loop.run_until_complete(run())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_athrow_stopiteration",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def gen():\n        try:\n            yield 1\n        except ZeroDivisionError:\n            yield StopIteration(2)\n\n    async def run():\n        g = gen()\n        v = await g.asend(None)\n        assert v == 1, ('assertEqual', v, 1)\n        v = await g.athrow(ZeroDivisionError)\n        assert isinstance(v, StopIteration), ('assertIsInstance', v, StopIteration)\n        assert v.value == 2, ('assertEqual', v.value, 2)\n        try:\n            await g.asend(None)\n        except StopAsyncIteration as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    self.loop.run_until_complete(run())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_shutdown_01",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    finalized = 0\n\n    async def waiter(timeout):\n        nonlocal finalized\n        try:\n            await asyncio.sleep(timeout)\n            yield 1\n        finally:\n            await asyncio.sleep(0)\n            finalized += 1\n\n    async def wait():\n        async for _ in waiter(1):\n            pass\n    t1 = self.loop.create_task(wait())\n    t2 = self.loop.create_task(wait())\n    self.loop.run_until_complete(asyncio.sleep(0.1))\n    t1.cancel()\n    t2.cancel()\n    try:\n        self.loop.run_until_complete(t1)\n    except asyncio.CancelledError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        self.loop.run_until_complete(t2)\n    except asyncio.CancelledError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    self.loop.run_until_complete(self.loop.shutdown_asyncgens())\n    assert finalized == 2, ('assertEqual', finalized, 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_shutdown_02",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    messages = []\n\n    def exception_handler(loop, context):\n        messages.append(context)\n\n    async def async_iterate():\n        yield 1\n        yield 2\n    it = async_iterate()\n\n    async def main():\n        loop = asyncio.get_running_loop()\n        loop.set_exception_handler(exception_handler)\n        async for i in it:\n            break\n    asyncio.run(main())\n    assert messages == [], ('assertEqual', messages, [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_shutdown_exception_01",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    messages = []\n\n    def exception_handler(loop, context):\n        messages.append(context)\n\n    async def async_iterate():\n        try:\n            yield 1\n            yield 2\n        finally:\n            1 / 0\n    it = async_iterate()\n\n    async def main():\n        loop = asyncio.get_running_loop()\n        loop.set_exception_handler(exception_handler)\n        async for i in it:\n            break\n    asyncio.run(main())\n    message, = messages\n    assert message['asyncgen'] == it, ('assertEqual', message['asyncgen'], it)\n    assert isinstance(message['exception'], ZeroDivisionError), ('assertIsInstance', message['exception'], ZeroDivisionError)\n    assert 'an error occurred during closing of asynchronous generator' in message['message'], ('assertIn', 'an error occurred during closing of asynchronous generator', message['message'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_shutdown_exception_02",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nfrom test.support import gc_collect, requires_working_socket\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    messages = []\n\n    def exception_handler(loop, context):\n        messages.append(context)\n\n    async def async_iterate():\n        try:\n            yield 1\n            yield 2\n        finally:\n            1 / 0\n\n    async def main():\n        loop = asyncio.get_running_loop()\n        loop.set_exception_handler(exception_handler)\n        async for i in async_iterate():\n            break\n        gc_collect()\n    asyncio.run(main())\n    message, = messages\n    assert isinstance(message['exception'], ZeroDivisionError), ('assertIsInstance', message['exception'], ZeroDivisionError)\n    assert 'unhandled exception during asyncio.run() shutdown' in message['message'], ('assertIn', 'unhandled exception during asyncio.run() shutdown', message['message'])\n    del message, messages\n    gc_collect()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_expression_01",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def arange(n):\n        for i in range(n):\n            await asyncio.sleep(0.01)\n            yield i\n\n    def make_arange(n):\n        return (i * 2 async for i in arange(n))\n\n    async def run():\n        return [i async for i in make_arange(10)]\n    res = self.loop.run_until_complete(run())\n    assert res == [i * 2 for i in range(10)], ('assertEqual', res, [i * 2 for i in range(10)])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_expression_02",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def wrap(n):\n        await asyncio.sleep(0.01)\n        return n\n\n    def make_arange(n):\n        return (i * 2 for i in range(n) if await wrap(i))\n\n    async def run():\n        return [i async for i in make_arange(10)]\n    res = self.loop.run_until_complete(run())\n    assert res == [i * 2 for i in range(1, 10)], ('assertEqual', res, [i * 2 for i in range(1, 10)])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_expression_incorrect",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def ag():\n        yield 42\n\n    async def run(arg):\n        (x async for x in arg)\n    err_msg_async = \"'async for' requires an object with __aiter__ method, got .*\"\n    self.loop.run_until_complete(run(ag()))\n    try:\n        self.loop.run_until_complete(run(None))\n    except TypeError as _exc:\n        assert _re.search(err_msg_async, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_asyncgen_nonstarted_hooks_are_cancellable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nfrom test.support import gc_collect, requires_working_socket\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n    messages = []\n\n    def exception_handler(loop, context):\n        messages.append(context)\n\n    async def async_iterate():\n        yield 1\n        yield 2\n\n    async def main():\n        loop = asyncio.get_running_loop()\n        loop.set_exception_handler(exception_handler)\n        async for i in async_iterate():\n            break\n    asyncio.run(main())\n    assert [] == messages, ('assertEqual', [], messages)\n    gc_collect()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_await_same_anext_coro_twice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def async_iterate():\n        yield 1\n        yield 2\n\n    async def run():\n        it = async_iterate()\n        nxt = it.__anext__()\n        await nxt\n        try:\n            await nxt\n        except RuntimeError as _exc:\n            assert _re.search('cannot reuse already awaited __anext__\\\\(\\\\)/asend\\\\(\\\\)', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        await it.aclose()\n    self.loop.run_until_complete(run())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_await_same_aclose_coro_twice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def async_iterate():\n        yield 1\n        yield 2\n\n    async def run():\n        it = async_iterate()\n        nxt = it.aclose()\n        await nxt\n        try:\n            await nxt\n        except RuntimeError as _exc:\n            assert _re.search('cannot reuse already awaited aclose\\\\(\\\\)/athrow\\\\(\\\\)', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    self.loop.run_until_complete(run())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_throw_same_aclose_coro_twice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def async_iterate():\n        yield 1\n        yield 2\n    it = async_iterate()\n    nxt = it.aclose()\n    try:\n        nxt.throw(GeneratorExit)\n    except StopIteration as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        nxt.throw(GeneratorExit)\n    except RuntimeError as _exc:\n        assert _re.search('cannot reuse already awaited aclose\\\\(\\\\)/athrow\\\\(\\\\)', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_throw_custom_same_aclose_coro_twice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def async_iterate():\n        yield 1\n        yield 2\n    it = async_iterate()\n\n    class MyException(Exception):\n        pass\n    nxt = it.aclose()\n    try:\n        nxt.throw(MyException)\n    except MyException as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        nxt.throw(MyException)\n    except RuntimeError as _exc:\n        assert _re.search('cannot reuse already awaited aclose\\\\(\\\\)/athrow\\\\(\\\\)', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_throw_custom_same_athrow_coro_twice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def async_iterate():\n        yield 1\n        yield 2\n    it = async_iterate()\n\n    class MyException(Exception):\n        pass\n    nxt = it.athrow(MyException)\n    try:\n        nxt.throw(MyException)\n    except MyException as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        nxt.throw(MyException)\n    except RuntimeError as _exc:\n        assert _re.search('cannot reuse already awaited aclose\\\\(\\\\)/athrow\\\\(\\\\)', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_aclose_twice_with_different_coros",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def async_iterate():\n        yield 1\n        yield 2\n\n    async def run():\n        it = async_iterate()\n        await it.aclose()\n        await it.aclose()\n    self.loop.run_until_complete(run())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_aclose_after_exhaustion",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def async_iterate():\n        yield 1\n        yield 2\n\n    async def run():\n        it = async_iterate()\n        async for _ in it:\n            pass\n        await it.aclose()\n    self.loop.run_until_complete(run())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_aclose_compatible_with_get_stack",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import import_module\nasyncio = import_module('asyncio')\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(None)\n\n    async def async_generator():\n        yield object()\n\n    async def run():\n        ag = async_generator()\n        asyncio.create_task(ag.aclose())\n        tasks = asyncio.all_tasks()\n        for task in tasks:\n            task.get_stack()\n    self.loop.run_until_complete(run())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestUnawaitedWarnings.test_aclose_throw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import gc_collect, requires_working_socket\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    async def gen():\n        return\n        yield\n\n    class MyException(Exception):\n        pass\n    g = gen()\n    try:\n        g.aclose().throw(MyException)\n    except MyException as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    del g\n    gc_collect()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestUnawaitedWarnings.test_asend_send_already_running",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport types\nfrom test.support import gc_collect, requires_working_socket\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    @types.coroutine\n    def _async_yield(v):\n        return (yield v)\n\n    async def agenfn():\n        while True:\n            await _async_yield(1)\n        return\n        yield\n    agen = agenfn()\n    gen = agen.asend(None)\n    gen.send(None)\n    gen2 = agen.asend(None)\n    try:\n        gen2.send(None)\n    except RuntimeError as _exc:\n        assert _re.search('anext\\\\(\\\\): asynchronous generator is already running', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    del gen2\n    gc_collect()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestUnawaitedWarnings.test_athrow_send_already_running",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport types\nfrom test.support import gc_collect, requires_working_socket\n\nclass AwaitException(Exception):\n    pass\n\ndef run_until_complete(coro):\n    exc = False\n    while True:\n        try:\n            if exc:\n                exc = False\n                fut = coro.throw(AwaitException)\n            else:\n                fut = coro.send(None)\n        except StopIteration as ex:\n            return ex.args[0]\n        if fut == ('throw',):\n            exc = True\n\ndef to_list(gen):\n\n    async def iterate():\n        res = []\n        async for i in gen:\n            res.append(i)\n        return res\n    return run_until_complete(iterate())\n\ndef _t():\n\n    @types.coroutine\n    def _async_yield(v):\n        return (yield v)\n\n    async def agenfn():\n        while True:\n            await _async_yield(1)\n        return\n        yield\n    agen = agenfn()\n    gen = agen.asend(None)\n    gen.send(None)\n    gen2 = agen.athrow(Exception)\n    try:\n        gen2.send(None)\n    except RuntimeError as _exc:\n        assert _re.search('athrow\\\\(\\\\): asynchronous generator is already running', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    del gen2\n    gc_collect()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "AsyncGenTest.test_async_gen_exception_12",
+      "reason": "uses-self.assertWarnsRegex"
+    },
+    {
+      "ident": "AsyncGenTest.test_async_gen_3_arg_deprecation_warning",
+      "reason": "uses-self.assertWarns"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_anext_return_iterator",
+      "reason": "uses-self.check_anext_returning_iterator"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_anext_return_generator",
+      "reason": "uses-self.check_anext_returning_iterator"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_anext_iter",
+      "reason": "uses-self.assertEqual"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_01",
+      "reason": "uses-self.to_list"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_02",
+      "reason": "uses-self.to_list"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_03",
+      "reason": "uses-self.to_list"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_anext_tuple",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "AsyncGenAsyncioTest.test_async_gen_asyncio_anext_stopiteration",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "TestUnawaitedWarnings.test_asend",
+      "reason": "uses-self.assertWarnsRegex"
+    },
+    {
+      "ident": "TestUnawaitedWarnings.test_athrow",
+      "reason": "uses-self.assertWarnsRegex"
+    },
+    {
+      "ident": "TestUnawaitedWarnings.test_aclose",
+      "reason": "uses-self.assertWarnsRegex"
+    }
+  ],
+  "counts": {
+    "extracted": 85,
+    "pinned": 69,
+    "quarantined": 16
+  }
+}
