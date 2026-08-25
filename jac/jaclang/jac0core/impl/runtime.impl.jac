@@ -1941,8 +1941,11 @@ impl JacRuntime.get_shared_root -> Root {
     shared: (Root | None) = None;
     for attempt in range(2) {
         shared_anchor = JacRuntimeInterface.get_context().mem.get(UUID(root_id));
-        shared = shared_anchor.archetype if shared_anchor else None;
-        if isinstance(shared, Root) {
+        candidate: (Archetype | None) = (
+            shared_anchor.archetype if shared_anchor else None
+        );
+        if isinstance(candidate, Root) {
+            shared = candidate;
             _shared_root_resolver[1] = root_id;
             break;
         }

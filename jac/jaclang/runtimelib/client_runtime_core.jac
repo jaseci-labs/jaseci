@@ -33,7 +33,7 @@ def:pub __jacClearCache -> None;
 
 def:pub __jacDesktopBroker -> str;
 
-def:pub __jacHttpSidecar -> dict;
+def:pub __jacHttpSidecar -> (dict | None);
 def:pub __jacHttpHasCapability(cap: str) -> bool;
 def:pub __jacCapabilityError(cap: str) -> dict;
 def:pub __jacRoute(kind: str, upload: bool = False) -> dict;

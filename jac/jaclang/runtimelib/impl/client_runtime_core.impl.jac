@@ -156,7 +156,7 @@ async def __nativeInvoke(kind: str, name: str, `node: str, fields: dict) -> any 
         "fields": fields,
         "token": token
     };
-    raw = await globalThis.__jac_invoke(JSON.stringify(payload));
+    raw: any = await globalThis.__jac_invoke(JSON.stringify(payload));
     if raw and raw.__jac_stream {
         if raw.response {
             return {
@@ -198,10 +198,10 @@ async def __consumeNativeSse(response: any) -> any {
             ev = "";
             data = "";
             for line in lines {
-                if line.startsWith("event:") {
+                if line.startswith("event:") {
                     ev = line[6:].strip();
                 }
-                if line.startsWith("data: ") {
+                if line.startswith("data: ") {
                     data = line[6:];
                 }
             }
@@ -212,7 +212,7 @@ async def __consumeNativeSse(response: any) -> any {
             if ev == "error" {
                 msg = "";
                 try {
-                    parsed = JSON.parse(data or "{}");
+                    parsed: any = JSON.parse(data or "{}");
                     msg = parsed.message or "";
                 } except Exception {
                     ;
@@ -233,14 +233,14 @@ async def __consumeNativePush(stream_id: str) -> any {
     }
     feeding = True;
     while feeding {
-        frame = await jac.__stream_next__(stream_id);
+        frame: any = await jac.__stream_next__(stream_id);
         kind = frame.type if frame else "";
         if kind == "end" {
             feeding = False;
             continue;
         }
         if kind == "error" {
-            err = frame.error or {};
+            err: any = frame.error or {};
             msg = err.message or "native stream error";
             raise Exception(msg);
         }
@@ -586,8 +586,8 @@ impl __jacDesktopBroker -> str {
     return "";
 }
 
-impl __jacHttpSidecar -> dict {
-    h = globalThis.__JAC_HTTP__;
+impl __jacHttpSidecar -> (dict | None) {
+    h: any = globalThis.__JAC_HTTP__;
     if h and h["base"] {
         return h;
     }
@@ -600,7 +600,7 @@ impl __jacHttpHasCapability(cap: str) -> bool {
         return False;
     }
     caps = h["capabilities"] or [];
-    return caps.includes(cap);
+    return cap in caps;
 }
 
 impl __jacCapabilityError(cap: str) -> dict {
@@ -643,7 +643,7 @@ impl jacUploadFile(
     sidecar_token = sidecar["token"] or "";
     user_token = __getLocalStorage("jac_token") or "";
 
-    form = new(FormData);
+    form: any = Reflect.construct(FormData, []);
     for key in Object.keys(fields) {
         form.append(key, fields[key]);
     }
