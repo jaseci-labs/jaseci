@@ -166,6 +166,7 @@ glob _OP_ALLOW: dict[int, bool] = {
     42: True,
     43: True,
     44: True,
+    45: True,
     46: True,
     47: True,
     48: True,
