@@ -1258,6 +1258,15 @@ def visit_try(
             emit_module_return(g, body_cont.loc);
         }
     }
+    # All handler machinery is DEFERRED (placed at first use, CPython
+    # USE_LABEL). Handler bodies are visited after these blocks are allocated,
+    # and constructs inside a body (while/for heads, if joins) allocate their
+    # own blocks during that visitation; eager allocation would fix this
+    # machinery's layout position AHEAD of those body blocks, so a loop back
+    # edge or fall-through inside the handler would land on the as-cleanup/
+    # RERAISE epilogue instead of staying within the body. First-use order
+    # matches the allocation order below, so relative layout of the machinery
+    # itself is unchanged.
     handler_entry = g.new_block();
     handler_nt_blks: list[basicblock] = [];
     handler_store_blks: list[basicblock] = [];
@@ -1268,23 +1277,27 @@ def visit_try(
     hi = 0;
     while hi < len(t.handlers) {
         if hi > 0 {
-            # Own-block NOT_TAKEN for chained typed handlers; allocated here
-            # so LAYOUT order is match_i, NOT_TAKEN, body_i (CPython keeps
-            # this block uncovered by the exception table, which splits the
+            # Own-block NOT_TAKEN for chained typed handlers; first use keeps
+            # LAYOUT order match_i, NOT_TAKEN, body_i (CPython keeps this
+            # block uncovered by the exception table, which splits the
             # adjacent same-target spans). normalize_jumps then sees it as
             # the match block's layout neighbor and skips its inline insert.
-            handler_nt_blks.append(g.new_block());
-            handler_store_blks.append(g.new_block());
+            handler_nt_blks.append(g.new_deferred_block());
+            handler_store_blks.append(g.new_deferred_block());
         }
-        handler_body_entries.append(g.new_block());
-        handler_tails.append((g.new_block(), g.new_block()));
-        as_unwind_tails.append((g.new_block(), g.new_block()));
+        handler_body_entries.append(g.new_deferred_block());
+        handler_tails.append(
+            (g.new_deferred_block(), g.new_deferred_block())
+        );
+        as_unwind_tails.append(
+            (g.new_deferred_block(), g.new_deferred_block())
+        );
         if hi < len(t.handlers) - 1 {
-            next_handlers.append(g.new_block());
+            next_handlers.append(g.new_deferred_block());
         }
         hi = hi + 1;
     }
-    reraise_blk = g.new_block();
+    reraise_blk = g.new_deferred_block();
     # Consume epilogue spans published by the nested try/except in our body
     # (if any). Snapshot-and-clear regardless of branch: stale spans must
     # never leak into a later sibling's carve-out.
@@ -1630,7 +1643,14 @@ def visit_try(
         if fini_end < 0 {
             # Last handler: the fin-protected epilogue ends at the no-match
             # reraise block (CPython L8..L9), not at the empty block after it.
-            fini_end = reraise_blk.id;
+            # The reraise block only exists in the layout when it is emitted
+            # (typed last handler); with a bare last handler bound the range
+            # at the always-placed unwind block instead.
+            if not last_is_bare {
+                fini_end = reraise_blk.id;
+            } else {
+                fini_end = unwind_blk.id;
+            }
         }
         g.u.except_regions.append(
             except_region(

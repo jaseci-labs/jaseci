@@ -513,11 +513,16 @@ def visit_while(
     }
     has_break = loop_body_has_break(w.body);
     if more_code_follows {
-        exit_blk = g.new_block();
+        # Deferred: placed at first use AFTER the body is visited. Eager
+        # placement would fix these blocks' layout position ahead of blocks
+        # allocated while visiting the body (if/loop fragments), so the
+        # join's fall-through and break-site splices would land inside body
+        # code (infinite loops) instead of the post-loop continuation.
+        exit_blk = g.new_deferred_block();
         # Break edges target the shared continuation AFTER orelse (CPython's
         # `end` label): break must skip the else clause.
         if has_break {
-            join = g.new_block();
+            join = g.new_deferred_block();
             g.push_loop(head, join, True);
             break_frame = g.current_loop();
         } else {
