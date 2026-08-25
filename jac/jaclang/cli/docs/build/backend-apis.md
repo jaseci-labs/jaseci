@@ -28,7 +28,7 @@ walker:pub list_tasks {
 ```
 
 ```bash
-jac start api.jac --no-client
+jac run --no-client api.jac
 ```
 
 `--no-client` skips all frontend bundling -- a pure JSON API. Walkers are exposed at `POST /walker/<name>`:
@@ -71,7 +71,7 @@ def:pub dot_product(a: list[int], b: list[int]) -> int {
 With a `jac.toml` in the directory, one command brings up the whole cluster -- the consumer auto-starts every service it imports from:
 
 ```bash
-jac start calculator_service.jac --port 8002
+jac run --port 8002 calculator_service.jac
 
 curl -X POST http://localhost:8002/function/dot_product \
   -H "Content-Type: application/json" -d '{"a": [1,2,3], "b": [4,5,6]}'
@@ -85,7 +85,7 @@ To split services across hosts, point each consumer at its providers with `JAC_S
 - **Learn the language** → [Jac Fundamentals](../tutorials/language/basics.md) · [Object-Spatial Programming](../tutorials/language/osp.md)
 - **Build it for real** → [Local API Server](../tutorials/production/local.md) · [Microservices](../tutorials/production/microservices.md)
 - **Look it up** → [Walker patterns & responses](../reference/language/walker-responses.md) · [Scale reference](../reference/plugins/jac-scale.md)
-- **Ship it** → [Kubernetes deployment](../tutorials/production/kubernetes.md) -- `jac start --scale`
+- **Ship it** → [Kubernetes deployment](../tutorials/production/kubernetes.md) -- `jac scale deploy`
 
 ## Going further
 

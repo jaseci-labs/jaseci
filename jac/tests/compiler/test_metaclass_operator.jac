@@ -9,8 +9,8 @@ ctypes builds every array type this way: `_CType_Type.__mul__(cls, n)` is
 what makes `c_char_p * argc` a type, so all of it was unusable.
 """
 
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 def check_src(src: str) -> list[str] {
     prog = JacProgram();
