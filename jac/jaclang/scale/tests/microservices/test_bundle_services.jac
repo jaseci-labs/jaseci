@@ -102,6 +102,34 @@ test "the implicit main service boots the configured entry point" {
 }
 
 
+test "a nested deploy resolves the entry point relative to the deployed tree" {
+    toml = (
+        "[project]\nname = \"mini\"\nentry-point = \"src/app.jac\"\n\n"
+        "[scale.microservices.routes]\norders = \"/orders\"\n"
+    );
+    proj = _app(toml, {"src/app.jac": _PING, "src/orders.jac": _PING});
+    assert _resolve(proj / "src") == {"orders": "orders.jac", "main": "app.jac"};
+}
+
+
+test "an entry point outside the deployed tree fails the implicit main loud" {
+    toml = (
+        "[project]\nname = \"mini\"\nentry-point = \"app.jac\"\n\n"
+        "[scale.microservices.routes]\nsvc = \"/svc\"\n"
+    );
+    proj = _app(toml, {"app.jac": _PING, "src/svc.jac": _PING});
+    caught = "";
+    try {
+        _resolve(proj / "src");
+    } except ValueError as e {
+        caught = str(e);
+    }
+    assert "outside the deployed tree" in caught , caught;
+    assert "'main'" in caught , caught;
+    assert "app.jac" in caught , caught;
+}
+
+
 test "a same-named root stray never shadows the configured entry point" {
     toml = (
         "[project]\nname = \"mini\"\nentry-point = \"src/app.jac\"\n\n"

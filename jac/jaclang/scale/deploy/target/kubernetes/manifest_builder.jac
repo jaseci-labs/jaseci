@@ -205,10 +205,10 @@ obj ManifestBuilder {
             self.k8s_config.namespace,
             proj,
             dry_run=self.dry_run,
-            access_mode=self.k8s_config.bundle_access_mode
+            access_mode=self.k8s_config.bundle_access_mode,
+            ms_config=self._ms_cfg()
         );
         injector: PvcInjector = selection[0];
-        injector._ms_config = self._ms_cfg();
         self._toolchain_object_key = str(selection[1]);
         return injector;
     }

@@ -110,7 +110,10 @@ file. Without it, a `--scale` deploy resolves the service against the
 shipped bundle: root `<name>.jac` wins, else the single shipped module with
 that basename anywhere in the tree (test fixtures included); zero or several
 candidates fail the pack, so set `file` to disambiguate. The implicit
-`main` service boots the `[project] entry-point` module at its exact path.
+`main` service boots the `[project] entry-point` module at its exact path;
+the path is read relative to the directory holding `jac.toml` and
+re-expressed against the deployed tree when the deploy starts from a
+subdirectory (an entry module outside that tree fails the deploy).
 Local microservice mode runs `<name>.jac` from the project root as-is.
 
 ### 3. Start

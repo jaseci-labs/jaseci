@@ -178,12 +178,29 @@ def _project_config(project_dir: str) -> any {
 }
 
 
-def entry_module_rel(project_dir: str) -> (Path | None) {
+def _entry_module_spec(project_dir: str) -> (tuple[Path, Path] | None) {
     config = _project_config(project_dir);
     if config is None or not config.project.entry_point {
         return None;
     }
-    return Path(config.project.entry_point);
+    proj_root: Path = config.project_root or Path(project_dir);
+    return (proj_root.resolve(), Path(config.project.entry_point));
+}
+
+
+def entry_module_rel(project_dir: str) -> (Path | None) {
+    spec = _entry_module_spec(project_dir);
+    if spec is None {
+        return None;
+    }
+    (proj_root, entry_path) = spec;
+    try {
+        return (proj_root / entry_path).resolve().relative_to(
+            Path(project_dir).resolve()
+        );
+    } except ValueError {
+        return None;
+    }
 }
 
 
@@ -351,8 +368,27 @@ def resolve_service_members(
 def _implicit_main_member(
     base: Path, member_set: set[str], excluded: BundleSourceFilter
 ) -> str {
-    rel = entry_module_rel(str(base));
-    wanted = rel.as_posix() if rel is not None else "main.jac";
+    spec = _entry_module_spec(str(base));
+    wanted = "main.jac";
+    if spec is not None {
+        (proj_root, entry_path) = spec;
+        rel = None;
+        try {
+            rel = (proj_root / entry_path).resolve().relative_to(base.resolve());
+        } except ValueError { }
+        if rel is None {
+            raise ValueError(
+                "The routed fleet also deploys an implicit 'main' service for "
+                f"the project entry module, but '{entry_path.as_posix()}' "
+                f"resolves outside the deployed tree '{base}', so the bundle "
+                "cannot ship it and every 'main' pod would crash-loop on boot. "
+                "Deploy from the project root, or set "
+                "[scale.microservices.services.main] file to a module the "
+                "bundle ships."
+            );
+        }
+        wanted = rel.as_posix();
+    }
     if wanted in member_set {
         return wanted;
     }
