@@ -6983,6 +6983,22 @@ def py_attr(value: PyObj, name: str) -> PyObj {
             t="egroup_method", target=value as PyExcGroup, name=name
         );
     }
+    # Native __iter__ on containers and __next__ on native iterators bind to
+    # in-VM implementations: the substrate fallback bridges container
+    # __iter__ to a host slot wrapper whose iterator is an eager snapshot
+    # (silently losing dict mutation staleness -- test_dict exc62/65), and
+    # native iterators otherwise expose no callable __next__ at all.
+    # MUST precede the _is_host_backed fallback or it never runs.
+    if is_error(result) and name == "__iter__"
+        and (isinstance(value, PyDict) or isinstance(value, PyList)
+            or isinstance(value, PySet) or isinstance(value, PyTuple)
+            or isinstance(value, PyStr)) {
+        return PyNativeIterMethod(t="native_iter_method", target=value);
+    }
+    if is_error(result) and name == "__next__"
+        and (PyIter_Check(value) or isinstance(value, PyCallableIter)) {
+        return PyNativeNextMethod(t="native_next_method", target=value);
+    }
     if is_error(result) and _is_host_backed(value.t) {
         return host_getattr(value, name);
     }
@@ -7145,6 +7161,12 @@ def error_is_indexerror(err: PyObj) -> bool {
 }
 
 def py_iter(value: PyObj) -> PyObj {
+    # CPython tp_iter self-return: anything that IS an iterator is its own
+    # iterator -- `it = iter(d); for x in it:` re-GET_ITERs the stored
+    # iterator and must push it through unchanged, not fail or re-bridge.
+    if PyIter_Check(value) or isinstance(value, PyCallableIter) {
+        return value;
+    }
     # A callable-iterator (two-arg iter) is its own iterator.
     if isinstance(value, PyCallableIter) {
         return value;
@@ -12259,6 +12281,37 @@ def list_sort_inplace(lst: PyList, key_fn: PyObj, do_reverse: bool) -> PyObj {
     }
     lst.items = sorted_items;
     return py_none();
+}
+
+# Bound __iter__ on a native container: calling it produces the NATIVE
+# iterator (dict views carry mutation staleness; list/set/tuple/str iterate
+# live storage) instead of bridging to a host slot wrapper whose returned
+# iterator is an eager snapshot, silently losing mutation visibility
+# (test_dict CrazyDict exc62/65 family).
+obj PyNativeIterMethod(PyObj) {
+    has target: PyObj;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) > 0 or len(kwargs) > 0 {
+            return py_error("TypeError", "__iter__() takes no arguments");
+        }
+        return py_iter(self.target);
+    }
+}
+
+# Bound __next__ on a native iterator: advances via the same send_into path
+# FOR_ITER uses, so staleness errors propagate and exhaustion raises
+# StopIteration (catchable by name) instead of a silent genstop.
+obj PyNativeNextMethod(PyObj) {
+    has target: PyObj;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        step = send_into(self.target, py_none());
+        if step.t == "genstop" {
+            return py_error("StopIteration", "");
+        }
+        return step;
+    }
 }
 
 obj PyListMethod(PyObj) {

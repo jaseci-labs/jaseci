@@ -2,7 +2,7 @@
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_listcomps.py
 - guest leg: 0/62 marks
-- pins: **8 passed** / 62 run (+6 quarantined of 68 extracted)
+- pins: **14 passed** / 62 run (+6 quarantined of 68 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -11,13 +11,13 @@
 | ListComprehensionTest.test_class_scope_free_var_with_class_cell | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC RuntimeError 'super(): no arguments'"> |
 | ListComprehensionTest.test_references_super | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'res\'"'> |
 | ListComprehensionTest.test_references___class__ | PASS | |
-| ListComprehensionTest.test_references___class___nested | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC object ''"> |
+| ListComprehensionTest.test_references___class___nested | PASS | |
 | ListComprehensionTest.test_references___class___nested_used | PASS | |
 | ListComprehensionTest.test_references___class___defined | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'res\'"'> |
 | ListComprehensionTest.test_references___class___defined_nested | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'res\'"'> |
-| ListComprehensionTest.test_references___classdict__ | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC object ''"> |
-| ListComprehensionTest.test_references___conditional_annotations__ | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC object ''"> |
-| ListComprehensionTest.test_references___conditional_annotations___nested | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC object ''"> |
+| ListComprehensionTest.test_references___classdict__ | PASS | |
+| ListComprehensionTest.test_references___conditional_annotations__ | PASS | |
+| ListComprehensionTest.test_references___conditional_annotations___nested | PASS | |
 | ListComprehensionTest.test_references___class___enclosing | PASS | |
 | ListComprehensionTest.test_super_and_class_cell_in_sibling_comps | PASS | |
 | ListComprehensionTest.test_inner_cell_shadows_outer | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'y\'"'> |
@@ -40,13 +40,13 @@
 | ListComprehensionTest.test_nested_2 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'y\'"'> |
 | ListComprehensionTest.test_nested_3 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'y\'"'> |
 | ListComprehensionTest.test_nested_4 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'out\'"'> |
-| ListComprehensionTest.test_nameerror | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC object ''"> |
+| ListComprehensionTest.test_nameerror | PASS | |
 | ListComprehensionTest.test_dunder_name | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'y\'"'> |
 | ListComprehensionTest.test_unbound_local_after_comprehension | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaises: did not raise'"> |
 | ListComprehensionTest.test_unbound_local_inside_comprehension | PASS | |
 | ListComprehensionTest.test_global_outside_cellvar_inside_plus_freevar | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'x\'"'> |
 | ListComprehensionTest.test_cell_in_nested_comprehension | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'x\'"'> |
-| ListComprehensionTest.test_name_error_in_class_scope | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC object ''"> |
+| ListComprehensionTest.test_name_error_in_class_scope | PASS | |
 | ListComprehensionTest.test_global_in_class_scope | PASS | |
 | ListComprehensionTest.test_in_class_scope_inside_function_1 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'vals\'"'> |
 | ListComprehensionTest.test_in_class_scope_inside_function_2 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'vals\'"'> |
@@ -232,16 +232,6 @@
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC KeyError "\'y\'"'>
 
-### ListComprehensionTest.test_name_error_in_class_scope (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC object ''">
-
-### ListComprehensionTest.test_nameerror (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC object ''">
-
 ### ListComprehensionTest.test_nested (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
@@ -306,26 +296,6 @@
 
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC KeyError "\'res\'"'>
-
-### ListComprehensionTest.test_references___class___nested (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC object ''">
-
-### ListComprehensionTest.test_references___classdict__ (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC object ''">
-
-### ListComprehensionTest.test_references___conditional_annotations__ (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC object ''">
-
-### ListComprehensionTest.test_references___conditional_annotations___nested (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC object ''">
 
 ### ListComprehensionTest.test_references_super (GUEST-WRONG-OUTPUT)
 

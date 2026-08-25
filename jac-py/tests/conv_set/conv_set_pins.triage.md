@@ -2,7 +2,7 @@
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_set.py
 - guest leg: 0/68 marks
-- pins: **65 passed** / 68 run (+138 quarantined of 206 extracted)
+- pins: **66 passed** / 68 run (+138 quarantined of 206 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -72,8 +72,8 @@
 | TestWeirdBugs.test_iter_and_mutate | PASS | |
 | TestWeirdBugs.test_merge_and_mutate | PASS | |
 | TestWeirdBugs.test_hash_collision_concurrent_add | PASS | |
-| TestGraphs.test_cube | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object is not iterable'"> |
-| TestGraphs.test_cuboctahedron | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object is not iterable'"> |
+| TestGraphs.test_cube | PASS | |
+| TestGraphs.test_cuboctahedron | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object does not support item assignment'"> |
 
 ## Quarantined at conversion
 
@@ -225,12 +225,7 @@
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC AssertionError 'no exception when changing size during iteration'">
 
-### TestGraphs.test_cube (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC TypeError 'object is not iterable'">
-
 ### TestGraphs.test_cuboctahedron (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC TypeError 'object is not iterable'">
+- got: GOT<"ORACLE_EXC TypeError 'object does not support item assignment'">

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "87412999bc7112d340c86f51f2b2fde1e0f7279c",
+  "jac_sha": "b1bed97912c863821e93b83c77fd57351337db79",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,7 +10,7 @@
     "diff_runner.py",
     "jac-py/tests/conv_listcomps/conv_listcomps_pins.jac"
   ],
-  "generated_at": "2026-08-24T21:27:25",
+  "generated_at": "2026-08-24T22:53:27",
   "hashes": {
     "pins_jac": "10afd9cd2de7438fbef819a36018b850c0e9728f884e6c8e306547eb61beba15",
     "conversion_json": "3e01f11b2f55bf250185aa83575992be6f95aa5dcb45a5002006b77cdbf91003",
@@ -20,7 +20,7 @@
   "counts": {
     "converted": 68,
     "runnable": 62,
-    "green": 8,
+    "green": 14,
     "quarantined": 6
   },
   "pins": [
@@ -54,9 +54,7 @@
     },
     {
       "id": "ListComprehensionTest.test_references___class___nested",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC object ''\">"
+      "status": "pass"
     },
     {
       "id": "ListComprehensionTest.test_references___class___nested_used",
@@ -76,21 +74,15 @@
     },
     {
       "id": "ListComprehensionTest.test_references___classdict__",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC object ''\">"
+      "status": "pass"
     },
     {
       "id": "ListComprehensionTest.test_references___conditional_annotations__",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC object ''\">"
+      "status": "pass"
     },
     {
       "id": "ListComprehensionTest.test_references___conditional_annotations___nested",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC object ''\">"
+      "status": "pass"
     },
     {
       "id": "ListComprehensionTest.test_references___class___enclosing",
@@ -222,9 +214,7 @@
     },
     {
       "id": "ListComprehensionTest.test_nameerror",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC object ''\">"
+      "status": "pass"
     },
     {
       "id": "ListComprehensionTest.test_dunder_name",
@@ -256,9 +246,7 @@
     },
     {
       "id": "ListComprehensionTest.test_name_error_in_class_scope",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC object ''\">"
+      "status": "pass"
     },
     {
       "id": "ListComprehensionTest.test_global_in_class_scope",

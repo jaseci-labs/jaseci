@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "b1bed97912c863821e93b83c77fd57351337db79",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,7 +10,7 @@
     "diff_runner.py",
     "jac-py/tests/conv_dict/conv_dict_pins.jac"
   ],
-  "generated_at": "2026-08-24T15:02:40",
+  "generated_at": "2026-08-24T22:51:17",
   "hashes": {
     "pins_jac": "7e229ac5d9502f4ccffc58f847dfb9a4784b48448011a0ab46ef5e783a6432d9",
     "conversion_json": "980309ade31089680b7613b0921066873ed862b1fa05cad039693a00549bd399",
@@ -22,9 +22,9 @@
   "counts": {
     "converted": 92,
     "runnable": 75,
-    "green": 49,
+    "green": 50,
     "quarantined": 17,
-    "failed": 26,
+    "failed": 25,
     "infra_failed": 0
   },
   "failures": [
@@ -104,7 +104,7 @@
       "id": "DictTest.test_mutating_lookup",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {}, {<__main__.NastyKey object at 0x7fd5cb7478d0>: 2})\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {}, {<__main__.NastyKey object at 0x7f36528d07d0>: 2})\"'>"
     },
     {
       "id": "DictTest.test_items_symmetric_difference",
@@ -122,31 +122,25 @@
       "id": "DictTest.test_container_iterator",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIs\\', <__main__.C object at 0x7fd5cb7a4150>, None)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIs\\', <__main__.C object at 0x7f3652ed1a50>, None)\"'>"
     },
     {
       "id": "DictTest.test_iterator_pickling",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7fd5cb84b110>\"'>"
+      "detail": "RUN<\"AttributeError: module 'builtins' has no attribute 'PicklingError'\">"
     },
     {
       "id": "DictTest.test_itemiterator_pickling",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7fd5ccccbab0>\"'>"
+      "detail": "RUN<\"AttributeError: module 'builtins' has no attribute 'PicklingError'\">"
     },
     {
       "id": "DictTest.test_valuesiterator_pickling",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7fd5ccccb110>\"'>"
-    },
-    {
-      "id": "DictTest.test_reverseitemiterator_pickling",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC AttributeError 'abc'\">"
+      "detail": "RUN<\"AttributeError: module 'builtins' has no attribute 'PicklingError'\">"
     },
     {
       "id": "DictTest.test_instance_dict_getattr_str_subclass",
