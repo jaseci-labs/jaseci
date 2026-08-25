@@ -134,6 +134,7 @@ import from jaclang.jac0core.constant {
 }
 import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.jac0core.scalars { shape_of }
 
 import from jaclang.jac0core.codegen_ir { CodegenIrWriter }
 import from jaclang.jac0core.codeinfo { BoundaryTypeInfo, InteropBinding }
@@ -153,6 +154,7 @@ import from jaclang.jac0core.diagnostics {
     E5007,
     E5008,
     E5094,
+    W5096,
     E5098
 }
 
@@ -204,6 +206,24 @@ glob TOKEN_CLS_BY_NAME: dict[(str, str)] = {
          'BW_NOT': 'Invert',
          'PLUS': 'UAdd',
          'MINUS': 'USub'
+     };
+
+glob FW_ELIDABLE_OPS: frozenset = frozenset({Tok.PLUS, Tok.MINUS, Tok.STAR_MUL}),
+     FW_AUG_TO_BIN: dict[str, str] = {
+         "ADD_EQ": "PLUS",
+         "SUB_EQ": "MINUS",
+         "MUL_EQ": "STAR_MUL",
+         "FLOOR_DIV_EQ": "FLOOR_DIV",
+         "STAR_POW_EQ": "STAR_POW",
+         "LSHIFT_EQ": "LSHIFT",
+         "RSHIFT_EQ": "RSHIFT"
+     },
+     FW_WRAPPING_OPS: dict[str, str] = {
+         "wrapping_add": "+",
+         "wrapping_sub": "-",
+         "wrapping_mul": "*",
+         "wrapping_shl": "<<",
+         "wrapping_neg": "neg"
      };
 
 glob EDGE_DIR_NAMES: dict[(int, str)] = {
@@ -317,6 +337,7 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     has already_added: list[str] = [],
         jaclib_imports: set[str] postinit,
         builtin_imports: set[str] postinit,
+        sized_imports: set[str] postinit,
         typing_imports: set[str] postinit,
         _lambda_counter: int = 0,
         _hoist_frames: list[list[CgNode]] postinit,
@@ -347,6 +368,19 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def outs(nd: UniNode) -> list[CgItem];
     def set_out(nd: UniNode, items: list[CgItem]) -> None;
     def _apply_coercion(nd: Expr) -> None;
+    def _apply_fw(nd: Expr) -> None;
+    def _fw_helper(name: str) -> CgNode;
+    def _fw_call_node(helper: str, args: list, jac_node: UniNode) -> CgNode;
+    def _fw_wrap_call(nd: Expr, helper: str, args: list) -> None;
+    def _fw_binary(nd: BinaryExpr, name: str) -> None;
+    def _fw_unary(nd: UnaryExpr, name: str) -> None;
+    def _fw_call(nd: FuncCall) -> None;
+    def _fw_checked(
+        name: str, op: str, left: CgNode, right: CgNode, op_node: any, jac_node: UniNode
+    ) -> (CgNode | None);
+
+    def _fw_as_load(item: any) -> any;
+    def _fw_aug_assign(nd: Assignment, target: any, value: any) -> (CgNode | None);
     def val(nd: UniNode) -> CgNode;
     def const_of(value: any, jac_node: (UniNode | None) = None) -> CgNode;
     def name_load(name_id: str, jac_node: (UniNode | None) = None) -> CgNode;
@@ -400,6 +434,15 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def _is_edge_ref_target(target: UniNode) -> bool;
     def _cmp_op_str(op: CgNode) -> (str | None);
     def _query_filter_kws(fc: FilterCompr, type_arg: str, preds_arg: str) -> list;
+    def _order_name_of(x: Expr) -> (tuple[str, bool] | None);
+    def _query_filter_kws_ord(
+        fc: FilterCompr,
+        type_arg: str,
+        preds_arg: str,
+        on_edge: bool,
+        order_out: list[CgNode]
+    ) -> tuple[list[CgNode], bool];
+
     def _recipe_contains_root(v: any) -> bool;
     def resolve_switch_pattern(pattern: MatchPattern, target: Expr) -> CgNode;
     def resolve_switch_stmt(nd: SwitchStmt) -> list[CgItem];
@@ -504,9 +547,21 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def exit_atom_trailer(nd: AtomTrailer) -> None;
     def exit_atom_unit(nd: AtomUnit) -> None;
     def exit_func_call(nd: FuncCall) -> None;
+    def _fold_sorted_traversal(nd: FuncCall) -> bool;
+    def _order_term(
+        expr: Expr, param: str, node_ty: str, edge_ty: str
+    ) -> (tuple[str, bool, bool] | None);
+
+    def _sort_order_specs(
+        key: Expr, node_ty: str, edge_ty: str
+    ) -> (list[tuple[str, bool, bool]] | None);
+
+    def _final_hop_types(nd: EdgeRefTrailer) -> tuple[str, str];
     def exit_index_slice(nd: IndexSlice) -> None;
     def exit_special_var_ref(nd: SpecialVarRef) -> None;
     def exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None;
+    def _traversal_consumed_now(nd: EdgeRefTrailer) -> bool;
+    def _warn_inplace_sort(nd: FuncCall) -> None;
     def exit_edge_op_ref(nd: EdgeOpRef) -> None;
     def exit_disconnect_op(nd: DisconnectOp) -> None;
     def exit_connect_op(nd: ConnectOp) -> None;

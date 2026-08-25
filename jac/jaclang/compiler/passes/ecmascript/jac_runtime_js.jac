@@ -570,7 +570,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       for (let i = 0; i < n; i++) result.push(...arr);
       return result;
     },
-    eq(a, b) { return JSON.stringify(a) === JSON.stringify(b); },
+    eq(a, b) { return _jac.fw.stringify(a) === _jac.fw.stringify(b); },
     lt(a, b) {
       for (let i = 0; i < Math.min(a.length, b.length); i++) {
         if (a[i] < b[i]) return true;
@@ -627,7 +627,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
         const va = a[k], vb = b[k];
         if (va !== vb) {
           if (typeof va === "object" && typeof vb === "object" && va !== null && vb !== null) {
-            if (JSON.stringify(va) !== JSON.stringify(vb)) return false;
+            if (_jac.fw.stringify(va) !== _jac.fw.stringify(vb)) return false;
           } else return false;
         }
       }
@@ -1258,7 +1258,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return { __jacUnsafeHtml: String(html == null ? "" : html) };
     },
     hash(obj) { return _jac.builtin.id(obj); },
-    repr(obj) { return JSON.stringify(obj); },
+    repr(obj) { return _jac.fw.stringify(obj); },
     pow(base, exp, mod) {
       let result = Math.pow(base, exp);
       if (mod !== undefined) result = ((result % mod) + mod) % mod;
@@ -1594,114 +1594,175 @@ def _build_types_runtime_js -> str {
 }
 
 def _build_fw_runtime_js -> str {
-    import from jaclang.jac0core.scalars { numeric_shapes }
+    import from jaclang.jac0core.scalars { numeric_shapes, range_of }
     rows: list[str] = [];
     for shape in numeric_shapes() {
         if not shape.sized {
             continue;
         }
+        t = shape.name;
+        w = shape.width;
+        if shape.is_float {
+            rnd = "Math.fround" if w == 32 else "Number";
+            rows.append(f"    F.cast_{t} = (x) => {rnd}(Number(x));");
+            rows.append(f"    F.neg_{t} = (a) => {rnd}(-a);");
+            rows.append(f"    F.abs_{t} = (a) => {rnd}(Math.abs(a));");
+            rows.append(
+                f"    F.div_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float division by zero'); "
+                f"return {rnd}(a / b); }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float floor division by zero'); "
+                f"return {rnd}(Math.floor(a / b)); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float modulo by zero'); "
+                f"return {rnd}(a - b * Math.floor(a / b)); }};"
+            );
+            rows.append(f"    F.pow_{t} = (a, b) => {rnd}(Math.pow(a, b));");
+            continue;
+        }
+        (lo, hi) = range_of(t);
+        big = w == 64;
+        sfx = "n" if big else "";
+        z = f"0{sfx}";
+        one = f"1{sfx}";
+        wn = f"{w}{sfx}";
+        rows.append(f"    const LO_{t} = {lo}{sfx}, HI_{t} = {hi}{sfx};");
+        rows.append(f"    F.c_{t} = (v) => (v >= LO_{t} && v <= HI_{t}) ? v : ovf();");
+        if big {
+            rows.append(
+                f"    F.big_{t} = (x) => F.c_{t}(typeof x === 'bigint' ? x "
+                f": (typeof x === 'string' ? BigInt(x) "
+                f": BigInt(Math.trunc(Number(x)))));"
+            );
+            rows.append(f"    F.cast_{t} = (x) => F.big_{t}(x);");
+            rows.append(f"    F.abs_{t} = (a) => F.c_{t}(a < {z} ? -a : a);");
+            rows.append(
+                f"    F.div_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('division by zero'); return Number(a) / Number(b); }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('integer division or modulo by zero'); let q = a / b; "
+                f"if ((a % b) !== {z} && ((a < {z}) !== (b < {z}))) q -= {one}; "
+                f"return F.c_{t}(q); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('integer division or modulo by zero'); let r = a % b; "
+                f"if (r !== {z} && ((r < {z}) !== (b < {z}))) r += b; return r; }};"
+            );
+            rows.append(
+                f"    F.pow_{t} = (a, b) => {{ if (b < {z}) "
+                f"return Math.pow(Number(a), Number(b)); "
+                f"if ((a > {one} || a < -{one}) && b >= {wn}) ovf(); "
+                f"return F.c_{t}(a ** b); }};"
+            );
+            rows.append(
+                f"    F.shl_{t} = (a, b) => {{ const n = BigInt(b); "
+                f"if (n < {z} || n >= {wn}) shiftErr(); return F.c_{t}(a << n); }};"
+            );
+            rows.append(
+                f"    F.shr_{t} = (a, b) => {{ const n = BigInt(b); "
+                f"if (n < {z} || n >= {wn}) shiftErr(); return a >> n; }};"
+            );
+        } else {
+            rows.append(
+                f"    F.cast_{t} = (x) => {{ const v = Math.trunc(Number(x)); "
+                f"if (!Number.isFinite(v)) ovf(); return F.c_{t}(v || 0); }};"
+            );
+            rows.append(f"    F.abs_{t} = (a) => F.c_{t}(Math.abs(a));");
+            rows.append(
+                f"    F.div_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('division by zero'); return a / b; }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('integer division or modulo by zero'); "
+                f"return F.c_{t}(Math.floor(a / b)); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('integer division or modulo by zero'); "
+                f"return a - b * Math.floor(a / b); }};"
+            );
+            rows.append(
+                f"    F.pow_{t} = (a, b) => {{ if (b < 0) return Math.pow(a, b); "
+                f"if (Math.abs(a) >= 2 && b >= {w}) ovf(); "
+                f"return F.c_{t}(Math.pow(a, b)); }};"
+            );
+            rows.append(
+                f"    F.shl_{t} = (a, b) => {{ if (b < 0 || b >= {w}) shiftErr(); "
+                f"return F.c_{t}(a * Math.pow(2, b)); }};"
+            );
+            rows.append(
+                f"    F.shr_{t} = (a, b) => {{ if (b < 0 || b >= {w}) shiftErr(); "
+                f"return Math.floor(a / Math.pow(2, b)); }};"
+            );
+        }
+        rows.append(f"    F.neg_{t} = (a) => F.c_{t}(-a);");
+        if shape.signed {
+            rows.append(f"    F.inv_{t} = (a) => F.c_{t}(~a);");
+        } elif big {
+            rows.append(f"    F.inv_{t} = (a) => (~a) & HI_{t};");
+        } elif w == 32 {
+            rows.append(f"    F.inv_{t} = (a) => ((~a) >>> 0);");
+        } else {
+            rows.append(f"    F.inv_{t} = (a) => (~a) & HI_{t};");
+        }
+        rows.append(f"    B.{t} = [LO_{t}, HI_{t}];");
+        rows.append(f"    WBITS.{t} = {w}n;");
+        tail = (
+            f"return v >= (1n << {w - 1}n) ? v - m : v; }};"
+                if shape.signed
+                else "return v; };"
+        );
         rows.append(
-            "      "
-                + shape.name
-                + ": { w: "
-                + str(shape.width)
-                + ", s: "
-                + ("true" if shape.signed else "false")
-                + ", f: "
-                + ("true" if shape.is_float else "false")
-                + ", big: "
-                + ("true" if (not shape.is_float and shape.width == 64) else "false")
-                + " }"
+            f"    W.{t} = (x) => {{ const m = 1n << {w}n; "
+            f"let v = (typeof x === 'bigint' ? x : BigInt(Math.trunc(Number(x)))) "
+            f"% m; if (v < 0n) v += m; "
+                + tail
         );
     }
     return "\n".join(
         [
             "(() => {",
-            "    const T = {",
-            ",\n".join(rows),
-            "    };",
-            "    if (typeof BigInt !== 'undefined' && !BigInt.prototype.toJSON) {",
-            "      Object.defineProperty(BigInt.prototype, 'toJSON', { configurable: true, value() {",
-            "        const n = Number(this); return Number.isSafeInteger(n) ? n : this.toString(); } });",
-            "    }",
-            "    const ovf = () => { throw new _jac.exc.OverflowError('integer overflow'); };",
-            "    const shiftErr = () => { throw new _jac.exc.OverflowError('shift count out of range'); };",
+            "    const ovf = () => { throw new _jac.exc.OverflowError("
+            "'integer overflow'); };",
+            "    const shiftErr = () => { throw new _jac.exc.OverflowError("
+            "'shift count out of range'); };",
             "    const zdiv = (m) => { throw new _jac.exc.ZeroDivisionError(m); };",
-            "    const lo = (t) => t.s ? -(1n << BigInt(t.w - 1)) : 0n;",
-            "    const hi = (t) => t.s ? (1n << BigInt(t.w - 1)) - 1n : (1n << BigInt(t.w)) - 1n;",
-            "    const toBig = (x) => {",
-            "      if (typeof x === 'bigint') return x;",
-            "      if (typeof x === 'boolean') return x ? 1n : 0n;",
-            "      const n = Number(x);",
-            "      if (!Number.isFinite(n)) ovf();",
-            "      return BigInt(Math.trunc(n));",
-            "    };",
-            "    const out = (t, b) => t.big ? b : Number(b);",
-            "    const check = (name, b) => { const t = T[name]; if (b < lo(t) || b > hi(t)) ovf(); return out(t, b); };",
-            "    const wrapBig = (t, b) => t.s ? BigInt.asIntN(t.w, b) : BigInt.asUintN(t.w, b);",
-            "    const fl = (name, v) => name === 'f32' ? Math.fround(v) : v;",
-            "    const cast = (name, x) => {",
-            "      const t = T[name];",
-            "      if (t.f) return fl(name, Number(x));",
-            "      return check(name, toBig(x));",
-            "    };",
-            "    const wrap = (name, x) => { const t = T[name]; return out(t, wrapBig(t, toBig(x))); };",
-            "    const widen = (name, x) => {",
-            "      const t = T[name];",
-            "      if (t.f) return fl(name, Number(x));",
-            "      return t.big ? toBig(x) : Number(x);",
-            "    };",
-            "    const toNum = (x) => Number(x);",
-            "    const divmod = (A, B) => {",
-            "      if (B === 0n) zdiv('integer division or modulo by zero');",
-            "      let q = A / B; let r = A % B;",
-            "      if (r !== 0n && ((r < 0n) !== (B < 0n))) { q -= 1n; r += B; }",
-            "      return [q, r];",
-            "    };",
-            "    const arith = (name, a, b, op) => {",
-            "      const t = T[name];",
-            "      if (t.f) {",
-            "        const x = Number(a), y = Number(b);",
-            "        if (op === '+') return fl(name, x + y);",
-            "        if (op === '-') return fl(name, x - y);",
-            "        if (op === '*') return fl(name, x * y);",
-            "        if (op === '/') { if (y === 0) zdiv('float division by zero'); return fl(name, x / y); }",
-            "        if (op === '//') { if (y === 0) zdiv('float floor division by zero'); return fl(name, Math.floor(x / y)); }",
-            "        if (op === '%') { if (y === 0) zdiv('float modulo by zero'); return fl(name, x - y * Math.floor(x / y)); }",
-            "        if (op === '**') return fl(name, Math.pow(x, y));",
-            "      }",
-            "      const A = toBig(a), B = toBig(b);",
-            "      if (op === '+') return check(name, A + B);",
-            "      if (op === '-') return check(name, A - B);",
-            "      if (op === '*') return check(name, A * B);",
-            "      if (op === '/') { if (B === 0n) zdiv('division by zero'); return Number(A) / Number(B); }",
-            "      if (op === '//') return check(name, divmod(A, B)[0]);",
-            "      if (op === '%') return check(name, divmod(A, B)[1]);",
-            "      if (op === '**') {",
-            "        if (B < 0n) return Math.pow(Number(A), Number(B));",
-            "        if ((A > 1n || A < -1n) && B >= BigInt(t.w)) ovf();",
-            "        return check(name, A ** B);",
-            "      }",
-            "      if (op === '&') return out(t, wrapBig(t, A & B));",
-            "      if (op === '|') return out(t, wrapBig(t, A | B));",
-            "      if (op === '^') return out(t, wrapBig(t, A ^ B));",
-            "      if (op === '<<') { if (B < 0n || B >= BigInt(t.w)) shiftErr(); return check(name, A << B); }",
-            "      if (op === '>>') { if (B < 0n || B >= BigInt(t.w)) shiftErr(); return out(t, A >> B); }",
-            "      throw new _jac.exc.TypeError('unsupported fixed-width operator ' + op);",
-            "    };",
-            "    const neg = (name, a) => { const t = T[name]; if (t.f) return fl(name, -Number(a)); return check(name, -toBig(a)); };",
-            "    const abs = (name, a) => { const t = T[name]; if (t.f) return fl(name, Math.abs(Number(a))); const A = toBig(a); return check(name, A < 0n ? -A : A); };",
-            "    const invert = (name, a) => { const t = T[name]; const A = toBig(a); return out(t, t.s ? ~A : ((1n << BigInt(t.w)) - 1n) ^ A); };",
-            "    const wrapping = (name, a, b, op) => {",
-            "      const t = T[name]; const A = toBig(a); const B = b === undefined ? 0n : toBig(b);",
+            "    const F = {}, B = {}, W = {}, WBITS = {};",
+            "\n".join(rows),
+            "    F.r_f32 = Math.fround;",
+            "    F.bounds = (name) => B[name];",
+            "    F.wrap = (name, x) => { const v = W[name](x); "
+            "return B[name][1] > Number.MAX_SAFE_INTEGER ? v : Number(v); };",
+            "    F.wrapping = (name, a, b, op) => {",
+            "      const A = BigInt(a);",
+            "      const Bv = b === undefined ? 0n : BigInt(b);",
             "      let r;",
-            "      if (op === '+') r = A + B; else if (op === '-') r = A - B; else if (op === '*') r = A * B;",
-            "      else if (op === 'neg') r = -A; else if (op === '<<') r = A << (B & BigInt(t.w - 1));",
-            "      else throw new _jac.exc.TypeError('unsupported wrapping operator ' + op);",
-            "      return out(t, wrapBig(t, r));",
+            "      if (op === '+') r = A + Bv; else if (op === '-') r = A - Bv;",
+            "      else if (op === '*') r = A * Bv;",
+            "      else if (op === 'neg') r = -A;",
+            "      else if (op === '<<') r = A << (Bv & (WBITS[name] - 1n));",
+            "      else throw new _jac.exc.TypeError("
+            "'unsupported wrapping operator ' + op);",
+            "      return F.wrap(name, r);",
             "    };",
-            "    const bounds = (name) => { const t = T[name]; return [out(t, lo(t)), out(t, hi(t))]; };",
-            "    return { T, cast, wrap, widen, toNum, arith, neg, abs, invert, wrapping, bounds };",
+            "    const SAFE = 9007199254740991n;",
+            "    F.replacer = function (k, v) {",
+            "      if (typeof v !== 'bigint') return v;",
+            "      return (v >= -SAFE && v <= SAFE) ? Number(v) : v.toString();",
+            "    };",
+            "    F.stringify = (v, space) => JSON.stringify(v, F.replacer, space);",
+            "    if (typeof globalThis !== 'undefined')"
+            " globalThis.__jacFwReplacer__ = F.replacer;",
+            "    return F;",
             "  })()"
         ]
     );

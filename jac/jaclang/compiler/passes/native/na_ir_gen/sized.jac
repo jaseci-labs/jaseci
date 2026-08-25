@@ -37,6 +37,6 @@ obj NaIRGenSized(NaIRGenState) {
     def _emit_checked_shl(left: ir.Value, right: ir.Value, unsigned: bool) -> ir.Value;
     def _emit_shr(left: ir.Value, right: ir.Value, unsigned: bool) -> ir.Value;
     def _emit_int_divmod(
-        left: ir.Value, right: ir.Value, unsigned: bool
+        left: ir.Value, right: ir.Value, unsigned: bool, trap_min: bool = True
     ) -> tuple[(ir.Value, ir.Value)];
 }

@@ -44,6 +44,7 @@ import from jaclang.jac0core.unitree {
     SpecialVarRef,
     SubTag,
     Token,
+    UnaryExpr,
     TupleVal,
     TypeAlias,
     UniNode,
@@ -123,6 +124,12 @@ import from jaclang.jac0core.diagnostics {
 }
 
 
+glob FW_INTERVAL_OPS: dict[str, str] = {
+         "PLUS": "+",
+         "MINUS": "-",
+         "STAR_MUL": "*"
+     };
+
 class TypeCheckPass(UniPass) {
     has evaluator: TypeEvaluator,
         _lambda_depth: int = 0;
@@ -131,6 +138,8 @@ class TypeCheckPass(UniPass) {
 
     def before_pass(self: TypeCheckPass) -> None;
     def after_pass(self: TypeCheckPass) -> None;
+    def _stamp_fixed_width(self: TypeCheckPass) -> None;
+    def _provably_in_range(self: TypeCheckPass, nd: Expr, name: str) -> bool;
     def _insert_builtin_symbols(self: TypeCheckPass) -> None;
     def _install_client_state_setters(self: TypeCheckPass) -> None;
     def _client_state_field_owner(self: TypeCheckPass, nd: HasVar) -> (Ability | None);

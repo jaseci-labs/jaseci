@@ -82,7 +82,6 @@ import from jaclang.utils.precompile_bytecode {
 glob PKG_PATH = Path(jaclang.__file__).parent,
      SEALED_ROOT = "jac0core/parser/parser.jac",
      WAVE1_ROOTS: tuple = (
-         "jac0core/passes/annex_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac"
@@ -633,10 +632,6 @@ test "every passenger carve-out is declared in the type system" {
 
 test "wave-1 roots: each walk reaches the pass's own machinery" {
     for (rel, needed) in (
-        (
-            "jac0core/passes/annex_pass.jac",
-            ("JacAnnexPass._merge_annex", "UniNode.add_kids_right")
-        ),
         (
             "jac0core/passes/module_codegen_pass.jac",
             ("ModuleCodegenPass.archetype_refs", "NameAtom.sym.__get__")

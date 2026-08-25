@@ -1,308 +1,150 @@
 import math;
 import struct;
-import from jaclang.jac0core.scalars {
-    numeric_shapes,
-    ScalarShape,
-    range_of,
-    shape_of,
-    unify,
-    wrap_value
-}
+import from jaclang.jac0core.scalars { numeric_shapes, range_of, shape_of, wrap_value }
 
-glob OVERFLOW_MESSAGE: str = "integer overflow",
+glob JS_SAFE_INT: int = (1 << 53) - 1,
+     OVERFLOW_MESSAGE: str = "integer overflow",
      SHIFT_MESSAGE: str = "shift count out of range",
-     SIZED_TYPES: dict[str, type] = {};
+     FW: dict[str, any] = {},
+     SIZED_TYPES: dict[str, any] = {},
+     _F32: any = struct.Struct("f");
 
-def scalar_name_of(value: any) -> str | None {
-    sized = type(value)?.__jac_sized__;
-    if sized is not None {
-        return sized;
-    }
-    if isinstance(value, bool) {
-        return "bool";
-    }
-    if isinstance(value, int) {
-        return "int";
-    }
-    if isinstance(value, float) {
-        return "float";
-    }
-    return None;
-}
-
-def shape(name: str) -> ScalarShape {
-    found = shape_of(name);
-    assert found is not None , name;
-    return found;
-}
-
-def round_float(name: str, value: float) -> float {
-    if name != "f32" {
-        return float(value);
-    }
+def round_f32(value: float) -> float {
     try {
-        return struct.unpack("f", struct.pack("f", value))[0];
+        return _F32.unpack(_F32.pack(value))[0];
     } except OverflowError {
         return math.copysign(math.inf, value);
     }
 }
 
-def make_int(name: str, value: int) -> any {
-    return int.__new__(SIZED_TYPES[name], value);
-}
-
-def make_float(name: str, value: float) -> any {
-    return float.__new__(SIZED_TYPES[name], round_float(name, value));
-}
-
-def checked_int(name: str, value: int) -> any {
-    (lo, hi) = range_of(name);
-    if value < lo or value > hi {
-        raise OverflowError(OVERFLOW_MESSAGE);
-    }
-    return make_int(name, value);
-}
-
-def unify_operands(a: any, b: any, op: str) -> str {
-    an = scalar_name_of(a);
-    bn = scalar_name_of(b);
-    if an is None or bn is None {
-        raise TypeError(
-            f"unsupported operand type(s) for {op}: "
-            f"'{type(a).__name__}' and '{type(b).__name__}'"
-        );
-    }
-    target = unify(an, bn);
-    if target is None {
-        raise TypeError(
-            f"operands of '{op}' have no common fixed-width type ({an} and {bn}); "
-            "cast one operand explicitly"
-        );
-    }
-    return target;
-}
-
-def arith(a: any, b: any, op: str, fn: any) -> any {
-    target = unify_operands(a, b, op);
-    sh = shape(target);
-    if not sh.sized {
-        if sh.is_float {
-            return fn(float(a), float(b));
+def _mk_check(lo: int, hi: int) -> any {
+    def check(v: int) -> int {
+        if lo <= v <= hi {
+            return v;
         }
-        return fn(int(a), int(b));
-    }
-    if sh.is_float {
-        return make_float(target, fn(float(a), float(b)));
-    }
-    return checked_int(target, fn(int(a), int(b)));
-}
-
-def true_div(a: any, b: any) -> any {
-    target = unify_operands(a, b, "/");
-    sh = shape(target);
-    if sh.sized and sh.is_float {
-        return make_float(target, float(a) / float(b));
-    }
-    return float(a) / float(b);
-}
-
-def power(a: any, b: any) -> any {
-    target = unify_operands(a, b, "**");
-    sh = shape(target);
-    if sh.is_float {
-        result = float(a) ** float(b);
-        return make_float(target, result) if sh.sized else result;
-    }
-    base = int(a);
-    exp = int(b);
-    if exp < 0 {
-        return float(base) ** float(exp);
-    }
-    if not sh.sized {
-        return base ** exp;
-    }
-    if abs(base) >= 2 and exp >= sh.width {
         raise OverflowError(OVERFLOW_MESSAGE);
     }
-    return checked_int(target, pow(base, exp));
+    return check;
 }
 
-def shift_count(name: str, count: any) -> int {
-    n = int(count);
-    if n < 0 or n >= shape(name).width {
-        raise OverflowError(SHIFT_MESSAGE);
+def _mk_shl(lo: int, hi: int, width: int) -> any {
+    def shl(a: int, b: int) -> int {
+        if b < 0 or b >= width {
+            raise OverflowError(SHIFT_MESSAGE);
+        }
+        v = a << b;
+        if lo <= v <= hi {
+            return v;
+        }
+        raise OverflowError(OVERFLOW_MESSAGE);
     }
-    return n;
+    return shl;
 }
 
-def shift_left(a: any, b: any) -> any {
-    name = scalar_name_of(a);
-    if name is None or not shape(name).sized {
-        return int(a) << int(b);
+def _mk_shr(width: int) -> any {
+    def shr(a: int, b: int) -> int {
+        if b < 0 or b >= width {
+            raise OverflowError(SHIFT_MESSAGE);
+        }
+        return a >> b;
     }
-    return checked_int(name, int(a) << shift_count(name, b));
+    return shr;
 }
 
-def shift_right(a: any, b: any) -> any {
-    name = scalar_name_of(a);
-    if name is None or not shape(name).sized {
-        return int(a) >> int(b);
+def _mk_pow(lo: int, hi: int, width: int) -> any {
+    def ipow(a: int, b: int) -> any {
+        if b < 0 {
+            return float(a) ** float(b);
+        }
+        if abs(a) >= 2 and b >= width {
+            raise OverflowError(OVERFLOW_MESSAGE);
+        }
+        v = a ** b;
+        if lo <= v <= hi {
+            return v;
+        }
+        raise OverflowError(OVERFLOW_MESSAGE);
     }
-    return make_int(name, int(a) >> shift_count(name, b));
+    return ipow;
 }
 
-def negate(a: any) -> any {
-    name = scalar_name_of(a) or "int";
-    return checked_int(name, -int(a));
-}
-
-def absolute(a: any) -> any {
-    name = scalar_name_of(a) or "int";
-    return checked_int(name, abs(int(a)));
-}
-
-def invert(a: any) -> any {
-    name = scalar_name_of(a) or "int";
-    sh = shape(name);
-    if sh.signed {
-        return make_int(name, ~int(a));
+def _mk_invert(mask: int) -> any {
+    def invert(a: int) -> int {
+        return (~a) & mask;
     }
-    return make_int(name, ((1 << sh.width) - 1) ^ int(a));
+    return invert;
 }
 
-def cast_int(name: str, value: any) -> any {
-    if isinstance(value, (bool, int)) {
-        return checked_int(name, int(value));
+def _mk_int_class(name: str, lo: int, hi: int) -> type {
+    def __new__(cls: type, x: any = 0) -> int {
+        if isinstance(x, (bool, int, float)) {
+            v = int(x);
+        } else {
+            raise TypeError(
+                f"{name}() argument must be a number, not '{type(x).__name__}'"
+            );
+        }
+        if lo <= v <= hi {
+            return v;
+        }
+        raise OverflowError(OVERFLOW_MESSAGE);
     }
-    if isinstance(value, float) {
-        return checked_int(name, int(value));
+
+    def wrap(x: any) -> int {
+        return wrap_value(name, int(x));
     }
-    raise TypeError(
-        f"{name}() argument must be a number, not '{type(value).__name__}'"
+    return type(
+        name,
+        (int, ),
+        {
+            "__new__": __new__,
+            "wrap": staticmethod(wrap),
+            "MIN": lo,
+            "MAX": hi,
+            "__jac_sized__": name,
+            "__module__": "builtins"
+        }
     );
 }
 
-def cast_float(name: str, value: any) -> any {
-    if isinstance(value, (bool, int, float)) {
-        return make_float(name, float(value));
+def _mk_float_class(name: str, narrow: bool) -> type {
+    def __new__(cls: type, x: any = 0.0) -> float {
+        if isinstance(x, (bool, int, float)) {
+            v = float(x);
+        } else {
+            raise TypeError(
+                f"{name}() argument must be a number, not '{type(x).__name__}'"
+            );
+        }
+        return round_f32(v) if narrow else v;
     }
-    raise TypeError(
-        f"{name}() argument must be a number, not '{type(value).__name__}'"
+    return type(
+        name,
+        (float, ),
+        {"__new__": __new__, "__jac_sized__": name, "__module__": "builtins"}
     );
 }
 
-def _binary_dunders(op: str, fn: any) -> dict[str, any] {
-    return {
-        "__" + op + "__": lambda (self: any, other: any) { fn(self, other); },
-        "__r" + op + "__": lambda (self: any, other: any) { fn(other, self); }
-    };
-}
-
-def _int_namespace(name: str) -> dict[str, any] {
-    import operator;
-    ns: dict[str, any] = {
-        "__slots__": (),
-        "__jac_sized__": name,
-        "__new__": lambda (cls: type, x: any = 0) { cast_int(name, x); },
-        "wrap": classmethod(
-            lambda (cls: type, x: any) { make_int(name, wrap_value(name, int(x))); }
-        ),
-        "__neg__": negate,
-        "__pos__": lambda (self: any) { self; },
-        "__abs__": absolute,
-        "__invert__": invert
-    };
-    ns.update(
-        _binary_dunders(
-            "add", lambda (a: any, b: any) { arith(a, b, "+", operator.add); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "sub", lambda (a: any, b: any) { arith(a, b, "-", operator.sub); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "mul", lambda (a: any, b: any) { arith(a, b, "*", operator.mul); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "floordiv",
-            lambda (a: any, b: any) { arith(a, b, "//", operator.floordiv); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "mod", lambda (a: any, b: any) { arith(a, b, "%", operator.mod); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "and", lambda (a: any, b: any) { arith(a, b, "&", operator.and_); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "or", lambda (a: any, b: any) { arith(a, b, "|", operator.or_); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "xor", lambda (a: any, b: any) { arith(a, b, "^", operator.xor); }
-        )
-    );
-    ns.update(_binary_dunders("truediv", true_div));
-    ns.update(_binary_dunders("pow", power));
-    ns.update(_binary_dunders("lshift", shift_left));
-    ns.update(_binary_dunders("rshift", shift_right));
-    return ns;
-}
-
-def _float_namespace(name: str) -> dict[str, any] {
-    import operator;
-    ns: dict[str, any] = {
-        "__slots__": (),
-        "__jac_sized__": name,
-        "__new__": lambda (cls: type, x: any = 0.0) { cast_float(name, x); },
-        "__neg__": lambda (self: any) { make_float(name, -float(self)); },
-        "__pos__": lambda (self: any) { self; },
-        "__abs__": lambda (self: any) { make_float(name, abs(float(self))); }
-    };
-    ns.update(
-        _binary_dunders(
-            "add", lambda (a: any, b: any) { arith(a, b, "+", operator.add); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "sub", lambda (a: any, b: any) { arith(a, b, "-", operator.sub); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "mul", lambda (a: any, b: any) { arith(a, b, "*", operator.mul); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "floordiv",
-            lambda (a: any, b: any) { arith(a, b, "//", operator.floordiv); }
-        )
-    );
-    ns.update(
-        _binary_dunders(
-            "mod", lambda (a: any, b: any) { arith(a, b, "%", operator.mod); }
-        )
-    );
-    ns.update(_binary_dunders("truediv", true_div));
-    ns.update(_binary_dunders("pow", power));
-    return ns;
-}
-
-def sized_value(name: str, value: any) -> any {
-    return SIZED_TYPES[name](value);
+def _fw_wrapping(name: str, op: str, a: any, b: any = 0) -> int {
+    row = shape_of(name);
+    if row is None {
+        raise TypeError(f"{name} is not a fixed-width type");
+    }
+    width = row.width;
+    if op == "+" {
+        raw = int(a) + int(b);
+    } elif op == "-" {
+        raw = int(a) - int(b);
+    } elif op == "*" {
+        raw = int(a) * int(b);
+    } elif op == "<<" {
+        raw = int(a) << (int(b) & (width - 1));
+    } elif op == "neg" {
+        raw = -int(a);
+    } else {
+        raise TypeError(f"unsupported wrapping operator {op}");
+    }
+    return wrap_value(name, raw);
 }
 
 def _build_family {
@@ -310,69 +152,69 @@ def _build_family {
         if not row.sized {
             continue;
         }
-        base = float if row.is_float else int;
-        ns = _float_namespace(row.name) if row.is_float else _int_namespace(row.name);
-        ns["__module__"] = "builtins";
-        ns["__qualname__"] = row.name;
-        ns["__reduce__"] = lambda (self: any) { (
-            sized_value,
-            (
-                scalar_name_of(self),
-                float(self) if isinstance(self, float) else int(self)
-            )
-        ); };
-        cls: any = type(row.name, (base, ), ns);
-        SIZED_TYPES[row.name] = cls;
-        if not row.is_float {
-            (lo, hi) = range_of(row.name);
-            cls.MIN = make_int(row.name, lo);
-            cls.MAX = make_int(row.name, hi);
+        if row.is_float {
+            SIZED_TYPES[row.name] = _mk_float_class(row.name, row.width == 32);
+            continue;
         }
+        (lo, hi) = range_of(row.name);
+        FW[f"_fw_ck_{row.name}"] = _mk_check(lo, hi);
+        FW[f"_fw_shl_{row.name}"] = _mk_shl(lo, hi, row.width);
+        FW[f"_fw_shr_{row.name}"] = _mk_shr(row.width);
+        FW[f"_fw_pow_{row.name}"] = _mk_pow(lo, hi, row.width);
+        if not row.signed {
+            FW[f"_fw_inv_{row.name}"] = _mk_invert(hi);
+        }
+        SIZED_TYPES[row.name] = _mk_int_class(row.name, lo, hi);
     }
+    FW["_fw_r_f32"] = round_f32;
+    FW["_fw_wrapping"] = _fw_wrapping;
 }
 
-def _wrapping(a: any, b: any, op: str, fn: any) -> any {
-    target = unify_operands(a, b, op);
-    sh = shape(target);
-    if not sh.sized or sh.is_float {
-        raise TypeError(f"{op} needs two fixed-width integer operands, got {target}");
+def json_wire_form(name: str, value: any) -> any {
+    row = shape_of(name);
+    if row is None or not row.sized or row.is_float or row.width < 64 {
+        return value;
     }
-    return make_int(target, wrap_value(target, fn(int(a), int(b))));
+    n = int(value);
+    if n > JS_SAFE_INT or n < -JS_SAFE_INT {
+        return str(n);
+    }
+    return n;
 }
 
-def wrapping_add(a: any, b: any) -> any {
-    import operator;
-    return _wrapping(a, b, "wrapping_add", operator.add);
-}
-
-def wrapping_sub(a: any, b: any) -> any {
-    import operator;
-    return _wrapping(a, b, "wrapping_sub", operator.sub);
-}
-
-def wrapping_mul(a: any, b: any) -> any {
-    import operator;
-    return _wrapping(a, b, "wrapping_mul", operator.mul);
-}
-
-def wrapping_shl(a: any, b: any) -> any {
-    target = unify_operands(a, b, "wrapping_shl");
-    sh = shape(target);
-    if not sh.sized or sh.is_float {
-        raise TypeError(
-            f"wrapping_shl needs two fixed-width integer operands, got {target}"
+def json_wire_read(name: str, value: any) -> any {
+    row = shape_of(name);
+    if isinstance(value, str) {
+        return SIZED_TYPES[name](
+            float(value) if (row is not None and row.is_float) else int(value)
         );
     }
-    count = int(b) & (sh.width - 1);
-    return make_int(target, wrap_value(target, int(a) << count));
+    return SIZED_TYPES[name](value);
 }
 
-def wrapping_neg(a: any) -> any {
-    name = scalar_name_of(a);
-    if name is None or not shape(name).sized {
-        raise TypeError(f"wrapping_neg needs a fixed-width integer operand");
+def _wrapping_unavailable(name: str) -> any {
+    def stub(*args: any, **kwargs: any) -> any {
+        raise TypeError(
+            f"{name} must be called directly on fixed-width operands; "
+            "it cannot be taken as a value"
+        );
     }
-    return make_int(name, wrap_value(name, -int(a)));
+    return stub;
+}
+
+def __getattr__(name: str) -> object {
+    hit = FW.get(name, None);
+    if hit is not None {
+        return hit;
+    }
+    cast = SIZED_TYPES.get(name, None);
+    if cast is not None {
+        return cast;
+    }
+    if name.startswith("wrapping_") {
+        return _wrapping_unavailable(name);
+    }
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}");
 }
 
 with entry {

@@ -406,6 +406,7 @@ async def _run_function_with_occ(
     }
     (ctx, req_token, root_id) = resolved;
     ctx.mem.unit_enter();
+    settled = False;
     try {
         if deserialize_args {
             _deserialize_wire_args(args);
@@ -418,8 +419,13 @@ async def _run_function_with_occ(
             call_token = ctx.call_state.set(CallState());
             call_state = ctx.call_state.get();
             try {
-                return await run_attempt(call_state, ctx);
+                outcome = await run_attempt(call_state, ctx);
+                ctx.mem.unit_exit();
+                settled = True;
+                return outcome;
             } except WriteConflict as wc {
+                settled = False;
+                ctx.mem.unit_enter();
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
                 ctx.read_versions.clear();
@@ -455,7 +461,9 @@ async def _run_function_with_occ(
         };
     } finally {
         try {
-            ctx.mem.unit_exit();
+            if not settled {
+                ctx.mem.unit_exit();
+            }
         } except Exception as ue {
             import logging;
             logging.getLogger(__name__).warning(

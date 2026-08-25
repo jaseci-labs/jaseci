@@ -1730,7 +1730,7 @@ impl ESBuiltinEmitter.emit_print(
 impl ESBuiltinEmitter.emit_sized_cast(
     self: ESBuiltinEmitter, name: str, args: list[str]
 ) -> (str | None) {
-    return _rt("fw", "cast", ['"' + name + '"', args[0] if args else "0"]);
+    return _rt("fw", "cast_" + name, [args[0] if args else "0"]);
 }
 
 impl ESBuiltinEmitter.emit_wrapping(
@@ -1815,7 +1815,7 @@ impl ESBuiltinEmitter.emit_abs(
     import from jaclang.jac0core.scalars { is_sized }
     names = ctx.arg_type_names or [];
     if args and names and is_sized(names[0]) {
-        return _rt("fw", "abs", ['"' + names[0] + '"', args[0]]);
+        return _rt("fw", "abs_" + names[0], [args[0]]);
     }
     return "Math.abs(" + args[0] + ")";
 }

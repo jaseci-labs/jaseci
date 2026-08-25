@@ -68,6 +68,28 @@ impl JacAccessValidation.allow_root(
     }
 }
 
+impl JacAccessValidation.allow_group(
+    archetype: Archetype, group_id: UUID, level: (AccessLevel | int | str | None) = None
+) -> None {
+    if (level is None) {
+        level = AccessLevel.READ;
+    }
+    level = access_level_cast(level);
+    (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    access = anchor.access.groups;
+    _group_id = str(group_id);
+    if (level != access.anchors.get(_group_id, AccessLevel.NO_ACCESS)) {
+        access.anchors[_group_id] = level;
+        jctx.mem.put(anchor);
+    }
+}
+
+impl JacAccessValidation.disallow_group(archetype: Archetype, group_id: UUID) -> None {
+    (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    anchor.access.groups.anchors.pop(str(group_id), None);
+    jctx.mem.put(anchor);
+}
+
 impl JacAccessValidation.disallow_root(
     archetype: Archetype, root_id: UUID, level: (AccessLevel | int | str | None) = None
 ) -> None {
@@ -154,7 +176,26 @@ impl JacAccessValidation.check_access_level(
     if ((level := to_access.roots.check(str(jroot.id))) is not None) {
         access_level = level;
     }
+    if to_access.groups.anchors {
+        for gid in JacAccessValidation._groups_of(jroot) {
+            if ((glevel := to_access.groups.check(gid)) is not None)
+                and glevel.value > access_level.value {
+                access_level = glevel;
+            }
+        }
+    }
     return access_level;
+}
+
+
+impl JacAccessValidation._groups_of(jroot: NodeAnchor) -> list[str] {
+    import from jaclang.jac0core.osp_graph_sv { sv_live_edges, sv_register_hydrated }
+    sv_register_hydrated(jroot, fetch_stubs=True);
+    out: list[str] = [];
+    for grp in sv_live_edges(jroot, EdgeDir.OUT.value, None, False) {
+        out.append(str(grp.id));
+    }
+    return out;
 }
 
 impl JacWalker.`visit(
@@ -527,7 +568,7 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
             )
         );
     }
-    _own_anns = cls.__dict__.get('__annotations__', {});
+    _own_anns: dict[str, object] = cls.__dict__.get('__annotations__', {});
     if _own_anns {
         _pre_attrs = dict(cls.__dict__);
         try {
@@ -541,7 +582,10 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
 
             _seen_default = False;
             for _base in reversed(cls.__mro__[1:]) {
-                for _bf in getattr(_base, '__dataclass_fields__', {}).values() {
+                _base_fields: dict[str, dataclasses.Field] = getattr(
+                    _base, '__dataclass_fields__', {}
+                );
+                for _bf in _base_fields.values() {
                     if _bf.`default is not dataclasses.MISSING
                         or _bf.default_factory is not dataclasses.MISSING {
                         _seen_default = True;
@@ -923,30 +967,43 @@ impl JacBuiltin.log_report(expr: any, custom: bool = False) -> None {
 }
 
 impl JacGraph.refs(
-    path: GraphQuery | NodeArchetype | list[NodeArchetype], slc: (slice | None) = None
+    path: GraphQuery | NodeArchetype | list[NodeArchetype],
+    slc: (slice | None) = None,
+    lazy: bool = False
 ) -> list[NodeArchetype] | list[EdgeArchetype] | list[(NodeArchetype | EdgeArchetype)] {
     if not isinstance(path, GraphQuery) {
         path = GraphQuery(path, hops=[QHop(dir=EdgeDir.OUT.value)]);
     }
-    import from jaclang.runtimelib.query_planner { resolve_query, resolve_query_edges }
+    import from jaclang.runtimelib.query_planner {
+        LazyRefs,
+        resolve_query,
+        resolve_query_edges
+    }
     ctx = JacRuntimeInterface.get_context();
     ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
     if slc is not None and path.slc is None {
         path.slc = slc;
     }
-    planned = (
-        resolve_query_edges(ctx.mem, path)
-            if path.edges_only
-            else resolve_query(ctx.mem, path)
-    );
-    resolved: list[(NodeArchetype | EdgeArchetype)] = [];
-    for a in planned {
-        arch = a.archetype;
-        if isinstance(arch, (NodeArchetype, EdgeArchetype)) {
-            resolved.append(arch);
+
+    def _run(q: GraphQuery) -> list {
+        planned = (
+            resolve_query_edges(ctx.mem, q)
+                if q.edges_only
+                else resolve_query(ctx.mem, q)
+        );
+        out: list[(NodeArchetype | EdgeArchetype)] = [];
+        for a in planned {
+            arch = a.archetype;
+            if isinstance(arch, (NodeArchetype, EdgeArchetype)) {
+                out.append(arch);
+            }
         }
+        return out;
     }
-    return resolved;
+    if lazy and path.slc is None and ctx.mem?.store is not None {
+        return LazyRefs(_run, path);
+    }
+    return _run(path);
 }
 
 impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {
@@ -1750,6 +1807,34 @@ impl JacPersistence.get_persistent_memory(config: dict) -> any {
 
 impl JacPersistence.set_persistent_memory_provider(provider: Callable | None) -> None {
     _persistent_memory_provider[0] = provider;
+}
+
+impl JacRuntime.reset_process_state(cls: any, clear_modules: bool = True) -> None {
+    import sys;
+    import from concurrent.futures { ThreadPoolExecutor }
+    if cls.exec_ctx is not None {
+        cls.exec_ctx.mem.close();
+    }
+    cls.exec_ctx = None;
+    if clear_modules {
+        for mod in list(cls.loaded_modules.values()) {
+            if (
+                not mod.__name__.startswith("jaclang.") and (mod.__name__ != "__main__")
+            ) {
+                sys.modules.pop(mod.__name__, None);
+            }
+        }
+        cls.loaded_modules.clear();
+    }
+    stale = cls.pool;
+    cls.pool = ThreadPoolExecutor();
+    if stale is not None {
+        stale.shutdown(`wait=False);
+    }
+    cls.program = None;
+    cls.compiler = None;
+    import from jaclang.project.config { set_config }
+    set_config(None);
 }
 
 impl JacRuntime.get_compiler(cls: any) -> JacCompiler {
