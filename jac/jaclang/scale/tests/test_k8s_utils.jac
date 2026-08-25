@@ -78,8 +78,8 @@ test "resize pvc if needed: increase patches, no-op skips, decrease raises" {
 def _test_parse_storage_valid(pair: tuple) {
     raw = pair[0];
     expected = pair[1];
-    result = parse_storage_quantity(raw);
-    assert result == expected , f"parse_storage_quantity({raw!r}) = {result}, expected {expected}";
+    parsed = parse_storage_quantity(raw);
+    assert parsed == expected , f"parse_storage_quantity({raw!r}) = {parsed}, expected {expected}";
 }
 
 with entry {
