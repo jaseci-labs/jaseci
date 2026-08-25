@@ -28,8 +28,11 @@ glob _WARNING_IGNORES: list[tuple[str, str, str]] = [
          ("", "DeprecationWarning", "cattrs")
      ];
 
-glob _WORKER_MEM_BYTES: int = 2 * 1024 * 1024 * 1024,
+glob _WORKER_MEM_BYTES: int = 3 * 1024 * 1024 * 1024,
      _MEM_HEADROOM: float = 0.6,
+     _MEM_POLL_SECONDS: float = 5.0,
+     _MEM_FLOOR_BYTES: int = 1536 * 1024 * 1024,
+     _MEM_SHED_FRACTION: float = 0.3,
      _MAX_AUTO_JOBS: int = 12,
      _PROGRESS_WIDTH: int = 72;
 
@@ -102,7 +105,13 @@ obj ForkPool {
         maxfail: (int | None) = None,
         cursor: int = 0,
         stopping: bool = False,
-        kids: list[dict[(str, any)]] postinit;
+        kids: list[dict[(str, any)]] postinit,
+        started: float postinit,
+        mem_last: float postinit,
+        mem_trail: list[str] postinit,
+        mem_start: int postinit,
+        shed_pending: int postinit,
+        rss_cap_mb: int postinit;
 
     def postinit -> None;
     def run -> None;
@@ -113,6 +122,7 @@ obj ForkPool {
     def _handle_record(kid: dict[(str, any)], line: str) -> None;
     def _reap(kid: dict[(str, any)]) -> None;
     def _should_stop -> bool;
+    def _memory_watchdog -> None;
     def _shutdown -> None;
 }
 
@@ -163,6 +173,26 @@ def _load_last_failed -> str;
 def _store_run_state(plan: TestPlan, reporter: Reporter) -> None;
 
 def default_jobs -> int;
+
+def _limit_from_text(text: str) -> int;
+
+def _cgroup_limit_bytes -> int;
+
+def _cgroup_available_bytes -> int;
+
+def _shed_threshold(mem_start: int) -> int;
+
+def _mem_budget_bytes -> int;
+
+def _rss_cap_for(budget: int, jobs: int) -> int;
+
+def _resolve_rss_cap(jobs: int) -> int;
+
+def _mem_available_bytes -> int;
+
+def _pid_rss_mb(pid: int) -> int;
+
+def _loadavg -> float;
 
 def resolve_jobs(requested: (str | int | None) = None) -> int;
 

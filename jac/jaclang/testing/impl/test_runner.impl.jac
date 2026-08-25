@@ -293,8 +293,86 @@ impl install_warning_filters -> None {
     }
 }
 
-impl default_jobs -> int {
-    cpus = os.cpu_count() or 1;
+impl _limit_from_text(text: str) -> int {
+    raw = text.strip();
+    if (not raw) or (raw == "max") {
+        return 0;
+    }
+    try {
+        value = int(raw);
+    } except ValueError {
+        return 0;
+    }
+    return value if (value > 0) and (value < (1 << 60)) else 0;
+}
+
+impl _cgroup_limit_bytes -> int {
+    for path in [
+        "/sys/fs/cgroup/memory.max",
+        "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+    ] {
+        try {
+            with open(path, encoding="utf-8") as f {
+                limit = _limit_from_text(f.read());
+            }
+            if limit {
+                return limit;
+            }
+        } except Exception {
+            ;
+        }
+    }
+    return 0;
+}
+
+impl _cgroup_available_bytes -> int {
+    limit = _cgroup_limit_bytes();
+    if not limit {
+        return 0;
+    }
+    used = 0;
+    for path in [
+        "/sys/fs/cgroup/memory.current",
+        "/sys/fs/cgroup/memory/memory.usage_in_bytes"
+    ] {
+        try {
+            with open(path, encoding="utf-8") as f {
+                used = int(f.read().strip());
+            }
+            break;
+        } except Exception {
+            used = 0;
+        }
+    }
+    return max(0, limit - used);
+}
+
+impl _shed_threshold(mem_start: int) -> int {
+    return max(int(mem_start * _MEM_SHED_FRACTION), 2 * _MEM_FLOOR_BYTES);
+}
+
+impl _mem_budget_bytes -> int {
+    return int(_mem_available_bytes() * _MEM_HEADROOM);
+}
+
+impl _rss_cap_for(budget: int, jobs: int) -> int {
+    share = (budget // max(1, jobs)) if budget else _WORKER_MEM_BYTES;
+    return int(share // (1024 * 1024));
+}
+
+impl _resolve_rss_cap(jobs: int) -> int {
+    raw = os.environ.get("JAC_TEST_RECYCLE_MB", "");
+    if raw {
+        try {
+            return max(0, int(raw));
+        } except ValueError {
+            ;
+        }
+    }
+    return _rss_cap_for(_mem_budget_bytes(), jobs);
+}
+
+impl _mem_available_bytes -> int {
     avail = 0;
     try {
         with open("/proc/meminfo", encoding="utf-8") as f {
@@ -315,9 +393,42 @@ impl default_jobs -> int {
             avail = 0;
         }
     }
+    cg = _cgroup_available_bytes();
+    if cg and ((not avail) or (cg < avail)) {
+        avail = cg;
+    }
+    return avail;
+}
+
+impl _pid_rss_mb(pid: int) -> int {
+    try {
+        with open(f"/proc/{pid}/status", encoding="utf-8") as f {
+            for line in f {
+                if line.startswith("VmRSS:") {
+                    return int(line.split()[1]) // 1024;
+                }
+            }
+        }
+    } except Exception {
+        return 0;
+    }
+    return 0;
+}
+
+impl _loadavg -> float {
+    try {
+        return os.getloadavg()[0];
+    } except Exception {
+        return 0.0;
+    }
+}
+
+impl default_jobs -> int {
+    cpus = os.cpu_count() or 1;
+    budget = _mem_budget_bytes();
     cap = cpus;
-    if avail {
-        cap = max(1, int((avail * _MEM_HEADROOM) // _WORKER_MEM_BYTES));
+    if budget {
+        cap = max(1, int(budget // _WORKER_MEM_BYTES));
     }
     return max(1, min(cpus, cap, _MAX_AUTO_JOBS));
 }
@@ -382,6 +493,10 @@ impl _log_worker_footprint(
 impl _worker_rss_mb -> int {
     import resource;
     import sys;
+    mine = _pid_rss_mb(os.getpid());
+    if mine {
+        return mine;
+    }
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss;
     return int(peak // (1024 * 1024))
         if sys.platform == "darwin"
@@ -895,7 +1010,88 @@ impl Reporter.summarize(elapsed: float) -> int {
 }
 
 impl ForkPool.postinit -> None {
+    import time;
     self.kids = [];
+    self.started = time.monotonic();
+    self.mem_last = 0.0;
+    self.mem_trail = [];
+    self.mem_start = 0;
+    self.shed_pending = 0;
+    self.rss_cap_mb = _resolve_rss_cap(self.jobs);
+}
+
+impl ForkPool._memory_watchdog -> None {
+    import sys;
+    import time;
+    now = time.monotonic();
+    if (now - self.mem_last) < _MEM_POLL_SECONDS {
+        return;
+    }
+    self.mem_last = now;
+    avail = _mem_available_bytes();
+    rss = 0;
+    live = 0;
+    for k in self.kids {
+        if not k["alive"] {
+            continue;
+        }
+        held = _pid_rss_mb(k["pid"]);
+        if (held == 0) and (k["inflight"] is None) {
+            self._reap(k);
+            continue;
+        }
+        live += 1;
+        rss += held;
+    }
+    elapsed = now - self.started;
+    line = (
+        f"[mem] t={int(elapsed)}s avail={avail // (1024 * 1024)}MB "
+        f"workers={live} worker_rss={rss}MB load={_loadavg():.1f} "
+        f"done={self.cursor}/{len(self.plan.files)}"
+    );
+    self.mem_trail.append(line);
+    sys.stderr.write(line + "\n");
+    sys.stderr.flush();
+    if self.mem_start == 0 {
+        self.mem_start = avail;
+    }
+    if (
+        (avail > 0)
+        and (live > 1)
+        and (self.shed_pending == 0)
+        and (avail < _shed_threshold(self.mem_start))
+    ) {
+        self.shed_pending = 1;
+        sys.stderr.write(
+            f"[mem] shedding one of {live} workers: "
+            f"{avail // (1024 * 1024)} MB left of the "
+            f"{self.mem_start // (1024 * 1024)} MB this run started with\n"
+        );
+        sys.stderr.flush();
+    }
+    if (avail <= 0) or (avail >= _MEM_FLOOR_BYTES) {
+        return;
+    }
+    sys.stderr.write(
+        f"\n[mem] STOPPING: available memory fell to "
+        f"{avail // (1024 * 1024)} MB with {live} worker(s) holding {rss} MB. "
+        f"The runner is killed at this point with no step log, so the pool "
+        f"stops here and reports instead.\n"
+    );
+    for sample in self.mem_trail[-40:] {
+        sys.stderr.write("  " + sample + "\n");
+    }
+    sys.stderr.flush();
+    self.stopping = True;
+    for k in self.kids {
+        if k["alive"] {
+            try {
+                os.kill(k["pid"], 9);
+            } except OSError {
+                ;
+            }
+        }
+    }
 }
 
 impl ForkPool._should_stop -> bool {
@@ -969,12 +1165,7 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
     } except ValueError {
         _recycle = 25;
     }
-    _rss_cap = 8192;
-    try {
-        _rss_cap = int(os.environ.get("JAC_TEST_RECYCLE_MB", "8192") or "8192");
-    } except ValueError {
-        _rss_cap = 8192;
-    }
+    _rss_cap = self.rss_cap_mb;
     _served = 0;
     reader = os.fdopen(dispatch_fd, "r", encoding="utf-8");
     while True {
@@ -1083,6 +1274,19 @@ impl ForkPool._handle_record(kid: dict[(str, any)], line: str) -> None {
     for item in record.get("outcomes", []) {
         self.reporter.record(TestOutcome.from_wire(item));
     }
+    live = len(
+        [
+            k
+            for k in self.kids
+            if k["alive"]
+        ]
+    );
+    if (self.shed_pending > 0) and (live > 1) and not record.get("retire") {
+        self.shed_pending -= 1;
+        kid["retired"] = True;
+        self._reap(kid);
+        return;
+    }
     if record.get("retire") {
         kid["retired"] = True;
         if not self._should_stop() and (self.cursor < len(self.plan.files)) {
@@ -1180,10 +1384,11 @@ impl ForkPool._pump -> None {
         }
         fds = [k["result_fd"] for k in busy];
         try {
-            (ready, _, _) = select.select(fds, [], []);
+            (ready, _, _) = select.select(fds, [], [], _MEM_POLL_SECONDS);
         } except OSError {
             break;
         }
+        self._memory_watchdog();
         for fd in ready {
             owners = [
                 k
