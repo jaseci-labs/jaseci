@@ -4931,6 +4931,17 @@ def py_type_of(o: PyObj) -> PyObj {
         }
         return host_builtin("type");
     }
+    # CANONICAL exception type identity: type(ValueError("x")) must BE the
+    # ValueError marker guests compare against (sys.exc_info()[0] is ValueError,
+    # identity-keyed dispatch tables). The to_host fallthrough below would mint
+    # a fresh host-type proxy -- right __name__, wrong identity.
+    if isinstance(o, PyException) {
+        e = o as PyException;
+        if e.raw is not None and isinstance(e.raw, PyUserObj) {
+            return (e.raw as PyUserObj).cls as PyObj;
+        }
+        return host_builtin(e.type_name);
+    }
     # Native callable wrappers have no faithful host object (to_host drops
     # them), so answer with the matching HOST callable type instead of NoneType
     # via the to_host fallthrough. CPython distinguishes builtin_function_or_
@@ -10434,7 +10445,23 @@ obj PyNativeBuiltin(PyObj) {
             if is_error(tbv) or isinstance(tbv, PyNoneType) {
                 tbv = py_none();
             }
-            vals: list[PyObj] = [py_type_of(e), e, tbv];
+            # CANONICAL type identity: CPython guarantees sys.exc_info()[0] is
+            # THE exception class object (exc_info()[0] is ValueError). Two
+            # shapes carry it: user exceptions keep their defining PyClass in
+            # raw; everything else resolves through the memoized builtin
+            # registry so repeated calls return the SAME marker. py_type_of
+            # would instead mint a fresh host-type proxy per call -- right
+            # __name__, wrong identity.
+            etype: PyObj;
+            if e.raw is not None and isinstance(e.raw, PyUserObj) {
+                etype = (e.raw as PyUserObj).cls as PyObj;
+            } else {
+                etype = host_builtin(e.type_name);
+                if is_error(etype) {
+                    etype = py_type_of(e);
+                }
+            }
+            vals: list[PyObj] = [etype, e, tbv];
             return PyTuple(t="tuple", items=vals);
         }
         if self.name == "anext" {
