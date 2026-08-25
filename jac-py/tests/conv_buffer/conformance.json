@@ -1,0 +1,507 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "f6ad8fcea0e721214fca183e94db144c05df2966",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp3-out/test_buffer-r3/conv_buffer_pins.jac"
+  ],
+  "generated_at": "2026-08-24T22:46:28",
+  "hashes": {
+    "pins_jac": "9f98a54bc246687c61a8419e01540a92cdf95f908c76640ea31990f44d14a441",
+    "conversion_json": "0950332369d25f8a1edeee4fd27f540eb71ef590d2d822bbc0649329e15a5d7a",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "buffer",
+  "counts": {
+    "converted": 95,
+    "runnable": 8,
+    "green": 2,
+    "quarantined": 87
+  },
+  "pins": [
+    {
+      "id": "TestPythonBufferProtocol.test_basic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"memoryview: a bytes-like object is required, not \\'MyBuffer\\'\"'>"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_bad_buffer_method",
+      "status": "pass"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_call_builtins",
+      "status": "pass"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_inheritance",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_inheritance_releasebuffer",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_inherit_but_return_something_else",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'memoryview.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_override_only_release",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_release_buffer_with_exception_set",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'memoryview.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_getbuf",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_exceptions",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_linked_list",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_format_scalar",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_format_shape",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_format_strides",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_fortran",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_multidim",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_index_invalid",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_index_scalar",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_index_null_strides",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_index_getitem_single",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_index_setitem_single",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_index_getitem_multidim",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_sequence",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_slice_invalid",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_slice_zero_shape",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_slice_multidim",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_slice_redundant_suboffsets",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_slice_assign_single",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_slice_assign_multidim",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_random",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_random_invalid",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_random_slice_assign",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_re_export",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_zero_shape",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_zero_strides",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_offset",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_memoryview_from_buffer",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_get_pointer",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_tolist_null_strides",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_cmp_contig",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_ndarray_hash",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_py_buffer_to_contiguous",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_construction",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_cast_zero_shape",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_sizeof",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_struct_module",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_cast_zero_strides",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_cast_invalid",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_cast",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_cast_1D_ND",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_tolist",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_repr",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_sequence",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_index",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_assign",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_slice",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_array",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_special_cases",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_special_cases_deprecated_u_type_code",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_ndim_zero",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_ndim_one",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_zero_shape",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_zero_strides",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_random_formats",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_multidim_c",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_multidim_fortran",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_multidim_mixed",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_multidim_zero_shape",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_multidim_zero_strides",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_multidim_suboffsets",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_compare_not_equal",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_check_released",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_tobytes",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_get_contiguous",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_serializing",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_hash",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_release",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_redirect",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_from_static_exporter",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_memoryview_getbuffer_undefined",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_issue_7385",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_bytearray_release_buffer_read_flag",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_pybuffer_size_from_format",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestBufferProtocol.test_flags_overflow",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_c_buffer",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_c_buffer_invalid_flags",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_c_fill_buffer_invalid_flags",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_c_fill_buffer_readonly_and_writable",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_release_buffer",
+      "status": "quarantined",
+      "reason": "uses-self.held"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_same_buffer_returned",
+      "status": "quarantined",
+      "reason": "uses-self.held"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_buffer_flags",
+      "status": "quarantined",
+      "reason": "uses-self._data"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_release_saves_reference",
+      "status": "quarantined",
+      "reason": "uses-self.assertEqual"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_release_saves_reference_no_subclassing",
+      "status": "quarantined",
+      "reason": "uses-self.buffer"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_multiple_inheritance_buffer_last",
+      "status": "quarantined",
+      "reason": "uses-self.buffer"
+    },
+    {
+      "id": "TestPythonBufferProtocol.test_multiple_inheritance_buffer_last_raising",
+      "status": "quarantined",
+      "reason": "uses-self.buffer"
+    }
+  ]
+}

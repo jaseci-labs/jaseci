@@ -1,0 +1,975 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "f6ad8fcea0e721214fca183e94db144c05df2966",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp3-out/test_compile-r3/conv_compile_pins.jac"
+  ],
+  "generated_at": "2026-08-24T22:46:23",
+  "hashes": {
+    "pins_jac": "032e84402fa7d0f9296beb016dd85473fac716e541d30632153d56def5baa648",
+    "conversion_json": "d34d3d1280497cc8cafe87a9fffbe3ee71cbf5c4ab1e69588befe401ae7c0dea",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "compile",
+  "counts": {
+    "converted": 184,
+    "runnable": 111,
+    "green": 42,
+    "quarantined": 73
+  },
+  "pins": [
+    {
+      "id": "TestSpecifics.test_no_ending_newline",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_empty",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_other_newlines",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_debug_assignment",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_argument_handling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_syntax_error",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_none_keyword_arg",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_duplicate_global_local",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_argument_order",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_float_literals",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_indentation",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_leading_newlines",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_literals_with_leading_zeroes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 777j, 777j)\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_unary_minus",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_sequence_unpacking_error",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_none_assignment",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_import",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_for_distinct_code_objects",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_lambda_doc",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsNone\\', \\'foo\\')\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_lambda_consts",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_encoding",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_annotation_limit",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_mangling",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_condition_expression_with_dead_blocks_compiles",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_dead_code_with_except_handler_compiles",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_try_except_in_while_with_chained_condition_compiles",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_compile_invalid_namedexpr",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_compile_redundant_jumps_and_nops_after_moving_cold_blocks",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "TestSpecifics.test_compile_redundant_jump_after_convert_pseudo_ops",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "TestSpecifics.test_compile_invalid_typealias",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_dict_evaluation_order",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_compile_filename",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_compile_filename_refleak",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_single_statement",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_particularly_evil_undecodable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestSpecifics.test_yet_more_evil_still_undecodable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestSpecifics.test_null_terminated",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'exec() argument 1 must be a code object'\">"
+    },
+    {
+      "id": "TestSpecifics.test_dont_merge_constants",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_path_like_objects",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_false_while_loop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSpecifics.test_folding_type_param",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSpecifics.test_lineno_procedure_call",
+      "status": "quarantined",
+      "reason": "host-raised:AssertionError: "
+    },
+    {
+      "id": "TestSpecifics.test_big_dict_literal",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_redundant_jump_in_if_else_break",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSpecifics.test_no_wraparound_jump",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSpecifics.test_multi_line_lambda_as_argument",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_apply_static_swaps",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_apply_static_swaps_2",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_apply_static_swaps_3",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_variable_dependent",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_remove_empty_basic_block_with_jump_target_label",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_global_declaration_in_except_used_in_else",
+      "status": "pass"
+    },
+    {
+      "id": "TestSpecifics.test_globals_dict_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"exec() argument 2 must be a dict, not \\'WeirdDict\\'\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_compile_warnings",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [], [3, 5, 3, 5])\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_compile_warning_in_finally",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [], [5, 9])\"'>"
+    },
+    {
+      "id": "TestBooleanExpression.test_exception",
+      "status": "pass"
+    },
+    {
+      "id": "TestSourcePositions.test_simple_assignment",
+      "status": "pass"
+    },
+    {
+      "id": "TestSourcePositions.test_compiles_to_extended_op_arg",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_boolean_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_generator_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_async_generator_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_list_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_async_list_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_set_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_async_set_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_dict_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_async_dict_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_sequence",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_sequence_wildcard",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_mapping",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_mapping_wildcard",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_class",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_or",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_very_long_line_end_offset",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_complex_single_line_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_assert_rewritten_as_method_call",
+      "status": "pass"
+    },
+    {
+      "id": "TestSourcePositions.test_attribute_augassign",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_attribute_del",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_attribute_load",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_attribute_store",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_method_call",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_load_super_attr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestExpressionStackSize.test_stack_3050",
+      "status": "pass"
+    },
+    {
+      "id": "TestExpressionStackSize.test_stack_3050_2",
+      "status": "pass"
+    },
+    {
+      "id": "TestStackSizeStability.test_if",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_if_else",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_bare",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_qualified",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_as",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_star_qualified",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_star_as",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_star_finally",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_finally",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_with",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_while_else",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_else",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue_inside_try_finally_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue_inside_finally_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue_inside_except_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue_inside_with_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_return_inside_try_finally_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_return_inside_finally_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_return_inside_except_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_return_inside_with_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_async_with",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_async_for",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_async_for_else",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue_inside_async_with_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_return_inside_async_with_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSpecifics.test_extended_arg",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestSpecifics.test_same_filename_used",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_compiler_recursion_limit",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_merge_constants",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_merge_code_attrs",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_remove_unused_consts",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_remove_unused_consts_no_docstring",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_remove_unused_consts_extended_args",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_strip_unused_None",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_peephole_opt_unreachable_code_array_access_in_bounds",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_docstring",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_docstring_interactive_mode",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_docstring_omitted",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_stack_overflow",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "id": "TestSpecifics.test_dead_blocks_do_not_generate_bytecode",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_uses_slice_instructions",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestSpecifics.test_pep_765_warnings",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "TestSpecifics.test_pep_765_no_warnings",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_assert",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestSourcePositions.test_column_offset_deduplication",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestInstructionSequence.test_basics",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestInstructionSequence.test_nested",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestInstructionSequence.test_static_attributes_are_sorted",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestSpecifics.test_exec_with_general_mapping_for_locals",
+      "status": "quarantined",
+      "reason": "uses-self.results"
+    },
+    {
+      "id": "TestSpecifics.test_int_literals_too_long",
+      "status": "quarantined",
+      "reason": "unresolved-name:err_ctx"
+    },
+    {
+      "id": "TestSpecifics.test_subscripts",
+      "status": "quarantined",
+      "reason": "uses-self.data"
+    },
+    {
+      "id": "TestSpecifics.test_condition_expression_with_redundant_comparisons_compiles",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSpecifics.test_compile_ast",
+      "status": "quarantined",
+      "reason": "unresolved-name:__file__"
+    },
+    {
+      "id": "TestSpecifics.test_bad_single_statement",
+      "status": "quarantined",
+      "reason": "helper:assertInvalidSingle(uses-self.compile_single)"
+    },
+    {
+      "id": "TestSpecifics.test_consts_in_conditionals",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSpecifics.test_imported_load_method",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSpecifics.test_lineno_after_implicit_return",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSpecifics.test_lineno_after_no_code",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSpecifics.test_lineno_attribute",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSpecifics.test_line_number_genexp",
+      "status": "quarantined",
+      "reason": "unresolved-name:y"
+    },
+    {
+      "id": "TestSpecifics.test_line_number_implicit_return_after_async_for",
+      "status": "quarantined",
+      "reason": "unresolved-name:body"
+    },
+    {
+      "id": "TestSpecifics.test_line_number_synthetic_jump_multiple_predecessors",
+      "status": "quarantined",
+      "reason": "unresolved-name:C1"
+    },
+    {
+      "id": "TestSpecifics.test_line_number_synthetic_jump_multiple_predecessors_nested",
+      "status": "quarantined",
+      "reason": "unresolved-name:C3"
+    },
+    {
+      "id": "TestSpecifics.test_line_number_synthetic_jump_multiple_predecessors_more_nested",
+      "status": "quarantined",
+      "reason": "unresolved-name:C3"
+    },
+    {
+      "id": "TestSpecifics.test_lineno_of_backward_jump_conditional_in_loop",
+      "status": "quarantined",
+      "reason": "unresolved-name:x"
+    },
+    {
+      "id": "TestSpecifics.test_compare_positions",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSpecifics.test_if_expression_expression_empty_block",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSpecifics.test_duplicated_small_exit_block",
+      "status": "quarantined",
+      "reason": "unresolved-name:element"
+    },
+    {
+      "id": "TestSpecifics.test_cold_block_moved_to_end",
+      "status": "quarantined",
+      "reason": "unresolved-name:name"
+    },
+    {
+      "id": "TestSpecifics.test_remove_redundant_nop_edge_case",
+      "status": "quarantined",
+      "reason": "unresolved-name:a"
+    },
+    {
+      "id": "TestSpecifics.test_regression_gh_120225",
+      "status": "quarantined",
+      "reason": "unresolved-name:name_3"
+    },
+    {
+      "id": "TestBooleanExpression.test_short_circuit_and",
+      "status": "quarantined",
+      "reason": "uses-self.Yes"
+    },
+    {
+      "id": "TestBooleanExpression.test_short_circuit_or",
+      "status": "quarantined",
+      "reason": "uses-self.No"
+    },
+    {
+      "id": "TestBooleanExpression.test_compound",
+      "status": "quarantined",
+      "reason": "uses-self.No"
+    },
+    {
+      "id": "TestSourcePositions.test_push_null_load_global_positions",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSourcePositions.test_weird_attribute_position_regressions",
+      "status": "quarantined",
+      "reason": "unresolved-name:bar"
+    },
+    {
+      "id": "TestSourcePositions.test_lambda_return_position",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSourcePositions.test_return_in_with_positions",
+      "status": "quarantined",
+      "reason": "unresolved-name:R"
+    },
+    {
+      "id": "TestStaticAttributes.test_basic",
+      "status": "quarantined",
+      "reason": "uses-self.a"
+    },
+    {
+      "id": "TestStaticAttributes.test_nested_function",
+      "status": "quarantined",
+      "reason": "uses-self.x"
+    },
+    {
+      "id": "TestStaticAttributes.test_nested_class",
+      "status": "quarantined",
+      "reason": "uses-self.x"
+    },
+    {
+      "id": "TestStaticAttributes.test_subclass",
+      "status": "quarantined",
+      "reason": "uses-self.x"
+    },
+    {
+      "id": "TestExpressionStackSize.test_and",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_or",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_and_or",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_chained_comparison",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_if_else",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_binop",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_list",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_tuple",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_set",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_dict",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_func_args",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_func_kwargs",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_meth_args",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_meth_kwargs",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    },
+    {
+      "id": "TestExpressionStackSize.test_func_and",
+      "status": "quarantined",
+      "reason": "uses-self.N"
+    }
+  ]
+}

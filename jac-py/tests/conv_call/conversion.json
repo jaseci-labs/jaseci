@@ -1,0 +1,440 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "f7104d6f6c16d5ec4870e5dba1e5d0868efce504",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_call.py",
+    "-o",
+    "/var/tmp/sp2-out/test_call-r3",
+    "--name",
+    "conv_call"
+  ],
+  "generated_at": "2026-08-24T22:47:46",
+  "hashes": {
+    "pins_jac": "a9ef7a624ac73c5bd68a3d4303c97b314411aad4078e97aa408e4c5492e283ea"
+  },
+  "source_file": "reference/cpython/Lib/test/test_call.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "call",
+  "pins_file": "conv_call_pins.jac",
+  "pins": [
+    {
+      "ident": "FunctionCalls.test_kwargs_order",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import collections\n\ndef testfunction(self):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef testfunction_kw(self, *, kw):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef _t():\n    od = collections.OrderedDict([('a', 1), ('b', 2)])\n    od.move_to_end('a')\n    expected = list(od.items())\n\n    def fn(**kw):\n        return kw\n    res = fn(**od)\n    assert isinstance(res, dict), ('assertIsInstance', res, dict)\n    assert list(res.items()) == expected, ('assertEqual', list(res.items()), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FunctionCalls.test_frames_are_popped_after_failed_calls",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def f():\n        pass\n\n    class C:\n\n        def m(self):\n            pass\n    callables = [f, C.m, [].__len__]\n    for c in callables:\n        for _ in range(1000):\n            try:\n                c(None)\n            except TypeError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FastCallTests.test_fastcall_clearing_dict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import gc\n\ndef testfunction(self):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef testfunction_kw(self, *, kw):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class IntWithDict:\n        __slots__ = ['kwargs']\n\n        def __init__(self, **kwargs):\n            self.kwargs = kwargs\n\n        def __index__(self):\n            self.kwargs.clear()\n            gc.collect()\n            return 0\n    x = IntWithDict(optimize=IntWithDict())\n    compile('pass', '', 'exec', x, **x.kwargs)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "testfunction",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "testfunction_kw",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestRecursion.test_recursion_with_kwargs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def recurse_kw(a=0):\n        recurse_kw(a=0)\n    try:\n        recurse_kw()\n    except RecursionError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestFunctionWithManyArgs.test_function_with_many_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    for N in (10, 500, 1000):\n        args = ','.join([f'a{i}' for i in range(N)])\n        src = f'def f({args}) : return a{N // 2}'\n        l = {}\n        exec(src, {}, l)\n        assert l['f'](*range(N)) == N // 2, ('assertEqual', l['f'](*range(N)), N // 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestCallingConventions.test_varargs",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_varargs_ext",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_varargs_error_kw",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_varargs_keywords",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_varargs_keywords_ext",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_o",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_o_ext",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_o_error_no_arg",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_o_error_two_args",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_o_error_ext",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_o_error_kw",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_o_error_arg_kw",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_noargs",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_noargs_ext",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_noargs_error_arg",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_noargs_error_arg2",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_noargs_error_ext",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_noargs_error_kw",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_fastcall",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_fastcall_ext",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_fastcall_error_kw",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_fastcall_keywords",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCallingConventions.test_fastcall_keywords_ext",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "FastCallTests.test_vectorcall_dict",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "FastCallTests.test_vectorcall",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_method_descriptor_flag",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_vectorcall_flag",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_vectorcall_override",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_vectorcall_override_on_mutable_class",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_vectorcall_override_with_subclass",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_vectorcall",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_setvectorcall",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_setvectorcall_load_attr_specialization_skip",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_setvectorcall_load_attr_specialization_deopt",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_vectorcall_limited_incoming",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_vectorcall_limited_outgoing",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestPEP590.test_vectorcall_limited_outgoing_method",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestRecursion.test_super_deep",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestCAPI.test_cfunction_call",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs0",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs2",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs3",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs1min",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs2min",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs1max",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs2max",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs1_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs2_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs3_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs4_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs5_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs6_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs7_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs8_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs9_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs10_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs11_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs12_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs13_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs14_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs15_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs16_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs17_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs18_kw",
+      "reason": "unresolved-name:BadStr"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs19_kw",
+      "reason": "unresolved-name:BadStr"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs0_1",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs0_2",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs0_1_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs0_2_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs1_0",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs1_2",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs1_0_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs1_1_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs1_2_kw",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_object_not_callable",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_0",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_1",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_2",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_3",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_suggestion",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "TestErrorMessagesUseQualifiedName.test_missing_arguments",
+      "reason": "helper:check_raises_type_error(decorated-helper)"
+    },
+    {
+      "ident": "TestErrorMessagesUseQualifiedName.test_too_many_positional",
+      "reason": "helper:check_raises_type_error(decorated-helper)"
+    },
+    {
+      "ident": "TestErrorMessagesUseQualifiedName.test_positional_only_passed_as_keyword",
+      "reason": "helper:check_raises_type_error(decorated-helper)"
+    },
+    {
+      "ident": "TestErrorMessagesUseQualifiedName.test_unexpected_keyword",
+      "reason": "helper:check_raises_type_error(decorated-helper)"
+    },
+    {
+      "ident": "TestErrorMessagesUseQualifiedName.test_multiple_values",
+      "reason": "helper:check_raises_type_error(decorated-helper)"
+    },
+    {
+      "ident": "TestErrorMessagesSuggestions.test_unexpected_keyword_suggestion_valid_positions",
+      "reason": "helper:check_suggestion_includes(decorated-helper)"
+    },
+    {
+      "ident": "TestErrorMessagesSuggestions.test_unexpected_keyword_suggestion_kinds",
+      "reason": "helper:check_suggestion_includes(decorated-helper)"
+    },
+    {
+      "ident": "TestErrorMessagesSuggestions.test_unexpected_keyword_suggestion_via_getargs",
+      "reason": "helper:check_suggestion_includes(decorated-helper)"
+    },
+    {
+      "ident": "TestRecursion.test_margin_is_sufficient",
+      "reason": "unresolved-name:_testcapi"
+    }
+  ],
+  "counts": {
+    "extracted": 96,
+    "pinned": 5,
+    "quarantined": 91
+  }
+}

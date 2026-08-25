@@ -1,0 +1,446 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "f6ad8fcea0e721214fca183e94db144c05df2966",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp3-out/test_compile-r3/conv_compile_pins.jac"
+  ],
+  "generated_at": "2026-08-24T22:46:23",
+  "hashes": {
+    "pins_jac": "032e84402fa7d0f9296beb016dd85473fac716e541d30632153d56def5baa648",
+    "conversion_json": "d34d3d1280497cc8cafe87a9fffbe3ee71cbf5c4ab1e69588befe401ae7c0dea",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "compile",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 184,
+    "runnable": 111,
+    "green": 42,
+    "quarantined": 73,
+    "failed": 69,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestSpecifics.test_argument_handling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_duplicate_global_local",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_argument_order",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_literals_with_leading_zeroes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 777j, 777j)\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_lambda_doc",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsNone\\', \\'foo\\')\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_compile_redundant_jumps_and_nops_after_moving_cold_blocks",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "TestSpecifics.test_compile_redundant_jump_after_convert_pseudo_ops",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'pop from an empty deque'\">"
+    },
+    {
+      "id": "TestSpecifics.test_particularly_evil_undecodable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestSpecifics.test_yet_more_evil_still_undecodable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestSpecifics.test_null_terminated",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'exec() argument 1 must be a code object'\">"
+    },
+    {
+      "id": "TestSpecifics.test_false_while_loop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSpecifics.test_folding_type_param",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSpecifics.test_redundant_jump_in_if_else_break",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSpecifics.test_no_wraparound_jump",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSpecifics.test_globals_dict_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"exec() argument 2 must be a dict, not \\'WeirdDict\\'\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_compile_warnings",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [], [3, 5, 3, 5])\"'>"
+    },
+    {
+      "id": "TestSpecifics.test_compile_warning_in_finally",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [], [5, 9])\"'>"
+    },
+    {
+      "id": "TestSourcePositions.test_compiles_to_extended_op_arg",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_boolean_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_generator_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_async_generator_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_list_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_async_list_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_set_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_async_set_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_dict_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_multiline_async_dict_comprehension",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_sequence",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_sequence_wildcard",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_mapping",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_mapping_wildcard",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_class",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_matchcase_or",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_very_long_line_end_offset",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_complex_single_line_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_attribute_augassign",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_attribute_del",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_attribute_load",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_attribute_store",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_method_call",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestSourcePositions.test_load_super_attr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_if",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_if_else",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_bare",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_qualified",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_as",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_star_qualified",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_star_as",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_except_star_finally",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_try_finally",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_with",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_while_else",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_else",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue_inside_try_finally_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue_inside_finally_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue_inside_except_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue_inside_with_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_return_inside_try_finally_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_return_inside_finally_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_return_inside_except_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_return_inside_with_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_async_with",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_async_for",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_async_for_else",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_for_break_continue_inside_async_with_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    },
+    {
+      "id": "TestStackSizeStability.test_return_inside_async_with_block",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    }
+  ]
+}
