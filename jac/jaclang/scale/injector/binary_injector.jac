@@ -10,7 +10,7 @@ import from jaclang.scale.injector.binary {
     stage_admin_dist,
     toolchain_object_key
 }
-import from jaclang.runtimelib.utils { host_arch }
+import from jaclang.runtime.graph_utils { host_arch }
 import from jaclang.scale.injector.bundle { bundle_object_key, content_address }
 import from jaclang.scale.config.dev_config { Channel }
 

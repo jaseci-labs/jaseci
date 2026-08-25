@@ -5,7 +5,7 @@ import from jaclang.cli.console { console }
 import from jaclang.jac0core.sealed { python_tag }
 import from jaclang.project.config { JacConfig, get_config_for_path }
 import from jaclang.project.providers { get_python_provider, resolve_plan }
-import from jaclang.runtimelib.jab_vendor {
+import from jaclang.dist.jab_vendor {
     download_wheels,
     wheels_dir,
     write_vendor_manifest

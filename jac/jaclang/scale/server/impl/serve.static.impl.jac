@@ -1,18 +1,14 @@
 import mimetypes;
 import from pathlib { Path }
-import from jaclang.runtimelib.serving.datatypes {
-    HTMLResponse,
-    JSONResponse,
-    Response
-}
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { HTMLResponse, JSONResponse, Response }
+import from jaclang.server.serving.endpoint {
     APIParameter,
     HTTPMethod,
     JEndPoint,
     ParameterType
 }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
-import from jaclang.runtimelib.server { JsonValue }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
+import from jaclang.server.server { JsonValue }
 import from jaclang.cli.console { console }
 
 impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
@@ -411,7 +407,7 @@ impl JacAPIServerStatic.serve_graph_page -> HTMLResponse {
 
 
 impl JacAPIServerStatic.graph_data(Authorization: (str | None) = None) -> JSONResponse {
-    import from jaclang.runtimelib.utils { collect_node_connections }
+    import from jaclang.runtime.graph_utils { collect_node_connections }
 
     token: (str | None) = None;
     if (

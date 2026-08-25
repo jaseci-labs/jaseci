@@ -7,7 +7,7 @@ as it is for regular `by llm` calls. This fixture temporarily wraps
 times it fired.
 """
 
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
 import from jaclang.byllm.lib { MockLLM }
 import from jaclang.byllm.types { CompletionResult }
 import from jaclang.byllm.mtir { MTRuntime }
