@@ -17,13 +17,16 @@ reported it. Both lanes now report it.
 
 import os;
 import jaclang;
-import jaclang.jac0core.compiler as compiler_mod;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.driver.compiler as compiler_mod;
+import jaclang.compiler.frontend.unitree as uni;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.passes { Transform }
-import from jaclang.jac0core.compiler { _native_env_memo, native_pipeline_available }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.passes { Transform }
+import from jaclang.compiler.driver.schedules {
+    _native_env_memo,
+    native_pipeline_available
+}
 
 glob BRAND_SRC: str = """
 type Branded := int;

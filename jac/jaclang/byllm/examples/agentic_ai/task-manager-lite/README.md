@@ -45,7 +45,7 @@ A lightweight AI-powered task management system that intelligently routes user r
 1. Start the Jac server:
 
    ```bash
-   jac start task_manager.jac
+   jac run task_manager.jac
    ```
 
 ## Example Requests
@@ -129,7 +129,7 @@ task-manager-lite/
 3. **Run the Application**:
 
    ```bash
-   jac start task_manager.jac
+   jac run task_manager.jac
    ```
 
 ## Technical Details

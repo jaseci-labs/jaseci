@@ -1,6 +1,6 @@
 """Test API fixture for restspec decorator tests."""
 
-import from jaclang.runtimelib.builtin { restspec }
+import from jaclang.runtime.builtin { restspec }
 import from http { HTTPMethod }
 
 # ============================================================================

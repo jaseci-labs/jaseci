@@ -1,7 +1,7 @@
 """Regression tests for `JacProgram.find_module` -- the single, program-spanning
 resolver for "the compiled module at <path>".
 
-`_resolve_program` routes a file to either the user's program (`Jac.program`) or
+`SelfHostCache.resolve` routes a file to either the user's program (`Jac.program`) or
 the compiler's internal program (anything under the jaclang package root, e.g.
 the bundled `jac ai --ui` app). A consumer that holds only a path -- the server's
 auth/manifest introspection, the client bundler -- must resolve the module no
@@ -15,9 +15,9 @@ import shutil;
 import jaclang;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
 
-"""Write a `.jac` file under the jaclang package root, so `_resolve_program`
+"""Write a `.jac` file under the jaclang package root, so the self-host redirect
 routes it to the internal program (the `jac ai --ui` condition). Returns the
 created directory (caller rmtrees it) and the file path."""
 def _bundled_app(slug: str, body: str) -> tuple[Path, Path] {
@@ -61,7 +61,7 @@ test "find_module resolves a user-program module and returns None for unknown" {
 }
 
 test "public endpoints of a jaclang-bundled app do not require auth" {
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
 
     (d, f) = _bundled_app(
         "auth",
