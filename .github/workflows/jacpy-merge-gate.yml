@@ -52,7 +52,7 @@ jobs:
       - name: Set up jac (build the binary)
         uses: ./.github/actions/setup-jac
         with:
-          skip-precompile: "true""
+          skip-precompile: "true"
 
       - name: Layer 4 oracle contract tests
         run: jac test jac-py/jacpython/layer4_compile.jac
