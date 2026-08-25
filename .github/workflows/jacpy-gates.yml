@@ -27,7 +27,7 @@ env:
 jobs:
   jac-py-gates:
     name: jac-py P4 gates
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
