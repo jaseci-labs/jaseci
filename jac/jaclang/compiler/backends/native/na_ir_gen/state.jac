@@ -321,6 +321,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _codegen_bytes_slice(
         bv: ir.Value, slice_node: object
     ) -> (ir.Value | None) abst;
+
     def _emit_bytes_eq(left: ir.Value, right: ir.Value, negate: bool) -> ir.Value abst;
     def _is_bytes_type(t: ir.Type) -> bool abst;
     def _emit_bytes_truthy(bv: ir.Value) -> ir.Value abst;
@@ -407,13 +408,16 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _emit_elem_retain(
         b: ir.IRBuilder, elem_type: ir.Type, val: ir.Value
     ) -> None abst;
+
     def _emit_elem_release(
         b: ir.IRBuilder, elem_type: ir.Type, val: ir.Value
     ) -> None abst;
+
     def _container_layout_dense(data_types: list) -> dict abst;
     def _container_layout_hash(
         key_type: ir.Type, val_type: (ir.Type | None)
     ) -> dict abst;
+
     def _container_struct_fields(layout: dict) -> list abst;
     def _emit_live_slot_loop(
         fn: ir.Function,
@@ -556,6 +560,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _dict_key_reconcile(
         dk: (str | None), val: (ir.Value | None)
     ) -> (str | None) abst;
+
     def _ensure_enum_lowered(t: any) -> (ir.Type | None) abst;
     def _class_form_enum_self_type(arch_name: str) -> (ir.Type | None) abst;
     def _codegen_class_form_enum_member(nd: uni.AtomTrailer) -> (ir.Value | None) abst;
@@ -577,6 +582,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _emit_runtime_raise(
         is_error: ir.Value, exc_type_name: str, msg: str
     ) -> None abst;
+
     def _get_or_register_exc_type(exc_name: str) -> int abst;
     def _codegen_raise(nd: uni.RaiseStmt) -> None abst;
     def _codegen_try(nd: uni.TryStmt) -> None abst;
@@ -681,6 +687,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _instantiate_generic(
         nd: uni.FuncCall, func_name: str
     ) -> (ir.Function | None) abst;
+
     def _instantiate_generic_method(
         nd: uni.FuncCall, owner_arch: str, method_name: str
     ) -> (ir.Function | None) abst;
@@ -692,6 +699,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _find_source_ability(
         mod_name: str, func_name: str
     ) -> (uni.Ability | None) abst;
+
     def _register_enums(module: uni.Module) -> None abst;
     def _register_globals(module: uni.Module) -> None abst;
     def _quiet_glob_type(type_expr: (uni.UniNode | None)) -> (ir.Type | None) abst;
@@ -795,6 +803,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _accessor_slot_of(
         type_name: str, field_name: str, kind: str
     ) -> (str | None) abst;
+
     def _codegen_accessor_call(
         obj_val: ir.Value, type_name: str, slot: str, args: list[ir.Value]
     ) -> (ir.Value | None) abst;
@@ -810,6 +819,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _forward_declare_event_method(
         arch_name: str, method: uni.Ability
     ) -> None abst;
+
     def _codegen_instantiation(
         nd: (uni.FuncCall | uni.Name),
         type_name_override: (str | None) = None,
@@ -894,6 +904,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _call_str_len(
         b: ir.IRBuilder, ptr: ir.Value, name: str = "s.len"
     ) -> ir.Value abst;
+
     def _call_str_truthy(
         b: ir.IRBuilder, ptr: ir.Value, name: str = "s.truthy"
     ) -> ir.Value abst;
@@ -916,6 +927,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _call_str_dup(
         b: ir.IRBuilder, ptr: ir.Value, name: str = "s.dup"
     ) -> ir.Value abst;
+
     def _call_str_len_raw(
         b: ir.IRBuilder, ptr: ir.Value, name: str = "s.rlen"
     ) -> ir.Value abst;
@@ -930,14 +942,17 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _str_alloc(
         b: ir.IRBuilder, size: ir.Value, name: str = "s.buf"
     ) -> ir.Value abst;
+
     def _str_finish(b: ir.IRBuilder, buf: ir.Value, len_val: ir.Value) -> None abst;
     def _emit_rc_retain(ptr: ir.Value, op: str = "", loc: str = "") -> None abst;
     def _emit_rc_release_simple(
         ptr: ir.Value, op: str = "", loc: str = ""
     ) -> None abst;
+
     def _emit_rc_release_typed(
         val: ir.Value, op: str = "", loc: str = ""
     ) -> None abst;
+
     def _arch_is_acyclic(arch_name: str) -> bool abst;
     def _nogc_headerless -> bool abst;
     def _arch_is_osp_name(arch_name: str) -> bool abst;
@@ -955,6 +970,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _emit_set_type_tag(
         b: ir.IRBuilder, ptr_i8: ir.Value, type_name: str
     ) -> None abst;
+
     def _emit_magic_check(
         b: ir.IRBuilder, ptr: ir.Value, name_prefix: str = "mc"
     ) -> ir.Value abst;
@@ -981,6 +997,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _release_loop_coll_slot(
         var_name: str, op: str = "", loc: str = ""
     ) -> None abst;
+
     def _rc_strdup(ptr: ir.Value, name: str = "rc.str") -> ir.Value abst;
     def _emit_struct_release_fn(arch_name: str) -> None abst;
     def _emit_container_repr(
@@ -1014,6 +1031,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _emit_checked_shl(
         left: ir.Value, right: ir.Value, unsigned: bool
     ) -> ir.Value abst;
+
     def _emit_shr(left: ir.Value, right: ir.Value, unsigned: bool) -> ir.Value abst;
     def _emit_int_divmod(
         left: ir.Value, right: ir.Value, unsigned: bool, trap_min: bool = True
@@ -1038,6 +1056,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _require_trace_fn(
         type_name: str, participates: bool, has_trace: bool
     ) -> None abst;
+
     def _struct_has_ref_fields(arch_name: str) -> bool abst;
     def _codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) abst;
     def _codegen_tuple_unpack(
@@ -1055,6 +1074,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _tuple_iter_shape(
         expr: (uni.UniNode | None), val: (ir.Value | None)
     ) -> bool abst;
+
     def _tuple_iter_seq(
         expr: (uni.UniNode | None), val: (ir.Value | None)
     ) -> (tuple | None) abst;
@@ -1063,12 +1083,14 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _tuple_seq_coerce(
         val: ir.Value, target_type: ir.Type
     ) -> (ir.Value | None) abst;
+
     def _get_struct_size(struct_type: ir.LiteralStructType) -> int abst;
     def _box_value_tuple(val: ir.Value, loc: str = "") -> ir.Value abst;
     def _tuple_managed_fields(struct_type: ir.LiteralStructType) -> list abst;
     def _coerce_tuple_to_struct(
         val: ir.Value, target_struct: ir.Type
     ) -> ir.Value abst;
+
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None) abst;
     def _opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None) abst;
     def _flow_narrowed_type_of(expr: (uni.UniNode | None)) -> (any | None) abst;
@@ -1165,6 +1187,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _isinstance_operand_arch(
         nd: uni.FuncCall, operand: ir.Value
     ) -> (str | None) abst;
+
     def _emit_isinstance_runtime(
         nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
     ) -> (ir.Value | None) abst;
