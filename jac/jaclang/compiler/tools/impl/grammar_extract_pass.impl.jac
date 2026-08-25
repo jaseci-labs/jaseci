@@ -269,8 +269,12 @@ impl GrammarExtractPass.before_pass -> None {
 
 impl GrammarExtractPass._collect_glob_tokens(expr: uni.Expr) -> list {
     if isinstance(expr, uni.FuncCall) {
-        for p in expr.params {
-            toks = self._collect_glob_tokens(p);
+        for p in expr.params or [] {
+            if isinstance(p, uni.KWPair) {
+                toks = self._collect_glob_tokens(p.value);
+            } else {
+                toks = self._collect_glob_tokens(p);
+            }
             if len(toks) > 0 {
                 return toks;
             }
@@ -292,7 +296,7 @@ impl GrammarExtractPass._collect_glob_tokens(expr: uni.Expr) -> list {
         return toks;
     }
     if isinstance(expr, uni.BinaryExpr)
-        and expr.op is not None
+        and isinstance(expr.op, uni.Token)
         and expr.op.value == "|" {
         return self._collect_glob_tokens(expr.left)
             + self._collect_glob_tokens(expr.right);
@@ -312,11 +316,15 @@ impl GrammarExtractPass._token_glob_map -> dict {
             continue;
         }
         for assign in node.assignments {
-            tgt = assign.target;
-            if isinstance(tgt, list) and len(tgt) > 0 {
-                tgt = tgt[0];
+            targets = assign.target;
+            if len(targets) == 0 {
+                continue;
             }
+            tgt = targets[0];
             if not isinstance(tgt, uni.Name) or not tgt.value.startswith("_") {
+                continue;
+            }
+            if assign.value is None {
                 continue;
             }
             toks = self._collect_glob_tokens(assign.value);
