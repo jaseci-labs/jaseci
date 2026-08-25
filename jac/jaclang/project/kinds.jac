@@ -57,7 +57,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  description="Headless Jac API service (server walkers, no client)",
                  `entry="main.jac",
                  action="serve",
-                 verb="start",
+                 verb="run",
                  summary="Serve headless API service",
                  flags={"no_client": True}
              ),
@@ -66,7 +66,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  description="Jac microservice (server walkers; auto-starts providers)",
                  `entry="main.jac",
                  action="serve",
-                 verb="start",
+                 verb="run",
                  summary="Serve microservice consumer (auto-starts providers)"
              ),
              KindSpec(
@@ -95,7 +95,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  description="Minimal full-stack Jac app (server walkers + client UI)",
                  `entry="main.jac",
                  action="serve",
-                 verb="start",
+                 verb="run",
                  summary="Serve full-stack app with client (dev mode)",
                  flags={"dev": True}
              ),
@@ -104,7 +104,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  description="Client-only Jac app (runs in the browser, no backend)",
                  `entry="main.jac",
                  action="serve",
-                 verb="start",
+                 verb="run",
                  summary="Serve client-only app as a static page (no backend)"
              ),
              KindSpec(
@@ -112,7 +112,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  description="Jac desktop app (OS webview + nacompile)",
                  `entry="main.jac",
                  action="serve",
-                 verb="start",
+                 verb="run",
                  summary="Run desktop app (OS webview)",
                  flags={"client": "desktop"}
              ),
@@ -225,7 +225,7 @@ def resolve_project_kind(config: JacConfig, entry_path: str) -> str {
     if explicit {
         return explicit;
     }
-    import from jaclang.jac0core.placement_facts { pinned_module_space }
+    import from jaclang.compiler.placement.placement_facts { pinned_module_space }
     entry_pin = pinned_module_space(entry_path) if entry_path else '';
     if (entry_pin == 'native') {
         return "cli-native";
@@ -239,8 +239,14 @@ def resolve_project_kind(config: JacConfig, entry_path: str) -> str {
     return "cli";
 }
 
-def plan_project_run(config: JacConfig, project_root: str) -> (RunPlan | None) {
-    entry_path = resolve_entry(config, project_root);
+def plan_project_run(
+    config: JacConfig, project_root: str, entry_override: str = ""
+) -> (RunPlan | None) {
+    entry_path = (
+        os.path.abspath(entry_override)
+            if entry_override
+            else resolve_entry(config, project_root)
+    );
     spec = KIND_SPECS.get(resolve_project_kind(config, entry_path));
     if spec is None {
         return None;
@@ -248,7 +254,7 @@ def plan_project_run(config: JacConfig, project_root: str) -> (RunPlan | None) {
     if spec.needs_entry and not entry_path {
         return None;
     }
-    if not spec.needs_entry {
+    if not spec.needs_entry and not entry_override {
         entry_path = "";
     }
 

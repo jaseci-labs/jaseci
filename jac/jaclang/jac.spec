@@ -1,3 +1,6 @@
+# Auto-generated EBNF snapshot of the Jac grammar.
+# DO NOT EDIT MANUALLY - regenerate with `jac tool grammar -o <path>`.
+
 access_tag ::= (":" ("pub" | "priv" | "protect")?)?
 
 module ::= STRING? element_stmt*

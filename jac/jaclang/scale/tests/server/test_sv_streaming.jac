@@ -1,7 +1,7 @@
 import json;
 import json as json_lib;
-import from jaclang.runtimelib { sv_client }
-import from jaclang.runtimelib.serving.sse {
+import from jaclang.server { sv_client }
+import from jaclang.server.serving.sse {
     consume_sse_events as consume_sse_stream,
     parse_sse as _parse_sse
 }
@@ -19,7 +19,7 @@ obj _StubResp {
     }
 
     def headers_obj -> any {
-        import from jaclang.runtimelib.serving.datatypes { Headers }
+        import from jaclang.server.serving.datatypes { Headers }
         h = Headers();
         h.set("Content-Type", self.content_type);
         return h;

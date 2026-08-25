@@ -115,7 +115,7 @@ def emit_backend(
         backend_dir, project_name, walkers_full, functions_full, has_env, entry_module
     );
 
-    import from jaclang.publish.runtime_vendor { vendor_runtime }
+    import from jaclang.dist.publish.runtime_vendor { vendor_runtime }
     uses_llm = _uses_llm(emitted_codes);
     try {
         vendored = vendor_runtime(backend_dir, emitted_codes, include_byllm=uses_llm);
@@ -513,16 +513,13 @@ def _emit_main_py(
         ];
     }
 
-    lines += [
-        '',
-        'from jaclang.runtimelib.server import UserManager, ExecutionManager'
-    ];
+    lines += ['', 'from jaclang.server.server import UserManager, ExecutionManager'];
 
     if entry_module {
         lines += [
             '',
             '# Import the entry module for its side effects: its `with entry`',
-            '# code runs at server boot, as it would under `jac start`.',
+            '# code runs at server boot, as it would under `jac run`.',
             'import ' + entry_module
         ];
     }
@@ -822,7 +819,7 @@ def _emit_main_py(
             '',
             '',
             '# Functions decorated with @restspec(path=...) are also mounted at',
-            '# their declared paths (parity with `jac start` custom REST routes).',
+            '# their declared paths (parity with `jac run` custom REST routes).',
             '# GET/HEAD routes carry no body: call the handler with the model',
             "# defaults instead of FastAPI's required JSON body.",
             'def _mount_restspec(fn, handler, model):',

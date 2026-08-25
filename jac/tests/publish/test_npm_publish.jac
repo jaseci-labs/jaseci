@@ -1,4 +1,4 @@
-"""Tests for the jaclang.publish npm pipeline.
+"""Tests for the jaclang.dist.publish npm pipeline.
 
 Covers the js-package counterparts of the wheel pipeline:
   package_json - package.json string generation from jac.toml
@@ -18,23 +18,23 @@ import shutil;
 import from pathlib { Path }
 import from subprocess { run }
 import from jaclang.project.config { JacConfig }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.publish.package_json {
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.dist.publish.package_json {
     generate_package_json,
     npm_package_name,
     npm_tarball_filename
 }
-import from jaclang.publish.jsdoc {
+import from jaclang.dist.publish.jsdoc {
     jac_type_to_jsdoc,
     jac_type_to_ts,
     jsdoc_for_module,
     inject_jsdoc
 }
-import from jaclang.publish.dts { dts_for_module }
-import from jaclang.publish.npm_sources { collect_npm_sources, NpmBoundaryError }
-import from jaclang.publish.npm_builder { NpmBuilder }
-import from jaclang.publish.runtime_npm {
+import from jaclang.dist.publish.dts { dts_for_module }
+import from jaclang.dist.publish.npm_sources { collect_npm_sources, NpmBoundaryError }
+import from jaclang.dist.publish.npm_builder { NpmBuilder }
+import from jaclang.dist.publish.runtime_npm {
     build_runtime_tarball,
     runtime_api_names,
     runtime_peer_deps,
@@ -338,7 +338,7 @@ test "build_runtime_tarball packages the runtime with exports" {
         # The split-out shared core must travel inside the package, or it fails to
         # load at runtime (ERR_MODULE_NOT_FOUND on `./jaclang/.../client_runtime_core.js`).
         assert "package/index.js" in names;
-        assert "package/jaclang/runtimelib/client_runtime_core.js" in names;
+        assert "package/jaclang/client/client_runtime_core.js" in names;
         js = _tar_text(tf, "package/index.js");
         assert "export {" in js;
         # The public API is exported exactly once — no duplicate export (invalid ESM).
@@ -349,7 +349,7 @@ test "build_runtime_tarball packages the runtime with exports" {
             f"duplicate export in runtime index.js: {sorted(exported)}"
         );
         # The entry imports the core's symbols from the bundled sibling module.
-        assert "./jaclang/runtimelib/client_runtime_core.js" in js;
+        assert "./jaclang/client/client_runtime_core.js" in js;
         # The runtime is built on @tanstack/react-form, so NO `.js` in the package
         # pulls in the legacy react-hook-form library (checked across the entry
         # AND the bundled core).
@@ -402,7 +402,7 @@ test "build_runtime_tarball packages the Solid runtime with no React ecosystem" 
         assert pj["version"] == "1.2.3";
         # The shared core travels in the package at its relative import path.
         assert "package/index.js" in names;
-        assert "package/jaclang/runtimelib/client_runtime_core.js" in names;
+        assert "package/jaclang/client/client_runtime_core.js" in names;
         js = _tar_text(tf, "package/index.js");
         # Branch 5: solid-js/h hyperscript import removed; user component code
         # uses the JSX compiler path (vite-plugin-solid). Core symbols are present.

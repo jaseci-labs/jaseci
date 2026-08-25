@@ -9,9 +9,9 @@ import from contextlib { suppress }
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
-import from jaclang.runtimelib.hmr { HotReloader }
-import from jaclang.runtimelib.testing { JacTestClient }
-import from jaclang.runtimelib.watcher { JacFileWatcher }
+import from jaclang.server.hmr { HotReloader }
+import from jaclang.testing.testing { JacTestClient }
+import from jaclang.server.watcher { JacFileWatcher }
 
 
 def _as_any(v: any) -> any {
@@ -813,7 +813,7 @@ test "dependency compiled when imported file recompiled" {
 # The unified path routes HMR through the boot ViteCompiler so file-based
 # routing artifacts (_routes.js, router _entry.js) stay live across changes.
 def _make_unified_reloader(unique_dir: Path) -> tuple {
-    import from jaclang.runtimelib.client.vite_client_bundle { ViteClientBundleBuilder }
+    import from jaclang.client.vite_client_bundle { ViteClientBundleBuilder }
     configs_dir = unique_dir / ".jac" / "client" / "configs";
     configs_dir.mkdir(parents=True, exist_ok=True);
     package_json = configs_dir / "package.json";
