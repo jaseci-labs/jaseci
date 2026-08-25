@@ -32,11 +32,7 @@ import from .react_jsdom_harness {
 }
 
 glob FIXTURES = str(
-         Path(__file__).parent.parent
-             / "compiler"
-             / "backends"
-             / "es"
-             / "fixtures"
+         Path(__file__).parent.parent / "compiler" / "backends" / "es" / "fixtures"
      ),
      # The react backend emits plain JS (`__jacJsx(...)` calls, no JSX syntax),
      # so no babel step is needed: build a jsdom DOM, publish browser globals,
