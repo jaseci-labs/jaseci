@@ -1772,6 +1772,65 @@ def _command_routes -> list[CommandMeta] {
             ]
         ),
         CommandMeta(
+            name='seal',
+            help="Seal Jac source into a native artifact through the seal's gate: one module, or the compiler's own served surface",
+            group='transform',
+            tier='',
+            hidden=True,
+            handler_module='jaclang.cli.commands.seal',
+            handler_name='seal',
+            examples=[
+                (
+                    'jac seal mymod.jac -o out',
+                    'Seal one module: gate, link, load canary; refuse on any demotion'
+                ),
+                (
+                    'jac seal mymod.jac -o out --ir --debug',
+                    "Same, plus the unit's LLVM IR and the reason behind each demotion"
+                ),
+                (
+                    'jac seal --compiler -o /tmp/seal',
+                    "Seal the compiler's served surface (all gates and canaries), scratch output"
+                )
+            ],
+            args=[
+                ArgMeta(
+                    name='filename',
+                    kind=ArgKind.POSITIONAL,
+                    `default='',
+                    help='Path to the .jac module to seal as its own unit (omit with --compiler)'
+                ),
+                ArgMeta(
+                    name='compiler',
+                    kind=ArgKind.FLAG,
+                    `default=False,
+                    help="Seal the running jaclang tree's served surface into the fused libjac_compiler artifact; under [dev] jaclang_source that is the checkout's compiler, so no binary rebuild is needed",
+                    short=''
+                ),
+                ArgMeta(
+                    name='output',
+                    `default='',
+                    help='Output directory (default ./jac-seal); artifacts land under <out>/native/<triple>/ and the tree in your checkout is never touched',
+                    short='o'
+                ),
+                ArgMeta(
+                    name='ir',
+                    kind=ArgKind.FLAG,
+                    `default=False,
+                    help="Also write the unit's LLVM IR text next to the artifact (the raw material of the abort-stub scan)",
+                    short=''
+                ),
+                ArgMeta(
+                    name='debug',
+                    kind=ArgKind.FLAG,
+                    `default=False,
+                    help='Print the full diagnostic behind every demotion (sets JAC_NA_DEBUG=1)',
+                    short=''
+                ),
+
+            ]
+        ),
+        CommandMeta(
             name='setup',
             help='Setup a build target (one-time initialization)',
             group='project',

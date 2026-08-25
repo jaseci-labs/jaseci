@@ -2195,11 +2195,6 @@ def seal_native_artifacts(
     }
     import jaclang.compiler.backends.native.llvm.binding as llvm;
 
-    # One record, one artifact: an unchanged source closure under the same
-    # compiler and waiver table reuses the sealed library outright (load
-    # canary re-run; the parity canaries proved these exact sha-verified
-    # bytes when they were built). Anything the record cannot prove is a
-    # fresh build.
     triple = llvm.get_default_triple();
     assert isinstance(triple, str);
     identity = compiler_identity();
@@ -2289,10 +2284,7 @@ def seal_native_artifacts(
         _seal_module_fullname(pkg_path.name, served_rel)
         for served_rel in NATIVE_SEAL_SERVED_MODULES
     );
-    # The record's source set is every real file in the closure; the two
-    # generated files (the fused root, the materializer) are derived from
-    # those sources and are gone from disk by the next run, so keying on
-    # them would defeat every reuse.
+
     generated = {str(fused_src.resolve()), str(mat_src.resolve())};
     record_sources = [
         s
@@ -2313,9 +2305,7 @@ def seal_native_artifacts(
         new_record["clib_symbols"] = clib_symbols;
         new_record["sources"] = built_keys;
         new_record["modules"] = modules;
-        write_seal_index(
-            precompiled_dir, triple, {NATIVE_SEAL_FUSED_ROOT: new_record}
-        );
+        write_seal_index(precompiled_dir, triple, {NATIVE_SEAL_FUSED_ROOT: new_record});
     }
     prune_native_outputs(
         precompiled_dir,

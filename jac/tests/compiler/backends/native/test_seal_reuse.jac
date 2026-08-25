@@ -27,8 +27,8 @@ glob TRIPLE: str = "x86_64-test-triple";
 
 """A fabricated-but-internally-consistent record over real files."""
 def _fixture -> tuple {
-    root = Path(tempfile.mkdtemp(prefix="jac_seal_reuse_"));
-    pkg = root / "pkg";
+    base = Path(tempfile.mkdtemp(prefix="jac_seal_reuse_"));
+    pkg = base / "pkg";
     (pkg / "native" / TRIPLE).mkdir(parents=True);
     src = pkg / "mod.jac";
     src.write_text("with entry { print(1); }\n", encoding="utf-8");
@@ -51,7 +51,7 @@ def _fixture -> tuple {
         "sources": keys,
         "modules": ["pkg.mod"]
     };
-    return (root, pkg, pdir, src, lib, record, );
+    return (base, pkg, pdir, src, lib, record, );
 }
 
 def _decide(pkg: Path, pdir: Path, record: dict) -> str {
@@ -67,32 +67,47 @@ def _decide(pkg: Path, pdir: Path, record: dict) -> str {
 }
 
 test "an unchanged record over intact files reuses" {
-    (root, pkg, pdir, _src, _lib, record) = _fixture();
+    (base, pkg, pdir, _src, _lib, record) = _fixture();
     try {
         assert _decide(pkg, pdir, record) == "" , _decide(pkg, pdir, record);
     } finally {
-        shutil.rmtree(root, ignore_errors=True);
+        shutil.rmtree(base, ignore_errors=True);
     }
 }
 
 test "every drifted input refuses reuse with a named reason" {
-    (root, pkg, pdir, src, lib, record) = _fixture();
+    (base, pkg, pdir, src, lib, record) = _fixture();
     try {
-        assert "compiler" in seal_reuse_decision(
-            record, pdir, NATIVE_SEAL_FUSED_ROOT, TRIPLE, "OTHER-compiler",
-            seal_waiver_digest(NATIVE_SEAL_FUSED_ROOT),
-            seal_source_keys(pkg, sorted(record["sources"]))
-        );
-        assert "waiver" in seal_reuse_decision(
-            record, pdir, NATIVE_SEAL_FUSED_ROOT, TRIPLE, "test-compiler-digest",
-            "not-the-recorded-waiver-digest",
-            seal_source_keys(pkg, sorted(record["sources"]))
-        );
-        assert "built for" in seal_reuse_decision(
-            record, pdir, NATIVE_SEAL_FUSED_ROOT, "other-triple",
-            "test-compiler-digest", seal_waiver_digest(NATIVE_SEAL_FUSED_ROOT),
-            seal_source_keys(pkg, sorted(record["sources"]))
-        );
+        assert "compiler"
+            in seal_reuse_decision(
+                record,
+                pdir,
+                NATIVE_SEAL_FUSED_ROOT,
+                TRIPLE,
+                "OTHER-compiler",
+                seal_waiver_digest(NATIVE_SEAL_FUSED_ROOT),
+                seal_source_keys(pkg, sorted(record["sources"]))
+            );
+        assert "waiver"
+            in seal_reuse_decision(
+                record,
+                pdir,
+                NATIVE_SEAL_FUSED_ROOT,
+                TRIPLE,
+                "test-compiler-digest",
+                "not-the-recorded-waiver-digest",
+                seal_source_keys(pkg, sorted(record["sources"]))
+            );
+        assert "built for"
+            in seal_reuse_decision(
+                record,
+                pdir,
+                NATIVE_SEAL_FUSED_ROOT,
+                "other-triple",
+                "test-compiler-digest",
+                seal_waiver_digest(NATIVE_SEAL_FUSED_ROOT),
+                seal_source_keys(pkg, sorted(record["sources"]))
+            );
         src.write_text("with entry { print(2); }\n", encoding="utf-8");
         assert "changed" in _decide(pkg, pdir, record);
         src.write_text("with entry { print(1); }\n", encoding="utf-8");
@@ -102,23 +117,29 @@ test "every drifted input refuses reuse with a named reason" {
         assert "missing" in _decide(pkg, pdir, record);
         src.unlink();
         assert "gone or unreadable" in _decide(pkg, pdir, record);
-        assert "no artifact" in seal_reuse_decision(
-            None, pdir, NATIVE_SEAL_FUSED_ROOT, TRIPLE, "test-compiler-digest",
-            seal_waiver_digest(NATIVE_SEAL_FUSED_ROOT), None
-        );
+        assert "no artifact"
+            in seal_reuse_decision(
+                None,
+                pdir,
+                NATIVE_SEAL_FUSED_ROOT,
+                TRIPLE,
+                "test-compiler-digest",
+                seal_waiver_digest(NATIVE_SEAL_FUSED_ROOT),
+                None
+            );
     } finally {
-        shutil.rmtree(root, ignore_errors=True);
+        shutil.rmtree(base, ignore_errors=True);
     }
 }
 
 test "the index round-trips one record and rejects foreign shapes" {
-    (root, pkg, pdir, _src, _lib, record) = _fixture();
+    (base, pkg, pdir, _src, _lib, record) = _fixture();
     try {
         write_seal_index(pdir, TRIPLE, {NATIVE_SEAL_FUSED_ROOT: record});
         back = read_seal_index(pdir, TRIPLE);
         assert back.get(NATIVE_SEAL_FUSED_ROOT) == record;
         assert read_seal_index(pdir, "some-other-triple") == {};
     } finally {
-        shutil.rmtree(root, ignore_errors=True);
+        shutil.rmtree(base, ignore_errors=True);
     }
 }
