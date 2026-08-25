@@ -1,6 +1,6 @@
 """Every service spawn site must emit argv the real `jac` CLI accepts.
 
-The runtime spawns sibling services by shelling out to `jac start ...
+The runtime spawns sibling services by shelling out to `jac run --serve ...
 --no-client`. That argv is a cross-component contract with the CLI's argparse
 layer, but it is assembled far from the parser: when #7512 renamed
 `--no_client` to the documented `--no-client`, every auto-spawned service died
@@ -17,7 +17,7 @@ import from tempfile { TemporaryDirectory }
 import jaclang.cli.commands.execution;
 import from jaclang.cli.manifest { get_command_meta }
 import from jaclang.cli.manifest_parse { build_command_parser }
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 
 
 """Assert the parser the `jac` entrypoint builds accepts `argv` headless."""
@@ -106,9 +106,7 @@ test "orchestrator start_service argv is accepted by the real CLI" {
 }
 
 test "client dev backend spawn argv is accepted by the real CLI" {
-    import from jaclang.runtimelib.client.targets.client_dev_common {
-        start_backend_server_common
-    }
+    import from jaclang.client.targets.client_dev_common { start_backend_server_common }
     captured: list = [];
     with unittest.mock.patch("subprocess.Popen", _capture_popen(captured)) {
         start_backend_server_common(Path("app.jac"), Path("."), 8321);

@@ -1,6 +1,6 @@
 """R3: renderer dispatch tests.
 
-`__jacJsx` (client_runtime_core) does not call `React.createElement`
+`__jacJsx` (client_react_core) does not call `React.createElement`
 directly; it delegates to a renderer object the active platform registers at
 bundle init time. React Native is the production consumer of this seam
 (core + client_runtime_native), so these tests compile that pairing and
@@ -28,10 +28,10 @@ import from tempfile { TemporaryDirectory }
 
 """Locate the core client runtime directory."""
 def _jac_client_plugin_dir -> str {
-    plugin = importlib.import_module("jaclang.runtimelib.client");
+    plugin = importlib.import_module("jaclang.client");
     paths = `list(getattr(plugin, "__path__", []) or []);
     if not paths {
-        testfail("jaclang.runtimelib.client has no __path__");
+        testfail("jaclang.client has no __path__");
     }
     return paths[0];
 }
@@ -55,7 +55,7 @@ def _strip_runtime_core_import(js_code: str) -> str {
     lines = js_code.split("\n");
     filtered: list[str] = [];
     for line in lines {
-        if "client_runtime_core" in line and "import " in line {
+        if "client_react_core" in line and "import " in line {
             continue;
         }
         filtered.append(line);
@@ -76,10 +76,10 @@ def _compile_runtime_to_js -> str {
         return _compiled_runtime_js;
     }
     plugin_dir = _jac_client_plugin_dir();
-    core_src = os.path.join(plugin_dir, "client_runtime_core.jac");
+    core_src = os.path.join(plugin_dir, "client_react_core.jac");
     native_src = os.path.join(plugin_dir, "client_runtime_native.jac");
     if not os.path.isfile(core_src) or not os.path.isfile(native_src) {
-        testskip("client_runtime_core.jac or client_runtime_native.jac not found");
+        testskip("client_react_core.jac or client_runtime_native.jac not found");
     }
     jac_bin = shutil.which("jac");
     if not jac_bin {

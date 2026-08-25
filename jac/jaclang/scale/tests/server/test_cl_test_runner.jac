@@ -10,7 +10,7 @@ bun is auto-installed on demand by the runner, so no toolchain setup is needed.
 """
 
 import from pathlib { Path }
-import from jaclang.runtimelib.cl_test_runner { run_cl_test_file }
+import from jaclang.testing.cl_test_runner { run_cl_test_file }
 
 glob FIXTURE = str(
          Path(__file__).parent.parent / "fixtures" / "cl_fullstack" / "test_echo.jac"

@@ -29,7 +29,7 @@ def _backend_available -> bool {
 
 
 def _call(kind: str, name: str, fields: dict, anchor: str = "") -> dict {
-    import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch {
+    import from jaclang.client.targets.desktop.native.inprocess_dispatch {
         boot,
         dispatch
     }

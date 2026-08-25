@@ -638,7 +638,7 @@ def initialize_provider_registry -> None {
     registry = get_provider_registry();
 
     try {
-        import from jaclang.runtimelib.client.plugin_config { JacClientPluginConfig }
+        import from jaclang.client.plugin_config { JacClientPluginConfig }
     } except Exception {
         return;
     }

@@ -6,7 +6,7 @@ POSTs into a 404/405)."""
 import os;
 import shutil;
 import tempfile;
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.testing.testing { JacTestClient }
 
 def _proj -> str {
     d = tempfile.mkdtemp(prefix="jacbridge_");
