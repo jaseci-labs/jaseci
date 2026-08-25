@@ -70,20 +70,22 @@ glob _TOOL_DELTA_MIN_CHARS = 48,
 glob DEFAULT_BASE_URL = "http://localhost:4000",
      MODEL_MOCK = "mockllm";
 
-def _stream_chunk_builder_accepts_logging_obj() -> bool {
+def _stream_chunk_builder_accepts_logging_obj -> bool {
     import inspect;
     builder: any = litellm.stream_chunk_builder;
     try {
         return "logging_obj" in inspect.signature(builder).parameters;
     } except Exception as e {
-        logger.debug(f"could not inspect stream_chunk_builder, omitting logging_obj: {e}");
+        logger.debug(
+            f"could not inspect stream_chunk_builder, omitting logging_obj: {e}"
+        );
         return False;
     }
 }
 
 glob _STREAM_CHUNK_BUILDER_ACCEPTS_LOGGING_OBJ: bool = (
-    _stream_chunk_builder_accepts_logging_obj()
-);
+         _stream_chunk_builder_accepts_logging_obj()
+     );
 
 obj BaseLLM {
     has model_name: str,

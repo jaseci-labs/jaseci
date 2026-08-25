@@ -385,9 +385,9 @@ test "_rebuild_stream_chunks only forwards logging_obj when the cached support f
 test "_stream_chunk_builder_accepts_logging_obj degrades to False and logs when introspection fails" {
     # No logging_obj support is a normal, silent False; inspect.signature
     # itself raising is the unexpected case that must leave a trace.
-    with unittest.mock.patch(
-        "inspect.signature", side_effect=ValueError("boom")
-    ), unittest.mock.patch.object(_byllm_llm_mod.logger, "debug") as mock_debug {
+    with unittest.mock.patch("inspect.signature", side_effect=ValueError("boom")), unittest.mock.patch.object(
+        _byllm_llm_mod.logger, "debug"
+    ) as mock_debug {
         result = _byllm_llm_mod._stream_chunk_builder_accepts_logging_obj();
         assert result == False , (
             "an uninspectable stream_chunk_builder must degrade to False, not raise"
@@ -576,12 +576,11 @@ test "tokens telemetry is populated via register_agent_callback for every invoca
             ]
         }
     );
-    def stream_task(q: str) -> str by llm_stream(tools=[finish_tool], stream=True, logging=True);
+    def stream_task(q: str) -> str by llm_stream(
+        tools=[finish_tool], stream=True, logging=True
+    );
     _assert_tokens_via_callback(
-        "streaming, tool-calling",
-        lambda { return list(stream_task("test")); },
-        2,
-        110
+        "streaming, tool-calling", lambda { return list(stream_task("test")); }, 2, 110
     );
 
     # Async, no tools - the branch BaseLLM.ainvoke dispatches directly rather
@@ -595,7 +594,9 @@ test "tokens telemetry is populated via register_agent_callback for every invoca
     }
     async def async_task(q: str) -> str by llm_async();
     def _run_async -> str {
-        with unittest.mock.patch.object(llm_async, "model_call_no_stream_async", _fake_async) {
+        with unittest.mock.patch.object(
+            llm_async, "model_call_no_stream_async", _fake_async
+        ) {
             return asyncio.run(async_task("test"));
         }
     }
