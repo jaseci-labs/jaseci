@@ -97,3 +97,13 @@ allocation-order restoration for loop heads inside handler bodies.
 
 ceval note: find_handler first-match-wins vs CPython last-match-wins remains
 open separately (innermost-wins patch drafted, does not affect this crash).
+
+## Routing divergence (facade vs proxy by import context)
+
+heapq_push_pop / heapq_heapify / collections_counter libtest snippets FAIL
+when invoked via direct p2_libtest_run_snippet calls from a tests/ pins file
+(reproduced on clean tips 5f1eef605 and 49e9728a2), but PASS through
+NiceStorm's libtest-driver run on the same tip. Same snippets, same VM --
+different import/facade routing path by invocation context. Real finding per
+orchestrator adjudication; owner: converter/test-support family
+(SlatePetrel canary reconciliation).
