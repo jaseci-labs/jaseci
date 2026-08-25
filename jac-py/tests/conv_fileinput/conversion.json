@@ -1,0 +1,319 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_fileinput.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_fileinput",
+    "--name",
+    "conv_fileinput"
+  ],
+  "generated_at": "2026-08-24T21:51:04",
+  "hashes": {
+    "pins_jac": "ca4f9581d45ef10226b756e198c414890d46cf602962e67732d10ae2beac9d36"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_fileinput.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "fileinput",
+  "pins_file": "conv_fileinput_pins.jac",
+  "pins": [
+    {
+      "ident": "FileInputTests.test_invalid_opening_mode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from fileinput import FileInput, hook_encoded\n\ndef _t():\n    for mode in ('w', 'rU', 'U'):\n        try:\n            FileInput(mode=mode)\n        except ValueError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FileInputTests.test_stdin_binary_mode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from io import BytesIO, StringIO\nfrom fileinput import FileInput, hook_encoded\nfrom unittest import mock\n\ndef _t():\n    with mock.patch('sys.stdin') as m_stdin:\n        m_stdin.buffer = BytesIO(b'spam, bacon, sausage, and spam')\n        fi = FileInput(files=['-'], mode='rb')\n        lines = list(fi)\n        assert lines == [b'spam, bacon, sausage, and spam'], ('assertEqual', lines, [b'spam, bacon, sausage, and spam'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FileInputTests.test_empty_files_list_specified_to_constructor",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from fileinput import FileInput, hook_encoded\n\ndef _t():\n    with FileInput(files=[], encoding='utf-8') as fi:\n        assert fi._files == ('-',), ('assertEqual', fi._files, ('-',))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_input.test_state_is_not_None_and_state_file_is_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\ndef do_test_call_input():\n    \"\"\"Tests that fileinput.input() creates a new fileinput.FileInput\n           object, passing the given parameters unmodified to\n           fileinput.FileInput.__init__().  Note that this test depends on the\n           monkey patching of fileinput.FileInput done by setUp().\"\"\"\n    files = object()\n    inplace = object()\n    backup = object()\n    mode = object()\n    openhook = object()\n    encoding = object()\n    result = fileinput.input(files=files, inplace=inplace, backup=backup, mode=mode, openhook=openhook, encoding=encoding)\n    assert result is fileinput._state, ('assertIs', result, fileinput._state)\n    assert files is result.files, ('assertIs', files, result.files)\n    assert inplace is result.inplace, ('assertIs', inplace, result.inplace)\n    assert backup is result.backup, ('assertIs', backup, result.backup)\n    assert mode is result.mode, ('assertIs', mode, result.mode)\n    assert openhook is result.openhook, ('assertIs', openhook, result.openhook)\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests invoking fileinput.input() when fileinput._state is not None\\n           but its _file attribute *is* None.  Expect it to create and return\\n           a new fileinput.FileInput object with all method parameters passed\\n           explicitly to the __init__() method; also ensure that\\n           fileinput._state is set to the returned instance.'\n    instance = MockFileInput()\n    instance._file = None\n    fileinput._state = instance\n    do_test_call_input()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_input.test_state_is_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\ndef do_test_call_input():\n    \"\"\"Tests that fileinput.input() creates a new fileinput.FileInput\n           object, passing the given parameters unmodified to\n           fileinput.FileInput.__init__().  Note that this test depends on the\n           monkey patching of fileinput.FileInput done by setUp().\"\"\"\n    files = object()\n    inplace = object()\n    backup = object()\n    mode = object()\n    openhook = object()\n    encoding = object()\n    result = fileinput.input(files=files, inplace=inplace, backup=backup, mode=mode, openhook=openhook, encoding=encoding)\n    assert result is fileinput._state, ('assertIs', result, fileinput._state)\n    assert files is result.files, ('assertIs', files, result.files)\n    assert inplace is result.inplace, ('assertIs', inplace, result.inplace)\n    assert backup is result.backup, ('assertIs', backup, result.backup)\n    assert mode is result.mode, ('assertIs', mode, result.mode)\n    assert openhook is result.openhook, ('assertIs', openhook, result.openhook)\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests invoking fileinput.input() when fileinput._state is None\\n           Expect it to create and return a new fileinput.FileInput object\\n           with all method parameters passed explicitly to the __init__()\\n           method; also ensure that fileinput._state is set to the returned\\n           instance.'\n    fileinput._state = None\n    do_test_call_input()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_close.test_state_is_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests that fileinput.close() does nothing if fileinput._state\\n           is None'\n    fileinput._state = None\n    fileinput.close()\n    assert fileinput._state is None, ('assertIsNone', fileinput._state)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_close.test_state_is_not_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\ndef assertExactlyOneInvocation(mock_file_input, method_name):\n    actual_count = mock_file_input.invocation_counts[method_name]\n    assert actual_count == 1, ('assertEqual', actual_count, 1)\n    actual_total_count = len(mock_file_input.invocation_counts)\n    assert actual_total_count == 1, ('assertEqual', actual_total_count, 1)\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests that fileinput.close() invokes close() on fileinput._state\\n           and sets _state=None'\n    instance = MockFileInput()\n    fileinput._state = instance\n    fileinput.close()\n    assertExactlyOneInvocation(instance, 'close')\n    assert fileinput._state is None, ('assertIsNone', fileinput._state)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_nextfile.test_state_is_not_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\ndef assertExactlyOneInvocation(mock_file_input, method_name):\n    actual_count = mock_file_input.invocation_counts[method_name]\n    assert actual_count == 1, ('assertEqual', actual_count, 1)\n    actual_total_count = len(mock_file_input.invocation_counts)\n    assert actual_total_count == 1, ('assertEqual', actual_total_count, 1)\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests fileinput.nextfile() when fileinput._state is not None.\\n           Ensure that it invokes fileinput._state.nextfile() exactly once,\\n           returns whatever it returns, and does not modify fileinput._state\\n           to point to a different object.'\n    nextfile_retval = object()\n    instance = MockFileInput()\n    instance.return_values['nextfile'] = nextfile_retval\n    fileinput._state = instance\n    retval = fileinput.nextfile()\n    assertExactlyOneInvocation(instance, 'nextfile')\n    assert retval is nextfile_retval, ('assertIs', retval, nextfile_retval)\n    assert fileinput._state is instance, ('assertIs', fileinput._state, instance)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_filename.test_state_is_not_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\ndef assertExactlyOneInvocation(mock_file_input, method_name):\n    actual_count = mock_file_input.invocation_counts[method_name]\n    assert actual_count == 1, ('assertEqual', actual_count, 1)\n    actual_total_count = len(mock_file_input.invocation_counts)\n    assert actual_total_count == 1, ('assertEqual', actual_total_count, 1)\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests fileinput.filename() when fileinput._state is not None.\\n           Ensure that it invokes fileinput._state.filename() exactly once,\\n           returns whatever it returns, and does not modify fileinput._state\\n           to point to a different object.'\n    filename_retval = object()\n    instance = MockFileInput()\n    instance.return_values['filename'] = filename_retval\n    fileinput._state = instance\n    retval = fileinput.filename()\n    assertExactlyOneInvocation(instance, 'filename')\n    assert retval is filename_retval, ('assertIs', retval, filename_retval)\n    assert fileinput._state is instance, ('assertIs', fileinput._state, instance)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_lineno.test_state_is_not_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\ndef assertExactlyOneInvocation(mock_file_input, method_name):\n    actual_count = mock_file_input.invocation_counts[method_name]\n    assert actual_count == 1, ('assertEqual', actual_count, 1)\n    actual_total_count = len(mock_file_input.invocation_counts)\n    assert actual_total_count == 1, ('assertEqual', actual_total_count, 1)\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests fileinput.lineno() when fileinput._state is not None.\\n           Ensure that it invokes fileinput._state.lineno() exactly once,\\n           returns whatever it returns, and does not modify fileinput._state\\n           to point to a different object.'\n    lineno_retval = object()\n    instance = MockFileInput()\n    instance.return_values['lineno'] = lineno_retval\n    fileinput._state = instance\n    retval = fileinput.lineno()\n    assertExactlyOneInvocation(instance, 'lineno')\n    assert retval is lineno_retval, ('assertIs', retval, lineno_retval)\n    assert fileinput._state is instance, ('assertIs', fileinput._state, instance)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_filelineno.test_state_is_not_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\ndef assertExactlyOneInvocation(mock_file_input, method_name):\n    actual_count = mock_file_input.invocation_counts[method_name]\n    assert actual_count == 1, ('assertEqual', actual_count, 1)\n    actual_total_count = len(mock_file_input.invocation_counts)\n    assert actual_total_count == 1, ('assertEqual', actual_total_count, 1)\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests fileinput.filelineno() when fileinput._state is not None.\\n           Ensure that it invokes fileinput._state.filelineno() exactly once,\\n           returns whatever it returns, and does not modify fileinput._state\\n           to point to a different object.'\n    filelineno_retval = object()\n    instance = MockFileInput()\n    instance.return_values['filelineno'] = filelineno_retval\n    fileinput._state = instance\n    retval = fileinput.filelineno()\n    assertExactlyOneInvocation(instance, 'filelineno')\n    assert retval is filelineno_retval, ('assertIs', retval, filelineno_retval)\n    assert fileinput._state is instance, ('assertIs', fileinput._state, instance)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_fileno.test_state_is_not_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\ndef assertExactlyOneInvocation(mock_file_input, method_name):\n    actual_count = mock_file_input.invocation_counts[method_name]\n    assert actual_count == 1, ('assertEqual', actual_count, 1)\n    actual_total_count = len(mock_file_input.invocation_counts)\n    assert actual_total_count == 1, ('assertEqual', actual_total_count, 1)\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests fileinput.fileno() when fileinput._state is not None.\\n           Ensure that it invokes fileinput._state.fileno() exactly once,\\n           returns whatever it returns, and does not modify fileinput._state\\n           to point to a different object.'\n    fileno_retval = object()\n    instance = MockFileInput()\n    instance.return_values['fileno'] = fileno_retval\n    instance.fileno_retval = fileno_retval\n    fileinput._state = instance\n    retval = fileinput.fileno()\n    assertExactlyOneInvocation(instance, 'fileno')\n    assert retval is fileno_retval, ('assertIs', retval, fileno_retval)\n    assert fileinput._state is instance, ('assertIs', fileinput._state, instance)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_isfirstline.test_state_is_not_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\ndef assertExactlyOneInvocation(mock_file_input, method_name):\n    actual_count = mock_file_input.invocation_counts[method_name]\n    assert actual_count == 1, ('assertEqual', actual_count, 1)\n    actual_total_count = len(mock_file_input.invocation_counts)\n    assert actual_total_count == 1, ('assertEqual', actual_total_count, 1)\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests fileinput.isfirstline() when fileinput._state is not None.\\n           Ensure that it invokes fileinput._state.isfirstline() exactly once,\\n           returns whatever it returns, and does not modify fileinput._state\\n           to point to a different object.'\n    isfirstline_retval = object()\n    instance = MockFileInput()\n    instance.return_values['isfirstline'] = isfirstline_retval\n    fileinput._state = instance\n    retval = fileinput.isfirstline()\n    assertExactlyOneInvocation(instance, 'isfirstline')\n    assert retval is isfirstline_retval, ('assertIs', retval, isfirstline_retval)\n    assert fileinput._state is instance, ('assertIs', fileinput._state, instance)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_fileinput_isstdin.test_state_is_not_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fileinput\nimport collections\n\ndef assertExactlyOneInvocation(mock_file_input, method_name):\n    actual_count = mock_file_input.invocation_counts[method_name]\n    assert actual_count == 1, ('assertEqual', actual_count, 1)\n    actual_total_count = len(mock_file_input.invocation_counts)\n    assert actual_total_count == 1, ('assertEqual', actual_total_count, 1)\n\nclass MockFileInput:\n    \"\"\"A class that mocks out fileinput.FileInput for use during unit tests\"\"\"\n\n    def __init__(self, files=None, inplace=False, backup='', *, mode='r', openhook=None, encoding=None, errors=None):\n        self.files = files\n        self.inplace = inplace\n        self.backup = backup\n        self.mode = mode\n        self.openhook = openhook\n        self.encoding = encoding\n        self.errors = errors\n        self._file = None\n        self.invocation_counts = collections.defaultdict(lambda: 0)\n        self.return_values = {}\n\n    def close(self):\n        self.invocation_counts['close'] += 1\n\n    def nextfile(self):\n        self.invocation_counts['nextfile'] += 1\n        return self.return_values['nextfile']\n\n    def filename(self):\n        self.invocation_counts['filename'] += 1\n        return self.return_values['filename']\n\n    def lineno(self):\n        self.invocation_counts['lineno'] += 1\n        return self.return_values['lineno']\n\n    def filelineno(self):\n        self.invocation_counts['filelineno'] += 1\n        return self.return_values['filelineno']\n\n    def fileno(self):\n        self.invocation_counts['fileno'] += 1\n        return self.return_values['fileno']\n\n    def isfirstline(self):\n        self.invocation_counts['isfirstline'] += 1\n        return self.return_values['isfirstline']\n\n    def isstdin(self):\n        self.invocation_counts['isstdin'] += 1\n        return self.return_values['isstdin']\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._orig_state = fileinput._state\n    self._orig_FileInput = fileinput.FileInput\n    fileinput.FileInput = MockFileInput\n    'Tests fileinput.isstdin() when fileinput._state is not None.\\n           Ensure that it invokes fileinput._state.isstdin() exactly once,\\n           returns whatever it returns, and does not modify fileinput._state\\n           to point to a different object.'\n    isstdin_retval = object()\n    instance = MockFileInput()\n    instance.return_values['isstdin'] = isstdin_retval\n    fileinput._state = instance\n    retval = fileinput.isstdin()\n    assertExactlyOneInvocation(instance, 'isstdin')\n    assert retval is isstdin_retval, ('assertIs', retval, isstdin_retval)\n    assert fileinput._state is instance, ('assertIs', fileinput._state, instance)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MiscTest.test_all",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "Test_hook_compressed.test_gz_ext_fake",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "Test_hook_compressed.test_gz_with_encoding_fake",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "Test_hook_compressed.test_bz2_ext_fake",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "BufferSizesTests.test_buffer_sizes",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_zero_byte_files",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_files_that_dont_end_with_newline",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_fileno",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_detached_stdin_binary_mode",
+      "reason": "self.assertNotHasAttr"
+    },
+    {
+      "ident": "FileInputTests.test_file_opening_hook",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_readline",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "FileInputTests.test_readline_binary_mode",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "FileInputTests.test_inplace_binary_write_mode",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_inplace_encoding_errors",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_file_hook_backward_compatibility",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_context_manager",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_close_on_exception",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_nextfile_oserror_deleting_backup",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_readline_os_fstat_raises_OSError",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_readline_os_chmod_raises_OSError",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_fileno_when_ValueError_raised",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_readline_buffering",
+      "reason": "unresolved-name:LineReader"
+    },
+    {
+      "ident": "FileInputTests.test_iteration_buffering",
+      "reason": "unresolved-name:LineReader"
+    },
+    {
+      "ident": "FileInputTests.test_pathlike_file",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "FileInputTests.test_pathlike_file_inplace",
+      "reason": "helper:writeTmp(self.addCleanup)"
+    },
+    {
+      "ident": "Test_fileinput_input.test_state_is_not_None_and_state_file_is_not_None",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "Test_fileinput_nextfile.test_state_is_None",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "Test_fileinput_filename.test_state_is_None",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "Test_fileinput_lineno.test_state_is_None",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "Test_fileinput_filelineno.test_state_is_None",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "Test_fileinput_fileno.test_state_is_None",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "Test_fileinput_isfirstline.test_state_is_None",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "Test_fileinput_isstdin.test_state_is_None",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "Test_hook_compressed.test_empty_string",
+      "reason": "helper:do_test_use_builtin_open_text(helper:replace_builtin_open(decorated-helper))"
+    },
+    {
+      "ident": "Test_hook_compressed.test_no_ext",
+      "reason": "helper:do_test_use_builtin_open_text(helper:replace_builtin_open(decorated-helper))"
+    },
+    {
+      "ident": "Test_hook_compressed.test_blah_ext",
+      "reason": "helper:do_test_use_builtin_open_binary(helper:replace_builtin_open(decorated-helper))"
+    },
+    {
+      "ident": "Test_hook_compressed.test_gz_ext_builtin",
+      "reason": "helper:do_test_use_builtin_open_binary(helper:replace_builtin_open(decorated-helper))"
+    },
+    {
+      "ident": "Test_hook_compressed.test_bz2_ext_builtin",
+      "reason": "helper:do_test_use_builtin_open_binary(helper:replace_builtin_open(decorated-helper))"
+    },
+    {
+      "ident": "Test_hook_compressed.test_binary_mode_encoding",
+      "reason": "helper:do_test_use_builtin_open_binary(helper:replace_builtin_open(decorated-helper))"
+    },
+    {
+      "ident": "Test_hook_compressed.test_text_mode_encoding",
+      "reason": "helper:do_test_use_builtin_open_text(helper:replace_builtin_open(decorated-helper))"
+    },
+    {
+      "ident": "Test_hook_encoded.test",
+      "reason": "unresolved-name:InvocationRecorder"
+    },
+    {
+      "ident": "Test_hook_encoded.test_errors",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "Test_hook_encoded.test_modes",
+      "reason": "self.addCleanup"
+    }
+  ],
+  "counts": {
+    "extracted": 57,
+    "pinned": 14,
+    "quarantined": 43
+  }
+}

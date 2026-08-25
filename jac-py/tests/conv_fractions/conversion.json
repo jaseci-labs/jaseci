@@ -1,0 +1,381 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_fractions.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_fractions",
+    "--name",
+    "conv_fractions"
+  ],
+  "generated_at": "2026-08-24T21:50:40",
+  "hashes": {
+    "pins_jac": "9e1233f8e4f647a4fbdce5a954091e681558e79565c4ec38ed12ca7940d17f23"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_fractions.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "fractions",
+  "pins_file": "conv_fractions_pins.jac",
+  "pins": [
+    {
+      "ident": "FractionTest.testInit",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _components(r):\n    return (r.numerator, r.denominator)\n\ndef assertRaisesMessage(exc_type, message, callable, *args, **kwargs):\n    \"\"\"Asserts that callable(*args, **kwargs) raises exc_type(message).\"\"\"\n    try:\n        callable(*args, **kwargs)\n    except exc_type as e:\n        assert message == str(e), ('assertEqual', message, str(e))\n    else:\n        raise AssertionError('%s not raised' % exc_type.__name__)\n\ndef _t():\n    assert (0, 1) == _components(F()), ('assertEqual', (0, 1), _components(F()))\n    assert (7, 1) == _components(F(7)), ('assertEqual', (7, 1), _components(F(7)))\n    assert (7, 3) == _components(F(F(7, 3))), ('assertEqual', (7, 3), _components(F(F(7, 3))))\n    assert (-1, 1) == _components(F(-1, 1)), ('assertEqual', (-1, 1), _components(F(-1, 1)))\n    assert (-1, 1) == _components(F(1, -1)), ('assertEqual', (-1, 1), _components(F(1, -1)))\n    assert (1, 1) == _components(F(-2, -2)), ('assertEqual', (1, 1), _components(F(-2, -2)))\n    assert (1, 2) == _components(F(5, 10)), ('assertEqual', (1, 2), _components(F(5, 10)))\n    assert (7, 15) == _components(F(7, 15)), ('assertEqual', (7, 15), _components(F(7, 15)))\n    assert (10 ** 23, 1) == _components(F(10 ** 23)), ('assertEqual', (10 ** 23, 1), _components(F(10 ** 23)))\n    assert (3, 77) == _components(F(F(3, 7), 11)), ('assertEqual', (3, 77), _components(F(F(3, 7), 11)))\n    assert (-9, 5) == _components(F(2, F(-10, 9))), ('assertEqual', (-9, 5), _components(F(2, F(-10, 9))))\n    assert (2486, 2485) == _components(F(F(22, 7), F(355, 113))), ('assertEqual', (2486, 2485), _components(F(F(22, 7), F(355, 113))))\n    assertRaisesMessage(ZeroDivisionError, 'Fraction(12, 0)', F, 12, 0)\n    try:\n        F(*(1.5 + 3j,))\n    except TypeError:\n        pass\n    try:\n        F(*('3/2', 3))\n    except TypeError:\n        pass\n    try:\n        F(*(3, 0j))\n    except TypeError:\n        pass\n    try:\n        F(*(3, 1j))\n    except TypeError:\n        pass\n    try:\n        F(*(1, 2, 3))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testInitFromFloat",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _components(r):\n    return (r.numerator, r.denominator)\n\ndef _t():\n    assert (5, 2) == _components(F(2.5)), ('assertEqual', (5, 2), _components(F(2.5)))\n    assert (0, 1) == _components(F(-0.0)), ('assertEqual', (0, 1), _components(F(-0.0)))\n    assert (3602879701896397, 36028797018963968) == _components(F(0.1)), ('assertEqual', (3602879701896397, 36028797018963968), _components(F(0.1)))\n    try:\n        F(*(float('nan'),))\n    except ValueError:\n        pass\n    try:\n        F(*(float('inf'),))\n    except OverflowError:\n        pass\n    try:\n        F(*(float('-inf'),))\n    except OverflowError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testInitFromDecimal",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from decimal import Decimal\nimport fractions\nF = fractions.Fraction\n\ndef _components(r):\n    return (r.numerator, r.denominator)\n\ndef _t():\n    assert (11, 10) == _components(F(Decimal('1.1'))), ('assertEqual', (11, 10), _components(F(Decimal('1.1'))))\n    assert (7, 200) == _components(F(Decimal('3.5e-2'))), ('assertEqual', (7, 200), _components(F(Decimal('3.5e-2'))))\n    assert (0, 1) == _components(F(Decimal('.000e20'))), ('assertEqual', (0, 1), _components(F(Decimal('.000e20'))))\n    try:\n        F(*(Decimal('nan'),))\n    except ValueError:\n        pass\n    try:\n        F(*(Decimal('snan'),))\n    except ValueError:\n        pass\n    try:\n        F(*(Decimal('inf'),))\n    except OverflowError:\n        pass\n    try:\n        F(*(Decimal('-inf'),))\n    except OverflowError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testFromString",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _components(r):\n    return (r.numerator, r.denominator)\n\ndef assertRaisesMessage(exc_type, message, callable, *args, **kwargs):\n    \"\"\"Asserts that callable(*args, **kwargs) raises exc_type(message).\"\"\"\n    try:\n        callable(*args, **kwargs)\n    except exc_type as e:\n        assert message == str(e), ('assertEqual', message, str(e))\n    else:\n        raise AssertionError('%s not raised' % exc_type.__name__)\n\ndef _t():\n    assert (5, 1) == _components(F('5')), ('assertEqual', (5, 1), _components(F('5')))\n    assert (5, 1) == _components(F('005')), ('assertEqual', (5, 1), _components(F('005')))\n    assert (3, 2) == _components(F('3/2')), ('assertEqual', (3, 2), _components(F('3/2')))\n    assert (3, 2) == _components(F('3 / 2')), ('assertEqual', (3, 2), _components(F('3 / 2')))\n    assert (3, 2) == _components(F(' \\n  +3/2')), ('assertEqual', (3, 2), _components(F(' \\n  +3/2')))\n    assert (-3, 2) == _components(F('-3/2  ')), ('assertEqual', (-3, 2), _components(F('-3/2  ')))\n    assert (13, 2) == _components(F('    0013/002 \\n  ')), ('assertEqual', (13, 2), _components(F('    0013/002 \\n  ')))\n    assert (16, 5) == _components(F(' 3.2 ')), ('assertEqual', (16, 5), _components(F(' 3.2 ')))\n    assert (16, 5) == _components(F('003.2')), ('assertEqual', (16, 5), _components(F('003.2')))\n    assert (-16, 5) == _components(F(' -3.2 ')), ('assertEqual', (-16, 5), _components(F(' -3.2 ')))\n    assert (-3, 1) == _components(F(' -3. ')), ('assertEqual', (-3, 1), _components(F(' -3. ')))\n    assert (3, 5) == _components(F(' .6 ')), ('assertEqual', (3, 5), _components(F(' .6 ')))\n    assert (1, 3125) == _components(F('32.e-5')), ('assertEqual', (1, 3125), _components(F('32.e-5')))\n    assert (1000000, 1) == _components(F('1E+06')), ('assertEqual', (1000000, 1), _components(F('1E+06')))\n    assert (-12300, 1) == _components(F('-1.23e4')), ('assertEqual', (-12300, 1), _components(F('-1.23e4')))\n    assert (0, 1) == _components(F(' .0e+0\\t')), ('assertEqual', (0, 1), _components(F(' .0e+0\\t')))\n    assert (0, 1) == _components(F('-0.000e0')), ('assertEqual', (0, 1), _components(F('-0.000e0')))\n    assert (123, 1) == _components(F('1_2_3')), ('assertEqual', (123, 1), _components(F('1_2_3')))\n    assert (41, 107) == _components(F('1_2_3/3_2_1')), ('assertEqual', (41, 107), _components(F('1_2_3/3_2_1')))\n    assert (6283, 2000) == _components(F('3.14_15')), ('assertEqual', (6283, 2000), _components(F('3.14_15')))\n    assert (6283, 2 * 10 ** 13) == _components(F('3.14_15e-1_0')), ('assertEqual', (6283, 2 * 10 ** 13), _components(F('3.14_15e-1_0')))\n    assert (101, 100) == _components(F('1.01')), ('assertEqual', (101, 100), _components(F('1.01')))\n    assert (101, 100) == _components(F('1.0_1')), ('assertEqual', (101, 100), _components(F('1.0_1')))\n    assertRaisesMessage(ZeroDivisionError, 'Fraction(3, 0)', F, '3/0')\n\n    def check_invalid(s):\n        msg = 'Invalid literal for Fraction: ' + repr(s)\n        assertRaisesMessage(ValueError, msg, F, s)\n    check_invalid('3/')\n    check_invalid('/2')\n    check_invalid('3/+2')\n    check_invalid('3/-2')\n    check_invalid('+ 3/2')\n    check_invalid('- 3/2')\n    check_invalid('3a2')\n    check_invalid('3/7.2')\n    check_invalid('3.2/7')\n    check_invalid('3 .2')\n    check_invalid('3. 2')\n    check_invalid('3.2 e1')\n    check_invalid('3.2e 1')\n    check_invalid('3.+2')\n    check_invalid('3.-2')\n    check_invalid('0x10')\n    check_invalid('0x10/1')\n    check_invalid('1/0x10')\n    check_invalid('0x10.')\n    check_invalid('0x10.1')\n    check_invalid('1.0x10')\n    check_invalid('1.0e0x10')\n    check_invalid('\u00b3')\n    check_invalid('\u00b3/2')\n    check_invalid('3/\u00b2')\n    check_invalid('\u00b3.2')\n    check_invalid('3.\u00b2')\n    check_invalid('3.2e\u00b2')\n    check_invalid('\u00bc')\n    check_invalid('.')\n    check_invalid('_')\n    check_invalid('_1')\n    check_invalid('1__2')\n    check_invalid('/_')\n    check_invalid('1_/')\n    check_invalid('_1/')\n    check_invalid('1__2/')\n    check_invalid('1/_')\n    check_invalid('1/_1')\n    check_invalid('1/1__2')\n    check_invalid('1._111')\n    check_invalid('1.1__1')\n    check_invalid('1.1e+_1')\n    check_invalid('1.1e+1__1')\n    check_invalid('123.dd')\n    check_invalid('123.5_dd')\n    check_invalid('dd.5')\n    check_invalid('7_dd')\n    check_invalid('1/dd')\n    check_invalid('1/123_dd')\n    check_invalid('789edd')\n    check_invalid('789e2_dd')\n    val = '9' * 50 + '_'\n    check_invalid(val)\n    check_invalid('1/' + val)\n    check_invalid('1.' + val)\n    check_invalid('.' + val)\n    check_invalid('1.1+e' + val)\n    check_invalid('1.1e' + val)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testImmutable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _components(r):\n    return (r.numerator, r.denominator)\n\ndef _t():\n    r = F(7, 3)\n    r.__init__(2, 15)\n    assert (7, 3) == _components(r), ('assertEqual', (7, 3), _components(r))\n    try:\n        setattr(*(r, 'numerator', 12))\n    except AttributeError:\n        pass\n    try:\n        setattr(*(r, 'denominator', 6))\n    except AttributeError:\n        pass\n    assert (7, 3) == _components(r), ('assertEqual', (7, 3), _components(r))\n    r._numerator = 4\n    r._denominator = 2\n    assert (4, 2) == _components(r), ('assertEqual', (4, 2), _components(r))\n    assert F(4, 2) != r, ('assertNotEqual', F(4, 2), r)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testFromFloat",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _components(r):\n    return (r.numerator, r.denominator)\n\ndef assertRaisesMessage(exc_type, message, callable, *args, **kwargs):\n    \"\"\"Asserts that callable(*args, **kwargs) raises exc_type(message).\"\"\"\n    try:\n        callable(*args, **kwargs)\n    except exc_type as e:\n        assert message == str(e), ('assertEqual', message, str(e))\n    else:\n        raise AssertionError('%s not raised' % exc_type.__name__)\n\ndef _t():\n    try:\n        F.from_float(*(3 + 4j,))\n    except TypeError:\n        pass\n    assert (10, 1) == _components(F.from_float(10)), ('assertEqual', (10, 1), _components(F.from_float(10)))\n    bigint = 1234567890123456789\n    assert (bigint, 1) == _components(F.from_float(bigint)), ('assertEqual', (bigint, 1), _components(F.from_float(bigint)))\n    assert (0, 1) == _components(F.from_float(-0.0)), ('assertEqual', (0, 1), _components(F.from_float(-0.0)))\n    assert (10, 1) == _components(F.from_float(10.0)), ('assertEqual', (10, 1), _components(F.from_float(10.0)))\n    assert (-5, 2) == _components(F.from_float(-2.5)), ('assertEqual', (-5, 2), _components(F.from_float(-2.5)))\n    assert (99999999999999991611392, 1) == _components(F.from_float(1e+23)), ('assertEqual', (99999999999999991611392, 1), _components(F.from_float(1e+23)))\n    assert float(10 ** 23) == float(F.from_float(1e+23)), ('assertEqual', float(10 ** 23), float(F.from_float(1e+23)))\n    assert (3602879701896397, 1125899906842624) == _components(F.from_float(3.2)), ('assertEqual', (3602879701896397, 1125899906842624), _components(F.from_float(3.2)))\n    assert 3.2 == float(F.from_float(3.2)), ('assertEqual', 3.2, float(F.from_float(3.2)))\n    inf = 1e309\n    nan = inf - inf\n    assertRaisesMessage(OverflowError, 'cannot convert Infinity to integer ratio', F.from_float, inf)\n    assertRaisesMessage(OverflowError, 'cannot convert Infinity to integer ratio', F.from_float, -inf)\n    assertRaisesMessage(ValueError, 'cannot convert NaN to integer ratio', F.from_float, nan)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testFromDecimal",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from decimal import Decimal\nimport fractions\nF = fractions.Fraction\n\ndef assertRaisesMessage(exc_type, message, callable, *args, **kwargs):\n    \"\"\"Asserts that callable(*args, **kwargs) raises exc_type(message).\"\"\"\n    try:\n        callable(*args, **kwargs)\n    except exc_type as e:\n        assert message == str(e), ('assertEqual', message, str(e))\n    else:\n        raise AssertionError('%s not raised' % exc_type.__name__)\n\ndef _t():\n    try:\n        F.from_decimal(*(3 + 4j,))\n    except TypeError:\n        pass\n    assert F(10, 1) == F.from_decimal(10), ('assertEqual', F(10, 1), F.from_decimal(10))\n    assert F(0) == F.from_decimal(Decimal('-0')), ('assertEqual', F(0), F.from_decimal(Decimal('-0')))\n    assert F(5, 10) == F.from_decimal(Decimal('0.5')), ('assertEqual', F(5, 10), F.from_decimal(Decimal('0.5')))\n    assert F(5, 1000) == F.from_decimal(Decimal('5e-3')), ('assertEqual', F(5, 1000), F.from_decimal(Decimal('5e-3')))\n    assert F(5000) == F.from_decimal(Decimal('5e3')), ('assertEqual', F(5000), F.from_decimal(Decimal('5e3')))\n    assert 1 - F(1, 10 ** 30) == F.from_decimal(Decimal('0.' + '9' * 30)), ('assertEqual', 1 - F(1, 10 ** 30), F.from_decimal(Decimal('0.' + '9' * 30)))\n    assertRaisesMessage(OverflowError, 'cannot convert Infinity to integer ratio', F.from_decimal, Decimal('inf'))\n    assertRaisesMessage(OverflowError, 'cannot convert Infinity to integer ratio', F.from_decimal, Decimal('-inf'))\n    assertRaisesMessage(ValueError, 'cannot convert NaN to integer ratio', F.from_decimal, Decimal('nan'))\n    assertRaisesMessage(ValueError, 'cannot convert NaN to integer ratio', F.from_decimal, Decimal('snan'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_is_integer",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    assert F(1, 1).is_integer(), ('assertTrue', F(1, 1).is_integer())\n    assert F(-1, 1).is_integer(), ('assertTrue', F(-1, 1).is_integer())\n    assert F(1, -1).is_integer(), ('assertTrue', F(1, -1).is_integer())\n    assert F(2, 2).is_integer(), ('assertTrue', F(2, 2).is_integer())\n    assert F(-2, 2).is_integer(), ('assertTrue', F(-2, 2).is_integer())\n    assert F(2, -2).is_integer(), ('assertTrue', F(2, -2).is_integer())\n    assert not F(1, 2).is_integer(), ('assertFalse', F(1, 2).is_integer())\n    assert not F(-1, 2).is_integer(), ('assertFalse', F(-1, 2).is_integer())\n    assert not F(1, -2).is_integer(), ('assertFalse', F(1, -2).is_integer())\n    assert not F(-1, -2).is_integer(), ('assertFalse', F(-1, -2).is_integer())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_as_integer_ratio",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    assert F(4, 6).as_integer_ratio() == (2, 3), ('assertEqual', F(4, 6).as_integer_ratio(), (2, 3))\n    assert F(-4, 6).as_integer_ratio() == (-2, 3), ('assertEqual', F(-4, 6).as_integer_ratio(), (-2, 3))\n    assert F(4, -6).as_integer_ratio() == (-2, 3), ('assertEqual', F(4, -6).as_integer_ratio(), (-2, 3))\n    assert F(0, 6).as_integer_ratio() == (0, 1), ('assertEqual', F(0, 6).as_integer_ratio(), (0, 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testLimitDenominator",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef assertRaisesMessage(exc_type, message, callable, *args, **kwargs):\n    \"\"\"Asserts that callable(*args, **kwargs) raises exc_type(message).\"\"\"\n    try:\n        callable(*args, **kwargs)\n    except exc_type as e:\n        assert message == str(e), ('assertEqual', message, str(e))\n    else:\n        raise AssertionError('%s not raised' % exc_type.__name__)\n\ndef _t():\n    rpi = F('3.1415926535897932')\n    assert rpi.limit_denominator(10000) == F(355, 113), ('assertEqual', rpi.limit_denominator(10000), F(355, 113))\n    assert -rpi.limit_denominator(10000) == F(-355, 113), ('assertEqual', -rpi.limit_denominator(10000), F(-355, 113))\n    assert rpi.limit_denominator(113) == F(355, 113), ('assertEqual', rpi.limit_denominator(113), F(355, 113))\n    assert rpi.limit_denominator(112) == F(333, 106), ('assertEqual', rpi.limit_denominator(112), F(333, 106))\n    assert F(201, 200).limit_denominator(100) == F(1), ('assertEqual', F(201, 200).limit_denominator(100), F(1))\n    assert F(201, 200).limit_denominator(101) == F(102, 101), ('assertEqual', F(201, 200).limit_denominator(101), F(102, 101))\n    assert F(0).limit_denominator(10000) == F(0), ('assertEqual', F(0).limit_denominator(10000), F(0))\n    for i in (0, -1):\n        assertRaisesMessage(ValueError, 'max_denominator should be at least 1', F(1).limit_denominator, i)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testConversions",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import math\nimport fractions\nF = fractions.Fraction\n\ndef assertTypedEquals(expected, actual):\n    \"\"\"Asserts that both the types and values are the same.\"\"\"\n    assert type(expected) == type(actual), ('assertEqual', type(expected), type(actual))\n    assert expected == actual, ('assertEqual', expected, actual)\n\ndef _t():\n    assertTypedEquals(-1, math.trunc(F(-11, 10)))\n    assertTypedEquals(1, math.trunc(F(11, 10)))\n    assertTypedEquals(-2, math.floor(F(-11, 10)))\n    assertTypedEquals(-1, math.ceil(F(-11, 10)))\n    assertTypedEquals(-1, math.ceil(F(-10, 10)))\n    assertTypedEquals(-1, int(F(-11, 10)))\n    assertTypedEquals(0, round(F(-1, 10)))\n    assertTypedEquals(0, round(F(-5, 10)))\n    assertTypedEquals(-2, round(F(-15, 10)))\n    assertTypedEquals(-1, round(F(-7, 10)))\n    assert False == bool(F(0, 1)), ('assertEqual', False, bool(F(0, 1)))\n    assert True == bool(F(3, 2)), ('assertEqual', True, bool(F(3, 2)))\n    assertTypedEquals(0.1, float(F(1, 10)))\n    try:\n        float(*(int('2' * 400 + '7'),))\n    except OverflowError:\n        pass\n    assert round(2.0 / 3 - float(F(int('2' * 400 + '7'), int('3' * 400 + '1'))), 7) == 0, ('assertAlmostEqual', 2.0 / 3, float(F(int('2' * 400 + '7'), int('3' * 400 + '1'))))\n    assertTypedEquals(0.1 + 0j, complex(F(1, 10)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testSupportsInt",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "FractionTest.testIntGuaranteesIntReturn",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "ident": "FractionTest.testBoolGuarateesBoolReturn",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import numbers\nimport fractions\nimport functools\nF = fractions.Fraction\n\ndef _components(r):\n    return (r.numerator, r.denominator)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    @functools.total_ordering\n    class CustomValue:\n        denominator = 1\n\n        def __init__(self, value):\n            self.value = value\n\n        def __bool__(self):\n            return bool(self.value)\n\n        @property\n        def numerator(self):\n            return self\n\n        def __eq__(self, other):\n            raise AssertionError('Avoid comparisons in Fraction.__bool__')\n        __lt__ = __eq__\n    numbers.Rational.register(CustomValue)\n    numerator = CustomValue(1)\n    r = F(numerator)\n    assert r.numerator is numerator, ('assertIs', r.numerator, numerator)\n    assert bool(r) is True, ('assertIs', bool(r), True)\n    numerator = CustomValue(0)\n    r = F(numerator)\n    assert bool(r) is False, ('assertIs', bool(r), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testRound",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef assertTypedEquals(expected, actual):\n    \"\"\"Asserts that both the types and values are the same.\"\"\"\n    assert type(expected) == type(actual), ('assertEqual', type(expected), type(actual))\n    assert expected == actual, ('assertEqual', expected, actual)\n\ndef _t():\n    assertTypedEquals(F(-200), round(F(-150), -2))\n    assertTypedEquals(F(-200), round(F(-250), -2))\n    assertTypedEquals(F(30), round(F(26), -1))\n    assertTypedEquals(F(-2, 10), round(F(-15, 100), 1))\n    assertTypedEquals(F(-2, 10), round(F(-25, 100), 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testArithmetic",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nimport fractions\nF = fractions.Fraction\n\ndef assertTypedEquals(expected, actual):\n    \"\"\"Asserts that both the types and values are the same.\"\"\"\n    assert type(expected) == type(actual), ('assertEqual', type(expected), type(actual))\n    assert expected == actual, ('assertEqual', expected, actual)\n\ndef _t():\n    assert F(1, 2) == F(1, 10) + F(2, 5), ('assertEqual', F(1, 2), F(1, 10) + F(2, 5))\n    assert F(-3, 10) == F(1, 10) - F(2, 5), ('assertEqual', F(-3, 10), F(1, 10) - F(2, 5))\n    assert F(1, 25) == F(1, 10) * F(2, 5), ('assertEqual', F(1, 25), F(1, 10) * F(2, 5))\n    assert F(5, 6) == F(2, 3) * F(5, 4), ('assertEqual', F(5, 6), F(2, 3) * F(5, 4))\n    assert F(1, 4) == F(1, 10) / F(2, 5), ('assertEqual', F(1, 4), F(1, 10) / F(2, 5))\n    assert F(-15, 8) == F(3, 4) / F(-2, 5), ('assertEqual', F(-15, 8), F(3, 4) / F(-2, 5))\n    try:\n        operator.truediv(*(F(1), F(0)))\n    except ZeroDivisionError:\n        pass\n    assertTypedEquals(2, F(9, 10) // F(2, 5))\n    assertTypedEquals(10 ** 23, F(10 ** 23, 1) // F(1))\n    assert F(5, 6) == F(7, 3) % F(3, 2), ('assertEqual', F(5, 6), F(7, 3) % F(3, 2))\n    assert F(2, 3) == F(-7, 3) % F(3, 2), ('assertEqual', F(2, 3), F(-7, 3) % F(3, 2))\n    assert (F(1), F(5, 6)) == divmod(F(7, 3), F(3, 2)), ('assertEqual', (F(1), F(5, 6)), divmod(F(7, 3), F(3, 2)))\n    assert (F(-2), F(2, 3)) == divmod(F(-7, 3), F(3, 2)), ('assertEqual', (F(-2), F(2, 3)), divmod(F(-7, 3), F(3, 2)))\n    assert F(8, 27) == F(2, 3) ** F(3), ('assertEqual', F(8, 27), F(2, 3) ** F(3))\n    assert F(27, 8) == F(2, 3) ** F(-3), ('assertEqual', F(27, 8), F(2, 3) ** F(-3))\n    assertTypedEquals(2.0, F(4) ** F(1, 2))\n    assert F(1, 1) == +F(1, 1), ('assertEqual', F(1, 1), +F(1, 1))\n    z = pow(F(-1), F(1, 2))\n    assert round(z.real - 0, 7) == 0, ('assertAlmostEqual', z.real, 0)\n    assert z.imag == 1, ('assertEqual', z.imag, 1)\n    p = F(-1, 2) ** 0\n    assert p == F(1, 1), ('assertEqual', p, F(1, 1))\n    assert p.numerator == 1, ('assertEqual', p.numerator, 1)\n    assert p.denominator == 1, ('assertEqual', p.denominator, 1)\n    p = F(-1, 2) ** (-1)\n    assert p == F(-2, 1), ('assertEqual', p, F(-2, 1))\n    assert p.numerator == -2, ('assertEqual', p.numerator, -2)\n    assert p.denominator == 1, ('assertEqual', p.denominator, 1)\n    p = F(-1, 2) ** (-2)\n    assert p == F(4, 1), ('assertEqual', p, F(4, 1))\n    assert p.numerator == 4, ('assertEqual', p.numerator, 4)\n    assert p.denominator == 1, ('assertEqual', p.denominator, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testLargeArithmetic",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef assertTypedEquals(expected, actual):\n    \"\"\"Asserts that both the types and values are the same.\"\"\"\n    assert type(expected) == type(actual), ('assertEqual', type(expected), type(actual))\n    assert expected == actual, ('assertEqual', expected, actual)\n\ndef assertTypedTupleEquals(expected, actual):\n    \"\"\"Asserts that both the types and values in the tuples are the same.\"\"\"\n    assert expected == actual, ('assertTupleEqual', expected, actual)\n    assert list(map(type, expected)) == list(map(type, actual)), ('assertListEqual', list(map(type, expected)), list(map(type, actual)))\n\ndef _t():\n    assertTypedEquals(F(10101010100808080808080808101010101010000000000000000, 1010101010101010101010101011111111101010101010101010101010101), F(10 ** 35 + 1, 10 ** 27 + 1) % F(10 ** 27 + 1, 10 ** 35 - 1))\n    assertTypedEquals(F(7, 1901475900342344102245054808064), F(-2 ** 100, 3) % F(5, 2 ** 100))\n    assertTypedTupleEquals((9999999999999999, F(10101010100808080808080808101010101010000000000000000, 1010101010101010101010101011111111101010101010101010101010101)), divmod(F(10 ** 35 + 1, 10 ** 27 + 1), F(10 ** 27 + 1, 10 ** 35 - 1)))\n    assertTypedEquals(-2 ** 200 // 15, F(-2 ** 100, 3) // F(5, 2 ** 100))\n    assertTypedEquals(1, F(5, 2 ** 100) // F(3, 2 ** 100))\n    assertTypedEquals((1, F(2, 2 ** 100)), divmod(F(5, 2 ** 100), F(3, 2 ** 100)))\n    assertTypedTupleEquals((-2 ** 200 // 15, F(7, 1901475900342344102245054808064)), divmod(F(-2 ** 100, 3), F(5, 2 ** 100)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testMixedArithmetic",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef assertTypedEquals(expected, actual):\n    \"\"\"Asserts that both the types and values are the same.\"\"\"\n    assert type(expected) == type(actual), ('assertEqual', type(expected), type(actual))\n    assert expected == actual, ('assertEqual', expected, actual)\n\ndef _t():\n    assertTypedEquals(F(11, 10), F(1, 10) + 1)\n    assertTypedEquals(1.1, F(1, 10) + 1.0)\n    assertTypedEquals(1.1 + 0j, F(1, 10) + (1.0 + 0j))\n    assertTypedEquals(F(11, 10), 1 + F(1, 10))\n    assertTypedEquals(1.1, 1.0 + F(1, 10))\n    assertTypedEquals(1.1 + 0j, 1.0 + 0j + F(1, 10))\n    assertTypedEquals(F(-9, 10), F(1, 10) - 1)\n    assertTypedEquals(-0.9, F(1, 10) - 1.0)\n    assertTypedEquals(-0.9 + 0j, F(1, 10) - (1.0 + 0j))\n    assertTypedEquals(F(9, 10), 1 - F(1, 10))\n    assertTypedEquals(0.9, 1.0 - F(1, 10))\n    assertTypedEquals(0.9 + 0j, 1.0 + 0j - F(1, 10))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testMixingWithDecimal",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from decimal import Decimal\nimport operator\nimport fractions\nF = fractions.Fraction\n\ndef _t():\n    try:\n        operator.add(*(F(3, 11), Decimal('3.1415926')))\n    except TypeError:\n        pass\n    try:\n        operator.add(*(Decimal('3.1415926'), F(3, 11)))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testComparisons",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    assert F(1, 2) < F(2, 3), ('assertTrue', F(1, 2) < F(2, 3))\n    assert not F(1, 2) < F(1, 2), ('assertFalse', F(1, 2) < F(1, 2))\n    assert F(1, 2) <= F(2, 3), ('assertTrue', F(1, 2) <= F(2, 3))\n    assert F(1, 2) <= F(1, 2), ('assertTrue', F(1, 2) <= F(1, 2))\n    assert not F(2, 3) <= F(1, 2), ('assertFalse', F(2, 3) <= F(1, 2))\n    assert F(1, 2) == F(1, 2), ('assertTrue', F(1, 2) == F(1, 2))\n    assert not F(1, 2) == F(1, 3), ('assertFalse', F(1, 2) == F(1, 3))\n    assert not F(1, 2) != F(1, 2), ('assertFalse', F(1, 2) != F(1, 2))\n    assert F(1, 2) != F(1, 3), ('assertTrue', F(1, 2) != F(1, 3))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testMixedLess",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    assert 2 < F(5, 2), ('assertTrue', 2 < F(5, 2))\n    assert not 2 < F(4, 2), ('assertFalse', 2 < F(4, 2))\n    assert F(5, 2) < 3, ('assertTrue', F(5, 2) < 3)\n    assert not F(4, 2) < 2, ('assertFalse', F(4, 2) < 2)\n    assert F(1, 2) < 0.6, ('assertTrue', F(1, 2) < 0.6)\n    assert not F(1, 2) < 0.4, ('assertFalse', F(1, 2) < 0.4)\n    assert 0.4 < F(1, 2), ('assertTrue', 0.4 < F(1, 2))\n    assert not 0.5 < F(1, 2), ('assertFalse', 0.5 < F(1, 2))\n    assert not float('inf') < F(1, 2), ('assertFalse', float('inf') < F(1, 2))\n    assert float('-inf') < F(0, 10), ('assertTrue', float('-inf') < F(0, 10))\n    assert not float('nan') < F(-3, 7), ('assertFalse', float('nan') < F(-3, 7))\n    assert F(1, 2) < float('inf'), ('assertTrue', F(1, 2) < float('inf'))\n    assert not F(17, 12) < float('-inf'), ('assertFalse', F(17, 12) < float('-inf'))\n    assert not F(144, -89) < float('nan'), ('assertFalse', F(144, -89) < float('nan'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testMixedLessEqual",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    assert 0.5 <= F(1, 2), ('assertTrue', 0.5 <= F(1, 2))\n    assert not 0.6 <= F(1, 2), ('assertFalse', 0.6 <= F(1, 2))\n    assert F(1, 2) <= 0.5, ('assertTrue', F(1, 2) <= 0.5)\n    assert not F(1, 2) <= 0.4, ('assertFalse', F(1, 2) <= 0.4)\n    assert 2 <= F(4, 2), ('assertTrue', 2 <= F(4, 2))\n    assert not 2 <= F(3, 2), ('assertFalse', 2 <= F(3, 2))\n    assert F(4, 2) <= 2, ('assertTrue', F(4, 2) <= 2)\n    assert not F(5, 2) <= 2, ('assertFalse', F(5, 2) <= 2)\n    assert not float('inf') <= F(1, 2), ('assertFalse', float('inf') <= F(1, 2))\n    assert float('-inf') <= F(0, 10), ('assertTrue', float('-inf') <= F(0, 10))\n    assert not float('nan') <= F(-3, 7), ('assertFalse', float('nan') <= F(-3, 7))\n    assert F(1, 2) <= float('inf'), ('assertTrue', F(1, 2) <= float('inf'))\n    assert not F(17, 12) <= float('-inf'), ('assertFalse', F(17, 12) <= float('-inf'))\n    assert not F(144, -89) <= float('nan'), ('assertFalse', F(144, -89) <= float('nan'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testBigFloatComparisons",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import math\nimport fractions\nF = fractions.Fraction\n\ndef _t():\n    assert not F(10 ** 23) == float(10 ** 23), ('assertFalse', F(10 ** 23) == float(10 ** 23))\n    assert not 1e+23 < float(F(math.trunc(1e+23) + 1)), ('assertFalse', 1e+23 < float(F(math.trunc(1e+23) + 1)))\n    assert 1e+23 < F(math.trunc(1e+23) + 1), ('assertTrue', 1e+23 < F(math.trunc(1e+23) + 1))\n    assert not 1e+23 <= F(math.trunc(1e+23) - 1), ('assertFalse', 1e+23 <= F(math.trunc(1e+23) - 1))\n    assert 1e+23 > F(math.trunc(1e+23) - 1), ('assertTrue', 1e+23 > F(math.trunc(1e+23) - 1))\n    assert not 1e+23 >= F(math.trunc(1e+23) + 1), ('assertFalse', 1e+23 >= F(math.trunc(1e+23) + 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testBigComplexComparisons",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nimport fractions\nF = fractions.Fraction\n\ndef _t():\n    assert not F(10 ** 23) == complex(10 ** 23), ('assertFalse', F(10 ** 23) == complex(10 ** 23))\n    try:\n        operator.gt(*(F(10 ** 23), complex(10 ** 23)))\n    except TypeError:\n        pass\n    try:\n        operator.le(*(F(10 ** 23), complex(10 ** 23)))\n    except TypeError:\n        pass\n    x = F(3, 8)\n    z = complex(0.375, 0.0)\n    w = complex(0.375, 0.2)\n    assert x == z, ('assertTrue', x == z)\n    assert not x != z, ('assertFalse', x != z)\n    assert not x == w, ('assertFalse', x == w)\n    assert x != w, ('assertTrue', x != w)\n    for op in (operator.lt, operator.le, operator.gt, operator.ge):\n        try:\n            op(*(x, z))\n        except TypeError:\n            pass\n        try:\n            op(*(z, x))\n        except TypeError:\n            pass\n        try:\n            op(*(x, w))\n        except TypeError:\n            pass\n        try:\n            op(*(w, x))\n        except TypeError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testMixedEqual",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    assert 0.5 == F(1, 2), ('assertTrue', 0.5 == F(1, 2))\n    assert not 0.6 == F(1, 2), ('assertFalse', 0.6 == F(1, 2))\n    assert F(1, 2) == 0.5, ('assertTrue', F(1, 2) == 0.5)\n    assert not F(1, 2) == 0.4, ('assertFalse', F(1, 2) == 0.4)\n    assert 2 == F(4, 2), ('assertTrue', 2 == F(4, 2))\n    assert not 2 == F(3, 2), ('assertFalse', 2 == F(3, 2))\n    assert F(4, 2) == 2, ('assertTrue', F(4, 2) == 2)\n    assert not F(5, 2) == 2, ('assertFalse', F(5, 2) == 2)\n    assert not F(5, 2) == float('nan'), ('assertFalse', F(5, 2) == float('nan'))\n    assert not float('nan') == F(3, 7), ('assertFalse', float('nan') == F(3, 7))\n    assert not F(5, 2) == float('inf'), ('assertFalse', F(5, 2) == float('inf'))\n    assert not float('-inf') == F(2, 5), ('assertFalse', float('-inf') == F(2, 5))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testStringification",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    assert 'Fraction(7, 3)' == repr(F(7, 3)), ('assertEqual', 'Fraction(7, 3)', repr(F(7, 3)))\n    assert 'Fraction(6283185307, 2000000000)' == repr(F('3.1415926535')), ('assertEqual', 'Fraction(6283185307, 2000000000)', repr(F('3.1415926535')))\n    assert 'Fraction(-1, 100000000000000000000)' == repr(F(1, -10 ** 20)), ('assertEqual', 'Fraction(-1, 100000000000000000000)', repr(F(1, -10 ** 20)))\n    assert '7/3' == str(F(7, 3)), ('assertEqual', '7/3', str(F(7, 3)))\n    assert '7' == str(F(7, 1)), ('assertEqual', '7', str(F(7, 1)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testHash",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nimport sys\nF = fractions.Fraction\n\ndef _t():\n    hmod = sys.hash_info.modulus\n    hinf = sys.hash_info.inf\n    assert hash(2.5) == hash(F(5, 2)), ('assertEqual', hash(2.5), hash(F(5, 2)))\n    assert hash(10 ** 50) == hash(F(10 ** 50)), ('assertEqual', hash(10 ** 50), hash(F(10 ** 50)))\n    assert hash(float(10 ** 23)) != hash(F(10 ** 23)), ('assertNotEqual', hash(float(10 ** 23)), hash(F(10 ** 23)))\n    assert hinf == hash(F(1, hmod)), ('assertEqual', hinf, hash(F(1, hmod)))\n    assert hash(F(-1)) == F(-1).__hash__(), ('assertEqual', hash(F(-1)), F(-1).__hash__())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testApproximatePi",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import math\nimport fractions\nF = fractions.Fraction\n\ndef _t():\n    three = F(3)\n    lasts, t, s, n, na, d, da = (0, three, 3, 1, 0, 0, 24)\n    while abs(s - lasts) > F(1, 10 ** 9):\n        lasts = s\n        n, na = (n + na, na + 8)\n        d, da = (d + da, da + 32)\n        t = t * n / d\n        s += t\n    assert round(math.pi - s, 7) == 0, ('assertAlmostEqual', math.pi, s)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.testApproximateCos1",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import math\nimport fractions\nF = fractions.Fraction\n\ndef _t():\n    x = F(1)\n    i, lasts, s, fact, num, sign = (0, 0, F(1), 1, 1, 1)\n    while abs(s - lasts) > F(1, 10 ** 9):\n        lasts = s\n        i += 2\n        fact *= i * (i - 1)\n        num *= x * x\n        sign *= -1\n        s += num / fact * sign\n    assert round(math.cos(1) - s, 7) == 0, ('assertAlmostEqual', math.cos(1), s)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_slots",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _components(r):\n    return (r.numerator, r.denominator)\n\ndef _t():\n    r = F(13, 7)\n    try:\n        setattr(*(r, 'a', 10))\n    except AttributeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_int_subclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\n\ndef _t():\n\n    class myint(int):\n\n        def __mul__(self, other):\n            return type(self)(int(self) * int(other))\n\n        def __floordiv__(self, other):\n            return type(self)(int(self) // int(other))\n\n        def __mod__(self, other):\n            x = type(self)(int(self) % int(other))\n            return x\n\n        @property\n        def numerator(self):\n            return type(self)(int(self))\n\n        @property\n        def denominator(self):\n            return type(self)(1)\n    f = fractions.Fraction(myint(1 * 3), myint(2 * 3))\n    assert f.numerator == 1, ('assertEqual', f.numerator, 1)\n    assert f.denominator == 2, ('assertEqual', f.denominator, 2)\n    assert type(f.numerator) == myint, ('assertEqual', type(f.numerator), myint)\n    assert type(f.denominator) == myint, ('assertEqual', type(f.denominator), myint)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_format_no_presentation_type",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    testcases = [(F(2, 3), '+', '+2/3'), (F(-2, 3), '+', '-2/3'), (F(3), '+', '+3'), (F(-3), '+', '-3'), (F(2, 3), ' ', ' 2/3'), (F(-2, 3), ' ', '-2/3'), (F(3), ' ', ' 3'), (F(-3), ' ', '-3'), (F(2, 3), '-', '2/3'), (F(-2, 3), '-', '-2/3'), (F(3), '-', '3'), (F(-3), '-', '-3'), (F(0), '5', '    0'), (F(2, 3), '5', '  2/3'), (F(-2, 3), '5', ' -2/3'), (F(2, 3), '0', '2/3'), (F(2, 3), '1', '2/3'), (F(2, 3), '2', '2/3'), (F(2, 3), '<5', '2/3  '), (F(2, 3), '>5', '  2/3'), (F(2, 3), '^5', ' 2/3 '), (F(2, 3), '=5', '  2/3'), (F(-2, 3), '<5', '-2/3 '), (F(-2, 3), '>5', ' -2/3'), (F(-2, 3), '^5', '-2/3 '), (F(-2, 3), '=5', '- 2/3'), (F(2, 3), 'X>5', 'XX2/3'), (F(-2, 3), '.<5', '-2/3.'), (F(-2, 3), '\\n^6', '\\n-2/3\\n'), (F(1234, 5679), ',', '1,234/5,679'), (F(-1234, 5679), '_', '-1_234/5_679'), (F(1234567), '_', '1_234_567'), (F(-1234567), ',', '-1,234,567'), (F(123), '#', '123/1'), (F(-123), '#', '-123/1'), (F(0), '#', '0/1')]\n    for fraction, spec, expected in testcases:\n        assert format(fraction, spec) == expected, ('assertEqual', format(fraction, spec), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_format_e_presentation_type",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    testcases = [(F(2, 3), '.6e', '6.666667e-01'), (F(3, 2), '.6e', '1.500000e+00'), (F(2, 13), '.6e', '1.538462e-01'), (F(2, 23), '.6e', '8.695652e-02'), (F(2, 33), '.6e', '6.060606e-02'), (F(13, 2), '.6e', '6.500000e+00'), (F(20, 2), '.6e', '1.000000e+01'), (F(23, 2), '.6e', '1.150000e+01'), (F(33, 2), '.6e', '1.650000e+01'), (F(2, 3), '.6e', '6.666667e-01'), (F(3, 2), '.6e', '1.500000e+00'), (F(0), '.3e', '0.000e+00'), (F(1, 1000), '.3e', '1.000e-03'), (F(1, 100), '.3e', '1.000e-02'), (F(1, 10), '.3e', '1.000e-01'), (F(1, 1), '.3e', '1.000e+00'), (F(10), '.3e', '1.000e+01'), (F(100), '.3e', '1.000e+02'), (F(1000), '.3e', '1.000e+03'), (F('99.999994999999'), '.6e', '9.999999e+01'), (F('99.999995'), '.6e', '1.000000e+02'), (F('99.999995000001'), '.6e', '1.000000e+02'), (F(-2, 3), '.6e', '-6.666667e-01'), (F(-3, 2), '.6e', '-1.500000e+00'), (F(-100), '.6e', '-1.000000e+02'), (F('1e1000'), '.3e', '1.000e+1000'), (F('1e-1000'), '.3e', '1.000e-1000'), (F(2, 3), '.6E', '6.666667E-01'), (F(2, 3), '.1e', '6.7e-01'), (F('0.995'), '.0e', '1e+00'), (F(22, 7), 'e', '3.142857e+00'), (F('0.995'), '#.0e', '1.e+00'), (F(22, 7), '11.6e', '3.142857e+00'), (F(22, 7), '12.6e', '3.142857e+00'), (F(22, 7), '13.6e', ' 3.142857e+00'), (F('1234567.123456'), ',.5e', '1.23457e+06'), (F('123.123456'), '012_.2e', '0_001.23e+02'), (F('1234567.123456'), '.5_e', '1.234_57e+06'), (F(-1, 7 ** 100), 'z.6e', '-3.091690e-85')]\n    for fraction, spec, expected in testcases:\n        assert format(fraction, spec) == expected, ('assertEqual', format(fraction, spec), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_format_f_presentation_type",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    testcases = [(F(0, 1), '.2f', '0.00'), (F(1, 3), '.2f', '0.33'), (F(2, 3), '.2f', '0.67'), (F(4, 3), '.2f', '1.33'), (F(1, 8), '.2f', '0.12'), (F(3, 8), '.2f', '0.38'), (F(1, 13), '.2f', '0.08'), (F(1, 199), '.2f', '0.01'), (F(1, 200), '.2f', '0.00'), (F(22, 7), '.5f', '3.14286'), (F('399024789'), '.2f', '399024789.00'), (F(104348, 33215), '.50f', '3.14159265392142104470871594159265392142104470871594'), (F(22, 7), 'f', '3.142857'), (F(0), 'f', '0.000000'), (F(-22, 7), 'f', '-3.142857'), (F('1.225'), '.2f', '1.22'), (F('1.2250000001'), '.2f', '1.23'), (F('1.2349999999'), '.2f', '1.23'), (F('1.235'), '.2f', '1.24'), (F('1.245'), '.2f', '1.24'), (F('1.2450000001'), '.2f', '1.25'), (F('1.2549999999'), '.2f', '1.25'), (F('1.255'), '.2f', '1.26'), (F('-1.225'), '.2f', '-1.22'), (F('-1.2250000001'), '.2f', '-1.23'), (F('-1.2349999999'), '.2f', '-1.23'), (F('-1.235'), '.2f', '-1.24'), (F('-1.245'), '.2f', '-1.24'), (F('-1.2450000001'), '.2f', '-1.25'), (F('-1.2549999999'), '.2f', '-1.25'), (F('-1.255'), '.2f', '-1.26'), (F(2, 3), '.2f', '0.67'), (F(2, 3), '-.2f', '0.67'), (F(2, 3), '+.2f', '+0.67'), (F(2, 3), ' .2f', ' 0.67'), (F(-2, 3), '.2f', '-0.67'), (F(-2, 3), '-.2f', '-0.67'), (F(-2, 3), '+.2f', '-0.67'), (F(-2, 3), ' .2f', '-0.67'), (F(1, 2), '.0f', '0'), (F(-1, 2), '.0f', '-0'), (F(22, 7), '.0f', '3'), (F(-22, 7), '.0f', '-3'), (F(1, 2), '#.0f', '0.'), (F(-1, 2), '#.0f', '-0.'), (F(22, 7), '#.0f', '3.'), (F(-22, 7), '#.0f', '-3.'), (F('-0.001'), 'z.2f', '0.00'), (F('-0.001'), '-z.2f', '0.00'), (F('-0.001'), '+z.2f', '+0.00'), (F('-0.001'), ' z.2f', ' 0.00'), (F('0.001'), 'z.2f', '0.00'), (F('0.001'), '-z.2f', '0.00'), (F('0.001'), '+z.2f', '+0.00'), (F('0.001'), ' z.2f', ' 0.00'), (F(2, 3), '6.2f', '  0.67'), (F(12345), '6.2f', '12345.00'), (F(12345), '12f', '12345.000000'), (F(2, 3), '>6.2f', '  0.67'), (F(2, 3), '<6.2f', '0.67  '), (F(2, 3), '^3.2f', '0.67'), (F(2, 3), '^4.2f', '0.67'), (F(2, 3), '^5.2f', '0.67 '), (F(2, 3), '^6.2f', ' 0.67 '), (F(2, 3), '^7.2f', ' 0.67  '), (F(2, 3), '^8.2f', '  0.67  '), (F(-2, 3), '=+8.2f', '-   0.67'), (F(2, 3), '=+8.2f', '+   0.67'), (F(-2, 3), 'X>3.2f', '-0.67'), (F(-2, 3), 'X>7.2f', 'XX-0.67'), (F(-2, 3), 'X<7.2f', '-0.67XX'), (F(-2, 3), 'X^7.2f', 'X-0.67X'), (F(-2, 3), 'X=7.2f', '-XX0.67'), (F(-2, 3), ' >7.2f', '  -0.67'), (F(-2, 3), '\\x00>7.2f', '\\x00\\x00-0.67'), (F(-2, 3), '\\n>7.2f', '\\n\\n-0.67'), (F(-2, 3), '\\t>7.2f', '\\t\\t-0.67'), (F(-2, 3), '>>7.2f', '>>-0.67'), (F(-2, 3), '<>7.2f', '<<-0.67'), (F(-2, 3), '\u2192>7.2f', '\u2192\u2192-0.67'), (F(-2, 3), '07.2f', '-000.67'), (F(-2, 3), '-07.2f', '-000.67'), (F(2, 3), '+07.2f', '+000.67'), (F(2, 3), ' 07.2f', ' 000.67'), (F(2, 3), '0.2f', '0.67'), (F(2, 3), '>0.2f', '0.67'), (F(2, 3), '<0.2f', '0.67'), (F(2, 3), '^0.2f', '0.67'), (F(2, 3), '=0.2f', '0.67'), (F(2, 3), '00.2f', '0.67'), (F(2, 3), ',.2f', '0.67'), (F(2, 3), ',.7f', '0.6666667'), (F('123456.789'), ',.2f', '123,456.79'), (F('1234567'), ',.2f', '1,234,567.00'), (F('12345678'), ',.2f', '12,345,678.00'), (F('12345678'), ',f', '12,345,678.000000'), (F('123456.789123123'), '._f', '123456.789_123'), (F('123456.789123123'), '.7_f', '123456.789_123_1'), (F('123456.789123123'), '.9_f', '123456.789_123_123'), (F('123456.789123123'), '.,f', '123456.789,123'), (F('123456.789123123'), '_.,f', '123_456.789,123'), (F(2, 3), '_.2f', '0.67'), (F(2, 3), '_.7f', '0.6666667'), (F('123456.789'), '_.2f', '123_456.79'), (F('1234567'), '_.2f', '1_234_567.00'), (F('12345678'), '_.2f', '12_345_678.00'), (F('1234.5678'), '07,.2f', '1,234.57'), (F('1234.5678'), '08,.2f', '1,234.57'), (F('1234.5678'), '09,.2f', '01,234.57'), (F('1234.5678'), '010,.2f', '001,234.57'), (F('1234.5678'), '011,.2f', '0,001,234.57'), (F('1234.5678'), '012,.2f', '0,001,234.57'), (F('1234.5678'), '013,.2f', '00,001,234.57'), (F('1234.5678'), '014,.2f', '000,001,234.57'), (F('1234.5678'), '015,.2f', '0,000,001,234.57'), (F('1234.5678'), '016,.2f', '0,000,001,234.57'), (F('-1234.5678'), '07,.2f', '-1,234.57'), (F('-1234.5678'), '08,.2f', '-1,234.57'), (F('-1234.5678'), '09,.2f', '-1,234.57'), (F('-1234.5678'), '010,.2f', '-01,234.57'), (F('-1234.5678'), '011,.2f', '-001,234.57'), (F('-1234.5678'), '012,.2f', '-0,001,234.57'), (F('-1234.5678'), '013,.2f', '-0,001,234.57'), (F('-1234.5678'), '014,.2f', '-00,001,234.57'), (F('-1234.5678'), '015,.2f', '-000,001,234.57'), (F('-1234.5678'), '016,.2f', '-0,000,001,234.57'), (F('-1234.5678'), '06,.0f', '-1,235'), (F('-1234.5678'), '07,.0f', '-01,235'), (F('-1234.5678'), '08,.0f', '-001,235'), (F('-1234.5678'), '09,.0f', '-0,001,235'), (F('1234.5678'), '0=12,.2f', '0,001,234.57'), (F('12.34'), '0.2f', '12.34'), (F('12.34'), 'X>0.2f', '12.34'), (F(22, 7), '.5F', '3.14286'), (F(22, 7), '.2%', '314.29%'), (F(1, 7), '.2%', '14.29%'), (F(1, 70), '.2%', '1.43%'), (F(1, 700), '.2%', '0.14%'), (F(1, 7000), '.2%', '0.01%'), (F(1, 70000), '.2%', '0.00%'), (F(1, 7), '.0%', '14%'), (F(1, 7), '#.0%', '14.%'), (F(100, 7), ',.2%', '1,428.57%'), (F(22, 7), '7.2%', '314.29%'), (F(22, 7), '8.2%', ' 314.29%'), (F(22, 7), '08.2%', '0314.29%'), (F(1, 3), '.2f', '0.33'), (F(1, 8), '.2f', '0.12'), (F(3, 8), '.2f', '0.38'), (F(2545, 1000), '.2f', '2.54'), (F(2549, 1000), '.2f', '2.55'), (F(2635, 1000), '.2f', '2.64'), (F(1, 100), '.1f', '0.0'), (F(49, 1000), '.1f', '0.0'), (F(51, 1000), '.1f', '0.1'), (F(149, 1000), '.1f', '0.1'), (F(151, 1000), '.1f', '0.2'), (F(22, 7), '.02f', '3.14'), (F(22, 7), '005.02f', '03.14')]\n    for fraction, spec, expected in testcases:\n        assert format(fraction, spec) == expected, ('assertEqual', format(fraction, spec), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_format_g_presentation_type",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    testcases = [(F('0.000012345678'), '.6g', '1.23457e-05'), (F('0.00012345678'), '.6g', '0.000123457'), (F('0.0012345678'), '.6g', '0.00123457'), (F('0.012345678'), '.6g', '0.0123457'), (F('0.12345678'), '.6g', '0.123457'), (F('1.2345678'), '.6g', '1.23457'), (F('12.345678'), '.6g', '12.3457'), (F('123.45678'), '.6g', '123.457'), (F('1234.5678'), '.6g', '1234.57'), (F('12345.678'), '.6g', '12345.7'), (F('123456.78'), '.6g', '123457'), (F('1234567.8'), '.6g', '1.23457e+06'), (F('9.99999e+2'), '.4g', '1000'), (F('9.99999e-8'), '.4g', '1e-07'), (F('9.99999e+8'), '.4g', '1e+09'), (F('-0.115'), '.2g', '-0.12'), (F('-0.125'), '.2g', '-0.12'), (F('-0.135'), '.2g', '-0.14'), (F('-0.145'), '.2g', '-0.14'), (F('0.115'), '.2g', '0.12'), (F('0.125'), '.2g', '0.12'), (F('0.135'), '.2g', '0.14'), (F('0.145'), '.2g', '0.14'), (F(0), '.6g', '0'), (F('123.400'), '.6g', '123.4'), (F('123.000'), '.6g', '123'), (F('120.000'), '.6g', '120'), (F('12000000'), '.6g', '1.2e+07'), (F(0), '#.6g', '0.00000'), (F('123.400'), '#.6g', '123.400'), (F('123.000'), '#.6g', '123.000'), (F('120.000'), '#.6g', '120.000'), (F('12000000'), '#.6g', '1.20000e+07'), (F('123.45678'), '.6G', '123.457'), (F('1234567.8'), '.6G', '1.23457E+06'), (F('3.1415926535'), 'g', '3.14159'), (F('0.000031415'), '.0g', '3e-05'), (F('0.00031415'), '.0g', '0.0003'), (F('0.31415'), '.0g', '0.3'), (F('3.1415'), '.0g', '3'), (F('3.1415'), '#.0g', '3.'), (F('31.415'), '.0g', '3e+01'), (F('31.415'), '#.0g', '3.e+01'), (F('0.000031415'), '.1g', '3e-05'), (F('0.00031415'), '.1g', '0.0003'), (F('0.31415'), '.1g', '0.3'), (F('3.1415'), '.1g', '3'), (F('3.1415'), '#.1g', '3.'), (F('31.415'), '.1g', '3e+01'), (F(2 ** 64), '_.25g', '18_446_744_073_709_551_616'), (F(-1, 7 ** 100), 'zg', '-3.09169e-85')]\n    for fraction, spec, expected in testcases:\n        assert format(fraction, spec) == expected, ('assertEqual', format(fraction, spec), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_invalid_formats",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef _t():\n    fraction = F(2, 3)\n    try:\n        format(fraction, None)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    invalid_specs = ['Q6f', 'X>010f', 'X<010f', 'X^010f', 'X=010f', '0>010f', '0<010f', '0^010f', '0=010f', '>010f', '<010f', '^010f', '=010e', '=010f', '=010g', '=010%', '>00.2f', '>00f', '.e', '.f', '.g', '.%', '._6e', '._6f', '._6g', '._6%', 'Z.2fz', '05']\n    for spec in invalid_specs:\n        try:\n            format(fraction, spec)\n        except ValueError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_float_format_testfile",
+      "status": "quarantined",
+      "reason": "host-raised:FileNotFoundError: [Errno 2] No such file or directory: '/tmp/conv_suite_h5u84sdp/mathdata/formatfloat_testcases.txt'"
+    },
+    {
+      "ident": "FractionTest.test_complex_handling",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import math\nimport operator\nimport fractions\nF = fractions.Fraction\n\ndef typed_approx_eq(a, b):\n    return type(a) == type(b) and (a == b or math.isclose(a, b))\n\ndef assertRaisesMessage(exc_type, message, callable, *args, **kwargs):\n    \"\"\"Asserts that callable(*args, **kwargs) raises exc_type(message).\"\"\"\n    try:\n        callable(*args, **kwargs)\n    except exc_type as e:\n        assert message == str(e), ('assertEqual', message, str(e))\n    else:\n        raise AssertionError('%s not raised' % exc_type.__name__)\n\ndef _t():\n    a = F(1, 2)\n    b = 1j\n    message = \"unsupported operand type(s) for %s: '%s' and '%s'\"\n    assertRaisesMessage(TypeError, message % ('%', 'Fraction', 'complex'), operator.mod, a, b)\n    assertRaisesMessage(TypeError, message % ('//', 'Fraction', 'complex'), operator.floordiv, a, b)\n    assertRaisesMessage(TypeError, message % ('divmod()', 'Fraction', 'complex'), divmod, a, b)\n    assertRaisesMessage(TypeError, message % ('%', 'complex', 'Fraction'), operator.mod, b, a)\n    assertRaisesMessage(TypeError, message % ('//', 'complex', 'Fraction'), operator.floordiv, b, a)\n    assertRaisesMessage(TypeError, message % ('divmod()', 'complex', 'Fraction'), divmod, b, a)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FractionTest.test_three_argument_pow",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nF = fractions.Fraction\n\ndef assertRaisesMessage(exc_type, message, callable, *args, **kwargs):\n    \"\"\"Asserts that callable(*args, **kwargs) raises exc_type(message).\"\"\"\n    try:\n        callable(*args, **kwargs)\n    except exc_type as e:\n        assert message == str(e), ('assertEqual', message, str(e))\n    else:\n        raise AssertionError('%s not raised' % exc_type.__name__)\n\ndef _t():\n    message = \"unsupported operand type(s) for ** or pow(): '%s', '%s', '%s'\"\n    assertRaisesMessage(TypeError, message % ('Fraction', 'int', 'int'), pow, F(3), 4, 5)\n    assertRaisesMessage(TypeError, message % ('int', 'Fraction', 'int'), pow, 3, F(4), 5)\n    assertRaisesMessage(TypeError, message % ('int', 'int', 'Fraction'), pow, 3, 4, F(5))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "FractionTest.testInitFromIntegerRatio",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "FractionTest.test_limit_int",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "FractionTest.testFromNumber",
+      "reason": "unresolved-name:DummyFraction"
+    },
+    {
+      "ident": "FractionTest.testFromNumber_subclass",
+      "reason": "self.testFromNumber"
+    },
+    {
+      "ident": "FractionTest.testMixedMultiplication",
+      "reason": "unresolved-name:DummyFraction"
+    },
+    {
+      "ident": "FractionTest.testMixedDivision",
+      "reason": "unresolved-name:DummyFraction"
+    },
+    {
+      "ident": "FractionTest.testMixedIntegerDivision",
+      "reason": "unresolved-name:DummyFraction"
+    },
+    {
+      "ident": "FractionTest.testMixedPower",
+      "reason": "unresolved-name:Polar"
+    },
+    {
+      "ident": "FractionTest.testComparisonsDummyRational",
+      "reason": "unresolved-name:DummyRational"
+    },
+    {
+      "ident": "FractionTest.testComparisonsDummyFloat",
+      "reason": "unresolved-name:DummyFloat"
+    },
+    {
+      "ident": "FractionTest.test_copy_deepcopy_pickle",
+      "reason": "unresolved-name:DummyFraction"
+    }
+  ],
+  "counts": {
+    "extracted": 50,
+    "pinned": 36,
+    "quarantined": 14
+  }
+}

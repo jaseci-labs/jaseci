@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_abc/conv_abc_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:51:02",
+  "hashes": {
+    "pins_jac": "c03f37bbbc2c1ff69d5692f99e94b5c04a6faef46549079f1fb1828199732054",
+    "conversion_json": "be49cca7138de0e24d050a9b7190477d86dc4e3a3cd2b738261ccf41a0040b7a",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "abc",
+  "counts": {
+    "converted": 1,
+    "runnable": 0,
+    "green": 0,
+    "quarantined": 1
+  },
+  "pins": [
+    {
+      "id": "test_factory",
+      "status": "quarantined",
+      "reason": "uses-self.assertEqual"
+    }
+  ]
+}

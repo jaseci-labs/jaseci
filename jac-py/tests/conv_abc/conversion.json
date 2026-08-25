@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_abc.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_abc",
+    "--name",
+    "conv_abc"
+  ],
+  "generated_at": "2026-08-24T21:51:00",
+  "hashes": {
+    "pins_jac": "c03f37bbbc2c1ff69d5692f99e94b5c04a6faef46549079f1fb1828199732054"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_abc.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "abc",
+  "pins_file": "conv_abc_pins.jac",
+  "pins": [],
+  "quarantined": [
+    {
+      "ident": "test_factory",
+      "reason": "uses-self.assertEqual"
+    }
+  ],
+  "counts": {
+    "extracted": 1,
+    "pinned": 0,
+    "quarantined": 1
+  }
+}
