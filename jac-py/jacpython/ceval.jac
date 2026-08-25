@@ -1017,7 +1017,11 @@ def _jac_standin_class(cls):
     s = class_lookup_attr(cls, "__str__")
     if not is_error(s):
         ns["__str__"] = _jac_standin_dunder("__str__", py_str)
-    host_cls = type(cls.name, _jac_standin_bases(cls), ns)
+    if class_has_abc_meta(cls):
+        _jac_install_abc_trampolines()
+        host_cls = _JacABCMeta(cls.name, _jac_standin_bases(cls), ns)
+    else:
+        host_cls = type(cls.name, _jac_standin_bases(cls), ns)
     host_cls._jac_guest_cls_ = cls
     _JAC_CLASS_STANDINS[key] = [weakref.ref(cls), host_cls]
     return host_cls
@@ -1037,6 +1041,74 @@ def _jac_user_standin(u):
     inst._jac_guest_ = u
     _JAC_USER_STANDINS[key] = [weakref.ref(u), inst]
     return inst
+
+
+class _JacABCMeta(type):
+    # Metaclass for standins of guest classes whose metaclass chain derives
+    # from in-VM ABCMeta. Host C ABCMeta.__subclasscheck__ cannot traverse a
+    # guest PyClass MRO (returns False even for direct ancestry), which killed
+    # typing._ProtocolMeta.__new__ (issubclass(base, Generic) gate). These
+    # overrides recover the guest objects and run the test in ceval; when
+    # either side is not recoverable (pure host type like int) they fall back
+    # to plain type semantics.
+    def __subclasscheck__(cls, other):
+        g = cls.__dict__.get("_jac_guest_cls_")
+        gother = _jac_recover_guest(other)
+        if g is None or gother is None:
+            return super().__subclasscheck__(other)
+        fn = _JAC_ABC_TRAMPOLINES[0]
+        return bool(fn(g, gother))
+
+    def __instancecheck__(cls, instance):
+        g = cls.__dict__.get("_jac_guest_cls_")
+        ginst = _jac_recover_guest(instance)
+        if g is None or ginst is None:
+            return super().__instancecheck__(instance)
+        fn = _JAC_ABC_TRAMPOLINES[1]
+        return bool(fn(ginst, g))
+
+
+# [guest-issubclass trampoline, guest-isinstance trampoline] -- filled lazily
+# by _jac_install_abc_trampolines on first ABC standin mint.
+_JAC_ABC_TRAMPOLINES = [None, None]
+
+
+def _jac_install_abc_trampolines():
+    if _JAC_ABC_TRAMPOLINES[0] is None:
+        _JAC_ABC_TRAMPOLINES[0] = _jac_make_host_trampoline(
+            PyNativeBuiltin(t="native_builtin", name="issubclass")
+        )
+        _JAC_ABC_TRAMPOLINES[1] = _jac_make_host_trampoline(
+            PyNativeBuiltin(t="native_builtin", name="isinstance")
+        )
+
+
+def _jac_standin_mro_covers(guest_cls, host_typ):
+    # True iff any node of the guest class's MRO, once minted as a host
+    # standin, is host_typ or subclasses it. Lets issubclass(instance-of-guest,
+    # HOST-PROXIED type) answer through real host semantics instead of the
+    # builtin-name fallback (which only knows int/str/list/...).
+    try:
+        mro = class_mro(guest_cls)
+    except BaseException:
+        return False
+    for k in mro:
+        try:
+            hk = _jac_standin_class(k)
+            if hk is host_typ or issubclass(hk, host_typ):
+                return True
+        except BaseException:
+            continue
+    return False
+
+
+def _jac_hostproxy_val_is_type(val):
+    # Returns the raw value if it is a host type, else "" (sentinel usable
+    # from native callers without optional returns).
+    import types as _types
+    if isinstance(val, type):
+        return val
+    return ""
 
 
 def _jac_recover_guest(raw):
@@ -8728,6 +8800,25 @@ def obj_is_callable(x: PyObj) -> bool {
 
 # ---------------- Track B: builtin subclassing support -----------------------
 
+# True iff the class's metaclass chain derives from an in-VM ABCMeta: any
+# metaclass ancestor defines BOTH register and __subclasshook__ (the Lib/abc.py
+# ABCMeta surface). Gates ABC-aware standin minting -- host C
+# ABCMeta.__subclasscheck__ cannot see guest MROs, so such standins need the
+# native check (_JacABCMeta).
+def class_has_abc_meta(cls: PyClass) -> bool {
+    meta = cls.metaclass;
+    if meta is None or not isinstance(meta, PyClass) {
+        return False;
+    }
+    for klass in class_mro(meta as PyClass) {
+        if "register" in (klass as PyClass).attrs
+            and "__subclasshook__" in (klass as PyClass).attrs {
+            return True;
+        }
+    }
+    return False;
+}
+
 # C3 linearization: L[C] = C + merge(L[B1], ..., L[Bn], [B1, ..., Bn]). This gives
 # the strict CPython MRO -- a diamond D(B, C) with B,C : A resolves [D, B, C, A],
 # so an attribute on both A and C picks C, not A. An inconsistent hierarchy (no
@@ -9682,6 +9773,17 @@ def py_issubclass(cls: PyObj, typ: PyObj) -> bool {
             return False;
         }
         if isinstance(typ, PyHostProxy) {
+            # A host-proxied NON-builtin type (e.g. typing.Generic from the C
+            # _typing accelerator) still participates: ask the host whether any
+            # standin of the guest MRO subclasses it, before the builtin-name
+            # fallback answers False.
+            hv_r = _jac_hostproxy_val_is_type((typ as PyHostProxy).val);
+            if hv_r != "" {
+                covered = _jac_standin_mro_covers(c, hv_r);
+                if covered {
+                    return True;
+                }
+            }
             name: str = str(_jac_builtin_base_name((typ as PyHostProxy).val));
             if name == "object" {
                 return True;
