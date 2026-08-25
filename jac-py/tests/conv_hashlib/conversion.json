@@ -1,0 +1,406 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "d16ccf930e72eff9aad7712b877e98223d42915c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_hashlib.py",
+    "-o",
+    "/var/tmp/worker6-conv-hashlib-3483722/jac-py/tests/conv_hashlib",
+    "--name",
+    "conv_hashlib"
+  ],
+  "generated_at": "2026-08-25T14:39:32",
+  "hashes": {
+    "pins_jac": "78c6d75593e25b101e291c1d66c70de94a6a754e2d3d85c0e42847ffda5f2890"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_hashlib.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "hashlib",
+  "pins_file": "conv_hashlib_pins.jac",
+  "pins": [
+    {
+      "ident": "HashLibTestCase.test_algorithms_guaranteed",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\nimport os\nfrom test import support\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self._warn_on_extension_import = os.name == 'posix' or support.Py_DEBUG\n    self.shakes = {'shake_128', 'shake_256'}\n    self.supported_hash_names = ('md5', 'MD5', 'sha1', 'SHA1', 'sha224', 'SHA224', 'sha256', 'SHA256', 'sha384', 'SHA384', 'sha512', 'SHA512', 'blake2b', 'blake2s', 'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512', 'shake_128', 'shake_256')\n    assert hashlib.algorithms_guaranteed == set((_algo for _algo in self.supported_hash_names if _algo.islower())), ('assertEqual', hashlib.algorithms_guaranteed, set((_algo for _algo in self.supported_hash_names if _algo.islower())))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashLibTestCase.test_unknown_hash",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\n\ndef _t():\n    try:\n        hashlib.new(*('spam spam spam spam spam',))\n    except ValueError:\n        pass\n    try:\n        hashlib.new(*(1,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashLibTestCase.test_new_upper_to_lower",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\n\ndef _t():\n    assert hashlib.new('SHA256').name == 'sha256', ('assertEqual', hashlib.new('SHA256').name, 'sha256')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashLibTestCase.test_sha256_update_over_4gb",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\n\ndef hexstr(s):\n    assert isinstance(s, bytes), repr(s)\n    h = '0123456789abcdef'\n    r = ''\n    for i in s:\n        r += h[i >> 4 & 15] + h[i & 15]\n    return r\n\ndef _t():\n    zero_1mb = b'\\x00' * 1024 * 1024\n    h = hashlib.sha256()\n    for i in range(0, 4096):\n        h.update(zero_1mb)\n    h.update(b'hello world')\n    assert h.hexdigest() == 'a5364f7a52ebe2e25f1838a4ca715a893b6fd7a23f2a0d9e9762120da8b1bf53', ('assertEqual', h.hexdigest(), 'a5364f7a52ebe2e25f1838a4ca715a893b6fd7a23f2a0d9e9762120da8b1bf53')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashLibTestCase.test_sha3_256_update_over_4gb",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\n\ndef hexstr(s):\n    assert isinstance(s, bytes), repr(s)\n    h = '0123456789abcdef'\n    r = ''\n    for i in s:\n        r += h[i >> 4 & 15] + h[i & 15]\n    return r\n\ndef _t():\n    zero_1mb = b'\\x00' * 1024 * 1024\n    h = hashlib.sha3_256()\n    for i in range(0, 4096):\n        h.update(zero_1mb)\n    h.update(b'hello world')\n    assert h.hexdigest() == 'e2d4535e3b613135c14f2fe4e026d7ad8d569db44901740beffa30d430acb038', ('assertEqual', h.hexdigest(), 'e2d4535e3b613135c14f2fe4e026d7ad8d569db44901740beffa30d430acb038')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashLibTestCase.test_blake2_update_over_4gb",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\n\ndef hexstr(s):\n    assert isinstance(s, bytes), repr(s)\n    h = '0123456789abcdef'\n    r = ''\n    for i in s:\n        r += h[i >> 4 & 15] + h[i & 15]\n    return r\n\ndef _t():\n    zero_1mb = b'\\x00' * 1024 * 1024\n    h = hashlib.blake2s()\n    for i in range(0, 4096):\n        h.update(zero_1mb)\n    h.update(b'hello world')\n    assert h.hexdigest() == '8a268e83dd30528bc0907fa2008c91de8f090a0b6e0e60a5ff0d999d8485526f', ('assertEqual', h.hexdigest(), '8a268e83dd30528bc0907fa2008c91de8f090a0b6e0e60a5ff0d999d8485526f')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashLibTestCase.test_blake2b",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\n\ndef hexstr(s):\n    assert isinstance(s, bytes), repr(s)\n    h = '0123456789abcdef'\n    r = ''\n    for i in s:\n        r += h[i >> 4 & 15] + h[i & 15]\n    return r\n\ndef _t():\n\n    def check_blake2(constructor, salt_size, person_size, key_size, digest_size, max_offset):\n        assert constructor.SALT_SIZE == salt_size, ('assertEqual', constructor.SALT_SIZE, salt_size)\n        for i in range(salt_size + 1):\n            constructor(salt=b'a' * i)\n        salt = b'a' * (salt_size + 1)\n        try:\n            constructor(salt=salt)\n        except ValueError:\n            pass\n        assert constructor.PERSON_SIZE == person_size, ('assertEqual', constructor.PERSON_SIZE, person_size)\n        for i in range(person_size + 1):\n            constructor(person=b'a' * i)\n        person = b'a' * (person_size + 1)\n        try:\n            constructor(person=person)\n        except ValueError:\n            pass\n        assert constructor.MAX_DIGEST_SIZE == digest_size, ('assertEqual', constructor.MAX_DIGEST_SIZE, digest_size)\n        for i in range(1, digest_size + 1):\n            constructor(digest_size=i)\n        try:\n            constructor(digest_size=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(digest_size=0)\n        except ValueError:\n            pass\n        try:\n            constructor(digest_size=digest_size + 1)\n        except ValueError:\n            pass\n        assert constructor.MAX_KEY_SIZE == key_size, ('assertEqual', constructor.MAX_KEY_SIZE, key_size)\n        for i in range(key_size + 1):\n            constructor(key=b'a' * i)\n        key = b'a' * (key_size + 1)\n        try:\n            constructor(key=key)\n        except ValueError:\n            pass\n        assert constructor().hexdigest() == constructor(key=b'').hexdigest(), ('assertEqual', constructor().hexdigest(), constructor(key=b'').hexdigest())\n        for i in range(0, 256):\n            constructor(fanout=i)\n        try:\n            constructor(fanout=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(fanout=256)\n        except ValueError:\n            pass\n        for i in range(1, 256):\n            constructor(depth=i)\n        try:\n            constructor(depth=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(depth=0)\n        except ValueError:\n            pass\n        try:\n            constructor(depth=256)\n        except ValueError:\n            pass\n        for i in range(0, 256):\n            constructor(node_depth=i)\n        try:\n            constructor(node_depth=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(node_depth=256)\n        except ValueError:\n            pass\n        for i in range(0, digest_size + 1):\n            constructor(inner_size=i)\n        try:\n            constructor(inner_size=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(inner_size=digest_size + 1)\n        except ValueError:\n            pass\n        constructor(leaf_size=0)\n        constructor(leaf_size=(1 << 32) - 1)\n        try:\n            constructor(leaf_size=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(leaf_size=1 << 32)\n        except OverflowError:\n            pass\n        constructor(node_offset=0)\n        constructor(node_offset=max_offset)\n        try:\n            constructor(node_offset=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(node_offset=max_offset + 1)\n        except OverflowError:\n            pass\n        try:\n            constructor(*('',))\n        except TypeError:\n            pass\n        constructor(b'', key=b'', salt=b'', person=b'', digest_size=17, fanout=1, depth=1, leaf_size=256, node_offset=512, node_depth=1, inner_size=7, last_node=True)\n\n    def blake2_rfc7693(constructor, md_len, in_len):\n\n        def selftest_seq(length, seed):\n            mask = (1 << 32) - 1\n            a = 3735899053 * seed & mask\n            b = 1\n            out = bytearray(length)\n            for i in range(length):\n                t = a + b & mask\n                a, b = (b, t)\n                out[i] = t >> 24 & 255\n            return out\n        outer = constructor(digest_size=32)\n        for outlen in md_len:\n            for inlen in in_len:\n                indata = selftest_seq(inlen, inlen)\n                key = selftest_seq(outlen, outlen)\n                unkeyed = constructor(indata, digest_size=outlen)\n                outer.update(unkeyed.digest())\n                keyed = constructor(indata, key=key, digest_size=outlen)\n                outer.update(keyed.digest())\n        return outer.hexdigest()\n    check_blake2(hashlib.blake2b, 16, 16, 64, 64, (1 << 64) - 1)\n    b2b_md_len = [20, 32, 48, 64]\n    b2b_in_len = [0, 3, 128, 129, 255, 1024]\n    assert blake2_rfc7693(hashlib.blake2b, b2b_md_len, b2b_in_len) == 'c23a7800d98123bd10f506c61e29da5603d763b8bbad2e737f5e765a7bccd475', ('assertEqual', blake2_rfc7693(hashlib.blake2b, b2b_md_len, b2b_in_len), 'c23a7800d98123bd10f506c61e29da5603d763b8bbad2e737f5e765a7bccd475')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashLibTestCase.test_blake2s",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\n\ndef hexstr(s):\n    assert isinstance(s, bytes), repr(s)\n    h = '0123456789abcdef'\n    r = ''\n    for i in s:\n        r += h[i >> 4 & 15] + h[i & 15]\n    return r\n\ndef _t():\n\n    def check_blake2(constructor, salt_size, person_size, key_size, digest_size, max_offset):\n        assert constructor.SALT_SIZE == salt_size, ('assertEqual', constructor.SALT_SIZE, salt_size)\n        for i in range(salt_size + 1):\n            constructor(salt=b'a' * i)\n        salt = b'a' * (salt_size + 1)\n        try:\n            constructor(salt=salt)\n        except ValueError:\n            pass\n        assert constructor.PERSON_SIZE == person_size, ('assertEqual', constructor.PERSON_SIZE, person_size)\n        for i in range(person_size + 1):\n            constructor(person=b'a' * i)\n        person = b'a' * (person_size + 1)\n        try:\n            constructor(person=person)\n        except ValueError:\n            pass\n        assert constructor.MAX_DIGEST_SIZE == digest_size, ('assertEqual', constructor.MAX_DIGEST_SIZE, digest_size)\n        for i in range(1, digest_size + 1):\n            constructor(digest_size=i)\n        try:\n            constructor(digest_size=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(digest_size=0)\n        except ValueError:\n            pass\n        try:\n            constructor(digest_size=digest_size + 1)\n        except ValueError:\n            pass\n        assert constructor.MAX_KEY_SIZE == key_size, ('assertEqual', constructor.MAX_KEY_SIZE, key_size)\n        for i in range(key_size + 1):\n            constructor(key=b'a' * i)\n        key = b'a' * (key_size + 1)\n        try:\n            constructor(key=key)\n        except ValueError:\n            pass\n        assert constructor().hexdigest() == constructor(key=b'').hexdigest(), ('assertEqual', constructor().hexdigest(), constructor(key=b'').hexdigest())\n        for i in range(0, 256):\n            constructor(fanout=i)\n        try:\n            constructor(fanout=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(fanout=256)\n        except ValueError:\n            pass\n        for i in range(1, 256):\n            constructor(depth=i)\n        try:\n            constructor(depth=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(depth=0)\n        except ValueError:\n            pass\n        try:\n            constructor(depth=256)\n        except ValueError:\n            pass\n        for i in range(0, 256):\n            constructor(node_depth=i)\n        try:\n            constructor(node_depth=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(node_depth=256)\n        except ValueError:\n            pass\n        for i in range(0, digest_size + 1):\n            constructor(inner_size=i)\n        try:\n            constructor(inner_size=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(inner_size=digest_size + 1)\n        except ValueError:\n            pass\n        constructor(leaf_size=0)\n        constructor(leaf_size=(1 << 32) - 1)\n        try:\n            constructor(leaf_size=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(leaf_size=1 << 32)\n        except OverflowError:\n            pass\n        constructor(node_offset=0)\n        constructor(node_offset=max_offset)\n        try:\n            constructor(node_offset=-1)\n        except ValueError:\n            pass\n        try:\n            constructor(node_offset=max_offset + 1)\n        except OverflowError:\n            pass\n        try:\n            constructor(*('',))\n        except TypeError:\n            pass\n        constructor(b'', key=b'', salt=b'', person=b'', digest_size=17, fanout=1, depth=1, leaf_size=256, node_offset=512, node_depth=1, inner_size=7, last_node=True)\n\n    def blake2_rfc7693(constructor, md_len, in_len):\n\n        def selftest_seq(length, seed):\n            mask = (1 << 32) - 1\n            a = 3735899053 * seed & mask\n            b = 1\n            out = bytearray(length)\n            for i in range(length):\n                t = a + b & mask\n                a, b = (b, t)\n                out[i] = t >> 24 & 255\n            return out\n        outer = constructor(digest_size=32)\n        for outlen in md_len:\n            for inlen in in_len:\n                indata = selftest_seq(inlen, inlen)\n                key = selftest_seq(outlen, outlen)\n                unkeyed = constructor(indata, digest_size=outlen)\n                outer.update(unkeyed.digest())\n                keyed = constructor(indata, key=key, digest_size=outlen)\n                outer.update(keyed.digest())\n        return outer.hexdigest()\n    check_blake2(hashlib.blake2s, 8, 8, 32, 32, (1 << 48) - 1)\n    b2s_md_len = [16, 20, 28, 32]\n    b2s_in_len = [0, 3, 64, 65, 255, 1024]\n    assert blake2_rfc7693(hashlib.blake2s, b2s_md_len, b2s_in_len) == '6a411f08ce25adcdfb02aba641451cec53c598b24f4fc787fbdc88797f4c1dfe', ('assertEqual', blake2_rfc7693(hashlib.blake2s, b2s_md_len, b2s_in_len), '6a411f08ce25adcdfb02aba641451cec53c598b24f4fc787fbdc88797f4c1dfe')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashLibTestCase.test_sha256_gil",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\nfrom test.support import hashlib_helper\n\ndef _t():\n    gil_minsize = hashlib_helper.find_gil_minsize(['_sha2', '_hashlib'])\n    m = hashlib.sha256()\n    m.update(b'1')\n    m.update(b'#' * gil_minsize)\n    m.update(b'1')\n    assert m.hexdigest() == '1cfceca95989f51f658e3f3ffe7f1cd43726c9e088c13ee10b46f57cef135b94', ('assertEqual', m.hexdigest(), '1cfceca95989f51f658e3f3ffe7f1cd43726c9e088c13ee10b46f57cef135b94')\n    m = hashlib.sha256(b'1' + b'#' * gil_minsize + b'1')\n    assert m.hexdigest() == '1cfceca95989f51f658e3f3ffe7f1cd43726c9e088c13ee10b46f57cef135b94', ('assertEqual', m.hexdigest(), '1cfceca95989f51f658e3f3ffe7f1cd43726c9e088c13ee10b46f57cef135b94')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "KDFTests.test_normalized_name",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\n\ndef _t():\n    assert 'blake2b512' not in hashlib.algorithms_available, ('assertNotIn', 'blake2b512', hashlib.algorithms_available)\n    assert 'sha3-512' not in hashlib.algorithms_available, ('assertNotIn', 'sha3-512', hashlib.algorithms_available)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "KDFTests.test_file_digest",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import hashlib\nimport tempfile\n\ndef _t():\n    data = b'a' * 65536\n    d1 = hashlib.sha256()\n    with tempfile.NamedTemporaryFile(delete_on_close=False) as fp:\n        for _ in range(10):\n            d1.update(data)\n            fp.write(data)\n        fp.close()\n        with open(fp.name, 'rb') as f:\n            d2 = hashlib.file_digest(f, hashlib.sha256)\n        assert d1.hexdigest() == d2.hexdigest(), ('assertEqual', d1.hexdigest(), d2.hexdigest())\n        assert d1.name == d2.name, ('assertEqual', d1.name, d2.name)\n        assert type(d1) is type(d2), ('assertIs', type(d1), type(d2))\n        try:\n            with open(fp.name, 'r') as f:\n                hashlib.file_digest(f, 'sha256')\n        except ValueError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        try:\n            with open(fp.name, 'wb') as f:\n                hashlib.file_digest(f, 'sha256')\n        except ValueError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    try:\n        hashlib.file_digest(None, 'sha256')\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    class NonBlocking:\n\n        def readinto(self, buf):\n            return None\n\n        def readable(self):\n            return True\n    try:\n        hashlib.file_digest(NonBlocking(), hashlib.sha256)\n    except BlockingIOError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "HashLibTestCase.test_clinic_signature",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "HashLibTestCase.test_clinic_signature_errors",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "HashLibTestCase.test_get_builtin_constructor",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_md5_huge",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_md5_uintmax",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "HashLibTestCase.test_threaded_hashing",
+      "reason": "decorator:threading_helper.requires_working_threading"
+    },
+    {
+      "ident": "HashLibTestCase.test_disallow_instantiation",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "HashLibTestCase.test_hash_disallow_instantiation",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "KDFTests.test_pbkdf2_hmac_c",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "KDFTests.test_scrypt",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "HashLibTestCase.test_hash_array",
+      "reason": "uses-self.hash_constructors"
+    },
+    {
+      "ident": "HashLibTestCase.test_algorithms_available",
+      "reason": "helper:skip_if_blake2_not_builtin(self.skipTest)"
+    },
+    {
+      "ident": "HashLibTestCase.test_usedforsecurity_true",
+      "reason": "self.skipTest"
+    },
+    {
+      "ident": "HashLibTestCase.test_usedforsecurity_false",
+      "reason": "uses-self._hashlib"
+    },
+    {
+      "ident": "HashLibTestCase.test_hexdigest",
+      "reason": "uses-self.hash_constructors"
+    },
+    {
+      "ident": "HashLibTestCase.test_digest_length_overflow",
+      "reason": "uses-self.hash_constructors"
+    },
+    {
+      "ident": "HashLibTestCase.test_name_attribute",
+      "reason": "uses-self.hash_constructors"
+    },
+    {
+      "ident": "HashLibTestCase.test_large_update",
+      "reason": "uses-self.hash_constructors"
+    },
+    {
+      "ident": "HashLibTestCase.test_no_unicode",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_no_unicode_blake2",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_no_unicode_sha3",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_blocksize_and_name",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_blocksize_name_sha3",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_extra_sha3",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_blocksize_name_blake2",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_md5_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_md5_1",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_md5_2",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha1_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha1_1",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha1_2",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha1_3",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha224_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha224_1",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha224_2",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha224_3",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha256_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha256_1",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha256_2",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha256_3",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha384_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha384_1",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha384_2",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha384_3",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha512_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha512_1",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha512_2",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha512_3",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_blake2b_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_blake2b_1",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_blake2b_all_parameters",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_blake2b_vectors",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_blake2s_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_blake2s_1",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_blake2s_all_parameters",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_blake2s_vectors",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha3_224_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha3_224_vector",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha3_256_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha3_256_vector",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha3_384_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha3_384_vector",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha3_512_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_sha3_512_vector",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_shake_128_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_shake128_vector",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_shake_256_0",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_case_shake256_vector",
+      "reason": "uses-self.constructors_to_test"
+    },
+    {
+      "ident": "HashLibTestCase.test_gil",
+      "reason": "uses-self.hash_constructors"
+    },
+    {
+      "ident": "HashLibTestCase.test_get_fips_mode",
+      "reason": "uses-self.is_fips_mode"
+    },
+    {
+      "ident": "HashLibTestCase.test_readonly_types",
+      "reason": "uses-self.constructors_to_test"
+    }
+  ],
+  "counts": {
+    "extracted": 82,
+    "pinned": 11,
+    "quarantined": 71
+  }
+}

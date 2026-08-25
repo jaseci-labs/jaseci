@@ -972,8 +972,13 @@ def _apply_fixture_vocab(
 ) -> tuple[list[ast.stmt], list[ast.stmt], list[ast.stmt], bool]:
     """Lift custom helper vocabulary for one test candidate.
 
-    Returns (rewritten body, extra prelude statements, namespace seed
-    assignments, needs_re).
+    Returns (rewritten body, lifted helper defs, extra prelude statements,
+    namespace seed assignments, needs_re).
+
+    Lifted helpers are returned separately (not folded into the prelude
+    pool): they are emitted *inside* the wrapped snippet body so any ``self``
+    reference in a helper resolves through the namespace closure instead of
+    raising NameError at module scope.
     """
     session = _FixtureVocab(cls_name, cmap, available_names)
     # self.<attr> callables: class-attr seeds plus anything any method of the
@@ -1014,14 +1019,27 @@ def _apply_fixture_vocab(
     rewriter = _HelperCallRewriter(session)
     stmts = [rewriter.visit(s) for s in prefix + list(body)]
     rewritten, needs_re = rewrite_block(stmts)
-    ns_attrs, call_attrs = _scan_self_usage(rewritten)
+    # Scan lifted helper bodies together with the test body: a helper's
+    # ``self.<attr>`` load/store has the same runtime fate as one written
+    # inline in the test.
+    scanned = [*session.lifted, *rewritten]
+    ns_attrs, call_attrs = _scan_self_usage(scanned)
     bad = {a for a in call_attrs if a not in session.allowed_calls}
     if bad:
         raise Unsupported(f"uses-self.{sorted(bad)[0]}")
-    extra_prelude = [
-        *session.lifted,
-        *_helper_class_deps(session.lifted, mod_classes),
-    ]
+    # Namespace loads must be satisfiable at runtime: class-level seeds plus
+    # stores that actually execute inside the snippet (spliced setUp, test
+    # body, lifted helpers). Stores confined to unlifted methods (__init__
+    # and friends) never run, so a load of such an attr would only die as an
+    # opaque AttributeError during oracle capture -- quarantine it precisely
+    # instead.
+    executed_stores = _self_attr_stores(scanned)
+    seed_attrs = {attr for attr, _ in _class_attr_seeds(cls_name, cmap, mod_classes)}
+    unseeded = ns_attrs - seed_attrs - executed_stores
+    if unseeded:
+        raise Unsupported(f"uses-self.{sorted(unseeded)[0]}")
+    helper_defs = list(session.lifted)
+    extra_prelude = _helper_class_deps(session.lifted, mod_classes)
     ns_block: list[ast.stmt] = []
     if bool(ns_attrs) or session.needs_ns:
         ns_block = _namespace_prelude()
@@ -1033,7 +1051,7 @@ def _apply_fixture_vocab(
             )
             ast.fix_missing_locations(assign)
             ns_block.append(assign)
-    return rewritten, extra_prelude, ns_block, needs_re or session.needs_re
+    return rewritten, helper_defs, extra_prelude, ns_block, needs_re or session.needs_re
 
 
 # ---------------------------------------------------------------------------
@@ -1175,8 +1193,9 @@ def extract_tests(tree: ast.Module, source: str) -> Extraction:
         try:
             extra_prelude: list[ast.stmt] = []
             ns_block: list[ast.stmt] = []
+            helper_defs: list[ast.FunctionDef] = []
             if cls_name is not None:
-                rewritten, extra_prelude, ns_block, needs_re = _apply_fixture_vocab(
+                rewritten, helper_defs, extra_prelude, ns_block, needs_re = _apply_fixture_vocab(
                     body_stmts, cls_name, cmap, mod_classes, vocab_available
                 )
             else:
@@ -1186,19 +1205,22 @@ def extract_tests(tree: ast.Module, source: str) -> Extraction:
                 _check_self_usage(rewritten)
             if ns_block:
                 rewritten = ns_block + rewritten
+            # Lifted helpers nest inside the wrapped body so their ``self``
+            # references resolve through the namespace closure.
+            candidate = [*helper_defs, *rewritten]
             pool = prelude + extra_prelude
             pool_names = prelude_names | {
                 binding
                 for item in extra_prelude
                 for binding in _prelude_bindings(item)
             }
-            kept_prelude = _prune_prelude(rewritten, pool, pool_names)
+            kept_prelude = _prune_prelude(candidate, pool, pool_names)
             available = pool_names | _bound_names(ast.Module(body=kept_prelude, type_ignores=[]))
-            _check_names(rewritten, available)
+            _check_names(candidate, available)
         except Unsupported as exc:
             result.quarantined.append(Quarantined(ident, str(exc)))
             continue
-        snippet = render_snippet(rewritten, kept_prelude, needs_re)
+        snippet = render_snippet(candidate, kept_prelude, needs_re)
         result.pinned.append(Pinned(ident, snippet, oracle={}))
 
     # self.skipTest anywhere in candidate bodies -> quarantine (checked after
