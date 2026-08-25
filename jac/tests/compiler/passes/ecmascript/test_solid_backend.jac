@@ -11,22 +11,22 @@ import os;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.backends.solid { SolidBackend }
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.compiler.passes.ecmascript.backends.registry {
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.backends.solid { SolidBackend }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
+import from jaclang.compiler.backends.es.backends.registry {
     resolve_active_backend,
     resolve_framework_backend
 }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.reactive_intent {
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.reactive_intent {
     AsyncBoundary,
     Effect,
     RefField,
     StateField,
     StateUpdate
 }
-import jaclang.compiler.passes.ecmascript.estree as es;
+import jaclang.compiler.backends.es.estree as es;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.project.config { JacConfig, ClientConfig, set_config }
 import from jaclang.client.solid_entry {
@@ -333,7 +333,7 @@ test "backend.build_pages_entry_script dispatches per framework" {
     # The ViteCompiler delegates file-based-routing entry generation to the
     # active backend; Solid must produce a React-free entry while React keeps
     # the `react-dom/client` route tree.
-    import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
+    import from jaclang.compiler.backends.es.backends.react { ReactBackend }
     solid_js = SolidBackend().build_pages_entry_script("main", "/login", False);
     react_js = ReactBackend().build_pages_entry_script("main", "/login", False);
     assert 'solid-js/web' in solid_js;

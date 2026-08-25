@@ -116,7 +116,7 @@ test "inner compr scope linking" {
 """The symbol table records every guard branch, live or dead (version-agnostic)."""
 test "version conditional symbols are all recorded in the symbol table" {
     import ast as py_ast;
-    import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+    import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
     import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
 
     code = """
@@ -154,9 +154,9 @@ Always = "always_available"
 test "version-live branch resolves, dead branch does not" {
     import sys;
     import ast as py_ast;
-    import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+    import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
     import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
-    import from jaclang.compiler.type_system.type_utils { collect_member_syms }
+    import from jaclang.compiler.types.type_utils { collect_member_syms }
 
     # Annotated decls (as typeshed writes guarded symbols) stay in the guard
     # scope instead of hoisting to module level.
@@ -193,9 +193,9 @@ if sys.version_info >= (3, 15):
 test "version-guarded class members resolve to the live branch" {
     import sys;
     import ast as py_ast;
-    import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+    import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
     import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
-    import from jaclang.compiler.type_system.type_utils { collect_member_syms }
+    import from jaclang.compiler.types.type_utils { collect_member_syms }
 
     code = """
 import sys

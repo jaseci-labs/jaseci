@@ -35,10 +35,10 @@ import ctypes;
 import importlib;
 import os;
 import sys;
-import from jaclang.compiler.passes.main.capability_check_pass {
+import from jaclang.compiler.passes.capability_check_pass {
     native_capability_violations
 }
-import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+import from jaclang.compiler.passes.layout_pass { get_layout_registry }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.frontend.parser { parse as rd_parse }
 import from jaclang.compiler.placement.placement { scan_native_blockers }

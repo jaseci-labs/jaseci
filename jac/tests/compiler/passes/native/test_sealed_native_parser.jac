@@ -27,7 +27,7 @@ import from jaclang.utils.precompile_bytecode {
     seal_native_artifacts,
     _PARITY_CORPUS_LINES
 }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+import from jaclang.compiler.tools.unparse_pass { unparse_node }
 import from jaclang.compiler.frontend.parser.materialize { MATERIALIZE_FIXUPS }
 import from jaclang.compiler.frontend.parser.parser { Parser }
 import jaclang.compiler.frontend.parser.lexer as bytecode_lexer;

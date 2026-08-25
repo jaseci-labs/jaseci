@@ -1,6 +1,6 @@
 import tempfile;
 import from jaclang.compiler.tools.treeprinter { node_to_dict, print_ast_tree }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
+import from jaclang.compiler.tools.unparse_pass { unparse_module }
 import os;
 import sys;
 import threading;

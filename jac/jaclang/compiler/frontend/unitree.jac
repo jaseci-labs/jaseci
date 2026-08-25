@@ -20,7 +20,7 @@ import from jaclang.compiler.frontend.constant { JacSemTokenModifier as SemTokMo
 import from jaclang.compiler.frontend.constant { JacSemTokenType as SemTokType }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.frontend.constant { ParamKind }
-import type from jaclang.compiler.type_system.types { TypeBase }
+import type from jaclang.compiler.types.types { TypeBase }
 
 
 obj UniNode {

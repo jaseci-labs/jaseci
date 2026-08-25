@@ -93,7 +93,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      );
 
 def _triple -> str {
-    import jaclang.compiler.passes.native.llvm.binding as llvm;
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
     return llvm.get_default_triple();
 }
 

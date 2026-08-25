@@ -20,7 +20,7 @@ import jaclang;
 
 import from jaclang.runtime.runtime { JacRuntime }
 
-import from jaclang.compiler.passes.native.na_ir_gen_pass { NaIRGenPass }
+import from jaclang.compiler.backends.native.na_ir_gen_pass { NaIRGenPass }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"

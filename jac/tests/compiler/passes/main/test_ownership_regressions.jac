@@ -11,7 +11,7 @@ Covers, at the checker level (fast, no codegen):
     expressions (`prog[pc]`) by their own type, not their root's type.
 
 The end-to-end counterparts (headerless codegen correctness) live in
-tests/compiler/passes/native/test_ownbench_differential.jac.
+tests/compiler/backends/native/test_ownbench_differential.jac.
 """
 
 import os;

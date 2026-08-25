@@ -10,7 +10,7 @@ These pin the calling convention; the behavioral proof lives in
 `tests/runtimelib/test_react_auth_jsdom.jac`.
 """
 
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
 import from jaclang.client.react_entry {
     build_pages_react_entry_script,
     build_simple_react_entry_script

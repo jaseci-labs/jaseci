@@ -6,14 +6,14 @@ import tempfile;
 import from pathlib { Path }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
-import from jaclang.compiler.passes.native.elf_linker { ElfLinker }
-import from jaclang.compiler.passes.native.macho_linker { MachOLinker }
+import from jaclang.compiler.backends.native.elf_linker { ElfLinker }
+import from jaclang.compiler.backends.native.macho_linker { MachOLinker }
 import from jaclang.cli.commands.nacompile {
     _inject_entry_elf_static,
     _collect_musl_static,
     _musl_lib_dir
 }
-import jaclang.compiler.passes.native.llvm.binding as llvm;
+import jaclang.compiler.backends.native.llvm.binding as llvm;
 
 glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures"),
      FIXTURE = "exec_smoke.jac";
@@ -326,7 +326,7 @@ test "Mach-O arm64 executable is ad-hoc signed with CS_EXECSEG_MAIN_BINARY" {
 
 
 test "AOT executable code model emits COFF, not ELF, on a Windows triple" {
-    import jaclang.compiler.passes.native.llvm.binding.targets as _tgt;
+    import jaclang.compiler.backends.native.llvm.binding.targets as _tgt;
     import from unittest.mock { patch }
     llvm.initialize_all_targets();
     llvm.initialize_all_asmprinters();

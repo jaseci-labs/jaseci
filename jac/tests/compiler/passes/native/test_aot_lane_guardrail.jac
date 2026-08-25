@@ -35,7 +35,7 @@ glob FIXTURES = os.path.join(
 
 
 test "the native codegen schedule carries the native passes" {
-    import from jaclang.compiler.passes.native { NaIRGenPass, NativeCompilePass }
+    import from jaclang.compiler.backends.native { NaIRGenPass, NativeCompilePass }
     # Codegen runs after the analysis stage in the single pipeline, so the
     # standalone schedule is constructed against its provides.
     sched = get_py_code_gen(

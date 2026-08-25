@@ -284,7 +284,7 @@ test "no cycle counter or stack validity channel in the type system" {
         os.path.dirname(os.path.abspath(jaclang.__file__)), "compiler"
     );
     scan_dirs = [
-        os.path.join(compiler_dir, "type_system"),
+        os.path.join(compiler_dir, "types"),
         os.path.join(compiler_dir, "passes")
     ];
     tokens = ["_cyclic_resolution_depth", "is_result_valid"];

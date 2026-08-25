@@ -10,8 +10,8 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.driver.program { JacProgram }
-import from jaclang.compiler.passes.tool.jac_formatter_pass { format_module }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_module, unparse_node }
+import from jaclang.compiler.tools.jac_formatter_pass { format_module }
+import from jaclang.compiler.tools.unparse_pass { unparse_module, unparse_node }
 
 glob LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
 

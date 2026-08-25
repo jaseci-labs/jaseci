@@ -91,8 +91,8 @@ called from the emitter's entry surface, which is what
 """
 glob JCIR_CLOSURE: tuple = (
          "compiler/type_registry.jac",
-         "compiler/type_system/type_utils.jac",
-         "compiler/type_system/types.jac",
+         "compiler/types/type_utils.jac",
+         "compiler/types/types.jac",
          "compiler/backends/py/codegen_ir.jac",
          "compiler/frontend/codeinfo.jac",
          "compiler/frontend/constant.jac",

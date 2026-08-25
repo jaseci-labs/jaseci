@@ -63,7 +63,7 @@ impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
 }
 
 impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> None {
-    import from jaclang.compiler.passes.native.wasm_build { compile_to_wasm }
+    import from jaclang.compiler.backends.native.wasm_build { compile_to_wasm }
     import from jaclang.compiler.frontend.codeinfo { native_wasm_stem }
     try {
         wasm = compile_to_wasm(str(module_path));
@@ -80,8 +80,8 @@ impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> No
 
     try {
         import json;
-        import from jaclang.compiler.passes.native.wasm_build { wasm_import_map }
-        import from jaclang.compiler.passes.native.wasm_host_abi { WASM_HOST_MODULE }
+        import from jaclang.compiler.backends.native.wasm_build { wasm_import_map }
+        import from jaclang.compiler.backends.native.wasm_host_abi { WASM_HOST_MODULE }
         imports = wasm_import_map(wasm);
         manifest_path = dist / f"{stem}.wasm.imports.json";
         manifest_path.write_text(
@@ -106,7 +106,7 @@ impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> No
 }
 
 impl ViteCompiler.create_entry_file(self: ViteCompiler, module_path: Path) -> None {
-    import from jaclang.compiler.passes.ecmascript.backends.registry {
+    import from jaclang.compiler.backends.es.backends.registry {
         resolve_active_backend
     }
     backend = resolve_active_backend();
@@ -131,7 +131,7 @@ impl ViteCompiler.create_entry_file(self: ViteCompiler, module_path: Path) -> No
 impl ViteCompiler._create_pages_entry_content(
     self: ViteCompiler, module_path: Path
 ) -> str {
-    import from jaclang.compiler.passes.ecmascript.backends.registry {
+    import from jaclang.compiler.backends.es.backends.registry {
         resolve_active_backend
     }
     auth_redirect = "/login";

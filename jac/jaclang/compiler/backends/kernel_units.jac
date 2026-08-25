@@ -122,7 +122,7 @@ def es_pass_fingerprint -> str {
     import glob as _g;
     import hashlib;
     es_dir = os.path.join(
-        _jaclang_dir(), *"compiler/passes/ecmascript".split("/")
+        _jaclang_dir(), *"compiler/backends/es".split("/")
     );
     h = hashlib.sha256();
     for pat in ["*.jac", os.path.join("impl", "*.jac")] {

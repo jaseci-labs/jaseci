@@ -1,7 +1,7 @@
 import os;
 
 def client_runtime_cl_basename(framework: str = "") -> str {
-    import from jaclang.compiler.passes.ecmascript.backends.registry {
+    import from jaclang.compiler.backends.es.backends.registry {
         resolve_framework_backend,
         resolve_active_backend
     }

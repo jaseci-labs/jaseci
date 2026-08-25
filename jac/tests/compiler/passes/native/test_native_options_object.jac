@@ -169,7 +169,7 @@ test "flipping a codegen option re-keys the native import cache" {
 }
 
 def _mixed_body(tmp: str, dep_stem: str) {
-    import from jaclang.compiler.passes.native.na_compile_pass {
+    import from jaclang.compiler.backends.native.na_compile_pass {
         native_dep_cache_paths
     }
     main_path = _write_pair(tmp, dep_stem);

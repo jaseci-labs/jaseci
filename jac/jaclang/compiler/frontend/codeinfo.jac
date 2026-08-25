@@ -8,13 +8,13 @@ import from jaclang.compiler.frontend.constant {
     TYPE_PARAM_CONSTRUCTORS
 }
 import from jaclang.compiler.frontend.srcloc { CodeLocInfo }
-import type from jaclang.compiler.passes.ecmascript.estree { IndexInfo, SliceInfo }
-import type from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
+import type from jaclang.compiler.backends.es.estree { IndexInfo, SliceInfo }
+import type from jaclang.compiler.backends.es.estree { Node as EsNode }
 import type from jaclang.compiler.frontend.unitree { CommentToken }
-import type from jaclang.compiler.passes.tool.doc_ir { Doc }
+import type from jaclang.compiler.tools.doc_ir { Doc }
 import type from jaclang.compiler.frontend.unitree { Source, Token }
 import type from jaclang.runtime.osp_model { OspModel }
-import type from jaclang.compiler.passes.native.llvm.binding {
+import type from jaclang.compiler.backends.native.llvm.binding {
     ModuleRef,
     ExecutionEngine
 }

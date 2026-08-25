@@ -10,8 +10,8 @@ import jaclang.compiler.frontend.unitree as uni;
 import from jaclang { JacRuntimeInterface }
 import from jaclang.compiler.frontend.constant { SymbolType }
 import from jaclang.compiler.driver.program { JacProgram }
-import from jaclang.compiler.type_system.type_utils { get_completion_items }
-import from jaclang.compiler.type_system.types {
+import from jaclang.compiler.types.type_utils { get_completion_items }
+import from jaclang.compiler.types.types {
     ClassType,
     FunctionType,
     ModuleType,

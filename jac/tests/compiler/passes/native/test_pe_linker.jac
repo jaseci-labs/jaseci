@@ -23,8 +23,8 @@ import from tests.support { TESTS_DIR }
 import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
-import from jaclang.compiler.passes.native.pe_linker { PeLinker }
-import jaclang.compiler.passes.native.llvm.binding as llvm;
+import from jaclang.compiler.backends.native.pe_linker { PeLinker }
+import jaclang.compiler.backends.native.llvm.binding as llvm;
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"

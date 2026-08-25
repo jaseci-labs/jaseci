@@ -23,7 +23,7 @@ instead of in a binary that jumps to the wrong address.
 """
 
 import struct;
-import from jaclang.compiler.passes.native.elf_linker { ArchConfig }
+import from jaclang.compiler.backends.native.elf_linker { ArchConfig }
 
 glob EM_AARCH64: int = 183;
 

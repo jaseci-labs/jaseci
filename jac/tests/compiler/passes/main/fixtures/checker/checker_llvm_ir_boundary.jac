@@ -10,7 +10,7 @@ This must type-check clean: `ir.Value` resolves to the class and `.type`
 resolves to its declared llvm Type.
 """
 
-import from jaclang.compiler.passes.native.llvm { ir }
+import from jaclang.compiler.backends.native.llvm { ir }
 
 def value_type(v: ir.Value) -> None {
     print(v.type);

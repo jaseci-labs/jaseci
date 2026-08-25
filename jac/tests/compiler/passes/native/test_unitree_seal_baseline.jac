@@ -266,7 +266,7 @@ glob UNITREE_CLOSURE: tuple = (
          # base-chain field wall is down everywhere -- no measured root
          # demotes `__post_init__`/`transform`/`traverse` any more.
          "codeinfo.jac::CodeGenTarget.doc_ir.__get__": (
-             "Python-only: lazily imports `compiler.passes.tool.doc_ir`, "
+             "Python-only: lazily imports `compiler.tools.doc_ir`, "
              "the formatter's IR, which stays Python-side. Only the "
              "formatter reads `.doc_ir`; a parse never does."
          ),

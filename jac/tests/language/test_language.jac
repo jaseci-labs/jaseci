@@ -927,7 +927,7 @@ test "typed filter compr" {
 # ── Tests using compiler fixture paths ───────────────────────────────────────
 test "fstring multiple quotation" {
     output = run_module(
-        "compiler/passes/main/fixtures/fstrings", os.path.join(JAC_ROOT, "tests")
+        "compiler/passes/fixtures/fstrings", os.path.join(JAC_ROOT, "tests")
     );
     lines = output.split("\n");
     assert lines[0] == "11 13 12 12 11 12 12";
@@ -938,7 +938,7 @@ test "fstring multiple quotation" {
 
 test "fstring escape sequences" {
     output = run_module(
-        "compiler/passes/main/fixtures/fstring_escape_sequences",
+        "compiler/passes/fixtures/fstring_escape_sequences",
         os.path.join(JAC_ROOT, "tests")
     );
     lines = output.strip().split("\n");

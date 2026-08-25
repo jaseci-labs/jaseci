@@ -48,7 +48,7 @@ import from jaclang.compiler.passes.pass_rim {
     _NATIVE_SERVED_PASSES
 }
 import from jaclang.compiler.driver.program { JacProgram }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+import from jaclang.compiler.tools.unparse_pass { unparse_node }
 import from jaclang.utils.precompile_bytecode { seal_native_artifacts }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,

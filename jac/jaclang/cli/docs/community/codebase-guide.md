@@ -30,14 +30,14 @@ Here's a quick map from contribution type to the right part of the codebase:
 
 | I want to... | Look at... |
 |--------------|-----------|
-| Fix a compiler bug | `jac/jaclang/compiler/passes/main/` (Python target) |
+| Fix a compiler bug | `jac/jaclang/compiler/passes/` (Python target) |
 | Add a language feature | `jac/jaclang/jac0core/` (AST) + `compiler/passes/` (all targets) |
-| Fix type checking | `jac/jaclang/compiler/type_system/` + `passes/main/type_checker_pass.jac` |
-| Work on native compilation | `jac/jaclang/compiler/passes/native/na_ir_gen/` |
-| Work on JS compilation | `jac/jaclang/compiler/passes/ecmascript/` |
+| Fix type checking | `jac/jaclang/compiler/types/` + `passes/main/type_checker_pass.jac` |
+| Work on native compilation | `jac/jaclang/compiler/backends/native/na_ir_gen/` |
+| Work on JS compilation | `jac/jaclang/compiler/backends/es/` |
 | Improve the CLI | `jac/jaclang/cli/commands/` |
 | Fix a runtime bug | `jac/jaclang/runtimelib/` |
-| Improve the formatter/linter | `jac/jaclang/compiler/passes/tool/` |
+| Improve the formatter/linter | `jac/jaclang/compiler/tools/` |
 | Improve IDE support | `jac/jaclang/lsp/` + `langserve/` |
 | Work on the scale subsystem | `jac/jaclang/scale/` (built-in deployment provider) |
 | Work on a built-in subsystem | `jac/jaclang/byllm/`, `jac/jaclang/cli/mcp/`, `jac/jaclang/scale/`, etc. |
@@ -127,7 +127,7 @@ The compiler orchestrator in `compiler/driver/compiler.jac` defines several pass
 
 See `compiler/driver/compiler.jac` for the authoritative ordering -- it uses re-entrancy guards during bootstrap that slightly alter the schedule when the compiler is compiling itself.
 
-### `compiler/passes/native/` -- Native Compilation
+### `compiler/backends/native/` -- Native Compilation
 
 The native backend generates LLVM IR via `llvmlite`. `na_ir_gen_pass.jac` composes `NaIRGenPass` from the sibling modules under `na_ir_gen/`, each its own compilation unit handling a different part of the language (every `<name>.jac` declares its slice, `<name>.impl.jac` implements it, and shared emitter state lives on `NaIRGenState` in `state.jac`):
 

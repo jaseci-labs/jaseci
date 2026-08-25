@@ -74,8 +74,8 @@ jobs:
             # takes the sealed kit instead of the host kit. The darwin lane no
             # longer reads this filter -- it is nightly + `macos`-label only.
             native:
-              - 'jac/jaclang/compiler/passes/native/**'
-              - 'jac/tests/compiler/passes/native/**'
+              - 'jac/jaclang/compiler/backends/native/**'
+              - 'jac/tests/compiler/backends/native/**'
               - 'jac/jaclang/compiler/tests/test_prim_equivalence.jac'
               - 'jac/jaclang/compiler/tests/fixtures/prim_*.jac'
               - 'jac/native/**'
@@ -529,7 +529,7 @@ jobs:
       matrix:
         include:
           - chunk: passes-main
-            paths: tests/compiler/passes/main tests/compiler/passes/ecmascript
+            paths: tests/compiler/passes tests/compiler/backends/es
           - chunk: toplevel
             paths: tests/compiler/test_*.jac
     steps:
@@ -564,7 +564,7 @@ jobs:
       matrix:
         include:
           - chunk: passes-native
-            paths: tests/compiler/passes/native tests/compiler/passes/tool
+            paths: tests/compiler/backends/native tests/compiler/tools
           - chunk: equivalence
             paths: jaclang/compiler/tests
     steps:
@@ -594,7 +594,7 @@ jobs:
       matrix:
         include:
           - chunk: passes-native
-            paths: tests/compiler/passes/native tests/compiler/passes/tool
+            paths: tests/compiler/backends/native tests/compiler/tools
             sealed: "1"
           # The equivalence suite builds fixture paths from jaclang.__file__,
           # which only resolve in the checkout: it always runs through the
@@ -728,7 +728,7 @@ jobs:
         working-directory: jac
         run: |
           set -euxo pipefail
-          test ! -e jaclang/compiler/passes/native/llvm/libjacllvm.so
+          test ! -e jaclang/compiler/backends/native/llvm/libjacllvm.so
           WORK="$(mktemp -d)"
           printf 'def mul(a: int, b: int) -> int {\n    return a * b;\n}\n\nwith entry {\n    print(mul(6, 7));\n}\n' > "$WORK/prog.jac"
           out="$(HOME="$WORK" XDG_CACHE_HOME="$WORK/cache" PYTHONPATH="$PWD" python -m jaclang run "$WORK/prog.jac" 2>&1)" || { echo "$out"; exit 1; }
@@ -970,7 +970,7 @@ jobs:
           # static-link search at the kit's cross runtime.
           JAC_NATIVE_MUSL_DIR: ${{ github.workspace }}/jac/.pbs-build/linux-aarch64/musl/lib
         run: >-
-          jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+          jac test jac/tests/compiler/backends/native/test_native_gen_pass.jac
           -f aarch64
 
   # The single-binary launcher and its build tooling are Jac: the trailer codec
@@ -994,7 +994,7 @@ jobs:
           jac test jac/jaclang/compiler/tests/test_tarfile_equivalence.jac
       - name: Native import shapes the stub relies on
         run: |
-          jac test jac/tests/compiler/passes/native/test_walkup_imports.jac
+          jac test jac/tests/compiler/backends/native/test_walkup_imports.jac
           jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac -f "environ"
       - name: Fused-runtime boot of a fresh na host
         run: jac test jac/tests/client/test_fused_runtime_boot.jac
@@ -1093,7 +1093,7 @@ jobs:
         run: jac run scripts/integration_tests.jac
 
       - name: Run tests on built packages
-        run: jac check jac/tests/compiler/passes/main/fixtures/checker/checker_type_ref.jac
+        run: jac check jac/tests/compiler/passes/fixtures/checker/checker_type_ref.jac
 
       # jac_site fullstack smoke: JAC_NO_DEV_SOURCE=1 (job env) because the
       # site's own jac.toml carries a [dev] stanza for its contributors.

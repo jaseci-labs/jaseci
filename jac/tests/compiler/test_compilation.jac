@@ -9,8 +9,8 @@ import from jaclang.compiler.tools.treeprinter { print_ast_tree }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
-import from jaclang.compiler.passes.tool.jac_formatter_pass { format_module }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
+import from jaclang.compiler.tools.jac_formatter_pass { format_module }
+import from jaclang.compiler.tools.unparse_pass { unparse_module }
 import from jaclang.cli.commands { analysis }
 
 glob EXAMPLES = os.path.join(JAC_ROOT, "examples"),

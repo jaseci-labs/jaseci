@@ -211,7 +211,7 @@ pub fn build(b: *std.Build) void {
     {
         const vendor_wasm_libc = tool.run("payload", &.{
             "build-wasm-libc",
-            b.pathFromRoot("jaclang/compiler/passes/native/wasm_rt"),
+            b.pathFromRoot("jaclang/compiler/backends/native/wasm_rt"),
             b.pathFromRoot(".pbs-build/wasm32/libc"),
             b.graph.zig_exe,
         });
@@ -363,7 +363,7 @@ pub fn build(b: *std.Build) void {
             const wasm_libc = b.pathFromRoot(".pbs-build/wasm32/libc");
             const vendor_wasm = tool.run("payload", &.{
                 "build-wasm-libc",
-                b.pathFromRoot("jaclang/compiler/passes/native/wasm_rt"),
+                b.pathFromRoot("jaclang/compiler/backends/native/wasm_rt"),
                 wasm_libc,
                 b.graph.zig_exe,
             });
@@ -371,7 +371,7 @@ pub fn build(b: *std.Build) void {
             // must run even when inputs are unchanged (a deleted .pbs-build has
             // to repopulate). The tool itself skips up-to-date per-file work.
             vendor_wasm.has_side_effects = true;
-            addTreeInputs(b, vendor_wasm, "jaclang/compiler/passes/native/wasm_rt");
+            addTreeInputs(b, vendor_wasm, "jaclang/compiler/backends/native/wasm_rt");
             mk.step.dependOn(&vendor_wasm.step);
             if (link_dir == null) {
                 mk.addArg(b.fmt("--wasm-libc={s}", .{wasm_libc}));
@@ -476,7 +476,7 @@ fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
     if (b.option([]const u8, "shim-bin", "Prebuilt LLVMPY_* shim to bundle (skips the LLVM fetch + link)")) |p| {
         const bin: std.Build.LazyPath = .{ .cwd_relative = p };
         const place = b.addUpdateSourceFiles();
-        place.addCopyFileToSource(bin, b.fmt("jaclang/compiler/passes/native/llvm/{s}", .{shim_file}));
+        place.addCopyFileToSource(bin, b.fmt("jaclang/compiler/backends/native/llvm/{s}", .{shim_file}));
         const jacllvm_step = b.step("jacllvm", "Build the LLVMPY_* shim (jac/native), static-link LLVM, place it in-tree");
         jacllvm_step.dependOn(&b.addInstallLibFile(bin, shim_file).step);
         jacllvm_step.dependOn(&place.step);
@@ -527,7 +527,7 @@ fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
     // fetch-typeshed materializes gitignored stubs into the tree. mkpayload's
     // jaclang copy skips this file (it ships the shim via --shim instead).
     const place = b.addUpdateSourceFiles();
-    place.addCopyFileToSource(bin, b.fmt("jaclang/compiler/passes/native/llvm/{s}", .{shim_file}));
+    place.addCopyFileToSource(bin, b.fmt("jaclang/compiler/backends/native/llvm/{s}", .{shim_file}));
 
     const jacllvm_step = b.step("jacllvm", "Build the LLVMPY_* shim (jac/native), static-link LLVM, place it in-tree");
     jacllvm_step.dependOn(&b.addInstallLibFile(bin, shim_file).step);

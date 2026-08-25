@@ -53,7 +53,7 @@ import from tests.compiler.fixtures.prefix_reference {
     reference_prefix_entry
 }
 import jaclang.compiler.frontend.unitree as uni;
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
+import from jaclang.compiler.tools.unparse_pass { unparse_module }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.placement.prefix_flip {
@@ -74,7 +74,7 @@ glob PARITY_CORPUS: list[str] = [
          "jaclang/compiler/frontend/srcloc.jac",
          "jaclang/jac0core/expr_keys.jac",
          "jaclang/compiler/expr_keys.jac",
-         "tests/compiler/passes/ecmascript/fixtures/advanced_language_features.jac",
+         "tests/compiler/backends/es/fixtures/advanced_language_features.jac",
 
      ],
      _SKIP_FIELDS: tuple[str] = ("rc_last_use", "_deferred_type_diags", "_gen", ),

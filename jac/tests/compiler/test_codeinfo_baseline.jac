@@ -69,8 +69,8 @@ Python-codegen machinery, none of which the base chain touches.
 """
 glob CODEINFO_CLOSURE: tuple = (
          "compiler/type_registry.jac",
-         "compiler/type_system/type_utils.jac",
-         "compiler/type_system/types.jac",
+         "compiler/types/type_utils.jac",
+         "compiler/types/types.jac",
          "compiler/frontend/codeinfo.jac",
          "compiler/frontend/constant.jac",
          "compiler/frontend/diagnostic_utils.jac",

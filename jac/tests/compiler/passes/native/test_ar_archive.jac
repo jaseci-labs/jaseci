@@ -11,7 +11,7 @@ is present, and skips otherwise.
 
 import struct;
 import from pathlib { Path }
-import from jaclang.compiler.passes.native.linker_common {
+import from jaclang.compiler.backends.native.linker_common {
     parse_ar_archive,
     parse_ar_symbol_index,
     select_ar_members

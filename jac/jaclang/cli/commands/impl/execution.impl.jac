@@ -7,7 +7,7 @@ import from jaclang.cli.console { console, use_line_buffered_output }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 import from jaclang.project.kinds { RunPlan }
 import type from importlib.metadata { EntryPoint }
-import type from jaclang.compiler.passes.native.llvm.binding.executionengine {
+import type from jaclang.compiler.backends.native.llvm.binding.executionengine {
     ExecutionEngine
 }
 
@@ -337,7 +337,7 @@ def _jab_native_bin(img_root: Path, entry_rel: str) -> (str | None) {
     import from jaclang.jac0core.ext_registry { base_stem }
     import from jaclang.server.sealed_serve { NATIVE_DIR_REL }
     try {
-        import jaclang.compiler.passes.native.llvm.binding as llvm;
+        import jaclang.compiler.backends.native.llvm.binding as llvm;
         triple = str(llvm.get_default_triple());
     } except Exception {
         return None;

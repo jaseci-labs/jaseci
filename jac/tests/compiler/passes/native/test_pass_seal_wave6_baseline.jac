@@ -66,7 +66,7 @@ the half of the wave's work that capability's coverage cannot see.
 import os;
 import jaclang;
 import from pathlib { Path }
-import from tests.compiler.passes.native.seal_support {
+import from tests.compiler.backends.native.seal_support {
     PKG_PATH,
     _own_seams,
     _root_coverage
@@ -76,7 +76,7 @@ import from jaclang.utils.precompile_bytecode {
     NATIVE_SEAL_ROOTS
 }
 
-glob CAPABILITY: str = "compiler/passes/main/capability_check_pass.jac",
+glob CAPABILITY: str = "compiler/passes/capability_check_pass.jac",
      MODULE_CODEGEN: str = "compiler/backends/py/module_codegen_pass.jac";
 
 """capability_check_pass's exact native closure, as package-relative paths.
@@ -89,10 +89,10 @@ crossing the old pin's help text predicted -- and it collected the
 predicted payout below.
 """
 glob CAPABILITY_CLOSURE: tuple = (
-         "compiler/passes/main/capability_check_pass.jac",
+         "compiler/passes/capability_check_pass.jac",
          "compiler/type_registry.jac",
-         "compiler/type_system/type_utils.jac",
-         "compiler/type_system/types.jac",
+         "compiler/types/type_utils.jac",
+         "compiler/types/types.jac",
          "compiler/frontend/codeinfo.jac",
          "compiler/frontend/constant.jac",
          "compiler/frontend/diagnostic_utils.jac",

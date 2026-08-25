@@ -2,7 +2,7 @@
 
 Regression coverage for the power-lowering seam in
 `na_ir_gen/math.impl.jac` and the `int ** int` type contract in
-`compiler/type_system/operations.jac`. Each case compiles a fixture that
+`compiler/types/operations.jac`. Each case compiles a fixture that
 previously lowered to invalid/unsound IR and asserts the JIT result against
 CPython semantics: literal & dynamic exponents, builtin `pow`, `**=`, the
 fixed-width i32 kernel, float power, and the zero-base ZeroDivisionError.
@@ -14,8 +14,8 @@ import from tests.support { JAC_ROOT, TESTS_DIR, native_force_opts }
 import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
 import jaclang.compiler.frontend.unitree as uni;
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import from jaclang.compiler.backends.native.llvm.binding { ExecutionEngine }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(

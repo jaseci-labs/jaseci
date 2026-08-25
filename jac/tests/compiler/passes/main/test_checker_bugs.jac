@@ -115,11 +115,11 @@ Bug index:
 import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.transform { Alert }
-import from jaclang.compiler.type_system.type_utils { compute_mro_linearization }
-import from jaclang.compiler.type_system.types {
+import from jaclang.compiler.types.type_utils { compute_mro_linearization }
+import from jaclang.compiler.types.types {
     ClassDetailsShared,
     ClassType,
     TypeFlags,

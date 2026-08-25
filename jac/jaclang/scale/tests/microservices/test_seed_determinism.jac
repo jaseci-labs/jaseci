@@ -50,7 +50,7 @@ def _stage_compiler_tree(where: str, codegen_body: str) -> str {
         "compiler/driver/jir.jac",
         "compiler/backends/py/jcir_gen_pass.jac",
         "compiler/native_materialize.jac",
-        "compiler/passes/native/llvm/libjacllvm.so",
+        "compiler/backends/native/llvm/libjacllvm.so",
         "utils/precompile_bytecode.jac",
         "runtime/machine.jac",
         "compiler/__pycache__/stale.py",
@@ -98,7 +98,7 @@ test "the compiler digest ignores build artifacts and non-compiler modules" {
         base = compiler_source_digest(a);
         for (rel, text) in [
             ("compiler/native_materialize.jac", "generated at seal time\n"),
-            ("compiler/passes/native/llvm/libjacllvm.so", "relinked shim\n"),
+            ("compiler/backends/native/llvm/libjacllvm.so", "relinked shim\n"),
             ("runtime/machine.jac", "runtime edit\n"),
             ("compiler/__pycache__/stale.py", "byte cache\n"),
             ("compiler/.jac/cache/hidden.jac", "cache droppings\n"),
@@ -162,7 +162,7 @@ test "the running compiler digest covers the real compiler tree" {
         "compiler/frontend/unitree.jac",
         "compiler/backends/py/jcir_gen_pass.jac",
         "compiler/backends/py/impl/jcir_gen_pass.impl.jac",
-        "compiler/passes/main/type_checker_pass.jac",
+        "compiler/passes/type_checker_pass.jac",
         "utils/precompile_bytecode.jac"
     ] {
         assert expected in rels , f"{expected} is outside the compiler digest";

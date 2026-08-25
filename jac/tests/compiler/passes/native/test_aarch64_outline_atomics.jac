@@ -38,8 +38,8 @@ value, the stored new value, sub-word CAS's zero-extension of a caller's wide
 `expected`, and cas16's paired compare -- all four orderings of all of it.
 """
 
-import jaclang.compiler.passes.native.llvm.binding as llvm;
-import from jaclang.compiler.passes.native.shared_emit { aarch64_outline_atomics_ir }
+import jaclang.compiler.backends.native.llvm.binding as llvm;
+import from jaclang.compiler.backends.native.shared_emit { aarch64_outline_atomics_ir }
 
 """Every symbol the LSE outline-atomics ABI defines, spelled out from its axes."""
 def _abi_family -> list[str] {

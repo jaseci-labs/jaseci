@@ -3,10 +3,10 @@
 import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import jaclang.compiler.passes.ecmascript.estree as es;
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import jaclang.compiler.backends.es.estree as es;
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 
@@ -81,7 +81,7 @@ def walk_es_nodes(nd: es.Node) -> list[es.Node] {
 
 """Return compile errors that are not non-fatal TypeCheckPass diagnostics."""
 def _fatal_errors(prog: JacProgram) -> list {
-    import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+    import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
     return [
         e
         for e in prog.errors_had

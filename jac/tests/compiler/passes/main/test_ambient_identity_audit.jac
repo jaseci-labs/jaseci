@@ -61,11 +61,11 @@ Audit verdicts this file pins (2026-08-18):
 import os;
 import tempfile;
 import jaclang.compiler.frontend.unitree as uni;
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.pass_driver { run_pass }
-import from jaclang.compiler.type_system.types { ClassType, FunctionType, UnionType }
+import from jaclang.compiler.types.types { ClassType, FunctionType, UnionType }
 
 glob NO_TC = CompileOptions(default_codespace='server');
 
@@ -647,7 +647,7 @@ test "typing_import_flips_native_placement" {
 }
 
 test "optional_layout_signal" {
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+    import from jaclang.compiler.passes.layout_pass { get_layout_registry }
     native_body = (
         "obj Point {\n"
         + "    has x: int = 0;\n"

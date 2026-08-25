@@ -52,7 +52,7 @@ test "the baked ambient typing names match typing_ambient.pyi" {
     stub = (
         Path(jaclang.__file__).parent
         / "compiler"
-        / "type_system"
+        / "types"
         / "typing_ambient.pyi"
     );
     text = stub.read_text(encoding="utf-8");

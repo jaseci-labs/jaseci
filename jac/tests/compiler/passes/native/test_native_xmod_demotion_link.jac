@@ -38,7 +38,7 @@ import os;
 import subprocess;
 import sys;
 import tempfile;
-import from jaclang.compiler.passes.native.shared_emit { emit_shared_library }
+import from jaclang.compiler.backends.native.shared_emit { emit_shared_library }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
 import from jaclang.compiler.driver.program { JacProgram }

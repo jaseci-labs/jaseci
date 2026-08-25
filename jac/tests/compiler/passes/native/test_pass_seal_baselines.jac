@@ -38,7 +38,7 @@ import from jaclang.utils.precompile_bytecode {
     NATIVE_SEAL_ROOTS,
     seal_waiver_names
 }
-import from tests.compiler.passes.native.seal_support {
+import from tests.compiler.backends.native.seal_support {
     PKG_PATH,
     _root_coverage,
     _seams_by_key
@@ -48,8 +48,8 @@ glob WAVE_CLOSURES: dict = {
          "wave-1": {
              "compiler/backends/py/module_codegen_pass.jac": (
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -70,8 +70,8 @@ glob WAVE_CLOSURES: dict = {
              ),
              "compiler/passes/uni_pass.jac": (
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -92,8 +92,8 @@ glob WAVE_CLOSURES: dict = {
              ),
              "compiler/passes/endpoint_effect_pass.jac": (
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -117,8 +117,8 @@ glob WAVE_CLOSURES: dict = {
          "wave-2": {
              "compiler/passes/ast_validation_pass.jac": (
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -141,8 +141,8 @@ glob WAVE_CLOSURES: dict = {
              ),
              "compiler/passes/semantic_analysis_pass.jac": (
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -162,11 +162,11 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/na_stdlib/logging.jac",
                  "runtime/na_stdlib/pathlib.jac"
              ),
-             "compiler/passes/main/sem_def_match_pass.jac": (
-                 "compiler/passes/main/sem_def_match_pass.jac",
+             "compiler/passes/sem_def_match_pass.jac": (
+                 "compiler/passes/sem_def_match_pass.jac",
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -187,13 +187,13 @@ glob WAVE_CLOSURES: dict = {
              )
          },
          "wave-3": {
-             "compiler/passes/main/rc_facts_pass.jac": (
+             "compiler/passes/rc_facts_pass.jac": (
                  "compiler/expr_keys.jac",
-                 "compiler/passes/main/dataflow.jac",
-                 "compiler/passes/main/rc_facts_pass.jac",
+                 "compiler/passes/dataflow.jac",
+                 "compiler/passes/rc_facts_pass.jac",
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -216,8 +216,8 @@ glob WAVE_CLOSURES: dict = {
          "wave-4": {
              "compiler/passes/sym_tab_build_pass.jac": (
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -239,8 +239,8 @@ glob WAVE_CLOSURES: dict = {
              ),
              "compiler/passes/decl_impl_match_pass.jac": (
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -262,11 +262,11 @@ glob WAVE_CLOSURES: dict = {
              )
          },
          "wave-5": {
-             "compiler/passes/main/jsx_intrinsic_guard_pass.jac": (
-                 "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
+             "compiler/passes/jsx_intrinsic_guard_pass.jac": (
+                 "compiler/passes/jsx_intrinsic_guard_pass.jac",
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -287,11 +287,11 @@ glob WAVE_CLOSURES: dict = {
                  "runtime/na_stdlib/logging.jac",
                  "runtime/na_stdlib/pathlib.jac"
              ),
-             "compiler/passes/main/access_check_pass.jac": (
-                 "compiler/passes/main/access_check_pass.jac",
+             "compiler/passes/access_check_pass.jac": (
+                 "compiler/passes/access_check_pass.jac",
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -312,12 +312,12 @@ glob WAVE_CLOSURES: dict = {
              )
          },
          "wave-7": {
-             "compiler/passes/main/cfg_build_pass.jac": (
+             "compiler/passes/cfg_build_pass.jac": (
                  "compiler/expr_keys.jac",
-                 "compiler/passes/main/cfg_build_pass.jac",
+                 "compiler/passes/cfg_build_pass.jac",
                  "compiler/type_registry.jac",
-                 "compiler/type_system/type_utils.jac",
-                 "compiler/type_system/types.jac",
+                 "compiler/types/type_utils.jac",
+                 "compiler/types/types.jac",
                  "compiler/frontend/codeinfo.jac",
                  "compiler/frontend/constant.jac",
                  "compiler/frontend/diagnostic_utils.jac",
@@ -339,8 +339,8 @@ glob WAVE_CLOSURES: dict = {
          }
      },
      REFUSED_OWN_SEAMS: dict = {
-         "compiler/passes/main/static_analysis_pass.jac": 4,
-         "compiler/passes/main/ownership_check_pass.jac": 12
+         "compiler/passes/static_analysis_pass.jac": 4,
+         "compiler/passes/ownership_check_pass.jac": 12
      };
 
 """Every (wave, root) pair in WAVE_CLOSURES, sorted for a stable test order."""
@@ -482,10 +482,10 @@ test "the rc-facts solver keeps its stamps off the codegen target" {
     # `_stamp_anon_regions` for exactly that reason. The facts live in
     # `Module` slots now; a re-introduced `.gen.` stamp would demote the
     # stamping method again.
-    src = (PKG_PATH / "compiler/passes/main/rc_facts_pass.jac").read_text(
+    src = (PKG_PATH / "compiler/passes/rc_facts_pass.jac").read_text(
         encoding='utf-8'
     );
-    src += (PKG_PATH / "compiler/passes/main/impl/rc_facts_pass.impl.jac").read_text(
+    src += (PKG_PATH / "compiler/passes/impl/rc_facts_pass.impl.jac").read_text(
         encoding='utf-8'
     );
     for token in (
@@ -512,11 +512,11 @@ test "neither wave-5 root reaches its driver's facts on its own" {
     # into `emit` would demote every emit site.
     for (rel, banned) in (
         (
-            "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
+            "compiler/passes/jsx_intrinsic_guard_pass.jac",
             ("resolve_client_kind_context", "self.prog")
         ),
         (
-            "compiler/passes/main/access_check_pass.jac",
+            "compiler/passes/access_check_pass.jac",
             ("get_config", "find_jac_project_root", "**kwargs")
         )
     ) {
@@ -537,7 +537,7 @@ test "neither wave-5 root reaches its driver's facts on its own" {
 }
 
 test "the cfg narrowing keys come from the native-clean hoist" {
-    src = (PKG_PATH / "compiler/passes/main/impl/cfg_build_pass.impl.jac").read_text();
+    src = (PKG_PATH / "compiler/passes/impl/cfg_build_pass.impl.jac").read_text();
     assert "jaclang.compiler.expr_keys" in src , (
         "cfg_build must read its narrowing/assigned key helpers from "
         "compiler/expr_keys.jac; that hoist is what keeps symbol_utils and "

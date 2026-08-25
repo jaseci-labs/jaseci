@@ -43,7 +43,7 @@ def teardown_test {
         with contextlib.suppress(Exception) as _s {
             server.shutdown();
         }
-        server.clear_type_system(clear_hub=True);
+        server.program.clear_type_system(clear_hub=True);
     }
     _active_servers.clear();
     _clear_jac_modules();

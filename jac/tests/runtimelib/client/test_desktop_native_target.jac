@@ -272,7 +272,7 @@ CLI. This test runs in that runtime (the test interpreter), so locating the shim
 test "na/LLVM backend is first-class in the desktop fused runtime" {
     import os;
     import importlib.util;
-    import from jaclang.compiler.passes.native.llvm.binding.ffi {
+    import from jaclang.compiler.backends.native.llvm.binding.ffi {
         _find_shim,
         _shim_name
     }
@@ -282,7 +282,7 @@ test "na/LLVM backend is first-class in the desktop fused runtime" {
     assert shim.endswith(_shim_name()) , "resolved shim must be the platform LLVMPY shim";
     # The native compiler pass is importable, so `nacompile` is available to any
     # app running on this fused runtime (the one the desktop host bundles).
-    spec = importlib.util.find_spec("jaclang.compiler.passes.native.na_compile_pass");
+    spec = importlib.util.find_spec("jaclang.compiler.backends.native.na_compile_pass");
     assert spec is not None , "na compiler pass must be importable in the desktop runtime";
 }
 

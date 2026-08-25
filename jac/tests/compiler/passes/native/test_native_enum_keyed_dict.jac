@@ -20,7 +20,7 @@ import os;
 import from tests.support { TESTS_DIR, native_force_opts, native_str_func }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.runtime.runtime { JacRuntime }
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
+import from jaclang.compiler.backends.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"

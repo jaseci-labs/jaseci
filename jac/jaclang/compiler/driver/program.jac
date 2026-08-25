@@ -11,7 +11,7 @@ import from jaclang.compiler.driver.progstate {
     DiagLedger,
     ModuleHub
 }
-import type from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
+import type from jaclang.compiler.types.type_evaluator { TypeEvaluator }
 import type from jaclang.compiler.driver.compiler { JacCompiler }
 import type from jaclang.compiler.driver.mtp { Info }
 import type from jaclang.compiler.passes { Transform }

@@ -33,7 +33,7 @@ the partition answers for it rather than falling through to a module refusal.
 
 import ctypes;
 import os;
-import from jaclang.compiler.passes.main.capability_check_pass {
+import from jaclang.compiler.passes.capability_check_pass {
     native_capability_violations
 }
 import from jaclang.compiler.driver.compile_options { CompileOptions }

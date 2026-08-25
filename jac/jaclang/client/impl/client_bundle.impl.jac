@@ -13,7 +13,7 @@ impl _lookup_module_in_hub(path_key: str, hub: dict) -> (Module | None) {
 
 impl _ensure_js_generated(mod: Module, program: any) -> None {
     if mod and not mod.gen.js {
-        import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+        import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
         import from jaclang.compiler.driver.pass_driver { run_pass }
         _err_mark = len(program.errors_had);
         run_pass(EsastGenPass, mod, program);

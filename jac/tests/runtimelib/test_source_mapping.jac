@@ -313,7 +313,7 @@ test "es compiler produces exact line mapping for function body statements" {
         assert mod is not None , "Compilation failed";
         assert mod.gen.es_ast is not None , "No ES AST generated";
         # Get JS code and line map
-        import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js_with_map }
+        import from jaclang.compiler.backends.es.es_unparse { es_to_js_with_map }
         (js_code, line_map) = es_to_js_with_map(_as_any(mod.gen.es_ast));
         assert len(line_map) > 0 , "No line mappings generated";
         # Build a lookup: output_line -> jac_line

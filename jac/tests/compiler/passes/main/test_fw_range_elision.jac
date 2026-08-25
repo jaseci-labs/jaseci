@@ -12,7 +12,7 @@ literals -- not a width heuristic -- so it is sound by construction: an
 interval that does not fit is simply not marked, and the check stays.
 """
 
-import from jaclang.compiler.type_system.fixed_width { interval_of_op }
+import from jaclang.compiler.types.fixed_width { interval_of_op }
 
 test "widening makes the result provably in range" {
     assert interval_of_op("+", (-128, 127), (-128, 127), "i16");

@@ -20,8 +20,8 @@ import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
 import jaclang.compiler.frontend.unitree as uni;
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
-import from jaclang.compiler.passes.native.na_ir_gen_pass { NaIRGenPass }
+import from jaclang.compiler.backends.native.llvm.binding { ExecutionEngine }
+import from jaclang.compiler.backends.native.na_ir_gen_pass { NaIRGenPass }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"

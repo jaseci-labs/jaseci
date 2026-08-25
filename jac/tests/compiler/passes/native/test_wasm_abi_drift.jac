@@ -13,8 +13,8 @@ import re;
 
 import jaclang;
 import from pathlib { Path }
-import from jaclang.compiler.passes.native.wasm_build { _ABI64_ADAPTED }
-import from jaclang.compiler.passes.native.wasm_host_abi { WASM_HOST_ABI }
+import from jaclang.compiler.backends.native.wasm_build { _ABI64_ADAPTED }
+import from jaclang.compiler.backends.native.wasm_host_abi { WASM_HOST_ABI }
 
 glob _PKG_DIR: Path = Path(str(jaclang.__file__)).parent;
 

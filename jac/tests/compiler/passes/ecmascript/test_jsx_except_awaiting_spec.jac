@@ -15,9 +15,9 @@ This file locks in the fixed shape so that gap cannot reopen.
 import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import jaclang.compiler.passes.ecmascript.estree as es;
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import jaclang.compiler.backends.es.estree as es;
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 

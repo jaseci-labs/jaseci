@@ -5,7 +5,7 @@ and incompatible field types on obj archetypes, and that FieldInfo
 tracks function pointer fields.
 """
 
-import from jaclang.compiler.passes.main.layout_pass {
+import from jaclang.compiler.passes.layout_pass {
     LAYOUT_COMPATIBLE_PRIMITIVES,
     FieldInfo,
     ArchetypeLayout,

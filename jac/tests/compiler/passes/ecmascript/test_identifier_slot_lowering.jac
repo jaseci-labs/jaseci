@@ -26,10 +26,10 @@ These tests pin:
 import os;
 import re;
 import from tests.support { JAC_ROOT }
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import jaclang.compiler.passes.ecmascript.estree as es;
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import jaclang.compiler.backends.es.estree as es;
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.pass_driver { run_pass }

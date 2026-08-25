@@ -4,21 +4,21 @@ import os;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.backends.preact { PreactBackend }
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.compiler.passes.ecmascript.backends.registry {
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.backends.preact { PreactBackend }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
+import from jaclang.compiler.backends.es.backends.registry {
     resolve_active_backend,
     resolve_framework_backend
 }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.reactive_intent {
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.reactive_intent {
     AsyncBoundary,
     Effect,
     RefField,
     StateField
 }
-import jaclang.compiler.passes.ecmascript.estree as es;
+import jaclang.compiler.backends.es.estree as es;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.project.config { JacConfig, ClientConfig, set_config }
 import from jaclang.client.preact_entry { build_simple_preact_entry_script }

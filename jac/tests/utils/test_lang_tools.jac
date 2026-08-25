@@ -8,7 +8,7 @@ table output, and uninode autodoc.
 import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.utils.lang_tools { AstTool }
+import from jaclang.compiler.tools.lang_tools { AstTool }
 
 glob LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
 

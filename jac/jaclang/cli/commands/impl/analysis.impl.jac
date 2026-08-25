@@ -1314,7 +1314,7 @@ impl gen_parser -> int {
 
 impl grammar(output: str = "", strict: bool = False) -> int {
     import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.compiler.passes.tool.grammar_extract_pass { GrammarExtractPass }
+    import from jaclang.compiler.tools.grammar_extract_pass { GrammarExtractPass }
     import jaclang;
     parser_path = str(
         Path(jaclang.__file__).parent / "compiler" / "frontend" / "parser" / "parser.jac"

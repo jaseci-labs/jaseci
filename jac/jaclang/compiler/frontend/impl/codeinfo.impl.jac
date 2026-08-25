@@ -72,7 +72,7 @@ impl InteropManifest.server_exports_to_server.getter -> list[InteropBinding] {
 
 impl CodeGenTarget.doc_ir.getter -> Doc {
     if (self._doc_ir is None) {
-        import jaclang.compiler.passes.tool.doc_ir as doc;
+        import jaclang.compiler.tools.doc_ir as doc;
         self._doc_ir = doc.Text('');
     }
     return self._doc_ir;

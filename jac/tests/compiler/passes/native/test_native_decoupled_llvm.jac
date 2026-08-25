@@ -3,7 +3,7 @@
 The native (`na`) JIT/codegen path no longer depends on the Python `llvmlite`
 PyPI package. Its two pure-Python layers -- the IR builder (`ir`) and the
 ctypes binding over the `LLVMPY_*` C ABI -- were translated to Jac with
-`py2jac` and now live under `jaclang/compiler/passes/native/llvm/` as
+`py2jac` and now live under `jaclang/compiler/backends/native/llvm/` as
 first-party code (derived from llvmlite, BSD-2), loading the LLVMPY_* shim
 directly via ctypes.
 
@@ -17,9 +17,9 @@ import re;
 import inspect;
 import jaclang;
 import from pathlib { Path }
-import jaclang.compiler.passes.native.llvm.binding as llvm;
-import from jaclang.compiler.passes.native.llvm { ir }
-import from jaclang.compiler.passes.native.llvm.ir { types as ir_types }
+import jaclang.compiler.backends.native.llvm.binding as llvm;
+import from jaclang.compiler.backends.native.llvm { ir }
+import from jaclang.compiler.backends.native.llvm.ir { types as ir_types }
 
 # `Type` subclasses that are never instantiated directly -- they exist only to
 # share behaviour with their concrete subclasses, so they need no representative
@@ -102,7 +102,7 @@ def _scan_llvmlite_imports(tree: Path) -> list[str] {
 test "jaclang runtime does not import the python llvmlite package" {
     hits = _scan_llvmlite_imports(Path(jaclang.__file__).parent);
     assert not hits , "llvmlite is decoupled (#6925) -- import "
-        + "jaclang.compiler.passes.native.llvm{.binding} instead. Offenders:\n"
+        + "jaclang.compiler.backends.native.llvm{.binding} instead. Offenders:\n"
         + "\n".join(hits);
 }
 

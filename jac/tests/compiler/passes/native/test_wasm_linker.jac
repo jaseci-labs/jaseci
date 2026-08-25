@@ -21,7 +21,7 @@ import from tests.support { TESTS_DIR }
 import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
-import from jaclang.compiler.passes.native.wasm_linker {
+import from jaclang.compiler.backends.native.wasm_linker {
     WasmLinker,
     _uleb,
     _uleb5,
@@ -30,7 +30,7 @@ import from jaclang.compiler.passes.native.wasm_linker {
     _rd_sleb,
     _u32le
 }
-import jaclang.compiler.passes.native.llvm.binding as llvm;
+import jaclang.compiler.backends.native.llvm.binding as llvm;
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"

@@ -487,7 +487,7 @@ impl find_libpython(lib_dir: str) -> FoundLib {
 
 impl is_volatile_path(p: str) -> bool {
     if p.startswith("site/jaclang") {
-        if "compiler/passes/native/llvm" in p {
+        if "compiler/backends/native/llvm" in p {
             return False;
         }
         if "client/_bun" in p {

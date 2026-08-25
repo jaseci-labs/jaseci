@@ -37,7 +37,7 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     CFG_ROOT: str = "compiler/passes/main/cfg_build_pass.jac",
+     CFG_ROOT: str = "compiler/passes/cfg_build_pass.jac",
      KEYS_MOD: str = "compiler/expr_keys.jac",
      HOISTED: tuple = ("collect_narrowing_symbols", "collect_assigned_symbols");
 

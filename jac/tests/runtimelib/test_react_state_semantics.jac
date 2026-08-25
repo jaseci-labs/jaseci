@@ -1,6 +1,6 @@
 """jsdom behavioral tests: the client state read-your-writes contract on React.
 
-The codegen tests (`tests/compiler/passes/ecmascript/test_state_store_lowering.jac`)
+The codegen tests (`tests/compiler/backends/es/test_state_store_lowering.jac`)
 pin what the react/preact backends *emit*; this suite executes it. It compiles
 the shared state-semantics fixture plus the real `@jac/runtime` shim to JS,
 mounts the component with `react-dom/client` in a jsdom DOM, and asserts each
@@ -21,7 +21,7 @@ import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
 import from jaclang.client.bun_installer { get_bun }
 import from .react_jsdom_harness {
     bun_install,

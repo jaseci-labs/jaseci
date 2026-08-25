@@ -11,18 +11,18 @@ import tempfile;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse {
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.es_unparse {
     JSCodeGenerator,
     es_to_js,
     template_element_raw
 }
-import from jaclang.compiler.passes.ecmascript.primitives_es {
+import from jaclang.compiler.backends.es.primitives_es {
     ESDictEmitter,
     ESEmitCtx
 }
-import from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import from jaclang.compiler.backends.es.estree { Node as EsNode }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.compiler.driver.modresolver { convert_to_js_import_path }
 import from jaclang.compiler.passes.transform { Alert }
 import from jaclang.compiler.driver.program { JacProgram }
@@ -1161,7 +1161,7 @@ test "sv import duplicate kwarg is a compile error" {
     # reported as a compile-time error so the build fails fast rather than
     # silently emitting a JS object with a duplicated key.
     import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.compiler.passes.ecmascript { EsastGenPass }
+    import from jaclang.compiler.backends.es { EsastGenPass }
 
     fixture = os.path.join(FIXTURES, "svc_kwargs/sv_import_kwargs_dup.jac");
     prog = JacProgram();
@@ -1783,7 +1783,7 @@ test "await expression parenthesized as member expression object" {
     # This manifests at runtime when typed list returns use:
     #   await __jacCallFunction("get_items",{}).map(x => T.__from_wire(x))
     # which calls .map() on the Promise, not the resolved array.
-    import from jaclang.compiler.passes.ecmascript.estree {
+    import from jaclang.compiler.backends.es.estree {
         AwaitExpression,
         CallExpression,
         MemberExpression,
@@ -1860,7 +1860,7 @@ test "list concat in impl file uses array spread not string plus" {
 }
 
 test "private identifier generates hash prefix" {
-    import from jaclang.compiler.passes.ecmascript.estree {
+    import from jaclang.compiler.backends.es.estree {
         PrivateIdentifier,
         PropertyDefinition,
         ClassBody,

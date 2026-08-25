@@ -6,7 +6,7 @@ impl _path_of(uri: str) -> str {
     return uris.to_fs_path(uri) or "";
 }
 
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+import from jaclang.compiler.tools.unparse_pass { unparse_node }
 
 impl Task.postinit -> None {
     self.task_id = Task._task_id;

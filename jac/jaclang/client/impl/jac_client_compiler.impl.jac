@@ -500,7 +500,7 @@ impl JacClientCompiler._write_source_map(
         return;
     }
     try {
-        import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js_with_map }
+        import from jaclang.compiler.backends.es.es_unparse { es_to_js_with_map }
         import from jaclang.client.source_mapping { generate_source_map_json }
         (_, line_map) = es_to_js_with_map(mod.gen.es_ast);
         if not line_map {

@@ -68,7 +68,7 @@ import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.frontend.constant { CodeContext }
 import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
 import from jaclang.compiler.driver.program { JacProgram }
-import from jaclang.compiler.passes.main.layout_pass {
+import from jaclang.compiler.passes.layout_pass {
     archetype_accessors,
     get_layout_registry
 }
@@ -89,15 +89,15 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      WAVE2_ROOTS: tuple = (
          "compiler/passes/ast_validation_pass.jac",
          "compiler/passes/semantic_analysis_pass.jac",
-         "compiler/passes/main/sem_def_match_pass.jac"
+         "compiler/passes/sem_def_match_pass.jac"
      ),
      WAVE4_ROOTS: tuple = (
          "compiler/passes/sym_tab_build_pass.jac",
          "compiler/passes/decl_impl_match_pass.jac"
      ),
      WAVE5_ROOTS: tuple = (
-         "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
-         "compiler/passes/main/access_check_pass.jac"
+         "compiler/passes/jsx_intrinsic_guard_pass.jac",
+         "compiler/passes/access_check_pass.jac"
      ),
      JCIR_ROOT = "compiler/backends/py/jcir_gen_pass.jac",
      # Documented carve-outs of the receiver-blind accessor rule: `x.a` adds
@@ -113,7 +113,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
              "BuiltinType.lit_value.__get__",
              "Ellipsis.lit_value.__get__"
          ),
-         "compiler/passes/main/sem_def_match_pass.jac": (
+         "compiler/passes/sem_def_match_pass.jac": (
              "BuiltinType.lit_value.__get__",
              "Ellipsis.lit_value.__get__"
          )
@@ -125,7 +125,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      # because any sealed entry point calls them. Only a module in
      # `NATIVE_SEAL_ROOTS` gets a native artifact, and `native_artifact_for`
      # answers for those alone, so no importer can bind
-     # `jaclang.compiler.type_system.*` to the artifact: its Python module
+     # `jaclang.compiler.types.*` to the artifact: its Python module
      # keeps serving those calls, and the linked copies are enterable only
      # from inside the artifact.
      #
@@ -160,7 +160,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      SPINE_ARGUED: tuple = (),
      SPINE_ROOT_ARGUED: tuple = (),
      _SPINE_FLAGGED: set = set(),
-     TYPE_SYSTEM_DIR = "compiler/type_system",
+     TYPE_SYSTEM_DIR = "compiler/types",
      PASS_SPINE_DIR = "compiler/passes",
      _CLOSURE_MEMO: list = [],
      _PASS_MEMO: dict[(str, tuple)] = {};
@@ -685,7 +685,7 @@ test "wave-2 roots: each walk reaches the pass's own machinery" {
             ("SemanticAnalysisPass._check_archetype", "Archetype.get_methods")
         ),
         (
-            "compiler/passes/main/sem_def_match_pass.jac",
+            "compiler/passes/sem_def_match_pass.jac",
             ("SemDefMatchPass.resolve_sem_target", "UniScopeNode.lookup")
         )
     ) {
@@ -773,7 +773,7 @@ test "wave-5 roots: each walk reaches the pass's own machinery" {
     # stamp, so a clean waiver verdict is not vacuous.
     for (rel, needed) in (
         (
-            "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
+            "compiler/passes/jsx_intrinsic_guard_pass.jac",
             (
                 "JsxIntrinsicGuardPass._check_element",
                 "JsxIntrinsicGuardPass._is_exempt",
@@ -781,7 +781,7 @@ test "wave-5 roots: each walk reaches the pass's own machinery" {
             )
         ),
         (
-            "compiler/passes/main/access_check_pass.jac",
+            "compiler/passes/access_check_pass.jac",
             (
                 "AccessCheckPass._check_use",
                 "AccessCheckPass._is_subclass_of",

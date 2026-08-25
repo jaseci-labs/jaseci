@@ -7,7 +7,7 @@ These tests verify byLLM-specific MTIR functionality:
 4. Python library fallback mode works when MTIR is unavailable
 
 Note: MTIR extraction from compiled code is tested in:
-  jac/tests/compiler/passes/main/test_mtir_gen_pass.py
+  jac/tests/compiler/passes/test_mtir_gen_pass.py
 """
 
 import io;

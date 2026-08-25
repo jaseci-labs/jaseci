@@ -11,7 +11,7 @@ import tempfile;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compiler { JacCompiler }
 import from jaclang.compiler.driver.schedules { get_lint_sched }
-import from jaclang.compiler.passes.tool.jac_auto_lint_pass {
+import from jaclang.compiler.tools.jac_auto_lint_pass {
     JacAutoLintPass,
     JacLintCheckPass
 }

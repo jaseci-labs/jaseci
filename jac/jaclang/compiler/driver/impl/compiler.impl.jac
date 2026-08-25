@@ -205,7 +205,7 @@ impl JacCompiler.get_bytecode(
                 native_bc = result.gen.native_bitcode;
                 if native_bc is not None {
                     import struct as _struct;
-                    import jaclang.compiler.passes.native.llvm.binding as _llvm;
+                    import jaclang.compiler.backends.native.llvm.binding as _llvm;
                     triple_text = _llvm.get_default_triple();
                     assert isinstance(triple_text, str);
                     triple = triple_text.encode('utf-8');
@@ -270,7 +270,7 @@ impl JacCompiler._load_native_from_cache(
     cached_interop: (dict[str, any] | None)
 ) -> None {
     try {
-        import jaclang.compiler.passes.native.llvm.binding as llvm;
+        import jaclang.compiler.backends.native.llvm.binding as llvm;
         llvm.initialize_native_target();
         llvm.initialize_native_asmprinter();
         import ctypes;
@@ -329,7 +329,7 @@ impl JacCompiler._load_native_from_bitcode(
     cached_interop: (dict[str, any] | None)
 ) -> None {
     import struct as _struct;
-    import jaclang.compiler.passes.native.llvm.binding as llvm;
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
     llvm.initialize_native_target();
     llvm.initialize_native_asmprinter();
 
@@ -602,7 +602,7 @@ impl JacCompiler.parse_str(
     had_error = False;
     run_codespace_infer = False;
     if (file_path.endswith('.py') or file_path.endswith('.pyi')) {
-        import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+        import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
         parsed_ast = py_ast.parse(source_str);
         py_ast_ret = run_pass(
             PyastBuildPass,
@@ -1421,10 +1421,10 @@ impl JacCompiler._compile_once(
         if is_native_mod or _PtyMcp.has_native_context_stmts(mod_targ) {
             _parity_passes: list = [];
             try {
-                import from jaclang.compiler.passes.main.rc_facts_pass {
+                import from jaclang.compiler.passes.rc_facts_pass {
                     RcFactsPass as _PtyRcFacts
                 }
-                import from jaclang.compiler.passes.native {
+                import from jaclang.compiler.backends.native {
                     NaIRGenPass as _PtyNaIRGen
                 }
                 _parity_passes = [_PtyRcFacts, _PtyNaIRGen];
@@ -1719,7 +1719,7 @@ impl JacCompiler._report_missing_native_ir(
     }
     from_pass: any = JcirGenPass;
     try {
-        import from jaclang.compiler.passes.native { NaIRGenPass }
+        import from jaclang.compiler.backends.native { NaIRGenPass }
         from_pass = NaIRGenPass;
     } except Exception {
         ;

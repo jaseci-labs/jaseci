@@ -858,7 +858,7 @@ def _emit_index_html(
 
 
 def _emit_entry_js(frontend_src_dir: Path, entry_module: str) {
-    import from jaclang.compiler.passes.ecmascript.backends.registry {
+    import from jaclang.compiler.backends.es.backends.registry {
         resolve_active_backend
     }
     backend = resolve_active_backend();

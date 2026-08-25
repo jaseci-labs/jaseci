@@ -147,7 +147,7 @@ test "the betrayed caller re-emits and cascades honestly" {
 
 
 test "an oversized composition trips the blast-radius guard fast and loud" {
-    import from jaclang.compiler.passes.native.na_compile_pass {
+    import from jaclang.compiler.backends.native.na_compile_pass {
         NATIVE_LINK_COMPILE_BOUND,
         NATIVE_VERDICT_MISS_BOUND,
         NATIVE_VERDICT_TAINT_BOUND,
@@ -248,7 +248,7 @@ test "the verdict resolver refuses an inflight or mid-compile callee" {
     if _jaclang_image() is not None {
         testskip("a sealed image measures its trust boundary, not this");
     }
-    import from jaclang.compiler.passes.native.na_compile_pass { native_unit_demotions }
+    import from jaclang.compiler.backends.native.na_compile_pass { native_unit_demotions }
     import from jaclang.compiler.driver.compile_options { CompileOptions as _Opts }
     helpers_path = os.path.realpath(os.path.join(FIXTURES, "demote_cycle_helpers.jac"));
     prog = JacProgram();
@@ -268,7 +268,7 @@ test "the verdict resolver refuses an inflight or mid-compile callee" {
 
 
 test "the wheel-shaped lane stays quiet on the live closure" {
-    import from jaclang.compiler.passes.native.na_compile_pass {
+    import from jaclang.compiler.backends.native.na_compile_pass {
         native_verdict_blast_guard
     }
 

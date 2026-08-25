@@ -61,7 +61,7 @@ test "parser mod doc test" {
 }
 
 test "all ast has normalize" {
-    import from jaclang.compiler.passes.tool.normalize_pass { NormalizePass }
+    import from jaclang.compiler.tools.normalize_pass { NormalizePass }
     import from jaclang.compiler.frontend.helpers { pascal_to_snake }
 
     exclude = [

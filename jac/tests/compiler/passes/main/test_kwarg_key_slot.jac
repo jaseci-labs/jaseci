@@ -3,7 +3,7 @@
 `DeclImplMatchPass._resolve_symbols_in_subtree` resolves every unbound `Name`
 against the scope chain. It guarded attribute names and nothing else, so a
 keyword-argument key was handed the symbol of whatever unrelated local
-happened to share its spelling. `jaclang/compiler/passes/native/elf_linker.jac`
+happened to share its spelling. `jaclang/compiler/backends/native/elf_linker.jac`
 carried 41 of those bindings, `align` among them: a local, a keyword key, and
 a field name on both operands of the call the key sits in.
 

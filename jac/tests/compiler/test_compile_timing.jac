@@ -98,7 +98,7 @@ timing.
 """
 glob SNAPSHOT_LINKS: list[str] = [
          "jaclang/vendor/typeshed/stdlib",
-         "jaclang/compiler/passes/native/llvm/libjacllvm.so",
+         "jaclang/compiler/backends/native/llvm/libjacllvm.so",
          ".pbs-build",
          ".llvm-build"
      ];

@@ -168,7 +168,7 @@ jobs:
         id: shim-cache
         uses: actions/cache@v4
         with:
-          path: jac/jaclang/compiler/passes/native/llvm/libjacllvm.*
+          path: jac/jaclang/compiler/backends/native/llvm/libjacllvm.*
           key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
 
       # Keyed on bootstrap/pins.json to match the entries setup-jac seeds (the
@@ -260,7 +260,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.payload-layers
-          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/backends/native/wasm_rt/**') }}
           restore-keys: |
             payload-layers-${{ runner.os }}-${{ runner.arch }}-
 
@@ -441,7 +441,7 @@ jobs:
           SHIM_ARG=()
           if [ "${{ steps.shim-cache.outputs.cache-hit }}" = "true" ]; then
             mkdir -p .shim-build
-            cp jaclang/compiler/passes/native/llvm/libjacllvm.* .shim-build/
+            cp jaclang/compiler/backends/native/llvm/libjacllvm.* .shim-build/
             SHIM_ARG=(-Dshim-bin=".shim-build/$(ls .shim-build | head -1)")
           elif [ "${{ steps.shim-fetch.outputs.hit }}" = "true" ]; then
             SHIM_ARG=(-Dshim-bin="${{ steps.shim-fetch.outputs.file }}")
@@ -645,7 +645,7 @@ jobs:
             fi
           }
           check zig-out/bin/jac
-          SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.so"
+          SHIM="jaclang/compiler/backends/native/llvm/libjacllvm.so"
           [ -f "$SHIM" ] || zig build jacllvm -Dtarget=${{ matrix.zig_target }} --summary all
           [ -f "$SHIM" ] || SHIM="zig-out/lib/libjacllvm.so"
           check "$SHIM"
@@ -683,7 +683,7 @@ jobs:
             fi
           }
           check zig-out/bin/jac
-          SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.dylib"
+          SHIM="jaclang/compiler/backends/native/llvm/libjacllvm.dylib"
           check "$SHIM"
           if otool -L "$SHIM" | grep -E "/opt/homebrew|/usr/local"; then
             echo "::error::$SHIM links Homebrew dylibs; the from-source slice must not."; exit 1
@@ -719,7 +719,7 @@ jobs:
           set -euo pipefail
           ASSET="${{ steps.shim-fetch.outputs.asset }}"
           mkdir -p dist-shim
-          cp jac/jaclang/compiler/passes/native/llvm/libjacllvm.* "dist-shim/$ASSET"
+          cp jac/jaclang/compiler/backends/native/llvm/libjacllvm.* "dist-shim/$ASSET"
           ( cd dist-shim && shasum -a 256 "$ASSET" > "$ASSET.sha256" )
           gh release create deps --repo "$GITHUB_REPOSITORY" --prerelease \
             --title "Prebuilt build dependencies (rolling)" \

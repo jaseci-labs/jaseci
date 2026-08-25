@@ -6,7 +6,7 @@ import sys;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from tests.support { JAC_ROOT }
-import from tests.compiler.passes.main.checker_npm_harness { make_npm_client_project }
+import from tests.compiler.passes.checker_npm_harness { make_npm_client_project }
 
 import jaclang.lsp.types as lspt;
 
@@ -54,7 +54,7 @@ def teardown_test {
         with contextlib.suppress(Exception) as _s {
             server.shutdown();
         }
-        server.clear_type_system(clear_hub=True);
+        server.program.clear_type_system(clear_hub=True);
     }
     _active_servers.clear();
     _clear_jac_modules();
@@ -278,9 +278,9 @@ test "test_go_to_definition_md_path" {
             (10, 34, "jaclang/__init__.py:"),
             (11, 35, "jaclang/compiler/frontend/constant.jac:0:0-0:0"),
             (11, 47, "jaclang/compiler/frontend/constant.jac:2:5-2:15"),
-            (13, 47, "jaclang/compiler/type_system/type_utils.jac:0:0-0:0"),
-            (14, 34, "jaclang/compiler/type_system/__init__.py:0:0-0:0"),
-            (18, 5, "compiler/type_system/types.jac:37:4-37:12"),
+            (13, 47, "jaclang/compiler/types/type_utils.jac:0:0-0:0"),
+            (14, 34, "jaclang/compiler/types/__init__.py:0:0-0:0"),
+            (18, 5, "compiler/types/types.jac:37:4-37:12"),
             (20, 34, "jaclang/compiler/frontend/unitree.jac:0:0-0:0"),
             (22, 22, "tests/langserve/fixtures/circle.jac:7:5-7:8"),
             (23, 28, "jaclang/lsp/uris.jac:0:0-0:0"),

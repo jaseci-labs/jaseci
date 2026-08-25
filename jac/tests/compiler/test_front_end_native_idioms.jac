@@ -282,7 +282,7 @@ test "MalformedJacTomlError keeps its identity and its tomllib base" {
 # fail here with the exact delta, and the tables get regenerated.
 test "the frozen builtins table matches the running interpreter" {
     import builtins;
-    import from jaclang.compiler.passes.main.static_analysis_pass { BUILTIN_NAMES }
+    import from jaclang.compiler.passes.static_analysis_pass { BUILTIN_NAMES }
     live = set(dir(builtins));
     assert BUILTIN_NAMES == live , (
         f"regenerate BUILTIN_NAMES: missing {sorted(live - BUILTIN_NAMES)}, "
@@ -335,7 +335,7 @@ test "version-condition comparisons match the operator table they replaced" {
     import sys;
     import ast as py_ast;
     import from jaclang.compiler.frontend.unitree { IfStmt, PythonModuleAst, Source }
-    import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+    import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
     import from jaclang.compiler.frontend.helpers { evaluate_version_condition }
     code = "import sys\n"
     "if sys.version_info >= (3, 11):\n    a = 1\n"

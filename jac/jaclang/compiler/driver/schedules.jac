@@ -111,15 +111,15 @@ def get_ir_gen_sched(
     }
     _tok = _ir_sched_loading.set(True);
     try {
-        import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
-        import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
-        import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
+        import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
+        import from jaclang.compiler.passes.sem_def_match_pass { SemDefMatchPass }
+        import from jaclang.compiler.passes.jsx_intrinsic_guard_pass {
             JsxIntrinsicGuardPass
         }
 
         import jaclang.compiler.symbol_utils;
         import jaclang.compiler.expr_keys;
-        import jaclang.compiler.passes.main.layout_pass;
+        import jaclang.compiler.passes.layout_pass;
         import jaclang.compiler.type_registry;
         import jaclang.compiler.intrinsic_registry;
         import jaclang.project.client_kind;
@@ -133,7 +133,7 @@ def get_ir_gen_sched(
             CFGBuildPass
         ];
         if gen_mtir {
-            import from jaclang.compiler.passes.main.mtir_gen_pass { MTIRGenPass }
+            import from jaclang.compiler.passes.mtir_gen_pass { MTIRGenPass }
             passes.append(MTIRGenPass);
         }
         passes.append(JsxIntrinsicGuardPass);
@@ -183,14 +183,14 @@ def get_analysis_sched -> list[type[Transform]] {
     require_typeshed_stubs();
     _tok = _analysis_sched_loading.set(True);
     try {
-        import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+        import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 
-        import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
+        import from jaclang.compiler.types.type_evaluator { TypeEvaluator }
 
-        import jaclang.compiler.passes.main.pyast_load_pass;
-        import jaclang.compiler.passes.main.rc_facts_pass;
-        import jaclang.compiler.type_system.type_utils;
-        import jaclang.compiler.type_system.ts_decl_parser;
+        import jaclang.compiler.passes.pyast_load_pass;
+        import jaclang.compiler.passes.rc_facts_pass;
+        import jaclang.compiler.types.type_utils;
+        import jaclang.compiler.types.ts_decl_parser;
         import jaclang.compiler.symbol_utils;
         import jaclang.compiler.expr_keys;
         import jaclang.compiler.type_registry;
@@ -201,19 +201,19 @@ def get_analysis_sched -> list[type[Transform]] {
         import jaclang.project.tomlio;
         import jaclang.project.client_kind;
         import jaclang.project.config;
-        import from jaclang.compiler.passes.main.static_analysis_pass {
+        import from jaclang.compiler.passes.static_analysis_pass {
             StaticAnalysisPass
         }
-        import from jaclang.compiler.passes.main.access_check_pass { AccessCheckPass }
-        import from jaclang.compiler.passes.main.capability_check_pass {
+        import from jaclang.compiler.passes.access_check_pass { AccessCheckPass }
+        import from jaclang.compiler.passes.capability_check_pass {
             ClientCapabilityCheckPass,
             NativeCapabilityCheckPass,
             PortabilityWarnPass
         }
-        import from jaclang.compiler.passes.main.ownership_check_pass {
+        import from jaclang.compiler.passes.ownership_check_pass {
             OwnershipCheckPass
         }
-        import from jaclang.compiler.passes.tool.jac_auto_lint_pass { JacLintCheckPass }
+        import from jaclang.compiler.tools.jac_auto_lint_pass { JacLintCheckPass }
         return validate_schedule(
             [
                 TypeCheckPass,
@@ -252,7 +252,7 @@ def native_pipeline_available -> tuple[bool, str] {
     }
     reason = '';
     try {
-        import from jaclang.compiler.passes.native.llvm.binding.ffi { _find_shim }
+        import from jaclang.compiler.backends.native.llvm.binding.ffi { _find_shim }
         _find_shim();
     } except ModuleNotFoundError {
         reason = (
@@ -285,12 +285,12 @@ def get_py_code_gen(
     }
     _tok = _codegen_sched_loading.set(True);
     try {
-        import from jaclang.compiler.passes.ecmascript { EsastGenPass }
+        import from jaclang.compiler.backends.es { EsastGenPass }
 
         passes: list[type[Transform]] = [EsastGenPass];
         if native {
-            import from jaclang.compiler.passes.main.rc_facts_pass { RcFactsPass }
-            import from jaclang.compiler.passes.native {
+            import from jaclang.compiler.passes.rc_facts_pass { RcFactsPass }
+            import from jaclang.compiler.backends.native {
                 NaIRGenPass,
                 NativeCompilePass
             }
@@ -335,10 +335,10 @@ def providers_of(passes: list[type[Transform]]) -> set[str] {
 }
 
 def get_format_sched(auto_lint: bool = False) -> list[type[Transform]] {
-    import from jaclang.compiler.passes.tool.comment_attach_pass { CommentAttachPass }
-    import from jaclang.compiler.passes.tool.doc_ir_gen_pass { DocIRGenPass }
-    import from jaclang.compiler.passes.tool.jac_auto_lint_pass { JacAutoLintPass }
-    import from jaclang.compiler.passes.tool.jac_formatter_pass { JacFormatPass }
+    import from jaclang.compiler.tools.comment_attach_pass { CommentAttachPass }
+    import from jaclang.compiler.tools.doc_ir_gen_pass { DocIRGenPass }
+    import from jaclang.compiler.tools.jac_auto_lint_pass { JacAutoLintPass }
+    import from jaclang.compiler.tools.jac_formatter_pass { JacFormatPass }
     if auto_lint {
         return validate_schedule(
             [CommentAttachPass, JacAutoLintPass, DocIRGenPass, JacFormatPass],
@@ -351,13 +351,13 @@ def get_format_sched(auto_lint: bool = False) -> list[type[Transform]] {
 }
 
 def get_lint_sched -> list[type[Transform]] {
-    import from jaclang.compiler.passes.tool.jac_auto_lint_pass { JacLintCheckPass }
+    import from jaclang.compiler.tools.jac_auto_lint_pass { JacLintCheckPass }
     return validate_schedule([JacLintCheckPass], origin='lint schedule');
 }
 
 def _jsx_intrinsic_guard_pass_type -> (type | None) {
     try {
-        import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
+        import from jaclang.compiler.passes.jsx_intrinsic_guard_pass {
             JsxIntrinsicGuardPass
         }
         return JsxIntrinsicGuardPass;

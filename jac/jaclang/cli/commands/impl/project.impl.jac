@@ -1725,7 +1725,7 @@ def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
         return True;
     }
     try {
-        import jaclang.compiler.passes.native.llvm.binding as llvm;
+        import jaclang.compiler.backends.native.llvm.binding as llvm;
         triple = str(llvm.get_default_triple());
     } except Exception as e {
         console.error(f"Cannot resolve the native target triple: {e}");

@@ -20,8 +20,8 @@ import os;
 import struct;
 import sys;
 import tempfile;
-import from jaclang.compiler.passes.native.macho_linker { MachOLinker }
-import jaclang.compiler.passes.native.llvm.binding as llvm;
+import from jaclang.compiler.backends.native.macho_linker { MachOLinker }
+import jaclang.compiler.backends.native.llvm.binding as llvm;
 
 glob MACHO_TRIPLE = "arm64-apple-darwin",
      LC_DYLD_INFO_ONLY = 0x80000022;

@@ -451,7 +451,7 @@ impl ViteBundler._generate_vite_config_content(
     framework_plugin_import = 'import react from "@vitejs/plugin-react";';
     framework_plugin_call = 'react()';
     try {
-        import from jaclang.compiler.passes.ecmascript.backends.registry {
+        import from jaclang.compiler.backends.es.backends.registry {
             resolve_active_backend
         }
         active_backend = resolve_active_backend();

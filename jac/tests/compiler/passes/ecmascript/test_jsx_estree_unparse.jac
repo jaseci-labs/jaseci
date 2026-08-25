@@ -14,8 +14,8 @@ fragments `<>…</>`, dotted component names. Attribute name-mapping
 unparser's — these tests emit names verbatim.
 """
 
-import jaclang.compiler.passes.ecmascript.estree as es;
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
+import jaclang.compiler.backends.es.estree as es;
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
 
 """`<div className="box">Hello</div>` — host tag, static string attr, text."""
 test "jsx host element with static attribute and text child" {

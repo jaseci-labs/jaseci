@@ -5,7 +5,7 @@ Tests that all type classes produce correct string representations.
 
 import from pathlib { Path }
 import from unittest.mock { MagicMock }
-import from jaclang.compiler.type_system { types }
+import from jaclang.compiler.types { types }
 import from jaclang.compiler.frontend.unitree { Module }
 
 test "all type str methods" {

@@ -9,7 +9,7 @@ import from pathlib { Path }
 import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.compiler.passes.tool.grammar_extract_pass {
+import from jaclang.compiler.tools.grammar_extract_pass {
     GAlt,
     GOpt,
     GPlus,

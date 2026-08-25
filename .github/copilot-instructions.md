@@ -31,7 +31,7 @@ jac precommit
 
 - Grammar: `jac/jaclang/compiler/jac.lark`
 - IR: `unitree.py` (UniTree nodes)
-- Passes: `jac/jaclang/compiler/passes/main/`
+- Passes: `jac/jaclang/compiler/passes/`
 - Codegen: `jcir_gen_pass.jac`, `jcir_bc_gen_pass.jac`
 - Compiler passes subclass `Transform`/`UniPass` with `enter_*`/`exit_*` hooks
 - Test fixtures: `jac/jaclang/compiler/**/tests/fixtures/`
@@ -73,5 +73,5 @@ with entry { /* ... */ }
 
 - Jac examples: `jac/examples/reference/`, `jac/examples/*`
 - Type system details: `.github/agents/type-system-agent.md`
-- Compiler passes: `jac/jaclang/compiler/passes/main/`
+- Compiler passes: `jac/jaclang/compiler/passes/`
 - LLM examples: `jac-byllm/examples/`

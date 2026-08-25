@@ -1,6 +1,6 @@
 """The type-system stage's native measurement, pinned the way the unitree seal is.
 
-`types.jac` is the keystone: nothing else in `jaclang.compiler.type_system` can
+`types.jac` is the keystone: nothing else in `jaclang.compiler.types` can
 enter a native unit until the module that defines `ClassType` lowers, because
 every other module in the stage carries its types in fields and signatures. A
 module-scoped refusal denies the whole module its IR, so a seam coverage report taken
@@ -65,7 +65,7 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     TS_PATH = PKG_PATH / "compiler" / "type_system",
+     TS_PATH = PKG_PATH / "compiler" / "types",
      CHECKER_SRC = PKG_PATH / "compiler" / "passes" / "main" / "type_checker_pass.jac";
 
 """Every module the native compile of `types.jac` puts in its closure.
@@ -483,7 +483,7 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator.get_type_of_module_item",
              "TypeEvaluator.resolve_imported_symbols"
          ),
-         "unsupported Python module import 'jaclang.compiler.type_system'": (
+         "unsupported Python module import 'jaclang.compiler.types'": (
              "TypeEvaluator._get_declared_return_type",
              "TypeEvaluator._infer_lambda_block_return_type"
          ),

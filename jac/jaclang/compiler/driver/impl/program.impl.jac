@@ -83,7 +83,7 @@ impl JacProgram.load_dependency_module(
     } else {
         if resolved_path.endswith('.pyi') {
             import ast as py_ast;
-            import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+            import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
             import from jaclang.compiler.driver.pass_driver { run_pass }
             import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
             import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
@@ -143,7 +143,7 @@ impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {
 }
 
 impl JacProgram.get_type_evaluator(self: JacProgram) -> TypeEvaluator {
-    import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
+    import from jaclang.compiler.types.type_evaluator { TypeEvaluator }
     if not self.type_evaluator {
         self.type_evaluator = TypeEvaluator(program=self);
     }

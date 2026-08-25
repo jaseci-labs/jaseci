@@ -1,6 +1,6 @@
 """jsdom runtime test for the Solid framework backend.
 
-The string-only backend tests (`tests/compiler/passes/ecmascript/test_solid_backend.jac`)
+The string-only backend tests (`tests/compiler/backends/es/test_solid_backend.jac`)
 pin what the Solid backend *emits* but never execute it. This test closes that
 gap: it compiles a Solid counter + the real `@jac/runtime` shim to JS, mounts it
 in a real DOM (jsdom) via `solid-js/web`'s `render`, and asserts the initial
@@ -27,10 +27,10 @@ import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
 import from jaclang.compiler.driver.program { JacProgram }
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.backends.solid { SolidBackend }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.backends.solid { SolidBackend }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.client.client_surface { with_runtime_globals }
 import from jaclang.client.runtime_source { resolve_client_runtime_cl_path }
 import from jaclang.client.bun_installer { get_bun }

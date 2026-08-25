@@ -235,7 +235,7 @@ test "bootstrap-compiled modules keep the ambient-import advisory" {
     # compiles (jaclang/jac0core/), an ambient-name import is load-bearing, so
     # the escalation carves them out -- W1103 stays advisory there, E1125 never
     # fires. The predicate is path-shaped; pin its boundary on both sides.
-    import from jaclang.compiler.passes.main.static_analysis_pass {
+    import from jaclang.compiler.passes.static_analysis_pass {
         is_bootstrap_compiled_module
     }
     assert is_bootstrap_compiled_module("/repo/jac/jaclang/runtime/runtime.jac");
@@ -246,7 +246,7 @@ test "bootstrap-compiled modules keep the ambient-import advisory" {
         "C:\\repo\\jac\\jaclang\\jac0core\\runtime.jac"
     );
     assert not is_bootstrap_compiled_module(
-        "/repo/jac/jaclang/compiler/passes/main/layout_pass.jac"
+        "/repo/jac/jaclang/compiler/passes/layout_pass.jac"
     );
     assert not is_bootstrap_compiled_module("/repo/apps/jac0core/module.jac");
     assert not is_bootstrap_compiled_module("");
@@ -260,7 +260,7 @@ test "bootstrap-compiled modules keep the ambient-import advisory" {
     assert is_bootstrap_compiled_module("jaclang/compiler/backends/py/jcir_gen_pass.jac");
     assert is_bootstrap_compiled_module("jaclang\\jac0core\\runtime.jac");
     assert not is_bootstrap_compiled_module(
-        "jaclang/compiler/passes/main/layout_pass.jac"
+        "jaclang/compiler/passes/layout_pass.jac"
     );
     assert not is_bootstrap_compiled_module("apps/jac0core/module.jac");
     assert not is_bootstrap_compiled_module("myjaclang/jac0core/module.jac");
@@ -275,7 +275,7 @@ test "the ambient provider module keeps its typing imports" {
     # Stripping them breaks every module whose codegen wraps a static field in
     # ClassVar. The predicate mirrors JcirGenPass.exit_module's
     # is_builtin_module test exactly.
-    import from jaclang.compiler.passes.main.static_analysis_pass {
+    import from jaclang.compiler.passes.static_analysis_pass {
         is_ambient_provider_module
     }
     assert is_ambient_provider_module("/repo/jac/jaclang/runtime/builtin.jac");

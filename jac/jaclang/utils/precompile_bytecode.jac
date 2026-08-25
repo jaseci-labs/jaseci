@@ -349,17 +349,17 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "compiler/passes/decl_impl_match_pass.jac",
          "compiler/passes/uni_pass.jac",
          "compiler/passes/endpoint_effect_pass.jac",
-         "compiler/passes/main/sem_def_match_pass.jac",
-         "compiler/passes/main/access_check_pass.jac",
-         "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
-         "compiler/passes/main/cfg_build_pass.jac",
-         "compiler/passes/main/rc_facts_pass.jac",
+         "compiler/passes/sem_def_match_pass.jac",
+         "compiler/passes/access_check_pass.jac",
+         "compiler/passes/jsx_intrinsic_guard_pass.jac",
+         "compiler/passes/cfg_build_pass.jac",
+         "compiler/passes/rc_facts_pass.jac",
          "compiler/backends/py/jcir_gen_pass.jac",
          "compiler/native_materialize.jac",
 
      ),
      NATIVE_SEAL_REFUSED_ROOTS: dict[str, str] = {
-         "compiler/passes/main/capability_check_pass.jac": (
+         "compiler/passes/capability_check_pass.jac": (
              "one own seam left (native_capability_violations, the "
              "pass-tier crossing into ModuleCodegenPass.iter_context_stmts) "
              "and it cannot be waived: the seal's abort-stub linkage check "
@@ -398,15 +398,15 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "compiler/frontend/unitree.jac",
          "compiler/expr_keys.jac",
          "compiler/native_materialize.jac",
-         "compiler/passes/main/access_check_pass.jac",
-         "compiler/passes/main/cfg_build_pass.jac",
-         "compiler/passes/main/dataflow.jac",
-         "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
-         "compiler/passes/main/rc_facts_pass.jac",
-         "compiler/passes/main/sem_def_match_pass.jac",
+         "compiler/passes/access_check_pass.jac",
+         "compiler/passes/cfg_build_pass.jac",
+         "compiler/passes/dataflow.jac",
+         "compiler/passes/jsx_intrinsic_guard_pass.jac",
+         "compiler/passes/rc_facts_pass.jac",
+         "compiler/passes/sem_def_match_pass.jac",
          "compiler/type_registry.jac",
-         "compiler/type_system/type_utils.jac",
-         "compiler/type_system/types.jac",
+         "compiler/types/type_utils.jac",
+         "compiler/types/types.jac",
          "project/client_kind_paths.jac",
          "client/targets/react_native/html_tag_map.jac",
          "runtime/na_stdlib/_hashlib_native.jac",
@@ -435,18 +435,18 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      _TYPES_SEAM_WAIVERS: tuple[str, ...] = (
-         "compiler/type_system/types.jac::ClassType.lookup_member_symbol",
-         "compiler/type_system/types.jac::FunctionType.specialize",
+         "compiler/types/types.jac::ClassType.lookup_member_symbol",
+         "compiler/types/types.jac::FunctionType.specialize",
 
      ),
      _TYPE_UTILS_SEAM_WAIVERS: tuple[str, ...] = (
-         "compiler/type_system/type_utils.jac::class_implements_protocol",
-         "compiler/type_system/type_utils.jac::collect_member_syms",
-         "compiler/type_system/type_utils.jac::get_completion_items",
-         "compiler/type_system/type_utils.jac::compute_mro_linearization",
-         "compiler/type_system/type_utils.jac::build_type_var_solution",
-         "compiler/type_system/type_utils.jac::shadowed_type_var_names",
-         "compiler/type_system/type_utils.jac::build_solution_from_specialized_class",
+         "compiler/types/type_utils.jac::class_implements_protocol",
+         "compiler/types/type_utils.jac::collect_member_syms",
+         "compiler/types/type_utils.jac::get_completion_items",
+         "compiler/types/type_utils.jac::compute_mro_linearization",
+         "compiler/types/type_utils.jac::build_type_var_solution",
+         "compiler/types/type_utils.jac::shadowed_type_var_names",
+         "compiler/types/type_utils.jac::build_solution_from_specialized_class",
 
      ),
      _HELPERS_SEAM_WAIVERS: tuple[str, ...] = (
@@ -485,15 +485,15 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      ),
      _CAPABILITY_SEAM_WAIVERS: tuple[str, ...] = (
          (
-             "compiler/passes/main/capability_check_pass.jac::"
+             "compiler/passes/capability_check_pass.jac::"
              "native_capability_violations"
          ),
 
      ),
      _CFG_BUILD_SEAM_WAIVERS: tuple[str, ...] = (
-         "compiler/passes/main/cfg_build_pass.jac::cfg_dot_from_file",
-         "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass.enter_node",
-         "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass._node_label",
+         "compiler/passes/cfg_build_pass.jac::cfg_dot_from_file",
+         "compiler/passes/cfg_build_pass.jac::CoalesceBBPass.enter_node",
+         "compiler/passes/cfg_build_pass.jac::CoalesceBBPass._node_label",
 
      ),
      _JCIR_INTEROP_SEAM_WAIVERS: tuple[str, ...] = (
@@ -538,14 +538,14 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/passes/semantic_analysis_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/sym_tab_build_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/cfg_build_pass.jac": (
+         "compiler/passes/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/cfg_build_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
          ),
-         "compiler/passes/main/rc_facts_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/capability_check_pass.jac": (
+         "compiler/passes/rc_facts_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/capability_check_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _CAPABILITY_SEAM_WAIVERS
          ),
          "compiler/backends/py/jcir_gen_pass.jac": (
@@ -1221,7 +1221,7 @@ def _parity_sym_report(canary_path: str, n_syms: list[str], p_syms: list[str]) -
 
 def seal_parse_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str {
     import traceback;
-    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+    import from jaclang.compiler.tools.unparse_pass { unparse_node }
     import from jaclang.compiler.driver.compile_options { env_na_debug }
     import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
     import from jaclang.compiler.frontend.parser.materialize { bind_native_parser }
@@ -1321,7 +1321,7 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str 
 
 def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str {
     import traceback;
-    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+    import from jaclang.compiler.tools.unparse_pass { unparse_node }
     import from jaclang.compiler.driver.compile_options { env_na_debug }
     import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
     import from jaclang.compiler.frontend.parser.materialize { bind_native_parser }
@@ -1331,9 +1331,9 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
     import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
     import from jaclang.compiler.passes.decl_impl_match_pass { DeclImplMatchPass }
     import from jaclang.compiler.passes.semantic_analysis_pass { SemanticAnalysisPass }
-    import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
-    import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
-    import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
+    import from jaclang.compiler.passes.sem_def_match_pass { SemDefMatchPass }
+    import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
+    import from jaclang.compiler.passes.jsx_intrinsic_guard_pass {
         JsxIntrinsicGuardPass
     }
 
@@ -1546,7 +1546,7 @@ def _merge_probe_parity(np: any) -> str {
     import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
     import from jaclang.compiler.frontend.parser.parser { Parser }
     import from jaclang.compiler.passes.annex_weave { merge_annex_into }
-    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+    import from jaclang.compiler.tools.unparse_pass { unparse_node }
 
     nl = chr(10);
     main_src = nl.join(list(_MERGE_PROBE_MAIN));
@@ -2098,8 +2098,8 @@ def seal_native_roots(
     import from jaclang.compiler.driver.compile_options { CompileOptions }
     import from jaclang.compiler.frontend.codeinfo { native_layout_to_dict }
     import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
-    import from jaclang.compiler.passes.native.shared_emit { emit_shared_library }
-    import jaclang.compiler.passes.native.llvm.binding as llvm;
+    import from jaclang.compiler.backends.native.shared_emit { emit_shared_library }
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
 
     pkg_name = pkg_path.name;
     triple = llvm.get_default_triple();
@@ -2773,7 +2773,7 @@ def seal_native_pool(
     import tempfile;
     import from concurrent.futures { ThreadPoolExecutor }
     import from jaclang.compiler.driver.jir { cache_mode }
-    import jaclang.compiler.passes.native.llvm.binding as llvm;
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
 
     triple = llvm.get_default_triple();
     assert isinstance(triple, str);

@@ -6,7 +6,7 @@ TypeCheckPass so declaration-ingestion tests stay DRY across modules.
 
 import from pathlib { Path }
 import jaclang;
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 

@@ -15,12 +15,12 @@ import from pathlib { Path }
 import from tests.support { TESTS_DIR }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
-import from jaclang.compiler.passes.native.wasm_build {
+import from jaclang.compiler.backends.native.wasm_build {
     emit_wasm_from_ir,
     wasm_import_map,
     _wasm_libc_dir
 }
-import from jaclang.compiler.passes.native.wasm_host_abi {
+import from jaclang.compiler.backends.native.wasm_host_abi {
     WASM_HOST_ABI,
     WASM_HOST_MODULE
 }
@@ -240,7 +240,7 @@ test "abi64 adapter gap is reported against the floor, not the app" {
 
 test "every adapted libc name has a floor adapter" {
     _require_libc();
-    import from jaclang.compiler.passes.native.wasm_build {
+    import from jaclang.compiler.backends.native.wasm_build {
         _ABI64_ADAPTED,
         _wasm_rt_src_dir
     }
@@ -265,7 +265,7 @@ floor compiled from an older tree no matter what any fixture happens to call.
 """
 test "the built floor defines every abi64 adapter" {
     _require_libc();
-    import from jaclang.compiler.passes.native.wasm_build { _ABI64_ADAPTED }
+    import from jaclang.compiler.backends.native.wasm_build { _ABI64_ADAPTED }
     libc_dir = _wasm_libc_dir();
     assert libc_dir is not None;
     blobs = [
@@ -291,7 +291,7 @@ test "the built floor defines every abi64 adapter" {
 # the payload tool uses as its incremental-rebuild key.
 test "a floor built from different wasm_rt sources is refused" {
     _require_libc();
-    import from jaclang.compiler.passes.native.wasm_build { FLOOR_MANIFEST }
+    import from jaclang.compiler.backends.native.wasm_build { FLOOR_MANIFEST }
     src = _wasm_libc_dir();
     assert src is not None;
     if not os.path.isfile(os.path.join(src, FLOOR_MANIFEST)) {
@@ -341,7 +341,7 @@ test "a floor built from different wasm_rt sources is refused" {
 hand-built floors must keep working rather than hard-fail on a missing file."""
 test "a floor without a manifest still links" {
     _require_libc();
-    import from jaclang.compiler.passes.native.wasm_build { FLOOR_MANIFEST }
+    import from jaclang.compiler.backends.native.wasm_build { FLOOR_MANIFEST }
     src = _wasm_libc_dir();
     assert src is not None;
     d = tempfile.mkdtemp();
@@ -370,7 +370,7 @@ test "a floor without a manifest still links" {
 compile_to_wasm fail loudly instead of shipping RC machinery the shim then has
 to service. Pure-IR checks -- no vendored libc needed."""
 test "rc audit passes clean IR and rejects rc machinery" {
-    import from jaclang.compiler.passes.native.wasm_build { _assert_ir_rc_free }
+    import from jaclang.compiler.backends.native.wasm_build { _assert_ir_rc_free }
     _assert_ir_rc_free("define void @jac_entry() {\nret void\n}", "clean.jac");
     dirty = "declare void @__rc_retain(ptr)\ndefine void @jac_entry() {\nret void\n}";
     raised = False;
@@ -384,7 +384,7 @@ test "rc audit passes clean IR and rejects rc machinery" {
 }
 
 test "rc audit rejects entry-point gc env probes" {
-    import from jaclang.compiler.passes.native.wasm_build { _assert_ir_rc_free }
+    import from jaclang.compiler.backends.native.wasm_build { _assert_ir_rc_free }
     probing = '@.s = constant [10 x i8] c"JAC_NO_GC\\00"';
     raised = False;
     try {

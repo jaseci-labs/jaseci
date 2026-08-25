@@ -70,7 +70,7 @@ def populate(stage: str) {
     wf(stage, "site/watchdog/helper.py", b"helper = 1\n");
     wf(
         stage,
-        "site/jaclang/compiler/passes/native/llvm/libjacllvm.so",
+        "site/jaclang/compiler/backends/native/llvm/libjacllvm.so",
         b"fake-shim-bytes"
     );
     wf(stage, "site/jaclang/client/_bun/bun", b"fake-bun-bytes", 0o755);
@@ -129,7 +129,7 @@ test "tar_stage is byte-identical across two stagings and carries no host metada
             }
         }
         assert "python/lib/marker.txt" in names;
-        assert "site/jaclang/compiler/passes/native/llvm/libjacllvm.so" in names;
+        assert "site/jaclang/compiler/backends/native/llvm/libjacllvm.so" in names;
         assert "site/jaclang/client/_bun/bun" in names;
         assert "site/empty_dir" in names;
         assert "site/jaclang/mod.py" not in names;
@@ -155,8 +155,8 @@ test "is_volatile_path routes the compiler tree and site shims to the jac frame"
         ("site/jaclang/compiler/frontend/unitree.jac", True),
         ("site/jaclang/_precompiled/MANIFEST.json", True),
         ("site/jaclang-0.36.1.dist-info/METADATA", True),
-        ("site/jaclang/compiler/passes/native/llvm/libjacllvm.so", False),
-        ("site/jaclang/compiler/passes/native/llvm", False),
+        ("site/jaclang/compiler/backends/native/llvm/libjacllvm.so", False),
+        ("site/jaclang/compiler/backends/native/llvm", False),
         ("site/jaclang/client/_bun/bun", False),
         ("site/jaclang/client/_bun", False),
         ("site/_jac_finder.py", True),

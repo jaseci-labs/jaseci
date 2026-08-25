@@ -14,8 +14,8 @@ rewriting it under whatever other process is watching.
 
 import glob;
 import os;
-import jaclang.compiler.passes.ecmascript.jac_runtime_js as _rtjs;
-import jaclang.compiler.passes.native.na_compile_pass as _nacp;
+import jaclang.compiler.backends.es.jac_runtime_js as _rtjs;
+import jaclang.compiler.backends.native.na_compile_pass as _nacp;
 import from jaclang.compiler.backends.kernel_units {
     OSP_CORE_PARTS,
     osp_core_unit_path,

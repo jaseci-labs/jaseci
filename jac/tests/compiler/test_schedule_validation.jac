@@ -20,10 +20,10 @@ import from jaclang.compiler.driver.schedules {
     validate_schedule
 }
 import from jaclang.compiler.driver.program { JacProgram }
-import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
-import from jaclang.compiler.passes.main.ownership_check_pass { OwnershipCheckPass }
-import from jaclang.compiler.passes.main.static_analysis_pass { StaticAnalysisPass }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
+import from jaclang.compiler.passes.ownership_check_pass { OwnershipCheckPass }
+import from jaclang.compiler.passes.static_analysis_pass { StaticAnalysisPass }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 
 
 test "schedule omitting a declared dependency fails fast at construction" {

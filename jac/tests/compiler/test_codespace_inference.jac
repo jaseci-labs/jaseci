@@ -615,7 +615,7 @@ test "unpullable closure bridges as a wire type instead of pulling" {
 
 test "codespace stamps invalidate stale module codegen" {
     import from jaclang.compiler.driver.compile_options { CompileOptions }
-    import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+    import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
     import from jaclang.client.client_bundle { _ensure_js_generated }
     prog = JacProgram();
     prog.compile(

@@ -22,7 +22,7 @@ import from jaclang.compiler.driver.schedules {
     providers_of
 }
 import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
-import from jaclang.compiler.passes.native { NaIRGenPass, NativeCompilePass }
+import from jaclang.compiler.backends.native { NaIRGenPass, NativeCompilePass }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
