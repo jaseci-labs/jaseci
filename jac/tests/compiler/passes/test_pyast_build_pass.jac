@@ -13,6 +13,8 @@ import tempfile;
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.driver.pass_driver { run_pass }
+import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
+import from jaclang.compiler.tools.unparse_pass { unparse_module }
 import from jaclang.compiler.frontend.helpers { pascal_to_snake }
 import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
 import from jaclang.compiler.driver.program { JacProgram }
@@ -236,7 +238,6 @@ test "py2jac complex literals" {
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_complex.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
 
@@ -300,7 +301,6 @@ test "py2jac complex literals run in server codespace" {
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_complex.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
 
@@ -338,7 +338,6 @@ test "py2jac null constant" {
             ir_in=PythonModuleAst(
                 py_ast.parse(source), orig_src=Source(source, "py2jac_null.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
     assert "return None" in code , f"Expected None literal in:\n{code}";
@@ -365,7 +364,6 @@ test "py2jac complex literals native lowering" {
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_complex.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
     prog = JacProgram();
@@ -373,10 +371,7 @@ test "py2jac complex literals native lowering" {
         file_path="py2jac_complex.jac",
         use_str=code,
         options=CompileOptions(
-            type_check=False,
-            force_codespace='native',
-            force_target_program=True,
-            skip_native_engine=True
+            force_codespace='native', force_target_program=True, skip_native_engine=True
         )
     );
     assert not prog.errors_had , (
@@ -410,7 +405,6 @@ test "py2jac builtin shadowing is resolved through the alias" {
             ir_in=PythonModuleAst(
                 py_ast.parse(source), orig_src=Source(source, "py2jac_shadow.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
 
@@ -467,7 +461,6 @@ test "py2jac alias avoids match and except bindings" {
                 py_ast.parse(match_source),
                 orig_src=Source(match_source, "py2jac_alias_match.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
     assert "as _jac_py2jac_builtins;" not in code , (
@@ -492,7 +485,6 @@ test "py2jac alias avoids match and except bindings" {
                 py_ast.parse(except_source),
                 orig_src=Source(except_source, "py2jac_alias_except.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
     assert "as _jac_py2jac_builtins;" not in code , (
@@ -511,12 +503,12 @@ The emitted call must be qualified through the alias and produce a real NaN.
 """
 test "py2jac nan lowers to aliased float call" {
     tree = py_ast.parse("def f():\n    return 0.0\n");
-    tree.body[0].body[0].value.value = float('nan');
+    fn_def: any = tree.body[0];
+    fn_def.body[0].value.value = float('nan');
     source = "def f():\n    return 0.0\n";
     code = unparse_module(
         PyastBuildPass(
             ir_in=PythonModuleAst(tree, orig_src=Source(source, "py2jac_nan.py")),
-            prog=JacProgram()
         ).ir_out
     );
 
@@ -547,7 +539,6 @@ test "py2jac no builtins import for plain and inf numbers" {
             ir_in=PythonModuleAst(
                 py_ast.parse(source), orig_src=Source(source, "py2jac_noinf.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
     assert "import builtins" not in code , (
@@ -592,9 +583,10 @@ test "qualified builtin recognition is symbol-based" {
     );
     fc_a = find_len_call(mod_a);
     assert fc_a is not None , "real-builtins case produced no builtins.len call";
-    assert qualified_builtin_name(fc_a.target) == "len" , (
+    len_trailer: any = fc_a.target;
+    assert qualified_builtin_name(len_trailer) == "len" , (
         f"Real `import builtins` must resolve to builtin len; target sym: "
-        f"{fc_a.target.target.sym}"
+        f"{len_trailer.target.sym}"
     );
     assert fc_a.call_kind == "builtin" , (
         f"Real builtins.len must classify as BUILTIN, got {fc_a.call_kind}"
@@ -635,7 +627,6 @@ test "py2jac fstring adjacent multiline" {
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_fstring_adjacent_multiline.py")
             ),
-            prog=JacProgram()
         ).ir_out,
         requires_format=False
     );
@@ -669,7 +660,6 @@ test "py2jac fstring adjacent singleline" {
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_fstring_adjacent_singleline.py")
             ),
-            prog=JacProgram()
         ).ir_out,
         requires_format=False
     );
@@ -698,15 +688,14 @@ test "py2jac lambda iife" {
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_lambda_iife.py")
             ),
-            prog=JacProgram()
         ).ir_out,
         requires_format=False
     );
 
-    assert "lambda (x: Any) { (x + 1); }(10)" not in code , (
+    assert "lambda (x: any) { (x + 1); }(10)" not in code , (
         f"Unparenthesized lambda call target in:\n{code}"
     );
-    assert "(lambda (x: Any) { (x + 1); })(10)" in code , (
+    assert "(lambda (x: any) { (x + 1); })(10)" in code , (
         f"Expected parenthesized lambda IIFE in:\n{code}"
     );
 
@@ -733,7 +722,6 @@ test "py2jac fstring hash survives formatter" {
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_fstring_hash.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
 
@@ -768,7 +756,6 @@ test "py2jac complex inf imaginary" {
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_complex_inf.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
 
@@ -798,7 +785,6 @@ test "py2jac plain float inf" {
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_float_inf.py")
             ),
-            prog=JacProgram()
         ).ir_out
     );
 
@@ -862,7 +848,6 @@ test "py2jac ternary call target" {
                 py_ast.parse(file_source),
                 orig_src=Source(file_source, "py2jac_ternary_call.py")
             ),
-            prog=JacProgram()
         ).ir_out,
         requires_format=False
     );
