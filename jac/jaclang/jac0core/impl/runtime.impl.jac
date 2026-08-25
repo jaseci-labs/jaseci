@@ -568,7 +568,7 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
             )
         );
     }
-    _own_anns = cls.__dict__.get('__annotations__', {});
+    _own_anns: dict[str, object] = cls.__dict__.get('__annotations__', {});
     if _own_anns {
         _pre_attrs = dict(cls.__dict__);
         try {
@@ -582,7 +582,10 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
 
             _seen_default = False;
             for _base in reversed(cls.__mro__[1:]) {
-                for _bf in getattr(_base, '__dataclass_fields__', {}).values() {
+                _base_fields: dict[str, dataclasses.Field] = getattr(
+                    _base, '__dataclass_fields__', {}
+                );
+                for _bf in _base_fields.values() {
                     if _bf.`default is not dataclasses.MISSING
                         or _bf.default_factory is not dataclasses.MISSING {
                         _seen_default = True;
@@ -2028,6 +2031,8 @@ impl JacRuntime.reset_process_state(cls: any, clear_modules: bool = True) -> Non
     }
     cls.program = None;
     cls.compiler = None;
+    import from jaclang.project.config { set_config }
+    set_config(None);
 }
 
 impl JacRuntime.get_compiler(cls: any) -> JacCompiler {

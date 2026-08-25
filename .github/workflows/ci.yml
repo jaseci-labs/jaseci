@@ -547,10 +547,15 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: bash scripts/check-release-notes.sh
 
-  # Compiler suite, one chunk per runner. Chunking is load-bearing: the
-  # materializer crossing leaks its native parse tree per compile, so one long
-  # run OOMs; fresh runners bound the accumulation and parallelize the suite.
+  # Compiler suite, one chunk per runner; chunking parallelizes the suite.
   # The native-backend chunks live in test-native / test-native-sealed below.
+  # The swap steps and worker caps these lanes used to carry treated real
+  # leaks: stub symbols recorded use-sites from every program compiled in
+  # the process (fixed in Symbol.add_use; test_stub_use_retention.jac pins
+  # it), and the evaluator's _pass hook pinned whole compilation units
+  # (#8666). Workers also retire on RSS now (JAC_TEST_RECYCLE_MB), so the
+  # pools run at auto and JAC_TEST_RSS_LOG leaves a per-file trail if a
+  # box ever dies again.
   test-compiler:
     needs: [changes, host-kit]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
@@ -559,15 +564,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # jobs: 2, not auto, for the same reason test-native-sealed caps
-          # its pool: the long-lived fork workers accumulate each compile's
-          # inference weight across files, and four of them exhaust the box.
           - chunk: passes-main
             paths: tests/compiler/passes/main tests/compiler/passes/ecmascript
-            jobs: "2"
           - chunk: toplevel
             paths: tests/compiler/test_*.jac
-            jobs: "2"
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
@@ -577,37 +577,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-      # Same swap floor test-native-sealed runs, for the same reason: with
-      # inference on the critical path (#8398) every fixture compile is
-      # heavier, and a memory spike on this swapless box does not fail the
-      # step -- it kills the runner agent ("lost communication", no step log).
-      # Swap converts that into a slow test instead of a dead runner.
-      - name: Swap headroom for checked fixture compiles
-        run: |
-          set -euo pipefail
-          SWAP_DIR="$RUNNER_TEMP"
-          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
-          SIZE_GB=$(( AVAIL_GB - 25 ))
-          if [ "$SIZE_GB" -gt 16 ]; then
-            SIZE_GB=16
-          fi
-          if [ "$SIZE_GB" -lt 4 ]; then
-            echo "::warning::only ${AVAIL_GB}G free in $SWAP_DIR; running without extra swap"
-            exit 0
-          fi
-          SWAP_FILE="$SWAP_DIR/jac-test-swap"
-          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
-            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
-          sudo chmod 600 "$SWAP_FILE"
-          sudo mkswap "$SWAP_FILE"
-          sudo swapon "$SWAP_FILE"
-          free -h
       - name: Run ${{ matrix.chunk }} chunk
         working-directory: jac
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto jac test ${{ matrix.paths }}
 
   # Native-backend validation: the passes-native chunk and the na/sv
   # equivalence pins. The LLVM shim these bind is the one inside the host
@@ -624,17 +599,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # jobs: 2 and the swap step, for the reason test-native-sealed
-          # records against this same chunk: the pool's long-lived fork
-          # workers accumulate each compile's inference weight across files,
-          # and four of them exhaust the box ~12 minutes in. This is the last
-          # lane running these paths at auto.
           - chunk: passes-native
             paths: tests/compiler/passes/native tests/compiler/passes/tool
-            jobs: "2"
           - chunk: equivalence
             paths: jaclang/compiler/tests
-            jobs: auto
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
@@ -644,37 +612,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-      # Same swap floor test-native-sealed runs, for the same reason: with
-      # inference on the critical path (#8398) every fixture compile is
-      # heavier, and a memory spike on this swapless box does not fail the
-      # step -- it kills the runner agent ("lost communication", no step log).
-      # Swap converts that into a slow test instead of a dead runner.
-      - name: Swap headroom for checked fixture compiles
-        run: |
-          set -euo pipefail
-          SWAP_DIR="$RUNNER_TEMP"
-          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
-          SIZE_GB=$(( AVAIL_GB - 25 ))
-          if [ "$SIZE_GB" -gt 16 ]; then
-            SIZE_GB=16
-          fi
-          if [ "$SIZE_GB" -lt 4 ]; then
-            echo "::warning::only ${AVAIL_GB}G free in $SWAP_DIR; running without extra swap"
-            exit 0
-          fi
-          SWAP_FILE="$SWAP_DIR/jac-test-swap"
-          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
-            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
-          sudo chmod 600 "$SWAP_FILE"
-          sudo mkswap "$SWAP_FILE"
-          sudo swapon "$SWAP_FILE"
-          free -h
       - name: Run ${{ matrix.chunk }} chunk
         working-directory: jac
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto jac test ${{ matrix.paths }}
 
   test-native-sealed:
     needs: [changes, build-kit]
@@ -686,24 +629,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # jobs: 2, not auto. Type checking on the critical path (#8398)
-          # made every fixture compile carry inference, and the pool's
-          # long-lived fork workers accumulate that weight across files:
-          # at auto (4 workers) the swapless runner exhausts memory
-          # ~12 minutes in and the runner agent itself is killed ("lost
-          # communication", no step log). Two workers keep the aggregate
-          # under the box.
           - chunk: passes-native
             paths: tests/compiler/passes/native tests/compiler/passes/tool
             sealed: "1"
-            jobs: "2"
           # The equivalence suite builds fixture paths from jaclang.__file__,
           # which only resolve in the checkout: it always runs through the
           # reroute, here over the sealed kit's shim and floors.
           - chunk: equivalence
             paths: jaclang/compiler/tests
             sealed: ""
-            jobs: auto
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
@@ -711,31 +645,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-      # Same swap floor build-kit runs for the seal: with inference on the
-      # critical path every fixture compile is heavier, and a memory spike on
-      # this swapless box does not fail the step -- it kills the runner agent
-      # ("lost communication", no step log). Swap converts that into a slow
-      # test instead of a dead runner.
-      - name: Swap headroom for checked fixture compiles
-        run: |
-          set -euo pipefail
-          SWAP_DIR="$RUNNER_TEMP"
-          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
-          SIZE_GB=$(( AVAIL_GB - 25 ))
-          if [ "$SIZE_GB" -gt 16 ]; then
-            SIZE_GB=16
-          fi
-          if [ "$SIZE_GB" -lt 4 ]; then
-            echo "::warning::only ${AVAIL_GB}G free in $SWAP_DIR; running without extra swap"
-            exit 0
-          fi
-          SWAP_FILE="$SWAP_DIR/jac-test-swap"
-          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
-            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
-          sudo chmod 600 "$SWAP_FILE"
-          sudo mkswap "$SWAP_FILE"
-          sudo swapon "$SWAP_FILE"
-          free -h
       - name: Run ${{ matrix.chunk }} chunk
         working-directory: jac
         env:
@@ -743,7 +652,7 @@ jobs:
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto jac test ${{ matrix.paths }}
 
   # Everything except the compiler tests.
   test-runtime:
@@ -761,42 +670,13 @@ jobs:
           node-version: "20"
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-      # Same swap floor test-compiler and test-native run, for the same
-      # reason: with inference on the critical path (#8398) every compile is
-      # heavier, and a memory spike on this swapless box does not fail the
-      # step -- it kills the runner agent ("lost communication", no step log).
-      # Swap converts that into a slow test instead of a dead runner.
-      - name: Swap headroom for checked fixture compiles
-        run: |
-          set -euo pipefail
-          SWAP_DIR="$RUNNER_TEMP"
-          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
-          SIZE_GB=$(( AVAIL_GB - 25 ))
-          if [ "$SIZE_GB" -gt 16 ]; then
-            SIZE_GB=16
-          fi
-          if [ "$SIZE_GB" -lt 4 ]; then
-            echo "::warning::only ${AVAIL_GB}G free in $SWAP_DIR; running without extra swap"
-            exit 0
-          fi
-          SWAP_FILE="$SWAP_DIR/jac-test-swap"
-          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
-            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
-          sudo chmod 600 "$SWAP_FILE"
-          sudo mkswap "$SWAP_FILE"
-          sudo swapon "$SWAP_FILE"
-          free -h
       # test_auth_models.jac runs in test-reroute-gaps (see there).
-      # jobs: 2, not auto, for the reason the compiler lanes already cap: the
-      # pool's long-lived fork workers accumulate each compile's inference
-      # weight across files, and four of them exhaust the box. This is the
-      # widest suite in the file and the last one running at auto.
       - name: Runtime suite via the binary
         working-directory: jac
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=2 jac test tests/ \
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto jac test tests/ \
             --ignore tests/compiler tests/runtimelib/test_auth_models.jac
 
   # Tests that do not yet pass through the reroute, run here against the

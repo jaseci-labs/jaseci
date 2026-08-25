@@ -11,7 +11,7 @@ impl JScaleExecutionContext.init(self: JScaleExecutionContext) -> None {
 
     base = JacRuntime.get_base_path_dir();
     target = JacRuntime.get_full_target_path();
-    url = scale_db_url();
+    url = scale_db_url() or "";
     if url and not os.environ.get('JAC_DB_URL') {
         import from jaclang.runtimelib.store { PgStore }
         store = PgStore(

@@ -509,6 +509,11 @@ obj TypeEvaluator {
         src_type: ClassType, dest_type: ClassType, strict: bool = False
     ) -> bool;
 
+    def _is_protocol_class(cls_type: ClassType) -> bool;
+    def _solve_protocol_type_args(
+        src_type: ClassType, proto_type: ClassType, bindings: dict[str, TypeBase]
+    ) -> bool;
+
     def _get_type_of_symbol(symbol: Symbol) -> TypeBase;
     def _get_type_of_symbol_decl(symbol: Symbol, decl: NameAtom) -> TypeBase;
     def _get_enum_member_type_for_decl(node_: Name) -> (EnumMemberType | None);
@@ -663,6 +668,7 @@ obj TypeEvaluator {
         param_type: TypeBase, bindings: dict[str, TypeBase], fill: TypeBase
     ) -> None;
 
+    def _member_is_metaclass_only(cls_type: ClassType, expr: FuncCall) -> bool;
     def class_constructor_callables(cls_type: ClassType) -> list[FunctionType];
     def _infer_type_args_from_method(
         caller_type: ClassType, expr: FuncCall, matched_method: FunctionType | None
