@@ -1312,7 +1312,10 @@ impl Parser.parse_atomic_chain -> Expr {
             ) {
                 attr = self.make_special_name(self.advance());
             } elif self.is_keyword_token() {
-                name_tok = self.expect_name("attribute");
+                # Keywords are accepted in attribute position (e.g. `re.match`,
+                # `x.filter`) mirroring Python member-access semantics; only
+                # bare identifier *declarations* reject keywords (E0013).
+                name_tok = self.advance();
                 attr = self.make_name(name_tok);
             }
             if not attr {
