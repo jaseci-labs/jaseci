@@ -208,8 +208,13 @@ test "compiler separates internal from user modules" {
 
     old_compiler = Jac.compiler;
     old_program = Jac.program;
+    old_selfhost = Jac.selfhost;
     Jac.compiler = None;
     Jac.program = None;
+    # The self-host cache is process-wide; the separation assertions below
+    # inspect its hub, so this test scopes a fresh one and restores the
+    # shared cache afterward.
+    Jac.selfhost = None;
 
     try {
         captured_output = io.StringIO();
@@ -243,6 +248,7 @@ test "compiler separates internal from user modules" {
         os.unlink(user_file);
         Jac.compiler = old_compiler;
         Jac.program = old_program;
+        Jac.selfhost = old_selfhost;
     }
 }
 

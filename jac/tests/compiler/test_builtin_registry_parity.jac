@@ -31,9 +31,7 @@ import from tests.support { JAC_ROOT }
 glob _PYI_PATH: str = os.path.join(
          JAC_ROOT, "jaclang", "compiler", "types", "jac_builtins.pyi"
      ),
-     _BUILTIN_PATH: str = os.path.join(
-         JAC_ROOT, "jaclang", "runtime", "builtin.jac"
-     );
+     _BUILTIN_PATH: str = os.path.join(JAC_ROOT, "jaclang", "runtime", "builtin.jac");
 
 
 """Names exported by the checker-side stub, and names it actually declares."""

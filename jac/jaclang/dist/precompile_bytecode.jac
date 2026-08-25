@@ -400,6 +400,8 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "compiler/passes/semantic_analysis_pass.jac",
          "compiler/passes/sym_tab_build_pass.jac",
          "compiler/passes/transform.jac",
+         "compiler/passes/pass_rim.jac",
+         "compiler/passes/pass_serve.jac",
          "compiler/passes/uni_pass.jac",
          "runtime/scalars.jac",
          "compiler/frontend/srcloc.jac",
@@ -484,12 +486,21 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/frontend/codeinfo.jac::resolve_native_module",
 
      ),
+     _RIM_SERVE_SEAM_WAIVERS: tuple[str, ...] = (
+         "compiler/passes/pass_rim.jac::PassRim.__new__",
+         "compiler/passes/pass_rim.jac::require_native_pass_tier",
+         "compiler/passes/pass_serve.jac::_bind_one",
+         "compiler/passes/pass_serve.jac::_serve_error",
+         "compiler/passes/pass_serve.jac::bind_sealed_pass_artifacts",
+
+     ),
      _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
          _UNITREE_SEAM_WAIVERS
          + _TYPES_SEAM_WAIVERS
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
          + _CODEINFO_SEAM_WAIVERS
+         + _RIM_SERVE_SEAM_WAIVERS
      ),
      _CAPABILITY_SEAM_WAIVERS: tuple[str, ...] = (
          ("compiler/passes/capability_check_pass.jac::" "native_capability_violations"),
@@ -563,6 +574,20 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      };
 
 glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+         (
+             "pass construction rim",
+             _RIM_SERVE_SEAM_WAIVERS,
+             "The tier tripwire and the serving binder ride every pass's "
+             "MRO since the tripwire moved onto PassRim.__new__ (#8682), "
+             "so pass_rim/pass_serve join each pass root's native unit. "
+             "Both are host-side machinery: they read the sealed-image "
+             "registry and bind artifacts through bytecode the image "
+             "always carries (neither module is a native root). Their "
+             "native slots are unreachable in a sealed image -- natively "
+             "served passes construct through the artifact, and the "
+             "bytecode lane the guard protects is exactly the lane that "
+             "still has Python."
+         ),
          (
              "unitree Python-only surface",
              _UNITREE_SEAM_WAIVERS,
@@ -1798,7 +1823,7 @@ def _sym_table_fingerprint(mod: any) -> list[str] {
         }
         if isinstance(nd, uni.NameAtom) {
             sym = nd.__dict__.get("_sym");
-            if sym is None {
+            if not isinstance(sym, uni.Symbol) {
                 out.append(f"name {type(nd).__name__} sym=none");
             } else {
                 out.append(
@@ -2145,10 +2170,11 @@ def seal_native_roots(
                 generate as generate_materialize_root
             }
 
-            _mat_manifest = generate_materialize_root(
+            _mat_result: dict[str, any] = generate_materialize_root(
                 unitree_layout, src, _UNITREE_SEAM_WAIVERS
             );
-            for _mat_warn in (_mat_manifest.pop("warnings", None) or []) {
+            _mat_manifest = _mat_result;
+            for _mat_warn in (_mat_result.pop("warnings", None) or []) {
                 console.warning(
                     f"NATIVE SEAL: the materializer erased a slot: {_mat_warn}. "
                     "The Python side must reconstruct it (postinit or a lazy "

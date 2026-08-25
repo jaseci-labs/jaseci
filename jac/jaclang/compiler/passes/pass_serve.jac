@@ -1,10 +1,10 @@
 import from jaclang.compiler.passes.pass_rim { _NATIVE_SERVED_PASSES }
 
-glob _PASS_ARTIFACT_PREFIXES: tuple = (
+glob _PASS_ARTIFACT_PREFIXES: tuple[str, str] = (
          "jaclang.compiler.passes.",
          "jaclang.compiler.backends."
      ),
-     _BIND_KEEP: list = [];
+     _BIND_KEEP: list[object] = [];
 
 def _serve_error(fullname: str, reason: str) -> RuntimeError {
     return RuntimeError(

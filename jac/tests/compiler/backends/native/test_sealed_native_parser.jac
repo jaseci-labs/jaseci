@@ -382,7 +382,9 @@ test "a prior parse's envelope objects never bleed into the next tree" {
         [f"# filler comment number {i} padding the envelope" for i in range(64)]
             + ["with entry { x = 1; }"]
     );
-    probe_src = (PKG_PATH / "compiler" / "frontend" / "srcloc.jac").read_text(encoding="utf-8");
+    probe_src = (PKG_PATH / "compiler" / "frontend" / "srcloc.jac").read_text(
+        encoding="utf-8"
+    );
     for cycle in range(3) {
         np.parse(commented, f"__bleed_comments_{cycle}__.jac");
         (m2, _e, _pd, _cm, _ld, _le) = np.parse(
@@ -655,7 +657,9 @@ test "refcount soundness: repeated materialization is object-count stable" {
     # dropped trees actually die: live UniNode coverage and sampled refcounts
     # return to baseline across repeated parses.
     (np, _out, _rec) = _build_binding();
-    src = (PKG_PATH / "compiler" / "frontend" / "srcloc.jac").read_text(encoding="utf-8");
+    src = (PKG_PATH / "compiler" / "frontend" / "srcloc.jac").read_text(
+        encoding="utf-8"
+    );
 
     (_m, _e, _pd, _cm, _ld, _le) = np.parse(src, "__leak_warmup__.jac");
     _m = None;
@@ -726,7 +730,9 @@ test "native memory soundness: the native tree dies inside the call" {
     # twenty times are tens of MB of LIVE memory, while a warmed allocator's
     # steady state drifts by at most a few.
     (np, _out, _rec) = _build_binding();
-    src = (PKG_PATH / "compiler" / "frontend" / "unitree.jac").read_text(encoding="utf-8");
+    src = (PKG_PATH / "compiler" / "frontend" / "unitree.jac").read_text(
+        encoding="utf-8"
+    );
     for _w in range(5) {
         (m, _e, _pd, _cm, _ld, _le) = np.parse(src, "__rss_warmup__.jac");
         m = None;
@@ -762,7 +768,9 @@ test "native memory soundness: the native tree dies inside the call" {
 
 test "front-end timing: native parse+materialize against the bytecode tier" {
     (np, _out, _rec) = _build_binding();
-    src = (PKG_PATH / "compiler" / "frontend" / "srcloc.jac").read_text(encoding="utf-8");
+    src = (PKG_PATH / "compiler" / "frontend" / "srcloc.jac").read_text(
+        encoding="utf-8"
+    );
     reps = 3;
     t0 = time.perf_counter();
     for i in range(reps) {

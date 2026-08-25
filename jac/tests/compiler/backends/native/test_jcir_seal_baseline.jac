@@ -101,6 +101,8 @@ glob JCIR_CLOSURE: tuple = (
          "compiler/frontend/helpers.jac",
          "compiler/frontend/srcloc.jac",
          "compiler/frontend/unitree.jac",
+         "compiler/passes/pass_rim.jac",
+         "compiler/passes/pass_serve.jac",
          "compiler/passes/transform.jac",
          "compiler/passes/uni_pass.jac",
          "compiler/type_registry.jac",

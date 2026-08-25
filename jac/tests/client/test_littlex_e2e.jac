@@ -36,13 +36,13 @@ import from .test_helpers {
 # ===========================================================================
 """Resolve the in-tree littleX example dir.
 
-The test file lives at ``jac/tests/client/``; walking up three
+The test file lives at ``jac/tests/client/``; walking up two
 directories lands on ``jac/``, then ``examples/littleX``. Asserts the dir
 exists so a misplaced/renamed fixture fails loudly instead of mid-build.
 """
 def _littlex_source_dir -> str {
     tests_dir = os.path.dirname(os.path.abspath(__file__));
-    jac_root = os.path.abspath(os.path.join(tests_dir, "..", "..", ".."));
+    jac_root = os.path.abspath(os.path.join(tests_dir, "..", ".."));
     littlex_dir = os.path.join(jac_root, "examples", "littleX");
     assert os.path.isdir(littlex_dir) , (
         f"littleX example dir not found at {littlex_dir}"

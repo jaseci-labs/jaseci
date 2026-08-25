@@ -3592,13 +3592,13 @@ impl TypeEvaluator.assign_type(
 
     if isinstance(src_type, EnumMemberType) {
         if isinstance(dest_type, ClassType) and dest_type.is_enum_class() {
-            if src_type.enum_class.shared == dest_type.shared {
+            if src_type.enum_class.shared.same_class(dest_type.shared) {
                 return True;
             }
         }
 
         if isinstance(dest_type, EnumMemberType) {
-            if src_type.enum_class.shared == dest_type.enum_class.shared {
+            if src_type.enum_class.shared.same_class(dest_type.enum_class.shared) {
                 return True;
             }
         }
@@ -3607,7 +3607,7 @@ impl TypeEvaluator.assign_type(
             and isinstance(
                 enum_val_type := src_type.enum_class.shared.enum_value_type, ClassType
             )
-            and dest_type.shared == enum_val_type.shared {
+            and dest_type.shared.same_class(enum_val_type.shared) {
             return True;
         }
     }

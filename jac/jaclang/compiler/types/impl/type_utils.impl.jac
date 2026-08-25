@@ -274,7 +274,7 @@ impl types_equivalent(a: TypeBase, b: TypeBase, depth: int = 0) -> bool {
         if a_cls is None or b_cls is None {
             return a_cls is b_cls;
         }
-        if a_cls.shared != b_cls.shared {
+        if not a_cls.shared.same_class(b_cls.shared) {
             return False;
         }
         a_info = a.member_info;

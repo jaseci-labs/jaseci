@@ -98,6 +98,8 @@ glob CAPABILITY_CLOSURE: tuple = (
          "compiler/frontend/srcloc.jac",
          "compiler/frontend/unitree.jac",
          "compiler/passes/capability_check_pass.jac",
+         "compiler/passes/pass_rim.jac",
+         "compiler/passes/pass_serve.jac",
          "compiler/passes/transform.jac",
          "compiler/passes/uni_pass.jac",
          "compiler/type_registry.jac",
