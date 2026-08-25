@@ -3,6 +3,10 @@ import from jaclang.scale.observability.factory { UtilityFactory }
 import from jaclang.scale.observability.prometheus_metrics {
     PrometheusMetricsCollector
 }
+import shutil;
+import tempfile;
+import from pathlib { Path }
+import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 
 test "noop is disabled" {
     collector = NoOpMetricsCollector();
@@ -194,5 +198,27 @@ test "admin metrics endpoint requires authentication" {
         }
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+
+test "exported metric names carry the sanitized configured namespace" {
+    reset_scale_config();
+    project_dir = tempfile.mkdtemp(prefix="jac-metrics-ns-");
+    try {
+        (Path(project_dir) / "jac.toml").write_text(
+            '[project]\nname = "repro"\n\n[scale.monitoring]\nenabled = true\nnamespace = "jac--shop"\n'
+        );
+        cfg = get_scale_config(project_dir=Path(project_dir));
+        collector = PrometheusMetricsCollector(config=cfg.get_monitoring_config());
+        collector.record_request("GET", "/walker/ping", 200, 0.01);
+        exposition = collector.expose().decode();
+        assert "jac_shop_http_requests_total" in exposition;
+        assert "jac__shop" not in exposition , (
+            f"prometheus_client normalized the namespace itself:\n{exposition[:400]}"
+        );
+    } finally {
+        reset_scale_config();
+        shutil.rmtree(project_dir, ignore_errors=True);
     }
 }

@@ -36,9 +36,11 @@ def normalize_microservices_config(
 ) -> dict[str, any];
 
 glob _scale_config_instance: JacScaleConfig | None = None,
-     _ms_enabled_deprecation_warned: bool = False;
+     _ms_enabled_deprecation_warned: bool = False,
+     _prometheus_namespace_warned: bool = False;
 
 def sanitize_prometheus_namespace(name: str) -> str;
+def resolve_prometheus_namespace(configured: str | None, k8s_namespace: str) -> str;
 def _ws_positive(ws_config: dict, key: str, fallback: (int | float)) -> float;
 def get_scale_config(project_dir: Path | None = None) -> JacScaleConfig;
 def peek_scale_config -> JacScaleConfig | None;
