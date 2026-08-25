@@ -2052,3 +2052,57 @@ def gw_route_table_for_poison_test -> any {
     );
     return table;
 }
+
+
+test "a learned owner that stops accepting traffic 503s instead of re-delivering" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(
+        hits_a, {"GET /openapi.json": _spec(["/walker/charge"])}
+    );
+    (srv_b, port_b) = _start_backend(hits_b, {"GET /openapi.json": _spec([])});
+    try {
+        owner = _entry("svc_a", "/api/a", port_a);
+        (gw, client) = _gateway([owner, _entry("svc_b", "/api/b", port_b)]);
+        assert client.post("/walker/charge", json={"n": 1}).status_code != 503;
+
+        owner.status = ServiceStatus.STOPPED;
+        resp = client.post("/walker/charge", json={"n": 2});
+
+        assert resp.status_code == 503;
+        assert hits_a.get("POST /walker/charge", 0) == 1 , (
+            "the owner is only reached while it is routable"
+        );
+        assert hits_b.get("POST /walker/charge", 0) == 0 , (
+            "a down owner must not push the body onto the rest of the fleet"
+        );
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "a replicated family prefers a healthy service over one still starting" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {"GET /openapi.json": _spec([])});
+    (srv_b, port_b) = _start_backend(hits_b, {"GET /openapi.json": _spec([])});
+    try {
+        booting = _entry("svc_a", "/api/a", port_a);
+        booting.status = ServiceStatus.STARTING;
+        (gw, client) = _gateway([booting, _entry("svc_b", "/api/b", port_b)]);
+
+        client.post("/api-key/create", json={"name": "k"});
+
+        assert hits_a.get("POST /api-key/create", 0) == 0 , (
+            "a service that has not registered its routes yet would 404 it"
+        );
+        assert hits_b.get("POST /api-key/create", 0) == 1 , (
+            "delivered exactly once, to the service that finished booting"
+        );
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}

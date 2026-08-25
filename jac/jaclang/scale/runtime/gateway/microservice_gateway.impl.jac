@@ -424,6 +424,13 @@ impl MicroserviceGateway.resolve_learned_owner(path: str) -> ServiceEntry | None
 impl MicroserviceGateway.forward_root_path(
     request: Request, service_entry: ServiceEntry, path: str
 ) -> Response | None {
+    # A learned owner stays authoritative while it is down. Falling back to the
+    # probe here would re-deliver the body to the rest of the fleet, which is
+    # the multi-execution this path exists to remove.
+    if not service_entry.is_routable() {
+        import from jaclang.scale.runtime.context.errors { service_unavailable }
+        return service_unavailable(service_entry.name, "not accepting traffic");
+    }
     query: str = str(request.url.query);
     target_url: str = f"{self.service_base_url(service_entry)}{path}";
     if query {
@@ -439,7 +446,15 @@ impl MicroserviceGateway.deliver_once(request: Request, path: str) -> Response |
         import from jaclang.scale.runtime.context.errors { not_found }
         return not_found(path, message="Not found on any service");
     }
-    (_name, svc) = eligible[0];
+    # Any service answers a replicated family identically, but one that is still
+    # STARTING has not registered its routes yet and would 404 a request the
+    # fleet can serve. Prefer a service that has finished booting.
+    ready = [
+        (name, svc)
+        for (name, svc) in eligible
+        if svc.status == ServiceStatus.HEALTHY
+    ];
+    (_name, svc) = (ready or eligible)[0];
     return await self.forward_root_path(request, svc, path);
 }
 

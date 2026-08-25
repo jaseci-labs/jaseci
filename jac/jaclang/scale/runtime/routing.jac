@@ -20,6 +20,11 @@ glob GATEWAY_API_SEGMENTS: tuple = (
          "openapi.json",
          "docs"
      ),
+     # Both families below are only safe to route without an owner because their
+     # handlers read one store the whole fleet shares (identity, anchors, and
+     # jac_docs for jobs), so any service answers them identically. A segment
+     # backed by per-process state must not be listed here: it belongs to the
+     # service-owned family, where the declaring service is resolved first.
      GATEWAY_DISCOVERY_SEGMENTS: tuple = ("jobs", GATEWAY_CLIENT_SEGMENT),
      GATEWAY_REPLICATED_SEGMENTS: tuple = ("user", "sso", "api-key", "graph"),
      _RESERVED_SEGMENTS: set[str] = (
