@@ -3,7 +3,7 @@ import ast as py_ast;
 import from pathlib { Path }
 
 glob _SEEDS: list[str] = [
-         "jaclang.lib.jaclib",
+         "jaclang.lib.__init__.jaclib",
          "jaclang.runtime.runtime",
          "jaclang.runtime.archetype",
          "jaclang.server.server",
@@ -20,7 +20,7 @@ glob _SEEDS: list[str] = [
      _DENY_PREFIXES: list[str] = [
          "jaclang.compiler",
          "jaclang.meta_importer",
-         "jaclang.lsp.server",
+         "jaclang.lsp.protocol.server",
          "jaclang.dist",
          "jaclang.scale",
          "jaclang.cli",
