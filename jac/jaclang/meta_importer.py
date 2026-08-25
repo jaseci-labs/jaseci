@@ -26,6 +26,7 @@ from types import ModuleType
 import jaclang.jac0 as _jac0_mod
 from jaclang.jac0 import compile_jac as _jac0_compile  # noqa: E402
 from jaclang.jac0 import discover_impl_files as _jac0_discover_impls  # noqa: E402
+from jaclang import bootstrap_manifest as _bootstrap_manifest  # noqa: E402
 from jaclang.jac0core import ext_registry  # noqa: E402
 from jaclang.jac0core import sealed as _sealed  # noqa: E402
 from jaclang.jac0core.cache_paths import get_bootstrap_cache_dir  # noqa: E402
@@ -182,19 +183,25 @@ class JacMetaImporter(MetaPathFinder, Loader):
     # Directory containing the jaclang package (for bootstrap detection)
     _jaclang_dir: str = str(Path(__file__).parent)
 
-    # Directory containing bootstrap .jac files (jac0core infrastructure)
-    _bootstrap_dir: str = str(Path(__file__).parent / "jac0core")
+    # The declared seed set, resolved once against this package dir. Tier
+    # membership comes from the manifest, not from where a file happens to
+    # live (see jaclang/bootstrap_manifest.py).
+    _seed_dirs, _seed_files = _bootstrap_manifest.seed_abs_entries(
+        str(Path(__file__).parent)
+    )
 
     def _is_bootstrap_jac(self, file_path: str) -> bool:
         """Check if a .jac file should be compiled with jac0 (bootstrap).
 
-        Only .jac files inside jaclang/jac0core/ are bootstrap files — they
-        are part of the compiler infrastructure and must be compiled with the
-        lightweight jac0 transpiler rather than the full Jac compiler (which
-        depends on them). Files in jaclang/compiler/ use full Jac syntax
-        and must go through the full compiler.
+        Files the bootstrap manifest covers are part of the compiler
+        infrastructure and must be compiled with the lightweight jac0
+        transpiler rather than the full Jac compiler (which depends on
+        them). Everything else uses full Jac syntax and goes through the
+        full compiler.
         """
-        return file_path.startswith(self._bootstrap_dir)
+        if file_path in self._seed_files:
+            return True
+        return any(file_path.startswith(d) for d in self._seed_dirs)
 
     def find_spec(
         self,

@@ -132,12 +132,14 @@ def sealable_sources(package_dir: str) -> list[str] {
     if cached is not None {
         return cached;
     }
-    boot_prefix = str(Path(package_dir) / "jac0core") + os.sep;
+    import from jaclang.bootstrap_manifest { is_seed_source }
+    base = os.path.abspath(package_dir);
     nested = _nested_project_dirs(package_dir);
     candidates = [
         p
         for p in find_jac_files(package_dir)
-        if not p.startswith(boot_prefix) and not any(p.startswith(n) for n in nested)
+        if not is_seed_source(os.path.relpath(p, base).replace(os.sep, "/"))
+            and not any(p.startswith(n) for n in nested)
     ];
     if Path(package_dir).name == "jaclang" {
         import from jaclang.jac0core.placement_facts { toolchain_native_by_policy }
@@ -285,18 +287,23 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
         compile_jac as jac0_compile,
         discover_impl_files as jac0_impls
     }
-    boot_dir = pkg_dir / "jac0core";
     failed = 0;
-    if not boot_dir.is_dir() {
+    if pkg_dir.name != "jaclang" {
         return failed;
     }
-    for jac_file in sorted(boot_dir.rglob("*.jac")) {
+    import from jaclang.bootstrap_manifest { seed_abs_entries }
+    (seed_dirs, seed_files) = seed_abs_entries(str(pkg_dir));
+    seed_sources: list[Path] = [Path(p) for p in seed_files if str(p).endswith(".jac")];
+    for d in seed_dirs {
+        seed_sources.extend(Path(d).rglob("*.jac"));
+    }
+    for jac_file in sorted(seed_sources) {
         if ext_registry.is_annex(str(jac_file)) {
             continue;
         }
         if any(
             part.startswith(".") or part == "__pycache__"
-            for part in jac_file.relative_to(boot_dir).parts
+            for part in jac_file.relative_to(pkg_dir).parts
         ) {
             continue;
         }
@@ -3249,7 +3256,8 @@ def seal_finalize(
             "package": is_pkg,
             "sha256": hashlib.sha256(jir.read_bytes()).hexdigest()
         };
-        if rel_jir.startswith("jac0core/") {
+        import from jaclang.bootstrap_manifest { is_seed_source }
+        if is_seed_source(source_rel) {
             `entry["bootstrap"] = True;
             n_boot += 1;
         }

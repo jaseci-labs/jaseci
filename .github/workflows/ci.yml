@@ -416,6 +416,9 @@ jobs:
       - name: Verify manifest route table is up to date
         run: jac gen-cli-manifest --verify
 
+      - name: Bootstrap seed manifest compiles under jac0
+        run: python3 scripts/check_seed_manifest.py
+
       - name: Run CLI startup regression tests
         env:
           JAC_TEST_JOBS: "0"
