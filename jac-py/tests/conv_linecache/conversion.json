@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "dc3b2979461bbe906653d7d40f4ae3af971459f7",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_linecache.py",
+    "-o",
+    "/var/tmp/sp5-out/test_linecache-r3",
+    "--name",
+    "conv_linecache"
+  ],
+  "generated_at": "2026-08-25T00:07:25",
+  "hashes": {
+    "pins_jac": "22975201f7c21405c5bacdca06853edfd9fffa3aa4b36159309882d1b8d9a785"
+  },
+  "source_file": "reference/cpython/Lib/test/test_linecache.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "linecache",
+  "pins_file": "conv_linecache_pins.jac",
+  "pins": [
+    {
+      "ident": "EmptyFile.test_getline",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "SingleEmptyLine.test_getline",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "GoodUnicode.test_getline",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "EmptyFile.test_getlines",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "SingleEmptyLine.test_getlines",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "GoodUnicode.test_getlines",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "EmptyFile.test_getlines",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "LineCacheTests.test_getline",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\nimport os.path\nFILENAME = linecache.__file__\nINVALID_NAME = '!@$)(!@#_1'\nEMPTY = ''\nMODULES = 'linecache abc'.split()\nMODULE_PATH = os.path.dirname(FILENAME)\n\ndef _t():\n    getline = linecache.getline\n    assert getline(FILENAME, 2 ** 15) == EMPTY, ('assertEqual', getline(FILENAME, 2 ** 15), EMPTY)\n    assert getline(FILENAME, -1) == EMPTY, ('assertEqual', getline(FILENAME, -1), EMPTY)\n    try:\n        getline(*(FILENAME, 1.1))\n    except TypeError:\n        pass\n    assert getline(EMPTY, 1) == EMPTY, ('assertEqual', getline(EMPTY, 1), EMPTY)\n    assert getline(INVALID_NAME, 1) == EMPTY, ('assertEqual', getline(INVALID_NAME, 1), EMPTY)\n    for entry in MODULES:\n        filename = os.path.join(MODULE_PATH, entry) + '.py'\n        with open(filename, encoding='utf-8') as file:\n            for index, line in enumerate(file):\n                assert line == getline(filename, index + 1), ('assertEqual', line, getline(filename, index + 1))\n    empty = linecache.getlines('a/b/c/__init__.py')\n    assert empty == [], ('assertEqual', empty, [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_clearcache",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\nimport os.path\nFILENAME = linecache.__file__\nMODULES = 'linecache abc'.split()\nMODULE_PATH = os.path.dirname(FILENAME)\n\ndef _t():\n    cached = []\n    for entry in MODULES:\n        filename = os.path.join(MODULE_PATH, entry) + '.py'\n        cached.append(filename)\n        linecache.getline(filename, 1)\n    assert cached != [], ('assertNotEqual', cached, [])\n    cached_empty = [fn for fn in cached if fn not in linecache.cache]\n    assert cached_empty == [], ('assertEqual', cached_empty, [])\n    linecache.clearcache()\n    cached_empty = [fn for fn in cached if fn in linecache.cache]\n    assert cached_empty == [], ('assertEqual', cached_empty, [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_lazycache_no_globals",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\nFILENAME = linecache.__file__\n\ndef _t():\n    lines = linecache.getlines(FILENAME)\n    linecache.clearcache()\n    assert False == linecache.lazycache(FILENAME, None), ('assertEqual', False, linecache.lazycache(FILENAME, None))\n    assert lines == linecache.getlines(FILENAME), ('assertEqual', lines, linecache.getlines(FILENAME))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_lazycache_smoke",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\nFILENAME = linecache.__file__\nNONEXISTENT_FILENAME = FILENAME + '.missing'\n\ndef _t():\n    lines = linecache.getlines(NONEXISTENT_FILENAME, globals())\n    linecache.clearcache()\n    assert True == linecache.lazycache(NONEXISTENT_FILENAME, globals()), ('assertEqual', True, linecache.lazycache(NONEXISTENT_FILENAME, globals()))\n    assert 1 == len(linecache.cache[NONEXISTENT_FILENAME]), ('assertEqual', 1, len(linecache.cache[NONEXISTENT_FILENAME]))\n    assert lines == linecache.getlines(NONEXISTENT_FILENAME), ('assertEqual', lines, linecache.getlines(NONEXISTENT_FILENAME))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_lazycache_provide_after_failed_lookup",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\nFILENAME = linecache.__file__\nNONEXISTENT_FILENAME = FILENAME + '.missing'\n\ndef _t():\n    linecache.clearcache()\n    lines = linecache.getlines(NONEXISTENT_FILENAME, globals())\n    linecache.clearcache()\n    linecache.getlines(NONEXISTENT_FILENAME)\n    linecache.lazycache(NONEXISTENT_FILENAME, globals())\n    assert lines == linecache.updatecache(NONEXISTENT_FILENAME), ('assertEqual', lines, linecache.updatecache(NONEXISTENT_FILENAME))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_lazycache_check",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\nFILENAME = linecache.__file__\nNONEXISTENT_FILENAME = FILENAME + '.missing'\n\ndef _t():\n    linecache.clearcache()\n    linecache.lazycache(NONEXISTENT_FILENAME, globals())\n    linecache.checkcache()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_lazycache_bad_filename",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\n\ndef _t():\n    linecache.clearcache()\n    assert False == linecache.lazycache('', globals()), ('assertEqual', False, linecache.lazycache('', globals()))\n    assert False == linecache.lazycache('<foo>', globals()), ('assertEqual', False, linecache.lazycache('<foo>', globals()))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_lazycache_already_cached",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\nFILENAME = linecache.__file__\nNONEXISTENT_FILENAME = FILENAME + '.missing'\n\ndef _t():\n    linecache.clearcache()\n    lines = linecache.getlines(NONEXISTENT_FILENAME, globals())\n    assert False == linecache.lazycache(NONEXISTENT_FILENAME, globals()), ('assertEqual', False, linecache.lazycache(NONEXISTENT_FILENAME, globals()))\n    assert 4 == len(linecache.cache[NONEXISTENT_FILENAME]), ('assertEqual', 4, len(linecache.cache[NONEXISTENT_FILENAME]))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_memoryerror",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\nfrom test import support\nFILENAME = linecache.__file__\n\ndef _t():\n    lines = linecache.getlines(FILENAME)\n    assert lines, ('assertTrue', lines)\n\n    def raise_memoryerror(*args, **kwargs):\n        raise MemoryError\n    with support.swap_attr(linecache, 'updatecache', raise_memoryerror):\n        lines2 = linecache.getlines(FILENAME)\n    assert lines2 == lines, ('assertEqual', lines2, lines)\n    linecache.clearcache()\n    with support.swap_attr(linecache, 'updatecache', raise_memoryerror):\n        lines3 = linecache.getlines(FILENAME)\n    assert lines3 == [], ('assertEqual', lines3, [])\n    assert linecache.getlines(FILENAME) == lines, ('assertEqual', linecache.getlines(FILENAME), lines)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_loader",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\nfrom importlib.machinery import ModuleSpec\n\nclass FakeLoader:\n\n    def get_source(self, fullname):\n        return f'source for {fullname}'\n\nclass NoSourceLoader:\n\n    def get_source(self, fullname):\n        return None\n\ndef _t():\n    filename = 'scheme://path'\n    for loader in (None, object(), NoSourceLoader()):\n        linecache.clearcache()\n        module_globals = {'__name__': 'a.b.c', '__loader__': loader}\n        assert linecache.getlines(filename, module_globals) == [], ('assertEqual', linecache.getlines(filename, module_globals), [])\n    linecache.clearcache()\n    module_globals = {'__name__': 'a.b.c', '__loader__': FakeLoader()}\n    assert linecache.getlines(filename, module_globals) == ['source for a.b.c\\n'], ('assertEqual', linecache.getlines(filename, module_globals), ['source for a.b.c\\n'])\n    for spec in (None, object(), ModuleSpec('', FakeLoader())):\n        linecache.clearcache()\n        module_globals = {'__name__': 'a.b.c', '__loader__': FakeLoader(), '__spec__': spec}\n        assert linecache.getlines(filename, module_globals) == ['source for a.b.c\\n'], ('assertEqual', linecache.getlines(filename, module_globals), ['source for a.b.c\\n'])\n    linecache.clearcache()\n    spec = ModuleSpec('x.y.z', FakeLoader())\n    module_globals = {'__name__': 'a.b.c', '__loader__': spec.loader, '__spec__': spec}\n    assert linecache.getlines(filename, module_globals) == ['source for x.y.z\\n'], ('assertEqual', linecache.getlines(filename, module_globals), ['source for x.y.z\\n'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_frozen",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import linecache\nFILENAME = linecache.__file__\n\ndef _t():\n    filename = '<frozen fakemodule>'\n    module_globals = {'__file__': FILENAME}\n    empty = linecache.getlines(filename)\n    assert empty == [], ('assertEqual', empty, [])\n    lines = linecache.getlines(filename, module_globals)\n    assert len(lines) > 0, ('assertGreater', len(lines), 0)\n    lines_cached = linecache.getlines(filename)\n    assert lines == lines_cached, ('assertEqual', lines, lines_cached)\n    linecache.clearcache()\n    empty = linecache.getlines(filename)\n    assert empty == [], ('assertEqual', empty, [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LineCacheTests.test_linecache_python_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.script_helper import assert_python_ok\n\ndef _t():\n    cmdline = 'import linecache;assert len(linecache.cache) == 0'\n    retcode, stdout, stderr = assert_python_ok('-c', cmdline)\n    assert retcode == 0, ('assertEqual', retcode, 0)\n    assert stdout == b'', ('assertEqual', stdout, b'')\n    assert stderr == b'', ('assertEqual', stderr, b'')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "MultiThreadingTest.test_read_write_safety",
+      "reason": "decorator:threading_helper.requires_working_threading"
+    },
+    {
+      "ident": "BadUnicode_NoDeclaration.test_getline",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "ident": "BadUnicode_WithDeclaration.test_getline",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "ident": "BadUnicode_NoDeclaration.test_getlines",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "ident": "BadUnicode_WithDeclaration.test_getlines",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "ident": "LineCacheTests.test_no_ending_newline",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "LineCacheTests.test_checkcache",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "LineCacheTests.test_invalid_names",
+      "reason": "unresolved-name:__file__"
+    },
+    {
+      "ident": "LineCacheInvalidationTests.test_checkcache_for_deleted_file",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "ident": "LineCacheInvalidationTests.test_checkcache_for_modified_file",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "ident": "LineCacheInvalidationTests.test_checkcache_with_no_parameter",
+      "reason": "helper:setUp(self.addCleanup)"
+    }
+  ],
+  "counts": {
+    "extracted": 30,
+    "pinned": 12,
+    "quarantined": 18
+  }
+}

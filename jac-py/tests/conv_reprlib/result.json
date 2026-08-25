@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "dc3b2979461bbe906653d7d40f4ae3af971459f7",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp4-out/reprlib-r2/conv_reprlib_pins.jac"
+  ],
+  "generated_at": "2026-08-25T00:06:34",
+  "hashes": {
+    "pins_jac": "92b5c4831194895c6cce0c8bd38374c8382490bfa491fc62514effe515be9bb2",
+    "conversion_json": "ed982377398bf99e31477e73d076f32e19b02e67097e53136fc2632e1451b024",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "reprlib",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 33,
+    "runnable": 7,
+    "green": 5,
+    "quarantined": 26,
+    "failed": 2,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "ReprTests.test_unsortable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC KeyError 'host:1000003'\">"
+    },
+    {
+      "id": "ReprTests.test_custom_repr_class_with_spaces",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\'TypeWithSpaces\\', \\'type with spaces\\')\"'>"
+    }
+  ]
+}

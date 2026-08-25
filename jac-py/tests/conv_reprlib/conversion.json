@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "dc3b2979461bbe906653d7d40f4ae3af971459f7",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_reprlib.py",
+    "-o",
+    "/var/tmp/sp4-out/reprlib-r2",
+    "--name",
+    "conv_reprlib"
+  ],
+  "generated_at": "2026-08-25T00:07:20",
+  "hashes": {
+    "pins_jac": "65c2370bd39bcbb268288bd1a7151f2021a5ff93d75174446819264da78c4276"
+  },
+  "source_file": "reference/cpython/Lib/test/test_reprlib.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "reprlib",
+  "pins_file": "conv_reprlib_pins.jac",
+  "pins": [
+    {
+      "ident": "ReprTests.test_init_kwargs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from reprlib import Repr\n\ndef _t():\n    example_kwargs = {'maxlevel': 101, 'maxtuple': 102, 'maxlist': 103, 'maxarray': 104, 'maxdict': 105, 'maxset': 106, 'maxfrozenset': 107, 'maxdeque': 108, 'maxstring': 109, 'maxlong': 110, 'maxother': 111, 'fillvalue': 'x' * 112, 'indent': 'x' * 113}\n    r1 = Repr()\n    for attr, val in example_kwargs.items():\n        setattr(r1, attr, val)\n    r2 = Repr(**example_kwargs)\n    for attr in example_kwargs:\n        assert getattr(r1, attr) == getattr(r2, attr), ('assertEqual', getattr(r1, attr), getattr(r2, attr), attr)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReprTests.test_string",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "ident": "ReprTests.test_tuple",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "ident": "ReprTests.test_container",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "ident": "ReprTests.test_set_literal",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "ident": "ReprTests.test_frozenset",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "ident": "ReprTests.test_numbers",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport sys\nfrom reprlib import repr as r\n\ndef _t():\n    for x in [123, 1.0 / 3]:\n        assert r(x) == repr(x), ('assertEqual', r(x), repr(x))\n    max_digits = sys.get_int_max_str_digits()\n    for k in [100, max_digits - 1]:\n        n = 10 ** k\n        expected = repr(n)[:18] + '...' + repr(n)[-19:]\n        assert r(n) == expected, ('assertEqual', r(n), expected)\n\n    def re_msg(n, d):\n        return f'<{n.__class__.__name__} instance with roughly {d} digits \\\\(limit at {max_digits}\\\\) at 0x[a-f0-9]+>'\n    k = max_digits\n    n = 10 ** k\n    try:\n        repr(*(n,))\n    except ValueError:\n        pass\n    assert _re.search(re_msg(n, k + 1), r(n)), ('assertRegex', r(n), re_msg(n, k + 1))\n    for k in [max_digits + 1, 2 * max_digits]:\n        assert k > 100, ('assertGreater', k, 100)\n        n = 10 ** k\n        try:\n            repr(*(n,))\n        except ValueError:\n            pass\n        assert _re.search(re_msg(n, k + 1), r(n)), ('assertRegex', r(n), re_msg(n, k + 1))\n        n = 10 ** k - 1\n        try:\n            repr(*(n,))\n        except ValueError:\n            pass\n        assert _re.search(re_msg(n, k + 1), r(n)), ('assertRegex', r(n), re_msg(n, k + 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReprTests.test_range",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "ident": "ReprTests.test_nesting",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "ident": "ReprTests.test_cell",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom reprlib import repr as r\n\ndef _t():\n\n    def get_cell():\n        x = 42\n\n        def inner():\n            return x\n        return inner\n    x = get_cell().__closure__[0]\n    assert _re.search('<cell at 0x[0-9A-Fa-f]+: int object at 0x[0-9A-Fa-f]+>', repr(x)), ('assertRegex', repr(x), '<cell at 0x[0-9A-Fa-f]+: int object at 0x[0-9A-Fa-f]+>')\n    assert _re.search('<cell at 0x.*\\\\.\\\\.\\\\..*>', r(x)), ('assertRegex', r(x), '<cell at 0x.*\\\\.\\\\.\\\\..*>')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReprTests.test_descriptors",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "ident": "ReprTests.test_unsortable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from reprlib import repr as r\n\ndef _t():\n    x = set([1j, 2j, 3j])\n    y = frozenset(x)\n    z = {1j: 1, 2j: 2}\n    r(x)\n    r(y)\n    r(z)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReprTests.test_valid_indent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import textwrap\nfrom reprlib import repr as r\nfrom reprlib import Repr\n\ndef _t():\n    test_cases = [{'object': (), 'tests': ((dict(indent=None), '()'), (dict(indent=False), '()'), (dict(indent=True), '()'), (dict(indent=0), '()'), (dict(indent=1), '()'), (dict(indent=4), '()'), (dict(indent=4, maxlevel=2), '()'), (dict(indent=''), '()'), (dict(indent='-->'), '()'), (dict(indent='....'), '()'))}, {'object': '', 'tests': ((dict(indent=None), \"''\"), (dict(indent=False), \"''\"), (dict(indent=True), \"''\"), (dict(indent=0), \"''\"), (dict(indent=1), \"''\"), (dict(indent=4), \"''\"), (dict(indent=4, maxlevel=2), \"''\"), (dict(indent=''), \"''\"), (dict(indent='-->'), \"''\"), (dict(indent='....'), \"''\"))}, {'object': [1, 'spam', {'eggs': True, 'ham': []}], 'tests': ((dict(indent=None), \"                        [1, 'spam', {'eggs': True, 'ham': []}]\"), (dict(indent=False), \"                        [\\n                        1,\\n                        'spam',\\n                        {\\n                        'eggs': True,\\n                        'ham': [],\\n                        },\\n                        ]\"), (dict(indent=True), \"                        [\\n                         1,\\n                         'spam',\\n                         {\\n                          'eggs': True,\\n                          'ham': [],\\n                         },\\n                        ]\"), (dict(indent=0), \"                        [\\n                        1,\\n                        'spam',\\n                        {\\n                        'eggs': True,\\n                        'ham': [],\\n                        },\\n                        ]\"), (dict(indent=1), \"                        [\\n                         1,\\n                         'spam',\\n                         {\\n                          'eggs': True,\\n                          'ham': [],\\n                         },\\n                        ]\"), (dict(indent=4), \"                        [\\n                            1,\\n                            'spam',\\n                            {\\n                                'eggs': True,\\n                                'ham': [],\\n                            },\\n                        ]\"), (dict(indent=4, maxlevel=2), \"                        [\\n                            1,\\n                            'spam',\\n                            {\\n                                'eggs': True,\\n                                'ham': [],\\n                            },\\n                        ]\"), (dict(indent=''), \"                        [\\n                        1,\\n                        'spam',\\n                        {\\n                        'eggs': True,\\n                        'ham': [],\\n                        },\\n                        ]\"), (dict(indent='-->'), \"                        [\\n                        -->1,\\n                        -->'spam',\\n                        -->{\\n                        -->-->'eggs': True,\\n                        -->-->'ham': [],\\n                        -->},\\n                        ]\"), (dict(indent='....'), \"                        [\\n                        ....1,\\n                        ....'spam',\\n                        ....{\\n                        ........'eggs': True,\\n                        ........'ham': [],\\n                        ....},\\n                        ]\"))}, {'object': {1: 'two', b'three': [(4.5, 6.25), [set((8, 9)), frozenset((10, 11))]]}, 'tests': ((dict(indent=None), \"                        {1: 'two', b'three': [(4.5, 6.25), [{8, 9}, frozenset({10, 11})]]}\"), (dict(indent=False), \"                        {\\n                        1: 'two',\\n                        b'three': [\\n                        (\\n                        4.5,\\n                        6.25,\\n                        ),\\n                        [\\n                        {\\n                        8,\\n                        9,\\n                        },\\n                        frozenset({\\n                        10,\\n                        11,\\n                        }),\\n                        ],\\n                        ],\\n                        }\"), (dict(indent=True), \"                        {\\n                         1: 'two',\\n                         b'three': [\\n                          (\\n                           4.5,\\n                           6.25,\\n                          ),\\n                          [\\n                           {\\n                            8,\\n                            9,\\n                           },\\n                           frozenset({\\n                            10,\\n                            11,\\n                           }),\\n                          ],\\n                         ],\\n                        }\"), (dict(indent=0), \"                        {\\n                        1: 'two',\\n                        b'three': [\\n                        (\\n                        4.5,\\n                        6.25,\\n                        ),\\n                        [\\n                        {\\n                        8,\\n                        9,\\n                        },\\n                        frozenset({\\n                        10,\\n                        11,\\n                        }),\\n                        ],\\n                        ],\\n                        }\"), (dict(indent=1), \"                        {\\n                         1: 'two',\\n                         b'three': [\\n                          (\\n                           4.5,\\n                           6.25,\\n                          ),\\n                          [\\n                           {\\n                            8,\\n                            9,\\n                           },\\n                           frozenset({\\n                            10,\\n                            11,\\n                           }),\\n                          ],\\n                         ],\\n                        }\"), (dict(indent=4), \"                        {\\n                            1: 'two',\\n                            b'three': [\\n                                (\\n                                    4.5,\\n                                    6.25,\\n                                ),\\n                                [\\n                                    {\\n                                        8,\\n                                        9,\\n                                    },\\n                                    frozenset({\\n                                        10,\\n                                        11,\\n                                    }),\\n                                ],\\n                            ],\\n                        }\"), (dict(indent=4, maxlevel=2), \"                        {\\n                            1: 'two',\\n                            b'three': [\\n                                (...),\\n                                [...],\\n                            ],\\n                        }\"), (dict(indent=''), \"                        {\\n                        1: 'two',\\n                        b'three': [\\n                        (\\n                        4.5,\\n                        6.25,\\n                        ),\\n                        [\\n                        {\\n                        8,\\n                        9,\\n                        },\\n                        frozenset({\\n                        10,\\n                        11,\\n                        }),\\n                        ],\\n                        ],\\n                        }\"), (dict(indent='-->'), \"                        {\\n                        -->1: 'two',\\n                        -->b'three': [\\n                        -->-->(\\n                        -->-->-->4.5,\\n                        -->-->-->6.25,\\n                        -->-->),\\n                        -->-->[\\n                        -->-->-->{\\n                        -->-->-->-->8,\\n                        -->-->-->-->9,\\n                        -->-->-->},\\n                        -->-->-->frozenset({\\n                        -->-->-->-->10,\\n                        -->-->-->-->11,\\n                        -->-->-->}),\\n                        -->-->],\\n                        -->],\\n                        }\"), (dict(indent='....'), \"                        {\\n                        ....1: 'two',\\n                        ....b'three': [\\n                        ........(\\n                        ............4.5,\\n                        ............6.25,\\n                        ........),\\n                        ........[\\n                        ............{\\n                        ................8,\\n                        ................9,\\n                        ............},\\n                        ............frozenset({\\n                        ................10,\\n                        ................11,\\n                        ............}),\\n                        ........],\\n                        ....],\\n                        }\"))}]\n    for test_case in test_cases:\n        for repr_settings, expected_repr in test_case['tests']:\n            r = Repr()\n            for attribute, value in repr_settings.items():\n                setattr(r, attribute, value)\n            resulting_repr = r.repr(test_case['object'])\n            expected_repr = textwrap.dedent(expected_repr)\n            assert resulting_repr == expected_repr, ('assertEqual', resulting_repr, expected_repr)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReprTests.test_invalid_indent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom reprlib import repr as r\nfrom reprlib import Repr\n\ndef _t():\n    test_object = [1, 'spam', {'eggs': True, 'ham': []}]\n    test_cases = [(-1, (ValueError, '[Nn]egative|[Pp]ositive')), (-4, (ValueError, '[Nn]egative|[Pp]ositive')), ((), (TypeError, None)), ([], (TypeError, None)), ((4,), (TypeError, None)), ([4], (TypeError, None)), (object(), (TypeError, None))]\n    for indent, (expected_error, expected_msg) in test_cases:\n        r = Repr()\n        r.indent = indent\n        expected_msg = expected_msg or f'{type(indent)}'\n        try:\n            r.repr(test_object)\n        except expected_error as _exc:\n            assert _re.search(expected_msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReprTests.test_shadowed_stdlib_array",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from reprlib import repr as r\n\ndef _t():\n\n    class array:\n\n        def __repr__(self):\n            return 'not array.array'\n    assert r(array()) == 'not array.array', ('assertEqual', r(array()), 'not array.array')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReprTests.test_shadowed_builtin",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from reprlib import repr as r\n\ndef _t():\n\n    class list:\n\n        def __repr__(self):\n            return 'not builtins.list'\n    assert r(list()) == 'not builtins.list', ('assertEqual', r(list()), 'not builtins.list')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReprTests.test_custom_repr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nfrom reprlib import Repr\n\ndef _t():\n\n    class MyRepr(Repr):\n\n        def repr_TextIOWrapper(self, obj, level):\n            if obj.name in {'<stdin>', '<stdout>', '<stderr>'}:\n                return obj.name\n            return repr(obj)\n    aRepr = MyRepr()\n    assert aRepr.repr(sys.stdin) == '<stdin>', ('assertEqual', aRepr.repr(sys.stdin), '<stdin>')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ReprTests.test_custom_repr_class_with_spaces",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from reprlib import Repr\n\ndef nestedTuple(nesting):\n    t = ()\n    for i in range(nesting):\n        t = (t,)\n    return t\n\ndef _t():\n\n    class TypeWithSpaces:\n        pass\n    t = TypeWithSpaces()\n    type(t).__name__ = 'type with spaces'\n    assert type(t).__name__ == 'type with spaces', ('assertEqual', type(t).__name__, 'type with spaces')\n\n    class MyRepr(Repr):\n\n        def repr_type_with_spaces(self, obj, level):\n            return 'Type With Spaces'\n    aRepr = MyRepr()\n    assert aRepr.repr(t) == 'Type With Spaces', ('assertEqual', aRepr.repr(t), 'Type With Spaces')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRecursiveRepr.test_recursive_repr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from reprlib import recursive_repr\n\nclass MyContainer:\n    \"\"\"Helper class for TestRecursiveRepr\"\"\"\n\n    def __init__(self, values):\n        self.values = list(values)\n\n    def append(self, value):\n        self.values.append(value)\n\n    @recursive_repr()\n    def __repr__(self):\n        return '<' + ', '.join(map(str, self.values)) + '>'\n\nclass MyContainer2(MyContainer):\n\n    @recursive_repr('+++')\n    def __repr__(self):\n        return '<' + ', '.join(map(str, self.values)) + '>'\n\ndef _t():\n    m = MyContainer(list('abcde'))\n    m.append(m)\n    m.append('x')\n    m.append(m)\n    assert repr(m) == '<a, b, c, d, e, ..., x, ...>', ('assertEqual', repr(m), '<a, b, c, d, e, ..., x, ...>')\n    m = MyContainer2(list('abcde'))\n    m.append(m)\n    m.append('x')\n    m.append(m)\n    assert repr(m) == '<a, b, c, d, e, +++, x, +++>', ('assertEqual', repr(m), '<a, b, c, d, e, +++, x, +++>')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRecursiveRepr.test_assigned_attributes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from reprlib import recursive_repr\n\nclass MyContainer3:\n\n    def __repr__(self):\n        \"\"\"Test document content\"\"\"\n        pass\n    wrapped = __repr__\n    wrapper = recursive_repr()(wrapped)\n\ndef _t():\n    from functools import WRAPPER_ASSIGNMENTS as assigned\n    wrapped = MyContainer3.wrapped\n    wrapper = MyContainer3.wrapper\n    for name in assigned:\n        assert getattr(wrapper, name) is getattr(wrapped, name), ('assertIs', getattr(wrapper, name), getattr(wrapped, name))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRecursiveRepr.test__wrapped__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from reprlib import recursive_repr\n\ndef _t():\n\n    class X:\n\n        def __repr__(self):\n            return 'X()'\n        f = __repr__\n        __repr__ = recursive_repr()(__repr__)\n    assert X.f is X.__repr__.__wrapped__, ('assertIs', X.f, X.__repr__.__wrapped__)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "LongReprTest.test_object",
+      "reason": "decorator:unittest.skip"
+    },
+    {
+      "ident": "LongReprTest.test_builtin_function",
+      "reason": "decorator:unittest.skip"
+    },
+    {
+      "ident": "ReprTests.test_instance",
+      "reason": "self.assertStartsWith"
+    },
+    {
+      "ident": "ReprTests.test_lambda",
+      "reason": "self.assertStartsWith"
+    },
+    {
+      "ident": "ReprTests.test_builtin_function",
+      "reason": "self.assertStartsWith"
+    },
+    {
+      "ident": "LongReprTest.test_module",
+      "reason": "helper:_check_path_limitations(self.skipTest)"
+    },
+    {
+      "ident": "LongReprTest.test_type",
+      "reason": "helper:_check_path_limitations(self.skipTest)"
+    },
+    {
+      "ident": "LongReprTest.test_class",
+      "reason": "helper:_check_path_limitations(self.skipTest)"
+    },
+    {
+      "ident": "LongReprTest.test_instance",
+      "reason": "helper:_check_path_limitations(self.skipTest)"
+    },
+    {
+      "ident": "LongReprTest.test_method",
+      "reason": "helper:_check_path_limitations(self.skipTest)"
+    },
+    {
+      "ident": "TestRecursiveRepr.test__type_params__",
+      "reason": "unresolved-name:T"
+    },
+    {
+      "ident": "TestRecursiveRepr.test_annotations",
+      "reason": "unresolved-name:undefined"
+    }
+  ],
+  "counts": {
+    "extracted": 33,
+    "pinned": 13,
+    "quarantined": 20
+  }
+}

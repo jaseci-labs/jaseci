@@ -1,6 +1,6 @@
 # Triage report: `conv_binop_pins.jac`
 
-- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_binop.py
+- source: reference/cpython/Lib/test/test_binop.py
 - guest leg: 0/1 marks
 - pins: **1 passed** / 1 run (+11 quarantined of 12 extracted)
 
