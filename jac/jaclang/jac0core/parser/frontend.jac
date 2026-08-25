@@ -263,7 +263,8 @@ def parse_and_run_prefix(
     }
     import from jaclang.jac0core.prefix_flip { PREFIX_IR_GEN_NO_CGEN }
     claimed_t = tuple(claimed or ());
-    claimed_n = len(claimed_t) if len(claimed_t) < 6 else 6;
+    _pin_n = len(PREFIX_IR_GEN_NO_CGEN);
+    claimed_n = len(claimed_t) if len(claimed_t) < _pin_n else _pin_n;
     if list(claimed_t[:claimed_n]) != list(PREFIX_IR_GEN_NO_CGEN[:claimed_n]) {
         (module, had_error) = parse_woven(source_str, file_path, prog, annexes);
         return (

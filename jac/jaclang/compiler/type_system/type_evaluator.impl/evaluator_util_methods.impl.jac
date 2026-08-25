@@ -337,6 +337,16 @@ impl TypeEvaluator._lookup_class_member(
             return ClassMember(sym, cls, overloaded_syms);
         }
     }
+
+    import keyword;
+    if keyword.iskeyword(member) {
+        for cls in base_type.shared.mro {
+            escaped_syms: list[Symbol] = [];
+            if sym := cls.lookup_member_symbol(member + "_", escaped_syms) {
+                return ClassMember(sym, cls, escaped_syms);
+            }
+        }
+    }
     return None;
 }
 
