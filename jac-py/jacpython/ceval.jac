@@ -1800,6 +1800,12 @@ def import_native(absname: str) -> PyObj {
         # stdlib and would otherwise be executed in-VM against C internals.
         shim_modules["weakref"] = build_weakref_module();
     }
+    if absname == "heapq" and not ("heapq" in shim_modules) {
+        # heapq.py is pure Python but served from the host it mutates a COPY
+        # of every guest list (heappush/heapify silently no-op). The native
+        # shim operates on live PyList storage instead.
+        shim_modules["heapq"] = build_heapq_module();
+    }
     if absname == "sys" and not ("sys" in shim_modules) {
         # Serve a delegate snapshot with exception-state OVERRIDDEN: the host sys
         # sees only host exception state, never guest frames. Snapshot failure
@@ -3902,6 +3908,14 @@ obj PyFunction(PyObj) {
             self.kw_live = d;
             return d as PyObj;
         }
+        if name == "__closure__" {
+            # CPython: None for functions without free variables, else a tuple
+            # of cells (introspection surface used by inspect and functools).
+            if len(self.closure) == 0 {
+                return py_none();
+            }
+            return PyTuple(t="tuple", items=self.closure);
+        }
         if name == "__code__" {
             return self.code;
         }
@@ -4819,6 +4833,11 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         # The host module's ref() sees to_host conversions (plain objects ->
         # None), so serve our identity-faithful shim instead.
         shim_modules["weakref"] = build_weakref_module();
+    }
+    if name == "heapq" and not ("heapq" in shim_modules) {
+        # Same copy-mutation hazard as import_native: host heapq mutates a
+        # copy of any guest list argument.
+        shim_modules["heapq"] = build_heapq_module();
     }
     if name == "types" and not ("types" in shim_modules) {
         # The host types.coroutine cannot mark VM-native functions (it mutates
@@ -13406,6 +13425,191 @@ def build_weakref_module -> PyObj {
         name="weakref",
         attrs={
             "ref": PyWeakRefFn(t="weakref_fn"),
+        },
+    );
+}
+
+# ---- heapq product-path shim ----------------------------------------------
+# CPython's heapq.py is pure Python, but served from the host every guest list
+# crosses as MUTABLE_COPY: heappush/heapify mutate the copy and the guest's
+# heap never changes. These natives run the Lib/heapq.py algorithms over the
+# LIVE PyList storage instead (Modules/_heapqmodule.c semantics).
+
+# LT via the shared rich-compare dispatch: guest objects compare with full
+# __lt__ semantics. Returns the comparison result or the error to propagate.
+def _hq_lt(a: PyObj, b: PyObj) -> PyObj {
+    return py_compare(0, a, b);
+}
+
+# Error-channel convention for the sift helpers: py_none() on success, any
+# error result propagates upward unchanged.
+def _hqsift_down(items: list[PyObj], startpos: int, pos: int) -> PyObj {
+    newitem: PyObj = items[pos];
+    while pos > startpos {
+        parentpos = (pos - 1) >> 1;
+        parent: PyObj = items[parentpos];
+        c = _hq_lt(newitem, parent);
+        if is_error(c) {
+            return c;
+        }
+        if not ((c as PyBool).val) {
+            break;
+        }
+        items[pos] = parent;
+        pos = parentpos;
+    }
+    items[pos] = newitem;
+    return py_none();
+}
+
+def _hqsift_up(items: list[PyObj], pos: int) -> PyObj {
+    endpos = len(items);
+    startpos = pos;
+    newitem: PyObj = items[pos];
+    childpos = 2 * pos + 1;
+    while childpos < endpos {
+        rightpos = childpos + 1;
+        if rightpos < endpos {
+            c = _hq_lt(items[childpos], items[rightpos]);
+            if is_error(c) {
+                return c;
+            }
+            if not ((c as PyBool).val) {
+                childpos = rightpos;
+            }
+        }
+        items[pos] = items[childpos];
+        pos = childpos;
+        childpos = 2 * pos + 1;
+    }
+    items[pos] = newitem;
+    return _hqsift_down(items, startpos, pos);
+}
+
+# Shared arity/heap-type gate for all entry points.
+def _hq_heap_arg(args: list[PyObj], n: int, fname: str) -> PyList | PyObj {
+    if len(args) != n {
+        return py_error(
+            "TypeError", fname + " expected " + str(n) + " arguments, got " + str(len(args))
+        );
+    }
+    h = args[0];
+    if not isinstance(h, PyList) {
+        return py_error("TypeError", "heap argument must be a list");
+    }
+    return h as PyList;
+}
+
+obj PyHeapqFn(PyObj) {
+    has name: str;
+
+    # Identity hash (builtin-style callable; stdlib stores these in sets).
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
+    }
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        n = self.name;
+        if n == "heapify" {
+            h_r = _hq_heap_arg(args, 1, "heapify");
+            if not isinstance(h_r, PyList) {
+                return h_r as PyObj;
+            }
+            items: list[PyObj] = (h_r as PyList).items;
+            i = len(items) // 2;
+            while i > 0 {
+                i = i - 1;
+                r = _hqsift_up(items, i);
+                if is_error(r) {
+                    return r;
+                }
+            }
+            return py_none();
+        }
+        if n == "heappush" {
+            h_r = _hq_heap_arg(args, 2, "heappush");
+            if not isinstance(h_r, PyList) {
+                return h_r as PyObj;
+            }
+            items2: list[PyObj] = (h_r as PyList).items;
+            items2.append(args[1]);
+            return _hqsift_down(items2, 0, len(items2) - 1);
+        }
+        if n == "heappop" {
+            h_r = _hq_heap_arg(args, 1, "heappop");
+            if not isinstance(h_r, PyList) {
+                return h_r as PyObj;
+            }
+            items3: list[PyObj] = (h_r as PyList).items;
+            lastelt: PyObj = items3[len(items3) - 1];
+            items3.pop();
+            if len(items3) > 0 {
+                returnitem: PyObj = items3[0];
+                items3[0] = lastelt;
+                r = _hqsift_up(items3, 0);
+                if is_error(r) {
+                    return r;
+                }
+                return returnitem;
+            }
+            return lastelt;
+        }
+        if n == "heapreplace" {
+            h_r = _hq_heap_arg(args, 2, "heapreplace");
+            if not isinstance(h_r, PyList) {
+                return h_r as PyObj;
+            }
+            items4: list[PyObj] = (h_r as PyList).items;
+            if len(items4) == 0 {
+                return py_error("IndexError", "index out of range");
+            }
+            returnitem2: PyObj = items4[0];
+            items4[0] = args[1];
+            r2 = _hqsift_up(items4, 0);
+            if is_error(r2) {
+                return r2;
+            }
+            return returnitem2;
+        }
+        if n == "heappushpop" {
+            h_r = _hq_heap_arg(args, 2, "heappushpop");
+            if not isinstance(h_r, PyList) {
+                return h_r as PyObj;
+            }
+            items5: list[PyObj] = (h_r as PyList).items;
+            item: PyObj = args[1];
+            if len(items5) == 0 {
+                return item;
+            }
+            c = _hq_lt(items5[0], item);
+            if is_error(c) {
+                return c;
+            }
+            if (c as PyBool).val {
+                oldtop: PyObj = items5[0];
+                items5[0] = item;
+                r3 = _hqsift_up(items5, 0);
+                if is_error(r3) {
+                    return r3;
+                }
+                return oldtop;
+            }
+            return item;
+        }
+        return py_error("AttributeError", "module 'heapq' has no attribute '" + n + "'");
+    }
+}
+
+def build_heapq_module -> PyObj {
+    return PyModule(
+        t="module",
+        name="heapq",
+        attrs={
+            "heapify": PyHeapqFn(t="heapq_fn", name="heapify"),
+            "heappush": PyHeapqFn(t="heapq_fn", name="heappush"),
+            "heappop": PyHeapqFn(t="heapq_fn", name="heappop"),
+            "heapreplace": PyHeapqFn(t="heapq_fn", name="heapreplace"),
+            "heappushpop": PyHeapqFn(t="heapq_fn", name="heappushpop"),
         },
     );
 }

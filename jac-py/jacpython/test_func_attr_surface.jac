@@ -81,9 +81,18 @@ test "func surface: __dict__ is live and excludes fixed names" {
     "        def f(): pass\n"
     "        f.temporary = 2\n"
     "        del f.__dict__['temporary']\n"
-    "        self.assertFalse(hasattr(f, 'temporary'))\n";
+    "        self.assertFalse(hasattr(f, 'temporary'))\n"
+    "    def test_closure_surface(self):\n"
+    "        def outer():\n"
+    "            v = 1\n"
+    "            def inner():\n"
+    "                return v\n"
+    "            return inner\n"
+    "        self.assertTrue(outer().__closure__ is not None)\n"
+    "        def plain(): pass\n"
+    "        self.assertIsNone(plain.__closure__)\n";
     result = layer1_replay_source(src);
-    assert result.passed == 4;
+    assert result.passed == 5;
     assert result.skipped == 0;
     assert result.failed == 0;
     assert result.errored == 0;
