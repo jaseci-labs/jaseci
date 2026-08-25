@@ -360,17 +360,22 @@ def _rewrite_raises(call: ast.Call, regex: bool) -> list[ast.stmt]:
             cause=None,
         )
     ]
-    if len(call.args) >= 2 and not regex:
-        fn = call.args[1]
+    if len(call.args) >= (3 if regex else 2):
+        # Call form: assertRaises(E, fn, *a) /
+        # assertRaisesRegex(E, pattern, fn, *a). args[1] (or [2] for the
+        # regex form) is the pattern; everything after it is callable + args.
+        offset = 2 if regex else 1
+        fn = call.args[offset]
+        extra = list(call.args[offset + 1 :])
         starargs: list[ast.expr] = []
-        if len(call.args) > 2:
+        if extra:
             starargs = [
-                ast.Starred(value=ast.Tuple(elts=list(call.args[2:]), ctx=ast.Load()), ctx=ast.Load())
+                ast.Starred(value=ast.Tuple(elts=extra, ctx=ast.Load()), ctx=ast.Load())
             ]
         invoke: ast.expr = ast.Call(func=fn, args=starargs, keywords=list(call.keywords))
         tried: list[ast.stmt] = [ast.Expr(value=invoke)]
     else:
-        if len(call.args) >= 2:
+        if regex:
             raise Unsupported("assertRaisesRegex call form")
         raise Unsupported("context-manager form routed wrongly")
     return [

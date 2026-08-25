@@ -1,0 +1,711 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_ordered_dict/conv_ordered_dict_pins.jac"
+  ],
+  "generated_at": "2026-08-24T22:59:23",
+  "hashes": {
+    "pins_jac": "9cb7f5452241eb6a718b6642b2e3867070e6ae7c6fac8c1893ff4504033be870",
+    "conversion_json": "98e51c352a164448cef4e192c50e9bf3dfe22c4b3ccabca2d46a7a7b8739b3ce",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "ordered_dict",
+  "counts": {
+    "converted": 119,
+    "runnable": 88,
+    "green": 0,
+    "quarantined": 31
+  },
+  "pins": [
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_init",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_init",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_468",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_468",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_overridden_init",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_overridden_init",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_fromkeys",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_fromkeys",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_clear",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_clear",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_delitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_delitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_setitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_setitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_iterators",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_iterators",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_detect_deletion_during_iteration",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_detect_deletion_during_iteration",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_sorted_iterators",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_sorted_iterators",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_iterators_empty",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_iterators_empty",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_popitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_popitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_popitem_last",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_popitem_last",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_pop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_pop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_equality",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_equality",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_yaml_linkage",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_yaml_linkage",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_reduce_not_too_fat",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_reduce_not_too_fat",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_pickle_recursive",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_pickle_recursive",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_repr_recursive",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_repr_recursive",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_repr_recursive_values",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_repr_recursive_values",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_setdefault",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_setdefault",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_reinsert",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_reinsert",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_move_to_end",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_move_to_end",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_move_to_end_issue25406",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_move_to_end_issue25406",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_sizeof",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_sizeof",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_views",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_views",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_override_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_override_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_highly_nested",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_highly_nested",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_highly_nested_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_highly_nested_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_delitem_hash_collision",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_delitem_hash_collision",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_issue24347",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_issue24347",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_issue24348",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_issue24348",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_issue24667",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_issue24667",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_dict_setitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_dict_setitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_dict_delitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_dict_delitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_dict_clear",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_dict_clear",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_dict_pop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_dict_pop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_dict_popitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_dict_popitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_dict_setdefault",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_dict_setdefault",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_dict_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_dict_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_reference_loop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_reference_loop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_free_after_iterating",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertRaises'"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_free_after_iterating",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertRaises'"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_merge_operator",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_merge_operator",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'mapping_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "OrderedDictTests.test_ordered_dict_items_result_gc",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "CPythonOrderedDictTests.test_sizeof_exact",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CPythonOrderedDictTests.test_key_change_during_iteration",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CPythonOrderedDictTests.test_iterators_pickling",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CPythonOrderedDictTests.test_weakref_list_is_not_traversed",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CPythonGeneralMappingTests.test_popitem",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CPythonSubclassMappingTests.test_popitem",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_init_calls",
+      "status": "quarantined",
+      "reason": "self.OrderedDict"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_init_calls",
+      "status": "quarantined",
+      "reason": "self.OrderedDict"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_abc",
+      "status": "quarantined",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_abc",
+      "status": "quarantined",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_copying",
+      "status": "quarantined",
+      "reason": "self.assertNotHasAttr"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_copying",
+      "status": "quarantined",
+      "reason": "self.assertNotHasAttr"
+    },
+    {
+      "id": "PurePythonOrderedDictSubclassTests.test_issue119004_attribute_error",
+      "status": "quarantined",
+      "reason": "uses-self.OrderedDict"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_issue119004_change_size_by_clear",
+      "status": "quarantined",
+      "reason": "uses-self.OrderedDict"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_issue119004_change_size_by_delete_key",
+      "status": "quarantined",
+      "reason": "uses-self.OrderedDict"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_issue119004_change_linked_list_by_clear",
+      "status": "quarantined",
+      "reason": "uses-self.OrderedDict"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_issue119004_change_linked_list_by_delete_key",
+      "status": "quarantined",
+      "reason": "uses-self.OrderedDict"
+    },
+    {
+      "id": "CPythonOrderedDictSubclassTests.test_issue119004_change_size_by_delete_key_in_dict_eq",
+      "status": "quarantined",
+      "reason": "uses-self.OrderedDict"
+    },
+    {
+      "id": "PurePythonGeneralMappingTests.test_popitem",
+      "status": "quarantined",
+      "reason": "uses-self._empty_mapping"
+    },
+    {
+      "id": "PurePythonSubclassMappingTests.test_popitem",
+      "status": "quarantined",
+      "reason": "uses-self._empty_mapping"
+    },
+    {
+      "id": "PySimpleLRUCacheTests.test_add_after_full",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "id": "CSimpleLRUCacheTests.test_add_after_full",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "id": "PySimpleLRUCacheTests.test_popitem",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "id": "CSimpleLRUCacheTests.test_popitem",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "id": "PySimpleLRUCacheTests.test_pop",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "id": "CSimpleLRUCacheTests.test_pop",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "id": "PySimpleLRUCacheTests.test_change_order_on_get",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "id": "CSimpleLRUCacheTests.test_change_order_on_get",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    }
+  ]
+}

@@ -1,0 +1,699 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_builtin/conv_builtin_pins.jac"
+  ],
+  "generated_at": "2026-08-24T23:01:48",
+  "hashes": {
+    "pins_jac": "f0b890ae5628261ed0973aca6590a11c84dde81d9d0945daae6e78d9bd44b523",
+    "conversion_json": "562e9f9a7b7451b420d76870f3548ce1d8bf2d0a4faa3f67dea30d50e8670a0c",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "builtin",
+  "counts": {
+    "converted": 133,
+    "runnable": 92,
+    "green": 43,
+    "quarantined": 41
+  },
+  "pins": [
+    {
+      "id": "BuiltinTest.test_abs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"bad operand type for abs(): \\'AbsClass\\'\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_all",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'TestFailingIter\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_any",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'TestFailingIter\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_all_any_tuple_optimization",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 4, 1)\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_builtin_call_async_genexpr_no_crash",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'async_yield' from '<unknown>'\">"
+    },
+    {
+      "id": "BuiltinTest.test_ascii",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'maximum recursion depth exceeded'\">"
+    },
+    {
+      "id": "BuiltinTest.test_neg",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_chr",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_compile",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_compile_top_level_await_no_coro",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'TypeError: expected code object'>"
+    },
+    {
+      "id": "BuiltinTest.test_compile_top_level_await",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'TypeError: expected code object'>"
+    },
+    {
+      "id": "BuiltinTest.test_compile_top_level_await_invalid_cases",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_compile_async_generator",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_compile_ast",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_delattr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError ''\">"
+    },
+    {
+      "id": "BuiltinTest.test_dir",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertNotIn\\', \\'__repr__\\', [\\'__class__\\', \\'__delattr__\\', \\'__dict__\\', \\'__dir__\\', \\'__doc__\\', \\'__eq__\\', \\'__firstlineno__\\', \\'__format__\\', \\'__ge__\\', \\'__getattribute__\\', \\'__getstate__\\', \\'__gt__\\', \\'__hash__\\', \\'__init__\\', \\'__init_subclass__\\', \\'__le__\\', \\'__lt__\\', \\'__module__\\', \\'__ne__\\', \\'__new__\\', \\'__reduce__\\', \\'__reduce_ex__\\', \\'__repr__\\', \\'__setattr__\\', \\'__sizeof__\\', \\'__slots__\\', \\'__static_attributes__\\', \\'__str__\\', \\'__subclasshook__\\', \\'__weakref__\\', \\'bar\\'])\"'>"
+    },
+    {
+      "id": "BuiltinTest.test___ne__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__ne__'\">"
+    },
+    {
+      "id": "BuiltinTest.test_divmod",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_eval",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'locals must be a mapping'\">"
+    },
+    {
+      "id": "BuiltinTest.test_eval_kwargs",
+      "status": "quarantined",
+      "reason": "host-raised:KeyError: 'A_GLOBAL_VALUE'"
+    },
+    {
+      "id": "BuiltinTest.test_general_eval",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'locals must be a mapping'\">"
+    },
+    {
+      "id": "BuiltinTest.test_exec",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.warnings_helper'\">"
+    },
+    {
+      "id": "BuiltinTest.test_exec_kwargs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'exec() takes no keyword arguments'\">"
+    },
+    {
+      "id": "BuiltinTest.test_exec_globals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_exec_globals_error_on_get",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_exec_globals_dict_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'superglobal\\' is not defined\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_eval_builtins_mapping",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_exec_builtins_mapping_import",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_eval_builtins_mapping_reduce",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (<built-in function iter>, (<function _jac_make_host_iterator.<locals>._next at 0x7f1d5a9b3530>, <object object at 0x7f1d59eac5d0>)), (<built-in function iter>, ([1, 2],), 0))\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_exec_redirected",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_exec_closure",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__globals__'\">"
+    },
+    {
+      "id": "BuiltinTest.test_filter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Squares\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_filter_pickle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: module 'builtins' has no attribute 'PicklingError'\">"
+    },
+    {
+      "id": "BuiltinTest.test_getattr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError ''\">"
+    },
+    {
+      "id": "BuiltinTest.test_hasattr",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_hash",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError '__hash__ method should return an integer'\">"
+    },
+    {
+      "id": "BuiltinTest.test_invalid_hash_typeerror",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_hex",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_id",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_iter",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_isinstance",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_issubclass",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_len",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_map",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Squares\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_map_pickle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: module 'builtins' has no attribute 'PicklingError'\">"
+    },
+    {
+      "id": "BuiltinTest.test_map_pickle_strict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: module 'builtins' has no attribute 'PicklingError'\">"
+    },
+    {
+      "id": "BuiltinTest.test_map_pickle_strict_fail",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: module 'builtins' has no attribute 'PicklingError'\">"
+    },
+    {
+      "id": "BuiltinTest.test_map_strict",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_map_strict_iterators",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 4, 2)\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_map_strict_error_handling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Iter\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_map_strict_error_handling_stopiteration",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Iter\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_max",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "BuiltinTest.test_min",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "BuiltinTest.test_next",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_oct",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_ord",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_pow",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: type complex doesn't define __round__ method"
+    },
+    {
+      "id": "BuiltinTest.test_input_gh130163",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'nlargest' from '<unknown>'\">"
+    },
+    {
+      "id": "BuiltinTest.test_repr",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_repr_blocked",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_round",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"type TestRound doesn\\'t define __round__ method\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_bug_27936",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"type Fraction doesn\\'t define __round__ method\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_setattr",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_type",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_zip",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'I\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_zip_pickle",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_zip_pickle_strict",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_zip_pickle_strict_fail",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
+    },
+    {
+      "id": "BuiltinTest.test_zip_strict",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_zip_strict_iterators",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 4, 2)\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_zip_strict_error_handling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Iter\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_zip_strict_error_handling_stopiteration",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Iter\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_bin",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_bytearray_translate",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_bytearray_extend_error",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_bytearray_join_with_misbehaving_iterator",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_bytearray_join_with_custom_iterator",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_construct_singletons",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_bool_notimplemented",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
+    },
+    {
+      "id": "BuiltinTest.test_singleton_attribute_access",
+      "status": "pass"
+    },
+    {
+      "id": "TestSorted.test_basic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSorted.test_bad_arguments",
+      "status": "pass"
+    },
+    {
+      "id": "TestSorted.test_inputtypes",
+      "status": "pass"
+    },
+    {
+      "id": "TestSorted.test_baddecorator",
+      "status": "pass"
+    },
+    {
+      "id": "ShutdownTest.test_cleanup",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.script_helper'\">"
+    },
+    {
+      "id": "ImmortalTests.test_immortals",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ImmortalTests.test_list_repeat_respect_immortality",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ImmortalTests.test_tuple_repeat_respect_immortality",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestType.test_new_type",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\'ceval\\', \\'__main__\\')\"'>"
+    },
+    {
+      "id": "TestType.test_type_nokwargs",
+      "status": "pass"
+    },
+    {
+      "id": "TestType.test_type_name",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\'ceval\\', \\'__main__\\')\"'>"
+    },
+    {
+      "id": "TestType.test_type_qualname",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\'ceval\\', \\'__main__\\')\"'>"
+    },
+    {
+      "id": "TestType.test_type_firstlineno",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\'ceval\\', \\'__main__\\')\"'>"
+    },
+    {
+      "id": "TestType.test_type_typeparams",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "TestType.test_type_doc",
+      "status": "pass"
+    },
+    {
+      "id": "TestType.test_bad_args",
+      "status": "pass"
+    },
+    {
+      "id": "TestType.test_bad_slots",
+      "status": "pass"
+    },
+    {
+      "id": "TestType.test_namespace_order",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_filter_dealloc",
+      "status": "quarantined",
+      "reason": "decorator:support.skip_wasi_stack_overflow"
+    },
+    {
+      "id": "BuiltinTest.test_open_default_encoding",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "BuiltinTest.test_open_non_inheritable",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_subprocess"
+    },
+    {
+      "id": "BuiltinTest.test_round_large",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "BuiltinTest.test_sum_accuracy",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "BuiltinTest.test_zip_result_gc",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestBreakpoint.test_envar_good_path_builtin",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestBreakpoint.test_envar_good_path_other",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestBreakpoint.test_envar_good_path_noop_0",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestBreakpoint.test_envar_unimportable",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "PtyTests.test_input_tty",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "PtyTests.test_input_tty_non_ascii",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "PtyTests.test_input_tty_non_ascii_unicode_errors",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "PtyTests.test_input_tty_null_in_prompt",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "PtyTests.test_input_tty_nonencodable_prompt",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "PtyTests.test_input_tty_nondecodable_input",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "PtyTests.test_input_no_stdout_fileno",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "BuiltinTest.test_import",
+      "status": "quarantined",
+      "reason": "uses-self.assertWarns"
+    },
+    {
+      "id": "BuiltinTest.test_callable",
+      "status": "quarantined",
+      "reason": "unresolved-name:__builtins__"
+    },
+    {
+      "id": "BuiltinTest.test_cmp",
+      "status": "quarantined",
+      "reason": "self.assertNotHasAttr"
+    },
+    {
+      "id": "BuiltinTest.test_exec_globals_frozen",
+      "status": "quarantined",
+      "reason": "unresolved-name:__builtins__"
+    },
+    {
+      "id": "BuiltinTest.test_open",
+      "status": "quarantined",
+      "reason": "helper:write_testfile(self.addCleanup)"
+    },
+    {
+      "id": "BuiltinTest.test_input",
+      "status": "quarantined",
+      "reason": "helper:write_testfile(self.addCleanup)"
+    },
+    {
+      "id": "BuiltinTest.test_sum",
+      "status": "quarantined",
+      "reason": "self.assertComplexesAreIdentical"
+    },
+    {
+      "id": "BuiltinTest.test_vars",
+      "status": "quarantined",
+      "reason": "helper:get_vars_f0(decorated-helper)"
+    },
+    {
+      "id": "BuiltinTest.test_zip_bad_iterable",
+      "status": "quarantined",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "id": "BuiltinTest.test_format",
+      "status": "quarantined",
+      "reason": "self.assertStartsWith"
+    },
+    {
+      "id": "TestBreakpoint.test_breakpoint",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "id": "TestBreakpoint.test_breakpoint_with_breakpointhook_set",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "id": "TestBreakpoint.test_breakpoint_with_breakpointhook_reset",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "id": "TestBreakpoint.test_breakpoint_with_args_and_keywords",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "id": "TestBreakpoint.test_breakpoint_with_passthru_error",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "id": "TestBreakpoint.test_envar_good_path_empty_string",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "id": "TestBreakpoint.test_envar_ignored_when_hook_is_set",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.addCleanup)"
+    },
+    {
+      "id": "TestBreakpoint.test_runtime_error_when_hook_is_lost",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.addCleanup)"
+    }
+  ]
+}

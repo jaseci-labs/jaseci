@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,24 +10,498 @@
     "diff_runner.py",
     "jac-py/tests/conv_codecs/conv_codecs_pins.jac"
   ],
-  "generated_at": "2026-08-24T15:01:07",
+  "generated_at": "2026-08-24T23:00:22",
   "hashes": {
-    "pins_jac": "c5672972148eeeb6012a755982a323343e3d07f564c4c51e6c8e9f8ccfdd6989",
-    "conversion_json": "d2ebedb15d9879f3c65cd495ba2a4344af77f8c92cc2d642d8f70d6100245c80",
+    "pins_jac": "8440b8898ff2da28cda9a6c3a18b5f75c804b7147100c3ad214440661ead0577",
+    "conversion_json": "d389236cb0bfe22b05500f0cb76fe3c2c507d9ab11dcf299dc7cf70cb7bce6f6",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "codecs",
   "status": "failed",
   "timed_out": false,
   "counts": {
-    "converted": 207,
-    "runnable": 105,
-    "green": 69,
-    "quarantined": 102,
-    "failed": 36,
+    "converted": 279,
+    "runnable": 200,
+    "green": 83,
+    "quarantined": 79,
+    "failed": 117,
     "infra_failed": 0
   },
   "failures": [
+    {
+      "id": "UTF32Test.test_readline",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32'\">"
+    },
+    {
+      "id": "UTF32LETest.test_readline",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-le'\">"
+    },
+    {
+      "id": "UTF32BETest.test_readline",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-be'\">"
+    },
+    {
+      "id": "UTF16Test.test_readline",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16'\">"
+    },
+    {
+      "id": "UTF16LETest.test_readline",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'\">"
+    },
+    {
+      "id": "UTF16BETest.test_readline",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-be'\">"
+    },
+    {
+      "id": "UTF7Test.test_readline",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-7'\">"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_readline",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: unicode-escape'\">"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_readline",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: raw-unicode-escape'\">"
+    },
+    {
+      "id": "UTF32Test.test_mixed_readline_and_read",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32'\">"
+    },
+    {
+      "id": "UTF32LETest.test_mixed_readline_and_read",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-le'\">"
+    },
+    {
+      "id": "UTF32BETest.test_mixed_readline_and_read",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-be'\">"
+    },
+    {
+      "id": "UTF16Test.test_mixed_readline_and_read",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16'\">"
+    },
+    {
+      "id": "UTF16LETest.test_mixed_readline_and_read",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'\">"
+    },
+    {
+      "id": "UTF16BETest.test_mixed_readline_and_read",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-be'\">"
+    },
+    {
+      "id": "UTF7Test.test_mixed_readline_and_read",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-7'\">"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_mixed_readline_and_read",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: unicode-escape'\">"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_mixed_readline_and_read",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: raw-unicode-escape'\">"
+    },
+    {
+      "id": "UTF32Test.test_bug1175396",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32'\">"
+    },
+    {
+      "id": "UTF32LETest.test_bug1175396",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-le'\">"
+    },
+    {
+      "id": "UTF32BETest.test_bug1175396",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-be'\">"
+    },
+    {
+      "id": "UTF16Test.test_bug1175396",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16'\">"
+    },
+    {
+      "id": "UTF16LETest.test_bug1175396",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'\">"
+    },
+    {
+      "id": "UTF16BETest.test_bug1175396",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-be'\">"
+    },
+    {
+      "id": "UTF7Test.test_bug1175396",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-7'\">"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_bug1175396",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: unicode-escape'\">"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_bug1175396",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: raw-unicode-escape'\">"
+    },
+    {
+      "id": "UTF32Test.test_readlinequeue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
+    },
+    {
+      "id": "UTF32LETest.test_readlinequeue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
+    },
+    {
+      "id": "UTF32BETest.test_readlinequeue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
+    },
+    {
+      "id": "UTF16Test.test_readlinequeue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
+    },
+    {
+      "id": "UTF16LETest.test_readlinequeue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
+    },
+    {
+      "id": "UTF16BETest.test_readlinequeue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
+    },
+    {
+      "id": "UTF8SigTest.test_readlinequeue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
+    },
+    {
+      "id": "UTF7Test.test_readlinequeue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_readlinequeue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_readlinequeue",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
+    },
+    {
+      "id": "UTF32Test.test_bug1098990_a",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32'\">"
+    },
+    {
+      "id": "UTF32LETest.test_bug1098990_a",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-le'\">"
+    },
+    {
+      "id": "UTF32BETest.test_bug1098990_a",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-be'\">"
+    },
+    {
+      "id": "UTF16Test.test_bug1098990_a",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16'\">"
+    },
+    {
+      "id": "UTF16LETest.test_bug1098990_a",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'\">"
+    },
+    {
+      "id": "UTF16BETest.test_bug1098990_a",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-be'\">"
+    },
+    {
+      "id": "UTF7Test.test_bug1098990_a",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-7'\">"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_bug1098990_a",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: unicode-escape'\">"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_bug1098990_a",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: raw-unicode-escape'\">"
+    },
+    {
+      "id": "UTF32Test.test_bug1098990_b",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32'\">"
+    },
+    {
+      "id": "UTF32LETest.test_bug1098990_b",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-le'\">"
+    },
+    {
+      "id": "UTF32BETest.test_bug1098990_b",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-be'\">"
+    },
+    {
+      "id": "UTF16Test.test_bug1098990_b",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16'\">"
+    },
+    {
+      "id": "UTF16LETest.test_bug1098990_b",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'\">"
+    },
+    {
+      "id": "UTF16BETest.test_bug1098990_b",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-be'\">"
+    },
+    {
+      "id": "UTF7Test.test_bug1098990_b",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-7'\">"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_bug1098990_b",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: unicode-escape'\">"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_bug1098990_b",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: raw-unicode-escape'\">"
+    },
+    {
+      "id": "UTF32LETest.test_lone_surrogates",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-le'\">"
+    },
+    {
+      "id": "UTF32BETest.test_lone_surrogates",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-be'\">"
+    },
+    {
+      "id": "UTF16LETest.test_lone_surrogates",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'\">"
+    },
+    {
+      "id": "UTF16BETest.test_lone_surrogates",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-be'\">"
+    },
+    {
+      "id": "UTF32Test.test_incremental_surrogatepass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32'\">"
+    },
+    {
+      "id": "UTF32LETest.test_incremental_surrogatepass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-le'\">"
+    },
+    {
+      "id": "UTF32BETest.test_incremental_surrogatepass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-be'\">"
+    },
+    {
+      "id": "UTF16Test.test_incremental_surrogatepass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16'\">"
+    },
+    {
+      "id": "UTF16LETest.test_incremental_surrogatepass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'\">"
+    },
+    {
+      "id": "UTF16BETest.test_incremental_surrogatepass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-be'\">"
+    },
+    {
+      "id": "UTF8SigTest.test_incremental_surrogatepass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'surrogatepass\\'\"'>"
+    },
+    {
+      "id": "UTF7Test.test_incremental_surrogatepass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-7'\">"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_incremental_surrogatepass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: unicode-escape'\">"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_incremental_surrogatepass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: raw-unicode-escape'\">"
+    },
+    {
+      "id": "UTF32Test.test_decoder_state",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\', 0), (b\\'\\', 0))\"'>"
+    },
+    {
+      "id": "UTF32LETest.test_simple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-le'\">"
+    },
+    {
+      "id": "UTF32BETest.test_simple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-32-be'\">"
+    },
+    {
+      "id": "UTF16Test.test_decoder_state",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\', 0), (b\\'\\', 0))\"'>"
+    },
+    {
+      "id": "UTF16LETest.test_nonbmp",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'\">"
+    },
+    {
+      "id": "UTF16BETest.test_nonbmp",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-be'\">"
+    },
+    {
+      "id": "UTF8SigTest.test_decoder_state",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\', 0), (b\\'\\', 0))\"'>"
+    },
+    {
+      "id": "UTF8SigTest.test_surrogatepass_handler",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'surrogatepass\\'\"'>"
+    },
+    {
+      "id": "UTF7Test.test_ascii",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-7'\">"
+    },
+    {
+      "id": "UTF7Test.test_nonbmp",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-7'\">"
+    },
     {
       "id": "ReadBufferTest.test_array",
       "status": "fail",
@@ -86,13 +560,13 @@
       "id": "CodecsModuleTest.test_unregister",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: __repr__'>"
+      "detail": "RUN<\"ImportError: cannot import name 'nlargest' from '<unknown>'\">"
     },
     {
       "id": "CodecsModuleTest.test_file_closes_if_lookup_error_raised",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: __repr__'>"
+      "detail": "RUN<\"ImportError: cannot import name 'nlargest' from '<unknown>'\">"
     },
     {
       "id": "CodecsModuleTest.test_copy",
@@ -105,6 +579,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', None, \\'utf-8\\')\"'>"
+    },
+    {
+      "id": "BasicUnicodeTest.test_basics",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'Queue\\' object has no attribute \\'write\\'\"'>"
     },
     {
       "id": "BasicUnicodeTest.test_seek",
@@ -240,6 +720,12 @@
     },
     {
       "id": "StreamRecoderTest.test_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'ascii'\">"
+    },
+    {
+      "id": "StreamRecoderTest.test_pickle",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC AttributeError 'ascii'\">"

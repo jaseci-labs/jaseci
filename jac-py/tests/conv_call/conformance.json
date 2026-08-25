@@ -1,0 +1,478 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_call/conv_call_pins.jac"
+  ],
+  "generated_at": "2026-08-24T23:01:38",
+  "hashes": {
+    "pins_jac": "b92a3d041bdb7ee0f85ea1c1b7c0d7496343a65ebe8d2e6b942b6c4a9b53f657",
+    "conversion_json": "b6f1876cb6a89b925549ff0407b3fe3d35b1629129a77198aab1a27ee0c3d2ae",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "call",
+  "counts": {
+    "converted": 96,
+    "runnable": 46,
+    "green": 38,
+    "quarantined": 50
+  },
+  "pins": [
+    {
+      "id": "FunctionCalls.test_kwargs_order",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'argument after ** must be a mapping, not host'\">"
+    },
+    {
+      "id": "FunctionCalls.test_frames_are_popped_after_failed_calls",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs0",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs2",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs3",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs1min",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs2min",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs1max",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs2max",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs1_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs2_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs3_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs4_kw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC ValueError 'not in list'\">"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs5_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs6_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs7_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs8_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs9_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs10_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs11_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs12_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs13_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs14_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs15_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs16_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs17_kw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'int\\' object has no attribute \\'join\\'\"'>"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs18_kw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs19_kw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_oldargs0_1",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_oldargs0_2",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_oldargs0_1_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_oldargs0_2_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_oldargs1_0",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_oldargs1_2",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_oldargs1_0_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_oldargs1_1_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_oldargs1_2_kw",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_object_not_callable",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_0",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_1",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_2",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_3",
+      "status": "pass"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_module_not_callable_suggestion",
+      "status": "pass"
+    },
+    {
+      "id": "FastCallTests.test_fastcall_clearing_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'IntWithDict\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
+      "id": "testfunction",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "testfunction_kw",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestRecursion.test_recursion_with_kwargs",
+      "status": "fail",
+      "classification": "VM-CRASH",
+      "detail": "y/jacpython/ceval.jac:16052\n  at exec_code_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:14273\n  at tp_call() /var/tmp/lane8/jac-py/jacpython/ceval.jac:4067\n  at py_invoke() /var/tmp/lane8/jac-py/jacpython/ceval.jac:8801\n  at run_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:16052\n  at exec_"
+    },
+    {
+      "id": "TestFunctionWithManyArgs.test_function_with_many_args",
+      "status": "fail",
+      "classification": "VM-CRASH",
+      "detail": "y/jacpython/ceval.jac:16052\n  at exec_code_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:14273\n  at tp_call() /var/tmp/lane8/jac-py/jacpython/ceval.jac:4067\n  at py_invoke() /var/tmp/lane8/jac-py/jacpython/ceval.jac:8801\n  at run_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:16052\n  at exec_"
+    },
+    {
+      "id": "TestCallingConventions.test_varargs",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_varargs_ext",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_varargs_error_kw",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_varargs_keywords",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_varargs_keywords_ext",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_o",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_o_ext",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_o_error_no_arg",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_o_error_two_args",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_o_error_ext",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_o_error_kw",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_o_error_arg_kw",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_noargs",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_noargs_ext",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_noargs_error_arg",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_noargs_error_arg2",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_noargs_error_ext",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_noargs_error_kw",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_fastcall",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_fastcall_ext",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_fastcall_error_kw",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_fastcall_keywords",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCallingConventions.test_fastcall_keywords_ext",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "FastCallTests.test_vectorcall_dict",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "FastCallTests.test_vectorcall",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_method_descriptor_flag",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_vectorcall_flag",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_vectorcall_override",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_vectorcall_override_on_mutable_class",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_vectorcall_override_with_subclass",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_vectorcall",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_setvectorcall",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_setvectorcall_load_attr_specialization_skip",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_setvectorcall_load_attr_specialization_deopt",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_vectorcall_limited_incoming",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_vectorcall_limited_outgoing",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestPEP590.test_vectorcall_limited_outgoing_method",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestRecursion.test_super_deep",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestCAPI.test_cfunction_call",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TestErrorMessagesUseQualifiedName.test_missing_arguments",
+      "status": "quarantined",
+      "reason": "helper:check_raises_type_error(decorated-helper)"
+    },
+    {
+      "id": "TestErrorMessagesUseQualifiedName.test_too_many_positional",
+      "status": "quarantined",
+      "reason": "helper:check_raises_type_error(decorated-helper)"
+    },
+    {
+      "id": "TestErrorMessagesUseQualifiedName.test_positional_only_passed_as_keyword",
+      "status": "quarantined",
+      "reason": "helper:check_raises_type_error(decorated-helper)"
+    },
+    {
+      "id": "TestErrorMessagesUseQualifiedName.test_unexpected_keyword",
+      "status": "quarantined",
+      "reason": "helper:check_raises_type_error(decorated-helper)"
+    },
+    {
+      "id": "TestErrorMessagesUseQualifiedName.test_multiple_values",
+      "status": "quarantined",
+      "reason": "helper:check_raises_type_error(decorated-helper)"
+    },
+    {
+      "id": "TestErrorMessagesSuggestions.test_unexpected_keyword_suggestion_valid_positions",
+      "status": "quarantined",
+      "reason": "helper:check_suggestion_includes(decorated-helper)"
+    },
+    {
+      "id": "TestErrorMessagesSuggestions.test_unexpected_keyword_suggestion_kinds",
+      "status": "quarantined",
+      "reason": "helper:check_suggestion_includes(decorated-helper)"
+    },
+    {
+      "id": "TestErrorMessagesSuggestions.test_unexpected_keyword_suggestion_via_getargs",
+      "status": "quarantined",
+      "reason": "helper:check_suggestion_includes(decorated-helper)"
+    },
+    {
+      "id": "TestRecursion.test_margin_is_sufficient",
+      "status": "quarantined",
+      "reason": "unresolved-name:_testcapi"
+    }
+  ]
+}

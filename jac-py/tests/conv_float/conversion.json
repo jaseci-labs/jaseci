@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,15 +14,23 @@
     "--name",
     "conv_float"
   ],
-  "generated_at": "2026-08-24T15:03:30",
+  "generated_at": "2026-08-24T23:00:22",
   "hashes": {
-    "pins_jac": "cc65349f0a4a7ca83f4d4862ae5e02a065cc81342dd8aa8afb2c1c0763ebbbae"
+    "pins_jac": "159258c8dde793030d351d8249811fc52c0fce3be180a0403f0e623ba5e4a583"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_float.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "float",
   "pins_file": "conv_float_pins.jac",
   "pins": [
+    {
+      "ident": "GeneralFloatCases.test_float",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert float(3.14) == 3.14, ('assertEqual', float(3.14), 3.14)\n    assert float(314) == 314.0, ('assertEqual', float(314), 314.0)\n    assert float('  3.14  ') == 3.14, ('assertEqual', float('  3.14  '), 3.14)\n    try:\n        float(*('  0x3.1  ',))\n    except ValueError:\n        pass\n    try:\n        float(*('  -0x3.p-1  ',))\n    except ValueError:\n        pass\n    try:\n        float(*('  +0x3.p-1  ',))\n    except ValueError:\n        pass\n    try:\n        float(*('++3.14',))\n    except ValueError:\n        pass\n    try:\n        float(*('+-3.14',))\n    except ValueError:\n        pass\n    try:\n        float(*('-+3.14',))\n    except ValueError:\n        pass\n    try:\n        float(*('--3.14',))\n    except ValueError:\n        pass\n    try:\n        float(*('.nan',))\n    except ValueError:\n        pass\n    try:\n        float(*('+.inf',))\n    except ValueError:\n        pass\n    try:\n        float(*('.',))\n    except ValueError:\n        pass\n    try:\n        float(*('-.',))\n    except ValueError:\n        pass\n    try:\n        float(*({},))\n    except TypeError:\n        pass\n    try:\n        float(*({},))\n    except TypeError:\n        pass\n    try:\n        float(*('\\ud8f0',))\n    except ValueError:\n        pass\n    try:\n        float(*('-1.7d29',))\n    except ValueError:\n        pass\n    try:\n        float(*('3D-14',))\n    except ValueError:\n        pass\n    assert float('  \u0663.\u0661\u0664  ') == 3.14, ('assertEqual', float('  \u0663.\u0661\u0664  '), 3.14)\n    assert float('\\u20033.14\\u2002') == 3.14, ('assertEqual', float('\\u20033.14\\u2002'), 3.14)\n    float(b'.' + b'1' * 1000)\n    float('.' + '1' * 1000)\n    try:\n        float(*('\u3053\u3093\u306b\u3061\u306f',))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
     {
       "ident": "GeneralFloatCases.test_noargs",
       "status": "pinned",
@@ -221,7 +229,7 @@
       "oracle": {
         "status": "ok"
       },
-      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class F(float):\n\n        def __new__(cls, value):\n            return float.__new__(cls, value + 1)\n    f = F.fromhex(1.5.hex())\n    assert type(f) is F, ('assertIs', type(f), F)\n    assert f == 2.5, ('assertEqual', f, 2.5)\n\n    class F2(float):\n\n        def __init__(self, value):\n            self.foo = 'bar'\n    f = F2.fromhex(1.5.hex())\n    assert type(f) is F2, ('assertIs', type(f), F2)\n    assert f == 1.5, ('assertEqual', f, 1.5)\n    assert getattr(f, 'foo', 'none') == 'bar', ('assertEqual', getattr(f, 'foo', 'none'), 'bar')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "snippet": "fromHex = float.fromhex\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.EPS = fromHex('0x0.0000000000001p0')\n    self.MAX = fromHex('0x.fffffffffffff8p+1024')\n    self.MIN = fromHex('0x1p-1022')\n    self.TINY = fromHex('0x0.0000000000001p-1022')\n\n    class F(float):\n\n        def __new__(cls, value):\n            return float.__new__(cls, value + 1)\n    f = F.fromhex(1.5.hex())\n    assert type(f) is F, ('assertIs', type(f), F)\n    assert f == 2.5, ('assertEqual', f, 2.5)\n\n    class F2(float):\n\n        def __init__(self, value):\n            self.foo = 'bar'\n    f = F2.fromhex(1.5.hex())\n    assert type(f) is F2, ('assertIs', type(f), F2)\n    assert f == 1.5, ('assertEqual', f, 1.5)\n    assert getattr(f, 'foo', 'none') == 'bar', ('assertEqual', getattr(f, 'foo', 'none'), 'bar')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
   "quarantined": [
@@ -302,10 +310,6 @@
       "reason": "decorator:support.requires_IEEE_754"
     },
     {
-      "ident": "GeneralFloatCases.test_float",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
       "ident": "GeneralFloatCases.test_error_message",
       "reason": "unresolved-name:cm"
     },
@@ -315,7 +319,7 @@
     },
     {
       "ident": "GeneralFloatCases.test_from_number",
-      "reason": "unresolved-name:FloatLike"
+      "reason": "unresolved-name:cls"
     },
     {
       "ident": "GeneralFloatCases.test_from_number_subclass",
@@ -344,7 +348,7 @@
   ],
   "counts": {
     "extracted": 54,
-    "pinned": 25,
-    "quarantined": 29
+    "pinned": 26,
+    "quarantined": 28
   }
 }

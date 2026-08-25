@@ -13,12 +13,6 @@ test "TypesTests.test_names" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
-test "TypesTests.test_truth_values" {
-    (ok, detail) = p2_libtest_run_snippet("import sys\nimport typing\n\ndef clear_typing_caches():\n    for f in typing._cleanups:\n        f()\n\ndef _t():\n    if None:\n        raise AssertionError('None is true instead of false')\n    if 0:\n        raise AssertionError('0 is true instead of false')\n    if 0.0:\n        raise AssertionError('0.0 is true instead of false')\n    if '':\n        raise AssertionError(\"'' is true instead of false\")\n    if not 1:\n        raise AssertionError('1 is false instead of true')\n    if not 1.0:\n        raise AssertionError('1.0 is false instead of true')\n    if not 'x':\n        raise AssertionError(\"'x' is false instead of true\")\n    if not {'x': 1}:\n        raise AssertionError(\"{'x': 1} is false instead of true\")\n\n    def f():\n        pass\n\n    class C:\n        pass\n    x = C()\n    if not f:\n        raise AssertionError('f is false instead of true')\n    if not C:\n        raise AssertionError('C is false instead of true')\n    if not sys:\n        raise AssertionError('sys is false instead of true')\n    if not x:\n        raise AssertionError('x is false instead of true')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
 test "TypesTests.test_boolean_ops" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    if 0 or 0:\n        raise AssertionError('0 or 0 is true instead of false')\n    if 1 and 1:\n        pass\n    else:\n        raise AssertionError('1 and 1 is false instead of true')\n    if not 1:\n        raise AssertionError('not 1 is true instead of false')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -45,12 +39,6 @@ test "TypesTests.test_zero_division" {
 
 test "TypesTests.test_numeric_types" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    if 0 != 0.0 or 1 != 1.0 or -1 != -1.0:\n        raise AssertionError('int/float value not equal')\n    if int() != 0:\n        raise AssertionError('int() does not return 0')\n    if float() != 0.0:\n        raise AssertionError('float() does not return 0.0')\n    if int(1.9) == 1 == int(1.1) and int(-1.1) == -1 == int(-1.9):\n        pass\n    else:\n        raise AssertionError('int() does not round properly')\n    if float(1) == 1.0 and float(-1) == -1.0 and (float(0) == 0.0):\n        pass\n    else:\n        raise AssertionError('float() does not work properly')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TypesTests.test_float_to_string" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef clear_typing_caches():\n    for f in typing._cleanups:\n        f()\n\ndef _t():\n\n    def test(f, result):\n        assert f.__format__('e') == result, ('assertEqual', f.__format__('e'), result)\n        assert '%e' % f == result, ('assertEqual', '%e' % f, result)\n    for i in range(-99, 100):\n        test(float('1.5e' + str(i)), '1.500000e{0:+03d}'.format(i))\n    assert 1.5e+100.__format__('e') == '1.500000e+100', ('assertEqual', 1.5e+100.__format__('e'), '1.500000e+100')\n    assert '%e' % 1.5e+100 == '1.500000e+100', ('assertEqual', '%e' % 1.5e+100, '1.500000e+100')\n    assert 1.5e+101.__format__('e') == '1.500000e+101', ('assertEqual', 1.5e+101.__format__('e'), '1.500000e+101')\n    assert '%e' % 1.5e+101 == '1.500000e+101', ('assertEqual', '%e' % 1.5e+101, '1.500000e+101')\n    assert 1.5e-100.__format__('e') == '1.500000e-100', ('assertEqual', 1.5e-100.__format__('e'), '1.500000e-100')\n    assert '%e' % 1.5e-100 == '1.500000e-100', ('assertEqual', '%e' % 1.5e-100, '1.500000e-100')\n    assert 1.5e-101.__format__('e') == '1.500000e-101', ('assertEqual', 1.5e-101.__format__('e'), '1.500000e-101')\n    assert '%e' % 1.5e-101 == '1.500000e-101', ('assertEqual', '%e' % 1.5e-101, '1.500000e-101')\n    assert '%g' % 1.0 == '1', ('assertEqual', '%g' % 1.0, '1')\n    assert '%#g' % 1.0 == '1.00000', ('assertEqual', '%#g' % 1.0, '1.00000')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -93,12 +81,6 @@ test "TypesTests.test_float__format__locale" {
 
 test "TypesTests.test_int__format__locale" {
     (ok, detail) = p2_libtest_run_snippet("import locale\n\ndef _t():\n    x = 123456789012345678901234567890\n    for i in range(0, 30):\n        assert locale.format_string('%d', x, grouping=True) == format(x, 'n'), ('assertEqual', locale.format_string('%d', x, grouping=True), format(x, 'n'))\n        x = x // 10\n    rfmt = '>20n'\n    lfmt = '<20n'\n    cfmt = '^20n'\n    for x in (1234, 12345, 123456, 1234567, 12345678, 123456789, 1234567890, 12345678900):\n        assert len(format(0, rfmt)) == len(format(x, rfmt)), ('assertEqual', len(format(0, rfmt)), len(format(x, rfmt)))\n        assert len(format(0, lfmt)) == len(format(x, lfmt)), ('assertEqual', len(format(0, lfmt)), len(format(x, lfmt)))\n        assert len(format(0, cfmt)) == len(format(x, cfmt)), ('assertEqual', len(format(0, cfmt)), len(format(x, cfmt)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "TypesTests.test_float__format__" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef clear_typing_caches():\n    for f in typing._cleanups:\n        f()\n\ndef _t():\n\n    def test(f, format_spec, result):\n        assert f.__format__(format_spec) == result, ('assertEqual', f.__format__(format_spec), result)\n        assert format(f, format_spec) == result, ('assertEqual', format(f, format_spec), result)\n    test(0.0, 'f', '0.000000')\n    test(0.0, '', '0.0')\n    test(0.01, '', '0.01')\n    test(0.01, 'g', '0.01')\n    test(1.23, '1', '1.23')\n    test(-1.23, '1', '-1.23')\n    test(1.23, '1g', '1.23')\n    test(-1.23, '1g', '-1.23')\n    test(1.0, ' g', ' 1')\n    test(-1.0, ' g', '-1')\n    test(1.0, '+g', '+1')\n    test(-1.0, '+g', '-1')\n    test(1.1234e+200, 'g', '1.1234e+200')\n    test(1.1234e+200, 'G', '1.1234E+200')\n    test(1.0, 'f', '1.000000')\n    test(-1.0, 'f', '-1.000000')\n    test(1.0, ' f', ' 1.000000')\n    test(-1.0, ' f', '-1.000000')\n    test(1.0, '+f', '+1.000000')\n    test(-1.0, '+f', '-1.000000')\n    f = 1.1234e+90\n    for fmt in ('f', 'F'):\n        result = f.__format__(fmt)\n        assert len(result) == 98, ('assertEqual', len(result), 98)\n        assert result[-7] == '.', ('assertEqual', result[-7], '.')\n        assert result[:12] in ('112340000000', '112339999999'), ('assertIn', result[:12], ('112340000000', '112339999999'))\n    f = 1.1234e+200\n    for fmt in ('f', 'F'):\n        result = f.__format__(fmt)\n        assert len(result) == 208, ('assertEqual', len(result), 208)\n        assert result[-7] == '.', ('assertEqual', result[-7], '.')\n        assert result[:12] in ('112340000000', '112339999999'), ('assertIn', result[:12], ('112340000000', '112339999999'))\n    test(1.0, 'e', '1.000000e+00')\n    test(-1.0, 'e', '-1.000000e+00')\n    test(1.0, 'E', '1.000000E+00')\n    test(-1.0, 'E', '-1.000000E+00')\n    test(1.1234e+20, 'e', '1.123400e+20')\n    test(1.1234e+20, 'E', '1.123400E+20')\n    test(1.25e+200, '+g', '+1.25e+200')\n    test(1.25e+200, '+', '+1.25e+200')\n    test(1.1e+200, '+g', '+1.1e+200')\n    test(1.1e+200, '+', '+1.1e+200')\n    test(1234.0, '010f', '1234.000000')\n    test(1234.0, '011f', '1234.000000')\n    test(1234.0, '012f', '01234.000000')\n    test(-1234.0, '011f', '-1234.000000')\n    test(-1234.0, '012f', '-1234.000000')\n    test(-1234.0, '013f', '-01234.000000')\n    test(-1234.12341234, '013f', '-01234.123412')\n    test(-123456.12341234, '011.2f', '-0123456.12')\n    test(1.2, '010,.2', '0,000,001.2')\n    test(1234.0, '011,f', '1,234.000000')\n    test(1234.0, '012,f', '1,234.000000')\n    test(1234.0, '013,f', '01,234.000000')\n    test(-1234.0, '012,f', '-1,234.000000')\n    test(-1234.0, '013,f', '-1,234.000000')\n    test(-1234.0, '014,f', '-01,234.000000')\n    test(-12345.0, '015,f', '-012,345.000000')\n    test(-123456.0, '016,f', '-0,123,456.000000')\n    test(-123456.0, '017,f', '-0,123,456.000000')\n    test(-123456.12341234, '017,f', '-0,123,456.123412')\n    test(-123456.12341234, '013,.2f', '-0,123,456.12')\n    test(-1.0, '%', '-100.000000%')\n    try:\n        3.0.__format__(*(None,))\n    except TypeError:\n        pass\n    try:\n        3.0.__format__(*(0,))\n    except TypeError:\n        pass\n    for format_spec in 'sbcdoxX':\n        try:\n            format(*(0.0, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(1.0, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(-1.0, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(1e+100, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(-1e+100, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(1e-100, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(-1e-100, format_spec))\n        except ValueError:\n            pass\n    test(1.0, '.0e', '1e+00')\n    test(1.0, '#.0e', '1.e+00')\n    test(1.0, '.0f', '1')\n    test(1.0, '#.0f', '1.')\n    test(1.1, 'g', '1.1')\n    test(1.1, '#g', '1.10000')\n    test(1.0, '.0%', '100%')\n    test(1.0, '#.0%', '100.%')\n    test(1.0, '0e', '1.000000e+00')\n    test(1.0, '#0e', '1.000000e+00')\n    test(1.0, '0f', '1.000000')\n    test(1.0, '#0f', '1.000000')\n    test(1.0, '.1e', '1.0e+00')\n    test(1.0, '#.1e', '1.0e+00')\n    test(1.0, '.1f', '1.0')\n    test(1.0, '#.1f', '1.0')\n    test(1.0, '.1%', '100.0%')\n    test(1.0, '#.1%', '100.0%')\n    test(12345.6, '0<20', '12345.60000000000000')\n    test(12345.6, '1<20', '12345.61111111111111')\n    test(12345.6, '*<20', '12345.6*************')\n    test(12345.6, '0>20', '000000000000012345.6')\n    test(12345.6, '1>20', '111111111111112345.6')\n    test(12345.6, '*>20', '*************12345.6')\n    test(12345.6, '0=20', '000000000000012345.6')\n    test(12345.6, '1=20', '111111111111112345.6')\n    test(12345.6, '*=20', '*************12345.6')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -175,12 +157,6 @@ test "TypesTests.test_call_unbound_crash" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
-test "UnionTests.test_hash" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n    assert hash(int | str) == hash(str | int), ('assertEqual', hash(int | str), hash(str | int))\n    assert hash(int | str) == hash(typing.Union[int, str]), ('assertEqual', hash(int | str), hash(typing.Union[int, str]))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
 test "UnionTests.test_union_of_unhashable" {
     (ok, detail) = p2_libtest_run_snippet("import re as _re\n\ndef _t():\n\n    class UnhashableMeta(type):\n        __hash__ = None\n\n    class A(metaclass=UnhashableMeta):\n        ...\n\n    class B(metaclass=UnhashableMeta):\n        ...\n    assert (A | B).__args__ == (A, B), ('assertEqual', (A | B).__args__, (A, B))\n    union1 = A | B\n    try:\n        hash(union1)\n    except TypeError as _exc:\n        assert _re.search(\"unhashable type: 'UnhashableMeta'\", str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    union2 = int | B\n    try:\n        hash(union2)\n    except TypeError as _exc:\n        assert _re.search(\"unhashable type: 'UnhashableMeta'\", str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    union3 = A | int\n    try:\n        hash(union3)\n    except TypeError as _exc:\n        assert _re.search(\"unhashable type: 'UnhashableMeta'\", str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -195,108 +171,6 @@ test "UnionTests.test_unhashable_becomes_hashable" {
 
 test "UnionTests.test_bad_instancecheck" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class BadMeta(type):\n\n        def __instancecheck__(cls, inst):\n            1 / 0\n    x = int | BadMeta('A', (), {})\n    assert isinstance(1, x), ('assertTrue', isinstance(1, x))\n    try:\n        isinstance(*([], x))\n    except ZeroDivisionError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_operator_with_TypeVar" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n    TV = typing.TypeVar('T')\n    assert TV | str == typing.Union[TV, str], ('assertEqual', TV | str, typing.Union[TV, str])\n    assert str | TV == typing.Union[str, TV], ('assertEqual', str | TV, typing.Union[str, TV])\n    assert (int | TV)[int] is int, ('assertIs', (int | TV)[int], int)\n    assert (TV | int)[int] is int, ('assertIs', (TV | int)[int], int)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_union_args" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef clear_typing_caches():\n    for f in typing._cleanups:\n        f()\n\ndef _t():\n\n    def check(arg, expected):\n        clear_typing_caches()\n        assert arg.__args__ == expected, ('assertEqual', arg.__args__, expected)\n    check(int | str, (int, str))\n    check(int | str | list, (int, str, list))\n    check(int | (str | list), (int, str, list))\n    check(int | str | int, (int, str))\n    check(int | (str | int), (int, str))\n    check(int | str | (str | int), (int, str))\n    check(typing.Union[int, str] | list, (int, str, list))\n    check(int | typing.Union[str, list], (int, str, list))\n    check(int | str | (list | int), (int, str, list))\n    check(int | str | typing.Union[list, int], (int, str, list))\n    check(typing.Union[int, str] | (list | int), (int, str, list))\n    check(str | int | (int | list), (str, int, list))\n    check(str | int | typing.Union[int, list], (str, int, list))\n    check(typing.Union[str, int] | (int | list), (str, int, list))\n    check(int | type(None), (int, type(None)))\n    check(type(None) | int, (type(None), int))\n    args = (int, list[int], typing.List[int], typing.Tuple[int, int], typing.Callable[[int], int], typing.Hashable, typing.TypeVar('T'))\n    for x in args:\n        check(x | None, (x, type(None)))\n        check(None | x, (type(None), x))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_union_parameter_chaining" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\nT = typing.TypeVar('T')\n\ndef _t():\n    T = typing.TypeVar('T')\n    S = typing.TypeVar('S')\n    assert (float | list[T])[int] == float | list[int], ('assertEqual', (float | list[T])[int], float | list[int])\n    assert list[int | list[T]].__parameters__ == (T,), ('assertEqual', list[int | list[T]].__parameters__, (T,))\n    assert list[int | list[T]][str] == list[int | list[str]], ('assertEqual', list[int | list[T]][str], list[int | list[str]])\n    assert (list[T] | list[S]).__parameters__ == (T, S), ('assertEqual', (list[T] | list[S]).__parameters__, (T, S))\n    assert (list[T] | list[S])[int, T] == list[int] | list[T], ('assertEqual', (list[T] | list[S])[int, T], list[int] | list[T])\n    assert (list[T] | list[S])[int, int] == list[int], ('assertEqual', (list[T] | list[S])[int, int], list[int])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_union_parameter_substitution" {
-    (ok, detail) = p2_libtest_run_snippet("import collections.abc\nimport typing\nT = typing.TypeVar('T')\n\ndef _t():\n\n    def eq(actual, expected, typed=True):\n        assert actual == expected, ('assertEqual', actual, expected)\n        if typed:\n            assert type(actual) is type(expected), ('assertIs', type(actual), type(expected))\n    T = typing.TypeVar('T')\n    S = typing.TypeVar('S')\n    NT = typing.NewType('NT', str)\n    x = int | T | bytes\n    eq(x[str], int | str | bytes, typed=False)\n    eq(x[list[int]], int | list[int] | bytes, typed=False)\n    eq(x[typing.List], int | typing.List | bytes)\n    eq(x[typing.List[int]], int | typing.List[int] | bytes)\n    eq(x[typing.Hashable], int | typing.Hashable | bytes)\n    eq(x[collections.abc.Hashable], int | collections.abc.Hashable | bytes, typed=False)\n    eq(x[typing.Callable[[int], str]], int | typing.Callable[[int], str] | bytes)\n    eq(x[collections.abc.Callable[[int], str]], int | collections.abc.Callable[[int], str] | bytes, typed=False)\n    eq(x[typing.Tuple[int, str]], int | typing.Tuple[int, str] | bytes)\n    eq(x[typing.Literal['none']], int | typing.Literal['none'] | bytes)\n    eq(x[str | list], int | str | list | bytes, typed=False)\n    eq(x[typing.Union[str, list]], typing.Union[int, str, list, bytes])\n    eq(x[str | int], int | str | bytes, typed=False)\n    eq(x[typing.Union[str, int]], typing.Union[int, str, bytes])\n    eq(x[NT], int | NT | bytes)\n    eq(x[S], int | S | bytes)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_union_pickle" {
-    (ok, detail) = p2_libtest_run_snippet("import pickle\nimport typing\nT = typing.TypeVar('T')\n\ndef _t():\n    orig = list[T] | int\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        s = pickle.dumps(orig, proto)\n        loaded = pickle.loads(s)\n        assert loaded == orig, ('assertEqual', loaded, orig)\n        assert loaded.__args__ == orig.__args__, ('assertEqual', loaded.__args__, orig.__args__)\n        assert loaded.__parameters__ == orig.__parameters__, ('assertEqual', loaded.__parameters__, orig.__parameters__)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_union_copy" {
-    (ok, detail) = p2_libtest_run_snippet("import copy\nimport typing\nT = typing.TypeVar('T')\n\ndef _t():\n    orig = list[T] | int\n    for copied in (copy.copy(orig), copy.deepcopy(orig)):\n        assert copied == orig, ('assertEqual', copied, orig)\n        assert copied.__args__ == orig.__args__, ('assertEqual', copied.__args__, orig.__args__)\n        assert copied.__parameters__ == orig.__parameters__, ('assertEqual', copied.__parameters__, orig.__parameters__)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_union_parameter_substitution_errors" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\nT = typing.TypeVar('T')\n\ndef _t():\n    T = typing.TypeVar('T')\n    x = int | T\n    try:\n        x[int, str]\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_operator_with_Protocol" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n\n    class Proto(typing.Protocol):\n\n        def meth(self) -> int:\n            ...\n    assert Proto | str == typing.Union[Proto, str], ('assertEqual', Proto | str, typing.Union[Proto, str])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_operator_with_Alias" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n    assert list | str == typing.Union[list, str], ('assertEqual', list | str, typing.Union[list, str])\n    assert typing.List | str == typing.Union[typing.List, str], ('assertEqual', typing.List | str, typing.Union[typing.List, str])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_operator_with_NamedTuple" {
-    (ok, detail) = p2_libtest_run_snippet("from collections import namedtuple, UserDict\nimport typing\n\ndef _t():\n    NT = namedtuple('A', ['B', 'C', 'D'])\n    assert NT | str == typing.Union[NT, str], ('assertEqual', NT | str, typing.Union[NT, str])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_operator_with_TypedDict" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n\n    class Point2D(typing.TypedDict):\n        x: int\n        y: int\n        label: str\n    assert Point2D | str == typing.Union[Point2D, str], ('assertEqual', Point2D | str, typing.Union[Point2D, str])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_operator_with_NewType" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n    UserId = typing.NewType('UserId', int)\n    assert UserId | str == typing.Union[UserId, str], ('assertEqual', UserId | str, typing.Union[UserId, str])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_operator_with_IO" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n    assert typing.IO | str == typing.Union[typing.IO, str], ('assertEqual', typing.IO | str, typing.Union[typing.IO, str])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_operator_with_SpecialForm" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n    assert typing.Any | str == typing.Union[typing.Any, str], ('assertEqual', typing.Any | str, typing.Union[typing.Any, str])\n    assert typing.NoReturn | str == typing.Union[typing.NoReturn, str], ('assertEqual', typing.NoReturn | str, typing.Union[typing.NoReturn, str])\n    assert typing.Optional[int] | str == typing.Union[typing.Optional[int], str], ('assertEqual', typing.Optional[int] | str, typing.Union[typing.Optional[int], str])\n    assert typing.Optional[int] | str == typing.Union[int, str, None], ('assertEqual', typing.Optional[int] | str, typing.Union[int, str, None])\n    assert typing.Union[int, bool] | str == typing.Union[int, bool, str], ('assertEqual', typing.Union[int, bool] | str, typing.Union[int, bool, str])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_operator_with_Literal" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n    Literal = typing.Literal\n    assert (Literal[1] | Literal[2]).__args__ == (Literal[1], Literal[2]), ('assertEqual', (Literal[1] | Literal[2]).__args__, (Literal[1], Literal[2]))\n    assert (Literal[0] | Literal[False]).__args__ == (Literal[0], Literal[False]), ('assertEqual', (Literal[0] | Literal[False]).__args__, (Literal[0], Literal[False]))\n    assert (Literal[1] | Literal[True]).__args__ == (Literal[1], Literal[True]), ('assertEqual', (Literal[1] | Literal[True]).__args__, (Literal[1], Literal[True]))\n    assert Literal[1] | Literal[1] == Literal[1], ('assertEqual', Literal[1] | Literal[1], Literal[1])\n    assert Literal['a'] | Literal['a'] == Literal['a'], ('assertEqual', Literal['a'] | Literal['a'], Literal['a'])\n    import enum\n\n    class Ints(enum.IntEnum):\n        A = 0\n        B = 1\n    assert Literal[Ints.A] | Literal[Ints.A] == Literal[Ints.A], ('assertEqual', Literal[Ints.A] | Literal[Ints.A], Literal[Ints.A])\n    assert Literal[Ints.B] | Literal[Ints.B] == Literal[Ints.B], ('assertEqual', Literal[Ints.B] | Literal[Ints.B], Literal[Ints.B])\n    assert (Literal[Ints.B] | Literal[Ints.A]).__args__ == (Literal[Ints.B], Literal[Ints.A]), ('assertEqual', (Literal[Ints.B] | Literal[Ints.A]).__args__, (Literal[Ints.B], Literal[Ints.A]))\n    assert (Literal[0] | Literal[Ints.A]).__args__ == (Literal[0], Literal[Ints.A]), ('assertEqual', (Literal[0] | Literal[Ints.A]).__args__, (Literal[0], Literal[Ints.A]))\n    assert (Literal[1] | Literal[Ints.B]).__args__ == (Literal[1], Literal[Ints.B]), ('assertEqual', (Literal[1] | Literal[Ints.B]).__args__, (Literal[1], Literal[Ints.B]))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_repr" {
-    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n    assert repr(int | str) == 'int | str', ('assertEqual', repr(int | str), 'int | str')\n    assert repr(int | str | list) == 'int | str | list', ('assertEqual', repr(int | str | list), 'int | str | list')\n    assert repr(int | (str | list)) == 'int | str | list', ('assertEqual', repr(int | (str | list)), 'int | str | list')\n    assert repr(int | None) == 'int | None', ('assertEqual', repr(int | None), 'int | None')\n    assert repr(int | type(None)) == 'int | None', ('assertEqual', repr(int | type(None)), 'int | None')\n    assert repr(int | typing.GenericAlias(list, int)) == 'int | list[int]', ('assertEqual', repr(int | typing.GenericAlias(list, int)), 'int | list[int]')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "UnionTests.test_or_type_operator_with_genericalias" {
-    (ok, detail) = p2_libtest_run_snippet("import collections.abc\nimport types\nimport typing\n\ndef _t():\n    a = list[int]\n    b = list[str]\n    c = dict[float, str]\n\n    class SubClass(types.GenericAlias):\n        ...\n    d = SubClass(list, float)\n    assert a | b | c | d == typing.Union[a, b, c, d], ('assertEqual', a | b | c | d, typing.Union[a, b, c, d])\n    assert a | c | b | b | a | c | d | d == a | b | c | d, ('assertEqual', a | c | b | b | a | c | d | d, a | b | c | d)\n    assert a | b | d == b | a | d, ('assertEqual', a | b | d, b | a | d)\n    assert repr(a | b | c | d) == 'list[int] | list[str] | dict[float, str] | list[float]', ('assertEqual', repr(a | b | c | d), 'list[int] | list[str] | dict[float, str] | list[float]')\n\n    class BadType(type):\n\n        def __eq__(self, other):\n            return 1 / 0\n    bt = BadType('bt', (), {})\n    bt2 = BadType('bt2', (), {})\n    union1 = int | bt\n    union2 = int | bt2\n    try:\n        union1 == union2\n    except ZeroDivisionError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        bt | bt2\n    except ZeroDivisionError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    union_ga = (list[str] | int, collections.abc.Callable[..., str] | int, d | int)\n    for type_ in union_ga:\n        try:\n            isinstance(1, type_)\n        except TypeError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        try:\n            issubclass(int, type_)\n        except TypeError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -331,12 +205,6 @@ test "ClassCreationTests.test_new_class_with_mro_entry" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
-test "ClassCreationTests.test_new_class_with_mro_entry_genericalias" {
-    (ok, detail) = p2_libtest_run_snippet("import types\nimport typing\n\ndef _t():\n    L1 = types.new_class('L1', (typing.List[int],), {})\n    assert L1.__bases__ == (list, typing.Generic), ('assertEqual', L1.__bases__, (list, typing.Generic))\n    assert L1.__orig_bases__ == (typing.List[int],), ('assertEqual', L1.__orig_bases__, (typing.List[int],))\n    assert L1.__mro__ == (L1, list, typing.Generic, object), ('assertEqual', L1.__mro__, (L1, list, typing.Generic, object))\n    L2 = types.new_class('L2', (list[int],), {})\n    assert L2.__bases__ == (list,), ('assertEqual', L2.__bases__, (list,))\n    assert L2.__orig_bases__ == (list[int],), ('assertEqual', L2.__orig_bases__, (list[int],))\n    assert L2.__mro__ == (L2, list, object), ('assertEqual', L2.__mro__, (L2, list, object))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
 test "ClassCreationTests.test_new_class_with_mro_entry_none" {
     (ok, detail) = p2_libtest_run_snippet("import types\n\ndef _t():\n\n    class A:\n        pass\n\n    class B:\n        pass\n\n    class C:\n\n        def __mro_entries__(self, bases):\n            return ()\n    c = C()\n    D = types.new_class('D', (A, c, B), {})\n    assert D.__bases__ == (A, B), ('assertEqual', D.__bases__, (A, B))\n    assert D.__orig_bases__ == (A, c, B), ('assertEqual', D.__orig_bases__, (A, c, B))\n    assert D.__mro__ == (D, A, B, object), ('assertEqual', D.__mro__, (D, A, B, object))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -361,12 +229,6 @@ test "ClassCreationTests.test_new_class_with_mro_entry_multiple_2" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
-test "ClassCreationTests.test_get_original_bases" {
-    (ok, detail) = p2_libtest_run_snippet("import re as _re\nimport types\nimport typing\nT = typing.TypeVar('T')\n\ndef _t():\n    T = typing.TypeVar('T')\n\n    class A:\n        pass\n\n    class B(typing.Generic[T]):\n        pass\n\n    class C(B[int]):\n        pass\n\n    class D(B[str], float):\n        pass\n    assert types.get_original_bases(A) == (object,), ('assertEqual', types.get_original_bases(A), (object,))\n    assert types.get_original_bases(B) == (typing.Generic[T],), ('assertEqual', types.get_original_bases(B), (typing.Generic[T],))\n    assert types.get_original_bases(C) == (B[int],), ('assertEqual', types.get_original_bases(C), (B[int],))\n    assert types.get_original_bases(int) == (object,), ('assertEqual', types.get_original_bases(int), (object,))\n    assert types.get_original_bases(D) == (B[str], float), ('assertEqual', types.get_original_bases(D), (B[str], float))\n\n    class E(list[T]):\n        pass\n\n    class F(list[int]):\n        pass\n    assert types.get_original_bases(E) == (list[T],), ('assertEqual', types.get_original_bases(E), (list[T],))\n    assert types.get_original_bases(F) == (list[int],), ('assertEqual', types.get_original_bases(F), (list[int],))\n\n    class FirstBase(typing.Generic[T]):\n        pass\n\n    class SecondBase(typing.Generic[T]):\n        pass\n\n    class First(FirstBase[int]):\n        pass\n\n    class Second(SecondBase[int]):\n        pass\n\n    class G(First, Second):\n        pass\n    assert types.get_original_bases(G) == (First, Second), ('assertEqual', types.get_original_bases(G), (First, Second))\n\n    class First_(typing.Generic[T]):\n        pass\n\n    class Second_(typing.Generic[T]):\n        pass\n\n    class H(First_, Second_):\n        pass\n    assert types.get_original_bases(H) == (First_, Second_), ('assertEqual', types.get_original_bases(H), (First_, Second_))\n\n    class ClassBasedNamedTuple(typing.NamedTuple):\n        x: int\n\n    class GenericNamedTuple(typing.NamedTuple, typing.Generic[T]):\n        x: T\n    CallBasedNamedTuple = typing.NamedTuple('CallBasedNamedTuple', [('x', int)])\n    assert types.get_original_bases(ClassBasedNamedTuple)[0] is typing.NamedTuple, ('assertIs', types.get_original_bases(ClassBasedNamedTuple)[0], typing.NamedTuple)\n    assert types.get_original_bases(GenericNamedTuple) == (typing.NamedTuple, typing.Generic[T]), ('assertEqual', types.get_original_bases(GenericNamedTuple), (typing.NamedTuple, typing.Generic[T]))\n    assert types.get_original_bases(CallBasedNamedTuple)[0] is typing.NamedTuple, ('assertIs', types.get_original_bases(CallBasedNamedTuple)[0], typing.NamedTuple)\n\n    class ClassBasedTypedDict(typing.TypedDict):\n        x: int\n\n    class GenericTypedDict(typing.TypedDict, typing.Generic[T]):\n        x: T\n    CallBasedTypedDict = typing.TypedDict('CallBasedTypedDict', {'x': int})\n    assert types.get_original_bases(ClassBasedTypedDict)[0] is typing.TypedDict, ('assertIs', types.get_original_bases(ClassBasedTypedDict)[0], typing.TypedDict)\n    assert types.get_original_bases(GenericTypedDict) == (typing.TypedDict, typing.Generic[T]), ('assertEqual', types.get_original_bases(GenericTypedDict), (typing.TypedDict, typing.Generic[T]))\n    assert types.get_original_bases(CallBasedTypedDict)[0] is typing.TypedDict, ('assertIs', types.get_original_bases(CallBasedTypedDict)[0], typing.TypedDict)\n    try:\n        types.get_original_bases(object())\n    except TypeError as _exc:\n        assert _re.search('Expected an instance of type', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
 test "ClassCreationTests.test_prepare_class" {
     (ok, detail) = p2_libtest_run_snippet("import types\n\ndef _t():\n    expected_ns = {}\n\n    class A(type):\n\n        def __new__(*args, **kwargs):\n            return type.__new__(*args, **kwargs)\n\n        def __prepare__(*args):\n            return expected_ns\n    B = types.new_class('B', (object,))\n    C = types.new_class('C', (object,), {'metaclass': A})\n    meta, ns, kwds = types.prepare_class('D', (B, C), {'metaclass': type})\n    assert meta is A, ('assertIs', meta, A)\n    assert ns is expected_ns, ('assertIs', ns, expected_ns)\n    assert len(kwds) == 0, ('assertEqual', len(kwds), 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -381,12 +243,6 @@ test "ClassCreationTests.test_bad___prepare__" {
 
 test "ClassCreationTests.test_resolve_bases" {
     (ok, detail) = p2_libtest_run_snippet("import types\n\ndef _t():\n\n    class A:\n        pass\n\n    class B:\n        pass\n\n    class C:\n\n        def __mro_entries__(self, bases):\n            if A in bases:\n                return ()\n            return (A,)\n    c = C()\n    assert types.resolve_bases(()) == (), ('assertEqual', types.resolve_bases(()), ())\n    assert types.resolve_bases((c,)) == (A,), ('assertEqual', types.resolve_bases((c,)), (A,))\n    assert types.resolve_bases((C,)) == (C,), ('assertEqual', types.resolve_bases((C,)), (C,))\n    assert types.resolve_bases((A, C)) == (A, C), ('assertEqual', types.resolve_bases((A, C)), (A, C))\n    assert types.resolve_bases((c, A)) == (A,), ('assertEqual', types.resolve_bases((c, A)), (A,))\n    assert types.resolve_bases((A, c)) == (A,), ('assertEqual', types.resolve_bases((A, c)), (A,))\n    x = (A,)\n    y = (C,)\n    z = (A, C)\n    t = (A, C, B)\n    for bases in [x, y, z, t]:\n        assert types.resolve_bases(bases) is bases, ('assertIs', types.resolve_bases(bases), bases)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
-    assert ok , "RUN<" + detail + ">";
-    assert detail == "ok" , "GOT<" + detail + ">";
-}
-
-test "ClassCreationTests.test_resolve_bases_with_mro_entry" {
-    (ok, detail) = p2_libtest_run_snippet("import types\nimport typing\n\ndef _t():\n    assert types.resolve_bases((typing.List[int],)) == (list, typing.Generic), ('assertEqual', types.resolve_bases((typing.List[int],)), (list, typing.Generic))\n    assert types.resolve_bases((list[int],)) == (list,), ('assertEqual', types.resolve_bases((list[int],)), (list,))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -513,6 +369,12 @@ test "SimpleNamespaceTests.test_replace" {
 
 test "SimpleNamespaceTests.test_replace_subclass" {
     (ok, detail) = p2_libtest_run_snippet("import copy\nimport types\n\ndef _t():\n\n    class Spam(types.SimpleNamespace):\n        pass\n    spam = Spam(ham=8, eggs=9)\n    spam2 = copy.replace(spam, ham=5)\n    assert type(spam2) is Spam, ('assertIs', type(spam2), Spam)\n    assert vars(spam2) == {'ham': 5, 'eggs': 9}, ('assertEqual', vars(spam2), {'ham': 5, 'eggs': 9})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "SimpleNamespaceTests.test_replace_invalid_subtype" {
+    (ok, detail) = p2_libtest_run_snippet("import copy\nimport types\n\ndef _t():\n\n    class MyNS(types.SimpleNamespace):\n\n        def __new__(cls, *args, **kwargs):\n            if created:\n                return 12345\n            return super().__new__(cls)\n    created = False\n    ns = MyNS()\n    created = True\n    err = \"^expect types\\\\.SimpleNamespace type, but .+\\\\.MyNS\\\\(\\\\) returned 'int' object\"\n    try:\n        copy.replace(*(ns,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_types/conv_types_pins.jac"
   ],
-  "generated_at": "2026-08-24T15:02:52",
+  "generated_at": "2026-08-24T23:01:15",
   "hashes": {
-    "pins_jac": "0877a5072d8ba31c395bee8cadc49e8b508d831de82b5b1e369c18a07dacfef0",
-    "conversion_json": "ed144ca1f45ddc140c5680aaec1ac901fdfb584bc5a96ebde5b0fdf7d85d3a3b",
+    "pins_jac": "72a05539354321f557cdba48a530b64137fc3c6c88f6bc1e0394cc18f10f2542",
+    "conversion_json": "5ac701c20cd9cb1dd84f0420a419131de90da12f0747fc0369a52f8d4e69155f",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "types",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 129,
-    "runnable": 98,
-    "green": 49,
-    "quarantined": 31,
-    "failed": 49,
+    "runnable": 75,
+    "green": 52,
+    "quarantined": 54,
+    "failed": 23,
     "infra_failed": 0
   },
   "failures": [
@@ -33,24 +33,6 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.import_helper'\">"
-    },
-    {
-      "id": "TypesTests.test_truth_values",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "TypesTests.test_float_to_string",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "TypesTests.test_float__format__",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
     },
     {
       "id": "TypesTests.test_method_descriptor_types",
@@ -62,19 +44,13 @@
       "id": "TypesTests.test_traceback_and_frame_types",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC object ''\">"
+      "detail": "GOT<\"ORACLE_EXC AssertionError ''\">"
     },
     {
       "id": "TypesTests.test_call_unbound_crash",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.script_helper'\">"
-    },
-    {
-      "id": "UnionTests.test_hash",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
     },
     {
       "id": "UnionTests.test_union_of_unhashable",
@@ -95,142 +71,10 @@
       "detail": "GOT<'ORACLE_EXC TypeError \"unsupported operand type(s) for |: \\'host\\' and \\'BadMeta\\'\"'>"
     },
     {
-      "id": "UnionTests.test_or_type_operator_with_TypeVar",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_union_args",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_union_parameter_chaining",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_union_parameter_substitution",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_union_pickle",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_union_copy",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_union_parameter_substitution_errors",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_or_type_operator_with_Protocol",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_or_type_operator_with_Alias",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_or_type_operator_with_NamedTuple",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ImportError: cannot import name 'UserDict' from '<unknown>'\">"
-    },
-    {
-      "id": "UnionTests.test_or_type_operator_with_TypedDict",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_or_type_operator_with_NewType",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_or_type_operator_with_IO",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_or_type_operator_with_SpecialForm",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_or_type_operator_with_Literal",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_or_type_repr",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "UnionTests.test_or_type_operator_with_genericalias",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "ClassCreationTests.test_new_class_with_mro_entry_genericalias",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "ClassCreationTests.test_get_original_bases",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "ClassCreationTests.test_prepare_class",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC TypeError 'metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases'\">"
-    },
-    {
       "id": "ClassCreationTests.test_bad___prepare__",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
-    },
-    {
-      "id": "ClassCreationTests.test_resolve_bases_with_mro_entry",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: cache'>"
-    },
-    {
-      "id": "ClassCreationTests.test_metaclass_derivation",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<\"ORACLE_EXC TypeError 'too many positional arguments'\">"
     },
     {
       "id": "ClassCreationTests.test_metaclass_new_error",
@@ -254,7 +98,7 @@
       "id": "SimpleNamespaceTests.test_constructor",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ImportError: cannot import name 'UserDict' from '<unknown>'\">"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [(\\'y\\', 2), (\\'x\\', 1)], [(\\'x\\', 1), (\\'y\\', 2)])\"'>"
     },
     {
       "id": "SimpleNamespaceTests.test_repr",
@@ -290,25 +134,25 @@
       "id": "CoroutineTests.test_duck_gen",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: __repr__'>"
+      "detail": "RUN<\"ImportError: cannot import name 'nlargest' from '<unknown>'\">"
     },
     {
       "id": "CoroutineTests.test_gen",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', <callable_iterator object at 0x7f69008ccd90>, <class \\'__main__._GeneratorWrapper\\'>)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', <callable_iterator object at 0x7fb4ce40ad70>, <class \\'types._GeneratorWrapper\\'>)\"'>"
     },
     {
       "id": "CoroutineTests.test_genfunc",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+      "detail": "RUN<'TypeError: expected code object'>"
     },
     {
       "id": "CoroutineTests.test_wrapper_object",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'GeneratorWrapper\\', \\'<callable_iterator object at 0x7f69009868f0>\\')\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'GeneratorWrapper\\', \\'<callable_iterator object at 0x7fb4ce40bcd0>\\')\"'>"
     },
     {
       "id": "FunctionTests.test_function_type_defaults",

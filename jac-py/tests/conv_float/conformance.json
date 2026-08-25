@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,20 +10,24 @@
     "diff_runner.py",
     "jac-py/tests/conv_float/conv_float_pins.jac"
   ],
-  "generated_at": "2026-08-24T15:03:33",
+  "generated_at": "2026-08-24T23:00:26",
   "hashes": {
-    "pins_jac": "cc65349f0a4a7ca83f4d4862ae5e02a065cc81342dd8aa8afb2c1c0763ebbbae",
-    "conversion_json": "7232b5d79b1fdaf8611e524889236064409c1eca250d44d275bc9423e4289d0e",
+    "pins_jac": "159258c8dde793030d351d8249811fc52c0fce3be180a0403f0e623ba5e4a583",
+    "conversion_json": "ae369523616262f892b6b2c507b156a6864f1570f1916dfbae7b5d3e0bf0124f",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "float",
   "counts": {
     "converted": 54,
-    "runnable": 25,
-    "green": 19,
-    "quarantined": 29
+    "runnable": 26,
+    "green": 20,
+    "quarantined": 28
   },
   "pins": [
+    {
+      "id": "GeneralFloatCases.test_float",
+      "status": "pass"
+    },
     {
       "id": "GeneralFloatCases.test_noargs",
       "status": "pass"
@@ -60,7 +64,7 @@
       "id": "GeneralFloatCases.test_floatasratio",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AttributeError: register'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "GeneralFloatCases.test_float_containment",
@@ -84,7 +88,7 @@
       "id": "GeneralFloatCases.test_hash_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 8738756776595, 8738756789801)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 8754498913735, 8754498978363)\"'>"
     },
     {
       "id": "GeneralFloatCases.test_issue_gh143006",
@@ -232,11 +236,6 @@
       "reason": "decorator:support.requires_IEEE_754"
     },
     {
-      "id": "GeneralFloatCases.test_float",
-      "status": "quarantined",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
       "id": "GeneralFloatCases.test_error_message",
       "status": "quarantined",
       "reason": "unresolved-name:cm"
@@ -249,7 +248,7 @@
     {
       "id": "GeneralFloatCases.test_from_number",
       "status": "quarantined",
-      "reason": "unresolved-name:FloatLike"
+      "reason": "unresolved-name:cls"
     },
     {
       "id": "GeneralFloatCases.test_from_number_subclass",
