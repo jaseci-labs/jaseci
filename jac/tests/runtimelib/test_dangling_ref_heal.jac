@@ -15,9 +15,9 @@ import sys;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.session { shared_pg_data_dir }
-import from jaclang.runtimelib.store { PgStore, TxnIsolation }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.server.session { shared_pg_data_dir }
+import from jaclang.data.store { PgStore, TxnIsolation }
 
 
 """Run `python -m jaclang <args>` in cwd; return (rc, stdout, stderr)."""

@@ -10,7 +10,7 @@ persists natively through Session/PgStore.
 
 import tempfile;
 import from pathlib { Path }
-import from jaclang.publish.runtime_vendor { build_runtime_closure }
+import from jaclang.dist.publish.runtime_vendor { build_runtime_closure }
 import from jaclang.cli.commands.eject_targets.backend { emit_backend }
 
 
@@ -19,7 +19,7 @@ test "unresolvable extra seed fails loudly" {
     # seed silently and exit 0, leaving a backend that dies on first import.
     with testraises(ValueError) as exc {
         build_runtime_closure(
-            [], extra_seeds=["jaclang.runtimelib.storage.sqlalchemy_memory"]
+            [], extra_seeds=["jaclang.data.storage.sqlalchemy_memory"]
         );
     }
     assert "sqlalchemy_memory" in str(exc.value);

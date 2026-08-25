@@ -4,7 +4,7 @@
 # .github/workflows/ci.yml, "Run jac check (using .jacignore)"). CI adds
 # `tests checker_*.jac *_err.jac` of its own; those are not listed here.
 #
-# Matching (jac0core/helpers.jac:path_matches_exclude): an entry containing
+# Matching (compiler/frontend/helpers.jac:path_matches_exclude): an entry containing
 # `/` is fnmatched against the whole path; a bare entry is fnmatched against
 # EVERY path component, so a bare `types.jac` silences every file of that
 # basename repo-wide. Every entry below is path-qualified for that reason --
@@ -25,11 +25,11 @@ zig-pkg
 # py2jac translation under passes/native/llvm/, whose ctypes-derived
 # values the checker sees as Unknown. Not annotatable without typing that
 # vendored surface.
-jac/jaclang/compiler/passes/native/na_ir_gen/*
+jac/jaclang/compiler/backends/native/na_ir_gen/*
 
 # Native compile driver (same llvmlite boundary as na_ir_gen).
-jac/jaclang/compiler/passes/native/impl/na_compile_pass.impl.jac
-jac/jaclang/compiler/passes/native/na_compile_pass.jac
+jac/jaclang/compiler/backends/native/impl/na_compile_pass.impl.jac
+jac/jaclang/compiler/backends/native/na_compile_pass.jac
 
 # byllm -- litellm/LLM-provider glue.
 jac/jaclang/byllm/llm.impl/basellm.impl.jac
@@ -58,21 +58,21 @@ jac/jaclang/scale/deploy/autoscale/hpa_autoscaler.jac
 jac/jaclang/scale/runtime/context/tracing.jac
 
 # Type evaluator internals.
-jac/jaclang/compiler/type_system/type_evaluator.impl/construct_types.impl.jac
-jac/jaclang/compiler/type_system/type_evaluator.impl/evaluator_util_methods.impl.jac
-jac/jaclang/compiler/type_system/type_evaluator.impl/imported.impl.jac
-jac/jaclang/compiler/type_system/type_evaluator.impl/jsx_type_check.impl.jac
-jac/jaclang/compiler/type_system/type_evaluator.impl/parameter_type_check.impl.jac
-jac/jaclang/compiler/type_system/type_evaluator.impl/ts_declarations.impl.jac
-jac/jaclang/compiler/type_system/type_evaluator.impl/type_evaluator.impl.jac
-jac/jaclang/compiler/type_system/type_evaluator.jac
+jac/jaclang/compiler/types/type_evaluator.impl/construct_types.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/evaluator_util_methods.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/imported.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/jsx_type_check.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/parameter_type_check.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/ts_declarations.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/type_evaluator.impl.jac
+jac/jaclang/compiler/types/type_evaluator.jac
 
 # Runtime library.
-jac/jaclang/runtimelib/client/targets/desktop/native/cef/cef_subprocess.jac
+jac/jaclang/client/targets/desktop/native/cef/cef_subprocess.jac
 
 # ECMAScript backend.
-jac/jaclang/compiler/passes/ecmascript/esast_gen_pass.jac
-jac/jaclang/compiler/passes/ecmascript/impl/esast_gen_pass.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.jac
+jac/jaclang/compiler/backends/es/impl/esast_gen_pass.impl.jac
 
 # Example apps.
 jac/examples/mobui/hello/main.jac

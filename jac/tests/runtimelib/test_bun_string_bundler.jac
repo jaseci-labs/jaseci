@@ -7,7 +7,7 @@
 
 import tempfile;
 import from pathlib { Path }
-import from jaclang.runtimelib.bun_service_builder { _string_bundle_bun_artifact }
+import from jaclang.bun_service_builder { _string_bundle_bun_artifact }
 
 
 glob _STUB_RUNTIME_JS: str = (

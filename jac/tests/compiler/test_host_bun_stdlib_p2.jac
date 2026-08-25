@@ -10,8 +10,8 @@ import tempfile;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compiler { run_pass }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.codeinfo { cl_stdlib_root }
-import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+import from jaclang.compiler.frontend.codeinfo { cl_stdlib_root }
+import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
 
 
 glob _P2_STDLIB_MODULES: tuple = (

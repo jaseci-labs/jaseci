@@ -9,7 +9,7 @@ import tempfile;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.codeinfo {
+import from jaclang.compiler.frontend.codeinfo {
     clear_bun_host_decision_cache,
     project_uses_bun_host
 }
@@ -185,7 +185,7 @@ test "framework_for_host_kind maps bun without a global backend singleton" {
 }
 
 test "Host registry exposes target factory aliases" {
-    import from jaclang.runtimelib.client.targets.registry {
+    import from jaclang.client.targets.registry {
         get_host_factory,
         get_host_registry,
         get_target_factory,
@@ -198,7 +198,7 @@ test "Host registry exposes target factory aliases" {
 }
 
 test "bun host row is registered for the P1 stateless tier" {
-    import from jaclang.runtimelib.client.targets.registry { get_host_registry }
+    import from jaclang.client.targets.registry { get_host_registry }
     host = get_host_registry().get('bun');
     assert host is not None , "bun target must register on the host registry";
     assert str(host.host_kind) == HOST_BUN;

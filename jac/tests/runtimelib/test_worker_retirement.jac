@@ -11,7 +11,7 @@ Retirement therefore takes whichever bound trips first. `JAC_TEST_RECYCLE_MB`
 carries the memory bound; either can be disabled with 0.
 """
 
-import from jaclang.runtimelib.test_runner { _should_retire, _worker_rss_mb }
+import from jaclang.testing.test_runner { _should_retire, _worker_rss_mb }
 
 test "a worker under both bounds keeps serving" {
     assert not _should_retire(served=3, recycle=25, rss_mb=400, rss_cap=2048);

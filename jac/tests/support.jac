@@ -26,7 +26,7 @@ Forced placement keeps lowering failures loud (no server demotion), exactly
 like the old suffix.
 """
 def native_force_opts -> any {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     return CompileOptions(force_codespace='native', force_target_program=True);
 }
 
@@ -118,7 +118,7 @@ Previously lived in `tests/conftest.py`, which existed only for pytest.
 """
 def get_object(filename: str, id: str, main: bool = True) -> dict[(str, any)] {
     import from jaclang.cli.commands.cli_helpers { proc_file }
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     (base, mod, mach) = proc_file(filename);
     try {
         Jac.jac_import(
@@ -140,7 +140,7 @@ def get_object(filename: str, id: str, main: bool = True) -> dict[(str, any)] {
 def resolved_bun -> (str | None) {
     # Use the same bun the production spawn path resolves (jac-managed
     # installer), falling back to PATH so tests still run on dev boxes.
-    import from jaclang.runtimelib.client { get_bun }
+    import from jaclang.client { get_bun }
     return get_bun();
 }
 
@@ -273,7 +273,11 @@ def stop_process(proc: any) {
 
 # The native pass fixtures directory: the default corpus for `compile_native`.
 glob NATIVE_FIXTURES: str = str(
-         Path(__file__).resolve().parent / "compiler" / "passes" / "native" / "fixtures"
+         Path(__file__).resolve().parent
+             / "compiler"
+             / "backends"
+             / "native"
+             / "fixtures"
      );
 
 """Compile a .jac fixture into the native codespace and return (engine, module).
@@ -286,7 +290,7 @@ first test's writes reach the second. Tests that want a fixture compiled once
 should assert against it once, in a single test.
 """
 def compile_native(fixture: str, fixture_dir: str = "") -> tuple {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     base = fixture_dir or NATIVE_FIXTURES;
     prog = JacProgram();
     ir = prog.compile(file_path=str(Path(base) / fixture), options=native_force_opts());

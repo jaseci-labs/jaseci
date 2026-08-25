@@ -5,9 +5,9 @@ import glob;
 import tempfile;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.jac0core.constant { Constants as Con }
-import from jaclang.runtimelib { sv_client as __jac_sv }
-import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+import from jaclang.compiler.frontend.constant { Constants as Con }
+import from jaclang.server { sv_client as __jac_sv }
+import from jaclang.testing.testkit { ServingTestClient as TestClient }
 import from jaclang.scale.server.serve { JacAPIServer }
 
 glob FIXTURES: Path = Path(__file__).parent.parent / "fixtures" / "microservice";
@@ -151,7 +151,7 @@ test "eager spawn: non-sibling consumer resolves declared providers" {
         assert srv.is_sv_sibling == False;
 
         srv._ensure_sv_siblings();
-        import from jaclang.runtimelib.test_sv_host { get_test_adapter }
+        import from jaclang.test_sv_host { get_test_adapter }
         assert get_test_adapter("math_service") is not None;
     } finally {
         done(tmp);

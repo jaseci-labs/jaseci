@@ -3,7 +3,7 @@
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.testing.testing { JacTestClient }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 

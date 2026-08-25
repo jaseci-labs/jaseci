@@ -11,7 +11,7 @@ glob _RPC_MAX_ATTEMPTS: int = 3,
 def _test_adapter(module_name: str) -> any {
     import from jaclang.jac0core.host { HOST_TEST }
     import from jaclang.jac0core.sv_service_host { resolve_sv_service_host }
-    import from jaclang.runtimelib.test_sv_host { get_test_adapter }
+    import from jaclang.test_sv_host { get_test_adapter }
     if resolve_sv_service_host(module_name) != HOST_TEST {
         return None;
     }
@@ -20,7 +20,7 @@ def _test_adapter(module_name: str) -> any {
 
 def _rpc_with_retries(module_name: str, label: str, send: any) -> any {
     import time;
-    import from jaclang.runtimelib.serving.client {
+    import from jaclang.server.serving.client {
         ClientConnectionError,
         ClientRequestNotSent
     }
@@ -64,7 +64,7 @@ def _rpc_with_retries(module_name: str, label: str, send: any) -> any {
 
 
 def service_call(module_name: str, func_name: str, args: dict) -> any {
-    import from jaclang.runtimelib { sv_client }
+    import from jaclang.server { sv_client }
     import from jaclang.scale.runtime.context.auth_ctx { get_current_auth }
     import from jaclang.scale.runtime.context.trace_ctx { get_current_trace }
 
@@ -94,7 +94,7 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
     if not url {
         url = sv_client.resolve_url(module_name);
     }
-    import from jaclang.runtimelib.serving.client { post_stream_aware_sync }
+    import from jaclang.server.serving.client { post_stream_aware_sync }
 
     headers: dict[str, str] = {};
     auth = get_current_auth();
@@ -136,7 +136,7 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
 def walker_call(
     module_name: str, walker_name: str, args: dict, stub_cls: any = None
 ) -> any {
-    import from jaclang.runtimelib { sv_client }
+    import from jaclang.server { sv_client }
     import from jaclang.scale.runtime.context.auth_ctx { get_current_auth }
     import from jaclang.scale.runtime.context.trace_ctx { get_current_trace }
 
@@ -157,7 +157,7 @@ def walker_call(
     }
 
     url = sv_client.resolve_url(module_name);
-    import from jaclang.runtimelib.serving.client { request_sync }
+    import from jaclang.server.serving.client { request_sync }
 
     headers: dict[str, str] = {};
     auth = get_current_auth();
@@ -194,7 +194,7 @@ def walker_call(
 
 
 def _iter_sse_text(text: str, func_label: str) -> any {
-    import from jaclang.runtimelib.serving.sse { consume_sse_events }
+    import from jaclang.server.serving.sse { consume_sse_events }
     for ev in consume_sse_events(text.splitlines(), func_label) {
         yield ev;
     }

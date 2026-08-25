@@ -13,8 +13,8 @@ import json;
 import sys;
 import unittest.mock;
 import from jaclang { JacRuntime }
-import from jaclang.runtimelib { sv_client }
-import from jaclang.runtimelib.serving.datatypes { Headers }
+import from jaclang.server { sv_client }
+import from jaclang.server.serving.datatypes { Headers }
 
 
 obj _StubResp {

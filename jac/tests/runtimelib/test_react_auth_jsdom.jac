@@ -23,8 +23,8 @@ import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.runtimelib.client.bun_installer { get_bun }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
+import from jaclang.client.bun_installer { get_bun }
 import from .react_jsdom_harness {
     bun_install,
     compile_page,

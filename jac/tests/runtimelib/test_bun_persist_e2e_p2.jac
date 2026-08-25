@@ -6,10 +6,10 @@ as jaclang/scale/tests/server/test_pg_job_store.jac.
 
 import from pathlib { Path }
 import tempfile;
-import from jaclang.runtimelib.bun_service_builder { build_bun_service_artifact }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.session { project_db_name }
-import from jaclang.runtimelib.store { PgStore }
+import from jaclang.bun_service_builder { build_bun_service_artifact }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.server.session { project_db_name }
+import from jaclang.data.store { PgStore }
 import from tests.support {
     bun_runtime_available,
     post_json,

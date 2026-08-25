@@ -30,7 +30,7 @@ def _resolve_sv_host_override(raw: str) -> (str | None) {
         return key;
     }
     try {
-        import from jaclang.runtimelib.client.targets.registry { get_host_factory }
+        import from jaclang.client.targets.registry { get_host_factory }
         names = get_host_factory().get_available_host_names();
         alt = resolve_registry_name(raw, names);
         if alt is not None {
