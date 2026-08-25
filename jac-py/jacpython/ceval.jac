@@ -6570,17 +6570,30 @@ def py_invert(value: PyObj) -> PyObj {
     return py_error("TypeError", "bad operand type for unary ~");
 }
 
-def append_to_list(target: PyObj, iterable: PyObj) {
+def append_to_list(target: PyObj, iterable: PyObj) -> PyObj {
     target_list = target as PyList;
     if iterable.t == "list" {
         target_list.items.extend(list_value(iterable));
+        return py_none();
     } elif iterable.t == "tuple" {
         target_list.items.extend(tuple_value(iterable));
+        return py_none();
     } elif iterable.t == "str" {
         for ch in str_value(iterable) {
             target_list.items.append(PyStr(t="str", val=ch));
         }
+        return py_none();
     }
+    # CPython's LIST_EXTEND accepts ANY iterable (range/dict/set/generators
+    # included); the old shape dispatch silently produced an empty extend for
+    # every other kind. Fall back to a generic iterator drain and propagate
+    # the TypeError for non-iterables.
+    drained = iter_drain(iterable);
+    if is_error(drained) {
+        return drained;
+    }
+    target_list.items.extend((drained as PyList).items);
+    return py_none();
 }
 
 # Native scalar/container tags whose method surface is not yet ported. During
@@ -14267,7 +14280,15 @@ def run_frame(frame: PyFrame) -> PyObj {
             # it addressed the NULL instead.
             iterable = stack.pop();
             target_index = len(stack) - arg;
-            append_to_list(stack[target_index], iterable);
+            ext_res = append_to_list(stack[target_index], iterable);
+            if is_error(ext_res) {
+                target = recover_exception(co, ext_res, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return ext_res;
+            }
             continue;
         }
         if op == OP_LIST_APPEND {
@@ -14383,33 +14404,33 @@ def run_frame(frame: PyFrame) -> PyObj {
                 }
                 return it;
             }
+            # Uniform drain across every iterator shape send_into serves
+            # (materialized iters, generators/coroutines, calliter/seqiter/
+            # rangeiter): the old shape-dispatch silently produced an empty
+            # unpack for rangeiter/seqiter/calliter.
             unpacked: list[PyObj] = [];
-            if isinstance(it, PyIter) {
-                unpacked = (it as PyIter).items;
-            } elif it.t == "generator" {
-                drain_failed = False;
-                while True {
-                    nxt = gen_resume(it as PyGenerator, py_none());
-                    if is_error(nxt) {
-                        # Drain error (guest raise inside the generator) must
-                        # dispatch to a same-frame handler.
-                        target = recover_exception(co, nxt, offset, stack);
-                        if target >= 0 {
-                            ip = target;
-                            drain_failed = True;
-                        } else {
-                            return nxt;
-                        }
-                        break;
+            drain_failed = False;
+            while True {
+                nxt = send_into(it, py_none());
+                if is_error(nxt) {
+                    # Drain error (guest raise inside the iterator) must
+                    # dispatch to a same-frame handler.
+                    target = recover_exception(co, nxt, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        drain_failed = True;
+                    } else {
+                        return nxt;
                     }
-                    if nxt.t == "genstop" {
-                        break;
-                    }
-                    unpacked.append(nxt);
+                    break;
                 }
-                if drain_failed {
-                    continue;
+                if nxt.t == "genstop" {
+                    break;
                 }
+                unpacked.append(nxt);
+            }
+            if drain_failed {
+                continue;
             }
             unpack_err: PyObj = py_none();
             if len(unpacked) < arg {
@@ -14458,32 +14479,32 @@ def run_frame(frame: PyFrame) -> PyObj {
                 }
                 return it;
             }
+            # Uniform drain across every iterator shape send_into serves
+            # (materialized iters, generators/coroutines, calliter/seqiter/
+            # rangeiter): the old shape-dispatch silently produced an empty
+            # unpack for rangeiter/seqiter/calliter.
             unpacked = [];
-            if isinstance(it, PyIter) {
-                unpacked = (it as PyIter).items;
-            } elif it.t == "generator" {
-                drain_failed = False;
-                while True {
-                    nxt = gen_resume(it as PyGenerator, py_none());
-                    if is_error(nxt) {
-                        # Same-frame dispatch for the UNPACK_EX drain error.
-                        target = recover_exception(co, nxt, offset, stack);
-                        if target >= 0 {
-                            ip = target;
-                            drain_failed = True;
-                        } else {
-                            return nxt;
-                        }
-                        break;
+            drain_failed = False;
+            while True {
+                nxt = send_into(it, py_none());
+                if is_error(nxt) {
+                    # Same-frame dispatch for the drain error.
+                    target = recover_exception(co, nxt, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        drain_failed = True;
+                    } else {
+                        return nxt;
                     }
-                    if nxt.t == "genstop" {
-                        break;
-                    }
-                    unpacked.append(nxt);
+                    break;
                 }
-                if drain_failed {
-                    continue;
+                if nxt.t == "genstop" {
+                    break;
                 }
+                unpacked.append(nxt);
+            }
+            if drain_failed {
+                continue;
             }
             m = len(unpacked);
             if m < before + after {
@@ -14865,13 +14886,23 @@ def run_frame(frame: PyFrame) -> PyObj {
                 }
                 continue;
             }
-            iterator = top as PyIter;
-            if iterator.index < len(iterator.items) {
-                stack.append(iterator.items[iterator.index]);
-                iterator.index = iterator.index + 1;
-            } else {
+            # Generic tail: drive ANY remaining iterator shape through
+            # send_into (native iters, dict/range iterators, user objects whose
+            # __next__ only resolves through the full attribute path). The old
+            # unconditional PyIter downcast VM-crashed on those user shapes.
+            nxt = send_into(top, py_none());
+            if nxt.t == "genstop" {
                 stack.pop();
                 ip = ip + 2 * arg;
+            } elif is_error(nxt) {
+                target = recover_exception(co, nxt, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                } else {
+                    return nxt;
+                }
+            } else {
+                stack.append(nxt);
             }
             continue;
         }
