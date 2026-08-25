@@ -14169,16 +14169,24 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_SET_UPDATE {
+            # Same discipline as LIST_EXTEND above: drain through the guest
+            # iterator machinery so non-iterables raise a CATCHABLE TypeError
+            # ('int' object is not iterable) instead of escaping host-side and
+            # killing the VM mid-set-display ({1, *1, 0, 4}).
             iterable = stack.pop();
             target_index = len(stack) - arg;
             target_set: PySet = stack[target_index] as PySet;
-            hiter_r = to_host_coerce(iterable);
-            hiter = hiter_r[1];
-            if not ((hiter_r[0] as bool)) {
-                return hiter_r[1] as PyObj;
+            set_drained = iter_drain(iterable);
+            if is_error(set_drained) {
+                target = recover_exception(co, set_drained, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return set_drained;
             }
-            for hostel in hiter {
-                target_set.set_add(from_host(hostel));
+            for hostel in (set_drained as PyList).items {
+                target_set.set_add(hostel);
             }
             continue;
         }
