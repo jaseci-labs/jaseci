@@ -156,8 +156,8 @@ test "placement_pins imports stay within the documented allowlist" {
 
 test "toolchain native policy matches na_stdlib and desktop native trees" {
     pkg = os.path.join(JAC_ROOT, "jaclang");
-    na = os.path.join(pkg, "runtimelib", "na_stdlib", "_bz2_native.jac");
+    na = os.path.join(pkg, "runtime", "na_stdlib", "_bz2_native.jac");
     assert toolchain_native_by_policy(pkg, na);
-    other = os.path.join(pkg, "utils", "precompile_bytecode.jac");
+    other = os.path.join(pkg, "dist", "precompile_bytecode.jac");
     assert not toolchain_native_by_policy(pkg, other);
 }
