@@ -476,6 +476,9 @@ class JacRuntime(JacRuntimeInterface) {
     }
 
     @classmethod
+    def reset_process_state(cls: any, clear_modules: bool = True) -> None;
+
+    @classmethod
     def get_compiler(cls: any) -> JacCompiler;
 
     @classmethod
