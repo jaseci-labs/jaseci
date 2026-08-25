@@ -1,5 +1,5 @@
-import type from jaclang.jac0core.unitree { Module, UniNode, ContextAwareNode }
 import os;
+import type from jaclang.jac0core.unitree { Module, UniNode }
 import from jaclang.jac0core.constant { CodeContext }
 
 glob HOST_DOM: str = 'DOM',
@@ -144,10 +144,7 @@ def host_kind_for_module(module: Module) -> str {
         return HOST_BARE_METAL;
     }
     for stmt in module.body {
-        if (
-            isinstance(stmt, ContextAwareNode)
-            and stmt.code_context == CodeContext.CLIENT
-        ) {
+        if stmt?.code_context == CodeContext.CLIENT {
             mod_path = module.loc.mod_path if module.loc is not None else '';
             return resolve_project_host_kind(mod_path or '');
         }
@@ -164,7 +161,8 @@ def host_kind_for_node(nd: UniNode) -> str {
         return HOST_BARE_METAL;
     }
     if nd.in_client_context() {
-        mod = nd.find_parent_of_type(Module);
+        import jaclang.jac0core.unitree as uni;
+        mod = nd.find_parent_of_type(uni.Module);
         mod_path = '';
         if mod is not None and mod.loc is not None {
             mod_path = mod.loc.mod_path or '';
