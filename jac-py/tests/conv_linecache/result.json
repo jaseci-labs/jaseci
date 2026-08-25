@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "dc3b2979461bbe906653d7d40f4ae3af971459f7",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp5-out/test_linecache-r3/conv_linecache_pins.jac"
+  ],
+  "generated_at": "2026-08-25T00:07:04",
+  "hashes": {
+    "pins_jac": "5eb6a18943f79bdfcbef1d4f9550e1ac91453b605efe227d373cd13d489b815b",
+    "conversion_json": "edd72e63ae954246831e7126a03764b4d7e558fc8bbbd184d833187d3959d381",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "linecache",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 24,
+    "runnable": 11,
+    "green": 3,
+    "quarantined": 13,
+    "failed": 8,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "LineCacheTests.test_getline",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'TextIOWrapper.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "LineCacheTests.test_clearcache",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'TextIOWrapper.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "LineCacheTests.test_lazycache_no_globals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'TextIOWrapper.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "LineCacheTests.test_lazycache_smoke",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', True, False)\"'>"
+    },
+    {
+      "id": "LineCacheTests.test_lazycache_already_cached",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC KeyError \"\\'/usr/lib/python3.14/linecache.py.missing\\'\"'>"
+    },
+    {
+      "id": "LineCacheTests.test_memoryerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'TextIOWrapper.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "LineCacheTests.test_frozen",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'TextIOWrapper.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "LineCacheTests.test_linecache_python_string",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.script_helper'\">"
+    }
+  ]
+}

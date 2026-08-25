@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "dc3b2979461bbe906653d7d40f4ae3af971459f7",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_sched.py",
+    "-o",
+    "/var/tmp/sp4-out/sched-r2",
+    "--name",
+    "conv_sched"
+  ],
+  "generated_at": "2026-08-25T00:07:22",
+  "hashes": {
+    "pins_jac": "0bd29206b8e86c3ad70613f2a1d37414754bc42e5ba896746ad77ecdc675122f"
+  },
+  "source_file": "reference/cpython/Lib/test/test_sched.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "sched",
+  "pins_file": "conv_sched_pins.jac",
+  "pins": [
+    {
+      "ident": "TestCase.test_enter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sched\nimport time\n\ndef _t():\n    l = []\n    fun = lambda x: l.append(x)\n    scheduler = sched.scheduler(time.time, time.sleep)\n    for x in [0.5, 0.4, 0.3, 0.2, 0.1]:\n        z = scheduler.enter(x, 1, fun, (x,))\n    scheduler.run()\n    assert l == [0.1, 0.2, 0.3, 0.4, 0.5], ('assertEqual', l, [0.1, 0.2, 0.3, 0.4, 0.5])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_enterabs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sched\nimport time\n\ndef _t():\n    l = []\n    fun = lambda x: l.append(x)\n    scheduler = sched.scheduler(time.time, time.sleep)\n    for x in [0.05, 0.04, 0.03, 0.02, 0.01]:\n        z = scheduler.enterabs(x, 1, fun, (x,))\n    scheduler.run()\n    assert l == [0.01, 0.02, 0.03, 0.04, 0.05], ('assertEqual', l, [0.01, 0.02, 0.03, 0.04, 0.05])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_priority",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sched\nimport time\n\ndef _t():\n    l = []\n    fun = lambda x: l.append(x)\n    scheduler = sched.scheduler(time.time, time.sleep)\n    cases = [([1, 2, 3, 4, 5], [1, 2, 3, 4, 5]), ([5, 4, 3, 2, 1], [1, 2, 3, 4, 5]), ([2, 5, 3, 1, 4], [1, 2, 3, 4, 5]), ([1, 2, 3, 2, 1], [1, 1, 2, 2, 3])]\n    for priorities, expected in cases:\n        for priority in priorities:\n            scheduler.enterabs(0.01, priority, fun, (priority,))\n        scheduler.run()\n        assert l == expected, ('assertEqual', l, expected)\n        assert scheduler.empty(), ('assertTrue', scheduler.empty())\n        l.clear()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_cancel",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sched\nimport time\n\ndef _t():\n    l = []\n    fun = lambda x: l.append(x)\n    scheduler = sched.scheduler(time.time, time.sleep)\n    now = time.time()\n    event1 = scheduler.enterabs(now + 0.01, 1, fun, (0.01,))\n    event2 = scheduler.enterabs(now + 0.02, 1, fun, (0.02,))\n    event3 = scheduler.enterabs(now + 0.03, 1, fun, (0.03,))\n    event4 = scheduler.enterabs(now + 0.04, 1, fun, (0.04,))\n    event5 = scheduler.enterabs(now + 0.05, 1, fun, (0.05,))\n    scheduler.cancel(event1)\n    scheduler.cancel(event5)\n    scheduler.run()\n    assert l == [0.02, 0.03, 0.04], ('assertEqual', l, [0.02, 0.03, 0.04])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_cancel_correct_event",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sched\n\ndef _t():\n    events = []\n    scheduler = sched.scheduler()\n    scheduler.enterabs(1, 1, events.append, ('a',))\n    b = scheduler.enterabs(1, 1, events.append, ('b',))\n    scheduler.enterabs(1, 1, events.append, ('c',))\n    scheduler.cancel(b)\n    scheduler.run()\n    assert events == ['a', 'c'], ('assertEqual', events, ['a', 'c'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sched\nimport time\n\ndef _t():\n    l = []\n    fun = lambda x: l.append(x)\n    scheduler = sched.scheduler(time.time, time.sleep)\n    assert scheduler.empty(), ('assertTrue', scheduler.empty())\n    for x in [0.05, 0.04, 0.03, 0.02, 0.01]:\n        z = scheduler.enterabs(x, 1, fun, (x,))\n    assert not scheduler.empty(), ('assertFalse', scheduler.empty())\n    scheduler.run()\n    assert scheduler.empty(), ('assertTrue', scheduler.empty())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_queue",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sched\nimport time\n\ndef _t():\n    l = []\n    fun = lambda x: l.append(x)\n    scheduler = sched.scheduler(time.time, time.sleep)\n    now = time.time()\n    e5 = scheduler.enterabs(now + 0.05, 1, fun)\n    e1 = scheduler.enterabs(now + 0.01, 1, fun)\n    e2 = scheduler.enterabs(now + 0.02, 1, fun)\n    e4 = scheduler.enterabs(now + 0.04, 1, fun)\n    e3 = scheduler.enterabs(now + 0.03, 1, fun)\n    assert scheduler.queue == [e1, e2, e3, e4, e5], ('assertEqual', scheduler.queue, [e1, e2, e3, e4, e5])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_args_kwargs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sched\nimport time\n\ndef _t():\n    seq = []\n\n    def fun(*a, **b):\n        seq.append((a, b))\n    now = time.time()\n    scheduler = sched.scheduler(time.time, time.sleep)\n    scheduler.enterabs(now, 1, fun)\n    scheduler.enterabs(now, 1, fun, argument=(1, 2))\n    scheduler.enterabs(now, 1, fun, argument=('a', 'b'))\n    scheduler.enterabs(now, 1, fun, argument=(1, 2), kwargs={'foo': 3})\n    scheduler.run()\n    assert sorted(seq, key=repr) == sorted([((), {}), ((1, 2), {}), (('a', 'b'), {}), ((1, 2), {'foo': 3})], key=repr), ('assertCountEqual', seq, [((), {}), ((1, 2), {}), (('a', 'b'), {}), ((1, 2), {'foo': 3})])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_run_non_blocking",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sched\nimport time\n\ndef _t():\n    l = []\n    fun = lambda x: l.append(x)\n    scheduler = sched.scheduler(time.time, time.sleep)\n    for x in [10, 9, 8, 7, 6]:\n        scheduler.enter(x, 1, fun, (x,))\n    scheduler.run(blocking=False)\n    assert l == [], ('assertEqual', l, [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestCase.test_enter_concurrent",
+      "reason": "decorator:threading_helper.requires_working_threading"
+    },
+    {
+      "ident": "TestCase.test_cancel_concurrent",
+      "reason": "decorator:threading_helper.requires_working_threading"
+    }
+  ],
+  "counts": {
+    "extracted": 11,
+    "pinned": 9,
+    "quarantined": 2
+  }
+}
