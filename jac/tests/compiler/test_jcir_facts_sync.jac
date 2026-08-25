@@ -18,16 +18,16 @@ here instead of on the first container read.
 import os;
 import sys;
 import jaclang;
-import jaclang.runtimelib.builtin as builtin_mod;
+import jaclang.runtime.builtin as builtin_mod;
 import from pathlib { Path }
-import from jaclang.jac0core.codegen_ir { cir_python_version }
-import from jaclang.jac0core.constant { Tokens }
+import from jaclang.compiler.backends.py.codegen_ir { cir_python_version }
+import from jaclang.compiler.frontend.constant { Tokens }
 import from jaclang.jac0core.ext_registry { is_test }
-import from jaclang.jac0core.passes.jcir_gen_pass {
+import from jaclang.compiler.backends.py.jcir_gen_pass {
     TOKEN_CLS_BY_NAME,
     UNARY_CLS_BY_NAME
 }
-import from jaclang.jac0core.jcir_facts {
+import from jaclang.compiler.backends.py.jcir_facts {
     JCIR_AMBIENT_TYPING_NAMES,
     JCIR_BUILTIN_NAMES,
     JCIR_PYTHON_MAJOR,
@@ -37,7 +37,7 @@ import from jaclang.jac0core.jcir_facts {
 }
 
 
-test "the baked builtin surface matches runtimelib.builtin.__all__" {
+test "the baked builtin surface matches runtime.builtin.__all__" {
     live = set(builtin_mod.__all__);
     baked = set(JCIR_BUILTIN_NAMES);
     assert baked == live , (
@@ -49,12 +49,7 @@ test "the baked builtin surface matches runtimelib.builtin.__all__" {
 
 
 test "the baked ambient typing names match typing_ambient.pyi" {
-    stub = (
-        Path(jaclang.__file__).parent
-        / "compiler"
-        / "type_system"
-        / "typing_ambient.pyi"
-    );
+    stub = Path(jaclang.__file__).parent / "compiler" / "types" / "typing_ambient.pyi";
     text = stub.read_text(encoding="utf-8");
     marker = text.find("__all__ =");
     open_b = text.find("[", marker);

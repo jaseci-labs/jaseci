@@ -28,12 +28,12 @@ cd "$(git rev-parse --show-toplevel)"
 # Fetch the pinned LLVM once (idempotent; range-fetches only the ~84 MB subset the
 # shim needs from the llvm-slice zip -- not the ~1 GB upstream tarball -- into
 # jac/.llvm-build, ~0.35 GB on disk). The -Ddev build below compiles the LLVMPY_*
-# shim from it and places it into jac/jaclang/compiler/passes/native/llvm/ where
+# shim from it and places it into jac/jaclang/compiler/backends/native/llvm/ where
 # the linked compiler loads it.
 ( cd jac && zig build fetch-llvm )
 
 # Place the pinned, contained bun runtime into the source tree
-# (jac/jaclang/runtimelib/client/_bun) so the -Ddev linked binary below can
+# (jac/jaclang/client/_bun) so the -Ddev linked binary below can
 # resolve it for client/cl work via get_bun(). Release binaries bundle bun into
 # the payload instead; this is the editable/source-checkout equivalent.
 ( cd jac && zig build fetch-bun )

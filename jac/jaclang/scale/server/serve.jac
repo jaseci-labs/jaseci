@@ -5,31 +5,31 @@ import mimetypes;
 import from datetime { datetime }
 import from pathlib { Path }
 import json;
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.openapi { register_docs_endpoints }
-import from jaclang.runtimelib.serving.middleware {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.openapi { register_docs_endpoints }
+import from jaclang.server.serving.middleware {
     cors_middleware,
     custom_headers_middleware
 }
-import from jaclang.runtimelib.serving.datatypes {
+import from jaclang.server.serving.datatypes {
     HTMLResponse,
     JSONResponse,
     RedirectResponse,
     Response
 }
 import from jaclang.scale.server.native_server { NativeJServer }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.endpoint {
     APIParameter,
     HTTPMethod,
     JEndPoint,
     ParameterType,
     WSEndPoint
 }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
-import from jaclang.runtimelib.server { JacAPIServer as JServer }
-import from jaclang.runtimelib.server { UserManager as CoreUserManager }
-import from jaclang.runtimelib.server { JsonValue }
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
+import from jaclang.server.server { JacAPIServer as JServer }
+import from jaclang.server.server { UserManager as CoreUserManager }
+import from jaclang.server.server { JsonValue }
+import from jaclang.server.transport { TransportResponse, Meta }
 import from jaclang.scale.shared.utils { _extract_path_param_names }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.webhook.webhook { ApiKeyManager, WebhookUtils }
@@ -59,11 +59,11 @@ import from jaclang.scale.websocket.protocol {
 }
 import from typing { AsyncGenerator }
 import from inspect { isgenerator }
-import from jaclang.runtimelib.serving.datatypes { StreamingResponse }
+import from jaclang.server.serving.datatypes { StreamingResponse }
 import from jaclang.cli.console { console }
 import from jaclang.cli.banners { JAC_DISCORD_URL }
-import from jaclang.runtimelib.serving.ws { WebSocket }
-import from jaclang.runtimelib.serving.datatypes { WebSocketDisconnect }
+import from jaclang.server.serving.ws { WebSocket }
+import from jaclang.server.serving.datatypes { WebSocketDisconnect }
 import from jaclang.scale.admin.admin_portal { JacAPIServerAdmin }
 import from jaclang.scale.admin.llm_telemetry { JacAPIServerLLMTelemetry }
 import from jaclang.scale.admin.workloads { JacAPIServerWorkloads }
@@ -74,8 +74,8 @@ import from jaclang.scale.admin.deploy_health { JacAPIServerDeployHealth }
 import from jaclang.scale.admin.network { JacAPIServerNetwork }
 import from jaclang.scale.admin.podenv { JacAPIServerPodEnv }
 import from jaclang.scale.scheduler.scheduler { JacScaleScheduler, TriggerSpec }
-import from jaclang.runtimelib.builtin { ScheduleTrigger }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.runtime.builtin { ScheduleTrigger }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 import traceback;
 import from urllib.parse { quote }
 import from jaclang.scale.shared.utils {

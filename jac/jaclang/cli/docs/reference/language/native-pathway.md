@@ -395,7 +395,7 @@ Static strings have one constructor: a single helper builds the `{ i64 sentinel,
 
 ### Type Identity and Layout Authority
 
-The single authority for native type identity and layout is the layout registry (`LayoutRegistry` in `jaclang/compiler/passes/main/layout_pass.jac`), keyed by defining module + symbol. Archetype field order, inheritance topology, vtable shape, enum identity, and enum member value tables all resolve through it: native lowering asks the authority which module defines a type and reads that module's registry, so the order in which the native pass walks imported modules never changes the answer. A walk-order fuzz gate compiles the cross-module fixtures under forward, reversed, and shuffled module walk orders and requires identical IR.
+The single authority for native type identity and layout is the layout registry (`LayoutRegistry` in `jaclang/compiler/passes/layout_pass.jac`), keyed by defining module + symbol. Archetype field order, inheritance topology, vtable shape, enum identity, and enum member value tables all resolve through it: native lowering asks the authority which module defines a type and reads that module's registry, so the order in which the native pass walks imported modules never changes the answer. A walk-order fuzz gate compiles the cross-module fixtures under forward, reversed, and shuffled module walk orders and requires identical IR.
 
 Enum classes lower to their backing `i64` through one path: the authority predicate (`is_enum_class_type`) plus a defining-module lookup (`enum_decl_of`) that materializes the member value tables on demand. The native pass's `type_map` is a static primitive-name table seeded once from the type registry at pass construction; nothing registers into it during module walks, and a source-scan test enforces this.
 
@@ -871,7 +871,7 @@ These hooks exist only in native code. On the Python backend they have no runtim
 
 A move assignment `b = a` would normally emit a defensive `__rc_retain` on the source so that both slots can be released independently. When the move is the *last* use of `a`, that retain is pure overhead: the reference can simply be handed to `b` and the source slot nulled, so `a`'s later cleanup release loads null and is a no-op and the object is freed exactly once.
 
-The elision is proven by the core `RcFactsPass` (`passes/main/rc_facts_pass.jac`), a small intraprocedural pass scheduled unconditionally in the native codegen path -- *before* `NaIRGenPass`. It runs a backward-liveness proof on the compiler's shared dataflow framework and stamps `Assignment.na_move_lowerable`, which the backend's reference-count lowering consumes. The proof reads the AST and the core CFG and serves annotated and unannotated code alike; because it always runs on the native path, the elision is identical whether or not ownership diagnostics were displayed.
+The elision is proven by the core `RcFactsPass` (`passes/rc_facts_pass.jac`), a small intraprocedural pass scheduled unconditionally in the native codegen path -- *before* `NaIRGenPass`. It runs a backward-liveness proof on the compiler's shared dataflow framework and stamps `Assignment.na_move_lowerable`, which the backend's reference-count lowering consumes. The proof reads the AST and the core CFG and serves annotated and unannotated code alike; because it always runs on the native path, the elision is identical whether or not ownership diagnostics were displayed.
 
 It is deliberately conservative -- it proves only the safe case and retains everywhere else. An assignment `b = a` is elided only when:
 
@@ -917,7 +917,7 @@ Assert messages in native tests are limited to string literals: `assert cond, "m
 
 ## Build Options and Artifact Identity
 
-The single authority for codegen-affecting build options is the compile-options object (`CompileOptions` in `jaclang/jac0core/compile_options.jac`). It is constructed once at the CLI/program boundary and threaded to every compiler pass through the program; each option resolves as explicit argument, then environment override, then `jac.toml`, then built-in default. No compiler pass reads the environment directly; a source-scan test over `jaclang/compiler/passes/` enforces this.
+The single authority for codegen-affecting build options is the compile-options object (`CompileOptions` in `jaclang/compiler/driver/compile_options.jac`). It is constructed once at the CLI/program boundary and threaded to every compiler pass through the program; each option resolves as explicit argument, then environment override, then `jac.toml`, then built-in default. No compiler pass reads the environment directly; a source-scan test over `jaclang/compiler/passes/` enforces this.
 
 The codegen options carry a canonical identity string and a short hash of it, the codegen fingerprint. The fingerprint participates in artifact identity: it is folded into the JIR module cache key and into the native import IR cache key, so flipping any codegen option re-keys the artifact and a stale build is never served. Each native import artifact is stamped with the fingerprint of the options that built it; a cached module whose stamp disagrees with the current build is rejected with `E5027` instead of being linked into a mixed-options binary.
 
@@ -992,7 +992,7 @@ A demotion is only a speed cost while Python is still there to catch it. In a se
 
 ```jac
 glob NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
-    "jac0core/parser/parser.jac": ("jac0core/unitree.jac::UniNode.gen.__get__", )
+    "compiler/frontend/parser/parser.jac": ("compiler/frontend/unitree.jac::UniNode.gen.__get__", )
 };
 ```
 

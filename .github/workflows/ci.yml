@@ -40,7 +40,6 @@ jobs:
       scale: ${{ steps.filter.outputs.scale }}
       byllm: ${{ steps.filter.outputs.byllm }}
       docs: ${{ steps.filter.outputs.docs }}
-      desktop: ${{ steps.filter.outputs.desktop }}
       installer: ${{ steps.filter.outputs.installer }}
       native: ${{ steps.filter.outputs.native }}
     steps:
@@ -61,8 +60,6 @@ jobs:
               - 'jac/jaclang/cli/docs/**'
               - 'jac/jaclang/cli/skills/**'
               - 'release_notes/**'
-            desktop:
-              - 'jac/jaclang/runtimelib/client/targets/desktop/**'
             installer:
               - 'scripts/install.sh'
               # The lane's own definition lives here, so a change to what it
@@ -74,8 +71,8 @@ jobs:
             # takes the sealed kit instead of the host kit. The darwin lane no
             # longer reads this filter -- it is nightly + `macos`-label only.
             native:
-              - 'jac/jaclang/compiler/passes/native/**'
-              - 'jac/tests/compiler/passes/native/**'
+              - 'jac/jaclang/compiler/backends/native/**'
+              - 'jac/tests/compiler/backends/native/**'
               - 'jac/jaclang/compiler/tests/test_prim_equivalence.jac'
               - 'jac/jaclang/compiler/tests/fixtures/prim_*.jac'
               - 'jac/native/**'
@@ -83,9 +80,9 @@ jobs:
               - 'jac/build.zig.zon'
               - 'jac/bootstrap/**'
               - 'jac/launcher/**'
-              - 'jac/jaclang/runtimelib/fused/**'
-              - 'jac/jaclang/runtimelib/na_stdlib/**'
-              - 'jac/jaclang/payload/**'
+              - 'jac/jaclang/dist/fused/**'
+              - 'jac/jaclang/runtime/na_stdlib/**'
+              - 'jac/jaclang/dist/payload/**'
               - '.github/workflows/ci.yml'
               # Payload-baked inputs. The host kit's binary predates a PR that
               # changes these, so the jobs that can notice must take the kit
@@ -93,7 +90,7 @@ jobs:
               - 'jac/launcher/**'
               - 'jac/_jac_finder.py'
               - 'jac/sitecustomize.py'
-              - 'jac/jaclang/utils/precompile_bytecode.jac'
+              - 'jac/jaclang/dist/precompile_bytecode.jac'
               - '.github/actions/**'
 
   # Host kit: the newest main binary (restore-keys prefix; any sealed binary
@@ -413,18 +410,11 @@ jobs:
           echo "::error::jac fmt --check --lintfix failed for this commit (an autofix was pushed to the branch if this is a same-repo PR)."
           exit 1
 
-      - name: Verify manifest route table is up to date
-        run: jac gen-cli-manifest --verify
-
-      - name: Run CLI startup regression tests
-        env:
-          JAC_TEST_JOBS: "0"
-        run: |
-          jac test \
-            jac/tests/cli/test_command_isolation.jac \
-            jac/tests/cli/test_config_key_bridge.jac \
-            jac/tests/cli/test_manifest_parity.jac \
-            jac/tests/cli/test_startup_isolation.jac
+      # Manifest freshness, the seed-manifest bootstrap invariants, and the
+      # CLI startup regressions all live in the suite now
+      # (tests/cli/test_manifest_parity.jac, tests/compiler/
+      # test_seed_manifest_bootstrap.jac, tests/cli/test_*_isolation.jac),
+      # which test-compiler / test-runtime run on the same filter as this job.
 
       # The targets ARE jaclang's source, and jaclang.* belongs to the running
       # compiler: checked sealed, a checkout module's `import from
@@ -458,9 +448,11 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit 0
 
+  # Pure PR-metadata policy: no kit, no jac. Docs code blocks are validated
+  # by the suite (tests/cli/test_docs_code_blocks.jac) in the test lanes.
   contribution-checks:
     name: Contribution Checks
-    needs: [changes, host-kit]
+    needs: changes
     if: ${{ github.event_name != 'push' || needs.changes.outputs.docs == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
@@ -489,13 +481,6 @@ jobs:
             echo "To skip this check, add the 'skip-no-python-check' label to your PR."
             exit 1
           fi
-
-      - uses: ./.github/actions/jac-kit
-        with:
-          name: jac-host
-
-      - name: Validate Jac code blocks in the docs corpus
-        run: jac run scripts/validate_docs_code.jac
 
       - name: Check Release Notes Updated
         if: |
@@ -526,7 +511,7 @@ jobs:
       matrix:
         include:
           - chunk: passes-main
-            paths: tests/compiler/passes/main tests/compiler/passes/ecmascript
+            paths: tests/compiler/passes tests/compiler/backends/es
           - chunk: toplevel
             paths: tests/compiler/test_*.jac
     steps:
@@ -543,7 +528,7 @@ jobs:
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto JAC_TEST_STRICT=1 jac test ${{ matrix.paths }}
 
   # Native-backend validation: the passes-native chunk and the na/sv
   # equivalence pins. The LLVM shim these bind is the one inside the host
@@ -561,7 +546,7 @@ jobs:
       matrix:
         include:
           - chunk: passes-native
-            paths: tests/compiler/passes/native tests/compiler/passes/tool
+            paths: tests/compiler/backends/native tests/compiler/tools
           - chunk: equivalence
             paths: jaclang/compiler/tests
     steps:
@@ -605,7 +590,7 @@ jobs:
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=2 jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=2 JAC_TEST_STRICT=1 jac test ${{ matrix.paths }}
 
   test-native-sealed:
     needs: [changes, build-kit]
@@ -618,7 +603,7 @@ jobs:
       matrix:
         include:
           - chunk: passes-native
-            paths: tests/compiler/passes/native tests/compiler/passes/tool
+            paths: tests/compiler/backends/native tests/compiler/tools
             sealed: "1"
           # The equivalence suite builds fixture paths from jaclang.__file__,
           # which only resolve in the checkout: it always runs through the
@@ -640,7 +625,7 @@ jobs:
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto JAC_TEST_STRICT=1 jac test ${{ matrix.paths }}
 
   # Everything except the compiler tests.
   test-runtime:
@@ -658,23 +643,30 @@ jobs:
           node-version: "20"
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-      # test_auth_models.jac runs in test-reroute-gaps (see there).
+      - name: Install the serve deps the plugin-integration test needs
+        run: jac install "python-dotenv>=1.2.1,<2.0.0" "requests>=2.32.0,<3.0.0" --global
+      # test_auth_types.jac runs in test-reroute-gaps (see there); tests/client
+      # is test-client's lane (it needs the serial runner). The jsdom suites in
+      # tests/runtimelib gate on bun being present, which the Bun setup above
+      # provides -- with JAC_TEST_STRICT=1 they must run here, so a new jsdom
+      # suite is covered the moment it exists instead of when someone remembers
+      # to name it in this file.
       - name: Runtime suite via the binary
         working-directory: jac
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto jac test tests/ \
-            --ignore tests/compiler tests/runtimelib/test_auth_models.jac
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto JAC_TEST_STRICT=1 jac test tests/ \
+            --ignore tests/compiler tests/client tests/runtimelib/test_auth_types.jac
 
   # Tests that do not yet pass through the reroute, run here against the
   # sealed kit so coverage stays what it was. Each entry names a real
   # divergence between the reroute and the sealed payload, not a CI quirk;
   # the job should shrink to nothing as they are fixed.
   #
-  # - tests/runtimelib/test_auth_models.jac: SIGABRT while the test file
+  # - tests/runtimelib/test_auth_types.jac: SIGABRT while the test file
   #   compiles under the reroute's native lowering. The payload ships
-  #   auth_models as sv bytecode, so the sealed lane never lowers it; a plain
+  #   auth_types as sv bytecode, so the sealed lane never lowers it; a plain
   #   `jac run` that imports it reports E5092 ("Native lowering failed for
   #   function 'IdentityInput'") and falls back to sv. With the native
   #   pipeline off, all 8 tests pass.
@@ -714,52 +706,20 @@ jobs:
             "litellm>=1.75.2,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
-      - name: auth_models (runtime)
+      - name: auth_types (runtime)
         working-directory: jac
         run: |
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/runtimelib/test_auth_models.jac
+          HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/runtimelib/test_auth_types.jac
       - name: MTIR integration (byllm)
-        env:
-          TEST_ENV: "true"
         run: jac test jac/jaclang/byllm/tests/test_mtir_integration.jac
       - name: HMR refresh (scale server)
         env:
           JAC_TEST_JOBS: "0"
         run: jac test jac/jaclang/scale/tests/server/test_serve.jac -f hmr
 
-  # Degradation path: no LLVM shim -- programs must still compile cleanly in
-  # the server codespace with zero scheduling errors. Typeshed is brought in
-  # first: since #8398 type inference is on the critical path of every
-  # compilation, so a checkout without the stdlib stubs compiles nothing and
-  # the stub-less half of this job tested a configuration that no longer
-  # exists.
-  test-no-llvm:
-    needs: [changes, host-kit]
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    steps:
-      - uses: actions/checkout@v5
-      - name: Set up Python 3.14
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-      # The kit brings typeshed (and the binary, unused here); shim still absent.
-      - uses: ./.github/actions/jac-kit
-        with:
-          name: jac-host
-      - name: No-LLVM compile (typeshed present, shim absent)
-        working-directory: jac
-        run: |
-          set -euxo pipefail
-          test ! -e jaclang/compiler/passes/native/llvm/libjacllvm.so
-          WORK="$(mktemp -d)"
-          printf 'def mul(a: int, b: int) -> int {\n    return a * b;\n}\n\nwith entry {\n    print(mul(6, 7));\n}\n' > "$WORK/prog.jac"
-          out="$(HOME="$WORK" XDG_CACHE_HOME="$WORK/cache" PYTHONPATH="$PWD" python -m jaclang run "$WORK/prog.jac" 2>&1)" || { echo "$out"; exit 1; }
-          echo "$out" | tail -5
-          echo "$out" | grep -qx '42'
-          ! echo "$out" | grep -q 'scheduling error'
-          ! echo "$out" | grep -q 'preferred native but did not lower'
+  # The no-LLVM degradation path lives in the suite now
+  # (tests/compiler/test_no_llvm_degradation.jac, via JAC_LLVM_SHIM=none).
 
   test-client:
     needs: [changes, host-kit]
@@ -778,49 +738,19 @@ jobs:
           node-version: '20'
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
+      - name: Install the scale dep the in-process dispatch tests import
+        run: jac install "python-dotenv>=1.2.1,<2.0.0" --global
       - name: Run all client tests
         # Serial: parallel workers intermittently disagreed on collection of
         # test_react_native_target.jac under the old pytest-xdist runner.
+        # test_cef_dispatch_build.jac (the old test-cef-build job) runs here.
         env:
-          TEST_ENV: "true"
           JAC_TEST_JOBS: "0"
-        run: jac test jac/tests/runtimelib/client --ignore jac/tests/runtimelib/client/test_inprocess_dispatch.jac
-      - name: Re-run in-process sv dispatch against the built-in scale backend
-        run: |
-          jac install "python-dotenv>=1.2.1,<2.0.0" --global
-          jac test -vv jac/tests/runtimelib/client/test_inprocess_dispatch.jac
+          JAC_TEST_STRICT: "1"
+        run: jac test jac/tests/client
 
-  test-solid-and-desktop:
-    needs: [changes, host-kit]
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.desktop == 'true' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: true
-      - uses: ./.github/actions/jac-kit
-        with:
-          name: jac-host
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-      - name: Run jsdom runtime tests
-        # Every suite here skips itself unless JAC_CLIENT_INTEGRATION is set,
-        # so this step is the ONLY place they actually execute. A jsdom suite
-        # not named here is a suite that never runs.
-        env:
-          JAC_CLIENT_INTEGRATION: "1"
-        run: |
-          jac test \
-            jac/tests/runtimelib/test_solid_jsdom.jac \
-            jac/tests/runtimelib/test_react_state_semantics.jac \
-            jac/tests/runtimelib/test_react_auth_jsdom.jac \
-            -x
-      - name: Run dependency-free desktop tests
-        run: jac test jac/tests/runtimelib/client/test_desktop_binding.jac
+  # The jsdom suites gate on bun being on PATH and run in test-runtime under
+  # JAC_TEST_STRICT=1; the desktop tests live in tests/client (test-client).
 
   test-packages-and-docs:
     needs: [changes, host-kit]
@@ -842,10 +772,17 @@ jobs:
       # test_mtir_integration.jac runs in test-reroute-gaps (see there).
       - name: Run package tests
         env:
-          TEST_ENV: "true"
+          JAC_TEST_STRICT: "1"
         run: jac test jac/jaclang/byllm/tests --ignore jac/jaclang/byllm/tests/test_mtir_integration.jac
+      # Named docs tests so docs-only PRs (which skip the core lanes) still
+      # exercise the corpus; the same files run in test-runtime's full sweep.
       - name: Run docs corpus tests
-        run: jac test jac/tests/cli/test_docs_content.jac jac/tests/cli/test_guide_docs.jac
+        env:
+          JAC_TEST_STRICT: "1"
+        run: |
+          jac test jac/tests/cli/test_docs_content.jac \
+            jac/tests/cli/test_guide_docs.jac \
+            jac/tests/cli/test_docs_code_blocks.jac
 
   test-scale:
     needs: [changes, host-kit]
@@ -854,7 +791,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [server, data, microservices, deploy, misc]
+        group: [server, data, microservices, deploy, misc, root]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -878,41 +815,34 @@ jobs:
             "docker>=7.1.0,<8.0.0" "boto3>=1.40.0,<2.0.0" \
             requests "moto[s3]>=5.0.0" \
             --global
-      - name: Run ${{ matrix.group }} tests
-        run: |
-          set +e
-          failed=""
-          # One process per file: the suite relies on per-file isolation.
-          for f in jac/jaclang/scale/tests/${{ matrix.group }}/test_*.jac; do
-            echo "::group::$f"
-            # The HMR test in test_serve.jac runs in test-reroute-gaps.
-            SEL=()
-            case "$f" in */server/test_serve.jac) SEL=(-f "not hmr");; esac
-            JAC_TEST_JOBS=0 jac test "$f" "${SEL[@]}" || failed="$failed $f"
-            echo "::endgroup::"
-          done
-          if [ -n "$failed" ]; then
-            echo "::error::Failed ${{ matrix.group }} test files:$failed"
-            exit 1
-          fi
-      - name: Run root-level scale tests (identity password, firebase env)
-        if: matrix.group == 'data'
-        env:
-          JAC_TEST_JOBS: "0"
-        run: |
-          jac test jac/jaclang/scale/tests/test_identity_password.jac -x
-          jac test jac/jaclang/scale/tests/test_firebase_env.jac -x
       - name: Install scale firebase deps
-        if: matrix.group == 'data'
+        if: matrix.group == 'root'
         run: jac install "google-cloud-firestore>=2.21.0,<3.0.0" "google-cloud-storage>=2.19.0,<3.0.0" "firebase-admin>=6.0.0,<8.0.0" --global
-      - name: Run Firebase storage / Firestore / Auth SSO tests
-        if: matrix.group == 'data'
-        # Serial: these tests share one shelf_db_path SQLite file.
+      # One process per file comes from the [test] isolate marks in the root
+      # jac.toml (the shelf-db sharers are marked serial there); JOBS=1 keeps
+      # files sequential the way the old shell loop ran them. The HMR test in
+      # server/test_serve.jac runs in test-reroute-gaps. The root group is the
+      # directory's own top-level files -- including the ones the old per-group
+      # globs never reached; test_deploy_k8s asks for JAC_TEST_K8S and skips
+      # itself here.
+      - name: Run ${{ matrix.group }} tests
         env:
-          JAC_TEST_JOBS: "0"
+          JAC_TEST_JOBS: "1"
+          JAC_TEST_STRICT: "1"
         run: |
-          jac test jac/jaclang/scale/tests/test_gcs_storage.jac -x
-          jac test jac/jaclang/scale/tests/test_firebase_auth_sso.jac -x
+          set -euo pipefail
+          if [ "${{ matrix.group }}" = "root" ]; then
+            jac test jac/jaclang/scale/tests \
+              --ignore jac/jaclang/scale/tests/server \
+                jac/jaclang/scale/tests/data \
+                jac/jaclang/scale/tests/microservices \
+                jac/jaclang/scale/tests/deploy \
+                jac/jaclang/scale/tests/misc
+          elif [ "${{ matrix.group }}" = "server" ]; then
+            jac test jac/jaclang/scale/tests/server -f "not hmr"
+          else
+            jac test jac/jaclang/scale/tests/${{ matrix.group }}
+          fi
 
   # One job: both phases share one MicroK8s cluster (hostpath-storage binds
   # the RWX bundle PVC, which kind cannot). Stays on the sealed kit: the
@@ -928,6 +858,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
       JAC_NO_DEV_SOURCE: "1"
+      # The opt-in flag test_deploy_k8s gates on: this is the lane with a
+      # cluster.
+      JAC_TEST_K8S: "1"
     steps:
       - uses: actions/checkout@v5
         with:
@@ -994,7 +927,7 @@ jobs:
           # static-link search at the kit's cross runtime.
           JAC_NATIVE_MUSL_DIR: ${{ github.workspace }}/jac/.pbs-build/linux-aarch64/musl/lib
         run: >-
-          jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+          jac test jac/tests/compiler/backends/native/test_native_gen_pass.jac
           -f aarch64
 
   # The single-binary launcher and its build tooling are Jac: the trailer codec
@@ -1018,10 +951,10 @@ jobs:
           jac test jac/jaclang/compiler/tests/test_tarfile_equivalence.jac
       - name: Native import shapes the stub relies on
         run: |
-          jac test jac/tests/compiler/passes/native/test_walkup_imports.jac
+          jac test jac/tests/compiler/backends/native/test_walkup_imports.jac
           jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac -f "environ"
       - name: Fused-runtime boot of a fresh na host
-        run: jac test jac/tests/runtimelib/client/test_fused_runtime_boot.jac
+        run: jac test jac/tests/client/test_fused_runtime_boot.jac
 
   # Bootstrap unit tests: the Zig seed that fetches the pbs CPython before any
   # Python exists (bootstrap/fetch_pbs.zig). Cross-platform on purpose. The
@@ -1046,35 +979,8 @@ jobs:
         working-directory: jac
         run: zig build test --summary all
 
-  test-cef-build:
-    needs: [changes, host-kit]
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: true
-      - uses: ./.github/actions/jac-kit
-        with:
-          name: jac-host
-      - name: Build dispatch shim and subprocess binary
-        working-directory: jac/jaclang/runtimelib/client/targets/desktop/native/cef
-        run: jac run build.jac
-      - name: Verify shared-object exports
-        working-directory: jac/jaclang/runtimelib/client/targets/desktop/native/cef
-        run: |
-          nm -D libcef_dispatch.so | grep -q cef_dispatch_startup
-          nm -D libcef_dispatch.so | grep -q cef_dispatch_execute_process
-          nm -D libcef_dispatch.so | grep -q cef_platform_bootstrap
-      - name: Check RPATH
-        working-directory: jac/jaclang/runtimelib/client/targets/desktop/native/cef
-        run: |
-          readelf -d libcef_dispatch.so | grep -qE '(RUN)?PATH.*\$ORIGIN'
-      - name: ldd audit (no missing deps against libc + libcef stub)
-        working-directory: jac/jaclang/runtimelib/client/targets/desktop/native/cef
-        run: |
-          MISSING=$(ldd libcef_dispatch.so 2>&1 | grep 'not found' | grep -v libcef || true)
-          [ -z "$MISSING" ] || (echo "Unexpected missing deps: $MISSING" && exit 1)
+  # The CEF dispatch build + export/runpath/deps audit lives in the suite
+  # (tests/client/test_cef_dispatch_build.jac, in test-client's lane).
 
   test-jac-pack-smoke:
     needs: [changes, build-kit]
@@ -1103,21 +1009,17 @@ jobs:
           jac purge
           timeout 5 jac --version
 
-      - name: Verify bundled guides print from the built wheel
-        run: bash scripts/check-guide.sh jac
-
-      - name: Install scale serve deps (for the integration admin-server test)
+      # The guide surface, plugin integration (pth finder / CLI dispatch /
+      # admin server), and fixture checks live in the suite now
+      # (tests/cli/test_guide_docs.jac, tests/cli/test_plugin_integration.jac);
+      # this job keeps only what needs the sealed artifact and the outside
+      # world: cold start, the jac_site fullstack smoke, and the eject path.
+      - name: Install scale serve deps (for the jac_site server)
         run: |
           jac install \
             "python-dotenv>=1.2.1,<2.0.0" \
             "requests>=2.32.0,<3.0.0" \
             --global
-
-      - name: Run integration tests
-        run: jac run scripts/integration_tests.jac
-
-      - name: Run tests on built packages
-        run: jac check jac/tests/compiler/passes/main/fixtures/checker/checker_type_ref.jac
 
       # jac_site fullstack smoke: JAC_NO_DEV_SOURCE=1 (job env) because the
       # site's own jac.toml carries a [dev] stanza for its contributors.
@@ -1358,15 +1260,12 @@ jobs:
       - test-native-sealed
       - test-runtime
       - test-reroute-gaps
-      - test-no-llvm
       - test-client
-      - test-solid-and-desktop
       - test-packages-and-docs
       - test-scale
       - test-scale-k8s
       - test-native-aarch64
       - test-bootstrap
-      - test-cef-build
       - test-jac-pack-smoke
       - installer-test
     runs-on: ubuntu-latest

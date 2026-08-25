@@ -17,7 +17,7 @@ import from tempfile { TemporaryDirectory }
 import jaclang.cli.commands.execution;
 import from jaclang.cli.manifest { get_command_meta }
 import from jaclang.cli.manifest_parse { build_command_parser }
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 
 
 """Assert the parser the `jac` entrypoint builds accepts `argv` headless."""
@@ -106,9 +106,7 @@ test "orchestrator start_service argv is accepted by the real CLI" {
 }
 
 test "client dev backend spawn argv is accepted by the real CLI" {
-    import from jaclang.runtimelib.client.targets.client_dev_common {
-        start_backend_server_common
-    }
+    import from jaclang.client.targets.client_dev_common { start_backend_server_common }
     captured: list = [];
     with unittest.mock.patch("subprocess.Popen", _capture_popen(captured)) {
         start_backend_server_common(Path("app.jac"), Path("."), 8321);
