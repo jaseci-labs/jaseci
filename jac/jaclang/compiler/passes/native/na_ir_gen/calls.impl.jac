@@ -1311,10 +1311,6 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             return self._emit_jid(nd);
         }
 
-        if func_name == "jid" {
-            return self._emit_jid(nd);
-        }
-
         if func_name == "new" {
             return self._emit_new(nd);
         }
@@ -3325,7 +3321,20 @@ impl NaIRGenCalls._emit_jid(nd: uni.FuncCall) -> (ir.Value | None) {
     if arg_val is None {
         return None;
     }
-    if not isinstance(arg_val.type, ir.PointerType) or arg_val.type == ir.IntType(8).as_pointer() {
+    _fmt_fn = self._get_fmt_kernel_fn("jac_fmt_int");
+    if _fmt_fn is None {
+        self.emit(E5092, node_override=nd, kind="builtin call", name="jid");
+        return None;
+    }
+    if arg_val.type == self.jacval_type {
+        # `any`-boxed receiver: the object address lives in the payload slot.
+        addr = self.builder.extract_value(arg_val, 1, name="jid.box.addr");
+    } elif (
+        isinstance(arg_val.type, ir.PointerType)
+        and arg_val.type != ir.IntType(8).as_pointer()
+    ) {
+        addr = self.builder.ptrtoint(arg_val, i64, name="jid.addr");
+    } else {
         self.emit(
             E5092,
             node_override=params_l[0],
@@ -3335,12 +3344,6 @@ impl NaIRGenCalls._emit_jid(nd: uni.FuncCall) -> (ir.Value | None) {
         );
         return None;
     }
-    _fmt_fn = self._get_fmt_kernel_fn("jac_fmt_int");
-    if _fmt_fn is None {
-        self.emit(E5092, node_override=nd, kind="builtin call", name="jid");
-        return None;
-    }
-    addr = self.builder.ptrtoint(arg_val, i64, name="jid.addr");
     spec_g = self._make_global_string("032x", name_prefix=".jid.spec");
     res = self.builder.call(
         _fmt_fn,
@@ -3356,50 +3359,3 @@ impl NaIRGenCalls._emit_jid(nd: uni.FuncCall) -> (ir.Value | None) {
     return self._mark_owned(res);
 }
 
-impl NaIRGenCalls._emit_jid(nd: uni.FuncCall) -> (ir.Value | None) {
-    i64 = ir.IntType(64);
-    params_l = nd.params or [];
-    if len(params_l) != 1 {
-        self.emit(
-            E5092,
-            node_override=nd,
-            kind="builtin call",
-            name="jid",
-            help_text="`jid` lowers natively with exactly one object argument."
-        );
-        return None;
-    }
-    arg_val = self._codegen_expr(params_l[0]);
-    if arg_val is None {
-        return None;
-    }
-    if not isinstance(arg_val.type, ir.PointerType) or arg_val.type == ir.IntType(8).as_pointer() {
-        self.emit(
-            E5092,
-            node_override=params_l[0],
-            kind="builtin call",
-            name="jid",
-            help_text="`jid` lowers natively for node/edge/object values; primitives have no graph identity."
-        );
-        return None;
-    }
-    _fmt_fn = self._get_fmt_kernel_fn("jac_fmt_int");
-    if _fmt_fn is None {
-        self.emit(E5092, node_override=nd, kind="builtin call", name="jid");
-        return None;
-    }
-    addr = self.builder.ptrtoint(arg_val, i64, name="jid.addr");
-    spec_g = self._make_global_string("032x", name_prefix=".jid.spec");
-    res = self.builder.call(
-        _fmt_fn,
-        [
-            self._coerce_type(addr, _fmt_fn.args[0].type),
-            self._coerce_type(spec_g, _fmt_fn.args[1].type)
-        ],
-        name="jid.str"
-    );
-    if isinstance(arg_val.type, ir.PointerType) and self._is_owned(arg_val) {
-        self._emit_rc_release_typed(arg_val, op="jid_arg", loc="");
-    }
-    return self._mark_owned(res);
-}
