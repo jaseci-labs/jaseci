@@ -1,0 +1,728 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "d16ccf930e72eff9aad7712b877e98223d42915c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_collections.py",
+    "-o",
+    "/var/tmp/worker6-conv-collections-3483543/jac-py/tests/conv_collections",
+    "--name",
+    "conv_collections"
+  ],
+  "generated_at": "2026-08-25T14:24:12",
+  "hashes": {
+    "pins_jac": "68619b1a41322139ef832eff28cc0a1724b8f0153e518f7aa56d9af76bdeeb71"
+  },
+  "source_file": "reference/cpython/Lib/test/test_collections.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "collections",
+  "pins_file": "conv_collections_pins.jac",
+  "pins": [
+    {
+      "ident": "TestUserObjects.test_str_protocol",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserDict, UserString, UserList\n\ndef _superset_test(a, b):\n    assert set(dir(a)) >= set(dir(b)), ('assertGreaterEqual', set(dir(a)), set(dir(b)))\n\ndef _t():\n    _superset_test(UserString, str)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestUserObjects.test_list_protocol",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserDict, UserString, UserList\n\ndef _superset_test(a, b):\n    assert set(dir(a)) >= set(dir(b)), ('assertGreaterEqual', set(dir(a)), set(dir(b)))\n\ndef _t():\n    _superset_test(UserList, list)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestUserObjects.test_dict_protocol",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserDict, UserString, UserList\n\ndef _superset_test(a, b):\n    assert set(dir(a)) >= set(dir(b)), ('assertGreaterEqual', set(dir(a)), set(dir(b)))\n\ndef _t():\n    _superset_test(UserDict, dict)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestUserObjects.test_list_copy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import copy\nfrom collections import UserDict, UserString, UserList\n\ndef _copy_test(obj):\n    obj_copy = obj.copy()\n    assert obj.data is not obj_copy.data, ('assertIsNot', obj.data, obj_copy.data)\n    assert obj.data == obj_copy.data, ('assertEqual', obj.data, obj_copy.data)\n    obj.test = [1234]\n    obj_copy = copy.copy(obj)\n    assert obj.data is not obj_copy.data, ('assertIsNot', obj.data, obj_copy.data)\n    assert obj.data == obj_copy.data, ('assertEqual', obj.data, obj_copy.data)\n    assert obj.test is obj_copy.test, ('assertIs', obj.test, obj_copy.test)\n\ndef _t():\n    obj = UserList()\n    obj.append(123)\n    _copy_test(obj)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestUserObjects.test_dict_copy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import copy\nfrom collections import UserDict, UserString, UserList\n\ndef _copy_test(obj):\n    obj_copy = obj.copy()\n    assert obj.data is not obj_copy.data, ('assertIsNot', obj.data, obj_copy.data)\n    assert obj.data == obj_copy.data, ('assertEqual', obj.data, obj_copy.data)\n    obj.test = [1234]\n    obj_copy = copy.copy(obj)\n    assert obj.data is not obj_copy.data, ('assertIsNot', obj.data, obj_copy.data)\n    assert obj.data == obj_copy.data, ('assertEqual', obj.data, obj_copy.data)\n    assert obj.test is obj_copy.test, ('assertIs', obj.test, obj_copy.test)\n\ndef _t():\n    obj = UserDict()\n    obj[123] = 'abc'\n    _copy_test(obj)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestUserObjects.test_dict_missing",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserDict, UserString, UserList\n\ndef _t():\n\n    class A(UserDict):\n\n        def __missing__(self, key):\n            return 456\n    assert A()[123] == 456, ('assertEqual', A()[123], 456)\n    assert A().get(123) is None, ('assertIs', A().get(123), None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestChainMap.test_basics",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import copy\nimport pickle\nfrom collections import ChainMap\n\ndef _t():\n    c = ChainMap()\n    c['a'] = 1\n    c['b'] = 2\n    d = c.new_child()\n    d['b'] = 20\n    d['c'] = 30\n    assert d.maps == [{'b': 20, 'c': 30}, {'a': 1, 'b': 2}], ('assertEqual', d.maps, [{'b': 20, 'c': 30}, {'a': 1, 'b': 2}])\n    assert d.items() == dict(a=1, b=20, c=30).items(), ('assertEqual', d.items(), dict(a=1, b=20, c=30).items())\n    assert len(d) == 3, ('assertEqual', len(d), 3)\n    for key in 'abc':\n        assert key in d, ('assertIn', key, d)\n    for k, v in dict(a=1, b=20, c=30, z=100).items():\n        assert d.get(k, 100) == v, ('assertEqual', d.get(k, 100), v)\n    del d['b']\n    assert d.maps == [{'c': 30}, {'a': 1, 'b': 2}], ('assertEqual', d.maps, [{'c': 30}, {'a': 1, 'b': 2}])\n    assert d.items() == dict(a=1, b=2, c=30).items(), ('assertEqual', d.items(), dict(a=1, b=2, c=30).items())\n    assert len(d) == 3, ('assertEqual', len(d), 3)\n    for key in 'abc':\n        assert key in d, ('assertIn', key, d)\n    for k, v in dict(a=1, b=2, c=30, z=100).items():\n        assert d.get(k, 100) == v, ('assertEqual', d.get(k, 100), v)\n    assert repr(d) in [type(d).__name__ + \"({'c': 30}, {'a': 1, 'b': 2})\", type(d).__name__ + \"({'c': 30}, {'b': 2, 'a': 1})\"], ('assertIn', repr(d), [type(d).__name__ + \"({'c': 30}, {'a': 1, 'b': 2})\", type(d).__name__ + \"({'c': 30}, {'b': 2, 'a': 1})\"])\n    for e in (d.copy(), copy.copy(d)):\n        assert d == e, ('assertEqual', d, e)\n        assert d.maps == e.maps, ('assertEqual', d.maps, e.maps)\n        assert d is not e, ('assertIsNot', d, e)\n        assert d.maps[0] is not e.maps[0], ('assertIsNot', d.maps[0], e.maps[0])\n        for m1, m2 in zip(d.maps[1:], e.maps[1:]):\n            assert m1 is m2, ('assertIs', m1, m2)\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        e = pickle.loads(pickle.dumps(d, proto))\n        assert d == e, ('assertEqual', d, e)\n        assert d.maps == e.maps, ('assertEqual', d.maps, e.maps)\n        assert d is not e, ('assertIsNot', d, e)\n        for m1, m2 in zip(d.maps, e.maps):\n            assert m1 is not m2, ('assertIsNot', m1, m2)\n    for e in [copy.deepcopy(d), eval(repr(d))]:\n        assert d == e, ('assertEqual', d, e)\n        assert d.maps == e.maps, ('assertEqual', d.maps, e.maps)\n        assert d is not e, ('assertIsNot', d, e)\n        for m1, m2 in zip(d.maps, e.maps):\n            assert m1 is not m2, ('assertIsNot', m1, m2)\n    f = d.new_child()\n    f['b'] = 5\n    assert f.maps == [{'b': 5}, {'c': 30}, {'a': 1, 'b': 2}], ('assertEqual', f.maps, [{'b': 5}, {'c': 30}, {'a': 1, 'b': 2}])\n    assert f.parents.maps == [{'c': 30}, {'a': 1, 'b': 2}], ('assertEqual', f.parents.maps, [{'c': 30}, {'a': 1, 'b': 2}])\n    assert f['b'] == 5, ('assertEqual', f['b'], 5)\n    assert f.parents['b'] == 2, ('assertEqual', f.parents['b'], 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestChainMap.test_ordering",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import ChainMap\n\ndef _t():\n    baseline = {'music': 'bach', 'art': 'rembrandt'}\n    adjustments = {'art': 'van gogh', 'opera': 'carmen'}\n    cm = ChainMap(adjustments, baseline)\n    combined = baseline.copy()\n    combined.update(adjustments)\n    assert list(combined.items()) == list(cm.items()), ('assertEqual', list(combined.items()), list(cm.items()))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestChainMap.test_constructor",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import ChainMap\n\ndef _t():\n    assert ChainMap().maps == [{}], ('assertEqual', ChainMap().maps, [{}])\n    assert ChainMap({1: 2}).maps == [{1: 2}], ('assertEqual', ChainMap({1: 2}).maps, [{1: 2}])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestChainMap.test_bool",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import ChainMap\n\ndef _t():\n    assert not ChainMap(), ('assertFalse', ChainMap())\n    assert not ChainMap({}, {}), ('assertFalse', ChainMap({}, {}))\n    assert ChainMap({1: 2}, {}), ('assertTrue', ChainMap({1: 2}, {}))\n    assert ChainMap({}, {1: 2}), ('assertTrue', ChainMap({}, {1: 2}))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestChainMap.test_missing",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import ChainMap\n\ndef _t():\n\n    class DefaultChainMap(ChainMap):\n\n        def __missing__(self, key):\n            return 999\n    d = DefaultChainMap(dict(a=1, b=2), dict(b=20, c=30))\n    for k, v in dict(a=1, b=2, c=30, d=999).items():\n        assert d[k] == v, ('assertEqual', d[k], v)\n    for k, v in dict(a=1, b=2, c=30, d=77).items():\n        assert d.get(k, 77) == v, ('assertEqual', d.get(k, 77), v)\n    for k, v in dict(a=True, b=True, c=True, d=False).items():\n        assert (k in d) == v, ('assertEqual', (k in d), v)\n    assert d.pop('a', 1001) == 1, ('assertEqual', d.pop('a', 1001), 1)\n    assert d.pop('a', 1002) == 1002, ('assertEqual', d.pop('a', 1002), 1002)\n    assert d.popitem() == ('b', 2), ('assertEqual', d.popitem(), ('b', 2))\n    try:\n        d.popitem()\n    except KeyError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestChainMap.test_order_preservation",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\nfrom collections import ChainMap\n\ndef _t():\n    d = ChainMap(OrderedDict(j=0, h=88888), OrderedDict(), OrderedDict(i=9999, d=4444, c=3333), OrderedDict(f=666, b=222, g=777, c=333, h=888), OrderedDict(), OrderedDict(e=55, b=22), OrderedDict(a=1, b=2, c=3, d=4, e=5), OrderedDict())\n    assert ''.join(d) == 'abcdefghij', ('assertEqual', ''.join(d), 'abcdefghij')\n    assert list(d.items()) == [('a', 1), ('b', 222), ('c', 3333), ('d', 4444), ('e', 55), ('f', 666), ('g', 777), ('h', 88888), ('i', 9999), ('j', 0)], ('assertEqual', list(d.items()), [('a', 1), ('b', 222), ('c', 3333), ('d', 4444), ('e', 55), ('f', 666), ('g', 777), ('h', 88888), ('i', 9999), ('j', 0)])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestChainMap.test_iter_not_calling_getitem_on_maps",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserDict, UserString, UserList\nfrom collections import ChainMap\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class DictWithGetItem(UserDict):\n\n        def __init__(self, *args, **kwds):\n            self.called = False\n            UserDict.__init__(self, *args, **kwds)\n\n        def __getitem__(self, item):\n            self.called = True\n            UserDict.__getitem__(self, item)\n    d = DictWithGetItem(a=1)\n    c = ChainMap(d)\n    d.called = False\n    set(c)\n    assert not d.called, ('assertFalse', d.called)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestChainMap.test_dict_coercion",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import ChainMap\n\ndef _t():\n    d = ChainMap(dict(a=1, b=2), dict(b=20, c=30))\n    assert dict(d) == dict(a=1, b=2, c=30), ('assertEqual', dict(d), dict(a=1, b=2, c=30))\n    assert dict(d.items()) == dict(a=1, b=2, c=30), ('assertEqual', dict(d.items()), dict(a=1, b=2, c=30))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestChainMap.test_new_child",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import ChainMap\n\ndef _t():\n    \"\"\"Tests for changes for issue #16613.\"\"\"\n    c = ChainMap()\n    c['a'] = 1\n    c['b'] = 2\n    m = {'b': 20, 'c': 30}\n    d = c.new_child(m)\n    assert d.maps == [{'b': 20, 'c': 30}, {'a': 1, 'b': 2}], ('assertEqual', d.maps, [{'b': 20, 'c': 30}, {'a': 1, 'b': 2}])\n    assert m is d.maps[0], ('assertIs', m, d.maps[0])\n\n    class lowerdict(dict):\n\n        def __getitem__(self, key):\n            if isinstance(key, str):\n                key = key.lower()\n            return dict.__getitem__(self, key)\n\n        def __contains__(self, key):\n            if isinstance(key, str):\n                key = key.lower()\n            return dict.__contains__(self, key)\n    c = ChainMap()\n    c['a'] = 1\n    c['b'] = 2\n    m = lowerdict(b=20, c=30)\n    d = c.new_child(m)\n    assert m is d.maps[0], ('assertIs', m, d.maps[0])\n    for key in 'abc':\n        assert key in d, ('assertIn', key, d)\n    for k, v in dict(a=1, B=20, C=30, z=100).items():\n        assert d.get(k, 100) == v, ('assertEqual', d.get(k, 100), v)\n    c = ChainMap({'a': 1, 'b': 2})\n    d = c.new_child(b=20, c=30)\n    assert d.maps == [{'b': 20, 'c': 30}, {'a': 1, 'b': 2}], ('assertEqual', d.maps, [{'b': 20, 'c': 30}, {'a': 1, 'b': 2}])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestChainMap.test_union_operators",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import ChainMap\n\ndef _t():\n    cm1 = ChainMap(dict(a=1, b=2), dict(c=3, d=4))\n    cm2 = ChainMap(dict(a=10, e=5), dict(b=20, d=4))\n    cm3 = cm1.copy()\n    d = dict(a=10, c=30)\n    pairs = [('c', 3), ('p', 0)]\n    tmp = cm1 | cm2\n    assert tmp.maps == [cm1.maps[0] | dict(cm2), *cm1.maps[1:]], ('assertEqual', tmp.maps, [cm1.maps[0] | dict(cm2), *cm1.maps[1:]])\n    cm1 |= cm2\n    assert tmp == cm1, ('assertEqual', tmp, cm1)\n    tmp = cm2 | d\n    assert tmp.maps == [cm2.maps[0] | d, *cm2.maps[1:]], ('assertEqual', tmp.maps, [cm2.maps[0] | d, *cm2.maps[1:]])\n    assert (d | cm2).maps == [d | dict(cm2)], ('assertEqual', (d | cm2).maps, [d | dict(cm2)])\n    cm2 |= d\n    assert tmp == cm2, ('assertEqual', tmp, cm2)\n    try:\n        cm3 | pairs\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    tmp = cm3.copy()\n    cm3 |= pairs\n    assert cm3.maps == [tmp.maps[0] | dict(pairs), *tmp.maps[1:]], ('assertEqual', cm3.maps, [tmp.maps[0] | dict(pairs), *tmp.maps[1:]])\n\n    class Subclass(ChainMap):\n        pass\n\n    class SubclassRor(ChainMap):\n\n        def __ror__(self, other):\n            return super().__ror__(other)\n    tmp = ChainMap() | ChainMap()\n    assert type(tmp) is ChainMap, ('assertIs', type(tmp), ChainMap)\n    assert type(tmp.maps[0]) is dict, ('assertIs', type(tmp.maps[0]), dict)\n    tmp = ChainMap() | Subclass()\n    assert type(tmp) is ChainMap, ('assertIs', type(tmp), ChainMap)\n    assert type(tmp.maps[0]) is dict, ('assertIs', type(tmp.maps[0]), dict)\n    tmp = Subclass() | ChainMap()\n    assert type(tmp) is Subclass, ('assertIs', type(tmp), Subclass)\n    assert type(tmp.maps[0]) is dict, ('assertIs', type(tmp.maps[0]), dict)\n    tmp = ChainMap() | SubclassRor()\n    assert type(tmp) is SubclassRor, ('assertIs', type(tmp), SubclassRor)\n    assert type(tmp.maps[0]) is dict, ('assertIs', type(tmp.maps[0]), dict)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_factory",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    Point = namedtuple('Point', 'x y')\n    assert Point.__name__ == 'Point', ('assertEqual', Point.__name__, 'Point')\n    assert Point.__slots__ == (), ('assertEqual', Point.__slots__, ())\n    assert Point.__module__ == __name__, ('assertEqual', Point.__module__, __name__)\n    assert Point.__getitem__ == tuple.__getitem__, ('assertEqual', Point.__getitem__, tuple.__getitem__)\n    assert Point._fields == ('x', 'y'), ('assertEqual', Point._fields, ('x', 'y'))\n    try:\n        namedtuple(*('abc%', 'efg ghi'))\n    except ValueError:\n        pass\n    try:\n        namedtuple(*('class', 'efg ghi'))\n    except ValueError:\n        pass\n    try:\n        namedtuple(*('9abc', 'efg ghi'))\n    except ValueError:\n        pass\n    try:\n        namedtuple(*('abc', 'efg g%hi'))\n    except ValueError:\n        pass\n    try:\n        namedtuple(*('abc', 'abc class'))\n    except ValueError:\n        pass\n    try:\n        namedtuple(*('abc', '8efg 9ghi'))\n    except ValueError:\n        pass\n    try:\n        namedtuple(*('abc', '_efg ghi'))\n    except ValueError:\n        pass\n    try:\n        namedtuple(*('abc', 'efg efg ghi'))\n    except ValueError:\n        pass\n    namedtuple('Point0', 'x1 y2')\n    namedtuple('_', 'a b c')\n    nt = namedtuple('nt', 'the quick brown fox')\n    assert \"u'\" not in repr(nt._fields), ('assertNotIn', \"u'\", repr(nt._fields))\n    nt = namedtuple('nt', ('the', 'quick'))\n    assert \"u'\" not in repr(nt._fields), ('assertNotIn', \"u'\", repr(nt._fields))\n    try:\n        Point._make(*([11],))\n    except TypeError:\n        pass\n    try:\n        Point._make(*([11, 22, 33],))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_defaults",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    Point = namedtuple('Point', 'x y', defaults=(10, 20))\n    assert Point._field_defaults == {'x': 10, 'y': 20}, ('assertEqual', Point._field_defaults, {'x': 10, 'y': 20})\n    assert Point(1, 2) == (1, 2), ('assertEqual', Point(1, 2), (1, 2))\n    assert Point(1) == (1, 20), ('assertEqual', Point(1), (1, 20))\n    assert Point() == (10, 20), ('assertEqual', Point(), (10, 20))\n    Point = namedtuple('Point', 'x y', defaults=(20,))\n    assert Point._field_defaults == {'y': 20}, ('assertEqual', Point._field_defaults, {'y': 20})\n    assert Point(1, 2) == (1, 2), ('assertEqual', Point(1, 2), (1, 2))\n    assert Point(1) == (1, 20), ('assertEqual', Point(1), (1, 20))\n    Point = namedtuple('Point', 'x y', defaults=())\n    assert Point._field_defaults == {}, ('assertEqual', Point._field_defaults, {})\n    assert Point(1, 2) == (1, 2), ('assertEqual', Point(1, 2), (1, 2))\n    try:\n        Point(1)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        Point()\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        Point(1, 2, 3)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        Point = namedtuple('Point', 'x y', defaults=(10, 20, 30))\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        Point = namedtuple('Point', 'x y', defaults=10)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        Point = namedtuple('Point', 'x y', defaults=False)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    Point = namedtuple('Point', 'x y', defaults=None)\n    assert Point._field_defaults == {}, ('assertEqual', Point._field_defaults, {})\n    assert Point.__new__.__defaults__ is None, ('assertIsNone', Point.__new__.__defaults__)\n    assert Point(10, 20) == (10, 20), ('assertEqual', Point(10, 20), (10, 20))\n    try:\n        Point(10)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    Point = namedtuple('Point', 'x y', defaults=[10, 20])\n    assert Point._field_defaults == {'x': 10, 'y': 20}, ('assertEqual', Point._field_defaults, {'x': 10, 'y': 20})\n    assert Point.__new__.__defaults__ == (10, 20), ('assertEqual', Point.__new__.__defaults__, (10, 20))\n    assert Point(1, 2) == (1, 2), ('assertEqual', Point(1, 2), (1, 2))\n    assert Point(1) == (1, 20), ('assertEqual', Point(1), (1, 20))\n    assert Point() == (10, 20), ('assertEqual', Point(), (10, 20))\n    Point = namedtuple('Point', 'x y', defaults=iter([10, 20]))\n    assert Point._field_defaults == {'x': 10, 'y': 20}, ('assertEqual', Point._field_defaults, {'x': 10, 'y': 20})\n    assert Point.__new__.__defaults__ == (10, 20), ('assertEqual', Point.__new__.__defaults__, (10, 20))\n    assert Point(1, 2) == (1, 2), ('assertEqual', Point(1, 2), (1, 2))\n    assert Point(1) == (1, 20), ('assertEqual', Point(1), (1, 20))\n    assert Point() == (10, 20), ('assertEqual', Point(), (10, 20))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_readonly",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    Point = namedtuple('Point', 'x y')\n    p = Point(11, 22)\n    try:\n        p.x = 33\n    except AttributeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        del p.x\n    except AttributeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        p[0] = 33\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        del p[0]\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    assert p.x == 11, ('assertEqual', p.x, 11)\n    assert p[0] == 11, ('assertEqual', p[0], 11)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_name_fixer",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    for spec, renamed in [[('efg', 'g%hi'), ('efg', '_1')], [('abc', 'class'), ('abc', '_1')], [('8efg', '9ghi'), ('_0', '_1')], [('abc', '_efg'), ('abc', '_1')], [('abc', 'efg', 'efg', 'ghi'), ('abc', 'efg', '_2', 'ghi')], [('abc', '', 'x'), ('abc', '_1', 'x')]]:\n        assert namedtuple('NT', spec, rename=True)._fields == renamed, ('assertEqual', namedtuple('NT', spec, rename=True)._fields, renamed)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_module_parameter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import collections\nfrom collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    NT = namedtuple('NT', ['x', 'y'], module=collections)\n    assert NT.__module__ == collections, ('assertEqual', NT.__module__, collections)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_instance",
+      "status": "quarantined",
+      "reason": "host-raised:ValueError: Got unexpected field names: ['error']"
+    },
+    {
+      "ident": "TestNamedTuple.test_tupleness",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    Point = namedtuple('Point', 'x y')\n    p = Point(11, 22)\n    assert isinstance(p, tuple), ('assertIsInstance', p, tuple)\n    assert p == (11, 22), ('assertEqual', p, (11, 22))\n    assert tuple(p) == (11, 22), ('assertEqual', tuple(p), (11, 22))\n    assert list(p) == [11, 22], ('assertEqual', list(p), [11, 22])\n    assert max(p) == 22, ('assertEqual', max(p), 22)\n    assert max(*p) == 22, ('assertEqual', max(*p), 22)\n    x, y = p\n    assert p == (x, y), ('assertEqual', p, (x, y))\n    assert (p[0], p[1]) == (11, 22), ('assertEqual', (p[0], p[1]), (11, 22))\n    try:\n        p[3]\n    except IndexError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    assert p[-1] == 22, ('assertEqual', p[-1], 22)\n    assert hash(p) == hash((11, 22)), ('assertEqual', hash(p), hash((11, 22)))\n    assert p.x == x, ('assertEqual', p.x, x)\n    assert p.y == y, ('assertEqual', p.y, y)\n    try:\n        p.z\n    except AttributeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_odd_sizes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    Zero = namedtuple('Zero', '')\n    assert Zero() == (), ('assertEqual', Zero(), ())\n    assert Zero._make([]) == (), ('assertEqual', Zero._make([]), ())\n    assert repr(Zero()) == 'Zero()', ('assertEqual', repr(Zero()), 'Zero()')\n    assert Zero()._asdict() == {}, ('assertEqual', Zero()._asdict(), {})\n    assert Zero()._fields == (), ('assertEqual', Zero()._fields, ())\n    Dot = namedtuple('Dot', 'd')\n    assert Dot(1) == (1,), ('assertEqual', Dot(1), (1,))\n    assert Dot._make([1]) == (1,), ('assertEqual', Dot._make([1]), (1,))\n    assert Dot(1).d == 1, ('assertEqual', Dot(1).d, 1)\n    assert repr(Dot(1)) == 'Dot(d=1)', ('assertEqual', repr(Dot(1)), 'Dot(d=1)')\n    assert Dot(1)._asdict() == {'d': 1}, ('assertEqual', Dot(1)._asdict(), {'d': 1})\n    assert Dot(1)._replace(d=999) == (999,), ('assertEqual', Dot(1)._replace(d=999), (999,))\n    assert Dot(1)._fields == ('d',), ('assertEqual', Dot(1)._fields, ('d',))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_pickle",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nfrom collections import namedtuple, Counter, OrderedDict, _count_elements\nTestNT = namedtuple('TestNT', 'x y z')\n\ndef _t():\n    p = TestNT(x=10, y=20, z=30)\n    for module in (pickle,):\n        loads = getattr(module, 'loads')\n        dumps = getattr(module, 'dumps')\n        for protocol in range(-1, module.HIGHEST_PROTOCOL + 1):\n            q = loads(dumps(p, protocol))\n            assert p == q, ('assertEqual', p, q)\n            assert p._fields == q._fields, ('assertEqual', p._fields, q._fields)\n            assert b'OrderedDict' not in dumps(p, protocol), ('assertNotIn', b'OrderedDict', dumps(p, protocol))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_copy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import copy\nfrom collections import namedtuple, Counter, OrderedDict, _count_elements\nTestNT = namedtuple('TestNT', 'x y z')\n\ndef _t():\n    p = TestNT(x=10, y=20, z=30)\n    for copier in (copy.copy, copy.deepcopy):\n        q = copier(p)\n        assert p == q, ('assertEqual', p, q)\n        assert p._fields == q._fields, ('assertEqual', p._fields, q._fields)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_name_conflicts",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    T = namedtuple('T', 'itemgetter property self cls tuple')\n    t = T(1, 2, 3, 4, 5)\n    assert t == (1, 2, 3, 4, 5), ('assertEqual', t, (1, 2, 3, 4, 5))\n    newt = t._replace(itemgetter=10, property=20, self=30, cls=40, tuple=50)\n    assert newt == (10, 20, 30, 40, 50), ('assertEqual', newt, (10, 20, 30, 40, 50))\n    words = {'Alias', 'At', 'AttributeError', 'Build', 'Bypass', 'Create', 'Encountered', 'Expected', 'Field', 'For', 'Got', 'Helper', 'IronPython', 'Jython', 'KeyError', 'Make', 'Modify', 'Note', 'OrderedDict', 'Point', 'Return', 'Returns', 'Type', 'TypeError', 'Used', 'Validate', 'ValueError', 'Variables', 'a', 'accessible', 'add', 'added', 'all', 'also', 'an', 'arg_list', 'args', 'arguments', 'automatically', 'be', 'build', 'builtins', 'but', 'by', 'cannot', 'class_namespace', 'classmethod', 'cls', 'collections', 'convert', 'copy', 'created', 'creation', 'd', 'debugging', 'defined', 'dict', 'dictionary', 'doc', 'docstring', 'docstrings', 'duplicate', 'effect', 'either', 'enumerate', 'environments', 'error', 'example', 'exec', 'f', 'f_globals', 'field', 'field_names', 'fields', 'formatted', 'frame', 'function', 'functions', 'generate', 'get', 'getter', 'got', 'greater', 'has', 'help', 'identifiers', 'index', 'indexable', 'instance', 'instantiate', 'interning', 'introspection', 'isidentifier', 'isinstance', 'itemgetter', 'iterable', 'join', 'keyword', 'keywords', 'kwds', 'len', 'like', 'list', 'map', 'maps', 'message', 'metadata', 'method', 'methods', 'module', 'module_name', 'must', 'name', 'named', 'namedtuple', 'namedtuple_', 'names', 'namespace', 'needs', 'new', 'nicely', 'num_fields', 'number', 'object', 'of', 'operator', 'option', 'p', 'particular', 'pickle', 'pickling', 'plain', 'pop', 'positional', 'property', 'r', 'regular', 'rename', 'replace', 'replacing', 'repr', 'repr_fmt', 'representation', 'result', 'reuse_itemgetter', 's', 'seen', 'self', 'sequence', 'set', 'side', 'specified', 'split', 'start', 'startswith', 'step', 'str', 'string', 'strings', 'subclass', 'sys', 'targets', 'than', 'the', 'their', 'this', 'to', 'tuple', 'tuple_new', 'type', 'typename', 'underscore', 'unexpected', 'unpack', 'up', 'use', 'used', 'user', 'valid', 'values', 'variable', 'verbose', 'where', 'which', 'work', 'x', 'y', 'z', 'zip'}\n    T = namedtuple('T', words)\n    values = tuple(range(len(words)))\n    t = T(*values)\n    assert t == values, ('assertEqual', t, values)\n    t = T(**dict(zip(T._fields, values)))\n    assert t == values, ('assertEqual', t, values)\n    t = T._make(values)\n    assert t == values, ('assertEqual', t, values)\n    repr(t)\n    assert t._asdict() == dict(zip(T._fields, values)), ('assertEqual', t._asdict(), dict(zip(T._fields, values)))\n    t = T._make(values)\n    newvalues = tuple((v * 10 for v in values))\n    newt = t._replace(**dict(zip(T._fields, newvalues)))\n    assert newt == newvalues, ('assertEqual', newt, newvalues)\n    assert T._fields == tuple(words), ('assertEqual', T._fields, tuple(words))\n    assert t.__getnewargs__() == values, ('assertEqual', t.__getnewargs__(), values)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_repr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    A = namedtuple('A', 'x')\n    assert repr(A(1)) == 'A(x=1)', ('assertEqual', repr(A(1)), 'A(x=1)')\n\n    class B(A):\n        pass\n    assert repr(B(1)) == 'B(x=1)', ('assertEqual', repr(B(1)), 'B(x=1)')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_keyword_only_arguments",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    try:\n        NT = namedtuple('NT', ['x', 'y'], True)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    NT = namedtuple('NT', ['abc', 'def'], rename=True)\n    assert NT._fields == ('abc', '_1'), ('assertEqual', NT._fields, ('abc', '_1'))\n    try:\n        NT = namedtuple('NT', ['abc', 'def'], False, True)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_namedtuple_subclass_issue_24931",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n\n    class Point(namedtuple('_Point', ['x', 'y'])):\n        pass\n    a = Point(3, 4)\n    assert a._asdict() == OrderedDict([('x', 3), ('y', 4)]), ('assertEqual', a._asdict(), OrderedDict([('x', 3), ('y', 4)]))\n    a.w = 5\n    assert a.__dict__ == {'w': 5}, ('assertEqual', a.__dict__, {'w': 5})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_new_builtins_issue_43102",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    obj = namedtuple('C', ())\n    new_func = obj.__new__\n    assert new_func.__globals__['__builtins__'] == {}, ('assertEqual', new_func.__globals__['__builtins__'], {})\n    assert new_func.__builtins__ == {}, ('assertEqual', new_func.__builtins__, {})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_match_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    Point = namedtuple('Point', 'x y')\n    assert Point.__match_args__ == ('x', 'y'), ('assertEqual', Point.__match_args__, ('x', 'y'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestNamedTuple.test_non_generic_subscript",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import collections\n\ndef _t():\n    Group = collections.namedtuple('Group', 'key group')\n    A = Group[int, list[int]]\n    assert A.__origin__ == Group, ('assertEqual', A.__origin__, Group)\n    assert A.__parameters__ == (), ('assertEqual', A.__parameters__, ())\n    assert A.__args__ == (int, list[int]), ('assertEqual', A.__args__, (int, list[int]))\n    a = A(1, [2])\n    assert type(a) is Group, ('assertIs', type(a), Group)\n    assert a == (1, [2]), ('assertEqual', a, (1, [2]))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_Set",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nfrom collections.abc import Set, MutableSet\n\ndef validate_abstract_methods(abc, *names):\n    methodstubs = dict.fromkeys(names, lambda s, *args: 0)\n    C = type('C', (abc,), methodstubs)\n    C()\n    for name in names:\n        stubs = methodstubs.copy()\n        del stubs[name]\n        C = type('C', (abc,), stubs)\n        try:\n            C()\n        except TypeError:\n            pass\n\ndef validate_comparison(instance):\n    ops = ['lt', 'gt', 'le', 'ge', 'ne', 'or', 'and', 'xor', 'sub']\n    operators = {}\n    for op in ops:\n        name = '__' + op + '__'\n        operators[name] = getattr(operator, name)\n\n    class Other:\n\n        def __init__(self):\n            self.right_side = False\n\n        def __eq__(self, other):\n            self.right_side = True\n            return True\n        __lt__ = __eq__\n        __gt__ = __eq__\n        __le__ = __eq__\n        __ge__ = __eq__\n        __ne__ = __eq__\n        __ror__ = __eq__\n        __rand__ = __eq__\n        __rxor__ = __eq__\n        __rsub__ = __eq__\n    for name, op in operators.items():\n        if not hasattr(instance, name):\n            continue\n        other = Other()\n        op(instance, other)\n        assert other.right_side, ('assertTrue', other.right_side)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    for sample in [set, frozenset]:\n        assert isinstance(sample(), Set), ('assertIsInstance', sample(), Set)\n        assert issubclass(sample, Set), ('assertIsSubclass', sample, Set)\n    validate_abstract_methods(Set, '__contains__', '__iter__', '__len__')\n\n    class MySet(Set):\n\n        def __contains__(self, x):\n            return False\n\n        def __len__(self):\n            return 0\n\n        def __iter__(self):\n            return iter([])\n    validate_comparison(MySet())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_isdisjoint_Set",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Set, MutableSet\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class MySet(Set):\n\n        def __init__(self, itr):\n            self.contents = itr\n\n        def __contains__(self, x):\n            return x in self.contents\n\n        def __iter__(self):\n            return iter(self.contents)\n\n        def __len__(self):\n            return len([x for x in self.contents])\n    s1 = MySet((1, 2, 3))\n    s2 = MySet((4, 5, 6))\n    s3 = MySet((1, 5, 6))\n    assert s1.isdisjoint(s2), ('assertTrue', s1.isdisjoint(s2))\n    assert not s1.isdisjoint(s3), ('assertFalse', s1.isdisjoint(s3))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_equality_Set",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Set, MutableSet\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class MySet(Set):\n\n        def __init__(self, itr):\n            self.contents = itr\n\n        def __contains__(self, x):\n            return x in self.contents\n\n        def __iter__(self):\n            return iter(self.contents)\n\n        def __len__(self):\n            return len([x for x in self.contents])\n    s1 = MySet((1,))\n    s2 = MySet((1, 2))\n    s3 = MySet((3, 4))\n    s4 = MySet((3, 4))\n    assert s2 > s1, ('assertTrue', s2 > s1)\n    assert s1 < s2, ('assertTrue', s1 < s2)\n    assert not s2 <= s1, ('assertFalse', s2 <= s1)\n    assert not s2 <= s3, ('assertFalse', s2 <= s3)\n    assert not s1 >= s2, ('assertFalse', s1 >= s2)\n    assert s3 == s4, ('assertEqual', s3, s4)\n    assert s2 != s3, ('assertNotEqual', s2, s3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_arithmetic_Set",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Set, MutableSet\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class MySet(Set):\n\n        def __init__(self, itr):\n            self.contents = itr\n\n        def __contains__(self, x):\n            return x in self.contents\n\n        def __iter__(self):\n            return iter(self.contents)\n\n        def __len__(self):\n            return len([x for x in self.contents])\n    s1 = MySet((1, 2, 3))\n    s2 = MySet((3, 4, 5))\n    s3 = s1 & s2\n    assert s3 == MySet((3,)), ('assertEqual', s3, MySet((3,)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_issue_5647",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Set, MutableSet\n\nclass WithSet(MutableSet):\n\n    def __init__(self, it=()):\n        self.data = set(it)\n\n    def __len__(self):\n        return len(self.data)\n\n    def __iter__(self):\n        return iter(self.data)\n\n    def __contains__(self, item):\n        return item in self.data\n\n    def add(self, item):\n        self.data.add(item)\n\n    def discard(self, item):\n        self.data.discard(item)\n\ndef _t():\n    s = WithSet('abcd')\n    s &= WithSet('cdef')\n    assert set(s) == set('cd'), ('assertEqual', set(s), set('cd'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_issue_4920",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Set, MutableSet\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class MySet(MutableSet):\n        __slots__ = ['__s']\n\n        def __init__(self, items=None):\n            if items is None:\n                items = []\n            self.__s = set(items)\n\n        def __contains__(self, v):\n            return v in self.__s\n\n        def __iter__(self):\n            return iter(self.__s)\n\n        def __len__(self):\n            return len(self.__s)\n\n        def add(self, v):\n            result = v not in self.__s\n            self.__s.add(v)\n            return result\n\n        def discard(self, v):\n            result = v in self.__s\n            self.__s.discard(v)\n            return result\n\n        def __repr__(self):\n            return 'MySet(%s)' % repr(list(self))\n    items = [5, 43, 2, 1]\n    s = MySet(items)\n    r = s.pop()\n    assert len(s) == len(items) - 1, ('assertEqual', len(s), len(items) - 1)\n    assert r not in s, ('assertNotIn', r, s)\n    assert r in items, ('assertIn', r, items)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_issue8750",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Set, MutableSet\n\nclass WithSet(MutableSet):\n\n    def __init__(self, it=()):\n        self.data = set(it)\n\n    def __len__(self):\n        return len(self.data)\n\n    def __iter__(self):\n        return iter(self.data)\n\n    def __contains__(self, item):\n        return item in self.data\n\n    def add(self, item):\n        self.data.add(item)\n\n    def discard(self, item):\n        self.data.discard(item)\n\ndef _t():\n    empty = WithSet()\n    full = WithSet(range(10))\n    s = WithSet(full)\n    s -= s\n    assert s == empty, ('assertEqual', s, empty)\n    s = WithSet(full)\n    s ^= s\n    assert s == empty, ('assertEqual', s, empty)\n    s = WithSet(full)\n    s &= s\n    assert s == full, ('assertEqual', s, full)\n    s |= s\n    assert s == full, ('assertEqual', s, full)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_issue16373",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Set, MutableSet\n\ndef _t():\n\n    class MyComparableSet(Set):\n\n        def __contains__(self, x):\n            return False\n\n        def __len__(self):\n            return 0\n\n        def __iter__(self):\n            return iter([])\n\n    class MyNonComparableSet(Set):\n\n        def __contains__(self, x):\n            return False\n\n        def __len__(self):\n            return 0\n\n        def __iter__(self):\n            return iter([])\n\n        def __le__(self, x):\n            return NotImplemented\n\n        def __lt__(self, x):\n            return NotImplemented\n    cs = MyComparableSet()\n    ncs = MyNonComparableSet()\n    assert not ncs < cs, ('assertFalse', ncs < cs)\n    assert ncs <= cs, ('assertTrue', ncs <= cs)\n    assert not ncs > cs, ('assertFalse', ncs > cs)\n    assert ncs >= cs, ('assertTrue', ncs >= cs)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_issue26915",
+      "status": "quarantined",
+      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+    },
+    {
+      "ident": "TestCollectionABCs.test_Set_from_iterable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Set, MutableSet\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    'Verify _from_iterable overridden to an instance method works.'\n\n    class SetUsingInstanceFromIterable(MutableSet):\n\n        def __init__(self, values, created_by):\n            if not created_by:\n                raise ValueError('created_by must be specified')\n            self.created_by = created_by\n            self._values = set(values)\n\n        def _from_iterable(self, values):\n            return type(self)(values, 'from_iterable')\n\n        def __contains__(self, value):\n            return value in self._values\n\n        def __iter__(self):\n            yield from self._values\n\n        def __len__(self):\n            return len(self._values)\n\n        def add(self, value):\n            self._values.add(value)\n\n        def discard(self, value):\n            self._values.discard(value)\n    impl = SetUsingInstanceFromIterable([1, 2, 3], 'test')\n    actual = impl - {1}\n    assert isinstance(actual, SetUsingInstanceFromIterable), ('assertIsInstance', actual, SetUsingInstanceFromIterable)\n    assert 'from_iterable' == actual.created_by, ('assertEqual', 'from_iterable', actual.created_by)\n    assert {2, 3} == actual, ('assertEqual', {2, 3}, actual)\n    actual = impl | {4}\n    assert isinstance(actual, SetUsingInstanceFromIterable), ('assertIsInstance', actual, SetUsingInstanceFromIterable)\n    assert 'from_iterable' == actual.created_by, ('assertEqual', 'from_iterable', actual.created_by)\n    assert {1, 2, 3, 4} == actual, ('assertEqual', {1, 2, 3, 4}, actual)\n    actual = impl & {2}\n    assert isinstance(actual, SetUsingInstanceFromIterable), ('assertIsInstance', actual, SetUsingInstanceFromIterable)\n    assert 'from_iterable' == actual.created_by, ('assertEqual', 'from_iterable', actual.created_by)\n    assert {2} == actual, ('assertEqual', {2}, actual)\n    actual = impl ^ {3, 4}\n    assert isinstance(actual, SetUsingInstanceFromIterable), ('assertIsInstance', actual, SetUsingInstanceFromIterable)\n    assert 'from_iterable' == actual.created_by, ('assertEqual', 'from_iterable', actual.created_by)\n    assert {1, 2, 4} == actual, ('assertEqual', {1, 2, 4}, actual)\n    impl ^= [3, 4]\n    assert isinstance(impl, SetUsingInstanceFromIterable), ('assertIsInstance', impl, SetUsingInstanceFromIterable)\n    assert 'test' == impl.created_by, ('assertEqual', 'test', impl.created_by)\n    assert {1, 2, 4} == impl, ('assertEqual', {1, 2, 4}, impl)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_Set_interoperability_with_real_sets",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Set, MutableSet\n\ndef assertSameSet(s1, s2):\n    assert set(s1) == set(s2), ('assertSetEqual', set(s1), set(s2))\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class ListSet(Set):\n\n        def __init__(self, elements=()):\n            self.data = []\n            for elem in elements:\n                if elem not in self.data:\n                    self.data.append(elem)\n\n        def __contains__(self, elem):\n            return elem in self.data\n\n        def __iter__(self):\n            return iter(self.data)\n\n        def __len__(self):\n            return len(self.data)\n\n        def __repr__(self):\n            return 'Set({!r})'.format(self.data)\n    r1 = set('abc')\n    r2 = set('bcd')\n    r3 = set('abcde')\n    f1 = ListSet('abc')\n    f2 = ListSet('bcd')\n    f3 = ListSet('abcde')\n    l1 = list('abccba')\n    l2 = list('bcddcb')\n    l3 = list('abcdeedcba')\n    target = r1 & r2\n    assertSameSet(f1 & f2, target)\n    assertSameSet(f1 & r2, target)\n    assertSameSet(r2 & f1, target)\n    assertSameSet(f1 & l2, target)\n    target = r1 | r2\n    assertSameSet(f1 | f2, target)\n    assertSameSet(f1 | r2, target)\n    assertSameSet(r2 | f1, target)\n    assertSameSet(f1 | l2, target)\n    fwd_target = r1 - r2\n    rev_target = r2 - r1\n    assertSameSet(f1 - f2, fwd_target)\n    assertSameSet(f2 - f1, rev_target)\n    assertSameSet(f1 - r2, fwd_target)\n    assertSameSet(f2 - r1, rev_target)\n    assertSameSet(r1 - f2, fwd_target)\n    assertSameSet(r2 - f1, rev_target)\n    assertSameSet(f1 - l2, fwd_target)\n    assertSameSet(f2 - l1, rev_target)\n    target = r1 ^ r2\n    assertSameSet(f1 ^ f2, target)\n    assertSameSet(f1 ^ r2, target)\n    assertSameSet(r2 ^ f1, target)\n    assertSameSet(f1 ^ l2, target)\n    assert f1 < f3, ('assertTrue', f1 < f3)\n    assert not f1 < f1, ('assertFalse', f1 < f1)\n    assert not f1 < f2, ('assertFalse', f1 < f2)\n    assert r1 < f3, ('assertTrue', r1 < f3)\n    assert not r1 < f1, ('assertFalse', r1 < f1)\n    assert not r1 < f2, ('assertFalse', r1 < f2)\n    assert r1 < r3, ('assertTrue', r1 < r3)\n    assert not r1 < r1, ('assertFalse', r1 < r1)\n    assert not r1 < r2, ('assertFalse', r1 < r2)\n    try:\n        f1 < l3\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        f1 < l1\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        f1 < l2\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    assert f1 <= f3, ('assertTrue', f1 <= f3)\n    assert f1 <= f1, ('assertTrue', f1 <= f1)\n    assert not f1 <= f2, ('assertFalse', f1 <= f2)\n    assert r1 <= f3, ('assertTrue', r1 <= f3)\n    assert r1 <= f1, ('assertTrue', r1 <= f1)\n    assert not r1 <= f2, ('assertFalse', r1 <= f2)\n    assert r1 <= r3, ('assertTrue', r1 <= r3)\n    assert r1 <= r1, ('assertTrue', r1 <= r1)\n    assert not r1 <= r2, ('assertFalse', r1 <= r2)\n    try:\n        f1 <= l3\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        f1 <= l1\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        f1 <= l2\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    assert f3 > f1, ('assertTrue', f3 > f1)\n    assert not f1 > f1, ('assertFalse', f1 > f1)\n    assert not f2 > f1, ('assertFalse', f2 > f1)\n    assert r3 > r1, ('assertTrue', r3 > r1)\n    assert not f1 > r1, ('assertFalse', f1 > r1)\n    assert not f2 > r1, ('assertFalse', f2 > r1)\n    assert r3 > r1, ('assertTrue', r3 > r1)\n    assert not r1 > r1, ('assertFalse', r1 > r1)\n    assert not r2 > r1, ('assertFalse', r2 > r1)\n    try:\n        f1 > l3\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        f1 > l1\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        f1 > l2\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    assert f3 >= f1, ('assertTrue', f3 >= f1)\n    assert f1 >= f1, ('assertTrue', f1 >= f1)\n    assert not f2 >= f1, ('assertFalse', f2 >= f1)\n    assert r3 >= r1, ('assertTrue', r3 >= r1)\n    assert f1 >= r1, ('assertTrue', f1 >= r1)\n    assert not f2 >= r1, ('assertFalse', f2 >= r1)\n    assert r3 >= r1, ('assertTrue', r3 >= r1)\n    assert r1 >= r1, ('assertTrue', r1 >= r1)\n    assert not r2 >= r1, ('assertFalse', r2 >= r1)\n    try:\n        f1 >= l3\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        f1 >= l1\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        f1 >= l2\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    assert f1 == f1, ('assertTrue', f1 == f1)\n    assert r1 == f1, ('assertTrue', r1 == f1)\n    assert f1 == r1, ('assertTrue', f1 == r1)\n    assert not f1 == f3, ('assertFalse', f1 == f3)\n    assert not r1 == f3, ('assertFalse', r1 == f3)\n    assert not f1 == r3, ('assertFalse', f1 == r3)\n    assert not f1 == l3, ('assertFalse', f1 == l3)\n    assert not f1 == l1, ('assertFalse', f1 == l1)\n    assert not f1 == l2, ('assertFalse', f1 == l2)\n    assert not f1 != f1, ('assertFalse', f1 != f1)\n    assert not r1 != f1, ('assertFalse', r1 != f1)\n    assert not f1 != r1, ('assertFalse', f1 != r1)\n    assert f1 != f3, ('assertTrue', f1 != f3)\n    assert r1 != f3, ('assertTrue', r1 != f3)\n    assert f1 != r3, ('assertTrue', f1 != r3)\n    assert f1 != l3, ('assertTrue', f1 != l3)\n    assert f1 != l1, ('assertTrue', f1 != l1)\n    assert f1 != l2, ('assertTrue', f1 != l2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_Set_hash_matches_frozenset",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nfrom collections.abc import Set, MutableSet\n\ndef _t():\n    sets = [{}, {1}, {None}, {-1}, {0.0}, {'abc'}, {1, 2, 3}, {10 ** 100, 10 ** 101}, {'a', 'b', 'ab', ''}, {False, True}, {object(), object(), object()}, {float('nan')}, {frozenset()}, {*range(1000)}, {*range(1000)} - {100, 200, 300}, {*range(sys.maxsize - 10, sys.maxsize + 10)}]\n    for s in sets:\n        fs = frozenset(s)\n        assert hash(fs) == Set._hash(fs), ('assertEqual', hash(fs), Set._hash(fs), s)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_Mapping",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nfrom collections.abc import Mapping, MutableMapping, KeysView, ItemsView, ValuesView\n\ndef validate_abstract_methods(abc, *names):\n    methodstubs = dict.fromkeys(names, lambda s, *args: 0)\n    C = type('C', (abc,), methodstubs)\n    C()\n    for name in names:\n        stubs = methodstubs.copy()\n        del stubs[name]\n        C = type('C', (abc,), stubs)\n        try:\n            C()\n        except TypeError:\n            pass\n\ndef validate_comparison(instance):\n    ops = ['lt', 'gt', 'le', 'ge', 'ne', 'or', 'and', 'xor', 'sub']\n    operators = {}\n    for op in ops:\n        name = '__' + op + '__'\n        operators[name] = getattr(operator, name)\n\n    class Other:\n\n        def __init__(self):\n            self.right_side = False\n\n        def __eq__(self, other):\n            self.right_side = True\n            return True\n        __lt__ = __eq__\n        __gt__ = __eq__\n        __le__ = __eq__\n        __ge__ = __eq__\n        __ne__ = __eq__\n        __ror__ = __eq__\n        __rand__ = __eq__\n        __rxor__ = __eq__\n        __rsub__ = __eq__\n    for name, op in operators.items():\n        if not hasattr(instance, name):\n            continue\n        other = Other()\n        op(instance, other)\n        assert other.right_side, ('assertTrue', other.right_side)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    for sample in [dict]:\n        assert isinstance(sample(), Mapping), ('assertIsInstance', sample(), Mapping)\n        assert issubclass(sample, Mapping), ('assertIsSubclass', sample, Mapping)\n    validate_abstract_methods(Mapping, '__iter__', '__len__', '__getitem__')\n\n    class MyMapping(Mapping):\n\n        def __len__(self):\n            return 0\n\n        def __getitem__(self, i):\n            raise IndexError\n\n        def __iter__(self):\n            return iter(())\n    validate_comparison(MyMapping())\n    try:\n        reversed(*(MyMapping(),))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_MutableMapping",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Mapping, MutableMapping, KeysView, ItemsView, ValuesView\n\ndef validate_abstract_methods(abc, *names):\n    methodstubs = dict.fromkeys(names, lambda s, *args: 0)\n    C = type('C', (abc,), methodstubs)\n    C()\n    for name in names:\n        stubs = methodstubs.copy()\n        del stubs[name]\n        C = type('C', (abc,), stubs)\n        try:\n            C()\n        except TypeError:\n            pass\n\ndef _t():\n    for sample in [dict]:\n        assert isinstance(sample(), MutableMapping), ('assertIsInstance', sample(), MutableMapping)\n        assert issubclass(sample, MutableMapping), ('assertIsSubclass', sample, MutableMapping)\n    validate_abstract_methods(MutableMapping, '__iter__', '__len__', '__getitem__', '__setitem__', '__delitem__')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_MutableMapping_subclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import UserDict, UserString, UserList\nfrom collections.abc import Sized, Container, Callable, Collection\nfrom collections.abc import Set, MutableSet\nfrom collections.abc import Mapping, MutableMapping, KeysView, ItemsView, ValuesView\n\ndef _t():\n    mymap = UserDict()\n    mymap['red'] = 5\n    assert isinstance(mymap.keys(), Set), ('assertIsInstance', mymap.keys(), Set)\n    assert isinstance(mymap.keys(), KeysView), ('assertIsInstance', mymap.keys(), KeysView)\n    assert isinstance(mymap.values(), Collection), ('assertIsInstance', mymap.values(), Collection)\n    assert isinstance(mymap.values(), ValuesView), ('assertIsInstance', mymap.values(), ValuesView)\n    assert isinstance(mymap.items(), Set), ('assertIsInstance', mymap.items(), Set)\n    assert isinstance(mymap.items(), ItemsView), ('assertIsInstance', mymap.items(), ItemsView)\n    mymap = UserDict()\n    mymap['red'] = 5\n    z = mymap.keys() | {'orange'}\n    assert isinstance(z, set), ('assertIsInstance', z, set)\n    list(z)\n    mymap['blue'] = 7\n    assert sorted(z) == ['orange', 'red'], ('assertEqual', sorted(z), ['orange', 'red'])\n    mymap = UserDict()\n    mymap['red'] = 5\n    z = mymap.items() | {('orange', 3)}\n    assert isinstance(z, set), ('assertIsInstance', z, set)\n    list(z)\n    mymap['blue'] = 7\n    assert z == {('orange', 3), ('red', 5)}, ('assertEqual', z, {('orange', 3), ('red', 5)})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_Sequence",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Sequence, MutableSequence\n\ndef validate_abstract_methods(abc, *names):\n    methodstubs = dict.fromkeys(names, lambda s, *args: 0)\n    C = type('C', (abc,), methodstubs)\n    C()\n    for name in names:\n        stubs = methodstubs.copy()\n        del stubs[name]\n        C = type('C', (abc,), stubs)\n        try:\n            C()\n        except TypeError:\n            pass\n\ndef _t():\n    for sample in [tuple, list, bytes, str]:\n        assert isinstance(sample(), Sequence), ('assertIsInstance', sample(), Sequence)\n        assert issubclass(sample, Sequence), ('assertIsSubclass', sample, Sequence)\n    assert isinstance(range(10), Sequence), ('assertIsInstance', range(10), Sequence)\n    assert issubclass(range, Sequence), ('assertIsSubclass', range, Sequence)\n    assert isinstance(memoryview(b''), Sequence), ('assertIsInstance', memoryview(b''), Sequence)\n    assert issubclass(memoryview, Sequence), ('assertIsSubclass', memoryview, Sequence)\n    assert issubclass(str, Sequence), ('assertIsSubclass', str, Sequence)\n    validate_abstract_methods(Sequence, '__len__', '__getitem__')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_Sequence_mixins",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Sequence, MutableSequence\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class SequenceSubclass(Sequence):\n\n        def __init__(self, seq=()):\n            self.seq = seq\n\n        def __getitem__(self, index):\n            return self.seq[index]\n\n        def __len__(self):\n            return len(self.seq)\n\n    def assert_index_same(seq1, seq2, index_args):\n        try:\n            expected = seq1.index(*index_args)\n        except ValueError:\n            try:\n                seq2.index(*index_args)\n            except ValueError as _exc:\n                pass\n            else:\n                raise AssertionError('assertRaises: did not raise')\n        else:\n            actual = seq2.index(*index_args)\n            assert actual == expected, ('assertEqual', actual, expected)\n    for ty in (list, str):\n        nativeseq = ty('abracadabra')\n        indexes = [-10000, -9999] + list(range(-3, len(nativeseq) + 3))\n        seqseq = SequenceSubclass(nativeseq)\n        for letter in set(nativeseq) | {'z'}:\n            assert_index_same(nativeseq, seqseq, (letter,))\n            for start in range(-3, len(nativeseq) + 3):\n                assert_index_same(nativeseq, seqseq, (letter, start))\n                for stop in range(-3, len(nativeseq) + 3):\n                    assert_index_same(nativeseq, seqseq, (letter, start, stop))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_MutableSequence_mixins",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Sequence, MutableSequence\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class MutableSequenceSubclass(MutableSequence):\n\n        def __init__(self):\n            self.lst = []\n\n        def __setitem__(self, index, value):\n            self.lst[index] = value\n\n        def __getitem__(self, index):\n            return self.lst[index]\n\n        def __len__(self):\n            return len(self.lst)\n\n        def __delitem__(self, index):\n            del self.lst[index]\n\n        def insert(self, index, value):\n            self.lst.insert(index, value)\n    mss = MutableSequenceSubclass()\n    mss.append(0)\n    mss.extend((1, 2, 3, 4))\n    assert len(mss) == 5, ('assertEqual', len(mss), 5)\n    assert mss[3] == 3, ('assertEqual', mss[3], 3)\n    mss.reverse()\n    assert mss[3] == 1, ('assertEqual', mss[3], 1)\n    mss.pop()\n    assert len(mss) == 4, ('assertEqual', len(mss), 4)\n    mss.remove(3)\n    assert len(mss) == 3, ('assertEqual', len(mss), 3)\n    mss += (10, 20, 30)\n    assert len(mss) == 6, ('assertEqual', len(mss), 6)\n    assert mss[-1] == 30, ('assertEqual', mss[-1], 30)\n    mss.clear()\n    assert len(mss) == 0, ('assertEqual', len(mss), 0)\n    items = 'ABCD'\n    mss2 = MutableSequenceSubclass()\n    mss2.extend(items + items)\n    mss.clear()\n    mss.extend(items)\n    mss.extend(mss)\n    assert len(mss) == len(mss2), ('assertEqual', len(mss), len(mss2))\n    assert list(mss) == list(mss2), ('assertEqual', list(mss), list(mss2))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCollectionABCs.test_illegal_patma_flags",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections.abc import Sized, Container, Callable, Collection\nfrom collections.abc import Mapping, MutableMapping, KeysView, ItemsView, ValuesView\nfrom collections.abc import Sequence, MutableSequence\n\ndef _t():\n    try:\n\n        class Both(Collection):\n            __abc_tpflags__ = Sequence.__flags__ | Mapping.__flags__\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_basics",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\nfrom collections.abc import Mapping, MutableMapping, KeysView, ItemsView, ValuesView\n\ndef _t():\n    c = Counter('abcaba')\n    assert c == Counter({'a': 3, 'b': 2, 'c': 1}), ('assertEqual', c, Counter({'a': 3, 'b': 2, 'c': 1}))\n    assert c == Counter(a=3, b=2, c=1), ('assertEqual', c, Counter(a=3, b=2, c=1))\n    assert isinstance(c, dict), ('assertIsInstance', c, dict)\n    assert isinstance(c, Mapping), ('assertIsInstance', c, Mapping)\n    assert issubclass(Counter, dict), ('assertIsSubclass', Counter, dict)\n    assert issubclass(Counter, Mapping), ('assertIsSubclass', Counter, Mapping)\n    assert len(c) == 3, ('assertEqual', len(c), 3)\n    assert sum(c.values()) == 6, ('assertEqual', sum(c.values()), 6)\n    assert list(c.values()) == [3, 2, 1], ('assertEqual', list(c.values()), [3, 2, 1])\n    assert list(c.keys()) == ['a', 'b', 'c'], ('assertEqual', list(c.keys()), ['a', 'b', 'c'])\n    assert list(c) == ['a', 'b', 'c'], ('assertEqual', list(c), ['a', 'b', 'c'])\n    assert list(c.items()) == [('a', 3), ('b', 2), ('c', 1)], ('assertEqual', list(c.items()), [('a', 3), ('b', 2), ('c', 1)])\n    assert c['b'] == 2, ('assertEqual', c['b'], 2)\n    assert c['z'] == 0, ('assertEqual', c['z'], 0)\n    assert c.__contains__('c') == True, ('assertEqual', c.__contains__('c'), True)\n    assert c.__contains__('z') == False, ('assertEqual', c.__contains__('z'), False)\n    assert c.get('b', 10) == 2, ('assertEqual', c.get('b', 10), 2)\n    assert c.get('z', 10) == 10, ('assertEqual', c.get('z', 10), 10)\n    assert c == dict(a=3, b=2, c=1), ('assertEqual', c, dict(a=3, b=2, c=1))\n    assert repr(c) == \"Counter({'a': 3, 'b': 2, 'c': 1})\", ('assertEqual', repr(c), \"Counter({'a': 3, 'b': 2, 'c': 1})\")\n    assert c.most_common() == [('a', 3), ('b', 2), ('c', 1)], ('assertEqual', c.most_common(), [('a', 3), ('b', 2), ('c', 1)])\n    for i in range(5):\n        assert c.most_common(i) == [('a', 3), ('b', 2), ('c', 1)][:i], ('assertEqual', c.most_common(i), [('a', 3), ('b', 2), ('c', 1)][:i])\n    assert ''.join(c.elements()) == 'aaabbc', ('assertEqual', ''.join(c.elements()), 'aaabbc')\n    c['a'] += 1\n    c['b'] -= 2\n    del c['c']\n    del c['c']\n    c['d'] -= 2\n    c['e'] = -5\n    c['f'] += 4\n    assert c == dict(a=4, b=0, d=-2, e=-5, f=4), ('assertEqual', c, dict(a=4, b=0, d=-2, e=-5, f=4))\n    assert ''.join(c.elements()) == 'aaaaffff', ('assertEqual', ''.join(c.elements()), 'aaaaffff')\n    assert c.pop('f') == 4, ('assertEqual', c.pop('f'), 4)\n    assert 'f' not in c, ('assertNotIn', 'f', c)\n    for i in range(3):\n        elem, cnt = c.popitem()\n        assert elem not in c, ('assertNotIn', elem, c)\n    c.clear()\n    assert c == {}, ('assertEqual', c, {})\n    assert repr(c) == 'Counter()', ('assertEqual', repr(c), 'Counter()')\n    try:\n        Counter.fromkeys(*('abc',))\n    except NotImplementedError:\n        pass\n    try:\n        hash(*(c,))\n    except TypeError:\n        pass\n    c.update(dict(a=5, b=3))\n    c.update(c=1)\n    c.update(Counter('a' * 50 + 'b' * 30))\n    c.update()\n    c.__init__('a' * 500 + 'b' * 300)\n    c.__init__('cdc')\n    c.__init__()\n    assert c == dict(a=555, b=333, c=3, d=1), ('assertEqual', c, dict(a=555, b=333, c=3, d=1))\n    assert c.setdefault('d', 5) == 1, ('assertEqual', c.setdefault('d', 5), 1)\n    assert c['d'] == 1, ('assertEqual', c['d'], 1)\n    assert c.setdefault('e', 5) == 5, ('assertEqual', c.setdefault('e', 5), 5)\n    assert c['e'] == 5, ('assertEqual', c['e'], 5)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_update_reentrant_add_clears_counter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    c = Counter()\n    key = object()\n\n    class Evil(int):\n\n        def __add__(self, other):\n            c.clear()\n            return NotImplemented\n    c[key] = Evil()\n    c.update([key])\n    assert c[key] == 1, ('assertEqual', c[key], 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_init",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    assert list(Counter(self=42).items()) == [('self', 42)], ('assertEqual', list(Counter(self=42).items()), [('self', 42)])\n    assert list(Counter(iterable=42).items()) == [('iterable', 42)], ('assertEqual', list(Counter(iterable=42).items()), [('iterable', 42)])\n    assert list(Counter(iterable=None).items()) == [('iterable', None)], ('assertEqual', list(Counter(iterable=None).items()), [('iterable', None)])\n    try:\n        Counter(*(42,))\n    except TypeError:\n        pass\n    try:\n        Counter(*((), ()))\n    except TypeError:\n        pass\n    try:\n        Counter.__init__()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_total",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    c = Counter(a=10, b=5, c=0)\n    assert c.total() == 15, ('assertEqual', c.total(), 15)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_order_preservation",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    assert list(Counter('abracadabra').items()) == [('a', 5), ('b', 2), ('r', 2), ('c', 1), ('d', 1)], ('assertEqual', list(Counter('abracadabra').items()), [('a', 5), ('b', 2), ('r', 2), ('c', 1), ('d', 1)])\n    assert list(Counter('xyzpdqqdpzyx').items()) == [('x', 2), ('y', 2), ('z', 2), ('p', 2), ('d', 2), ('q', 2)], ('assertEqual', list(Counter('xyzpdqqdpzyx').items()), [('x', 2), ('y', 2), ('z', 2), ('p', 2), ('d', 2), ('q', 2)])\n    assert list(Counter('abracadabra simsalabim').elements()) == ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'b', 'b', 'b', 'r', 'r', 'c', 'd', ' ', 's', 's', 'i', 'i', 'm', 'm', 'l'], ('assertEqual', list(Counter('abracadabra simsalabim').elements()), ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'b', 'b', 'b', 'r', 'r', 'c', 'd', ' ', 's', 's', 'i', 'i', 'm', 'm', 'l'])\n    ps = 'aaabbcdddeefggghhijjjkkl'\n    qs = 'abbcccdeefffhkkllllmmnno'\n    order = {letter: i for i, letter in enumerate(dict.fromkeys(ps + qs))}\n\n    def correctly_ordered(seq):\n        \"\"\"Return true if the letters occur in the expected order\"\"\"\n        positions = [order[letter] for letter in seq]\n        return positions == sorted(positions)\n    p, q = (Counter(ps), Counter(qs))\n    assert correctly_ordered(+p), ('assertTrue', correctly_ordered(+p))\n    assert correctly_ordered(-p), ('assertTrue', correctly_ordered(-p))\n    assert correctly_ordered(p + q), ('assertTrue', correctly_ordered(p + q))\n    assert correctly_ordered(p - q), ('assertTrue', correctly_ordered(p - q))\n    assert correctly_ordered(p | q), ('assertTrue', correctly_ordered(p | q))\n    assert correctly_ordered(p & q), ('assertTrue', correctly_ordered(p & q))\n    p, q = (Counter(ps), Counter(qs))\n    p += q\n    assert correctly_ordered(p), ('assertTrue', correctly_ordered(p))\n    p, q = (Counter(ps), Counter(qs))\n    p -= q\n    assert correctly_ordered(p), ('assertTrue', correctly_ordered(p))\n    p, q = (Counter(ps), Counter(qs))\n    p |= q\n    assert correctly_ordered(p), ('assertTrue', correctly_ordered(p))\n    p, q = (Counter(ps), Counter(qs))\n    p &= q\n    assert correctly_ordered(p), ('assertTrue', correctly_ordered(p))\n    p, q = (Counter(ps), Counter(qs))\n    p.update(q)\n    assert correctly_ordered(p), ('assertTrue', correctly_ordered(p))\n    p, q = (Counter(ps), Counter(qs))\n    p.subtract(q)\n    assert correctly_ordered(p), ('assertTrue', correctly_ordered(p))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_update",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    c = Counter()\n    c.update(self=42)\n    assert list(c.items()) == [('self', 42)], ('assertEqual', list(c.items()), [('self', 42)])\n    c = Counter()\n    c.update(iterable=42)\n    assert list(c.items()) == [('iterable', 42)], ('assertEqual', list(c.items()), [('iterable', 42)])\n    c = Counter()\n    c.update(iterable=None)\n    assert list(c.items()) == [('iterable', None)], ('assertEqual', list(c.items()), [('iterable', None)])\n    try:\n        Counter().update(*(42,))\n    except TypeError:\n        pass\n    try:\n        Counter().update(*({}, {}))\n    except TypeError:\n        pass\n    try:\n        Counter.update()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_copying",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import copy\nimport pickle\nfrom collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    words = Counter('which witch had which witches wrist watch'.split())\n\n    def check(dup):\n        msg = '\\ncopy: %s\\nwords: %s' % (dup, words)\n        assert dup is not words, ('assertIsNot', dup, words)\n        assert dup == words, ('assertEqual', dup, words)\n    check(words.copy())\n    check(copy.copy(words))\n    check(copy.deepcopy(words))\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        check(pickle.loads(pickle.dumps(words, proto)))\n    check(eval(repr(words)))\n    update_test = Counter()\n    update_test.update(words)\n    check(update_test)\n    check(Counter(words))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_copy_subclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n\n    class MyCounter(Counter):\n        pass\n    c = MyCounter('slartibartfast')\n    d = c.copy()\n    assert d == c, ('assertEqual', d, c)\n    assert len(d) == len(c), ('assertEqual', len(d), len(c))\n    assert type(d) == type(c), ('assertEqual', type(d), type(c))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_conversions",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    s = 'she sells sea shells by the sea shore'\n    assert sorted(Counter(s).elements()) == sorted(s), ('assertEqual', sorted(Counter(s).elements()), sorted(s))\n    assert sorted(Counter(s)) == sorted(set(s)), ('assertEqual', sorted(Counter(s)), sorted(set(s)))\n    assert dict(Counter(s)) == dict(Counter(s).items()), ('assertEqual', dict(Counter(s)), dict(Counter(s).items()))\n    assert set(Counter(s)) == set(s), ('assertEqual', set(Counter(s)), set(s))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_invariant_for_the_in_operator",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    c = Counter(a=10, b=-2, c=0)\n    for elem in c:\n        assert elem in c, ('assertTrue', elem in c)\n        assert elem in c, ('assertIn', elem, c)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_multiset_operations",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from random import choice, randrange\nfrom collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    c = Counter(a=10, b=-2, c=0) + Counter()\n    assert dict(c) == dict(a=10), ('assertEqual', dict(c), dict(a=10))\n    elements = 'abcd'\n    for i in range(1000):\n        p = Counter(dict(((elem, randrange(-2, 4)) for elem in elements)))\n        p.update(e=1, f=-1, g=0)\n        q = Counter(dict(((elem, randrange(-2, 4)) for elem in elements)))\n        q.update(h=1, i=-1, j=0)\n        for counterop, numberop in [(Counter.__add__, lambda x, y: max(0, x + y)), (Counter.__sub__, lambda x, y: max(0, x - y)), (Counter.__or__, lambda x, y: max(0, x, y)), (Counter.__and__, lambda x, y: max(0, min(x, y)))]:\n            result = counterop(p, q)\n            for x in elements:\n                assert numberop(p[x], q[x]) == result[x], ('assertEqual', numberop(p[x], q[x]), result[x])\n            assert (x > 0 for x in result.values()), ('assertTrue', (x > 0 for x in result.values()))\n    elements = 'abcdef'\n    for i in range(100):\n        p = Counter(dict(((elem, randrange(0, 2)) for elem in elements)))\n        q = Counter(dict(((elem, randrange(0, 2)) for elem in elements)))\n        for counterop, setop in [(Counter.__sub__, set.__sub__), (Counter.__or__, set.__or__), (Counter.__and__, set.__and__)]:\n            counter_result = counterop(p, q)\n            set_result = setop(set(p.elements()), set(q.elements()))\n            assert counter_result == dict.fromkeys(set_result, 1), ('assertEqual', counter_result, dict.fromkeys(set_result, 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_inplace_operations",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from random import choice, randrange\nfrom collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    elements = 'abcd'\n    for i in range(1000):\n        p = Counter(dict(((elem, randrange(-2, 4)) for elem in elements)))\n        p.update(e=1, f=-1, g=0)\n        q = Counter(dict(((elem, randrange(-2, 4)) for elem in elements)))\n        q.update(h=1, i=-1, j=0)\n        for inplace_op, regular_op in [(Counter.__iadd__, Counter.__add__), (Counter.__isub__, Counter.__sub__), (Counter.__ior__, Counter.__or__), (Counter.__iand__, Counter.__and__)]:\n            c = p.copy()\n            c_id = id(c)\n            regular_result = regular_op(c, q)\n            inplace_result = inplace_op(c, q)\n            assert inplace_result == regular_result, ('assertEqual', inplace_result, regular_result)\n            assert id(inplace_result) == c_id, ('assertEqual', id(inplace_result), c_id)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_subtract",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    c = Counter(a=-5, b=0, c=5, d=10, e=15, g=40)\n    c.subtract(a=1, b=2, c=-3, d=10, e=20, f=30, h=-50)\n    assert c == Counter(a=-6, b=-2, c=8, d=0, e=-5, f=-30, g=40, h=50), ('assertEqual', c, Counter(a=-6, b=-2, c=8, d=0, e=-5, f=-30, g=40, h=50))\n    c = Counter(a=-5, b=0, c=5, d=10, e=15, g=40)\n    c.subtract(Counter(a=1, b=2, c=-3, d=10, e=20, f=30, h=-50))\n    assert c == Counter(a=-6, b=-2, c=8, d=0, e=-5, f=-30, g=40, h=50), ('assertEqual', c, Counter(a=-6, b=-2, c=8, d=0, e=-5, f=-30, g=40, h=50))\n    c = Counter('aaabbcd')\n    c.subtract('aaaabbcce')\n    assert c == Counter(a=-1, b=0, c=-1, d=1, e=-1), ('assertEqual', c, Counter(a=-1, b=0, c=-1, d=1, e=-1))\n    c = Counter()\n    c.subtract(self=42)\n    assert list(c.items()) == [('self', -42)], ('assertEqual', list(c.items()), [('self', -42)])\n    c = Counter()\n    c.subtract(iterable=42)\n    assert list(c.items()) == [('iterable', -42)], ('assertEqual', list(c.items()), [('iterable', -42)])\n    try:\n        Counter().subtract(*(42,))\n    except TypeError:\n        pass\n    try:\n        Counter().subtract(*({}, {}))\n    except TypeError:\n        pass\n    try:\n        Counter.subtract()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_unary",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    c = Counter(a=-5, b=0, c=5, d=10, e=15, g=40)\n    assert dict(+c) == dict(c=5, d=10, e=15, g=40), ('assertEqual', dict(+c), dict(c=5, d=10, e=15, g=40))\n    assert dict(-c) == dict(a=5), ('assertEqual', dict(-c), dict(a=5))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_repr_nonsortable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    c = Counter(a=2, b=None)\n    r = repr(c)\n    assert \"'a': 2\" in r, ('assertIn', \"'a': 2\", r)\n    assert \"'b': None\" in r, ('assertIn', \"'b': None\", r)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_helper_function",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\nclass CounterSubclassWithSetItem(Counter):\n\n    def __init__(self, *args, **kwds):\n        self.called = False\n        Counter.__init__(self, *args, **kwds)\n\n    def __setitem__(self, key, value):\n        self.called = True\n        Counter.__setitem__(self, key, value)\n\nclass CounterSubclassWithGet(Counter):\n\n    def __init__(self, *args, **kwds):\n        self.called = False\n        Counter.__init__(self, *args, **kwds)\n\n    def get(self, key, default):\n        self.called = True\n        return Counter.get(self, key, default)\n\ndef _t():\n    elems = list('abracadabra')\n    d = dict()\n    _count_elements(d, elems)\n    assert d == {'a': 5, 'r': 2, 'b': 2, 'c': 1, 'd': 1}, ('assertEqual', d, {'a': 5, 'r': 2, 'b': 2, 'c': 1, 'd': 1})\n    m = OrderedDict()\n    _count_elements(m, elems)\n    assert m == OrderedDict([('a', 5), ('b', 2), ('r', 2), ('c', 1), ('d', 1)]), ('assertEqual', m, OrderedDict([('a', 5), ('b', 2), ('r', 2), ('c', 1), ('d', 1)]))\n    c = CounterSubclassWithSetItem('abracadabra')\n    assert c.called, ('assertTrue', c.called)\n    assert dict(c) == {'a': 5, 'b': 2, 'c': 1, 'd': 1, 'r': 2}, ('assertEqual', dict(c), {'a': 5, 'b': 2, 'c': 1, 'd': 1, 'r': 2})\n    c = CounterSubclassWithGet('abracadabra')\n    assert c.called, ('assertTrue', c.called)\n    assert dict(c) == {'a': 5, 'b': 2, 'c': 1, 'd': 1, 'r': 2}, ('assertEqual', dict(c), {'a': 5, 'b': 2, 'c': 1, 'd': 1, 'r': 2})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_multiset_operations_equivalent_to_set_operations",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from itertools import product, chain, combinations\nfrom collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    s = list(product(('a', 'b', 'c'), range(2)))\n    powerset = chain.from_iterable((combinations(s, r) for r in range(len(s) + 1)))\n    counters = [Counter(dict(groups)) for groups in powerset]\n    for cp, cq in product(counters, repeat=2):\n        sp = set(cp.elements())\n        sq = set(cq.elements())\n        assert set(cp + cq) == sp | sq, ('assertEqual', set(cp + cq), sp | sq)\n        assert set(cp - cq) == sp - sq, ('assertEqual', set(cp - cq), sp - sq)\n        assert set(cp | cq) == sp | sq, ('assertEqual', set(cp | cq), sp | sq)\n        assert set(cp & cq) == sp & sq, ('assertEqual', set(cp & cq), sp & sq)\n        assert (cp == cq) == (sp == sq), ('assertEqual', (cp == cq), (sp == sq))\n        assert (cp != cq) == (sp != sq), ('assertEqual', (cp != cq), (sp != sq))\n        assert (cp <= cq) == (sp <= sq), ('assertEqual', (cp <= cq), (sp <= sq))\n        assert (cp >= cq) == (sp >= sq), ('assertEqual', (cp >= cq), (sp >= sq))\n        assert (cp < cq) == (sp < sq), ('assertEqual', (cp < cq), (sp < sq))\n        assert (cp > cq) == (sp > sq), ('assertEqual', (cp > cq), (sp > sq))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_eq",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    assert Counter(a=3, b=2, c=0) == Counter('ababa'), ('assertEqual', Counter(a=3, b=2, c=0), Counter('ababa'))\n    assert Counter(a=3, b=2) != Counter('babab'), ('assertNotEqual', Counter(a=3, b=2), Counter('babab'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_le",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    assert Counter(a=3, b=2, c=0) <= Counter('ababa'), ('assertTrue', Counter(a=3, b=2, c=0) <= Counter('ababa'))\n    assert not Counter(a=3, b=2) <= Counter('babab'), ('assertFalse', Counter(a=3, b=2) <= Counter('babab'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_lt",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    assert Counter(a=3, b=1, c=0) < Counter('ababa'), ('assertTrue', Counter(a=3, b=1, c=0) < Counter('ababa'))\n    assert not Counter(a=3, b=2, c=0) < Counter('ababa'), ('assertFalse', Counter(a=3, b=2, c=0) < Counter('ababa'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_ge",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    assert Counter(a=2, b=1, c=0) >= Counter('aab'), ('assertTrue', Counter(a=2, b=1, c=0) >= Counter('aab'))\n    assert not Counter(a=3, b=2, c=0) >= Counter('aabd'), ('assertFalse', Counter(a=3, b=2, c=0) >= Counter('aabd'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCounter.test_gt",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import namedtuple, Counter, OrderedDict, _count_elements\n\ndef _t():\n    assert Counter(a=3, b=2, c=0) > Counter('aab'), ('assertTrue', Counter(a=3, b=2, c=0) > Counter('aab'))\n    assert not Counter(a=2, b=1, c=0) > Counter('aab'), ('assertFalse', Counter(a=2, b=1, c=0) > Counter('aab'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestNamedTuple.test_factory_doc_attr",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestNamedTuple.test_field_doc",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TestNamedTuple.test_field_doc_reuse",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "TestNamedTuple.test_field_repr",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "TestNamedTuple.test_large_size",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "ident": "TestNamedTuple.test_field_descriptor",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Awaitable",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Coroutine",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Hashable",
+      "reason": "helper:validate_isinstance(self.assertNotIsInstance)"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_AsyncIterable",
+      "reason": "helper:validate_isinstance(self.assertNotIsInstance)"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_AsyncIterator",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Iterable",
+      "reason": "helper:validate_isinstance(self.assertNotIsInstance)"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Reversible",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Collection",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Iterator",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Generator",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_AsyncGenerator",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Sized",
+      "reason": "helper:validate_isinstance(self.assertNotIsInstance)"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Container",
+      "reason": "helper:validate_isinstance(self.assertNotIsInstance)"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_Callable",
+      "reason": "helper:validate_isinstance(self.assertNotIsInstance)"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_direct_subclassing",
+      "reason": "self.assertNotIsSubclass"
+    },
+    {
+      "ident": "TestOneTrickPonyABCs.test_registration",
+      "reason": "self.assertNotIsSubclass"
+    },
+    {
+      "ident": "TestCollectionABCs.test_hash_Set",
+      "reason": "uses-self._hash"
+    },
+    {
+      "ident": "TestCollectionABCs.test_MutableSet",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestCollectionABCs.test_ByteString",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestCollectionABCs.test_Buffer",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "TestCollectionABCs.test_MutableSequence",
+      "reason": "self.assertNotIsInstance"
+    }
+  ],
+  "counts": {
+    "extracted": 101,
+    "pinned": 72,
+    "quarantined": 29
+  }
+}
