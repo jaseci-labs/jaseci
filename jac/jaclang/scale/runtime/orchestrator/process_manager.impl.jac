@@ -136,7 +136,7 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
     port = self._assign_port(`entry);
 
     import from jaclang.scale.runtime.context.util { jac_executable }
-    import from jaclang.runtimelib.sv_client { headless_start_args, peer_url_env_key }
+    import from jaclang.server.sv_client { headless_start_args, peer_url_env_key }
     jac_bin: str = jac_executable();
 
     cmd = [jac_bin] + headless_start_args(`entry.file, port);
@@ -175,7 +175,7 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
         _write_pidfile(name, proc.pid);
         _write_portfile(name, port);
 
-        import from jaclang.runtimelib { sv_client }
+        import from jaclang.server { sv_client }
         sv_client.register(name, `entry.url);
 
         logger.info(f"Started {name} (pid={proc.pid}, port={port})");
@@ -202,12 +202,13 @@ impl ServiceProcessManager.start_all -> None {
         self.start_service(name);
         `entry = self.registry.entries[name];
         proc = self.processes.get(name);
-        if proc and `entry.url {
+        if proc is not None and `entry.url {
+            live: subprocess.Popen = proc;
             ok = wait_for_health(
-                `entry.url, lambda { proc.poll() is None; }, timeout=timeout
+                `entry.url, lambda { live.poll() is None; }, timeout=timeout
             );
             if not ok {
-                exit_code = proc.poll();
+                exit_code = live.poll();
                 if exit_code is not None {
                     `entry.status = ServiceStatus.STOPPED;
                     `entry.pid = None;
@@ -286,7 +287,7 @@ impl ServiceProcessManager.stop_service(name: str) -> bool {
         `entry.pid = None;
     }
 
-    import from jaclang.runtimelib { sv_client }
+    import from jaclang.server { sv_client }
     sv_client.unregister(name);
 
     logger.info(f"Stopped {name}");

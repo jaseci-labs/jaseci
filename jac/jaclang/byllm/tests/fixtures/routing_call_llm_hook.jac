@@ -7,7 +7,7 @@ as it is for regular `by llm` calls. This fixture temporarily wraps
 times it fired.
 """
 
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
 import from jaclang.byllm.lib { MockLLM }
 import from jaclang.byllm.types { CompletionResult }
 import from jaclang.byllm.mtir { MTRuntime }
@@ -41,13 +41,14 @@ walker router {
     }
 }
 
-with entry {
-    _orig_call_llm = Jac.call_llm;
+glob _orig_call_llm = Jac.call_llm;
 
-    def _counting_call_llm(model: object, mt_run: MTRuntime) -> object {
-        hook_calls.append(1);
-        return _orig_call_llm(model, mt_run);
-    }
+def _counting_call_llm(model: any, mt_run: MTRuntime) -> any {
+    hook_calls.append(1);
+    return _orig_call_llm(model, mt_run);
+}
+
+with entry {
     Jac.call_llm = _counting_call_llm;
     try {
         desk = root ++> Desk();

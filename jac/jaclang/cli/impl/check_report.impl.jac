@@ -77,9 +77,9 @@ def _coverage_relpath(path: str) -> str {
     }
 }
 
-impl print_native_coverage(coverage: dict) -> None {
+impl print_native_coverage(coverage: dict[str, dict[str, any]]) -> None {
     import from jaclang.cli.console { console }
-    import from jaclang.jac0core.codeinfo { effective_default_codespace }
+    import from jaclang.compiler.frontend.codeinfo { effective_default_codespace }
     console.print("");
     console.print(separator("native coverage"));
     console.print(f"default codespace: {effective_default_codespace()}");
@@ -125,7 +125,7 @@ impl print_native_coverage(coverage: dict) -> None {
     if demoted {
         console.print("");
         console.print("demotions (ranked by first error code):");
-        by_code: dict[str, list] = {};
+        by_code: dict[str, list[tuple[str, dict[str, any]]]] = {};
         for (p, rec) in demoted {
             by_code.setdefault(rec['code'] or '<uncoded>', []).append((p, rec));
         }
@@ -145,7 +145,7 @@ impl print_native_coverage(coverage: dict) -> None {
     if server {
         console.print("");
         console.print("server modules (ranked by classifier signal):");
-        by_reason: dict[str, list] = {};
+        by_reason: dict[str, list[str]] = {};
         for (p, rec) in server {
             by_reason.setdefault(rec['detail'] or '<unknown>', []).append(p);
         }
@@ -176,7 +176,7 @@ impl print_native_coverage(coverage: dict) -> None {
     }
 }
 
-impl print_placement_report(rows_by_module: dict) -> None {
+impl print_placement_report(rows_by_module: dict[str, dict[str, any]]) -> None {
     import from jaclang.cli.console { console }
     console.print("");
     console.print(separator("placements"));
@@ -215,7 +215,7 @@ impl print_placement_report(rows_by_module: dict) -> None {
         console.print("");
         console.print(rel + suffix);
         for row in `entry['rows'] {
-            row_space = row['space'];
+            row_space: str = row['space'];
             if row['dual'] {
                 row_space = row_space + ' (dual)';
             }
@@ -232,7 +232,7 @@ impl print_placement_report(rows_by_module: dict) -> None {
 
 impl print_compile_stats -> None {
     import from jaclang.cli.console { console }
-    import from jaclang.jac0core.prefix_flip {
+    import from jaclang.compiler.placement.prefix_flip {
         prefix_clause_help,
         prefix_fallbacks_by_clause,
         prefix_report_lines,

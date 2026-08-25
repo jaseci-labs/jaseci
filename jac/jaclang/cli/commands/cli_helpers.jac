@@ -12,7 +12,7 @@ def flatten_append(groups: list | None) -> list | None {
 
 
 def proc_file(filename: str) -> tuple {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     (base, mod) = os.path.split(filename);
     base = base or './';
     if not (is_jac(filename) or is_python(filename)) {

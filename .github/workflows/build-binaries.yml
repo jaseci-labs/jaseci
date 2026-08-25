@@ -168,11 +168,11 @@ jobs:
         id: shim-cache
         uses: actions/cache@v4
         with:
-          path: jac/jaclang/compiler/passes/native/llvm/libjacllvm.*
-          key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/launcher/llvm_release.zig') }}
+          path: jac/jaclang/compiler/backends/native/llvm/libjacllvm.*
+          key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
 
-      # Keyed on llvm_release.zig to match the entries setup-jac seeds (the
-      # old release-dev key hashed payload.zig, so it never matched them and
+      # Keyed on bootstrap/pins.json to match the entries setup-jac seeds (the
+      # old release-dev key hashed the payload tool, so it never matched them and
       # duplicated the ~0.5 GB tree into the cache pool).
       - name: Restore cached LLVM (dev channel)
         if: inputs.channel == 'dev' && steps.shim-cache.outputs.cache-hit != 'true'
@@ -180,10 +180,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.llvm-build
-          key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/llvm_release.zig') }}
+          key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/bootstrap/pins.json') }}
 
       # Identity of the compiler this build runs, as git blob ids over the same
-      # file set jir.jac hashes for its module keys (jaclang.jac0core.jir:
+      # file set jir.jac hashes for its module keys (jaclang.compiler.driver.jir:
       # COMPILER_DIGEST_ROOTS, .jac/.py only, test material excluded). Same
       # rule as the step in .github/actions/setup-jac, which seeds the entries
       # this leg reads; keep the three in lockstep.
@@ -194,14 +194,20 @@ jobs:
         run: |
           list="$(git ls-tree -r HEAD -- \
             jac/jaclang/jac0.py \
+            jac/jaclang/bootstrap_manifest.py \
+            jac/jaclang/meta_importer.py \
             jac/jaclang/jac0core \
             jac/jaclang/compiler \
-            jac/jaclang/utils/precompile_bytecode.jac \
+            jac/jaclang/runtime \
+            jac/jaclang/lib \
+            jac/jaclang/cli/cli_boot.jac \
+            jac/jaclang/project/tomlio.jac \
+            jac/jaclang/dist/precompile_bytecode.jac \
             | grep -E '\.(jac|py)$' \
             | grep -vE '(^|/)(tests|test)/|\.test\.jac$' || true)"
           n="$(printf '%s\n' "$list" | grep -c . || true)"
           if [ "$n" -lt 100 ]; then
-            echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/jac0core/jir.jac together."
+            echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/compiler/driver/jir.jac together."
             exit 1
           fi
           fp="$(printf '%s\n' "$list" | git hash-object --stdin)"
@@ -236,14 +242,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.pbs-build
-          key: pbs-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/payload.zig') }}
+          key: pbs-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/bootstrap/pins.json') }}
 
       - name: Restore cached bun runtime (dev channel)
         if: inputs.channel == 'dev'
         uses: actions/cache@v4
         with:
           path: jac/.bun-build
-          key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
+          key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/client/bun_installer.jac') }}
 
       # The payload's compressed deps-layer frame (mkpayload --layer-cache):
       # content-addressed and verified by decompress + byte-compare before
@@ -254,7 +260,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.payload-layers
-          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/editor/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/backends/native/wasm_rt/**') }}
           restore-keys: |
             payload-layers-${{ runner.os }}-${{ runner.arch }}-
 
@@ -273,7 +279,7 @@ jobs:
         id: shim-fetch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHIM_KEY: ${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/launcher/llvm_release.zig') }}
+          SHIM_KEY: ${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
         run: |
           set -euo pipefail
           EXT=so
@@ -293,15 +299,15 @@ jobs:
           fi
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
-      # The Zig package store (.zig-cache/p): the neovim fork + its transitive
-      # PUC Lua source off lua.org's FTP (the build's flakiest fetch), mini.nvim,
-      # tree-sitter-jac, etc. Content-addressed source packages -- immutable, so
-      # (unlike the payload-artifact caches above, kept dev-only to avoid
-      # shipping stale bits) this is safe on BOTH channels, and a release is
-      # exactly when a lua.org blip must not fail the build. Same key as
-      # setup-jac so the Linux-x86_64 leg reuses the entry main seeds; a cross
-      # -Dtarget build fetches the same source, so os/arch is the right axis.
-      - name: Cache the Zig package store (avoids re-fetching Lua/neovim deps)
+      # The Zig package store (.zig-cache/p): every git/tarball dependency
+      # `zig build` fetches, as pinned by build.zig.zon. Content-addressed
+      # source packages -- immutable, so (unlike the payload-artifact caches
+      # above, kept dev-only to avoid shipping stale bits) this is safe on BOTH
+      # channels, and a release is exactly when an upstream fetch blip must not
+      # fail the build. Same key as setup-jac so the Linux-x86_64 leg reuses the
+      # entry main seeds; a cross -Dtarget build fetches the same source, so
+      # os/arch is the right axis.
+      - name: Cache the Zig package store (avoids re-fetching zon deps)
         uses: actions/cache@v4
         with:
           path: .zig-cache/p
@@ -435,7 +441,7 @@ jobs:
           SHIM_ARG=()
           if [ "${{ steps.shim-cache.outputs.cache-hit }}" = "true" ]; then
             mkdir -p .shim-build
-            cp jaclang/compiler/passes/native/llvm/libjacllvm.* .shim-build/
+            cp jaclang/compiler/backends/native/llvm/libjacllvm.* .shim-build/
             SHIM_ARG=(-Dshim-bin=".shim-build/$(ls .shim-build | head -1)")
           elif [ "${{ steps.shim-fetch.outputs.hit }}" = "true" ]; then
             SHIM_ARG=(-Dshim-bin="${{ steps.shim-fetch.outputs.file }}")
@@ -639,7 +645,7 @@ jobs:
             fi
           }
           check zig-out/bin/jac
-          SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.so"
+          SHIM="jaclang/compiler/backends/native/llvm/libjacllvm.so"
           [ -f "$SHIM" ] || zig build jacllvm -Dtarget=${{ matrix.zig_target }} --summary all
           [ -f "$SHIM" ] || SHIM="zig-out/lib/libjacllvm.so"
           check "$SHIM"
@@ -677,7 +683,7 @@ jobs:
             fi
           }
           check zig-out/bin/jac
-          SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.dylib"
+          SHIM="jaclang/compiler/backends/native/llvm/libjacllvm.dylib"
           check "$SHIM"
           if otool -L "$SHIM" | grep -E "/opt/homebrew|/usr/local"; then
             echo "::error::$SHIM links Homebrew dylibs; the from-source slice must not."; exit 1
@@ -713,7 +719,7 @@ jobs:
           set -euo pipefail
           ASSET="${{ steps.shim-fetch.outputs.asset }}"
           mkdir -p dist-shim
-          cp jac/jaclang/compiler/passes/native/llvm/libjacllvm.* "dist-shim/$ASSET"
+          cp jac/jaclang/compiler/backends/native/llvm/libjacllvm.* "dist-shim/$ASSET"
           ( cd dist-shim && shasum -a 256 "$ASSET" > "$ASSET.sha256" )
           gh release create deps --repo "$GITHUB_REPOSITORY" --prerelease \
             --title "Prebuilt build dependencies (rolling)" \
@@ -816,7 +822,7 @@ jobs:
           # The admin console is a pure client app; its client bundle is
           # type-checked by the client toolchain during `build`. Skip the
           # whole-program gate, which applies native rules to `.cl.jac` code.
-          ( cd jac/jaclang/scale/admin/ui && "$BIN" build main.jac --no_typecheck )
+          ( cd jac/jaclang/scale/admin/ui && "$BIN" build main.jac )
           DIST=jac/jaclang/scale/admin/ui/.jac/client/dist
           test -f "$DIST/index.html"
           mkdir -p dist

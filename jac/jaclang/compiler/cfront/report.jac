@@ -7,7 +7,7 @@ JSON provenance artifact for re-lifts, project aggregates, and the AI loop.
 import json;
 import os;
 import from jaclang.compiler.cfront.fidelity { band_of_code }
-import from jaclang.compiler.passes.main.cast_load_pass { CLiftSite }
+import from jaclang.compiler.passes.cast_load_pass { CLiftSite }
 
 obj C2JacReport {
     has version: int = 1,

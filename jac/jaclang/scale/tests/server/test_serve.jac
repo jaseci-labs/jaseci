@@ -12,7 +12,7 @@ import time;
 import uuid;
 import shutil;
 import requests;
-import from jaclang.runtimelib.serving.authcrypt {
+import from jaclang.server.serving.authcrypt {
     jwt_decode as _jwt_decode,
     jwt_encode as _jwt_encode
 }
@@ -27,6 +27,10 @@ import from jaclang.scale.tests.server_support {
     get_free_port,
     _cleanup_db_files,
     _extract_transport_response_data
+}
+
+def _as_any(v: any) -> any {
+    return v;
 }
 
 def register_payload(username: str, password: str) -> dict[str, any] {
@@ -69,10 +73,11 @@ def _start_server(
 ) -> subprocess.Popen {
     cmd = [
         jac_executable(),
-        "start",
-        test_file.name if not extra_args else str(test_file),
+        "run",
+        "--serve",
         "--port",
-        str(port)
+        str(port),
+        test_file.name if not extra_args else str(test_file)
     ];
     if extra_args {
         cmd.extend(extra_args);
@@ -205,7 +210,9 @@ test "static and schema endpoints" {
         assert "cross-origin-embedder-policy" in response.headers;
         assert response.headers["cross-origin-embedder-policy"] == "require-corp";
 
-        openapi_spec = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        openapi_spec = srv.server.app.openapi();
         paths = openapi_spec.get("paths", {});
 
         assert "/user/refresh-token" in paths;
@@ -1193,7 +1200,7 @@ test "user management operations" {
 }
 
 test "websocket functionality" {
-    import from jaclang.runtimelib.serving.client { aws_connect }
+    import from jaclang.server.serving.client { aws_connect }
     sp = setup_serve_server();
     try {
         async def test_echo {
@@ -1533,13 +1540,14 @@ def setup_dev_mode_server -> subprocess.Popen {
 
     cmd = [
         jac_executable(),
-        "start",
-        str(dm_test_file),
+        "run",
+        "--serve",
         "--port",
         str(dm_vite_port),
-        "--api_port",
+        "--api-port",
         str(dm_api_port),
-        "--dev"
+        "--dev",
+        str(dm_test_file)
     ];
 
     server_process = subprocess.Popen(
@@ -1739,7 +1747,7 @@ test "dev mode operations" {
         content = "";
         for chunk in response.iter_content(chunk_size=1024, decode_unicode=True) {
             if chunk {
-                content += chunk;
+                content += _as_any(chunk);
             }
         }
 
@@ -1767,7 +1775,7 @@ test "dev mode operations" {
         content = "";
         for chunk in response.iter_content(chunk_size=1024, decode_unicode=True) {
             if chunk {
-                content += chunk;
+                content += _as_any(chunk);
             }
         }
 
@@ -1958,7 +1966,14 @@ test "server startup - port fallback integration" {
         response = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
         assert response.status_code == 200 , "First server should be running";
 
-        cmd = [jac_executable(), "start", sv_test_file.name, "--port", str(port1)];
+        cmd = [
+            jac_executable(),
+            "run",
+            "--serve",
+            "--port",
+            str(port1),
+            sv_test_file.name
+        ];
 
         sp2 = subprocess.Popen(
             cmd,
@@ -2046,7 +2061,7 @@ test "health check filter is disabled by default" {
 test "health check filter suppresses health endpoint log records" {
     import logging;
     import from jaclang.scale.server.native_server { HealthCheckFilter }
-    import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME }
+    import from jaclang.server.serving.server { ACCESS_LOGGER_NAME }
 
     def make_record(msg: str) -> logging.LogRecord {
         return logging.LogRecord(
@@ -2092,7 +2107,7 @@ test "health check filter suppresses health endpoint log records" {
 test "health check filter blocks records when attached to a handler" {
     import logging;
     import from jaclang.scale.server.native_server { HealthCheckFilter }
-    import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME }
+    import from jaclang.server.serving.server { ACCESS_LOGGER_NAME }
 
     class _CapturingHandler(logging.Handler) {
         has captured: list = [];
@@ -2162,7 +2177,16 @@ theme_color = "#000000"
 '''
         );
         server = subprocess.Popen(
-            [jac_executable(), "start", "--client", "pwa", "main.jac", "-p", str(port)],
+            [
+                jac_executable(),
+                "run",
+                "--serve",
+                "--client",
+                "pwa",
+                "-p",
+                str(port),
+                "main.jac"
+            ],
             cwd=temp_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

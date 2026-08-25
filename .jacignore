@@ -1,3 +1,17 @@
+# .jacignore -- modules excluded from the repo-wide `jac check` gate.
+#
+# CI feeds every non-comment line here to `jac check --ignore` (see
+# .github/workflows/ci.yml, "Run jac check (using .jacignore)"). CI adds
+# `tests checker_*.jac *_err.jac` of its own; those are not listed here.
+#
+# Matching (compiler/frontend/helpers.jac:path_matches_exclude): an entry containing
+# `/` is fnmatched against the whole path; a bare entry is fnmatched against
+# EVERY path component, so a bare `types.jac` silences every file of that
+# basename repo-wide. Every entry below is path-qualified for that reason --
+# one line per excluded module, so a fix deletes exactly one line.
+#
+# Each entry is a module that does not currently pass `jac check`. Adding to
+# this list is a debt, not a policy: the goal is an empty file.
 
 # (stricter Unknown discipline). These files bind SQLAlchemy, ctypes, llvmlite
 # .linkage etc.), not a new kind of exclusion.
@@ -191,232 +205,48 @@ jac/jaclang/byllm/cli.jac
 jac/jaclang/byllm/examples/agentic_ai/friendzone-lite/friendzone_lite.jac
 jac/jaclang/byllm/examples/agentic_ai/task-manager-lite/task_manager.jac
 jac/jaclang/byllm/impl/mcp.impl.jac
+# Fetched at build time, not repo source.
+# `jac ninja` fetches third-party zig packages into jac/zig-pkg/ and the
+# tree-sitter-jac package ships its own examples/sample.jac. Bare name so
+# any zig-pkg path component is skipped.
+zig-pkg
+
+# llvmlite-bound native IR generation.
+# The NaIRGen* mixins reach llvmlite handles (ir.Function.args, .linkage,
+# IRBuilder.append_basic_block, Type.as_pointer) through the vendored
+# py2jac translation under passes/native/llvm/, whose ctypes-derived
+# values the checker sees as Unknown. Not annotatable without typing that
+# vendored surface.
+jac/jaclang/compiler/backends/native/na_ir_gen/*
+
+# Native compile driver (same llvmlite boundary as na_ir_gen).
+jac/jaclang/compiler/backends/native/impl/na_compile_pass.impl.jac
+jac/jaclang/compiler/backends/native/na_compile_pass.jac
+
+# byllm -- litellm/LLM-provider glue.
+jac/jaclang/byllm/llm.impl/basellm.impl.jac
+jac/jaclang/byllm/llm.impl/local.impl.jac
+jac/jaclang/byllm/llm.impl/mockllm.impl.jac
+jac/jaclang/byllm/llm.impl/model.impl.jac
 jac/jaclang/byllm/llm.impl/modelpool.impl.jac
-jac/jaclang/byllm/mcp.jac
-jac/jaclang/byllm/parallel.jac
+jac/jaclang/byllm/llm.jac
 jac/jaclang/byllm/telemetry.impl/telemetry.impl.jac
 jac/jaclang/byllm/telemetry.jac
-jac/jaclang/byllm/tool_protocol.jac
-jac/jaclang/byllm/types.impl/message.impl.jac
-jac/jaclang/byllm/visit_routing.jac
-jac/jaclang/cli/ai_agent.jac
-jac/jaclang/cli/ai_ui/components/ActivityFeed.jac
-jac/jaclang/cli/ai_ui/components/PhaseGraph.jac
-jac/jaclang/cli/ai_ui/components/PhaseInspector.jac
-jac/jaclang/cli/ai_ui/frontend.jac
-jac/jaclang/cli/banners.jac
-jac/jaclang/cli/cli.jac
-jac/jaclang/cli/commands/config.jac
-jac/jaclang/cli/commands/db.jac
-jac/jaclang/cli/commands/eject.jac
-jac/jaclang/cli/commands/eject_targets/backend.jac
-jac/jaclang/cli/commands/impl/build.impl.jac
-jac/jaclang/cli/commands/impl/db.impl.jac
-jac/jaclang/cli/commands/impl/eject.impl.jac
-jac/jaclang/cli/commands/tools.jac
-jac/jaclang/cli/executor.jac
-jac/jaclang/cli/impl/ai_agent.impl.jac
-jac/jaclang/cli/impl/browser_engine.impl.jac
-jac/jaclang/cli/impl/cli.impl.jac
-jac/jaclang/cli/impl/console.impl.jac
-jac/jaclang/cli/impl/executor.impl.jac
-jac/jaclang/cli/mcp/impl/protocol.impl.jac
-jac/jaclang/cli/mcp/protocol.jac
-jac/jaclang/cli/shadcn/cli.jac
-jac/jaclang/cli/shadcn/impl/cli.impl.jac
-jac/jaclang/compiler/code_intel.jac
-jac/jaclang/compiler/passes/ecmascript/backends/impl/react.impl.jac
-jac/jaclang/compiler/passes/ecmascript/backends/react.jac
-jac/jaclang/compiler/passes/main/capability_check_pass.jac
-jac/jaclang/compiler/passes/main/impl/capability_check_pass.impl.jac
-jac/jaclang/compiler/passes/main/jsx_intrinsic_guard_pass.jac
-jac/jaclang/compiler/passes/native/impl/pe_linker.impl.jac
-jac/jaclang/compiler/passes/native/impl/primitives_native.impl.jac
-passes/native/na_ir_gen/*
-jac/jaclang/compiler/passes/native/pe_linker.jac
-jac/jaclang/compiler/passes/native/wasm_build.jac
-jac/jaclang/compiler/passes/native/wasm_linker.jac
-jac/jaclang/compiler/symbol_utils.jac
-jac/jaclang/compiler/targets/abi.jac
-jac/jaclang/compiler/targets/foreign.jac
-jac/jaclang/compiler/type_system/impl/type_utils.impl.jac
-jac/jaclang/compiler/type_system/operations.jac
-jac/jaclang/compiler/type_system/type_evaluator.impl/jsx_type_check.impl.jac
-jac/jaclang/compiler/type_system/type_evaluator.impl/ts_declarations.impl.jac
-jac/jaclang/jac0core/archetype.jac
-jac/jaclang/jac0core/gen_uni_dispatch.jac
-# Arena surface (#7970): gen_unitree is runtime-introspection like
-# gen_uni_dispatch above; arena_materialize is the reflection bridge
-# (getattr-resolved classes, cls(**kwargs)); linker_common carries the
-# floor-archive file-IO glue moved out of (baselined) nacompile.impl.jac.
-jac/jaclang/jac0core/gen_unitree.jac
-jac/jaclang/jac0core/arena_materialize.jac
-jac/jaclang/compiler/passes/native/linker_common.jac
-jac/jaclang/jac0core/impl/archetype.impl.jac
-# Closure hygiene (#8201): the Jdb debugger and dump_traceback moved out of
-# the (baselined) helpers.jac / impl/helpers.impl.jac pair into their own
-# modules, and their diagnostics moved with them unchanged -- FrameSummary's
-# private _original_line* attrs, `any`-typed *args/**kwargs, and the Unknowns
-# those produce. Same baseline, new home; nothing new was introduced. The
-# tomllib reader moved too and is type-clean, so it needs no entry.
-jac/jaclang/jac0core/debugger.jac
-jac/jaclang/jac0core/impl/debugger.impl.jac
-jac/jaclang/jac0core/traceback_render.jac
-jac/jaclang/jac0core/impl/native_marshal.impl.jac
-jac/jaclang/jac0core/impl/program.impl.jac
-jac/jaclang/jac0core/impl/runtime.impl.jac
-jac/jaclang/jac0core/jaclib.jac
-jac/jaclang/jac0core/log.jac
-jac/jaclang/jac0core/osp_kernel_sv.jac
-jac/jaclang/jac0core/osp_model.jac
-jac/jaclang/jac0core/passes/ast_validation_pass.jac
-jac/jaclang/jac0core/passes/boundary_analysis_pass.jac
-jac/jaclang/jac0core/passes/impl/ast_validation_pass.impl.jac
-jac/jaclang/jac0core/passes/impl/boundary_analysis_pass.impl.jac
-jac/jaclang/jac0core/passes/impl/transform.impl.jac
-jac/jaclang/jac0core/passes/impl/uni_pass.impl.jac
-jac/jaclang/jac0core/passes/transform.jac
-jac/jaclang/jac0core/program.jac
-jac/jaclang/jac0core/unitree.impl/accept.impl.jac
-jac/jaclang/jac0core/unitree.impl/dispatch.impl.jac
-jac/jaclang/langserve/utils.jac
-jac/jaclang/lib.jac
-jac/jaclang/project/config.jac
-jac/jaclang/project/impl/template_registry.impl.jac
-jac/jaclang/project/template_registry.jac
-jac/jaclang/publish/dts.jac
-jac/jaclang/publish/impl/dts.impl.jac
-jac/jaclang/publish/impl/jsdoc.impl.jac
-jac/jaclang/publish/impl/npm_sources.impl.jac
-jac/jaclang/publish/impl/record.impl.jac
-jac/jaclang/publish/impl/runtime_npm.impl.jac
-jac/jaclang/publish/impl/sources.impl.jac
-jac/jaclang/publish/jsdoc.jac
-jac/jaclang/publish/npm_sources.jac
-jac/jaclang/publish/record.jac
-jac/jaclang/publish/runtime_npm.jac
-jac/jaclang/publish/sources.jac
-jac/jaclang/runtimelib/changeset.jac
-jac/jaclang/runtimelib/cl_test_runner.jac
-jac/jaclang/runtimelib/client/cli.jac
-jac/jaclang/runtimelib/client/client_runtime_native.jac
-jac/jaclang/runtimelib/client/config_loader.jac
-jac/jaclang/runtimelib/client/impl/client_runtime_core.impl.jac
-jac/jaclang/runtimelib/client/impl/client_runtime_native.impl.jac
-jac/jaclang/runtimelib/client/impl/config_loader.impl.jac
-jac/jaclang/runtimelib/client/impl/jac_client_compiler.impl.jac
-jac/jaclang/runtimelib/client/impl/serving.impl.jac
-jac/jaclang/runtimelib/client/jac_client_compiler.jac
-jac/jaclang/runtimelib/client/serving.jac
-jac/jaclang/runtimelib/client/targets/client_dev_common.jac
-jac/jaclang/runtimelib/client/targets/desktop/desktop_build.jac
-jac/jaclang/runtimelib/client/targets/desktop/native/cef/cef_dispatch.jac
-jac/jaclang/runtimelib/client/targets/desktop/native/cef/cef_platform.jac
-jac/jaclang/runtimelib/client/targets/desktop/native/cef/cef_subprocess.jac
-jac/jaclang/runtimelib/client/targets/desktop/native/inprocess_dispatch.jac
-jac/jaclang/runtimelib/client/targets/desktop/native/oauth_broker.jac
-jac/jaclang/runtimelib/client/targets/desktop/native/plugin_bridge.jac
-jac/jaclang/runtimelib/client/targets/desktop/plugin/built_in/clipboard_plugin.jac
-jac/jaclang/runtimelib/client/targets/desktop/plugin/built_in/dialog_plugin.jac
-jac/jaclang/runtimelib/client/targets/desktop/plugin/built_in/fs_plugin.jac
-jac/jaclang/runtimelib/client/targets/desktop/plugin/built_in/notification_plugin.jac
-jac/jaclang/runtimelib/client/targets/desktop/plugin/built_in/path_plugin.jac
-jac/jaclang/runtimelib/client/targets/desktop/plugin/built_in/shell_plugin.jac
-jac/jaclang/runtimelib/client/targets/desktop/plugin/built_in/window_plugin.jac
-jac/jaclang/runtimelib/client/targets/desktop/plugin/desktop_api.jac
-jac/jaclang/runtimelib/client/targets/desktop/plugin/desktop_plugin.jac
-jac/jaclang/runtimelib/client/targets/desktop/plugin/plugin_host.jac
-jac/jaclang/runtimelib/client/targets/impl/mobile_target.impl.jac
-jac/jaclang/runtimelib/client/targets/impl/pwa_target.impl.jac
-jac/jaclang/runtimelib/client/targets/impl/react_native_target.impl.jac
-jac/jaclang/runtimelib/client/targets/impl/static_target.impl.jac
-jac/jaclang/runtimelib/client/targets/mobile_target.jac
-jac/jaclang/runtimelib/client/targets/pwa_target.jac
-jac/jaclang/runtimelib/client/targets/react_native/build.jac
-jac/jaclang/runtimelib/client/targets/react_native/scaffold.jac
-jac/jaclang/runtimelib/client/targets/react_native_target.jac
-jac/jaclang/runtimelib/client/targets/static_target.jac
-jac/jaclang/runtimelib/client_runtime_core.jac
-jac/jaclang/runtimelib/client_surface.jac
-jac/jaclang/runtimelib/exceptions.jac
-jac/jaclang/runtimelib/impl/cl_test_runner.impl.jac
-jac/jaclang/runtimelib/impl/client_runtime_core.impl.jac
-jac/jaclang/runtimelib/impl/pwa_runtime.impl.jac
-jac/jaclang/runtimelib/impl/resolver.impl.jac
-jac/jaclang/runtimelib/impl/schema_rules.impl.jac
-jac/jaclang/runtimelib/impl/solid_runtime.impl.jac
-jac/jaclang/runtimelib/impl/topology_index.impl.jac
-jac/jaclang/runtimelib/pwa_runtime.jac
-jac/jaclang/runtimelib/resolver.jac
-jac/jaclang/runtimelib/schema_rules.jac
-jac/jaclang/runtimelib/solid_runtime.jac
-jac/jaclang/runtimelib/source_mapping.jac
-jac/jaclang/runtimelib/storage/impl/sqlalchemy_memory.impl.jac
-jac/jaclang/runtimelib/storage/sqlalchemy_memory.jac
-jac/jaclang/runtimelib/sv_sse.jac
-jac/jaclang/runtimelib/topology_index.jac
-jac/jaclang/runtimelib/utils.jac
-jac/jaclang/runtimelib/wasm_host.jac
-jac/jaclang/scale/admin/deploy_health.jac
-jac/jaclang/scale/admin/impl/deploy_health.impl.jac
-jac/jaclang/scale/admin/impl/logs.impl.jac
-jac/jaclang/scale/admin/impl/network.impl.jac
-jac/jaclang/scale/admin/impl/ops.impl.jac
-jac/jaclang/scale/admin/impl/podenv.impl.jac
-jac/jaclang/scale/admin/impl/traces.impl.jac
-jac/jaclang/scale/admin/impl/workloads.impl.jac
-jac/jaclang/scale/admin/k8s_ops.jac
-jac/jaclang/scale/admin/logs.jac
-jac/jaclang/scale/admin/network.jac
-jac/jaclang/scale/admin/ops.jac
-jac/jaclang/scale/admin/podenv.jac
-jac/jaclang/scale/admin/traces.jac
-jac/jaclang/scale/admin/ui/components/common/Spinner.jac
-jac/jaclang/scale/admin/ui/components/tables/DataTable.jac
-jac/jaclang/scale/admin/ui/main.jac
-jac/jaclang/scale/admin/ui/pages/admin/DashboardLayout.jac
-jac/jaclang/scale/admin/ui/pages/admin/logs/LogsPage.jac
-jac/jaclang/scale/admin/ui/pages/admin/monitoring/LLMMetricsPage.jac
-jac/jaclang/scale/admin/ui/pages/admin/monitoring/LLMTracesPage.jac
-jac/jaclang/scale/admin/ui/pages/admin/monitoring/TracesPage.jac
-jac/jaclang/scale/admin/ui/pages/admin/ops/DeployPage.jac
-jac/jaclang/scale/admin/ui/pages/admin/ops/NetworkPage.jac
-jac/jaclang/scale/admin/ui/pages/admin/ops/OpsPage.jac
-jac/jaclang/scale/admin/ui/pages/admin/ops/PodEnvPage.jac
-jac/jaclang/scale/admin/workloads.jac
-jac/jaclang/scale/config/config_loader.jac
-jac/jaclang/scale/config/impl/config_loader.impl.jac
-jac/jaclang/scale/deploy/autoscale/factory.jac
+jac/jaclang/byllm/types.jac
+
+# jac-scale server surface.
+jac/jaclang/scale/server/impl/serve.auth.impl.jac
+jac/jaclang/scale/server/impl/serve.core.impl.jac
+jac/jaclang/scale/server/impl/serve.emailer.impl.jac
+jac/jaclang/scale/server/impl/serve.endpoints.impl.jac
+jac/jaclang/scale/server/impl/serve.identity.impl.jac
+jac/jaclang/scale/server/impl/serve.scheduler.impl.jac
+jac/jaclang/scale/server/impl/serve.static.impl.jac
+jac/jaclang/scale/server/serve.jac
+
+# jac-scale -- kubernetes / opentelemetry client glue.
 jac/jaclang/scale/deploy/autoscale/hpa_autoscaler.impl.jac
 jac/jaclang/scale/deploy/autoscale/hpa_autoscaler.jac
-jac/jaclang/scale/deploy/autoscale/keda_autoscaler.impl.jac
-jac/jaclang/scale/deploy/autoscale/keda_autoscaler.jac
-jac/jaclang/scale/deploy/target/kubernetes/cluster_provider.jac
-jac/jaclang/scale/deploy/target/kubernetes/ingress.jac
-jac/jaclang/scale/deploy/target/kubernetes/database_provisioner.jac
-jac/jaclang/scale/deploy/target/kubernetes/target.jac
-jac/jaclang/scale/emailer/emailers.jac
-jac/jaclang/scale/emailer/factory.jac
-jac/jaclang/scale/emailer/impl/emailers.impl.jac
-jac/jaclang/scale/events/streams/redis.jac
-jac/jaclang/scale/examples/emailer-sendgrid/emailer.jac
-jac/jaclang/scale/examples/firestore-kvstore/app.jac
-jac/jaclang/scale/identity/auth_models.jac
-jac/jaclang/scale/identity/auth_tokens.jac
-jac/jaclang/scale/identity/identity_storage.jac
-jac/jaclang/scale/identity/impl/auth_tokens.impl.jac
-jac/jaclang/scale/identity/impl/identity_storage.impl.jac
-jac/jaclang/scale/identity/impl/identity_storage.mongo.impl.jac
-jac/jaclang/scale/identity/impl/identity_storage.sqlite.impl.jac
-jac/jaclang/scale/injector/pvc_injector.jac
-jac/jaclang/scale/persistence/db.jac
-jac/jaclang/scale/persistence/firestore_db.jac
-jac/jaclang/scale/persistence/impl/db.impl.jac
-jac/jaclang/scale/persistence/impl/firestore_db.impl.jac
-jac/jaclang/scale/persistence/impl/mongo_db.impl.jac
-jac/jaclang/scale/persistence/impl/redis_db.impl.jac
-jac/jaclang/scale/persistence/mongo_db.jac
-jac/jaclang/scale/persistence/redis_db.jac
 jac/jaclang/scale/runtime/context/tracing.jac
 jac/jaclang/scale/runtime/context/util.jac
 jac/jaclang/scale/runtime/gateway/microservice_gateway.impl.jac
@@ -593,3 +423,24 @@ jac/jaclang/scale/webhook/impl/webhook.impl.jac
 jac/jaclang/scale/webhook/webhook.jac
 # zig-pkg (dir): generated zig package fetches live at jac/zig-pkg/
 jac/zig-pkg
+
+# Type evaluator internals.
+jac/jaclang/compiler/types/type_evaluator.impl/construct_types.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/evaluator_util_methods.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/imported.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/jsx_type_check.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/parameter_type_check.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/ts_declarations.impl.jac
+jac/jaclang/compiler/types/type_evaluator.impl/type_evaluator.impl.jac
+jac/jaclang/compiler/types/type_evaluator.jac
+
+# Runtime library.
+jac/jaclang/client/targets/desktop/native/cef/cef_subprocess.jac
+
+# ECMAScript backend.
+jac/jaclang/compiler/backends/es/esast_gen_pass.jac
+jac/jaclang/compiler/backends/es/impl/esast_gen_pass.impl.jac
+
+# Example apps.
+jac/examples/mobui/hello/main.jac
+jac/examples/mobui/littlex/main.jac

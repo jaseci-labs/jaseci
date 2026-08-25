@@ -6,7 +6,7 @@ and micro suite.
 """
 
 import inspect;
-import from jaclang.jac0core.treeprinter { print_ast_tree }
+import from jaclang.compiler.tools.treeprinter { print_ast_tree }
 import io;
 import os;
 import re;
@@ -14,14 +14,14 @@ import sys;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.parser { parse as rd_parse }
-import from jaclang.jac0core.parser.lexer { tokenize, tokenize_full }
-import from jaclang.jac0core.parser.tokens { TokenKind }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.helpers { read_file_with_encoding }
-import from jaclang.runtimelib.test { parametrize }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.constant { CodeContext }
+import from jaclang.compiler.frontend.parser { parse as rd_parse }
+import from jaclang.compiler.frontend.parser.lexer { tokenize, tokenize_full }
+import from jaclang.compiler.frontend.parser.tokens { TokenKind }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+import from jaclang.testing.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "fixtures"),
@@ -63,8 +63,8 @@ test "parser mod doc test" {
 }
 
 test "all ast has normalize" {
-    import from jaclang.compiler.passes.tool.normalize_pass { NormalizePass }
-    import from jaclang.jac0core.helpers { pascal_to_snake }
+    import from jaclang.compiler.tools.normalize_pass { NormalizePass }
+    import from jaclang.compiler.frontend.helpers { pascal_to_snake }
 
     exclude = [
         "UniNode",
@@ -110,7 +110,7 @@ test "all ast has normalize" {
     ];
     ordered_classes = sorted(
         uni_node_classes,
-        key=lambda (cls) { source_code.find(f"class {cls.__name__}"); },
+        key=lambda (cls: any) { source_code.find(f"class {cls.__name__}"); },
     );
     for cls in ordered_classes {
         if cls.__name__ not in exclude {
@@ -250,13 +250,7 @@ test "connect_disconnect_missing_rhs" {
 
 test "jsx comprehensive fixture" {
     fixture_path = os.path.join(
-        JAC_ROOT,
-        "tests",
-        "compiler",
-        "passes",
-        "ecmascript",
-        "fixtures",
-        "client_jsx.jac"
+        JAC_ROOT, "tests", "compiler", "backends", "es", "fixtures", "client_jsx.jac"
     );
     source_text = Path(fixture_path).read_text(encoding="utf-8");
     (module, had_error) = rd_parse(source_text, str(fixture_path));
@@ -510,7 +504,7 @@ import from libs.raylib {
         if type(stmt).__name__ == "Import"
     ];
     assert len(imports) == 1;
-    import_stmt = imports[0];
+    import_stmt: any = imports[0];
     assert import_stmt.from_loc.dot_path_str == "libs.raylib";
     assert import_stmt.clib_decls is not None and len(import_stmt.clib_decls) == 1;
     assert len(import_stmt.items) == 0;
@@ -545,6 +539,7 @@ test "decorated test blocks" {
     mod = JacProgram().parse_str(source, "test.jac");
     t = mod.body[0];
     assert isinstance(t, uni.Test);
+    assert t.decorators is not None;
     assert len(t.decorators) == 2;
 
     # No decorator still works
@@ -590,7 +585,7 @@ test "bracket filter trailer produces FilterCompr AST" {
     (mod_new, err) = rd_parse('with entry { x[?:Foo, a==5]; }', "");
     assert not err , "Failed to parse x[?:Foo, a==5]";
     # Find the FilterCompr node in the tree
-    def find_fc(nd: object) -> object {
+    def find_fc(nd: any) -> any {
         if isinstance(nd, uni.FilterCompr) {
             return nd;
         }
@@ -688,7 +683,7 @@ test "typed edge ref produces FilterCompr with compares" {
     (mod, err) = rd_parse(src, "");
     assert not err;
 
-    def find_filter_compr_with_compares(nd: object) -> object {
+    def find_filter_compr_with_compares(nd: any) -> any {
         if isinstance(nd, uni.FilterCompr) and nd.compares {
             return nd;
         }
@@ -775,15 +770,18 @@ test "docstring attaches to all member types inside archetype body" {
 
 with entry {
     parametrize(
-        "parser", MICRO_JAC_FILES, parser_file_test, id_fn=lambda (f) { Path(f).stem; }
+        "parser",
+        MICRO_JAC_FILES,
+        parser_file_test,
+        id_fn=lambda (f: str) { Path(f).stem; }
     );
 }
 
 test "parser core emits flat diag records without prog" {
     # W1 (#6930): the parser core appends flat SrcDiag records and holds no
     # JacProgram reference; frontend.parse() replays records into Alerts.
-    import from jaclang.jac0core.parser.lexer { tokenize_full }
-    import from jaclang.jac0core.parser.parser { Parser }
+    import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+    import from jaclang.compiler.frontend.parser.parser { Parser }
     src = "with entry { x = ( ; }";
     (tokens, comments, ldiags, lex_errs) = tokenize_full(src, "<probe>");
     parser = Parser(tokens=tokens, file_path="<probe>", source_code=src);
@@ -800,14 +798,14 @@ test "parser core emits flat diag records without prog" {
 test "parser core sources are foreign-free" {
     # W1/W2 (#6930): the sealed parser core may not reference host-side
     # machinery; all Alert construction lives in frontend.jac.
-    pkg = Path(jaclang.__file__).parent / "jac0core" / "parser";
+    pkg = Path(jaclang.__file__).parent / "compiler" / "frontend" / "parser";
     core = (pkg / "parser.jac").read_text(encoding="utf-8")
         + (pkg / "impl" / "parser.impl.jac").read_text(encoding="utf-8");
     banned = [
         "passes.transform",
         "CodeLocInfo",
         "JacProgram",
-        "jac0core.diagnostics",
+        "compiler.frontend.diagnostics",
         "**kwargs",
         "pathlib",
         "import re"
@@ -824,7 +822,7 @@ test "parser module naming and test slugs are python-free" {
     (module2, _) = rd_parse("with entry {}", "other\\win\\mod.custom.ext");
     assert module2.name == "mod.custom";
     (module3, _) = rd_parse('test "Hello, World! 42" {}', "t.jac");
-    tnode = module3.body[0];
+    tnode: any = module3.body[0];
     assert tnode.name.value == "hello_world_42";
 }
 

@@ -32,12 +32,6 @@ glob registry = get_registry();
             short="o"
         ),
         Arg.create(
-            "no_typecheck",
-            typ=bool,
-            `default=False,
-            help="Skip the whole-program type-check gate (escape hatch)"
-        ),
-        Arg.create(
             "fat",
             typ=bool,
             `default=False,
@@ -72,12 +66,11 @@ glob registry = get_registry();
 
     ],
     examples=[
-        ("jac build", "Gate + build a single .jab into dist/"),
-        ("jac build --as binary", "Gate + build a self-contained executable"),
-        ("jac build --fat", "Gate + build a fat jab (Python deps vendored)"),
-        ("jac build --as wheel", "Gate + build a PyPI wheel"),
-        ("jac build --check_only", "Run the whole-program gate only"),
-        ("jac build --no_typecheck", "Build without the gate (escape hatch)"),
+        ("jac build", "Build a single .jab into dist/"),
+        ("jac build --as binary", "Build a self-contained executable"),
+        ("jac build --fat", "Build a fat jab (Python deps vendored)"),
+        ("jac build --as wheel", "Build a PyPI wheel"),
+        ("jac build --check_only", "Type-check the whole project without building"),
         ("jac build --client mobile", "Build the mobile client shell"),
 
     ],
@@ -87,7 +80,6 @@ def build(
     filename: str = "",
     projection: str = "jab",
     output: str = "dist",
-    no_typecheck: bool = False,
     check_only: bool = False,
     client: str = "",
     platform: str | None = None,

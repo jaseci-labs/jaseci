@@ -12,9 +12,14 @@ database outage is the second question, never the first. So liveness must not
 touch the database at all, and readiness must report 503 rather than blowing up.
 """
 
-import from jaclang.runtimelib.pgwire { PgWireError }
+import from jaclang.data.pgwire { PgWireError }
 import from jaclang.scale.memory { context as scale_ctx_mod }
 import from jaclang.scale.tests.scale_test_client { make_client }
+
+def _as_any(v: any) -> any {
+    return v;
+}
+
 
 glob PRED_LOCK_EXHAUSTION = {
          'S': 'ERROR',
@@ -40,7 +45,7 @@ test "health: liveness survives predicate-lock exhaustion in the store" {
         assert client.get("/healthz/live").status_code == 200 , (
             'liveness must be 200 before the fault is injected'
         );
-        scale_ctx_mod.JScaleExecutionContext = _ExhaustedContext;
+        _as_any(scale_ctx_mod).JScaleExecutionContext = _ExhaustedContext;
         resp = client.get("/healthz/live");
         assert resp.status_code == 200 , (
             f"/healthz/live returned {resp.status_code} while the store was "
@@ -60,7 +65,7 @@ test "health: readiness reports 503 instead of raising when the store is down" {
     original = scale_ctx_mod.JScaleExecutionContext;
     try {
         assert client.get("/healthz/ready").status_code == 200;
-        scale_ctx_mod.JScaleExecutionContext = _ExhaustedContext;
+        _as_any(scale_ctx_mod).JScaleExecutionContext = _ExhaustedContext;
         resp = client.get("/healthz/ready");
         assert resp.status_code == 503 , (
             f"/healthz/ready returned {resp.status_code}, expected 503 so "
@@ -78,7 +83,7 @@ test "health: the legacy /healthz alias is a liveness probe too" {
     client = make_client("test_api.jac");
     original = scale_ctx_mod.JScaleExecutionContext;
     try {
-        scale_ctx_mod.JScaleExecutionContext = _ExhaustedContext;
+        _as_any(scale_ctx_mod).JScaleExecutionContext = _ExhaustedContext;
         resp = client.get("/healthz");
         assert resp.status_code == 200 , (
             f"/healthz returned {resp.status_code}; it is documented as the "
@@ -96,7 +101,7 @@ test "health: an ordinary request reports 503 rather than a 500 traceback" {
     client = make_client("test_api.jac");
     original = scale_ctx_mod.JScaleExecutionContext;
     try {
-        scale_ctx_mod.JScaleExecutionContext = _ExhaustedContext;
+        _as_any(scale_ctx_mod).JScaleExecutionContext = _ExhaustedContext;
         resp = client.post("/walker/PublicInfo", json={});
         assert resp.status_code == 503 , (
             f"expected 503 for an unreachable database, got {resp.status_code}; "

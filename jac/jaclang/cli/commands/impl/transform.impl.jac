@@ -4,12 +4,12 @@ import from jaclang.cli.console { console }
 import from jaclang.cli.commands.cli_helpers { flatten_append }
 
 impl py2jac(filename: str) -> int {
-    import jaclang.jac0core.unitree as uni;
-    import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-    import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
-    import from jaclang.jac0core.compiler { run_pass }
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.helpers { read_file_with_encoding }
+    import jaclang.compiler.frontend.unitree as uni;
+    import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
+    import from jaclang.compiler.tools.unparse_pass { unparse_module }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
     if filename.endswith('.py') {
         file_source = read_file_with_encoding(filename);
         code = unparse_module(
@@ -263,7 +263,7 @@ impl cbindgen(
 }
 
 impl jac2py(filename: str) -> int {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     if filename.endswith('.jac') {
         code = JacProgram().compile(file_path=filename).gen.py;
         if code {
@@ -279,7 +279,7 @@ impl jac2py(filename: str) -> int {
 }
 
 impl jac2js(filename: str) -> int {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     if filename.endswith('.jac') {
         try {
             prog = JacProgram();

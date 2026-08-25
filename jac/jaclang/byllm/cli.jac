@@ -60,19 +60,19 @@ def _cmd_model(action: str = "list", alias: str = "") -> int {
 
     if action == "pull" {
         norm = alias.strip().lower();
-        spec = LOCAL_MODELS.get(norm);
-        if spec is None {
+        pull_spec = LOCAL_MODELS.get(norm);
+        if pull_spec is None {
             console.error(
                 f"unknown alias '{alias}'", hint="run `jac model list` for choices"
             );
             return 2;
         }
-        if is_downloaded(norm, spec) {
+        if is_downloaded(norm, pull_spec) {
             console.info(f"'{norm}' is already downloaded");
             return 0;
         }
         try {
-            path = force_pull(norm, spec);
+            path = force_pull(norm, pull_spec);
         } except Exception as e {
             console.error(f"download failed: {e}");
             return 1;

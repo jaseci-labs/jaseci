@@ -16,7 +16,7 @@ import os;
 import from pathlib { Path }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.main.layout_pass { get_shared_layout_registry }
+import from jaclang.compiler.passes.layout_pass { get_shared_layout_registry }
 
 glob FIXTURE_DIR = str(
          Path(jaclang.__file__).parent

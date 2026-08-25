@@ -22,12 +22,13 @@ can load. jac0 stays the compiler for that tier; only the container is unified.
 This module is therefore **plain Python with no jaclang dependencies** (like the
 sibling ``cache_paths.py`` / ``ext_registry.py``).
 
-Manifest layout (``_precompiled/MANIFEST.json``, format 4; format 3 = the
-same without native_artifacts, format 2 also without
-kind/capabilities/entry/payloads -- both remain loadable)::
+Manifest layout (``_precompiled/MANIFEST.json``, format ``MANIFEST_FORMAT``
+below; every version in ``MANIFEST_FORMATS_ACCEPTED`` remains loadable --
+format 3 lacked native_artifacts, format 2 also lacked
+kind/capabilities/entry/payloads)::
 
     {
-      "format": 4,
+      "format": 6,
       "kind": "web-app",                # optional: project kind (app images)
       "capabilities": ["has-entry", "has-server", "has-client"],  # optional
       "entry": {"module": "app.main", "path": "main.jac"},        # optional
@@ -40,14 +41,14 @@ kind/capabilities/entry/payloads -- both remain loadable)::
                                          # informational -- the seal already
                                          # verified every JIR against it, see #8178)
       "modules": {                      # key: source path relative to pkg dir
-        "compiler/program.jac": {
-          "module": "jaclang.compiler.program",
-          "jir": "compiler/program.jir",   # relative to _precompiled/<tag>/
+        "compiler/symbol_utils.jac": {
+          "module": "jaclang.compiler.symbol_utils",
+          "jir": "compiler/symbol_utils.jir",  # relative to _precompiled/<tag>/
           "package": false,
           "sha256": "..."                  # checked by register_image
         },
-        "jac0core/modresolver.jac": {
-          "module": "jaclang.jac0core.modresolver",
+        "compiler/driver/modresolver.jac": {
+          "module": "jaclang.compiler.driver.modresolver",
           "jir": "jac0core/modresolver.jir",
           "package": false,
           "sha256": "...",
@@ -96,32 +97,32 @@ MANIFEST_FORMAT = 6
 # ships with the very code that loads it, so skew means a stale or partial
 # install.
 MANIFEST_FORMATS_ACCEPTED = (2, 3, 4, 5, MANIFEST_FORMAT)
-# Must match jaclang.jac0core.jir.* ; kept literal here because this module
+# Must match jaclang.compiler.driver.jir.* ; kept literal here because this module
 # must import before any .jac module (including jir.jac) can. This is the whole
 # point of the bootstrap tier: jac0core modules are loaded from their JIR by the
 # pure-Python section reader below, so they need none of the .jac machinery
 # (jir.jac's reader is itself a jac0core module).
 PRECOMPILE_SENTINEL = "__PKG_ROOT__"
-JIR_FORMAT_VERSION = 20
-_HEADER_SIZE = 32
-_SECTIONS_MAGIC = b"JIRX"
-_SEC_BYTECODE = 0x02
-_SEC_DEBUG_SRC = 0x09
-_SEC_TERMINATOR = 0xFF
+JIR_FORMAT_VERSION = 23
+HEADER_SIZE = 32
+SECTIONS_MAGIC = b"JIRX"
+SEC_BYTECODE = 0x02
+SEC_DEBUG_SRC = 0x09
+SEC_TERMINATOR = 0xFF
 
 
 def _read_section(data: bytes, want: int) -> bytes | None:
     """Return the raw bytes of JIR section ``want``, or None. Pure-Python twin of
     ``jir.read_sections`` usable during bootstrap (before any .jac can load)."""
     try:
-        pos = data.find(_SECTIONS_MAGIC, _HEADER_SIZE)
+        pos = data.find(SECTIONS_MAGIC, HEADER_SIZE)
         if pos < 0:
             return None
-        pos += len(_SECTIONS_MAGIC)
+        pos += len(SECTIONS_MAGIC)
         while pos < len(data):
             sec_type = data[pos]
             pos += 1
-            if sec_type == _SEC_TERMINATOR or pos + 4 > len(data):
+            if sec_type == SEC_TERMINATOR or pos + 4 > len(data):
                 break
             (sec_len,) = struct.unpack_from("<I", data, pos)
             pos += 4
@@ -177,7 +178,7 @@ def _patch_code_filenames(
     code: types.CodeType, find: str, replace: str
 ) -> types.CodeType:
     """Recursively rewrite ``co_filename`` (pure-Python twin of
-    ``jac0core.compiler.patch_co_filenames_bytes``, which is itself a .jac
+    ``compiler.driver.jir.patch_co_filenames_bytes``, which is itself a .jac
     module and therefore unavailable while bootstrapping)."""
     consts = tuple(
         _patch_code_filenames(c, find, replace) if isinstance(c, types.CodeType) else c
@@ -275,7 +276,7 @@ class SealedImage:
         data = self._jir_bytes(fullname)
         if data is None:
             return None
-        sec = _read_section(data, _SEC_DEBUG_SRC)
+        sec = _read_section(data, SEC_DEBUG_SRC)
         return zlib.decompress(sec).decode("utf-8") if sec is not None else None
 
     def verify(self) -> None:
@@ -366,7 +367,7 @@ class SealedImage:
         data = self._jir_bytes(fullname)
         if data is None:
             return None
-        raw = _read_section(data, _SEC_BYTECODE)
+        raw = _read_section(data, SEC_BYTECODE)
         if raw is None:
             return None
         code = marshal.loads(raw)  # noqa: S302 -- trusted sealed artifact

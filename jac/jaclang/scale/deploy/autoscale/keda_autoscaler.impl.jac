@@ -321,7 +321,10 @@ impl KEDAAutoscaler.destroy_collection{
                 plural=plural,
                 label_selector=label_selector
             );
-            for item in items.get("items", []) {
+            listing: dict[str, list[dict[str, any]]] = items
+                if isinstance(items, dict)
+                else {};
+            for item in listing.get("items", []) {
                 item_name = item["metadata"]["name"];
                 try {
                     api.delete_namespaced_custom_object(

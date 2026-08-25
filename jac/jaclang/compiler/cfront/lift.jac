@@ -1,6 +1,6 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.main.cast_load_pass { CastBuildPass, CLiftSite }
+import from jaclang.compiler.passes.cast_load_pass { CastBuildPass, CLiftSite }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 
 obj LiftResult {

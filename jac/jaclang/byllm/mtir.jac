@@ -1,6 +1,6 @@
 import inspect;
 import json;
-import from jaclang.jac0core.mtp { Info, MethodInfo, FunctionInfo }
+import from jaclang.compiler.driver.mtp { Info, MethodInfo, FunctionInfo }
 import from types { MethodType }
 import from typing { get_type_hints }
 import from jaclang.byllm.schema { json_to_instance, type_to_schema }
@@ -22,7 +22,7 @@ obj MTIR {
     has caller: Callable,
         args: dict[(int | str, object)],
         call_params: dict[(str, object)],
-        ir_info: Info;
+        ir_info: (Info | None);
 
     has runtime: MTRuntime { getter; }
 }
@@ -35,7 +35,7 @@ obj MTRuntime {
         call_params: dict[(str, object)],
         mtir: MTIR | None = None,
         _scaffolding_ids: list[int] = [],
-        _conversation_list: object = None,
+        _conversation_list: (list | None) = None,
         _final_output: object = None,
         _has_final_output: bool = False,
         _stream_reset_count: int = 0,
@@ -47,7 +47,7 @@ obj MTRuntime {
     def get_msg_list -> list[dict[(str, object)] | LiteLLMMessage];
     def get_history_for_persist -> list[MessageType];
     def write_back_conversation -> None;
-    def parse_response(response: str) -> object;
+    def parse_response(response: str) -> any;
     def get_tool(tool_name: str) -> Tool | McpTool | None;
     def get_tool_list -> list[dict];
     def get_output_schema -> dict | None;

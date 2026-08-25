@@ -18,7 +18,7 @@ def step -> float {
 }
 
 def:pub add_todo(text: str) -> Todo {
-    t = root ++> Todo(text=text);
+    t = root ++> [Todo(text=text)];
     return t[0];
 }
 
@@ -30,5 +30,10 @@ def:pub app -> JsxElement {
         todos = [t];
     }
 
-    return <div>{for t in todos { <p>{t.text}</p> }}</div>;
+    return
+        <div>
+            {for t in todos {
+                <p>{t.text}</p>
+            }}
+        </div>;
 }

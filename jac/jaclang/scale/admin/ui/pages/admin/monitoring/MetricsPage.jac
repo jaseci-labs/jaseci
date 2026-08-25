@@ -103,7 +103,7 @@ def:pub MetricsPage -> JsxElement {
         if maxVal == 0 {
             return "0%";
         }
-        pct = min(100, (value / maxVal) * 100);
+        pct = min(100.0, (value / maxVal) * 100);
         # Floor any non-zero value to a visible sliver so a busy interval
         # never rounds away to 0% when a single tall bar dominates the scale.
         if value > 0 and pct < minPct {

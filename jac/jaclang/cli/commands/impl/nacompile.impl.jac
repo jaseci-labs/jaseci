@@ -1,4 +1,4 @@
-import from jaclang.compiler.passes.native.linker_common {
+import from jaclang.compiler.backends.native.linker_common {
     collect_floor_archives,
     floor_lib_dir,
     resolve_floor_dir,
@@ -213,7 +213,8 @@ impl nacompile(
     debug: bool = False,
     gc: str = "",
     assert_no_rc: bool = False,
-    enforce_nogc: bool = False
+    enforce_nogc: bool = False,
+    strict: bool = False
 ) -> int {
     import from jaclang.jac0core.ext_registry {
         is_jac,
@@ -222,11 +223,8 @@ impl nacompile(
     }
     import from jaclang.project { get_config }
 
-    _gc_cfg = None;
     _cfg = get_config();
-    if _cfg {
-        _gc_cfg = _cfg.gc;
-    }
+    _gc_cfg = _cfg.gc if _cfg else None;
     if not gc {
         gc = _gc_cfg.`default if _gc_cfg else "cycles";
     }
@@ -282,7 +280,7 @@ impl nacompile(
     }
 
     if scrub {
-        import from jaclang.jac0core.jir { scrub_cache_dirs }
+        import from jaclang.compiler.driver.jir { scrub_cache_dirs }
         src_root = os.path.dirname(os.path.abspath(filename)) or ".";
         _scrubbed = scrub_cache_dirs(src_root);
         if _scrubbed {
@@ -316,14 +314,13 @@ impl nacompile(
 
     console.print(f"Compiling {filename} to native binary");
 
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
 
     try {
         prog = JacProgram();
         options = CompileOptions(
             aot_mode=True,
-            type_check=False,
             default_codespace=('native' if auto_promote else ''),
             force_target_program=True,
             na_gc_mode=gc,
@@ -381,7 +378,7 @@ impl nacompile(
     }
 
     if is_wasm {
-        import from jaclang.compiler.passes.native.wasm_build {
+        import from jaclang.compiler.backends.native.wasm_build {
             emit_wasm_from_ir,
             app_declared_imports
         }
@@ -419,6 +416,22 @@ impl nacompile(
     }
 
     llvm_ir_str = str(ir_module.gen.llvm_ir);
+    if strict {
+        import from jaclang.compiler.backends.native.na_compile_pass {
+            native_demoted_ir_symbols as _demoted_syms
+        }
+        _demoted = _demoted_syms(llvm_ir_str);
+        if _demoted {
+            console.error(
+                f"{len(
+                    _demoted
+                )} function(s) in the native closure were demoted to Python-only: "
+                    + ", ".join(_demoted),
+                hint="A self-contained binary cannot run a demoted function. Rerun with JAC_NA_DEBUG=1 to see why each one failed to lower."
+            );
+            return 1;
+        }
+    }
 
     if assert_no_rc {
         (_rc_syms, _rc_probes) = _scan_rc_machinery(llvm_ir_str);
@@ -453,11 +466,11 @@ impl nacompile(
 
     console.print("  LLVM IR generated successfully.");
 
-    import jaclang.compiler.passes.native.llvm.binding as llvm;
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
     llvm.initialize_all_targets();
     llvm.initialize_all_asmprinters();
 
-    triple = (options.native_target or "") or llvm.get_default_triple();
+    triple = (options.native_target or "") or str(llvm.get_default_triple());
     console.print(f"  Target: {triple}");
 
     export_symbols: list[str] = [];
@@ -510,15 +523,11 @@ impl nacompile(
     _static_musl = _is_linux_exec and (len(needed_libs) == 0);
 
     if shared {
-        _transitive: list[str] = [];
         _mf = ir_module.gen.interop_manifest;
-        if _mf {
-            _transitive = _mf.native_transitive_sources;
-        }
-        import from jaclang.compiler.passes.native.shared_emit {
+        import from jaclang.compiler.backends.native.shared_emit {
             inject_shared_init as _inject_shared_init
         }
-        (llvm_ir_str, _extra_exports) = _inject_shared_init(llvm_ir_str, _transitive);
+        (llvm_ir_str, _extra_exports) = _inject_shared_init(llvm_ir_str, _mf);
         init_funcs = ["__jac_shared_init"];
         for _s in ir_module.gen._exported_symbols {
             if _s not in export_symbols {
@@ -579,19 +588,20 @@ impl nacompile(
     }
 
     _target_ovr = options.native_target or "";
-    if _target_ovr {
-        target = llvm.Target.from_triple(_target_ovr);
-    } else {
-        target = llvm.Target.from_default_triple();
-    }
+    _llvm_target = (
+        llvm.Target.from_triple(_target_ovr)
+            if _target_ovr
+            else llvm.Target.from_default_triple()
+    );
+    assert isinstance(_llvm_target, llvm.Target);
 
     if shared {
-        target_machine = target.create_target_machine(
-            opt=2, reloc="pic", codemodel="small"
-        );
+        _tm = _llvm_target.create_target_machine(opt=2, reloc="pic", codemodel="small");
     } else {
-        target_machine = target.create_target_machine(opt=2, codemodel="large");
+        _tm = _llvm_target.create_target_machine(opt=2, codemodel="large");
     }
+    assert isinstance(_tm, llvm.TargetMachine);
+    target_machine = _tm;
 
     _opt_level = int(options.opt_level or 0);
     _dump_path = options.dump_ir_path or "";
@@ -599,7 +609,9 @@ impl nacompile(
     if _opt_level > 0 {
         pto = llvm.create_pipeline_tuning_options(speed_level=_opt_level);
         pb = llvm.create_pass_builder(target_machine, pto);
+        assert isinstance(pb, llvm.PassBuilder);
         opt_mpm = pb.getModulePassManager();
+        assert isinstance(opt_mpm, llvm.ModulePassManager);
         if not shared {
             opt_mpm.add_internalize_pass();
         }
@@ -613,10 +625,11 @@ impl nacompile(
     }
 
     obj_bytes = target_machine.emit_object(mod);
+    assert isinstance(obj_bytes, bytes);
     console.print(f"  Object code emitted ({len(obj_bytes)} bytes).");
 
     if is_windows {
-        import from jaclang.compiler.passes.native.pe_linker { PeLinker }
+        import from jaclang.compiler.backends.native.pe_linker { PeLinker }
 
         try {
             success = PeLinker.link(
@@ -641,7 +654,7 @@ impl nacompile(
             return 1;
         }
     } elif is_macos {
-        import from jaclang.compiler.passes.native.macho_linker { MachOLinker }
+        import from jaclang.compiler.backends.native.macho_linker { MachOLinker }
         try {
             success = MachOLinker.link(
                 obj_bytes=obj_bytes,
@@ -665,7 +678,7 @@ impl nacompile(
             return 1;
         }
     } else {
-        import from jaclang.compiler.passes.native.elf_linker { ElfLinker }
+        import from jaclang.compiler.backends.native.elf_linker { ElfLinker }
         _crt_objects: list[bytes] = [];
         if _static_musl {
             _musl = _collect_musl_static(obj_bytes, triple);
@@ -769,7 +782,7 @@ def _floor_ca_bundle -> (str | None) {
 
 def _musl_lib_dir(triple: str) -> (str | None) {
     import os;
-    import from jaclang.runtimelib.utils { triple_arch }
+    import from jaclang.runtime.graph_utils { triple_arch }
     env = os.environ.get("JAC_NATIVE_MUSL_DIR", "");
     if env and os.path.isdir(env) {
         return env;
@@ -789,8 +802,11 @@ def _musl_lib_dir(triple: str) -> (str | None) {
         }
     }
 
-    floor = os.path.join(os.path.dirname(pkg_root), "python", "floor");
-    if os.path.isdir(floor) {
+    import from jaclang.dist.fused_binary { bundled_floor_roots }
+    for floor in bundled_floor_roots(pkg_root) {
+        if not os.path.isdir(floor) {
+            continue;
+        }
         for d in sorted(os.listdir(floor)) {
             cand = os.path.join(floor, d, "musl");
             if os.path.isdir(cand)
@@ -806,7 +822,7 @@ def _musl_lib_dir(triple: str) -> (str | None) {
 
 def _collect_musl_static(obj_bytes: bytes, triple: str) -> (tuple | None) {
     import os;
-    import from jaclang.compiler.passes.native.linker_common {
+    import from jaclang.compiler.backends.native.linker_common {
         select_ar_members,
         _ar_member_undefs
     }

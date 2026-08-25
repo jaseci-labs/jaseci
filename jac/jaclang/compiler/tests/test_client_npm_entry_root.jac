@@ -21,7 +21,7 @@ import os;
 import sys;
 import shutil;
 import tempfile;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 
 glob _LIB_SRC: str = (
@@ -97,7 +97,7 @@ def _check(entry_file: str, lib_dir: str) -> JacProgram {
     sys.path.insert(0, lib_dir);
     try {
         prog = JacProgram();
-        prog.compile(file_path=entry_file, type_check=True, no_cgen=True);
+        prog.compile(file_path=entry_file, no_cgen=True);
         return prog;
     } finally {
         sys.path.remove(lib_dir);

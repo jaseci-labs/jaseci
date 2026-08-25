@@ -459,7 +459,7 @@ impl ToolProvider.call_tool(name: str, arguments: dict[str, any]) -> dict[str, a
 
 impl explain_error(error_message: str) -> dict[str, any] {
     msg_lower = error_message.lower();
-    error_patterns: list[tuple] = [
+    error_patterns: list[tuple[str, str, str, str]] = [
         (
             r"unexpected token|expected.*got|syntax error",
             "Syntax Error",

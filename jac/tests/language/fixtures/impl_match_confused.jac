@@ -1,3 +1,5 @@
+node project {}
+
 walker get_highlights {}
 
 walker gen_outline {

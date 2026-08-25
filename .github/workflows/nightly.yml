@@ -80,6 +80,16 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '17 8 * * *' }}
     uses: ./.github/workflows/_installer.yml
 
+  # The darwin native lane: sealed macOS kit + the Mach-O / wasm-floor /
+  # libSystem-equivalence tests that consume it. Off the PR critical path
+  # (44-68 min, and 60 runs of evidence that it duplicated the Linux seal
+  # refusal); see _macos-native.yml. ci.yml still runs it on a `macos` label.
+  # This is also the only caller that runs on main, so it is what seeds the
+  # shared macOS caches -- setup-jac gates every cache save to main.
+  macos-native:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '0 3 * * *' }}
+    uses: ./.github/workflows/_macos-native.yml
+
   # PR CI runs the suite chunked across runners; this is the unchunked
   # single-process full-suite run (materializer-leak watchdog) against a
   # cold sealed build.
@@ -112,14 +122,37 @@ jobs:
 
     - name: Vendor static-musl runtime
       working-directory: jac
-      run: zig build -Dno-ninja vendor-musl --summary all
+      run: zig build vendor-musl --summary all
 
+    - name: Install the optional deps the in-package suites import
+      run: |
+        jac install \
+          "python-dotenv>=1.2.1,<2.0.0" \
+          "prometheus-client>=0.21.0,<1.0.0" \
+          "opentelemetry-sdk>=1.27.0,<2.0.0" \
+          "opentelemetry-exporter-otlp-proto-http>=1.27.0,<2.0.0" \
+          "apscheduler>=3.11.2,<4.0.0" "kubernetes>=34.1.0,<35.0.0" \
+          "docker>=7.1.0,<8.0.0" "boto3>=1.40.0,<2.0.0" \
+          requests "moto[s3]>=5.0.0" \
+          "google-cloud-firestore>=2.21.0,<3.0.0" "google-cloud-storage>=2.19.0,<3.0.0" \
+          "firebase-admin>=6.0.0,<8.0.0" \
+          --global
+        jac install \
+          "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
+          "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
+          --global
+
+    # Bare `jac test`: the whole default plan from the root jac.toml -- every
+    # suite root, the isolate/serial policy included -- so a file no chunked
+    # PR lane names still runs here. Not strict: this lane has no cluster, so
+    # opt-in gates skip; the dep installs above keep dependency skips at zero
+    # in practice.
     - name: Full suite against the sealed binary
       working-directory: jac
       run: |
         set -uxo pipefail
         WORK="$(mktemp -d)"
-        HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/ | tee /tmp/sealed.log
+        HOME="$WORK" JAC_TEST_JOBS=auto jac test | tee /tmp/sealed.log
         rc=${PIPESTATUS[0]}
         {
           echo "## sealed full-suite result"

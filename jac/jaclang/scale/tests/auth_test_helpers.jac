@@ -1,6 +1,6 @@
 """Shared HTTP-test helpers for auth flows.
 
-Used by tests that spin up a `jac start` server and hit /user/* endpoints.
+Used by tests that spin up a `jac run --serve` server and hit /user/* endpoints.
 Kept in a non-test_ file so the runner does not collect it as a test module.
 """
 import requests;
