@@ -554,7 +554,11 @@ jobs:
   # `needs` cannot be conditional.
   test-native:
     needs: [changes, host-kit]
-    if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.core == 'true' && needs.changes.outputs.native != 'true' }}
+    # TEMPORARY, DO NOT MERGE: the `native` filter lists ci.yml, so any PR
+    # carrying the swap/cap restore is routed to test-native-sealed and the
+    # lane under test never runs. Dropping the clause here is the only way to
+    # exercise it before merge. Restore the full condition before landing.
+    if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     strategy:
       fail-fast: false
