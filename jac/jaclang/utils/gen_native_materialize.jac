@@ -522,20 +522,10 @@ obj _MatGen {
     }
 }
 
-"""A declared type spelled as an identifier, for naming its empty-list pin."""
 def _ident(t: str) -> str {
     return re.sub(r"[^0-9A-Za-z]+", "_", t).strip("_");
 }
 
-"""Assignments that sever every node link `sn` owns.
-
-A link that can be nulled is nulled and a list is emptied, which is enough for
-`parent` and the child lists. The rest cannot: `NameAtom.name_of` is `self` and
-`AstSymbolNode.name_spec` points back at it, and neither field is optional, so
-there is no value that means "no node". Those are repointed at a pin -- the first
-node of that type the walk saw -- which leaves exactly one self-referencing node
-per pinned type alive per parse, instead of one per node.
-"""
 def _sever_lines(
     g: _MatGen, sn: str, ind: str, pins: dict[(str, str)], shared: list[str]
 ) -> list[str] {
@@ -561,12 +551,6 @@ def _sever_lines(
     return out;
 }
 
-"""How a field of declared type `ann` relates to the node graph.
-
-Returns (kind, type) where kind is one of "node" (a single node), "opt_node"
-(the same, nullable), "node_list", "record" (a non-node class that itself names
-nodes), or "" for anything that cannot reach a node.
-"""
 def _field_kind(g: _MatGen, ann: str) -> tuple[(str, str)] {
     arms = _split_union(_norm(ann));
     opt = "None" in arms;
@@ -583,8 +567,6 @@ def _field_kind(g: _MatGen, ann: str) -> tuple[(str, str)] {
         _elem = _norm(_inner(arms[0]));
         ib = _base_of(_elem);
         if ib in g.ns and g.is_chain(ib) {
-            # The declared element type, not its base: a slot spelled
-            # `Sequence[Name | Token]` only accepts a list of exactly that.
             return ("node_list", _elem, );
         }
         return ("", "", );
@@ -598,16 +580,6 @@ def _field_kind(g: _MatGen, ann: str) -> tuple[(str, str)] {
     return ("record", ab, );
 }
 
-"""Stack pushes reaching every node named by `expr`, of declared type `ann`.
-
-A `postinit` slot reads as None until it is assigned and an optional stays None,
-so every access is guarded rather than inferred from the union arms.
-
-Nodes also hide behind classes that are not nodes themselves: a symbol names the
-identifiers that define and use it, a location record names the tokens bounding
-it. Those are followed one level in, which is as deep as the tree puts them and
-avoids having to reason about recursion between record types.
-"""
 def _pushes_for(g: _MatGen, ann: str, expr: str, ind: str, nest: bool) -> list[str] {
     (kind, tname) = _field_kind(g, ann);
     if kind == "node" or kind == "opt_node" {
@@ -627,7 +599,6 @@ def _pushes_for(g: _MatGen, ann: str, expr: str, ind: str, nest: bool) -> list[s
         }
     }
     if kind == "" and nest {
-        # A list of records: the elements are not nodes but each may name some.
         arms = [
             a
             for a in _split_union(_norm(ann))
@@ -648,7 +619,6 @@ def _pushes_for(g: _MatGen, ann: str, expr: str, ind: str, nest: bool) -> list[s
     return [];
 }
 
-"""Node pushes for the fields of a non-node record reached through `expr`."""
 def _nested_pushes(g: _MatGen, cname: str, expr: str, ind: str) -> list[str] {
     out: list[str] = [];
     for (lf, _dk, ann) in g.class_fields(cname) {
@@ -660,13 +630,6 @@ def _nested_pushes(g: _MatGen, cname: str, expr: str, ind: str) -> list[str] {
     return out;
 }
 
-"""Stack pushes for every field of `sn` that can lead to a node.
-
-The child list is not the only path to a child. A class names its children twice
--- once in the list, once in typed fields -- and some are named only in the typed
-half, so a walk that follows the child list alone never reaches them and their
-cycles survive.
-"""
 def _node_child_pushes(g: _MatGen, sn: str, ind: str) -> list[str] {
     out: list[str] = [];
     for (lf, _dk, ann) in g.class_fields(sn) {
@@ -786,34 +749,6 @@ glob _HEADER_LINES: tuple[str, ...] = (
          '    return root_h;',
          '}',
          '',
-         '# A parse product is a tree whose nodes point back at their parents, so',
-         '# every node sits in a reference cycle and refcounting alone can never',
-         '# reclaim one. The crossing is where that tree provably dies -- its',
-         '# contents have either been copied into Python objects or were never',
-         '# handed out at all -- so this is the one place that can say so. Severing',
-         '# the back-references and child lists leaves an acyclic graph the',
-         '# refcounts then collect on their own.',
-         '#',
-         '# The child links are not the only way back in. A location record holds',
-         '# the tokens that bound a node, and for a token that range is the token',
-         '# itself, so every leaf closes a second cycle through its own location.',
-         '# Repointing every node at the root location frees the per-node records,',
-         '# and with them the token references they were holding open. Only the',
-         '# root record and the two tokens it names outlive the walk.',
-         '#',
-         '# Two invariants make this safe, and neither is enforced by anything:',
-         '# the wired entries run no passes over the tree (so no pass-populated',
-         '# structure -- __sub_node_tab, names_in_scope, _sym -- exists to sever,',
-         '# and this walk would not reach it), and they never merge an annex (so',
-         '# no node here is also owned by _mat_annex). mat_parse_and_run_prefix',
-         '# breaks both and is deliberately NOT wired: it grafts annex bodies via',
-         '# merge_annex_into and runs the prefix passes. It still leaks its whole',
-         '# tree. Anything wired here in future must re-establish both invariants.',
-         '#',
-         '# The shared empty-list globals below rest on the same topology: nothing',
-         '# appends to a torn-down node because a torn-down tree is unreachable',
-         '# from Python and from every other entry. Wiring an entry that merges',
-         '# would corrupt them for every later parse in the process.',
          'def _mat_drop_tree(nd: @CHAIN_BASE@) -> None {',
          '@CHAIN_PINS@',
          '    stack: list[@CHAIN_BASE@] = [nd];',
@@ -1315,9 +1250,6 @@ def generate(
     header = header.replace(
         "@CHAIN_PIN_ARGS@", "".join([f", {_pins[_t]}" for _t in _pin_types])
     );
-    # An empty list per element type, declared once: the walk assigns them to
-    # every emptied slot and nothing mutates one, so a module-level constant
-    # does the job a per-node allocation was doing.
     header = header.replace(
         "@CHAIN_EMPTY_GLOBS@",
         nl.join(

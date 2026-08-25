@@ -627,20 +627,11 @@ impl NaIRGenRefcount._release_owned_args(
 impl NaIRGenRefcount._field_read_consumes_receiver(
     type_name: (str | None), field_name: str
 ) -> bool {
-    """Whether dropping the receiver after reading `field_name` is sound.
+    """False keeps an older leak rather than trading it for something worse.
 
-    Two shapes say no, and both keep the pre-existing behaviour -- the receiver
-    leaks -- rather than trading that leak for something worse:
-
-    An **inline** field lives in the receiver's own storage, so the read is a
-    GEP rather than a load and the result is a pointer *into* the receiver.
-    Releasing the receiver would hand back a dangling pointer.
-
-    A **property** read is a call, and the accessor's return already retained
-    what it hands back. That value carries no ownership flag, so consuming here
-    would retain it a second time and leak the value instead of the receiver.
-    Flagging accessor results owned is the real fix, but it changes what every
-    consumer of one does and belongs in its own change.
+    An inline field reads as a pointer into the receiver, so dropping it
+    dangles. A property read is already retained but carries no ownership flag,
+    so consuming retains it twice.
     """;
     if type_name is None {
         return False;
@@ -654,21 +645,10 @@ impl NaIRGenRefcount._field_read_consumes_receiver(
 impl NaIRGenRefcount._consume_owned_receiver(
     recv: ir.Value, val: (ir.Value | None), op: str = "field_recv"
 ) -> (ir.Value | None) {
-    """Drop a receiver that the field read was the only consumer of.
+    """Drop a receiver whose field read was its only consumer.
 
-    `obj().f` leaves `obj()`'s result with nothing holding it: a method call
-    passes the receiver as an argument, so `_release_owned_args` frees it, but a
-    field read only indexes into it and no one else ever looks at it again.
-
-    Releasing it here can free the field's own value along with it, since a
-    pointer field is owned by the object it lives in. So the loaded value is
-    retained first and handed back owned, which moves it onto the same
-    owned-temporary path the call machinery already knows how to dispose of. A
-    scalar field carries no such dependency and only needs the receiver dropped.
-
-    The caller must not route an *interior* pointer here. An inline field reads
-    as a pointer into the receiver rather than a value out of it, so releasing
-    the receiver would leave it dangling -- see `_field_read_is_interior`.
+    A pointer field is owned by its receiver, so the value is retained before
+    the drop. Gate with `_field_read_consumes_receiver`.
     """;
     if val is None
         or not isinstance(recv.type, ir.PointerType)
@@ -677,9 +657,6 @@ impl NaIRGenRefcount._consume_owned_receiver(
         return val;
     }
     if isinstance(val.type, ir.PointerType) {
-        # A property read already hands back an owned value -- the accessor's
-        # own return retained it -- so retaining again trades the receiver leak
-        # for a value leak.
         if not self._is_owned(val) {
             self._emit_rc_retain(val, op=op, loc="");
         }
