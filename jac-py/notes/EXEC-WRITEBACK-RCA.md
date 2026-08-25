@@ -64,3 +64,25 @@ fail depends on surrounding frame state -- matching the flip-flop bisect.
 - Code-string construction (repr verified correct; f-string vs concat equal)
 - Trailing commas, duplicate names, N size, EXTENDED_ARG thresholds
 - exec-into-dict binding itself (ns['f'] retrieval works; simple bodies run)
+
+## UPDATE (current tip): failure class RESOLVED -- remap table NOT needed
+
+Re-ran the full bisect matrix on tip 49e9728a2 lineage:
+
+- N-sweep 5..400 via exec-defined functions: ALL PASS (values exact).
+- Original conv_unpack pin 1 (400-target + loop): PASSES.
+- Mismatched-count probes raise CORRECT host errors ("too many values ...").
+Root cause of the historical "got 0" failures could not be pinned to one
+commit (multiple lands between the census jac_sha and current tip), but the
+class is gone. Consequence: NO host->guest opcode remap table is warranted --
+numbering was identical all along and the surviving symptom class has
+cleared. The enum-convergence design block DISSOLVES (nothing to converge).
+
+## Residual (new, narrow)
+
+conv_unpack doctests pin fails with empty-message AssertionError somewhere in
+its ~40 granular checks (old-style __getitem__ iteration protocol,
+len()-honoring unpack variants, single-element `a, =` forms). Needs per-check
+bisection -- candidate for probe fan-out. Unpack error MESSAGE fidelity
+("too many values to unpack (expected 3)") verified correct on mismatched
+counts during this investigation.
