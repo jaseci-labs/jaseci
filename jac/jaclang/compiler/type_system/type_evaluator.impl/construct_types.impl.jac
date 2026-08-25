@@ -311,7 +311,7 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
         func_type = FunctionType(
             func_name=node_.name_spec.sym_name,
             return_type=self.get_none_type(),
-            parameters=None,
+            parameters=[],
             function_flags=flags,
             type_params=func_type_params,
             is_async=node_.is_async,
@@ -412,11 +412,12 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
                 or (
                     isinstance(param.name, Name)
                     and param.name.value == "self"
-                    and node_.signature
+                    and node_.signature is not None
                     and not node_.signature.is_static
                 )
                 or (
                     node_.is_method
+                    and node_.signature is not None
                     and node_.signature.is_in_py_class
                     and param.param_kind in (UniParamKind.POSONLY, UniParamKind.NORMAL)
                     and node_.name_spec.sym_name

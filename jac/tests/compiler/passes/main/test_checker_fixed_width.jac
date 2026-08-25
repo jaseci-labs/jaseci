@@ -18,7 +18,7 @@ import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 
-glob FW_CODES: tuple = ("E1126", "E1127", "E1128", "E1129"),
+glob FW_CODES: tuple = ("E1126", "E1127", "E1128", "E1129", "E1130"),
      VIRTUAL_PATH: str = os.path.join(
          TESTS_DIR,
          "compiler",
@@ -114,8 +114,25 @@ test "literal range applies to call arguments, returns, and has defaults" {
         == [("E1126", 2, 12), ("E1126", 5, 17), ("E1126", 8, 14)];
 }
 
-test "a float literal is always accepted by f32 and f64" {
+test "a float literal is accepted where the type can hold it" {
     assert_clean("with entry {\n    a: f32 = 0.1;\n    b: f64 = 1e300;\n}\n");
+    assert_clean("with entry {\n    a: f32 = 3.4e38;\n    b: f32 = -3.4e38;\n}\n");
+}
+
+test "a float literal past the type's range is E1130, not a silent inf" {
+    src = (
+        "with entry {\n"
+        "    a: f32 = 1e60;\n"
+        "    b: f64 = 1e400;\n"
+        "    c: f32 = 340282400000000000000000000000000000000000.0;\n"
+        "}\n"
+    );
+    assert fw_only(check(src))
+        == [("E1130", 2, 14), ("E1130", 3, 14), ("E1130", 4, 14)] , (
+        "a literal that overflows the target float becomes inf at run time "
+        "with nothing said at check time; precision loss inside the range "
+        "stays accepted, overflow past it does not"
+    );
 }
 
 # ── narrowing (E1127) ─────────────────────────────────────────────
@@ -190,7 +207,6 @@ test "the widening lattice is implicit" {
         "    g: i32 = 1;\n"
         "    ok: bool = True;\n"
         "    takes_i64(a);\n"
-        "    takes_int(b);\n"
         "    takes_f64(c);\n"
         "    takes_i16(d);\n"
         "    takes_f32(e);\n"
@@ -200,6 +216,40 @@ test "the widening lattice is implicit" {
         "    takes_i16(ok);\n"
         "    takes_float(a);\n"
         "    h: f64 = c;\n"
+        "}\n"
+    );
+}
+
+test "u64 into int is E1127: int is a signed 64-bit machine type" {
+    src = (
+        "def takes_int(x: int) -> int {\n    return 0;\n}\n"
+        "with entry {\n"
+        "    b: u64 = 1;\n"
+        "    takes_int(b);\n"
+        "    n: int = b;\n"
+        "}\n"
+    );
+    assert fw_only(check(src)) == [("E1127", 6, 15), ("E1127", 7, 14)] , (
+        "u64 -> int has to be refused for the same reason u64 -> i64 is: the "
+        "native lane lowers `int` as i64, so a u64 past 2^63 arrives negative "
+        "there while the server keeps it positive, with no diagnostic on "
+        "either lane"
+    );
+}
+
+test "int and i64 are interchangeable in the lattice, as are float and f64" {
+    assert_clean(
+        "def takes_i64(x: i64) -> int {\n    return 0;\n}\n"
+        "def takes_f64(x: f64) -> int {\n    return 0;\n}\n"
+        "def takes_float(x: float) -> int {\n    return 0;\n}\n"
+        "with entry {\n"
+        "    n: int = 1;\n"
+        "    w: i64 = 1;\n"
+        "    takes_i64(n);\n"
+        "    takes_f64(n);\n"
+        "    takes_float(n);\n"
+        "    takes_f64(w);\n"
+        "    takes_float(w);\n"
         "}\n"
     );
 }

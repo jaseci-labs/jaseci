@@ -2,7 +2,7 @@
 
 > **Concept:** [Scale invariance](../../reference/plugins/jac-scale.md#the-scale-invariance-contract): `jac scale deploy` changes where the program runs, never what it means.
 
-Moving from a local API server to a production Kubernetes deployment typically requires writing Dockerfiles, Kubernetes manifests, configuring databases, and setting up monitoring. Jac's built-in `scale` subsystem eliminates this boilerplate: `jac scale deploy` generates and applies all the necessary Kubernetes resources automatically -- your application, a MongoDB instance for graph persistence, Redis for caching, and optionally Prometheus/Grafana for monitoring.
+Moving from a local API server to a production Kubernetes deployment typically requires writing Dockerfiles, Kubernetes manifests, configuring databases, and setting up monitoring. Jac's built-in `scale` subsystem eliminates this boilerplate: `jac scale deploy` generates and applies all the necessary Kubernetes resources automatically -- your application, a Postgres instance for graph persistence, and optionally Prometheus/Grafana for monitoring.
 
 This tutorial covers deploying to a local Kubernetes cluster (MicroK8s, minikube, or Docker Desktop), but the same command works for cloud providers (EKS, GKE, AKS) with `kubectl` properly configured.
 
@@ -26,7 +26,7 @@ This tutorial covers deploying to a local Kubernetes cluster (MicroK8s, minikube
 `jac scale deploy` handles everything automatically:
 
 - Deploys your application to Kubernetes
-- Auto-provisions Redis (caching) and MongoDB (persistence)
+- Auto-provisions Postgres (persistence)
 - Creates all necessary Kubernetes resources
 - Exposes your application through the NGINX ingress NodePort (default `30080`)
 
@@ -37,11 +37,9 @@ graph TD
             P1["Pod: jac-app"]
         end
         subgraph data["Data Layer (Auto-Provisioned)"]
-            R["Redis<br/>Caching"]
-            M["MongoDB<br/>Persistence"]
+            PG["Postgres<br/>Persistence"]
         end
-        P1 --> R
-        P1 --> M
+        P1 --> PG
     end
     LB["Ingress NodePort :30080"] --> P1
 ```
@@ -355,7 +353,7 @@ jac scale destroy main.jac
 This removes:
 
 - Application deployments and pods
-- Redis and MongoDB StatefulSets
+- The Postgres StatefulSet
 - Services and persistent volumes
 - ConfigMaps and secrets
 
@@ -366,7 +364,7 @@ This removes:
 When you run `jac scale deploy`, the following happens automatically:
 
 1. **Namespace Setup** - Creates or uses the specified Kubernetes namespace
-2. **Database Provisioning** - Deploys Redis and MongoDB as StatefulSets with persistent storage (first run only)
+2. **Database Provisioning** - Deploys Postgres as a StatefulSet with persistent storage (first run only)
 3. **Application Deployment** - Creates a deployment for your Jac application
 4. **Service Exposure** - Exposes the application through the NGINX ingress NodePort
 
@@ -453,9 +451,8 @@ kubectl get statefulsets
 # Check persistent volumes
 kubectl get pvc
 
-# View database logs
-kubectl logs -l app=mongodb
-kubectl logs -l app=redis
+# View database logs (Postgres pods are labeled app=<app_name>-postgres)
+kubectl logs -l app=jaseci-postgres
 ```
 
 ### Pods stuck in Init
