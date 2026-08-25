@@ -1,3 +1,7 @@
+glob F32_MAX: float = 3.4028234663852886e38,
+     F32_OVERFLOW: float = 3.4028236692093846e38,
+     F64_MAX: float = 1.7976931348623157e308;
+
 obj ScalarShape {
     has name: str,
         width: int,
@@ -93,12 +97,42 @@ def range_of(name: str) -> tuple[int, int] {
     return shape_range(shape);
 }
 
+def shape_float_max(shape: ScalarShape) -> float {
+    if not shape.is_float {
+        raise ValueError(f"{shape.name} is not a float type");
+    }
+    if shape.width == 32 {
+        return F32_MAX;
+    }
+    return F64_MAX;
+}
+
+def float_max(name: str) -> float {
+    shape = shape_of(name);
+    if shape is None {
+        raise KeyError(name);
+    }
+    return shape_float_max(shape);
+}
+
 def shape_literal_fits(shape: ScalarShape, value: int | float) -> bool {
     if not shape.sized {
         return False;
     }
     if shape.is_float {
-        return isinstance(value, (int, float));
+        if not isinstance(value, (int, float)) {
+            return False;
+        }
+        if shape.width == 32 {
+            if value < 0 {
+                return -F32_OVERFLOW < value;
+            }
+            return value < F32_OVERFLOW;
+        }
+        if value < 0 {
+            return -F64_MAX <= value;
+        }
+        return value <= F64_MAX;
     }
     if isinstance(value, float) {
         return False;
@@ -125,23 +159,11 @@ def shapes_widen_to(s: ScalarShape, d: ScalarShape) -> bool {
     if d.name == "bool" {
         return False;
     }
-    if d.name == "int" {
-        return not s.is_float;
-    }
-    if d.name == "float" {
-        return True;
-    }
-    if s.name == "int" {
-        return False;
-    }
-    if s.name == "float" {
-        return d.name == "f64";
-    }
     if s.is_float {
         return d.is_float and d.width >= s.width;
     }
     if d.is_float {
-        return s.width <= d.width // 2;
+        return d.width >= 64 or s.width <= d.width // 2;
     }
     if s.signed == d.signed {
         return d.width >= s.width;
