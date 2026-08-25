@@ -58,6 +58,16 @@ def PyIter_Check(value: PyObj) -> bool {
 def PyObject_GetIter(o: PyObj) -> PyObj {
     res = o.tp_iter();
     if is_error(res) {
+        # Host-exact wording: CPython quotes the operand's type name in the
+        # non-iterable TypeError ("'int' object is not iterable"). Upgrade
+        # nameless slot fallbacks centrally so EVERY iter() consumer inherits
+        # the wording (set/list displays, unpacking, builtins), instead of
+        # each call site patching its own message.
+        if (res as PyError).exception.message == "object is not iterable" {
+            return py_error(
+                "TypeError", "'" + o.tp_type_name() + "' object is not iterable"
+            );
+        }
         return res;
     }
     if not PyIter_Check(res) {
