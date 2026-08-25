@@ -960,7 +960,7 @@ h1 { text-align: center; margin-bottom: 24px; color: #333; }
     ```
 
 ```bash
-jac run main.jac    # or: jac start
+jac run main.jac    # builds and serves
 ```
 
 Open [http://localhost:8000](http://localhost:8000). You should see a clean day planner with an input field and an "Add" button. Try it:
@@ -1882,7 +1882,7 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
     ```
 
 ```bash
-jac run main.jac    # or: jac start
+jac run main.jac    # builds and serves
 ```
 
 !!! warning "Common issue"
@@ -2702,7 +2702,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     ```
 
 ```bash
-jac run main.jac    # or: jac start
+jac run main.jac    # builds and serves
 ```
 
 Open [http://localhost:8000](http://localhost:8000). You should see a login screen.
@@ -3455,7 +3455,7 @@ The three files that change are in the collapsible sections below. Copy the unch
     ```
 
 ```bash
-jac run main.jac    # or: jac start
+jac run main.jac    # builds and serves
 ```
 
 Open [http://localhost:8000](http://localhost:8000). You should see a login screen -- that's authentication working with `walker:priv`.
