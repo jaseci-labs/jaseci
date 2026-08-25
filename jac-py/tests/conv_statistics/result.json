@@ -1,0 +1,542 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_statistics/conv_statistics_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:13:03",
+  "hashes": {
+    "pins_jac": "1a4022a1b316096af8a390d16cb9e7be6e7e3797ad3add3d1b3953f3a26bf16c",
+    "conversion_json": "65dad64605a10cf1f10b1fd6200214252a7242c64f05558561233974a0bf115e",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "statistics",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 232,
+    "runnable": 100,
+    "green": 15,
+    "quarantined": 132,
+    "failed": 85,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "ApproxEqualSymmetryTest.test_relative_symmetry",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'host\\' and \\'int\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualSymmetryTest.test_symmetry",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'host\\' and \\'int\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'must be real number, not Fraction'\">"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_absolute",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'must be real number, not Fraction'\">"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_absolute_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'host\\' and \\'int\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_relative",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'must be real number, not Fraction'\">"
+    },
+    {
+      "id": "ApproxEqualExactTest.test_exactly_equal_both",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'must be real number, not Fraction'\">"
+    },
+    {
+      "id": "ApproxEqualUnequalTest.test_exactly_unequal_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
+    },
+    {
+      "id": "ApproxEqualUnequalTest.test_exactly_unequal_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_absolute_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"unsupported operand type(s) for *: \\'int\\' and \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_absolute_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'host\\' and \\'int\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_relative_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"unsupported operand type(s) for +: \\'int\\' and \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualInexactTest.test_approx_equal_relative_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'host\\' and \\'int\\'\"'>"
+    },
+    {
+      "id": "ApproxEqualSpecialsTest.test_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
+    },
+    {
+      "id": "TestNumericTestCase.test_error_msg_numeric",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute '__init_subclass__'\">"
+    },
+    {
+      "id": "TestNumericTestCase.test_error_msg_sequence",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'result' from 'unittest' (/home/jac/.cache/jac/rt/553c250071fd962f-c152554fd6e7fdad/python/lib/python3.14/unittest/__init__.py)\">"
+    },
+    {
+      "id": "ExactRatioTest.test_int",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExactRatioTest.test_fraction",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExactRatioTest.test_float",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "ExactRatioTest.test_decimal",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExactRatioTest.test_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExactRatioTest.test_float_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ExactRatioTest.test_decimal_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_infinity",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_sign",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_negative_exponent",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_positive_exponent",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "DecimalToRatioTest.test_regression_20536",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "IsFiniteTest.test_finite",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "IsFiniteTest.test_infinity",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "IsFiniteTest.test_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_bool",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_int",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_fraction",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_decimal",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_float",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_non_numeric_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoerceTest.test_incompatible_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ConvertTest.test_int",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ConvertTest.test_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ConvertTest.test_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "ConvertTest.test_invalid_input_type",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "FailNegTest.test_pass_through",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "FailNegTest.test_negatives_raise",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "FailNegTest.test_error_msg",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "SumSpecialValues.test_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_float_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_decimal_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_float_mismatched_infs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_decimal_extendedcontext_mismatched_infs_to_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_decimal_basiccontext_mismatched_infs_to_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "SumSpecialValues.test_decimal_snan_raises",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestMean.test_regression_20561",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestMean.test_regression_25177",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestMultiMode.test_basics",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestFMean.test_basics",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestFMean.test_error_cases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestFMean.test_special_values",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestFMean.test_weights",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestSqrtHelpers.test_integer_sqrt_of_frac_rto",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestSqrtHelpers.test_decimal_sqrt_of_frac",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestGeometricMean.test_basics",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestGeometricMean.test_various_input_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestGeometricMean.test_big_and_small",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestGeometricMean.test_error_cases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestGeometricMean.test_special_values",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestGeometricMean.test_mixed_int_and_float",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestKDE.test_kde_kernel_specs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestQuantiles.test_specific_cases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestQuantiles.test_specific_cases_inclusive",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestQuantiles.test_equal_inputs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestQuantiles.test_equal_sized_groups",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestQuantiles.test_error_cases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestBivariateStatistics.test_unequal_size_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestBivariateStatistics.test_small_sample_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestCorrelationAndCovariance.test_results",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestCorrelationAndCovariance.test_different_scales",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestCorrelationAndCovariance.test_sqrtprod_helper_function_fundamentals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestCorrelationAndCovariance.test_correlation_spearman",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestLinearRegression.test_constant_input_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestLinearRegression.test_results",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestLinearRegression.test_proportional",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "TestLinearRegression.test_float_output",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    }
+  ]
+}

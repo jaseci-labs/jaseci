@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "f5e921e06eb9d933596b6431443728caa01d1afd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_defaultdict/conv_defaultdict_pins.jac"
+  ],
+  "generated_at": "2026-08-24T15:26:31",
+  "hashes": {
+    "pins_jac": "b5659ea9b09314e402c38d4d204b534ec8f9c5153a4898b55a77ef6be178d425",
+    "conversion_json": "476b2c8c4e83d4f1b4f0ab2bfa294d302d3c21c226648f10801369eab6601d1e",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "defaultdict",
+  "counts": {
+    "converted": 13,
+    "runnable": 12,
+    "green": 6,
+    "quarantined": 1
+  },
+  "pins": [
+    {
+      "id": "TestDefaultDict.test_basic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', defaultdict(<class \\'list\\'>, {12: []}), {12: [42]})\"'>"
+    },
+    {
+      "id": "TestDefaultDict.test_missing",
+      "status": "pass"
+    },
+    {
+      "id": "TestDefaultDict.test_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'defaultdict\\' is not defined\"'>"
+    },
+    {
+      "id": "TestDefaultDict.test_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', defaultdict(None, {}), {})\"'>"
+    },
+    {
+      "id": "TestDefaultDict.test_shallow_copy",
+      "status": "pass"
+    },
+    {
+      "id": "TestDefaultDict.test_deep_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "TestDefaultDict.test_keyerror_without_factory",
+      "status": "pass"
+    },
+    {
+      "id": "TestDefaultDict.test_callable_arg",
+      "status": "pass"
+    },
+    {
+      "id": "TestDefaultDict.test_pickling",
+      "status": "pass"
+    },
+    {
+      "id": "TestDefaultDict.test_union",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertDictEqual\\', defaultdict(<class \\'int\\'>, {1: \\'one\\', 2: 2, 0: \\'zero\\'}), {1: \\'one\\', 2: 2, 0: \\'zero\\'})\"'>"
+    },
+    {
+      "id": "TestDefaultDict.test_factory_conflict_with_set_value",
+      "status": "pass"
+    },
+    {
+      "id": "TestDefaultDict.test_repr_recursive_factory",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'first argument must be callable or None'\">"
+    },
+    {
+      "id": "TestDefaultDict.test_recursive_repr",
+      "status": "quarantined",
+      "reason": "self.assertRegex"
+    }
+  ]
+}

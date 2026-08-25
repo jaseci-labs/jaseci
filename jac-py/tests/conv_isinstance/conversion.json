@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "e84f92cd07cc811e9f06ea896c3131e0241dc64d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_isinstance.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_isinstance",
+    "--name",
+    "conv_isinstance"
+  ],
+  "generated_at": "2026-08-24T21:10:47",
+  "hashes": {
+    "pins_jac": "2c0c5b1084a471b6bc07ff6c0bd1777002c9abd7a3f5c60da9132cca2744eb97"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_isinstance.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "isinstance",
+  "pins_file": "conv_isinstance_pins.jac",
+  "pins": [
+    {
+      "ident": "TestIsInstanceExceptions.test_class_has_no_bases",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class I(object):\n\n        def getclass(self):\n            return None\n        __class__ = property(getclass)\n\n    class C(object):\n\n        def getbases(self):\n            return ()\n        __bases__ = property(getbases)\n    assert False == isinstance(I(), C()), ('assertEqual', False, isinstance(I(), C()))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestIsInstanceExceptions.test_bases_raises_other_than_attribute_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class E(object):\n\n        def getbases(self):\n            raise RuntimeError\n        __bases__ = property(getbases)\n\n    class I(object):\n\n        def getclass(self):\n            return E()\n        __class__ = property(getclass)\n\n    class C(object):\n\n        def getbases(self):\n            return ()\n        __bases__ = property(getbases)\n    try:\n        isinstance(*(I(), C()))\n    except RuntimeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestIsInstanceExceptions.test_dont_mask_non_attribute_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class I:\n        pass\n\n    class C(object):\n\n        def getbases(self):\n            raise RuntimeError\n        __bases__ = property(getbases)\n    try:\n        isinstance(*(I(), C()))\n    except RuntimeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestIsInstanceExceptions.test_mask_attribute_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class I:\n        pass\n\n    class C(object):\n\n        def getbases(self):\n            raise AttributeError\n        __bases__ = property(getbases)\n    try:\n        isinstance(*(I(), C()))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestIsInstanceExceptions.test_isinstance_dont_mask_non_attribute_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class C(object):\n\n        def getclass(self):\n            raise RuntimeError\n        __class__ = property(getclass)\n    c = C()\n    try:\n        isinstance(*(c, bool))\n    except RuntimeError:\n        pass\n\n    class D:\n        pass\n    try:\n        isinstance(*(c, D))\n    except RuntimeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestIsSubclassExceptions.test_dont_mask_non_attribute_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class C(object):\n\n        def getbases(self):\n            raise RuntimeError\n        __bases__ = property(getbases)\n\n    class S(C):\n        pass\n    try:\n        issubclass(*(C(), S()))\n    except RuntimeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestIsSubclassExceptions.test_mask_attribute_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class C(object):\n\n        def getbases(self):\n            raise AttributeError\n        __bases__ = property(getbases)\n\n    class S(C):\n        pass\n    try:\n        issubclass(*(C(), S()))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestIsSubclassExceptions.test_dont_mask_non_attribute_error_in_cls_arg",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class B:\n        pass\n\n    class C(object):\n\n        def getbases(self):\n            raise RuntimeError\n        __bases__ = property(getbases)\n    try:\n        issubclass(*(B, C()))\n    except RuntimeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestIsSubclassExceptions.test_mask_attribute_error_in_cls_arg",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class B:\n        pass\n\n    class C(object):\n\n        def getbases(self):\n            raise AttributeError\n        __bases__ = property(getbases)\n    try:\n        issubclass(*(B, C()))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_issubclass_refcount_handling",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class A:\n\n        @property\n        def __bases__(self):\n            return (int,)\n\n    class B:\n\n        def __init__(self):\n            self.x = 1\n\n        @property\n        def __bases__(self):\n            return (A(),)\n    assert True == issubclass(B(), int), ('assertEqual', True, issubclass(B(), int))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_infinite_recursion_in_bases",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class X:\n\n        @property\n        def __bases__(self):\n            return self.__bases__\n    with support.infinite_recursion(25):\n        try:\n            issubclass(*(X(), int))\n        except RecursionError:\n            pass\n        try:\n            issubclass(*(int, X()))\n        except RecursionError:\n            pass\n        try:\n            isinstance(*(1, X()))\n        except RecursionError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestIsInstanceIsSubclass.test_subclass_recursion_limit",
+      "reason": "decorator:support.skip_wasi_stack_overflow"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_isinstance_recursion_limit",
+      "reason": "decorator:support.skip_wasi_stack_overflow"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_infinite_recursion_via_bases_tuple",
+      "reason": "decorator:support.skip_if_unlimited_stack_size"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_infinite_cycle_in_bases",
+      "reason": "decorator:support.skip_if_unlimited_stack_size"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_isinstance_normal",
+      "reason": "unresolved-name:Child"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_isinstance_abstract",
+      "reason": "unresolved-name:Child"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_isinstance_with_or_union",
+      "reason": "unresolved-name:Super"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_subclass_normal",
+      "reason": "unresolved-name:Child"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_subclass_abstract",
+      "reason": "unresolved-name:Child"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_subclass_tuple",
+      "reason": "unresolved-name:Child"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_subclass_with_union",
+      "reason": "unresolved-name:Child"
+    },
+    {
+      "ident": "TestIsInstanceIsSubclass.test_infinitely_many_bases",
+      "reason": "uses-self.assertEqual"
+    }
+  ],
+  "counts": {
+    "extracted": 23,
+    "pinned": 11,
+    "quarantined": 12
+  }
+}

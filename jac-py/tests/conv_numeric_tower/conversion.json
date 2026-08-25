@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "e84f92cd07cc811e9f06ea896c3131e0241dc64d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_numeric_tower.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_numeric_tower",
+    "--name",
+    "conv_numeric_tower"
+  ],
+  "generated_at": "2026-08-24T21:10:53",
+  "hashes": {
+    "pins_jac": "4fc7ac40c357f7cbfcf7dd355a8110c6c2ab1cd93452b3c4a2355d20baa5de06"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_numeric_tower.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "numeric_tower",
+  "pins_file": "conv_numeric_tower_pins.jac",
+  "pins": [
+    {
+      "ident": "HashTest.test_bools",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def check_equal_hash(x, y):\n    assert hash(x) == hash(y), ('assertEqual', hash(x), hash(y))\n    assert x == y, ('assertEqual', x, y)\n\ndef _t():\n    check_equal_hash(False, 0)\n    check_equal_hash(True, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashTest.test_integers",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import random\nfrom decimal import Decimal as D\nfrom fractions import Fraction as F\n\ndef check_equal_hash(x, y):\n    assert hash(x) == hash(y), ('assertEqual', hash(x), hash(y))\n    assert x == y, ('assertEqual', x, y)\n\ndef _t():\n    for i in range(-1000, 1000):\n        check_equal_hash(i, float(i))\n        check_equal_hash(i, D(i))\n        check_equal_hash(i, F(i))\n    for i in range(100):\n        n = 2 ** i - 1\n        if n == int(float(n)):\n            check_equal_hash(n, float(n))\n            check_equal_hash(-n, -float(n))\n        check_equal_hash(n, D(n))\n        check_equal_hash(n, F(n))\n        check_equal_hash(-n, D(-n))\n        check_equal_hash(-n, F(-n))\n        n = 2 ** i\n        check_equal_hash(n, float(n))\n        check_equal_hash(-n, -float(n))\n        check_equal_hash(n, D(n))\n        check_equal_hash(n, F(n))\n        check_equal_hash(-n, D(-n))\n        check_equal_hash(-n, F(-n))\n    for _ in range(1000):\n        e = random.randrange(300)\n        n = random.randrange(-10 ** e, 10 ** e)\n        check_equal_hash(n, D(n))\n        check_equal_hash(n, F(n))\n        if n == int(float(n)):\n            check_equal_hash(n, float(n))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashTest.test_binary_floats",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import random\nimport math\nfrom decimal import Decimal as D\nfrom fractions import Fraction as F\n\ndef check_equal_hash(x, y):\n    assert hash(x) == hash(y), ('assertEqual', hash(x), hash(y))\n    assert x == y, ('assertEqual', x, y)\n\ndef _t():\n    check_equal_hash(0.0, -0.0)\n    check_equal_hash(0.0, D(0))\n    check_equal_hash(-0.0, D(0))\n    check_equal_hash(-0.0, D('-0.0'))\n    check_equal_hash(0.0, F(0))\n    check_equal_hash(float('inf'), D('inf'))\n    check_equal_hash(float('-inf'), D('-inf'))\n    for _ in range(1000):\n        x = random.random() * math.exp(random.random() * 200.0 - 100.0)\n        check_equal_hash(x, D.from_float(x))\n        check_equal_hash(x, F.from_float(x))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashTest.test_complex",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def check_equal_hash(x, y):\n    assert hash(x) == hash(y), ('assertEqual', hash(x), hash(y))\n    assert x == y, ('assertEqual', x, y)\n\ndef _t():\n    test_values = [0.0, -0.0, 1.0, -1.0, 0.40625, -5136.5, float('inf'), float('-inf')]\n    for zero in (-0.0, 0.0):\n        for value in test_values:\n            check_equal_hash(value, complex(value, zero))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashTest.test_decimals",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from decimal import Decimal as D\n\ndef check_equal_hash(x, y):\n    assert hash(x) == hash(y), ('assertEqual', hash(x), hash(y))\n    assert x == y, ('assertEqual', x, y)\n\ndef _t():\n    zeros = ['0', '-0', '0.0', '-0.0e10', '000e-10']\n    for zero in zeros:\n        check_equal_hash(D(zero), D(0))\n    check_equal_hash(D('1.00'), D(1))\n    check_equal_hash(D('1.00000'), D(1))\n    check_equal_hash(D('-1.00'), D(-1))\n    check_equal_hash(D('-1.00000'), D(-1))\n    check_equal_hash(D('123e2'), D(12300))\n    check_equal_hash(D('1230e1'), D(12300))\n    check_equal_hash(D('12300'), D(12300))\n    check_equal_hash(D('12300.0'), D(12300))\n    check_equal_hash(D('12300.00'), D(12300))\n    check_equal_hash(D('12300.000'), D(12300))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HashTest.test_hash_normalization",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class HalibutProxy:\n\n        def __hash__(self):\n            return hash('halibut')\n\n        def __eq__(self, other):\n            return other == 'halibut'\n    x = {'halibut', HalibutProxy()}\n    assert len(x) == 1, ('assertEqual', len(x), 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ComparisonTest.test_mixed_comparisons",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from decimal import Decimal as D\nfrom fractions import Fraction as F\n\ndef _t():\n    test_values = [float('-inf'), D('-1e425000000'), -1e+308, F(-22, 7), -3.14, -2, 0.0, 1e-320, True, F('1.2'), D('1.3'), float('1.4'), F(275807, 195025), D('1.414213562373095048801688724'), F(114243, 80782), F(473596569, 84615), 7e+200, D('infinity')]\n    for i, first in enumerate(test_values):\n        for second in test_values[i + 1:]:\n            assert first < second, ('assertLess', first, second)\n            assert first <= second, ('assertLessEqual', first, second)\n            assert second > first, ('assertGreater', second, first)\n            assert second >= first, ('assertGreaterEqual', second, first)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ComparisonTest.test_complex",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nfrom decimal import Decimal as D\nfrom fractions import Fraction as F\n\ndef _t():\n    z = 1.0 + 0j\n    w = -3.14 + 2.7j\n    for v in (1, 1.0, F(1), D(1), complex(1)):\n        assert z == v, ('assertEqual', z, v)\n        assert v == z, ('assertEqual', v, z)\n    for v in (2, 2.0, F(2), D(2), complex(2)):\n        assert z != v, ('assertNotEqual', z, v)\n        assert v != z, ('assertNotEqual', v, z)\n        assert w != v, ('assertNotEqual', w, v)\n        assert v != w, ('assertNotEqual', v, w)\n    for v in (1, 1.0, F(1), D(1), complex(1), 2, 2.0, F(2), D(2), complex(2), w):\n        for op in (operator.le, operator.lt, operator.ge, operator.gt):\n            try:\n                op(*(z, v))\n            except TypeError:\n                pass\n            try:\n                op(*(v, z))\n            except TypeError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "HashTest.test_fractions",
+      "reason": "unresolved-name:DummyIntegral"
+    }
+  ],
+  "counts": {
+    "extracted": 9,
+    "pinned": 8,
+    "quarantined": 1
+  }
+}

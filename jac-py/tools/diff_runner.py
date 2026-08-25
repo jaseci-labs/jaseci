@@ -43,7 +43,7 @@ JAC_TIMEOUT = 60  # seconds, hard limit; one jac process at a time
 
 from convert_suite import attempt_header, file_sha256  # shared fingerprint block
 
-TOOL_VERSION = "diff_runner-0.2.0"
+TOOL_VERSION = "diff_runner-0.2.1"
 
 _DASH_CHARS = "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"
 _QUOTE_MAP = {
@@ -109,6 +109,33 @@ def build_harness(pins: list[dict]) -> str:
     lines.append('    print("MARK ALLDONE");')
     lines.append("}")
     return "\n".join(lines) + "\n"
+
+
+def run_pins_chunked(
+    pins: list[dict],
+) -> tuple[list[tuple[str, str, str]], bool, str]:
+    """Run pins, splitting into smaller jac processes on batch TIMEOUT.
+
+    A single 60s cap over one process means one slow pin (or plain batch
+    slowness near the cap) wipes classification for every pin after it.
+    On timeout this binary-splits and re-runs each half in its own process
+    (each getting a fresh cap), recursing down to single pins; marks from
+    completed leaves are merged so only genuinely slow/crashing pins stay
+    unclassified. Deterministic ordering is preserved by concatenation.
+    """
+    if len(pins) <= 1:
+        return run_pins(pins)
+    marks, timed_out, stderr = run_pins(pins)
+    if not timed_out:
+        return marks, False, stderr
+    mid = len(pins) // 2
+    m1, t1, e1 = run_pins_chunked(pins[:mid])
+    m2, t2, e2 = run_pins_chunked(pins[mid:])
+    # Drop a trailing ALLDONE from the first half so the merge carries at
+    # most one terminator (classify() stops scanning at ALLDONE).
+    while m1 and m1[-1][0] == "ALLDONE":
+        m1.pop()
+    return m1 + m2, t1 or t2, e1 or e2
 
 
 def run_pins(pins: list[dict]) -> tuple[list[tuple[str, str, str]], bool, str]:
@@ -377,7 +404,7 @@ def main(argv: list[str] | None = None) -> int:
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     pinned = [e for e in meta["pins"] if e.get("status") == "pinned"]
 
-    marks, timed_out, _stderr = run_pins(pinned)
+    marks, timed_out, _stderr = run_pins_chunked(pinned)
     elapsed_note = "TIMEOUT at %ds cap" % JAC_TIMEOUT if timed_out else (
         f"{sum(1 for m in marks if m[1] == 'PASS')}/{len(pinned)} marks"
     )

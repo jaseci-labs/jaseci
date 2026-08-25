@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "e84f92cd07cc811e9f06ea896c3131e0241dc64d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_isinstance/conv_isinstance_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:10:49",
+  "hashes": {
+    "pins_jac": "2c0c5b1084a471b6bc07ff6c0bd1777002c9abd7a3f5c60da9132cca2744eb97",
+    "conversion_json": "d07fb54f30da61cc6d094958379d69a457c819661c37d32d8d030e214af3a50f",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "isinstance",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 23,
+    "runnable": 11,
+    "green": 9,
+    "quarantined": 12,
+    "failed": 2,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestIsInstanceIsSubclass.test_issubclass_refcount_handling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', True, False)\"'>"
+    },
+    {
+      "id": "TestIsInstanceIsSubclass.test_infinite_recursion_in_bases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'infinite_recursion'\">"
+    }
+  ]
+}

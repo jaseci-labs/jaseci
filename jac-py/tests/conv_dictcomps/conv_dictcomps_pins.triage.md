@@ -1,6 +1,6 @@
 # Triage report: `conv_dictcomps_pins.jac`
 
-- source: /var/tmp/sp4-wt/reference/cpython/Lib/test/test_dictcomps.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_dictcomps.py
 - guest leg: 0/9 marks
 - pins: **8 passed** / 9 run (+1 quarantined of 10 extracted)
 
@@ -20,7 +20,7 @@
 
 | test | reason |
 |---|---|
-| DictComprehensionTest.test_exception_locations | uses-self.subTest |
+| DictComprehensionTest.test_exception_locations | host-raised:AssertionError: ('assertEqual', ' in BrokenIter(init_raises=T', 'BrokenIter(init_raises=True)') |
 
 ## Expected vs got
 

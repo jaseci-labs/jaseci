@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "5542c0d7bed70fe5a119f442e06395e8f0cbb3d5",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_dictviews/conv_dictviews_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:02:31",
+  "hashes": {
+    "pins_jac": "ab6fc4c7780223de186220c5f2a5777c3f5b58975f8967b53426ad40ceebc752",
+    "conversion_json": "34c5865894b5751f777bdd39f5799ff002a367ea6c7991206b90c9daa5571222",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "dictviews",
+  "counts": {
+    "converted": 16,
+    "runnable": 16,
+    "green": 10,
+    "quarantined": 0
+  },
+  "pins": [
+    {
+      "id": "DictSetTest.test_constructors_not_callable",
+      "status": "pass"
+    },
+    {
+      "id": "DictSetTest.test_dict_keys",
+      "status": "pass"
+    },
+    {
+      "id": "DictSetTest.test_dict_items",
+      "status": "pass"
+    },
+    {
+      "id": "DictSetTest.test_dict_mixed_keys_items",
+      "status": "pass"
+    },
+    {
+      "id": "DictSetTest.test_dict_values",
+      "status": "pass"
+    },
+    {
+      "id": "DictSetTest.test_dict_repr",
+      "status": "pass"
+    },
+    {
+      "id": "DictSetTest.test_keys_set_operations",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', frozenset({\\'d\\'}), <class \\'set\\'>)\"'>"
+    },
+    {
+      "id": "DictSetTest.test_items_set_operations",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'isdisjoint'\">"
+    },
+    {
+      "id": "DictSetTest.test_set_operations_with_iterator",
+      "status": "pass"
+    },
+    {
+      "id": "DictSetTest.test_set_operations_with_noniterable",
+      "status": "pass"
+    },
+    {
+      "id": "DictSetTest.test_recursive_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'maximum recursion depth exceeded'\">"
+    },
+    {
+      "id": "DictSetTest.test_deeply_nested_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'skip_emscripten_stack_overflow' from '<unknown>'\">"
+    },
+    {
+      "id": "DictSetTest.test_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(shallow)copyable object of type <object>'\">"
+    },
+    {
+      "id": "DictSetTest.test_compare_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Exc ''\">"
+    },
+    {
+      "id": "DictSetTest.test_pickle",
+      "status": "pass"
+    },
+    {
+      "id": "DictSetTest.test_abc_registry",
+      "status": "pass"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "f5e921e06eb9d933596b6431443728caa01d1afd",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,7 +10,7 @@
     "diff_runner.py",
     "jac-py/tests/conv_difflib/conv_difflib_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:32:44",
+  "generated_at": "2026-08-24T15:44:11",
   "hashes": {
     "pins_jac": "fd763939aaf0d9e32a329a826ed15455eadc487c142574c9edd2c4a9958fe7f1",
     "conversion_json": "0112e2ae1aa8e0e6184d840691788535515231fa7f8d15685cd1a9042a68d760",
@@ -22,83 +22,29 @@
   "counts": {
     "converted": 38,
     "runnable": 32,
-    "green": 0,
+    "green": 25,
     "quarantined": 6,
-    "failed": 32,
+    "failed": 7,
     "infra_failed": 0
   },
   "failures": [
     {
-      "id": "TestWithAscii.test_one_insert",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestWithAscii.test_one_delete",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestWithAscii.test_opcode_caching",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
       "id": "TestWithAscii.test_bjunk",
       "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestAutojunk.test_one_insert_homogenous_sequence",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestSFbugs.test_ratio_for_null_seqn",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestSFbugs.test_comparing_empty_lists",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestSFbugs.test_matching_blocks_cache",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestSFbugs.test_added_tab_hint",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestSFbugs.test_hint_indented_properly_with_tabs",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'too many positional arguments'\">"
     },
     {
       "id": "TestSFbugs.test_mdiff_catch_stop_iteration",
       "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'in <string>\\' requires string as left operand, not Differ\"'>"
     },
     {
       "id": "TestSFpatches.test_html_diff",
       "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'findfile' from '<unknown>'\">"
     },
     {
       "id": "TestSFpatches.test_recursion_limit",
@@ -109,116 +55,20 @@
     {
       "id": "TestSFpatches.test_make_file_default_charset",
       "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'in <string>\\' requires string as left operand, not HtmlDiff\"'>"
     },
     {
       "id": "TestSFpatches.test_make_file_iso88591_charset",
       "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'in <string>\\' requires string as left operand, not HtmlDiff\"'>"
     },
     {
       "id": "TestSFpatches.test_make_file_usascii_charset_with_nonascii_input",
       "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestDiffer.test_close_matches_aligned",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestDiffer.test_one_insert",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestDiffer.test_one_delete",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestOutputFormat.test_tab_delimiter",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestOutputFormat.test_no_trailing_tab_on_empty_filedate",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestOutputFormat.test_range_format_unified",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestOutputFormat.test_range_format_context",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestJunkAPIs.test_is_line_junk_true",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestJunkAPIs.test_is_line_junk_false",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestJunkAPIs.test_is_line_junk_REDOS",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestJunkAPIs.test_is_character_junk_true",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestJunkAPIs.test_is_character_junk_false",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestFindLongest.test_default_args",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestFindLongest.test_longest_match_with_popular_chars",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestCloseMatches.test_invalid_inputs",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
-    },
-    {
-      "id": "TestRestore.test_invalid_input",
-      "status": "fail",
-      "classification": "TIMEOUT",
-      "detail": "jac run hit 60s cap"
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'in <string>\\' requires string as left operand, not HtmlDiff\"'>"
     }
   ]
 }

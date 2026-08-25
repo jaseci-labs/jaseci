@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "f5e921e06eb9d933596b6431443728caa01d1afd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_deque/conv_deque_pins.jac"
+  ],
+  "generated_at": "2026-08-24T15:37:40",
+  "hashes": {
+    "pins_jac": "5965e88c7c8eff91a57b4907d328b9e657b957742647c2004b6b2e304ea4792c",
+    "conversion_json": "32250bbb8817ee9e626eb70b8c5850f9d3956ca1b32be218138f967d6f0c97fe",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "deque",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 63,
+    "runnable": 53,
+    "green": 37,
+    "quarantined": 10,
+    "failed": 16,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestBasic.test_comparisons",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', True, False)\"'>"
+    },
+    {
+      "id": "TestBasic.test_contains_count_index_stop_crashes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
+    },
+    {
+      "id": "TestBasic.test_iadd",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \\'can only concatenate deque (not \"str\") to deque\\''>"
+    },
+    {
+      "id": "TestBasic.test_getitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestBasic.test_setitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "TestBasic.test_delitem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestBasic.test_reverse",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestBasic.test_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'deque\\' is not defined\"'>"
+    },
+    {
+      "id": "TestBasic.test_iterator_pickle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f8553846820>\"'>"
+    },
+    {
+      "id": "TestBasic.test_deepcopy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertNotEqual\\', [[10]], [[10]])\"'>"
+    },
+    {
+      "id": "TestBasic.test_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestBasic.test_container_iterator",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertTrue\\', False)\"'>"
+    },
+    {
+      "id": "TestVariousIteratorArgs.test_constructor",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'seq_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "TestVariousIteratorArgs.test_runtime_error_on_empty_deque",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC StopIteration ''\">"
+    },
+    {
+      "id": "TestSubclass.test_weakref",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'seq_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "deque.doctests:libreftest",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'IndexError: pop from an empty deque'>"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "e84f92cd07cc811e9f06ea896c3131e0241dc64d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_numeric_tower/conv_numeric_tower_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:10:56",
+  "hashes": {
+    "pins_jac": "4fc7ac40c357f7cbfcf7dd355a8110c6c2ab1cd93452b3c4a2355d20baa5de06",
+    "conversion_json": "a7a95ce2cbb025e73aab19589ab6ea460f8b50bae31a04f0b8cc6dc9c72b7df7",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "numeric_tower",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 9,
+    "runnable": 8,
+    "green": 2,
+    "quarantined": 1,
+    "failed": 6,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "HashTest.test_integers",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "HashTest.test_binary_floats",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "HashTest.test_complex",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 0.0, -0j)\"'>"
+    },
+    {
+      "id": "HashTest.test_hash_normalization",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 2, 1)\"'>"
+    },
+    {
+      "id": "ComparisonTest.test_mixed_comparisons",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'float\\' and \\'host\\'\"'>"
+    },
+    {
+      "id": "ComparisonTest.test_complex",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 1, (1+0j))\"'>"
+    }
+  ]
+}

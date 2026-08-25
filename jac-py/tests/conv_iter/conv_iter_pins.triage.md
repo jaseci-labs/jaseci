@@ -6,7 +6,7 @@
 
 | pin | result | got |
 |---|---|---|
-| TestCase.test_iter_basic | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f676425dc70>"'> |
+| TestCase.test_iter_basic | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f1833133e20>"'> |
 | TestCase.test_iter_idempotency | PASS | |
 | TestCase.test_iter_for_loop | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object is not iterable'"> |
 | TestCase.test_iter_independence | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object is not iterable'"> |
@@ -18,11 +18,11 @@
 | TestCase.test_iter_function_concealing_reentrant_exhaustion | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaises: did not raise'"> |
 | TestCase.test_exception_function | PASS | |
 | TestCase.test_iter_big_range | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object is not iterable'"> |
-| TestCase.test_iter_empty | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f676425dbc0>"'> |
-| TestCase.test_iter_tuple | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b64b0>"'> |
+| TestCase.test_iter_empty | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f1833130d50>"'> |
+| TestCase.test_iter_tuple | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f1834915fe0>"'> |
 | TestCase.test_iter_range | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object is not iterable'"> |
-| TestCase.test_iter_string | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b7110>"'> |
-| TestCase.test_iter_dict | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b6560>"'> |
+| TestCase.test_iter_string | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f1834915900>"'> |
+| TestCase.test_iter_dict | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f1834917480>"'> |
 | TestCase.test_iter_file | PASS | |
 | TestCase.test_unicode_join_endcase | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'can only join an iterable'"> |
 | TestCase.test_countOf | PASS | |
@@ -36,8 +36,8 @@
 | TestCase.test_sinkstate_yield | PASS | |
 | TestCase.test_sinkstate_range | PASS | |
 | TestCase.test_sinkstate_enumerate | PASS | |
-| TestCase.test_3720 | VM-CRASH |   jac dev mode - using compiler source at /var/tmp/lane8/jac  Error: 'PyUserObj' object has no attribute 'index' 14653 \|             } 14654 \|             iterator = top as PyIter; 14655 \|             if iterator.index < len(iterator.items) {       \|           ^^^^^^^^^^^^^^ 14656 \|                |
-| TestCase.test_extending_list_with_iterator_does_not_segfault | VM-CRASH |   jac dev mode - using compiler source at /var/tmp/lane8/jac  Error: 'PyUserObj' object has no attribute 'index' 14653 \|             } 14654 \|             iterator = top as PyIter; 14655 \|             if iterator.index < len(iterator.items) {       \|           ^^^^^^^^^^^^^^ 14656 \|                |
+| TestCase.test_3720 | VM-CRASH |   jac dev mode - using compiler source at /var/tmp/lane8/jac  Error: 'PyUserObj' object has no attribute 'index' 14665 \|             } 14666 \|             iterator = top as PyIter; 14667 \|             if iterator.index < len(iterator.items) {       \|           ^^^^^^^^^^^^^^ 14668 \|                |
+| TestCase.test_extending_list_with_iterator_does_not_segfault | VM-CRASH |   jac dev mode - using compiler source at /var/tmp/lane8/jac  Error: 'PyUserObj' object has no attribute 'index' 14665 \|             } 14666 \|             iterator = top as PyIter; 14667 \|             if iterator.index < len(iterator.items) {       \|           ^^^^^^^^^^^^^^ 14668 \|                |
 
 ## Quarantined at conversion
 
@@ -76,27 +76,27 @@
 - expected: host oracle = `ok`
 - got:   jac dev mode - using compiler source at /var/tmp/lane8/jac
  Error: 'PyUserObj' object has no attribute 'index'
-14653 |             }
-14654 |             iterator = top as PyIter;
-14655 |             if iterator.index < len(iterator.items) {
+14665 |             }
+14666 |             iterator = top as PyIter;
+14667 |             if iterator.index < len(iterator.items) {
       |           ^^^^^^^^^^^^^^
-14656 |
+14668 |
 
 ### TestCase.test_extending_list_with_iterator_does_not_segfault (VM-CRASH)
 
 - expected: host oracle = `ok`
 - got:   jac dev mode - using compiler source at /var/tmp/lane8/jac
  Error: 'PyUserObj' object has no attribute 'index'
-14653 |             }
-14654 |             iterator = top as PyIter;
-14655 |             if iterator.index < len(iterator.items) {
+14665 |             }
+14666 |             iterator = top as PyIter;
+14667 |             if iterator.index < len(iterator.items) {
       |           ^^^^^^^^^^^^^^
-14656 |
+14668 |
 
 ### TestCase.test_iter_basic (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f676425dc70>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f1833133e20>"'>
 
 ### TestCase.test_iter_big_range (GUEST-WRONG-OUTPUT)
 
@@ -106,12 +106,12 @@
 ### TestCase.test_iter_dict (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b6560>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f1834917480>"'>
 
 ### TestCase.test_iter_empty (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f676425dbc0>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f1833130d50>"'>
 
 ### TestCase.test_iter_for_loop (GUEST-WRONG-OUTPUT)
 
@@ -136,12 +136,12 @@
 ### TestCase.test_iter_string (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b7110>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f1834915900>"'>
 
 ### TestCase.test_iter_tuple (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b64b0>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f1834915fe0>"'>
 
 ### TestCase.test_nested_comprehensions_iter (GUEST-WRONG-OUTPUT)
 

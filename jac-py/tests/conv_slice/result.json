@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "e84f92cd07cc811e9f06ea896c3131e0241dc64d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_slice/conv_slice_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:10:42",
+  "hashes": {
+    "pins_jac": "f50ab08efe22e1af9c76f4fcd6b80ea8b2b96959323316a00ed80e332243986a",
+    "conversion_json": "3cbdfe33c43d8a1a0ea1ba12a0d3979bfa483cb1e518f07d99a14709928d3dbd",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "slice",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 11,
+    "runnable": 10,
+    "green": 6,
+    "quarantined": 1,
+    "failed": 4,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "SliceTest.test_hash",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'slice\\' object has no attribute \\'__hash__\\'\"'>"
+    },
+    {
+      "id": "SliceTest.test_cmp",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Exc ''\">"
+    },
+    {
+      "id": "SliceTest.test_deepcopy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
+    },
+    {
+      "id": "SliceTest.test_cycle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'gc_collect'\">"
+    }
+  ]
+}

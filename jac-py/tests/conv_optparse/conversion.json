@@ -1,0 +1,914 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_optparse.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_optparse",
+    "--name",
+    "conv_optparse"
+  ],
+  "generated_at": "2026-08-24T21:13:08",
+  "hashes": {
+    "pins_jac": "db4b03573a83c74ecc19a389ae13c15e67d929c7be0facd3e7840e702f8128db"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_optparse.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "optparse",
+  "pins_file": "conv_optparse_pins.jac",
+  "pins": [
+    {
+      "ident": "TestOptionChecks.test_opt_string_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertTypeError(func, expected_message, *args):\n    \"\"\"Assert that TypeError is raised when executing func.\"\"\"\n    assertRaises(func, args, None, TypeError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertTypeError(make_option, 'at least one option string must be supplied')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_opt_string_too_short",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"invalid option string 'b': must be at least two characters long\", ['b'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_opt_string_short_invalid",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"invalid short option string '--': must be of the form -x, (x any non-dash char)\", ['--'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_opt_string_long_invalid",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"invalid long option string '---': must start with --, followed by non-dash\", ['---'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_attr_invalid",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError('option -b: invalid keyword arguments: bar, foo', ['-b'], {'foo': None, 'bar': None})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_action_invalid",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"option -b: invalid action: 'foo'\", ['-b'], {'action': 'foo'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_type_invalid",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"option -b: invalid option type: 'foo'\", ['-b'], {'type': 'foo'})\n    assertOptionError(\"option -b: invalid option type: 'tuple'\", ['-b'], {'type': tuple})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_no_type_for_action",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"option -b: must not supply a type for action 'count'\", ['-b'], {'action': 'count', 'type': 'int'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_no_choices_list",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"option -b/--bad: must supply a list of choices for type 'choice'\", ['-b', '--bad'], {'type': 'choice'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_bad_choices_list",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    typename = type('').__name__\n    assertOptionError(\"option -b/--bad: choices must be a list of strings ('%s' supplied)\" % typename, ['-b', '--bad'], {'type': 'choice', 'choices': 'bad choices'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_no_choices_for_type",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"option -b: must not supply choices for type 'int'\", ['-b'], {'type': 'int', 'choices': 'bad'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_no_const_for_action",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"option -b: 'const' must not be supplied for action 'store'\", ['-b'], {'action': 'store', 'const': 1})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_no_nargs_for_action",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"option -b: 'nargs' must not be supplied for action 'count'\", ['-b'], {'action': 'count', 'nargs': 2})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_callback_not_callable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"option -b: callback not callable: 'foo'\", ['-b'], {'action': 'callback', 'callback': 'foo'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_callback_args_no_tuple",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'dummy'"
+    },
+    {
+      "ident": "TestOptionChecks.test_callback_kwargs_no_dict",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'dummy'"
+    },
+    {
+      "ident": "TestOptionChecks.test_no_callback_for_action",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"option -b: callback supplied ('foo') for non-callback option\", ['-b'], {'action': 'store', 'callback': 'foo'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_no_callback_args_for_action",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError('option -b: callback_args supplied for non-callback option', ['-b'], {'action': 'store', 'callback_args': 'foo'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_no_callback_kwargs_for_action",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError('option -b: callback_kwargs supplied for non-callback option', ['-b'], {'action': 'store', 'callback_kwargs': 'foo'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionChecks.test_no_single_dash",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertOptionError(expected_message, args=[], kwargs={}):\n    assertRaises(make_option, args, kwargs, OptionError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertOptionError(\"invalid long option string '-debug': must start with --, followed by non-dash\", ['-debug'])\n    assertOptionError(\"option -d: invalid long option string '-debug': must start with --, followed by non-dash\", ['-d', '-debug'])\n    assertOptionError(\"invalid long option string '-debug': must start with --, followed by non-dash\", ['-debug', '--debug'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionParser.test_add_option_no_Option",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertTypeError(func, expected_message, *args):\n    \"\"\"Assert that TypeError is raised when executing func.\"\"\"\n    assertRaises(func, args, None, TypeError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-v', '--verbose', '-n', '--noisy', action='store_true', dest='verbose')\n    self.parser.add_option('-q', '--quiet', '--silent', action='store_false', dest='verbose')\n    assertTypeError(self.parser.add_option, 'not an Option instance: None', None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionParser.test_add_option_invalid_arguments",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertTypeError(func, expected_message, *args):\n    \"\"\"Assert that TypeError is raised when executing func.\"\"\"\n    assertRaises(func, args, None, TypeError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-v', '--verbose', '-n', '--noisy', action='store_true', dest='verbose')\n    self.parser.add_option('-q', '--quiet', '--silent', action='store_false', dest='verbose')\n    assertTypeError(self.parser.add_option, 'invalid arguments', None, None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionParser.test_get_option",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-v', '--verbose', '-n', '--noisy', action='store_true', dest='verbose')\n    self.parser.add_option('-q', '--quiet', '--silent', action='store_false', dest='verbose')\n    opt1 = self.parser.get_option('-v')\n    assert isinstance(opt1, Option), ('assertIsInstance', opt1, Option)\n    assert opt1._short_opts == ['-v', '-n'], ('assertEqual', opt1._short_opts, ['-v', '-n'])\n    assert opt1._long_opts == ['--verbose', '--noisy'], ('assertEqual', opt1._long_opts, ['--verbose', '--noisy'])\n    assert opt1.action == 'store_true', ('assertEqual', opt1.action, 'store_true')\n    assert opt1.dest == 'verbose', ('assertEqual', opt1.dest, 'verbose')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionParser.test_get_option_equals",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-v', '--verbose', '-n', '--noisy', action='store_true', dest='verbose')\n    self.parser.add_option('-q', '--quiet', '--silent', action='store_false', dest='verbose')\n    opt1 = self.parser.get_option('-v')\n    opt2 = self.parser.get_option('--verbose')\n    opt3 = self.parser.get_option('-n')\n    opt4 = self.parser.get_option('--noisy')\n    assert opt1 is opt2 is opt3 is opt4, ('assertTrue', opt1 is opt2 is opt3 is opt4)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionParser.test_has_option",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-v', '--verbose', '-n', '--noisy', action='store_true', dest='verbose')\n    self.parser.add_option('-q', '--quiet', '--silent', action='store_false', dest='verbose')\n    assert self.parser.has_option('-v'), ('assertTrue', self.parser.has_option('-v'))\n    assert self.parser.has_option('--verbose'), ('assertTrue', self.parser.has_option('--verbose'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionParser.test_remove_short_opt",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestOptionParser.test_remove_long_opt",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestOptionParser.test_remove_nonexistent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-v', '--verbose', '-n', '--noisy', action='store_true', dest='verbose')\n    self.parser.add_option('-q', '--quiet', '--silent', action='store_false', dest='verbose')\n    assertRaises(self.parser.remove_option, ('foo',), None, ValueError, \"no such option 'foo'\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionValues.test_basics",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef _t():\n    pass\n    values = Values()\n    assert vars(values) == {}, ('assertEqual', vars(values), {})\n    assert values == {}, ('assertEqual', values, {})\n    assert values != {'foo': 'bar'}, ('assertNotEqual', values, {'foo': 'bar'})\n    assert values != '', ('assertNotEqual', values, '')\n    dict = {'foo': 'bar', 'baz': 42}\n    values = Values(defaults=dict)\n    assert vars(values) == dict, ('assertEqual', vars(values), dict)\n    assert values == dict, ('assertEqual', values, dict)\n    assert values != {'foo': 'bar'}, ('assertNotEqual', values, {'foo': 'bar'})\n    assert values != {}, ('assertNotEqual', values, {})\n    assert values != '', ('assertNotEqual', values, '')\n    assert values != [], ('assertNotEqual', values, [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTypeAliases.test_str_aliases_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-s', type='str')\n    assert self.parser.get_option('-s').type == 'string', ('assertEqual', self.parser.get_option('-s').type, 'string')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTypeAliases.test_type_object",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-s', type=str)\n    assert self.parser.get_option('-s').type == 'string', ('assertEqual', self.parser.get_option('-s').type, 'string')\n    self.parser.add_option('-x', type=int)\n    assert self.parser.get_option('-x').type == 'int', ('assertEqual', self.parser.get_option('-x').type, 'int')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestDefaultValues.test_basic_defaults",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-v', '--verbose', default=True)\n    self.parser.add_option('-q', '--quiet', dest='verbose')\n    self.parser.add_option('-n', type='int', default=37)\n    self.parser.add_option('-m', type='int')\n    self.parser.add_option('-s', default='foo')\n    self.parser.add_option('-t')\n    self.parser.add_option('-u', default=None)\n    self.expected = {'verbose': True, 'n': 37, 'm': None, 's': 'foo', 't': None, 'u': None}\n    assert self.parser.get_default_values() == self.expected, ('assertEqual', self.parser.get_default_values(), self.expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestDefaultValues.test_mixed_defaults_post",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-v', '--verbose', default=True)\n    self.parser.add_option('-q', '--quiet', dest='verbose')\n    self.parser.add_option('-n', type='int', default=37)\n    self.parser.add_option('-m', type='int')\n    self.parser.add_option('-s', default='foo')\n    self.parser.add_option('-t')\n    self.parser.add_option('-u', default=None)\n    self.expected = {'verbose': True, 'n': 37, 'm': None, 's': 'foo', 't': None, 'u': None}\n    self.parser.set_defaults(n=42, m=-100)\n    self.expected.update({'n': 42, 'm': -100})\n    assert self.parser.get_default_values() == self.expected, ('assertEqual', self.parser.get_default_values(), self.expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestDefaultValues.test_mixed_defaults_pre",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser()\n    self.parser.add_option('-v', '--verbose', default=True)\n    self.parser.add_option('-q', '--quiet', dest='verbose')\n    self.parser.add_option('-n', type='int', default=37)\n    self.parser.add_option('-m', type='int')\n    self.parser.add_option('-s', default='foo')\n    self.parser.add_option('-t')\n    self.parser.add_option('-u', default=None)\n    self.expected = {'verbose': True, 'n': 37, 'm': None, 's': 'foo', 't': None, 'u': None}\n    self.parser.set_defaults(x='barf', y='blah')\n    self.parser.add_option('-x', default='frob')\n    self.parser.add_option('-y')\n    self.expected.update({'x': 'frob', 'y': 'blah'})\n    assert self.parser.get_default_values() == self.expected, ('assertEqual', self.parser.get_default_values(), self.expected)\n    self.parser.remove_option('-y')\n    self.parser.add_option('-y', default=None)\n    self.expected.update({'y': None})\n    assert self.parser.get_default_values() == self.expected, ('assertEqual', self.parser.get_default_values(), self.expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestStandard.test_required_value",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_invalid_integer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_no_such_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_long_invalid_integer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_empty",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_shortopt_empty_longopt_append",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_long_option_append",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_option_argument_joined",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_option_argument_split",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_option_argument_joined_integer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_option_argument_split_negative_integer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_long_option_argument_joined",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_long_option_argument_split",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_long_option_short_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_abbrev_long_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_defaults",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef setUp():\n    options = [make_option('-a', type='string'), make_option('-b', '--boo', type='int', dest='boo'), make_option('--foo', action='append')]\n    self.parser = InterceptingOptionParser(usage=SUPPRESS_USAGE, option_list=options)\n\nclass InterceptingOptionParser(OptionParser):\n\n    def exit(self, status=0, msg=None):\n        raise InterceptedError(exit_status=status, exit_message=msg)\n\n    def error(self, msg):\n        raise InterceptedError(error_message=msg)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    options = [make_option('-a', type='string'), make_option('-b', '--boo', type='int', dest='boo'), make_option('--foo', action='append')]\n    self.parser = InterceptingOptionParser(usage=SUPPRESS_USAGE, option_list=options)\n    options, args = self.parser.parse_args([])\n    defaults = self.parser.get_default_values()\n    assert vars(defaults) == vars(options), ('assertEqual', vars(defaults), vars(options))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestStandard.test_ambiguous_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_short_and_long_option_split",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_short_option_split_long_option_append",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_short_option_split_one_positional_arg",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_short_option_consumes_separator",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_short_option_joined_and_separator",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_hyphen_becomes_positional_arg",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_no_append_versus_append",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_option_consumes_optionlike_string",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestStandard.test_combined_single_invalid_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestBool.test_bool_default",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestBool.test_bool_false",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestBool.test_bool_true",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestBool.test_bool_flicker_on_and_off",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestChoice.test_valid_choice",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestChoice.test_invalid_choice",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestChoice.test_add_choice_option",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n_time_units = {'s': 1, 'm': 60, 'h': 60 * 60, 'd': 60 * 60 * 24}\n\ndef _check_duration(option, opt, value):\n    try:\n        if value[-1].isdigit():\n            return int(value)\n        else:\n            return int(value[:-1]) * _time_units[value[-1]]\n    except (ValueError, IndexError):\n        raise OptionValueError('option %s: invalid duration: %r' % (opt, value))\n\nclass InterceptingOptionParser(OptionParser):\n\n    def exit(self, status=0, msg=None):\n        raise InterceptedError(exit_status=status, exit_message=msg)\n\n    def error(self, msg):\n        raise InterceptedError(error_message=msg)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = InterceptingOptionParser(usage=SUPPRESS_USAGE)\n    self.parser.add_option('-c', action='store', type='choice', dest='choice', choices=['one', 'two', 'three'])\n    self.parser.add_option('-d', '--default', choices=['four', 'five', 'six'])\n    opt = self.parser.get_option('-d')\n    assert opt.type == 'choice', ('assertEqual', opt.type, 'choice')\n    assert opt.action == 'store', ('assertEqual', opt.action, 'store')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCount.test_empty",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_one",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_three",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_three_apart",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_override_amount",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_override_quiet",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_overriding",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_interspersed_args",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_no_interspersed_args",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_no_such_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_option_no_value",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_with_default",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestCount.test_count_overriding_default",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestMultipleArgs.test_nargs_with_positional_args",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestMultipleArgs.test_nargs_long_opt",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestMultipleArgs.test_nargs_invalid_float_value",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestMultipleArgs.test_nargs_required_values",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestMultipleArgsAppend.test_nargs_append",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestMultipleArgsAppend.test_nargs_append_required_values",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestMultipleArgsAppend.test_nargs_append_simple",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestMultipleArgsAppend.test_nargs_append_const",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestConflictingDefaults.test_conflict_default",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestConflictingDefaults.test_conflict_default_none",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestOptionGroup.test_option_group_create_instance",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestOptionGroup.test_add_group_no_group",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertTypeError(func, expected_message, *args):\n    \"\"\"Assert that TypeError is raised when executing func.\"\"\"\n    assertRaises(func, args, None, TypeError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertTypeError(self.parser.add_option_group, 'not an OptionGroup instance: None', None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionGroup.test_add_group_invalid_arguments",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef assertTypeError(func, expected_message, *args):\n    \"\"\"Assert that TypeError is raised when executing func.\"\"\"\n    assertRaises(func, args, None, TypeError, expected_message)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    assertTypeError(self.parser.add_option_group, 'invalid arguments', None, None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionGroup.test_add_group_wrong_parser",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    group = OptionGroup(self.parser, 'Spam')\n    group.parser = OptionParser()\n    assertRaises(self.parser.add_option_group, (group,), None, ValueError, 'invalid OptionGroup (wrong parser)')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestOptionGroup.test_group_manipulate",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = OptionParser(usage=SUPPRESS_USAGE)\n    group = self.parser.add_option_group('Group 2', description='Some more options')\n    group.set_title('Bacon')\n    group.add_option('--bacon', type='int')\n    assert self.parser.get_option_group('--bacon'), ('assertTrue', self.parser.get_option_group('--bacon'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestExtendAddTypes.test_filetype_ok",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'MyOption'"
+    },
+    {
+      "ident": "TestExtendAddTypes.test_filetype_noexist",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'MyOption'"
+    },
+    {
+      "ident": "TestExtendAddTypes.test_filetype_notfile",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'MyOption'"
+    },
+    {
+      "ident": "TestCallback.test_callback",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'process_opt'"
+    },
+    {
+      "ident": "TestCallbackExtraArgs.test_callback_extra_args",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'process_tuple'"
+    },
+    {
+      "ident": "TestCallbackMeddleArgs.test_callback_meddle_args",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'process_n'"
+    },
+    {
+      "ident": "TestCallbackMeddleArgs.test_callback_meddle_args_separator",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'process_n'"
+    },
+    {
+      "ident": "TestCallbackManyArgs.test_many_args",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'process_many'"
+    },
+    {
+      "ident": "TestCallbackCheckAbbrev.test_abbrev_callback_expansion",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_abbrev'"
+    },
+    {
+      "ident": "TestCallbackVarArgs.test_variable_args",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'variable_args'"
+    },
+    {
+      "ident": "TestCallbackVarArgs.test_consume_separator_stop_at_option",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'variable_args'"
+    },
+    {
+      "ident": "TestCallbackVarArgs.test_positional_arg_and_variable_args",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'variable_args'"
+    },
+    {
+      "ident": "TestCallbackVarArgs.test_stop_at_option",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'variable_args'"
+    },
+    {
+      "ident": "TestCallbackVarArgs.test_stop_at_invalid_option",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'variable_args'"
+    },
+    {
+      "ident": "TestConflict.test_conflict_error",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestConflict.test_conflict_error_group",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestConflict.test_no_such_conflict_handler",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n\ndef setUp():\n    options = [make_option('-v', '--verbose', action='count', dest='verbose', help='increment verbosity')]\n    self.parser = InterceptingOptionParser(usage=SUPPRESS_USAGE, option_list=options)\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\nclass InterceptingOptionParser(OptionParser):\n\n    def exit(self, status=0, msg=None):\n        raise InterceptedError(exit_status=status, exit_message=msg)\n\n    def error(self, msg):\n        raise InterceptedError(error_message=msg)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    options = [make_option('-v', '--verbose', action='count', dest='verbose', help='increment verbosity')]\n    self.parser = InterceptingOptionParser(usage=SUPPRESS_USAGE, option_list=options)\n    assertRaises(self.parser.set_conflict_handler, ('foo',), None, ValueError, \"invalid conflict_resolution value 'foo'\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestConflictResolve.test_conflict_resolve",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'BaseTest' is not defined"
+    },
+    {
+      "ident": "TestConflictResolve.test_conflict_resolve_help",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'BaseTest' is not defined"
+    },
+    {
+      "ident": "TestConflictResolve.test_conflict_resolve_short_opt",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'BaseTest' is not defined"
+    },
+    {
+      "ident": "TestConflictResolve.test_conflict_resolve_long_opt",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'BaseTest' is not defined"
+    },
+    {
+      "ident": "TestConflictResolve.test_conflict_resolve_long_opts",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'BaseTest' is not defined"
+    },
+    {
+      "ident": "TestConflictOverride.test_conflict_override_opts",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\n_time_units = {'s': 1, 'm': 60, 'h': 60 * 60, 'd': 60 * 60 * 24}\n\ndef _check_duration(option, opt, value):\n    try:\n        if value[-1].isdigit():\n            return int(value)\n        else:\n            return int(value[:-1]) * _time_units[value[-1]]\n    except (ValueError, IndexError):\n        raise OptionValueError('option %s: invalid duration: %r' % (opt, value))\n\nclass InterceptingOptionParser(OptionParser):\n\n    def exit(self, status=0, msg=None):\n        raise InterceptedError(exit_status=status, exit_message=msg)\n\n    def error(self, msg):\n        raise InterceptedError(error_message=msg)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = InterceptingOptionParser(usage=SUPPRESS_USAGE)\n    self.parser.set_conflict_handler('resolve')\n    self.parser.add_option('-n', '--dry-run', action='store_true', dest='dry_run', help=\"don't do anything\")\n    self.parser.add_option('--dry-run', '-n', action='store_const', const=42, dest='dry_run', help='dry run mode')\n    opt = self.parser.get_option('--dry-run')\n    assert opt._short_opts == ['-n'], ('assertEqual', opt._short_opts, ['-n'])\n    assert opt._long_opts == ['--dry-run'], ('assertEqual', opt._long_opts, ['--dry-run'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestConflictOverride.test_conflict_override_help",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestConflictOverride.test_conflict_override_args",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestHelp.test_help",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestHelp.test_help_old_usage",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestHelp.test_help_long_opts_first",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestHelp.test_help_title_formatter",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestHelp.test_wrap_columns",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestHelp.test_help_unicode",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestHelp.test_help_unicode_description",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestHelp.test_help_description_groups",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestMatchAbbrev.test_match_abbrev",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import _match_abbrev\n\ndef _t():\n    assert _match_abbrev('--f', {'--foz': None, '--foo': None, '--fie': None, '--f': None}) == '--f', ('assertEqual', _match_abbrev('--f', {'--foz': None, '--foo': None, '--fie': None, '--f': None}), '--f')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestMatchAbbrev.test_match_abbrev_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\nfrom optparse import _match_abbrev\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\ndef _t():\n    s = '--f'\n    wordmap = {'--foz': None, '--foo': None, '--fie': None}\n    assertRaises(_match_abbrev, (s, wordmap), None, BadOptionError, 'ambiguous option: --f (--fie, --foo, --foz?)')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestParseNumber.test_parse_num_fail",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re\nfrom optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\nfrom optparse import _parse_num\n\ndef assertRaises(func, args, kwargs, expected_exception, expected_message):\n    \"\"\"\n        Assert that the expected exception is raised when calling a\n        function, and that the right error message is included with\n        that exception.\n\n        Arguments:\n          func -- the function to call\n          args -- positional arguments to `func`\n          kwargs -- keyword arguments to `func`\n          expected_exception -- exception that should be raised\n          expected_message -- expected exception message (or pattern\n            if a compiled regex object)\n\n        Returns the exception raised for further testing.\n        \"\"\"\n    if args is None:\n        args = ()\n    if kwargs is None:\n        kwargs = {}\n    try:\n        func(*args, **kwargs)\n    except expected_exception as err:\n        actual_message = str(err)\n        if isinstance(expected_message, re.Pattern):\n            assert expected_message.search(actual_message), ('assertTrue', expected_message.search(actual_message))\n        else:\n            assert actual_message == expected_message, ('assertEqual', actual_message, expected_message)\n        return err\n    else:\n        raise AssertionError('expected exception %(expected_exception)s not raised\\ncalled %(func)r\\nwith args %(args)r\\nand kwargs %(kwargs)r\\n' % locals())\n\nclass InterceptingOptionParser(OptionParser):\n\n    def exit(self, status=0, msg=None):\n        raise InterceptedError(exit_status=status, exit_message=msg)\n\n    def error(self, msg):\n        raise InterceptedError(error_message=msg)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = InterceptingOptionParser()\n    self.parser.add_option('-n', type=int)\n    self.parser.add_option('-l', type=int)\n    assertRaises(_parse_num, ('', int), {}, ValueError, re.compile(\"invalid literal for int().*: '?'?\"))\n    assertRaises(_parse_num, ('0xOoops', int), {}, ValueError, re.compile(\"invalid literal for int().*: s?'?0xOoops'?\"))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestParseNumber.test_parse_num_ok",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from optparse import make_option, Option, TitledHelpFormatter, OptionParser, OptionGroup, SUPPRESS_USAGE, OptionError, OptionConflictError, BadOptionError, OptionValueError, Values\nfrom optparse import _parse_num\n\nclass InterceptingOptionParser(OptionParser):\n\n    def exit(self, status=0, msg=None):\n        raise InterceptedError(exit_status=status, exit_message=msg)\n\n    def error(self, msg):\n        raise InterceptedError(error_message=msg)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.parser = InterceptingOptionParser()\n    self.parser.add_option('-n', type=int)\n    self.parser.add_option('-l', type=int)\n    assert _parse_num('0', int) == 0, ('assertEqual', _parse_num('0', int), 0)\n    assert _parse_num('0x10', int) == 16, ('assertEqual', _parse_num('0x10', int), 16)\n    assert _parse_num('0XA', int) == 10, ('assertEqual', _parse_num('0XA', int), 10)\n    assert _parse_num('010', int) == 8, ('assertEqual', _parse_num('010', int), 8)\n    assert _parse_num('0b11', int) == 3, ('assertEqual', _parse_num('0b11', int), 3)\n    assert _parse_num('0b', int) == 0, ('assertEqual', _parse_num('0b', int), 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestParseNumber.test_numeric_options",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "MiscTestCase.test__all__",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "MiscTestCase.test_lazy_import",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.import_helper import ensure_lazy_imports\n\ndef _t():\n    ensure_lazy_imports('optparse', {'textwrap'})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestOptionParser.test_refleak",
+      "reason": "decorator:support.impl_detail"
+    },
+    {
+      "ident": "TestDefaultValues.test_process_default",
+      "reason": "unresolved-name:DurationOption"
+    },
+    {
+      "ident": "TestProgName.test_default_progname",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestProgName.test_custom_progname",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestExpandDefaults.test_option_default",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestExpandDefaults.test_parser_default_1",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestExpandDefaults.test_parser_default_2",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestExpandDefaults.test_no_default",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestExpandDefaults.test_default_none_1",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestExpandDefaults.test_default_none_2",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestExpandDefaults.test_float_default",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestExpandDefaults.test_alt_expand",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestExpandDefaults.test_no_expand",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestVersion.test_version",
+      "reason": "unresolved-name:InterceptingOptionParser"
+    },
+    {
+      "ident": "TestVersion.test_no_version",
+      "reason": "unresolved-name:InterceptingOptionParser"
+    },
+    {
+      "ident": "TestExtendAddActions.test_extend_add_action",
+      "reason": "helper:setUp(uses-self.MyOption)"
+    },
+    {
+      "ident": "TestExtendAddActions.test_extend_add_action_normal",
+      "reason": "helper:setUp(uses-self.MyOption)"
+    },
+    {
+      "ident": "TestCallback.test_callback_help",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "ident": "TestTranslations.test_translations",
+      "reason": "self.assertMsgidsEqual"
+    }
+  ],
+  "counts": {
+    "extracted": 154,
+    "pinned": 43,
+    "quarantined": 111
+  }
+}

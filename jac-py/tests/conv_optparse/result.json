@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_optparse/conv_optparse_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:13:23",
+  "hashes": {
+    "pins_jac": "db4b03573a83c74ecc19a389ae13c15e67d929c7be0facd3e7840e702f8128db",
+    "conversion_json": "50cebf12aa7c1e2166297c36af8e80a9e00bae8646dd770d629334e2e9df9cea",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "optparse",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 154,
+    "runnable": 43,
+    "green": 42,
+    "quarantined": 111,
+    "failed": 1,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "MiscTestCase.test_lazy_import",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.import_helper'\">"
+    }
+  ]
+}

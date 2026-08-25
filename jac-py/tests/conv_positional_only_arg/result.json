@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "e84f92cd07cc811e9f06ea896c3131e0241dc64d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_positional_only_arg/conv_positional_only_arg_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:10:47",
+  "hashes": {
+    "pins_jac": "56da1ebba8749b3d362fc258c0c02118d07286c79e435911b45fc036fb115a01",
+    "conversion_json": "0845eee84e244fd516f615719a2144a96f4b0fe935f3f10418943a9a292ca9d9",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "positional_only_arg",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 28,
+    "runnable": 25,
+    "green": 9,
+    "quarantined": 3,
+    "failed": 16,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "PositionalOnlyTestCase.test_optional_positional_only_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_use_positional_as_keyword",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_positional_only_and_arg_invalid_calls",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_positional_only_and_optional_arg_invalid_calls",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_positional_only_and_kwonlyargs_invalid_calls",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_positional_only_invalid_calls",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_positional_only_with_optional_invalid_calls",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_posonly_methods",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_module_function",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_closures",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_annotations_in_closures",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__annotations__'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_same_keyword_as_positional_with_kwargs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_serialization",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle <function global_pos_only_f at 0x7fd26ee13690>: it\\'s not found as ceval.global_pos_only_f\"'>"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_async",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_generator",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "PositionalOnlyTestCase.test_annotations_constant_fold",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: get_intrinsic1_descs'>"
+    }
+  ]
+}

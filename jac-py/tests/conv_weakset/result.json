@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_weakset/conv_weakset_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:12:46",
+  "hashes": {
+    "pins_jac": "f260f78eef0ddec285283842cfa5aa93a7465018b4f9d22877307cc4c2e71dc6",
+    "conversion_json": "a05988c5e691f7ea4b8f9fb5e6c0fc84fb91375bf1d6c3067ea9ef056dbcddc6",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "weakset",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 46,
+    "runnable": 40,
+    "green": 0,
+    "quarantined": 6,
+    "failed": 40,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestWeakSet.test_methods",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_new_or_init",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_len",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_contains",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_union",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_or",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_intersection",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_isdisjoint",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_and",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_difference",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_sub",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_symmetric_difference",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_xor",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_sub_and_super",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_lt",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_gt",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_subclass_with_custom_hash",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_init",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_constructor_identity",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_hash",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_clear",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_remove",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_discard",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_pop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_update_set",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_ior",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_intersection_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_iand",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_difference_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_isub",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_symmetric_difference_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_ixor",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_inplace_on_self",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_ne",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_weak_destroy_while_iterating",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_weak_destroy_and_mutate_while_iterating",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    },
+    {
+      "id": "TestWeakSet.test_abc",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'WeakSet' from '<unknown>'\">"
+    }
+  ]
+}

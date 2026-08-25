@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_timeit/conv_timeit_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:13:08",
+  "hashes": {
+    "pins_jac": "f60caba84b705d0f52943108c8b8680ba4f3adef1934c9a2ef13aeef4e9a1798",
+    "conversion_json": "f9c47e2d38d4d05a4b12e6bca2abde794b1aec8b35dab63d6d668c88ec28c7e5",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "timeit",
+  "status": "passed",
+  "timed_out": false,
+  "counts": {
+    "converted": 41,
+    "runnable": 7,
+    "green": 7,
+    "quarantined": 34,
+    "failed": 0,
+    "infra_failed": 0
+  },
+  "failures": []
+}

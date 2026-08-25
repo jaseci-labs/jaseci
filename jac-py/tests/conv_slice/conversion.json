@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "e84f92cd07cc811e9f06ea896c3131e0241dc64d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_slice.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_slice",
+    "--name",
+    "conv_slice"
+  ],
+  "generated_at": "2026-08-24T21:10:40",
+  "hashes": {
+    "pins_jac": "f50ab08efe22e1af9c76f4fcd6b80ea8b2b96959323316a00ed80e332243986a"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_slice.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "slice",
+  "pins_file": "conv_slice_pins.jac",
+  "pins": [
+    {
+      "ident": "SliceTest.test_constructor",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\ndef evaluate_slice_index(arg):\n    \"\"\"\n    Helper function to convert a slice argument to an integer, and raise\n    TypeError with a suitable message on failure.\n\n    \"\"\"\n    if hasattr(arg, '__index__'):\n        return operator.index(arg)\n    else:\n        raise TypeError('slice indices must be integers or None or have an __index__ method')\n\ndef slice_indices(slice, length):\n    \"\"\"\n    Reference implementation for the slice.indices method.\n\n    \"\"\"\n    length = operator.index(length)\n    step = 1 if slice.step is None else evaluate_slice_index(slice.step)\n    if length < 0:\n        raise ValueError('length should not be negative')\n    if step == 0:\n        raise ValueError('slice step cannot be zero')\n    lower = -1 if step < 0 else 0\n    upper = length - 1 if step < 0 else length\n    if slice.start is None:\n        start = upper if step < 0 else lower\n    else:\n        start = evaluate_slice_index(slice.start)\n        start = max(start + length, lower) if start < 0 else min(start, upper)\n    if slice.stop is None:\n        stop = lower if step < 0 else upper\n    else:\n        stop = evaluate_slice_index(slice.stop)\n        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)\n    return (start, stop, step)\n\ndef _t():\n    try:\n        slice()\n    except TypeError:\n        pass\n    try:\n        slice(*(1, 2, 3, 4))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SliceTest.test_repr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\ndef evaluate_slice_index(arg):\n    \"\"\"\n    Helper function to convert a slice argument to an integer, and raise\n    TypeError with a suitable message on failure.\n\n    \"\"\"\n    if hasattr(arg, '__index__'):\n        return operator.index(arg)\n    else:\n        raise TypeError('slice indices must be integers or None or have an __index__ method')\n\ndef slice_indices(slice, length):\n    \"\"\"\n    Reference implementation for the slice.indices method.\n\n    \"\"\"\n    length = operator.index(length)\n    step = 1 if slice.step is None else evaluate_slice_index(slice.step)\n    if length < 0:\n        raise ValueError('length should not be negative')\n    if step == 0:\n        raise ValueError('slice step cannot be zero')\n    lower = -1 if step < 0 else 0\n    upper = length - 1 if step < 0 else length\n    if slice.start is None:\n        start = upper if step < 0 else lower\n    else:\n        start = evaluate_slice_index(slice.start)\n        start = max(start + length, lower) if start < 0 else min(start, upper)\n    if slice.stop is None:\n        stop = lower if step < 0 else upper\n    else:\n        stop = evaluate_slice_index(slice.stop)\n        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)\n    return (start, stop, step)\n\ndef _t():\n    assert repr(slice(1, 2, 3)) == 'slice(1, 2, 3)', ('assertEqual', repr(slice(1, 2, 3)), 'slice(1, 2, 3)')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SliceTest.test_hash",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\ndef evaluate_slice_index(arg):\n    \"\"\"\n    Helper function to convert a slice argument to an integer, and raise\n    TypeError with a suitable message on failure.\n\n    \"\"\"\n    if hasattr(arg, '__index__'):\n        return operator.index(arg)\n    else:\n        raise TypeError('slice indices must be integers or None or have an __index__ method')\n\ndef slice_indices(slice, length):\n    \"\"\"\n    Reference implementation for the slice.indices method.\n\n    \"\"\"\n    length = operator.index(length)\n    step = 1 if slice.step is None else evaluate_slice_index(slice.step)\n    if length < 0:\n        raise ValueError('length should not be negative')\n    if step == 0:\n        raise ValueError('slice step cannot be zero')\n    lower = -1 if step < 0 else 0\n    upper = length - 1 if step < 0 else length\n    if slice.start is None:\n        start = upper if step < 0 else lower\n    else:\n        start = evaluate_slice_index(slice.start)\n        start = max(start + length, lower) if start < 0 else min(start, upper)\n    if slice.stop is None:\n        stop = lower if step < 0 else upper\n    else:\n        stop = evaluate_slice_index(slice.stop)\n        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)\n    return (start, stop, step)\n\ndef _t():\n    assert hash(slice(5)) == slice(5).__hash__(), ('assertEqual', hash(slice(5)), slice(5).__hash__())\n    assert hash(slice(1, 2)) == slice(1, 2).__hash__(), ('assertEqual', hash(slice(1, 2)), slice(1, 2).__hash__())\n    assert hash(slice(1, 2, 3)) == slice(1, 2, 3).__hash__(), ('assertEqual', hash(slice(1, 2, 3)), slice(1, 2, 3).__hash__())\n    assert slice(5) != slice(6), ('assertNotEqual', slice(5), slice(6))\n    try:\n        hash(slice(1, 2, []))\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        hash(slice(4, {}))\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SliceTest.test_cmp",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\ndef evaluate_slice_index(arg):\n    \"\"\"\n    Helper function to convert a slice argument to an integer, and raise\n    TypeError with a suitable message on failure.\n\n    \"\"\"\n    if hasattr(arg, '__index__'):\n        return operator.index(arg)\n    else:\n        raise TypeError('slice indices must be integers or None or have an __index__ method')\n\ndef slice_indices(slice, length):\n    \"\"\"\n    Reference implementation for the slice.indices method.\n\n    \"\"\"\n    length = operator.index(length)\n    step = 1 if slice.step is None else evaluate_slice_index(slice.step)\n    if length < 0:\n        raise ValueError('length should not be negative')\n    if step == 0:\n        raise ValueError('slice step cannot be zero')\n    lower = -1 if step < 0 else 0\n    upper = length - 1 if step < 0 else length\n    if slice.start is None:\n        start = upper if step < 0 else lower\n    else:\n        start = evaluate_slice_index(slice.start)\n        start = max(start + length, lower) if start < 0 else min(start, upper)\n    if slice.stop is None:\n        stop = lower if step < 0 else upper\n    else:\n        stop = evaluate_slice_index(slice.stop)\n        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)\n    return (start, stop, step)\n\ndef _t():\n    s1 = slice(1, 2, 3)\n    s2 = slice(1, 2, 3)\n    s3 = slice(1, 2, 4)\n    assert s1 == s2, ('assertEqual', s1, s2)\n    assert s1 != s3, ('assertNotEqual', s1, s3)\n    assert s1 != None, ('assertNotEqual', s1, None)\n    assert s1 != (1, 2, 3), ('assertNotEqual', s1, (1, 2, 3))\n    assert s1 != '', ('assertNotEqual', s1, '')\n\n    class Exc(Exception):\n        pass\n\n    class BadCmp(object):\n\n        def __eq__(self, other):\n            raise Exc\n    s1 = slice(BadCmp())\n    s2 = slice(BadCmp())\n    assert s1 == s1, ('assertEqual', s1, s1)\n    try:\n        (lambda: s1 == s2)()\n    except Exc:\n        pass\n    s1 = slice(1, BadCmp())\n    s2 = slice(1, BadCmp())\n    assert s1 == s1, ('assertEqual', s1, s1)\n    try:\n        (lambda: s1 == s2)()\n    except Exc:\n        pass\n    s1 = slice(1, 2, BadCmp())\n    s2 = slice(1, 2, BadCmp())\n    assert s1 == s1, ('assertEqual', s1, s1)\n    try:\n        (lambda: s1 == s2)()\n    except Exc:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SliceTest.test_members",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\ndef evaluate_slice_index(arg):\n    \"\"\"\n    Helper function to convert a slice argument to an integer, and raise\n    TypeError with a suitable message on failure.\n\n    \"\"\"\n    if hasattr(arg, '__index__'):\n        return operator.index(arg)\n    else:\n        raise TypeError('slice indices must be integers or None or have an __index__ method')\n\ndef slice_indices(slice, length):\n    \"\"\"\n    Reference implementation for the slice.indices method.\n\n    \"\"\"\n    length = operator.index(length)\n    step = 1 if slice.step is None else evaluate_slice_index(slice.step)\n    if length < 0:\n        raise ValueError('length should not be negative')\n    if step == 0:\n        raise ValueError('slice step cannot be zero')\n    lower = -1 if step < 0 else 0\n    upper = length - 1 if step < 0 else length\n    if slice.start is None:\n        start = upper if step < 0 else lower\n    else:\n        start = evaluate_slice_index(slice.start)\n        start = max(start + length, lower) if start < 0 else min(start, upper)\n    if slice.stop is None:\n        stop = lower if step < 0 else upper\n    else:\n        stop = evaluate_slice_index(slice.stop)\n        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)\n    return (start, stop, step)\n\ndef _t():\n    s = slice(1)\n    assert s.start == None, ('assertEqual', s.start, None)\n    assert s.stop == 1, ('assertEqual', s.stop, 1)\n    assert s.step == None, ('assertEqual', s.step, None)\n    s = slice(1, 2)\n    assert s.start == 1, ('assertEqual', s.start, 1)\n    assert s.stop == 2, ('assertEqual', s.stop, 2)\n    assert s.step == None, ('assertEqual', s.step, None)\n    s = slice(1, 2, 3)\n    assert s.start == 1, ('assertEqual', s.start, 1)\n    assert s.stop == 2, ('assertEqual', s.stop, 2)\n    assert s.step == 3, ('assertEqual', s.step, 3)\n\n    class AnyClass:\n        pass\n    obj = AnyClass()\n    s = slice(obj)\n    assert s.stop is obj, ('assertTrue', s.stop is obj)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SliceTest.test_setslice_without_getslice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\ndef evaluate_slice_index(arg):\n    \"\"\"\n    Helper function to convert a slice argument to an integer, and raise\n    TypeError with a suitable message on failure.\n\n    \"\"\"\n    if hasattr(arg, '__index__'):\n        return operator.index(arg)\n    else:\n        raise TypeError('slice indices must be integers or None or have an __index__ method')\n\ndef slice_indices(slice, length):\n    \"\"\"\n    Reference implementation for the slice.indices method.\n\n    \"\"\"\n    length = operator.index(length)\n    step = 1 if slice.step is None else evaluate_slice_index(slice.step)\n    if length < 0:\n        raise ValueError('length should not be negative')\n    if step == 0:\n        raise ValueError('slice step cannot be zero')\n    lower = -1 if step < 0 else 0\n    upper = length - 1 if step < 0 else length\n    if slice.start is None:\n        start = upper if step < 0 else lower\n    else:\n        start = evaluate_slice_index(slice.start)\n        start = max(start + length, lower) if start < 0 else min(start, upper)\n    if slice.stop is None:\n        stop = lower if step < 0 else upper\n    else:\n        stop = evaluate_slice_index(slice.stop)\n        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)\n    return (start, stop, step)\n\ndef _t():\n    tmp = []\n\n    class X(object):\n\n        def __setitem__(self, i, k):\n            tmp.append((i, k))\n    x = X()\n    x[1:2] = 42\n    assert tmp == [(slice(1, 2), 42)], ('assertEqual', tmp, [(slice(1, 2), 42)])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SliceTest.test_pickle",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nfrom pickle import loads, dumps\n\ndef evaluate_slice_index(arg):\n    \"\"\"\n    Helper function to convert a slice argument to an integer, and raise\n    TypeError with a suitable message on failure.\n\n    \"\"\"\n    if hasattr(arg, '__index__'):\n        return operator.index(arg)\n    else:\n        raise TypeError('slice indices must be integers or None or have an __index__ method')\n\ndef slice_indices(slice, length):\n    \"\"\"\n    Reference implementation for the slice.indices method.\n\n    \"\"\"\n    length = operator.index(length)\n    step = 1 if slice.step is None else evaluate_slice_index(slice.step)\n    if length < 0:\n        raise ValueError('length should not be negative')\n    if step == 0:\n        raise ValueError('slice step cannot be zero')\n    lower = -1 if step < 0 else 0\n    upper = length - 1 if step < 0 else length\n    if slice.start is None:\n        start = upper if step < 0 else lower\n    else:\n        start = evaluate_slice_index(slice.start)\n        start = max(start + length, lower) if start < 0 else min(start, upper)\n    if slice.stop is None:\n        stop = lower if step < 0 else upper\n    else:\n        stop = evaluate_slice_index(slice.stop)\n        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)\n    return (start, stop, step)\n\ndef _t():\n    import pickle\n    s = slice(10, 20, 3)\n    for protocol in range(pickle.HIGHEST_PROTOCOL + 1):\n        t = loads(dumps(s, protocol))\n        assert s == t, ('assertEqual', s, t)\n        assert s.indices(15) == t.indices(15), ('assertEqual', s.indices(15), t.indices(15))\n        assert id(s) != id(t), ('assertNotEqual', id(s), id(t))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SliceTest.test_copy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nimport copy\n\ndef evaluate_slice_index(arg):\n    \"\"\"\n    Helper function to convert a slice argument to an integer, and raise\n    TypeError with a suitable message on failure.\n\n    \"\"\"\n    if hasattr(arg, '__index__'):\n        return operator.index(arg)\n    else:\n        raise TypeError('slice indices must be integers or None or have an __index__ method')\n\ndef slice_indices(slice, length):\n    \"\"\"\n    Reference implementation for the slice.indices method.\n\n    \"\"\"\n    length = operator.index(length)\n    step = 1 if slice.step is None else evaluate_slice_index(slice.step)\n    if length < 0:\n        raise ValueError('length should not be negative')\n    if step == 0:\n        raise ValueError('slice step cannot be zero')\n    lower = -1 if step < 0 else 0\n    upper = length - 1 if step < 0 else length\n    if slice.start is None:\n        start = upper if step < 0 else lower\n    else:\n        start = evaluate_slice_index(slice.start)\n        start = max(start + length, lower) if start < 0 else min(start, upper)\n    if slice.stop is None:\n        stop = lower if step < 0 else upper\n    else:\n        stop = evaluate_slice_index(slice.stop)\n        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)\n    return (start, stop, step)\n\ndef _t():\n    s = slice(1, 10)\n    c = copy.copy(s)\n    assert s is c, ('assertIs', s, c)\n    s = slice(1, 10, 2)\n    c = copy.copy(s)\n    assert s is c, ('assertIs', s, c)\n    s = slice([1, 2], [3, 4], [5, 6])\n    c = copy.copy(s)\n    assert s is c, ('assertIs', s, c)\n    assert s.start is c.start, ('assertIs', s.start, c.start)\n    assert s.stop is c.stop, ('assertIs', s.stop, c.stop)\n    assert s.step is c.step, ('assertIs', s.step, c.step)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SliceTest.test_deepcopy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nimport copy\n\ndef evaluate_slice_index(arg):\n    \"\"\"\n    Helper function to convert a slice argument to an integer, and raise\n    TypeError with a suitable message on failure.\n\n    \"\"\"\n    if hasattr(arg, '__index__'):\n        return operator.index(arg)\n    else:\n        raise TypeError('slice indices must be integers or None or have an __index__ method')\n\ndef slice_indices(slice, length):\n    \"\"\"\n    Reference implementation for the slice.indices method.\n\n    \"\"\"\n    length = operator.index(length)\n    step = 1 if slice.step is None else evaluate_slice_index(slice.step)\n    if length < 0:\n        raise ValueError('length should not be negative')\n    if step == 0:\n        raise ValueError('slice step cannot be zero')\n    lower = -1 if step < 0 else 0\n    upper = length - 1 if step < 0 else length\n    if slice.start is None:\n        start = upper if step < 0 else lower\n    else:\n        start = evaluate_slice_index(slice.start)\n        start = max(start + length, lower) if start < 0 else min(start, upper)\n    if slice.stop is None:\n        stop = lower if step < 0 else upper\n    else:\n        stop = evaluate_slice_index(slice.stop)\n        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)\n    return (start, stop, step)\n\ndef _t():\n    s = slice(1, 10)\n    c = copy.deepcopy(s)\n    assert s == c, ('assertEqual', s, c)\n    s = slice(1, 10, 2)\n    c = copy.deepcopy(s)\n    assert s == c, ('assertEqual', s, c)\n    s = slice([1, 2], [3, 4], [5, 6])\n    c = copy.deepcopy(s)\n    assert s is not c, ('assertIsNot', s, c)\n    assert s == c, ('assertEqual', s, c)\n    assert s.start is not c.start, ('assertIsNot', s.start, c.start)\n    assert s.stop is not c.stop, ('assertIsNot', s.stop, c.stop)\n    assert s.step is not c.step, ('assertIsNot', s.step, c.step)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SliceTest.test_cycle",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\nimport weakref\nfrom test import support\n\ndef evaluate_slice_index(arg):\n    \"\"\"\n    Helper function to convert a slice argument to an integer, and raise\n    TypeError with a suitable message on failure.\n\n    \"\"\"\n    if hasattr(arg, '__index__'):\n        return operator.index(arg)\n    else:\n        raise TypeError('slice indices must be integers or None or have an __index__ method')\n\ndef slice_indices(slice, length):\n    \"\"\"\n    Reference implementation for the slice.indices method.\n\n    \"\"\"\n    length = operator.index(length)\n    step = 1 if slice.step is None else evaluate_slice_index(slice.step)\n    if length < 0:\n        raise ValueError('length should not be negative')\n    if step == 0:\n        raise ValueError('slice step cannot be zero')\n    lower = -1 if step < 0 else 0\n    upper = length - 1 if step < 0 else length\n    if slice.start is None:\n        start = upper if step < 0 else lower\n    else:\n        start = evaluate_slice_index(slice.start)\n        start = max(start + length, lower) if start < 0 else min(start, upper)\n    if slice.stop is None:\n        stop = lower if step < 0 else upper\n    else:\n        stop = evaluate_slice_index(slice.stop)\n        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)\n    return (start, stop, step)\n\ndef _t():\n\n    class myobj:\n        pass\n    o = myobj()\n    o.s = slice(o)\n    w = weakref.ref(o)\n    o = None\n    support.gc_collect()\n    assert w() is None, ('assertIsNone', w())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "SliceTest.test_indices",
+      "reason": "unresolved-name:MyIndexable"
+    }
+  ],
+  "counts": {
+    "extracted": 11,
+    "pinned": 10,
+    "quarantined": 1
+  }
+}

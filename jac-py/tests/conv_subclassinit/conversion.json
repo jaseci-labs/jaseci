@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_subclassinit.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_subclassinit",
+    "--name",
+    "conv_subclassinit"
+  ],
+  "generated_at": "2026-08-24T21:12:39",
+  "hashes": {
+    "pins_jac": "4899fe6169ef0ae3902ca6d9febcfaa528f27acce88a20a031b8e2e8129ff4ab"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_subclassinit.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "subclassinit",
+  "pins_file": "conv_subclassinit_pins.jac",
+  "pins": [
+    {
+      "ident": "Test.test_init_subclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class A:\n        initialized = False\n\n        def __init_subclass__(cls):\n            super().__init_subclass__()\n            cls.initialized = True\n\n    class B(A):\n        pass\n    assert not A.initialized, ('assertFalse', A.initialized)\n    assert B.initialized, ('assertTrue', B.initialized)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_init_subclass_dict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class A(dict):\n        initialized = False\n\n        def __init_subclass__(cls):\n            super().__init_subclass__()\n            cls.initialized = True\n\n    class B(A):\n        pass\n    assert not A.initialized, ('assertFalse', A.initialized)\n    assert B.initialized, ('assertTrue', B.initialized)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_init_subclass_kwargs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class A:\n\n        def __init_subclass__(cls, **kwargs):\n            cls.kwargs = kwargs\n\n    class B(A, x=3):\n        pass\n    assert B.kwargs == dict(x=3), ('assertEqual', B.kwargs, dict(x=3))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_init_subclass_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class A:\n\n        def __init_subclass__(cls):\n            raise RuntimeError\n    try:\n\n        class B(A):\n            pass\n    except RuntimeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_init_subclass_wrong",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class A:\n\n        def __init_subclass__(cls, whatever):\n            pass\n    try:\n\n        class B(A):\n            pass\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_init_subclass_skipped",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class BaseWithInit:\n\n        def __init_subclass__(cls, **kwargs):\n            super().__init_subclass__(**kwargs)\n            cls.initialized = cls\n\n    class BaseWithoutInit(BaseWithInit):\n        pass\n\n    class A(BaseWithoutInit):\n        pass\n    assert A.initialized is A, ('assertIs', A.initialized, A)\n    assert BaseWithoutInit.initialized is BaseWithoutInit, ('assertIs', BaseWithoutInit.initialized, BaseWithoutInit)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_init_subclass_diamond",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class Base:\n\n        def __init_subclass__(cls, **kwargs):\n            super().__init_subclass__(**kwargs)\n            cls.calls = []\n\n    class Left(Base):\n        pass\n\n    class Middle:\n\n        def __init_subclass__(cls, middle, **kwargs):\n            super().__init_subclass__(**kwargs)\n            cls.calls += [middle]\n\n    class Right(Base):\n\n        def __init_subclass__(cls, right='right', **kwargs):\n            super().__init_subclass__(**kwargs)\n            cls.calls += [right]\n\n    class A(Left, Middle, Right, middle='middle'):\n        pass\n    assert A.calls == ['right', 'middle'], ('assertEqual', A.calls, ['right', 'middle'])\n    assert Left.calls == [], ('assertEqual', Left.calls, [])\n    assert Right.calls == [], ('assertEqual', Right.calls, [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_set_name",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Descriptor:\n\n        def __set_name__(self, owner, name):\n            self.owner = owner\n            self.name = name\n\n    class A:\n        d = Descriptor()\n    assert A.d.name == 'd', ('assertEqual', A.d.name, 'd')\n    assert A.d.owner is A, ('assertIs', A.d.owner, A)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_set_name_lookup",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    resolved = []\n\n    class NonDescriptor:\n\n        def __getattr__(self, name):\n            resolved.append(name)\n\n    class A:\n        d = NonDescriptor()\n    assert '__set_name__' not in resolved, ('assertNotIn', '__set_name__', resolved)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_set_name_init_subclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Descriptor:\n\n        def __set_name__(self, owner, name):\n            self.owner = owner\n            self.name = name\n\n    class Meta(type):\n\n        def __new__(cls, name, bases, ns):\n            self = super().__new__(cls, name, bases, ns)\n            self.meta_owner = self.owner\n            self.meta_name = self.name\n            return self\n\n    class A:\n\n        def __init_subclass__(cls):\n            cls.owner = cls.d.owner\n            cls.name = cls.d.name\n\n    class B(A, metaclass=Meta):\n        d = Descriptor()\n    assert B.owner is B, ('assertIs', B.owner, B)\n    assert B.name == 'd', ('assertEqual', B.name, 'd')\n    assert B.meta_owner is B, ('assertIs', B.meta_owner, B)\n    assert B.name == 'd', ('assertEqual', B.name, 'd')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_set_name_modifying_dict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    notified = []\n\n    class Descriptor:\n\n        def __set_name__(self, owner, name):\n            setattr(owner, name + 'x', None)\n            notified.append(name)\n\n    class A:\n        a = Descriptor()\n        b = Descriptor()\n        c = Descriptor()\n        d = Descriptor()\n        e = Descriptor()\n    assert sorted(notified, key=repr) == sorted(['a', 'b', 'c', 'd', 'e'], key=repr), ('assertCountEqual', notified, ['a', 'b', 'c', 'd', 'e'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class MyMeta(type):\n        pass\n    try:\n\n        class MyClass(metaclass=MyMeta, otherarg=1):\n            pass\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        types.new_class('MyClass', (object,), dict(metaclass=MyMeta, otherarg=1))\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    types.prepare_class('MyClass', (object,), dict(metaclass=MyMeta, otherarg=1))\n\n    class MyMeta(type):\n\n        def __init__(self, name, bases, namespace, otherarg):\n            super().__init__(name, bases, namespace)\n    try:\n\n        class MyClass2(metaclass=MyMeta, otherarg=1):\n            pass\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    class MyMeta(type):\n\n        def __new__(cls, name, bases, namespace, otherarg):\n            return super().__new__(cls, name, bases, namespace)\n\n        def __init__(self, name, bases, namespace, otherarg):\n            super().__init__(name, bases, namespace)\n            self.otherarg = otherarg\n\n    class MyClass3(metaclass=MyMeta, otherarg=1):\n        pass\n    assert MyClass3.otherarg == 1, ('assertEqual', MyClass3.otherarg, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_errors_changed_pep487",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class MyMeta(type):\n\n        def __new__(cls, name, bases, namespace):\n            return super().__new__(cls, name=name, bases=bases, dict=namespace)\n    try:\n\n        class MyClass(metaclass=MyMeta):\n            pass\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    class MyMeta(type):\n\n        def __new__(cls, name, bases, namespace, otherarg):\n            self = super().__new__(cls, name, bases, namespace)\n            self.otherarg = otherarg\n            return self\n\n    class MyClass2(metaclass=MyMeta, otherarg=1):\n        pass\n    assert MyClass2.otherarg == 1, ('assertEqual', MyClass2.otherarg, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test.test_type",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    t = type('NewClass', (object,), {})\n    assert isinstance(t, type), ('assertIsInstance', t, type)\n    assert t.__name__ == 'NewClass', ('assertEqual', t.__name__, 'NewClass')\n    try:\n        type(name='NewClass', bases=(object,), dict={})\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "Test.test_set_name_metaclass",
+      "reason": "uses-self.assertEqual"
+    },
+    {
+      "ident": "Test.test_set_name_error",
+      "reason": "self.assertRegex"
+    },
+    {
+      "ident": "Test.test_set_name_wrong",
+      "reason": "self.assertRegex"
+    }
+  ],
+  "counts": {
+    "extracted": 17,
+    "pinned": 14,
+    "quarantined": 3
+  }
+}

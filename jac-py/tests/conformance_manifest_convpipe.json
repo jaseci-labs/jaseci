@@ -2,7 +2,7 @@
   "version": 1,
   "wave": "conv_pipeline",
   "description": "D2 mechanical test-conversion pipeline (convert_suite/diff_runner)",
-  "module_count": 84,
+  "module_count": 102,
   "modules": [
     {
       "stem": "array",
@@ -61,13 +61,20 @@
     {
       "stem": "binop",
       "gate_type": "oracle",
-      "status": "converted",
+      "status": "partial",
       "oracle_tests": [
-        "conv_binop_pins.jac"
+        "jac-py/tests/conv_binop/conv_binop_pins.jac"
       ],
       "libtest_snippets": [],
       "notes": "1 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
-      "conversion_meta": "binop.conv.json"
+      "conversion_meta": "jac-py/tests/conv_binop/binop.conv.json",
+      "jacpython_results": {
+        "binop": {
+          "passed": 1,
+          "total": 1,
+          "notes": "1/1 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
     },
     {
       "stem": "bool",
@@ -202,13 +209,20 @@
     {
       "stem": "compare",
       "gate_type": "oracle",
-      "status": "converted",
+      "status": "partial",
       "oracle_tests": [
-        "conv_compare_pins.jac"
+        "jac-py/tests/conv_compare/conv_compare_pins.jac"
       ],
       "libtest_snippets": [],
-      "notes": "8 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
-      "conversion_meta": "compare.conv.json"
+      "notes": "9 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_compare/compare.conv.json",
+      "jacpython_results": {
+        "compare": {
+          "passed": 7,
+          "total": 9,
+          "notes": "7/9 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
     },
     {
       "stem": "complex",
@@ -371,13 +385,20 @@
     {
       "stem": "dictcomps",
       "gate_type": "oracle",
-      "status": "converted",
+      "status": "partial",
       "oracle_tests": [
-        "conv_dictcomps_pins.jac"
+        "jac-py/tests/conv_dictcomps/conv_dictcomps_pins.jac"
       ],
       "libtest_snippets": [],
       "notes": "9 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
-      "conversion_meta": "dictcomps.conv.json"
+      "conversion_meta": "jac-py/tests/conv_dictcomps/dictcomps.conv.json",
+      "jacpython_results": {
+        "dictcomps": {
+          "passed": 8,
+          "total": 9,
+          "notes": "8/9 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
     },
     {
       "stem": "difflib",
@@ -391,9 +412,9 @@
       "conversion_meta": "jac-py/tests/conv_difflib/difflib.conv.json",
       "jacpython_results": {
         "difflib": {
-          "passed": 0,
+          "passed": 25,
           "total": 32,
-          "notes": "0/32 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+          "notes": "25/32 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
         }
       }
     },
@@ -726,14 +747,16 @@
       "gate_type": "oracle",
       "status": "partial",
       "oracle_tests": [
-        "/var/tmp/sp4-out/listcomps/conv_listcomps_pins.jac"
+        "jac-py/tests/conv_listcomps/conv_listcomps_pins.jac"
       ],
       "libtest_snippets": [],
-      "notes": "2/5 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "notes": "62 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_listcomps/listcomps.conv.json",
       "jacpython_results": {
         "listcomps": {
-          "passed": 2,
-          "total": 5
+          "passed": 7,
+          "total": 62,
+          "notes": "7/62 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
         }
       }
     },
@@ -1061,14 +1084,16 @@
       "gate_type": "oracle",
       "status": "partial",
       "oracle_tests": [
-        "/var/tmp/sp4-out/setcomps/conv_setcomps_pins.jac"
+        "jac-py/tests/conv_setcomps/conv_setcomps_pins.jac"
       ],
       "libtest_snippets": [],
-      "notes": "0/1 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "notes": "1 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_setcomps/setcomps.conv.json",
       "jacpython_results": {
         "setcomps": {
           "passed": 0,
-          "total": 1
+          "total": 1,
+          "notes": "0/1 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
         }
       }
     },
@@ -1447,6 +1472,330 @@
           "passed": 0,
           "total": 2,
           "notes": "0/2 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "defaultdict",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_defaultdict/conv_defaultdict_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "12 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_defaultdict/defaultdict.conv.json",
+      "jacpython_results": {
+        "defaultdict": {
+          "passed": 6,
+          "total": 12,
+          "notes": "6/12 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "deque",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_deque/conv_deque_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "53 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_deque/deque.conv.json",
+      "jacpython_results": {
+        "deque": {
+          "passed": 37,
+          "total": 53,
+          "notes": "37/53 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "enumerate",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_enumerate/conv_enumerate_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "7 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_enumerate/enumerate.conv.json",
+      "jacpython_results": {
+        "enumerate": {
+          "passed": 3,
+          "total": 7,
+          "notes": "3/7 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "dictviews",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_dictviews/conv_dictviews_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "16 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_dictviews/dictviews.conv.json",
+      "jacpython_results": {
+        "dictviews": {
+          "passed": 10,
+          "total": 16,
+          "notes": "10/16 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "userdict",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_userdict/conv_userdict_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "4 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_userdict/userdict.conv.json",
+      "jacpython_results": {
+        "userdict": {
+          "passed": 0,
+          "total": 4,
+          "notes": "0/4 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "slice",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_slice/conv_slice_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "10 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_slice/slice.conv.json",
+      "jacpython_results": {
+        "slice": {
+          "passed": 6,
+          "total": 10,
+          "notes": "6/10 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "positional_only_arg",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_positional_only_arg/conv_positional_only_arg_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "25 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_positional_only_arg/positional_only_arg.conv.json",
+      "jacpython_results": {
+        "positional_only_arg": {
+          "passed": 9,
+          "total": 25,
+          "notes": "9/25 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "isinstance",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_isinstance/conv_isinstance_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "11 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_isinstance/isinstance.conv.json",
+      "jacpython_results": {
+        "isinstance": {
+          "passed": 9,
+          "total": 11,
+          "notes": "9/11 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "iterlen",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_iterlen/conv_iterlen_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "2 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_iterlen/iterlen.conv.json",
+      "jacpython_results": {
+        "iterlen": {
+          "passed": 0,
+          "total": 2,
+          "notes": "0/2 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "numeric_tower",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_numeric_tower/conv_numeric_tower_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "8 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_numeric_tower/numeric_tower.conv.json",
+      "jacpython_results": {
+        "numeric_tower": {
+          "passed": 2,
+          "total": 8,
+          "notes": "2/8 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "subclassinit",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_subclassinit/conv_subclassinit_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "14 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_subclassinit/subclassinit.conv.json",
+      "jacpython_results": {
+        "subclassinit": {
+          "passed": 8,
+          "total": 14,
+          "notes": "8/14 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "weakset",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_weakset/conv_weakset_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "40 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_weakset/weakset.conv.json",
+      "jacpython_results": {
+        "weakset": {
+          "passed": 0,
+          "total": 40,
+          "notes": "0/40 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "secrets",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_secrets/conv_secrets_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "11 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_secrets/secrets.conv.json",
+      "jacpython_results": {
+        "secrets": {
+          "passed": 0,
+          "total": 11,
+          "notes": "0/11 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "statistics",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_statistics/conv_statistics_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "100 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_statistics/statistics.conv.json",
+      "jacpython_results": {
+        "statistics": {
+          "passed": 15,
+          "total": 100,
+          "notes": "15/100 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "timeit",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_timeit/conv_timeit_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "7 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_timeit/timeit.conv.json",
+      "jacpython_results": {
+        "timeit": {
+          "passed": 7,
+          "total": 7,
+          "notes": "7/7 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "optparse",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_optparse/conv_optparse_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "43 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_optparse/optparse.conv.json",
+      "jacpython_results": {
+        "optparse": {
+          "passed": 42,
+          "total": 43,
+          "notes": "42/43 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "print",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_print/conv_print_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "2 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_print/print.conv.json",
+      "jacpython_results": {
+        "print": {
+          "passed": 0,
+          "total": 2,
+          "notes": "0/2 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
+    },
+    {
+      "stem": "pyclbr",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_pyclbr/conv_pyclbr_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "2 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_pyclbr/pyclbr.conv.json",
+      "jacpython_results": {
+        "pyclbr": {
+          "passed": 1,
+          "total": 2,
+          "notes": "1/2 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
         }
       }
     }

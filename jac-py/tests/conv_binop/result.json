@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "f5e921e06eb9d933596b6431443728caa01d1afd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_binop/conv_binop_pins.jac"
+  ],
+  "generated_at": "2026-08-24T15:26:28",
+  "hashes": {
+    "pins_jac": "80dbfc2a4a542b0e44afe8589f3d813bb56f264d8b2ded1da81b6ddb84baf4b4",
+    "conversion_json": "1e815e4d27faab2587ae4c04d33643d261c506c30fbdc7903e5ac531c32e68a5",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "binop",
+  "status": "passed",
+  "timed_out": false,
+  "counts": {
+    "converted": 12,
+    "runnable": 1,
+    "green": 1,
+    "quarantined": 11,
+    "failed": 0,
+    "infra_failed": 0
+  },
+  "failures": []
+}

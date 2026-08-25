@@ -1,0 +1,757 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_optparse/conv_optparse_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:13:23",
+  "hashes": {
+    "pins_jac": "db4b03573a83c74ecc19a389ae13c15e67d929c7be0facd3e7840e702f8128db",
+    "conversion_json": "50cebf12aa7c1e2166297c36af8e80a9e00bae8646dd770d629334e2e9df9cea",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "optparse",
+  "counts": {
+    "converted": 154,
+    "runnable": 43,
+    "green": 42,
+    "quarantined": 111
+  },
+  "pins": [
+    {
+      "id": "TestOptionChecks.test_opt_string_empty",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_opt_string_too_short",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_opt_string_short_invalid",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_opt_string_long_invalid",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_attr_invalid",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_action_invalid",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_type_invalid",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_no_type_for_action",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_no_choices_list",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_bad_choices_list",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_no_choices_for_type",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_no_const_for_action",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_no_nargs_for_action",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_callback_not_callable",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_callback_args_no_tuple",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'dummy'"
+    },
+    {
+      "id": "TestOptionChecks.test_callback_kwargs_no_dict",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'dummy'"
+    },
+    {
+      "id": "TestOptionChecks.test_no_callback_for_action",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_no_callback_args_for_action",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_no_callback_kwargs_for_action",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionChecks.test_no_single_dash",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionParser.test_add_option_no_Option",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionParser.test_add_option_invalid_arguments",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionParser.test_get_option",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionParser.test_get_option_equals",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionParser.test_has_option",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionParser.test_remove_short_opt",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestOptionParser.test_remove_long_opt",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestOptionParser.test_remove_nonexistent",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionValues.test_basics",
+      "status": "pass"
+    },
+    {
+      "id": "TestTypeAliases.test_str_aliases_string",
+      "status": "pass"
+    },
+    {
+      "id": "TestTypeAliases.test_type_object",
+      "status": "pass"
+    },
+    {
+      "id": "TestDefaultValues.test_basic_defaults",
+      "status": "pass"
+    },
+    {
+      "id": "TestDefaultValues.test_mixed_defaults_post",
+      "status": "pass"
+    },
+    {
+      "id": "TestDefaultValues.test_mixed_defaults_pre",
+      "status": "pass"
+    },
+    {
+      "id": "TestStandard.test_required_value",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_invalid_integer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_no_such_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_long_invalid_integer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_empty",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_shortopt_empty_longopt_append",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_long_option_append",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_option_argument_joined",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_option_argument_split",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_option_argument_joined_integer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_option_argument_split_negative_integer",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_long_option_argument_joined",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_long_option_argument_split",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_long_option_short_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_abbrev_long_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_defaults",
+      "status": "pass"
+    },
+    {
+      "id": "TestStandard.test_ambiguous_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_short_and_long_option_split",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_short_option_split_long_option_append",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_short_option_split_one_positional_arg",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_short_option_consumes_separator",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_short_option_joined_and_separator",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_hyphen_becomes_positional_arg",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_no_append_versus_append",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_option_consumes_optionlike_string",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestStandard.test_combined_single_invalid_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestBool.test_bool_default",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestBool.test_bool_false",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestBool.test_bool_true",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestBool.test_bool_flicker_on_and_off",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestChoice.test_valid_choice",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestChoice.test_invalid_choice",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestChoice.test_add_choice_option",
+      "status": "pass"
+    },
+    {
+      "id": "TestCount.test_empty",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_one",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_three",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_three_apart",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_override_amount",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_override_quiet",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_overriding",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_interspersed_args",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_no_interspersed_args",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_no_such_option",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_option_no_value",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_with_default",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestCount.test_count_overriding_default",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestMultipleArgs.test_nargs_with_positional_args",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestMultipleArgs.test_nargs_long_opt",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestMultipleArgs.test_nargs_invalid_float_value",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestMultipleArgs.test_nargs_required_values",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestMultipleArgsAppend.test_nargs_append",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestMultipleArgsAppend.test_nargs_append_required_values",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestMultipleArgsAppend.test_nargs_append_simple",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestMultipleArgsAppend.test_nargs_append_const",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestConflictingDefaults.test_conflict_default",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestConflictingDefaults.test_conflict_default_none",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestOptionGroup.test_option_group_create_instance",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestOptionGroup.test_add_group_no_group",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionGroup.test_add_group_invalid_arguments",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionGroup.test_add_group_wrong_parser",
+      "status": "pass"
+    },
+    {
+      "id": "TestOptionGroup.test_group_manipulate",
+      "status": "pass"
+    },
+    {
+      "id": "TestExtendAddTypes.test_filetype_ok",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'MyOption'"
+    },
+    {
+      "id": "TestExtendAddTypes.test_filetype_noexist",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'MyOption'"
+    },
+    {
+      "id": "TestExtendAddTypes.test_filetype_notfile",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'MyOption'"
+    },
+    {
+      "id": "TestCallback.test_callback",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'process_opt'"
+    },
+    {
+      "id": "TestCallbackExtraArgs.test_callback_extra_args",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'process_tuple'"
+    },
+    {
+      "id": "TestCallbackMeddleArgs.test_callback_meddle_args",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'process_n'"
+    },
+    {
+      "id": "TestCallbackMeddleArgs.test_callback_meddle_args_separator",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'process_n'"
+    },
+    {
+      "id": "TestCallbackManyArgs.test_many_args",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'process_many'"
+    },
+    {
+      "id": "TestCallbackCheckAbbrev.test_abbrev_callback_expansion",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'check_abbrev'"
+    },
+    {
+      "id": "TestCallbackVarArgs.test_variable_args",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'variable_args'"
+    },
+    {
+      "id": "TestCallbackVarArgs.test_consume_separator_stop_at_option",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'variable_args'"
+    },
+    {
+      "id": "TestCallbackVarArgs.test_positional_arg_and_variable_args",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'variable_args'"
+    },
+    {
+      "id": "TestCallbackVarArgs.test_stop_at_option",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'variable_args'"
+    },
+    {
+      "id": "TestCallbackVarArgs.test_stop_at_invalid_option",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'variable_args'"
+    },
+    {
+      "id": "TestConflict.test_conflict_error",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestConflict.test_conflict_error_group",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestConflict.test_no_such_conflict_handler",
+      "status": "pass"
+    },
+    {
+      "id": "TestConflictResolve.test_conflict_resolve",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'BaseTest' is not defined"
+    },
+    {
+      "id": "TestConflictResolve.test_conflict_resolve_help",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'BaseTest' is not defined"
+    },
+    {
+      "id": "TestConflictResolve.test_conflict_resolve_short_opt",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'BaseTest' is not defined"
+    },
+    {
+      "id": "TestConflictResolve.test_conflict_resolve_long_opt",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'BaseTest' is not defined"
+    },
+    {
+      "id": "TestConflictResolve.test_conflict_resolve_long_opts",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'BaseTest' is not defined"
+    },
+    {
+      "id": "TestConflictOverride.test_conflict_override_opts",
+      "status": "pass"
+    },
+    {
+      "id": "TestConflictOverride.test_conflict_override_help",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestConflictOverride.test_conflict_override_args",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestHelp.test_help",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestHelp.test_help_old_usage",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestHelp.test_help_long_opts_first",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestHelp.test_help_title_formatter",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestHelp.test_wrap_columns",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestHelp.test_help_unicode",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestHelp.test_help_unicode_description",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestHelp.test_help_description_groups",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "TestMatchAbbrev.test_match_abbrev",
+      "status": "pass"
+    },
+    {
+      "id": "TestMatchAbbrev.test_match_abbrev_error",
+      "status": "pass"
+    },
+    {
+      "id": "TestParseNumber.test_parse_num_fail",
+      "status": "pass"
+    },
+    {
+      "id": "TestParseNumber.test_parse_num_ok",
+      "status": "pass"
+    },
+    {
+      "id": "TestParseNumber.test_numeric_options",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "MiscTestCase.test__all__",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "MiscTestCase.test_lazy_import",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.import_helper'\">"
+    },
+    {
+      "id": "TestOptionParser.test_refleak",
+      "status": "quarantined",
+      "reason": "decorator:support.impl_detail"
+    },
+    {
+      "id": "TestDefaultValues.test_process_default",
+      "status": "quarantined",
+      "reason": "unresolved-name:DurationOption"
+    },
+    {
+      "id": "TestProgName.test_default_progname",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestProgName.test_custom_progname",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestExpandDefaults.test_option_default",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestExpandDefaults.test_parser_default_1",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestExpandDefaults.test_parser_default_2",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestExpandDefaults.test_no_default",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestExpandDefaults.test_default_none_1",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestExpandDefaults.test_default_none_2",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestExpandDefaults.test_float_default",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestExpandDefaults.test_alt_expand",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestExpandDefaults.test_no_expand",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestVersion.test_version",
+      "status": "quarantined",
+      "reason": "unresolved-name:InterceptingOptionParser"
+    },
+    {
+      "id": "TestVersion.test_no_version",
+      "status": "quarantined",
+      "reason": "unresolved-name:InterceptingOptionParser"
+    },
+    {
+      "id": "TestExtendAddActions.test_extend_add_action",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.MyOption)"
+    },
+    {
+      "id": "TestExtendAddActions.test_extend_add_action_normal",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.MyOption)"
+    },
+    {
+      "id": "TestCallback.test_callback_help",
+      "status": "quarantined",
+      "reason": "helper:assertHelp(uses-self.failureException)"
+    },
+    {
+      "id": "TestTranslations.test_translations",
+      "status": "quarantined",
+      "reason": "self.assertMsgidsEqual"
+    }
+  ]
+}

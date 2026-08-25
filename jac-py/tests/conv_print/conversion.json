@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_print.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_print",
+    "--name",
+    "conv_print"
+  ],
+  "generated_at": "2026-08-24T21:13:23",
+  "hashes": {
+    "pins_jac": "e9ea529ce228b419251eb33f1f8f358b4d9ee187c5b136991621b48f3d153be5"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_print.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "print",
+  "pins_file": "conv_print_pins.jac",
+  "pins": [
+    {
+      "ident": "TestPrint.test_print_flush",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class filelike:\n\n        def __init__(self):\n            self.written = ''\n            self.flushed = 0\n\n        def write(self, str):\n            self.written += str\n\n        def flush(self):\n            self.flushed += 1\n    f = filelike()\n    print(1, file=f, end='', flush=True)\n    print(2, file=f, end='', flush=True)\n    print(3, file=f, flush=False)\n    assert f.written == '123\\n', ('assertEqual', f.written, '123\\n')\n    assert f.flushed == 2, ('assertEqual', f.flushed, 2)\n\n    class noflush:\n\n        def write(self, str):\n            pass\n\n        def flush(self):\n            raise RuntimeError\n    try:\n        print(*(1,), file=noflush(), flush=True)\n    except RuntimeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPrint.test_gh130163",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nfrom io import StringIO\nfrom test import support\n\ndef _t():\n\n    class X:\n\n        def __str__(self):\n            sys.stdout = StringIO()\n            support.gc_collect()\n            return 'foo'\n    with support.swap_attr(sys, 'stdout', None):\n        sys.stdout = StringIO()\n        print(X())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestPrint.test_print",
+      "reason": "unresolved-name:ClassWith__str__"
+    },
+    {
+      "ident": "TestPy2MigrationHint.test_normal_string",
+      "reason": "unresolved-name:context"
+    },
+    {
+      "ident": "TestPy2MigrationHint.test_string_with_soft_space",
+      "reason": "unresolved-name:context"
+    },
+    {
+      "ident": "TestPy2MigrationHint.test_string_with_excessive_whitespace",
+      "reason": "unresolved-name:context"
+    },
+    {
+      "ident": "TestPy2MigrationHint.test_string_with_leading_whitespace",
+      "reason": "unresolved-name:context"
+    },
+    {
+      "ident": "TestPy2MigrationHint.test_string_with_semicolon",
+      "reason": "unresolved-name:context"
+    },
+    {
+      "ident": "TestPy2MigrationHint.test_string_in_loop_on_same_line",
+      "reason": "unresolved-name:context"
+    }
+  ],
+  "counts": {
+    "extracted": 9,
+    "pinned": 2,
+    "quarantined": 7
+  }
+}
