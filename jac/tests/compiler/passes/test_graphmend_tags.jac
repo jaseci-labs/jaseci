@@ -5,9 +5,7 @@ import from jaclang.compiler.driver.schedules { get_py_code_gen, validate_schedu
 import from jaclang.compiler.passes.graphmend.graph_break_detect_pass {
     GraphBreakDetectPass
 }
-import from jaclang.compiler.passes.graphmend.trap_lowering_pass {
-    TrapLoweringPass
-}
+import from jaclang.compiler.passes.graphmend.trap_lowering_pass { TrapLoweringPass }
 import from jaclang.compiler.passes.graphmend.predicate_ctrl_flow_pass {
     PredicateCtrlFlowPass
 }

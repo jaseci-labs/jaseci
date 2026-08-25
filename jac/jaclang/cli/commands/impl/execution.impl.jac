@@ -51,9 +51,7 @@ def _graphmend_may_engage(graphmend: bool, filename: str) -> bool {
     if not graphmend {
         return False;
     }
-    import from jaclang.compiler.passes.graphmend.auto_detect {
-        file_imports_torch
-    }
+    import from jaclang.compiler.passes.graphmend.auto_detect { file_imports_torch }
     return file_imports_torch(filename);
 }
 

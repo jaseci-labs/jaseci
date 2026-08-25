@@ -79,9 +79,7 @@ glob U16_TORCH_SRC = 'import torch;\n\n'
 
 """A utf-16 source holds no `torch` byte run, so a raw-byte guard would miss it."""
 test "detection reads decoded text so a utf-16 source is not skipped" {
-    import from jaclang.compiler.passes.graphmend.auto_detect {
-        file_imports_torch
-    }
+    import from jaclang.compiler.passes.graphmend.auto_detect { file_imports_torch }
     with tempfile.TemporaryDirectory() as tmp {
         hit = os.path.join(tmp, "u16_torch.jac");
         with open(hit, "w", encoding="utf-16") as fh {
@@ -133,7 +131,10 @@ def _has_assert_async(code: any) -> bool {
 
 """The cached artifact must not outlive an import edit that changes the verdict."""
 test "a source that gains or loses a torch import reruns detection" {
-    import from jaclang.compiler.driver.jir { get_module_cache_path, is_module_cache_valid }
+    import from jaclang.compiler.driver.jir {
+        get_module_cache_path,
+        is_module_cache_valid
+    }
     with tempfile.TemporaryDirectory() as tmp {
         target = os.path.join(tmp, "gains_torch.jac");
         with open(target, "w") as fh {
