@@ -46,7 +46,10 @@ obj JacTestCheck {
     ) -> None;
 
     static def add_test(
-        filepath: str, func_name: str, test_func: Callable, display_name: str = ""
+        filepath: str,
+        func_name: str,
+        test_func: Callable[[], object],
+        display_name: str = ""
     ) -> None;
 }
 

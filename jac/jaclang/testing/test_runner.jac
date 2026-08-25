@@ -1,3 +1,4 @@
+import from signal { SIGKILL }
 import os;
 import unittest;
 

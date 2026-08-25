@@ -165,7 +165,10 @@ impl ClientBundleBuilder._compile_to_js(source_path: Path) -> tuple[str, Module]
     }
 
     _ensure_js_generated(mod, program);
-    return ((mod.gen.js or ''), mod) if mod else ('', mod);
+    if mod is None {
+        raise ClientBundleError(f"No module produced for '{source_path}'");
+    }
+    return ((mod.gen.js or ''), mod);
 }
 
 impl ClientBundleBuilder._emitted_digest -> str {

@@ -2,7 +2,10 @@ import from jaclang.cli.console { console }
 import from jaclang.jac0core.ext_registry { strip_suffix }
 
 impl JacTestCheck.add_test(
-    filepath: str, func_name: str, test_func: Callable, display_name: str = ""
+    filepath: str,
+    func_name: str,
+    test_func: Callable[[], object],
+    display_name: str = ""
 ) -> None {
     if filepath {
         filepath = strip_suffix(filepath);
@@ -74,9 +77,9 @@ impl JacTestCheck.reset -> None {
 }
 
 impl JacTextTestRunner._makeResult -> JacTestResult {
-    return JacTestResult(
-        self.stream, self.descriptions, self.verbosity, max_failures=self.max_failures
-    );
+    _res = JacTestResult(self.stream, self.descriptions, self.verbosity);
+    _res.max_failures = self.max_failures;
+    return _res;
 }
 
 impl JacTextTestRunner.init(max_failures: (int | None) = None, **kwargs: any) -> None {
@@ -220,7 +223,7 @@ impl parametrize(
         param_id = id_fn(param) if id_fn else str(param);
         display = f"{base_name} [{param_id}]";
         func_name = f"{base_name}_{param_id}";
-        def make_fn(p: any) -> Callable {
+        def make_fn(p: any) -> Callable[[], object] {
             def fn {
                 test_func(p);
             }

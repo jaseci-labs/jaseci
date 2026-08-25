@@ -70,10 +70,10 @@ def _class_decl(arch: Archetype) -> str {
     lines: list[str] = [f"export declare class {name} {{"];
     body = arch?.body or [];
     for member in body {
-        if type(member).__name__ != "ArchHas" {
+        if not isinstance(member, ArchHas) {
             continue;
         }
-        for v in member?.vars or [] {
+        for v in member.vars or [] {
             fname = v?.sym_name;
             if not fname {
                 continue;

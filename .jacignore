@@ -77,3 +77,11 @@ jac/jaclang/compiler/backends/es/impl/esast_gen_pass.impl.jac
 # Example apps.
 jac/examples/mobui/hello/main.jac
 jac/examples/mobui/littlex/main.jac
+
+# A subclass whose __init__ is inherited does not satisfy a Protocol the base
+# satisfies: `argparse.ArgumentParser(formatter_class=HelpFormatter)` checks,
+# and `RawDescriptionHelpFormatter`, which subclasses it and adds no __init__,
+# does not (jaseci-labs/jac#8539). The gap predates the merge that slimmed this
+# file; the entry goes when protocol conformance walks the inherited member.
+jac/jaclang/cli/manifest_parse.jac
+jac/jaclang/cli/impl/manifest_parse.impl.jac

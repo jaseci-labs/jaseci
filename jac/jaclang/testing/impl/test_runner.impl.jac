@@ -1260,7 +1260,7 @@ impl ForkPool._shutdown -> None {
         }
         if not reaped {
             try {
-                os.kill(int(kid["pid"]), int(signal.SIGKILL));
+                os.kill(int(kid["pid"]), int(SIGKILL));
             } except OSError {
                 ;
             }

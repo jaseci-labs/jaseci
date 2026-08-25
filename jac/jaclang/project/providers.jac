@@ -310,9 +310,11 @@ obj PythonProvider(EcosystemProvider) {
         venv_dir = self._project_venv(config);
         ensure_venv(venv_dir, ctx.verbose);
         is_dry_run = ctx.is_dry_run();
-        (before_snapshot_ok, before_set) = (
-            self._snapshot_installed(config) if not is_dry_run else (False, set())
-        );
+        before_snapshot_ok: bool = False;
+        before_set: set[tuple[str, str]] = set();
+        if not is_dry_run {
+            (before_snapshot_ok, before_set) = self._snapshot_installed(config);
+        }
         (returncode, stdout, stderr) = self._run_project_pip(
             config, ["install", "--upgrade"] + ctx.install_flags + specs, ctx.verbose
         );
