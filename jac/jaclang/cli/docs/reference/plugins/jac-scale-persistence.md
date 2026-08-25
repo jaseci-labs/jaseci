@@ -47,7 +47,7 @@ All storage instances provide these methods:
 ### Usage Example
 
 ```jac
-import from jaclang.runtimelib.serving.datatypes { UploadFile }
+import from jaclang.server.serving.datatypes { UploadFile }
 import from uuid { uuid4 }
 
 glob storage = store(base_path="./uploads");
@@ -380,7 +380,7 @@ Graph persistence is **Postgres-native** and there is exactly one stack:
 
 - **Local development**: the runtime auto-provisions an embedded Postgres server, one database per project. `jac db status` / `jac db stop` manage it; nothing to install.
 - **External server**: set `[scale.database].url` (or the `JAC_DB_URL` env var, which wins) and everything -- graph anchors, identity, scheduler jobs, webhook API keys, the event stream, and the WebSocket broadcast backplane -- runs against that database.
-- **Kubernetes**: `jac start app.jac --scale` provisions a Postgres StatefulSet with a PersistentVolumeClaim and injects `JAC_DB_URL` into every pod via a Kubernetes Secret. Subsequent deployments only update the application; the database remains untouched.
+- **Kubernetes**: `jac scale deploy app.jac` provisions a Postgres StatefulSet with a PersistentVolumeClaim and injects `JAC_DB_URL` into every pod via a Kubernetes Secret. Subsequent deployments only update the application; the database remains untouched.
 
 | `jac.toml` key (`[scale.database]`) | Default | Description |
 |----------|---------|-------------|
@@ -388,6 +388,20 @@ Graph persistence is **Postgres-native** and there is exactly one stack:
 | `deploy_mode` | `"image"` | How a provisioned Postgres runs: `"image"` (official postgres image) or `"embedded"` (the app's jac image running `jac db serve`). |
 | `postgres_image` | `"postgres:18"` | Image used in `deploy_mode = "image"`. |
 | `postgres_storage` | `"2Gi"` | PVC size for the provisioned StatefulSet. |
+| `indexes` | `{}` | Archetype fields to index, as `{ Arch = ["field", ...] }`. Each named field is promoted to a generated `jsonb` column over `props->'archetype'->'<field>'` -- the same expression and type the query compiler compares against -- and indexed. Predicates, orderings and composite keys on a promoted field then name the column instead of the raw path, which is the difference between an index scan and a sequential one. |
+
+### Promoted fields
+
+A field predicate or an ordering term reads `props->'archetype'->'<field>'`. Postgres cannot use an index for that unless one exists over the same expression, so an unpromoted field is a scan of the joined set:
+
+```toml
+[scale.database]
+indexes = { Msg = ["at", "seq"], Post = ["published"] }
+```
+
+Three things follow from the column being `jsonb` rather than `text`. Numbers order numerically, so `ORDER BY` and range predicates are correct without a cast. Row comparison works, which is what composite keyset pagination (`(at, seq) < (:a, :b)`) compiles to. And the column matches the comparison the compiler already emits, so promoting a field changes only which plan Postgres picks.
+
+Promotion is an optimisation and never a semantic: an unpromoted field still filters, orders and paginates correctly, just by scanning. The index is created without a predicate so subtypes of the declared archetype are covered too. An existing promoted column of the wrong type is dropped and rebuilt on the next `ensure_schema`.
 
 Deployment intent is a separate decision from runtime identity, and lives under `[scale.kubernetes]`:
 

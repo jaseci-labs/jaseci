@@ -10,8 +10,8 @@ published on A is delivered, byte for byte, to B.
 
 import asyncio;
 import from tempfile { mkdtemp }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.store { PgStore }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.data.store { PgStore }
 import from jaclang.scale.websocket.backplane { PgBackplane }
 
 glob _holder: dict = {};

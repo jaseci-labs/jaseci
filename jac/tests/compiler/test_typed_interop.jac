@@ -17,10 +17,10 @@ import tempfile;
 import from tests.support { JAC_ROOT }
 import from tempfile { NamedTemporaryFile, TemporaryDirectory }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURE_DIR = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
+         JAC_ROOT, "tests", "compiler", "backends", "es", "fixtures"
      ),
      _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_typed_interop_");
 
@@ -130,7 +130,7 @@ test "sv-to-sv: relative sv import generates HTTP stubs (#6507)" {
 # A sv->sv function whose declared return type is an archetype must rehydrate
 # that return value into a typed instance, even when the provider module is not
 # in the consumer's program hub at codegen time (the per-service compile that
-# `jac start` does). The consumer's own symtab carries a `sv import` binding for
+# `jac run --serve` does). The consumer's own symtab carries a `sv import` binding for
 # the type name; boundary-type collection used to accept that non-type binding,
 # short-circuit the provider AST-walk, and leave the type uncollected — so the
 # return arrived as a raw `_jac_type` dict and the imported type degraded into a

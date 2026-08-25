@@ -16,7 +16,7 @@ impl build(
     import from jaclang.project.kinds { resolve_entry }
 
     if client {
-        import from jaclang.runtimelib.client.cli { run_client_build }
+        import from jaclang.client.cli { run_client_build }
         return run_client_build(filename, client, platform);
     }
     if fat and projection not in ["jab", "binary"] {

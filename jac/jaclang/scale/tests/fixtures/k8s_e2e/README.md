@@ -31,7 +31,7 @@ absence selects the latest published release. Then run below.
 ## Run
 
 ```bash
-jac start main.jac                            # gateway + 3 services
+jac run main.jac                              # gateway + 3 services
 curl http://localhost:8000/health
 curl http://localhost:8000/api/products/function/list_products -X POST -d '{}'
 ```

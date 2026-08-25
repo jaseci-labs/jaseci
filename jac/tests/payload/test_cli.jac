@@ -1,4 +1,4 @@
-"""`jaclang.payload.cli.main`: the subcommand grammar build.zig drives. Every
+"""`jaclang.dist.payload.cli.main`: the subcommand grammar build.zig drives. Every
 usage error exits non-zero with its usage line on stderr (prefixed `payload: `
 like the Zig tool's `die`), and the mkpayload trailing flags parse into
 MkPayloadOpts."""
@@ -9,7 +9,7 @@ import os;
 import shutil;
 import tempfile;
 
-import from jaclang.payload.cli { MKPAYLOAD_USAGE, main, parse_mkpayload_flags }
+import from jaclang.dist.payload.cli { MKPAYLOAD_USAGE, main, parse_mkpayload_flags }
 
 def run(argv: list[str]) -> tuple[int, str] {
     err = io.StringIO();

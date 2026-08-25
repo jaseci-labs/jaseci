@@ -1,6 +1,6 @@
 import json;
 import re;
-import from jaclang.runtimelib.serving.model { ApiModel, require_str }
+import from jaclang.server.serving.model { ApiModel, require_str }
 import from jaclang.scale.shared.enums { CredentialType }
 
 glob PROFILE_MAX_KEYS: int = 20,

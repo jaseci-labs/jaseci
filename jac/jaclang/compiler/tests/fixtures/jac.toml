@@ -7,6 +7,8 @@
 "fw_conformance.fw_cl" = "client"
 "fw_conformance.fw_json_cl" = "client"
 "fw_conformance.fw_na" = "native"
+"fw_narrow.narrow_cl" = "client"
+"fw_narrow.narrow_na" = "native"
 "native_any_alias_retain.alias_retain_cl" = "client"
 "native_any_alias_retain.alias_retain_na" = "native"
 "native_any_alias_retain.len_probe_na" = "native"
