@@ -1,4 +1,4 @@
-import jaclang.jac0core.unitree as uni;
+import type from jaclang.jac0core.unitree { Module, UniNode, ContextAwareNode }
 import os;
 import from jaclang.jac0core.constant { CodeContext }
 
@@ -139,13 +139,13 @@ def resolve_project_host_kind(mod_path: str = '') -> str {
     }
 }
 
-def host_kind_for_module(module: uni.Module) -> str {
+def host_kind_for_module(module: Module) -> str {
     if module.decided_codespace == 'native' {
         return HOST_BARE_METAL;
     }
     for stmt in module.body {
         if (
-            isinstance(stmt, uni.ContextAwareNode)
+            isinstance(stmt, ContextAwareNode)
             and stmt.code_context == CodeContext.CLIENT
         ) {
             mod_path = module.loc.mod_path if module.loc is not None else '';
@@ -159,12 +159,12 @@ def host_kind_for_module(module: uni.Module) -> str {
     return HOST_CPYTHON;
 }
 
-def host_kind_for_node(nd: uni.UniNode) -> str {
+def host_kind_for_node(nd: UniNode) -> str {
     if nd.in_native_context() {
         return HOST_BARE_METAL;
     }
     if nd.in_client_context() {
-        mod = nd.find_parent_of_type(uni.Module);
+        mod = nd.find_parent_of_type(Module);
         mod_path = '';
         if mod is not None and mod.loc is not None {
             mod_path = mod.loc.mod_path or '';
@@ -179,7 +179,7 @@ def host_provides_kind(kind: str, cap: str) -> bool {
     return cap in caps;
 }
 
-def host_provides_node(nd: uni.UniNode, cap: str) -> bool {
+def host_provides_node(nd: UniNode, cap: str) -> bool {
     return host_provides_kind(host_kind_for_node(nd), cap);
 }
 
@@ -217,7 +217,7 @@ def framework_for_host_kind(kind: str) -> str {
     return 'react';
 }
 
-def framework_for_module(module: uni.Module) -> str {
+def framework_for_module(module: Module) -> str {
     return framework_for_host_kind(host_kind_for_module(module));
 }
 
