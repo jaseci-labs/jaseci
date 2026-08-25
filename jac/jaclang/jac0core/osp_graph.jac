@@ -384,6 +384,38 @@ def osp_refs_many(
     return out;
 }
 
+def osp_hop_only(
+    origins: list[int],
+    dir: int,
+    edge_tag: int,
+    edges_only: int,
+    target: int
+) -> list[int] {
+    out: list[int] = [];
+    i = 0;
+    n = len(origins);
+    while i < n {
+        hop = osp_refs(origins[i], dir, edge_tag, edges_only);
+        j = 0;
+        m = len(hop);
+        while j < m {
+            h = hop[j];
+            hit = False;
+            if edges_only != 0 {
+                hit = osp_edge_peer(h, origins[i]) == target;
+            } else {
+                hit = h == target;
+            }
+            if hit and h not in out {
+                out.append(h);
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
 def osp_wrap1(x: int) -> list[int] {
     out: list[int] = [];
     out.append(x);
