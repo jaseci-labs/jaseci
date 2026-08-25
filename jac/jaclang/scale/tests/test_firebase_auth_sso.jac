@@ -4,7 +4,7 @@ import asyncio;
 import json;
 import unittest.mock;
 import from tempfile { mkdtemp }
-import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { Request }
 
 import from jaclang.scale.config.config_loader { reset_scale_config }
 import from jaclang.scale.shared.enums { Platforms, Operations }
@@ -15,7 +15,7 @@ import from jaclang.scale._optdeps.firebase_auth {
     firebase_admin as _real_firebase_admin
 }
 import from jaclang.scale.tests.scale_test_client { make_client, extract_data }
-import from jaclang.runtimelib.transport { TransportResponse }
+import from jaclang.server.transport { TransportResponse }
 
 
 def _as_any(value: any) -> any {
@@ -322,7 +322,7 @@ test 'register firebase token endpoint' {
         'jaclang.scale.server.serve.get_scale_config', return_value=mock_config
     ) {
         with unittest.mock.patch(
-            'jaclang.jac0core.runtime.JacRuntimeInterface.get_user_manager',
+            'jaclang.runtime.runtime.JacRuntimeInterface.get_user_manager',
             return_value=mock_user_manager
         ) {
             server = JacAPIServer(module_name='test_module', port=8000);

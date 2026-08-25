@@ -95,8 +95,8 @@ def:pub app -> JsxElement {
 ```
 
 ```bash
-jac start          # builds the client bundle AND compiles the native code to /static/main.wasm, serves :8000
-jac start --dev    # same, with hot reload   (jac build emits the artifacts without serving)
+jac run            # builds the client bundle AND compiles the native code to /static/main.wasm, serves :8000
+jac run --dev      # same, with hot reload   (jac build emits the artifacts without serving)
 ```
 
 (Serving pipeline per the project-kinds guide and the `jac/examples/raylib_shooter/web` example; the wasm module behavior below is verified by instantiating a `jac nacompile --target wasm32` build under Node.)

@@ -4,7 +4,7 @@ raise since #7947 removed Mongo, so every storage failure fell through to the
 generic 500 SCHEDULER_ERROR and the 503 path was unreachable.
 """
 
-import from jaclang.runtimelib.pgwire { PgWireError }
+import from jaclang.data.pgwire { PgWireError }
 import from jaclang.scale.server.serve { _err_response }
 
 

@@ -91,7 +91,7 @@ test "a store that connects but cannot set up the schema says so" {
     # went wrong, and the operator has to be told which of the two it was.
     _arm(_DEAD_URL);
     try {
-        with unittest.mock.patch('jaclang.runtimelib.store.PgStore', _schema_failing) {
+        with unittest.mock.patch('jaclang.data.store.PgStore', _schema_failing) {
             assert pg_mod.shared_store() is None;
             reason: str = str(pg_mod.shared_store_failure() or '');
             assert 'schema' in reason , (
@@ -159,7 +159,7 @@ test "a failed store is retried, not pinned for the process lifetime" {
     _arm(_DEAD_URL);
     try {
         with unittest.mock.patch(
-            'jaclang.runtimelib.store.PgStore', side_effect=RuntimeError('transient')
+            'jaclang.data.store.PgStore', side_effect=RuntimeError('transient')
         ) as fake {
             assert pg_mod.shared_store() is None;
             assert pg_mod.shared_store() is None;

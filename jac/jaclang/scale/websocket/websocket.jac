@@ -3,8 +3,8 @@ import logging;
 import time;
 import uuid;
 import from asyncio { Lock }
-import from jaclang.runtimelib.serving.ws { WebSocket }
-import from jaclang.runtimelib.serving.datatypes { WebSocketDisconnect }
+import from jaclang.server.serving.ws { WebSocket }
+import from jaclang.server.serving.datatypes { WebSocketDisconnect }
 import from inspect { isgenerator }
 import from jaclang.scale.websocket.backplane { BaseBackplane, MemoryBackplane }
 

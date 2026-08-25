@@ -11,10 +11,10 @@ import logging;
 import from datetime { date, datetime, time }
 import from enum { Enum }
 import from uuid { UUID, uuid4 }
-import from jaclang.jac0core.archetype { NodeAnchor, Root }
+import from jaclang.runtime.archetype { NodeAnchor, Root }
 # archetype_alias is an ambient Jac builtin (no import). Serializer is
 # an explicit import because we directly test its internals here.
-import from jaclang.runtimelib.serializer { Serializer }
+import from jaclang.data.serializer { Serializer }
 
 
 # --- Alias registry ---------------------------------------------------------
@@ -80,7 +80,7 @@ test "unregistered-class warnings re-emit on the ladder, not once per anchor" {
     key = f"{module_name}.{unique_name}";
     blob = {
         '__type__': 'NodeAnchor',
-        '__module__': 'jaclang.jac0core.archetype',
+        '__module__': 'jaclang.runtime.archetype',
         'id': str(uuid4()),
         'root': None,
         'persistent': False,
@@ -91,7 +91,7 @@ test "unregistered-class warnings re-emit on the ladder, not once per anchor" {
     };
     buf = io.StringIO();
     capture = logging.StreamHandler(buf);
-    logger = logging.getLogger("jaclang.runtimelib.serializer");
+    logger = logging.getLogger("jaclang.data.serializer");
     prev_level = logger.level;
     logger.setLevel(logging.WARNING);
     logger.addHandler(capture);
@@ -234,7 +234,7 @@ test "per-field coercion-fallback warning re-emits on the ladder, not once per a
     raw['count'] = 'not-a-number';  # cannot coerce to int -> coercion fallback
     buf = io.StringIO();
     capture = logging.StreamHandler(buf);
-    logger = logging.getLogger("jaclang.runtimelib.serializer");
+    logger = logging.getLogger("jaclang.data.serializer");
     prev_level = logger.level;
     logger.setLevel(logging.WARNING);
     logger.addHandler(capture);
@@ -261,7 +261,7 @@ test "per-field coercion-fallback warning re-emits on the ladder, not once per a
 test "aliased-class resolution info re-emits on the ladder, not once per lookup" {
     buf = io.StringIO();
     capture = logging.StreamHandler(buf);
-    logger = logging.getLogger("jaclang.runtimelib.serializer");
+    logger = logging.getLogger("jaclang.data.serializer");
     prev_level = logger.level;
     logger.setLevel(logging.INFO);
     logger.addHandler(capture);
@@ -285,7 +285,7 @@ test "aliased-class resolution info re-emits on the ladder, not once per lookup"
 test "non-dict archetype warning re-emits on the ladder, not once per anchor" {
     blob = {
         '__type__': 'NodeAnchor',
-        '__module__': 'jaclang.jac0core.archetype',
+        '__module__': 'jaclang.runtime.archetype',
         'id': str(uuid4()),
         'root': None,
         'persistent': False,
@@ -296,7 +296,7 @@ test "non-dict archetype warning re-emits on the ladder, not once per anchor" {
     };
     buf = io.StringIO();
     capture = logging.StreamHandler(buf);
-    logger = logging.getLogger("jaclang.runtimelib.serializer");
+    logger = logging.getLogger("jaclang.data.serializer");
     prev_level = logger.level;
     logger.setLevel(logging.WARNING);
     logger.addHandler(capture);
@@ -320,7 +320,7 @@ test "non-dict archetype warning re-emits on the ladder, not once per anchor" {
 test "distinct classes do not share a diagnostic slot" {
     node_blob = {
         '__type__': 'NodeAnchor',
-        '__module__': 'jaclang.jac0core.archetype',
+        '__module__': 'jaclang.runtime.archetype',
         'id': str(uuid4()),
         'root': None,
         'persistent': False,
@@ -332,7 +332,7 @@ test "distinct classes do not share a diagnostic slot" {
     edge_blob = dict(node_blob) | {'__type__': 'EdgeAnchor'};
     buf = io.StringIO();
     capture = logging.StreamHandler(buf);
-    logger = logging.getLogger("jaclang.runtimelib.serializer");
+    logger = logging.getLogger("jaclang.data.serializer");
     prev_level = logger.level;
     logger.setLevel(logging.WARNING);
     logger.addHandler(capture);
