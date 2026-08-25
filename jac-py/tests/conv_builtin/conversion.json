@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "f7104d6f6c16d5ec4870e5dba1e5d0868efce504",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_builtin.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_builtin.py",
     "-o",
-    "/var/tmp/sp2-out/test_builtin-r3",
+    "/var/tmp/lane8/jac-py/tests/conv_builtin",
     "--name",
     "conv_builtin"
   ],
-  "generated_at": "2026-08-24T22:47:36",
+  "generated_at": "2026-08-24T23:01:39",
   "hashes": {
-    "pins_jac": "7b75e49188d18427b09bed0f019c6234ec88cb381e9adbd497c2697df398cbe2"
+    "pins_jac": "f0b890ae5628261ed0973aca6590a11c84dde81d9d0945daae6e78d9bd44b523"
   },
-  "source_file": "reference/cpython/Lib/test/test_builtin.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_builtin.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "builtin",
   "pins_file": "conv_builtin_pins.jac",
@@ -30,6 +30,22 @@
         "status": "ok"
       },
       "snippet": "import sys\n\ndef _t():\n    assert abs(0) == 0, ('assertEqual', abs(0), 0)\n    assert abs(1234) == 1234, ('assertEqual', abs(1234), 1234)\n    assert abs(-1234) == 1234, ('assertEqual', abs(-1234), 1234)\n    assert abs(-sys.maxsize - 1) > 0, ('assertTrue', abs(-sys.maxsize - 1) > 0)\n    assert abs(0.0) == 0.0, ('assertEqual', abs(0.0), 0.0)\n    assert abs(3.14) == 3.14, ('assertEqual', abs(3.14), 3.14)\n    assert abs(-3.14) == 3.14, ('assertEqual', abs(-3.14), 3.14)\n    try:\n        abs(*('a',))\n    except TypeError:\n        pass\n    assert abs(True) == 1, ('assertEqual', abs(True), 1)\n    assert abs(False) == 0, ('assertEqual', abs(False), 0)\n    try:\n        abs()\n    except TypeError:\n        pass\n    try:\n        abs(*(None,))\n    except TypeError:\n        pass\n\n    class AbsClass(object):\n\n        def __abs__(self):\n            return -5\n    assert abs(AbsClass()) == -5, ('assertEqual', abs(AbsClass()), -5)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_all",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "x, y = (1e+16, 2.9999)\n\nclass TestFailingBool:\n\n    def __bool__(self):\n        raise RuntimeError\n\nclass TestFailingIter:\n\n    def __iter__(self):\n        raise RuntimeError\n\ndef _t():\n    assert all([2, 4, 6]) == True, ('assertEqual', all([2, 4, 6]), True)\n    assert all([2, None, 6]) == False, ('assertEqual', all([2, None, 6]), False)\n    try:\n        all(*([2, TestFailingBool(), 6],))\n    except RuntimeError:\n        pass\n    try:\n        all(*(TestFailingIter(),))\n    except RuntimeError:\n        pass\n    try:\n        all(*(10,))\n    except TypeError:\n        pass\n    try:\n        all()\n    except TypeError:\n        pass\n    try:\n        all(*([2, 4, 6], []))\n    except TypeError:\n        pass\n    assert all([]) == True, ('assertEqual', all([]), True)\n    assert all([0, TestFailingBool()]) == False, ('assertEqual', all([0, TestFailingBool()]), False)\n    S = [50, 60]\n    assert all((x > 42 for x in S)) == True, ('assertEqual', all((x > 42 for x in S)), True)\n    S = [50, 40, 60]\n    assert all((x > 42 for x in S)) == False, ('assertEqual', all((x > 42 for x in S)), False)\n    S = [50, 40, 60, TestFailingBool()]\n    assert all((x > 42 for x in S)) == False, ('assertEqual', all((x > 42 for x in S)), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_any",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "x, y = (1e+16, 2.9999)\n\nclass TestFailingBool:\n\n    def __bool__(self):\n        raise RuntimeError\n\nclass TestFailingIter:\n\n    def __iter__(self):\n        raise RuntimeError\n\ndef _t():\n    assert any([None, None, None]) == False, ('assertEqual', any([None, None, None]), False)\n    assert any([None, 4, None]) == True, ('assertEqual', any([None, 4, None]), True)\n    try:\n        any(*([None, TestFailingBool(), 6],))\n    except RuntimeError:\n        pass\n    try:\n        any(*(TestFailingIter(),))\n    except RuntimeError:\n        pass\n    try:\n        any(*(10,))\n    except TypeError:\n        pass\n    try:\n        any()\n    except TypeError:\n        pass\n    try:\n        any(*([2, 4, 6], []))\n    except TypeError:\n        pass\n    assert any([]) == False, ('assertEqual', any([]), False)\n    assert any([1, TestFailingBool()]) == True, ('assertEqual', any([1, TestFailingBool()]), True)\n    S = [40, 60, 30]\n    assert any((x > 42 for x in S)) == True, ('assertEqual', any((x > 42 for x in S)), True)\n    S = [40, 60, 30, TestFailingBool()]\n    assert any((x > 42 for x in S)) == True, ('assertEqual', any((x > 42 for x in S)), True)\n    S = [10, 20, 30]\n    assert any((x > 42 for x in S)) == False, ('assertEqual', any((x > 42 for x in S)), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_all_any_tuple_optimization",
@@ -120,12 +136,20 @@
       "snippet": "import ast\n\ndef pack(*args):\n    return args\n\ndef _t():\n    args = ('a*__debug__', 'f.py', 'exec')\n    raw = compile(*args, flags=ast.PyCF_ONLY_AST).body[0]\n    opt1 = compile(*args, flags=ast.PyCF_OPTIMIZED_AST).body[0]\n    opt2 = compile(ast.parse(args[0]), *args[1:], flags=ast.PyCF_OPTIMIZED_AST).body[0]\n    for tree in (raw, opt1, opt2):\n        assert isinstance(tree.value, ast.BinOp), ('assertIsInstance', tree.value, ast.BinOp)\n        assert isinstance(tree.value.op, ast.Mult), ('assertIsInstance', tree.value.op, ast.Mult)\n        assert isinstance(tree.value.left, ast.Name), ('assertIsInstance', tree.value.left, ast.Name)\n        assert tree.value.left.id == 'a', ('assertEqual', tree.value.left.id, 'a')\n    raw_right = raw.value.right\n    assert isinstance(raw_right, ast.Name), ('assertIsInstance', raw_right, ast.Name)\n    assert raw_right.id == '__debug__', ('assertEqual', raw_right.id, '__debug__')\n    for opt in [opt1, opt2]:\n        opt_right = opt.value.right\n        assert isinstance(opt_right, ast.Constant), ('assertIsInstance', opt_right, ast.Constant)\n        assert opt_right.value == __debug__, ('assertEqual', opt_right.value, __debug__)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "BuiltinTest.test_delattr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\n\ndef _t():\n    sys.spam = 1\n    delattr(sys, 'spam')\n    try:\n        delattr()\n    except TypeError:\n        pass\n    try:\n        delattr(*(sys,))\n    except TypeError:\n        pass\n    msg = \"^attribute name must be string, not 'int'$\"\n    try:\n        delattr(*(sys, 1))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "BuiltinTest.test_dir",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
-      "snippet": "import sys\nimport types\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    try:\n        dir(*(42, 42))\n    except TypeError:\n        pass\n    local_var = 1\n    assert 'local_var' in dir(), ('assertIn', 'local_var', dir())\n    assert 'exit' in dir(sys), ('assertIn', 'exit', dir(sys))\n\n    class Foo(types.ModuleType):\n        __dict__ = 8\n    f = Foo('foo')\n    try:\n        dir(*(f,))\n    except TypeError:\n        pass\n    assert 'strip' in dir(str), ('assertIn', 'strip', dir(str))\n    assert '__mro__' not in dir(str), ('assertNotIn', '__mro__', dir(str))\n\n    class Foo(object):\n\n        def __init__(self):\n            self.x = 7\n            self.y = 8\n            self.z = 9\n    f = Foo()\n    assert 'y' in dir(f), ('assertIn', 'y', dir(f))\n\n    class Foo(object):\n        __slots__ = []\n    f = Foo()\n    assert '__repr__' in dir(f), ('assertIn', '__repr__', dir(f))\n\n    class Foo(object):\n        __slots__ = ['__class__', '__dict__']\n\n        def __init__(self):\n            self.bar = 'wow'\n    f = Foo()\n    assert '__repr__' not in dir(f), ('assertNotIn', '__repr__', dir(f))\n    assert 'bar' in dir(f), ('assertIn', 'bar', dir(f))\n\n    class Foo(object):\n\n        def __dir__(self):\n            return ['kan', 'ga', 'roo']\n    f = Foo()\n    assert dir(f) == ['ga', 'kan', 'roo'], ('assertTrue', dir(f) == ['ga', 'kan', 'roo'])\n\n    class Foo(object):\n\n        def __dir__(self):\n            return ('b', 'c', 'a')\n    res = dir(Foo())\n    assert isinstance(res, list), ('assertIsInstance', res, list)\n    assert res == ['a', 'b', 'c'], ('assertTrue', res == ['a', 'b', 'c'])\n\n    class Foo(object):\n\n        def __dir__(self):\n            return {'b', 'c', 'a'}\n    res = dir(Foo())\n    assert isinstance(res, list), ('assertIsInstance', res, list)\n    assert sorted(res) == ['a', 'b', 'c'], ('assertEqual', sorted(res), ['a', 'b', 'c'])\n\n    class Foo(object):\n\n        def __dir__(self):\n            return 7\n    f = Foo()\n    try:\n        dir(*(f,))\n    except TypeError:\n        pass\n    try:\n        raise IndexError\n    except IndexError as e:\n        assert len(dir(e.__traceback__)) == 4, ('assertEqual', len(dir(e.__traceback__)), 4)\n    assert sorted([].__dir__()) == dir([]), ('assertEqual', sorted([].__dir__()), dir([]))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "snippet": "import platform\nimport sys\nimport types\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.linux_alpha = platform.system().startswith('Linux') and platform.machine().startswith('alpha')\n    self.system_round_bug = round(5000000000000000.0 + 1) != 5000000000000000.0 + 1\n    try:\n        dir(*(42, 42))\n    except TypeError:\n        pass\n    local_var = 1\n    assert 'local_var' in dir(), ('assertIn', 'local_var', dir())\n    assert 'exit' in dir(sys), ('assertIn', 'exit', dir(sys))\n\n    class Foo(types.ModuleType):\n        __dict__ = 8\n    f = Foo('foo')\n    try:\n        dir(*(f,))\n    except TypeError:\n        pass\n    assert 'strip' in dir(str), ('assertIn', 'strip', dir(str))\n    assert '__mro__' not in dir(str), ('assertNotIn', '__mro__', dir(str))\n\n    class Foo(object):\n\n        def __init__(self):\n            self.x = 7\n            self.y = 8\n            self.z = 9\n    f = Foo()\n    assert 'y' in dir(f), ('assertIn', 'y', dir(f))\n\n    class Foo(object):\n        __slots__ = []\n    f = Foo()\n    assert '__repr__' in dir(f), ('assertIn', '__repr__', dir(f))\n\n    class Foo(object):\n        __slots__ = ['__class__', '__dict__']\n\n        def __init__(self):\n            self.bar = 'wow'\n    f = Foo()\n    assert '__repr__' not in dir(f), ('assertNotIn', '__repr__', dir(f))\n    assert 'bar' in dir(f), ('assertIn', 'bar', dir(f))\n\n    class Foo(object):\n\n        def __dir__(self):\n            return ['kan', 'ga', 'roo']\n    f = Foo()\n    assert dir(f) == ['ga', 'kan', 'roo'], ('assertTrue', dir(f) == ['ga', 'kan', 'roo'])\n\n    class Foo(object):\n\n        def __dir__(self):\n            return ('b', 'c', 'a')\n    res = dir(Foo())\n    assert isinstance(res, list), ('assertIsInstance', res, list)\n    assert res == ['a', 'b', 'c'], ('assertTrue', res == ['a', 'b', 'c'])\n\n    class Foo(object):\n\n        def __dir__(self):\n            return {'b', 'c', 'a'}\n    res = dir(Foo())\n    assert isinstance(res, list), ('assertIsInstance', res, list)\n    assert sorted(res) == ['a', 'b', 'c'], ('assertEqual', sorted(res), ['a', 'b', 'c'])\n\n    class Foo(object):\n\n        def __dir__(self):\n            return 7\n    f = Foo()\n    try:\n        dir(*(f,))\n    except TypeError:\n        pass\n    try:\n        raise IndexError\n    except IndexError as e:\n        assert len(dir(e.__traceback__)) == 4, ('assertEqual', len(dir(e.__traceback__)), 4)\n    assert sorted([].__dir__()) == dir([]), ('assertEqual', sorted([].__dir__()), dir([]))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test___ne__",
@@ -134,6 +158,14 @@
         "status": "ok"
       },
       "snippet": "def _t():\n    assert not None.__ne__(None), ('assertFalse', None.__ne__(None))\n    assert None.__ne__(0) is NotImplemented, ('assertIs', None.__ne__(0), NotImplemented)\n    assert None.__ne__('abc') is NotImplemented, ('assertIs', None.__ne__('abc'), NotImplemented)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_divmod",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\n\ndef _t():\n    assert divmod(12, 7) == (1, 5), ('assertEqual', divmod(12, 7), (1, 5))\n    assert divmod(-12, 7) == (-2, 2), ('assertEqual', divmod(-12, 7), (-2, 2))\n    assert divmod(12, -7) == (-2, -2), ('assertEqual', divmod(12, -7), (-2, -2))\n    assert divmod(-12, -7) == (1, -5), ('assertEqual', divmod(-12, -7), (1, -5))\n    assert divmod(-sys.maxsize - 1, -1) == (sys.maxsize + 1, 0), ('assertEqual', divmod(-sys.maxsize - 1, -1), (sys.maxsize + 1, 0))\n    for num, denom, exp_result in [(3.25, 1.0, (3.0, 0.25)), (-3.25, 1.0, (-4.0, 0.75)), (3.25, -1.0, (-4.0, -0.75)), (-3.25, -1.0, (3.0, -0.25))]:\n        result = divmod(num, denom)\n        assert round(result[0] - exp_result[0], 7) == 0, ('assertAlmostEqual', result[0], exp_result[0])\n        assert round(result[1] - exp_result[1], 7) == 0, ('assertAlmostEqual', result[1], exp_result[1])\n    try:\n        divmod()\n    except TypeError:\n        pass\n    try:\n        divmod(*(1, 0))\n    except ZeroDivisionError:\n        pass\n    try:\n        divmod(*(0.0, 0))\n    except ZeroDivisionError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_eval",
@@ -154,7 +186,7 @@
       "oracle": {
         "status": "ok"
       },
-      "snippet": "import collections\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class M:\n        \"\"\"Test mapping interface versus possible calls from eval().\"\"\"\n\n        def __getitem__(self, key):\n            if key == 'a':\n                return 12\n            raise KeyError\n\n        def keys(self):\n            return list('xyz')\n    m = M()\n    g = globals()\n    assert eval('a', g, m) == 12, ('assertEqual', eval('a', g, m), 12)\n    try:\n        eval(*('b', g, m))\n    except NameError:\n        pass\n    assert eval('dir()', g, m) == list('xyz'), ('assertEqual', eval('dir()', g, m), list('xyz'))\n    assert eval('globals()', g, m) == g, ('assertEqual', eval('globals()', g, m), g)\n    assert eval('locals()', g, m) == m, ('assertEqual', eval('locals()', g, m), m)\n    try:\n        eval(*('a', m))\n    except TypeError:\n        pass\n\n    class A:\n        \"\"\"Non-mapping\"\"\"\n        pass\n    m = A()\n    try:\n        eval(*('a', g, m))\n    except TypeError:\n        pass\n\n    class D(dict):\n\n        def __getitem__(self, key):\n            if key == 'a':\n                return 12\n            return dict.__getitem__(self, key)\n\n        def keys(self):\n            return list('xyz')\n    d = D()\n    assert eval('a', g, d) == 12, ('assertEqual', eval('a', g, d), 12)\n    try:\n        eval(*('b', g, d))\n    except NameError:\n        pass\n    assert eval('dir()', g, d) == list('xyz'), ('assertEqual', eval('dir()', g, d), list('xyz'))\n    assert eval('globals()', g, d) == g, ('assertEqual', eval('globals()', g, d), g)\n    assert eval('locals()', g, d) == d, ('assertEqual', eval('locals()', g, d), d)\n    eval('[locals() for i in (2,3)]', g, d)\n    eval('[locals() for i in (2,3)]', g, collections.UserDict())\n\n    class SpreadSheet:\n        \"\"\"Sample application showing nested, calculated lookups.\"\"\"\n        _cells = {}\n\n        def __setitem__(self, key, formula):\n            self._cells[key] = formula\n\n        def __getitem__(self, key):\n            return eval(self._cells[key], globals(), self)\n    ss = SpreadSheet()\n    ss['a1'] = '5'\n    ss['a2'] = 'a1*6'\n    ss['a3'] = 'a2*7'\n    assert ss['a3'] == 210, ('assertEqual', ss['a3'], 210)\n\n    class C:\n\n        def __getitem__(self, item):\n            raise KeyError(item)\n\n        def keys(self):\n            return 1\n    try:\n        eval(*('dir()', globals(), C()))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "snippet": "import collections\nimport platform\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.linux_alpha = platform.system().startswith('Linux') and platform.machine().startswith('alpha')\n    self.system_round_bug = round(5000000000000000.0 + 1) != 5000000000000000.0 + 1\n\n    class M:\n        \"\"\"Test mapping interface versus possible calls from eval().\"\"\"\n\n        def __getitem__(self, key):\n            if key == 'a':\n                return 12\n            raise KeyError\n\n        def keys(self):\n            return list('xyz')\n    m = M()\n    g = globals()\n    assert eval('a', g, m) == 12, ('assertEqual', eval('a', g, m), 12)\n    try:\n        eval(*('b', g, m))\n    except NameError:\n        pass\n    assert eval('dir()', g, m) == list('xyz'), ('assertEqual', eval('dir()', g, m), list('xyz'))\n    assert eval('globals()', g, m) == g, ('assertEqual', eval('globals()', g, m), g)\n    assert eval('locals()', g, m) == m, ('assertEqual', eval('locals()', g, m), m)\n    try:\n        eval(*('a', m))\n    except TypeError:\n        pass\n\n    class A:\n        \"\"\"Non-mapping\"\"\"\n        pass\n    m = A()\n    try:\n        eval(*('a', g, m))\n    except TypeError:\n        pass\n\n    class D(dict):\n\n        def __getitem__(self, key):\n            if key == 'a':\n                return 12\n            return dict.__getitem__(self, key)\n\n        def keys(self):\n            return list('xyz')\n    d = D()\n    assert eval('a', g, d) == 12, ('assertEqual', eval('a', g, d), 12)\n    try:\n        eval(*('b', g, d))\n    except NameError:\n        pass\n    assert eval('dir()', g, d) == list('xyz'), ('assertEqual', eval('dir()', g, d), list('xyz'))\n    assert eval('globals()', g, d) == g, ('assertEqual', eval('globals()', g, d), g)\n    assert eval('locals()', g, d) == d, ('assertEqual', eval('locals()', g, d), d)\n    eval('[locals() for i in (2,3)]', g, d)\n    eval('[locals() for i in (2,3)]', g, collections.UserDict())\n\n    class SpreadSheet:\n        \"\"\"Sample application showing nested, calculated lookups.\"\"\"\n        _cells = {}\n\n        def __setitem__(self, key, formula):\n            self._cells[key] = formula\n\n        def __getitem__(self, key):\n            return eval(self._cells[key], globals(), self)\n    ss = SpreadSheet()\n    ss['a1'] = '5'\n    ss['a2'] = 'a1*6'\n    ss['a3'] = 'a2*7'\n    assert ss['a3'] == 210, ('assertEqual', ss['a3'], 210)\n\n    class C:\n\n        def __getitem__(self, item):\n            raise KeyError(item)\n\n        def keys(self):\n            return 1\n    try:\n        eval(*('dir()', globals(), C()))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_exec",
@@ -173,12 +205,52 @@
       "snippet": "def _t():\n    g = {}\n    exec('global z\\nz = 1', globals=g)\n    if '__builtins__' in g:\n        del g['__builtins__']\n    assert g == {'z': 1}, ('assertEqual', g, {'z': 1})\n    g = {}\n    exec('global z\\nz = 1', locals=g)\n    assert g == {}, ('assertEqual', g, {})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "BuiltinTest.test_exec_globals",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    code = compile(\"print('Hello World!')\", '', 'exec')\n    try:\n        exec(*(code, {'__builtins__': {}}))\n    except NameError:\n        pass\n    try:\n        exec(*(code, {'__builtins__': 123}))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "BuiltinTest.test_exec_globals_error_on_get",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
       "snippet": "def _t():\n\n    class setonlyerror(Exception):\n        pass\n\n    class setonlydict(dict):\n\n        def __getitem__(self, key):\n            raise setonlyerror\n    code = compile('globalname', 'test', 'exec')\n    try:\n        exec(*(code, setonlydict({'globalname': 1})))\n    except setonlyerror:\n        pass\n    code = compile('superglobal', 'test', 'exec')\n    try:\n        exec(*(code, {'__builtins__': setonlydict({'superglobal': 1})}))\n    except setonlyerror:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_exec_globals_dict_subclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class customdict(dict):\n        pass\n    code = compile('superglobal', 'test', 'exec')\n    exec(code, {'__builtins__': customdict({'superglobal': 1})})\n    try:\n        exec(*(code, {'__builtins__': customdict()}))\n    except NameError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_eval_builtins_mapping",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef _t():\n    code = compile('superglobal', 'test', 'eval')\n    ns = {'__builtins__': types.MappingProxyType({'superglobal': 1})}\n    assert eval(code, ns) == 1, ('assertEqual', eval(code, ns), 1)\n    ns = {'__builtins__': types.MappingProxyType({})}\n    try:\n        eval(*(code, ns))\n    except NameError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_exec_builtins_mapping_import",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef pack(*args):\n    return args\n\ndef _t():\n    code = compile('import foo.bar', 'test', 'exec')\n    ns = {'__builtins__': types.MappingProxyType({})}\n    try:\n        exec(*(code, ns))\n    except ImportError:\n        pass\n    ns = {'__builtins__': types.MappingProxyType({'__import__': lambda *args: args})}\n    exec(code, ns)\n    assert ns['foo'] == ('foo.bar', ns, ns, None, 0), ('assertEqual', ns['foo'], ('foo.bar', ns, ns, None, 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_eval_builtins_mapping_reduce",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef _t():\n    code = compile('x.__reduce__()', 'test', 'eval')\n    ns = {'__builtins__': types.MappingProxyType({}), 'x': iter([1, 2])}\n    try:\n        eval(*(code, ns))\n    except AttributeError:\n        pass\n    ns = {'__builtins__': types.MappingProxyType({'iter': iter}), 'x': iter([1, 2])}\n    assert eval(code, ns) == (iter, ([1, 2],), 0), ('assertEqual', eval(code, ns), (iter, ([1, 2],), 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_exec_redirected",
@@ -197,12 +269,36 @@
       "snippet": "from types import AsyncGeneratorType, FunctionType, CellType\n\ndef _t():\n\n    def function_without_closures():\n        return 3 * 5\n    result = 0\n\n    def make_closure_functions():\n        a = 2\n        b = 3\n        c = 5\n\n        def three_freevars():\n            nonlocal result\n            nonlocal a\n            nonlocal b\n            result = a * b\n\n        def four_freevars():\n            nonlocal result\n            nonlocal a\n            nonlocal b\n            nonlocal c\n            result = a * b * c\n        return (three_freevars, four_freevars)\n    three_freevars, four_freevars = make_closure_functions()\n    result = 0\n    exec(three_freevars.__code__, three_freevars.__globals__, closure=three_freevars.__closure__)\n    assert result == 6, ('assertEqual', result, 6)\n    result = 0\n    my_closure = (CellType(35), CellType(72), three_freevars.__closure__[2])\n    exec(three_freevars.__code__, three_freevars.__globals__, closure=my_closure)\n    assert result == 2520, ('assertEqual', result, 2520)\n    try:\n        exec(*(function_without_closures.__code__, function_without_closures.__globals__), closure=my_closure)\n    except TypeError:\n        pass\n    try:\n        exec(*(three_freevars.__code__, three_freevars.__globals__), closure=None)\n    except TypeError:\n        pass\n    try:\n        exec(*(three_freevars.__code__, three_freevars.__globals__), closure=four_freevars.__closure__)\n    except TypeError:\n        pass\n    my_closure = list(my_closure)\n    try:\n        exec(*(three_freevars.__code__, three_freevars.__globals__), closure=my_closure)\n    except TypeError:\n        pass\n    my_closure = tuple(my_closure)\n    try:\n        exec(*('pass',), closure=int)\n    except TypeError:\n        pass\n    try:\n        exec(*('pass',), closure=my_closure)\n    except TypeError:\n        pass\n    my_closure = list(my_closure)\n    my_closure[0] = int\n    my_closure = tuple(my_closure)\n    try:\n        exec(*(three_freevars.__code__, three_freevars.__globals__), closure=my_closure)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "BuiltinTest.test_filter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "x, y = (1e+16, 2.9999)\n\nclass Squares:\n\n    def __init__(self, max):\n        self.max = max\n        self.sofar = []\n\n    def __len__(self):\n        return len(self.sofar)\n\n    def __getitem__(self, i):\n        if not 0 <= i < self.max:\n            raise IndexError\n        n = len(self.sofar)\n        while n <= i:\n            self.sofar.append(n * n)\n            n += 1\n        return self.sofar[i]\n\ndef _t():\n    assert list(filter(lambda c: 'a' <= c <= 'z', 'Hello World')) == list('elloorld'), ('assertEqual', list(filter(lambda c: 'a' <= c <= 'z', 'Hello World')), list('elloorld'))\n    assert list(filter(None, [1, 'hello', [], [3], '', None, 9, 0])) == [1, 'hello', [3], 9], ('assertEqual', list(filter(None, [1, 'hello', [], [3], '', None, 9, 0])), [1, 'hello', [3], 9])\n    assert list(filter(lambda x: x > 0, [1, -3, 9, 0, 2])) == [1, 9, 2], ('assertEqual', list(filter(lambda x: x > 0, [1, -3, 9, 0, 2])), [1, 9, 2])\n    assert list(filter(None, Squares(10))) == [1, 4, 9, 16, 25, 36, 49, 64, 81], ('assertEqual', list(filter(None, Squares(10))), [1, 4, 9, 16, 25, 36, 49, 64, 81])\n    assert list(filter(lambda x: x % 2, Squares(10))) == [1, 9, 25, 49, 81], ('assertEqual', list(filter(lambda x: x % 2, Squares(10))), [1, 9, 25, 49, 81])\n\n    def identity(item):\n        return 1\n    filter(identity, Squares(5))\n    try:\n        filter()\n    except TypeError:\n        pass\n\n    class BadSeq(object):\n\n        def __getitem__(self, index):\n            if index < 4:\n                return 42\n            raise ValueError\n    try:\n        list(*(filter(lambda x: x, BadSeq()),))\n    except ValueError:\n        pass\n\n    def badfunc():\n        pass\n    try:\n        list(*(filter(badfunc, range(5)),))\n    except TypeError:\n        pass\n    assert list(filter(None, (1, 2))) == [1, 2], ('assertEqual', list(filter(None, (1, 2))), [1, 2])\n    assert list(filter(lambda x: x >= 3, (1, 2, 3, 4))) == [3, 4], ('assertEqual', list(filter(lambda x: x >= 3, (1, 2, 3, 4))), [3, 4])\n    try:\n        list(*(filter(42, (1, 2)),))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "BuiltinTest.test_filter_pickle",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
       "snippet": "import pickle\n\ndef filter_char(arg):\n    return ord(arg) > ord('d')\n\ndef map_char(arg):\n    return chr(ord(arg) + 1)\n\ndef check_iter_pickle(it, seq, proto):\n    itorg = it\n    d = pickle.dumps(it, proto)\n    it = pickle.loads(d)\n    assert type(itorg) == type(it), ('assertEqual', type(itorg), type(it))\n    assert list(it) == seq, ('assertEqual', list(it), seq)\n    it = pickle.loads(d)\n    try:\n        next(it)\n    except StopIteration:\n        return\n    d = pickle.dumps(it, proto)\n    it = pickle.loads(d)\n    assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef _t():\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        f1 = filter(filter_char, 'abcdeabcde')\n        f2 = filter(filter_char, 'abcdeabcde')\n        check_iter_pickle(f1, list(f2), proto)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_getattr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\n\ndef _t():\n    assert getattr(sys, 'stdout') is sys.stdout, ('assertTrue', getattr(sys, 'stdout') is sys.stdout)\n    try:\n        getattr()\n    except TypeError:\n        pass\n    try:\n        getattr(*(sys,))\n    except TypeError:\n        pass\n    msg = \"^attribute name must be string, not 'int'$\"\n    try:\n        getattr(*(sys, 1))\n    except TypeError:\n        pass\n    try:\n        getattr(*(sys, 1, 'spam'))\n    except TypeError:\n        pass\n    try:\n        getattr(*(sys, chr(sys.maxunicode)))\n    except AttributeError:\n        pass\n    try:\n        getattr(*(1, '\\udad1\ud51e'))\n    except AttributeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_hasattr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\n\ndef _t():\n    assert hasattr(sys, 'stdout'), ('assertTrue', hasattr(sys, 'stdout'))\n    try:\n        hasattr()\n    except TypeError:\n        pass\n    try:\n        hasattr(*(sys,))\n    except TypeError:\n        pass\n    msg = \"^attribute name must be string, not 'int'$\"\n    try:\n        hasattr(*(sys, 1))\n    except TypeError:\n        pass\n    assert False == hasattr(sys, chr(sys.maxunicode)), ('assertEqual', False, hasattr(sys, chr(sys.maxunicode)))\n\n    class A:\n\n        def __getattr__(self, what):\n            raise SystemExit\n    try:\n        hasattr(*(A(), 'b'))\n    except SystemExit:\n        pass\n\n    class B:\n\n        def __getattr__(self, what):\n            raise ValueError\n    try:\n        hasattr(*(B(), 'b'))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_hash",
@@ -269,6 +365,14 @@
       "snippet": "import sys\n\ndef _t():\n    assert len('123') == 3, ('assertEqual', len('123'), 3)\n    assert len(()) == 0, ('assertEqual', len(()), 0)\n    assert len((1, 2, 3, 4)) == 4, ('assertEqual', len((1, 2, 3, 4)), 4)\n    assert len([1, 2, 3, 4]) == 4, ('assertEqual', len([1, 2, 3, 4]), 4)\n    assert len({}) == 0, ('assertEqual', len({}), 0)\n    assert len({'a': 1, 'b': 2}) == 2, ('assertEqual', len({'a': 1, 'b': 2}), 2)\n\n    class BadSeq:\n\n        def __len__(self):\n            raise ValueError\n    try:\n        len(*(BadSeq(),))\n    except ValueError:\n        pass\n\n    class InvalidLen:\n\n        def __len__(self):\n            return None\n    try:\n        len(*(InvalidLen(),))\n    except TypeError:\n        pass\n\n    class FloatLen:\n\n        def __len__(self):\n            return 4.5\n    try:\n        len(*(FloatLen(),))\n    except TypeError:\n        pass\n\n    class NegativeLen:\n\n        def __len__(self):\n            return -10\n    try:\n        len(*(NegativeLen(),))\n    except ValueError:\n        pass\n\n    class HugeLen:\n\n        def __len__(self):\n            return sys.maxsize + 1\n    try:\n        len(*(HugeLen(),))\n    except OverflowError:\n        pass\n\n    class HugeNegativeLen:\n\n        def __len__(self):\n            return -sys.maxsize - 10\n    try:\n        len(*(HugeNegativeLen(),))\n    except ValueError:\n        pass\n\n    class NoLenMethod(object):\n        pass\n    try:\n        len(*(NoLenMethod(),))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "BuiltinTest.test_map",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "x, y = (1e+16, 2.9999)\n\nclass Squares:\n\n    def __init__(self, max):\n        self.max = max\n        self.sofar = []\n\n    def __len__(self):\n        return len(self.sofar)\n\n    def __getitem__(self, i):\n        if not 0 <= i < self.max:\n            raise IndexError\n        n = len(self.sofar)\n        while n <= i:\n            self.sofar.append(n * n)\n            n += 1\n        return self.sofar[i]\n\ndef _t():\n    assert list(map(lambda x: x * x, range(1, 4))) == [1, 4, 9], ('assertEqual', list(map(lambda x: x * x, range(1, 4))), [1, 4, 9])\n    try:\n        from math import sqrt\n    except ImportError:\n\n        def sqrt(x):\n            return pow(x, 0.5)\n    assert list(map(lambda x: list(map(sqrt, x)), [[16, 4], [81, 9]])) == [[4.0, 2.0], [9.0, 3.0]], ('assertEqual', list(map(lambda x: list(map(sqrt, x)), [[16, 4], [81, 9]])), [[4.0, 2.0], [9.0, 3.0]])\n    assert list(map(lambda x, y: x + y, [1, 3, 2], [9, 1, 4])) == [10, 4, 6], ('assertEqual', list(map(lambda x, y: x + y, [1, 3, 2], [9, 1, 4])), [10, 4, 6])\n\n    def plus(*v):\n        accu = 0\n        for i in v:\n            accu = accu + i\n        return accu\n    assert list(map(plus, [1, 3, 7])) == [1, 3, 7], ('assertEqual', list(map(plus, [1, 3, 7])), [1, 3, 7])\n    assert list(map(plus, [1, 3, 7], [4, 9, 2])) == [1 + 4, 3 + 9, 7 + 2], ('assertEqual', list(map(plus, [1, 3, 7], [4, 9, 2])), [1 + 4, 3 + 9, 7 + 2])\n    assert list(map(plus, [1, 3, 7], [4, 9, 2], [1, 1, 0])) == [1 + 4 + 1, 3 + 9 + 1, 7 + 2 + 0], ('assertEqual', list(map(plus, [1, 3, 7], [4, 9, 2], [1, 1, 0])), [1 + 4 + 1, 3 + 9 + 1, 7 + 2 + 0])\n    assert list(map(int, Squares(10))) == [0, 1, 4, 9, 16, 25, 36, 49, 64, 81], ('assertEqual', list(map(int, Squares(10))), [0, 1, 4, 9, 16, 25, 36, 49, 64, 81])\n\n    def Max(a, b):\n        if a is None:\n            return b\n        if b is None:\n            return a\n        return max(a, b)\n    assert list(map(Max, Squares(3), Squares(2))) == [0, 1], ('assertEqual', list(map(Max, Squares(3), Squares(2))), [0, 1])\n    try:\n        map()\n    except TypeError:\n        pass\n    try:\n        map(*(lambda x: x, 42))\n    except TypeError:\n        pass\n\n    class BadSeq:\n\n        def __iter__(self):\n            raise ValueError\n            yield None\n    try:\n        list(*(map(lambda x: x, BadSeq()),))\n    except ValueError:\n        pass\n\n    def badfunc(x):\n        raise RuntimeError\n    try:\n        list(*(map(badfunc, range(5)),))\n    except RuntimeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "BuiltinTest.test_map_pickle",
       "status": "pinned",
       "oracle": {
@@ -314,7 +418,7 @@
       "oracle": {
         "status": "ok"
       },
-      "snippet": "def pack(*args):\n    return args\n\ndef iter_error(iterable, error):\n    \"\"\"Collect `iterable` into a list, catching an expected `error`.\"\"\"\n    items = []\n    try:\n        for item in iterable:\n            items.append(item)\n    except error as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    return items\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Error(Exception):\n        pass\n\n    class Iter:\n\n        def __init__(self, size):\n            self.size = size\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            self.size -= 1\n            if self.size < 0:\n                raise Error\n            return self.size\n    l1 = iter_error(map(pack, 'AB', Iter(1), strict=True), Error)\n    assert l1 == [('A', 0)], ('assertEqual', l1, [('A', 0)])\n    l2 = iter_error(map(pack, 'AB', Iter(2), 'A', strict=True), ValueError)\n    assert l2 == [('A', 1, 'A')], ('assertEqual', l2, [('A', 1, 'A')])\n    l3 = iter_error(map(pack, 'AB', Iter(2), 'ABC', strict=True), Error)\n    assert l3 == [('A', 1, 'A'), ('B', 0, 'B')], ('assertEqual', l3, [('A', 1, 'A'), ('B', 0, 'B')])\n    l4 = iter_error(map(pack, 'AB', Iter(3), strict=True), ValueError)\n    assert l4 == [('A', 2), ('B', 1)], ('assertEqual', l4, [('A', 2), ('B', 1)])\n    l5 = iter_error(map(pack, Iter(1), 'AB', strict=True), Error)\n    assert l5 == [(0, 'A')], ('assertEqual', l5, [(0, 'A')])\n    l6 = iter_error(map(pack, Iter(2), 'A', strict=True), ValueError)\n    assert l6 == [(1, 'A')], ('assertEqual', l6, [(1, 'A')])\n    l7 = iter_error(map(pack, Iter(2), 'ABC', strict=True), Error)\n    assert l7 == [(1, 'A'), (0, 'B')], ('assertEqual', l7, [(1, 'A'), (0, 'B')])\n    l8 = iter_error(map(pack, Iter(3), 'AB', strict=True), ValueError)\n    assert l8 == [(2, 'A'), (1, 'B')], ('assertEqual', l8, [(2, 'A'), (1, 'B')])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "snippet": "import platform\n\ndef pack(*args):\n    return args\n\ndef iter_error(iterable, error):\n    \"\"\"Collect `iterable` into a list, catching an expected `error`.\"\"\"\n    items = []\n    try:\n        for item in iterable:\n            items.append(item)\n    except error as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    return items\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.linux_alpha = platform.system().startswith('Linux') and platform.machine().startswith('alpha')\n    self.system_round_bug = round(5000000000000000.0 + 1) != 5000000000000000.0 + 1\n\n    class Error(Exception):\n        pass\n\n    class Iter:\n\n        def __init__(self, size):\n            self.size = size\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            self.size -= 1\n            if self.size < 0:\n                raise Error\n            return self.size\n    l1 = iter_error(map(pack, 'AB', Iter(1), strict=True), Error)\n    assert l1 == [('A', 0)], ('assertEqual', l1, [('A', 0)])\n    l2 = iter_error(map(pack, 'AB', Iter(2), 'A', strict=True), ValueError)\n    assert l2 == [('A', 1, 'A')], ('assertEqual', l2, [('A', 1, 'A')])\n    l3 = iter_error(map(pack, 'AB', Iter(2), 'ABC', strict=True), Error)\n    assert l3 == [('A', 1, 'A'), ('B', 0, 'B')], ('assertEqual', l3, [('A', 1, 'A'), ('B', 0, 'B')])\n    l4 = iter_error(map(pack, 'AB', Iter(3), strict=True), ValueError)\n    assert l4 == [('A', 2), ('B', 1)], ('assertEqual', l4, [('A', 2), ('B', 1)])\n    l5 = iter_error(map(pack, Iter(1), 'AB', strict=True), Error)\n    assert l5 == [(0, 'A')], ('assertEqual', l5, [(0, 'A')])\n    l6 = iter_error(map(pack, Iter(2), 'A', strict=True), ValueError)\n    assert l6 == [(1, 'A')], ('assertEqual', l6, [(1, 'A')])\n    l7 = iter_error(map(pack, Iter(2), 'ABC', strict=True), Error)\n    assert l7 == [(1, 'A'), (0, 'B')], ('assertEqual', l7, [(1, 'A'), (0, 'B')])\n    l8 = iter_error(map(pack, Iter(3), 'AB', strict=True), ValueError)\n    assert l8 == [(2, 'A'), (1, 'B')], ('assertEqual', l8, [(2, 'A'), (1, 'B')])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_map_strict_error_handling_stopiteration",
@@ -322,7 +426,7 @@
       "oracle": {
         "status": "ok"
       },
-      "snippet": "def pack(*args):\n    return args\n\ndef iter_error(iterable, error):\n    \"\"\"Collect `iterable` into a list, catching an expected `error`.\"\"\"\n    items = []\n    try:\n        for item in iterable:\n            items.append(item)\n    except error as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    return items\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Iter:\n\n        def __init__(self, size):\n            self.size = size\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            self.size -= 1\n            if self.size < 0:\n                raise StopIteration\n            return self.size\n    l1 = iter_error(map(pack, 'AB', Iter(1), strict=True), ValueError)\n    assert l1 == [('A', 0)], ('assertEqual', l1, [('A', 0)])\n    l2 = iter_error(map(pack, 'AB', Iter(2), 'A', strict=True), ValueError)\n    assert l2 == [('A', 1, 'A')], ('assertEqual', l2, [('A', 1, 'A')])\n    l3 = iter_error(map(pack, 'AB', Iter(2), 'ABC', strict=True), ValueError)\n    assert l3 == [('A', 1, 'A'), ('B', 0, 'B')], ('assertEqual', l3, [('A', 1, 'A'), ('B', 0, 'B')])\n    l4 = iter_error(map(pack, 'AB', Iter(3), strict=True), ValueError)\n    assert l4 == [('A', 2), ('B', 1)], ('assertEqual', l4, [('A', 2), ('B', 1)])\n    l5 = iter_error(map(pack, Iter(1), 'AB', strict=True), ValueError)\n    assert l5 == [(0, 'A')], ('assertEqual', l5, [(0, 'A')])\n    l6 = iter_error(map(pack, Iter(2), 'A', strict=True), ValueError)\n    assert l6 == [(1, 'A')], ('assertEqual', l6, [(1, 'A')])\n    l7 = iter_error(map(pack, Iter(2), 'ABC', strict=True), ValueError)\n    assert l7 == [(1, 'A'), (0, 'B')], ('assertEqual', l7, [(1, 'A'), (0, 'B')])\n    l8 = iter_error(map(pack, Iter(3), 'AB', strict=True), ValueError)\n    assert l8 == [(2, 'A'), (1, 'B')], ('assertEqual', l8, [(2, 'A'), (1, 'B')])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "snippet": "import platform\n\ndef pack(*args):\n    return args\n\ndef iter_error(iterable, error):\n    \"\"\"Collect `iterable` into a list, catching an expected `error`.\"\"\"\n    items = []\n    try:\n        for item in iterable:\n            items.append(item)\n    except error as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    return items\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.linux_alpha = platform.system().startswith('Linux') and platform.machine().startswith('alpha')\n    self.system_round_bug = round(5000000000000000.0 + 1) != 5000000000000000.0 + 1\n\n    class Iter:\n\n        def __init__(self, size):\n            self.size = size\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            self.size -= 1\n            if self.size < 0:\n                raise StopIteration\n            return self.size\n    l1 = iter_error(map(pack, 'AB', Iter(1), strict=True), ValueError)\n    assert l1 == [('A', 0)], ('assertEqual', l1, [('A', 0)])\n    l2 = iter_error(map(pack, 'AB', Iter(2), 'A', strict=True), ValueError)\n    assert l2 == [('A', 1, 'A')], ('assertEqual', l2, [('A', 1, 'A')])\n    l3 = iter_error(map(pack, 'AB', Iter(2), 'ABC', strict=True), ValueError)\n    assert l3 == [('A', 1, 'A'), ('B', 0, 'B')], ('assertEqual', l3, [('A', 1, 'A'), ('B', 0, 'B')])\n    l4 = iter_error(map(pack, 'AB', Iter(3), strict=True), ValueError)\n    assert l4 == [('A', 2), ('B', 1)], ('assertEqual', l4, [('A', 2), ('B', 1)])\n    l5 = iter_error(map(pack, Iter(1), 'AB', strict=True), ValueError)\n    assert l5 == [(0, 'A')], ('assertEqual', l5, [(0, 'A')])\n    l6 = iter_error(map(pack, Iter(2), 'A', strict=True), ValueError)\n    assert l6 == [(1, 'A')], ('assertEqual', l6, [(1, 'A')])\n    l7 = iter_error(map(pack, Iter(2), 'ABC', strict=True), ValueError)\n    assert l7 == [(1, 'A'), (0, 'B')], ('assertEqual', l7, [(1, 'A'), (0, 'B')])\n    l8 = iter_error(map(pack, Iter(3), 'AB', strict=True), ValueError)\n    assert l8 == [(2, 'A'), (1, 'B')], ('assertEqual', l8, [(2, 'A'), (1, 'B')])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_max",
@@ -410,12 +514,28 @@
       "snippet": "import decimal\nimport fractions\nx, y = (1e+16, 2.9999)\n\ndef _t():\n    for x in [1234, 1234.56, decimal.Decimal('1234.56'), fractions.Fraction(123456, 100)]:\n        assert round(x, None) == round(x), ('assertEqual', round(x, None), round(x))\n        assert type(round(x, None)) == type(round(x)), ('assertEqual', type(round(x, None)), type(round(x)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "BuiltinTest.test_setattr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\n\ndef _t():\n    setattr(sys, 'spam', 1)\n    try:\n        assert sys.spam == 1, ('assertEqual', sys.spam, 1)\n    finally:\n        del sys.spam\n    try:\n        setattr()\n    except TypeError:\n        pass\n    try:\n        setattr(*(sys,))\n    except TypeError:\n        pass\n    try:\n        setattr(*(sys, 'spam'))\n    except TypeError:\n        pass\n    msg = \"^attribute name must be string, not 'int'$\"\n    try:\n        setattr(*(sys, 1, 'spam'))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "BuiltinTest.test_type",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
       "snippet": "def _t():\n    assert type('') == type('123'), ('assertEqual', type(''), type('123'))\n    assert type('') != type(()), ('assertNotEqual', type(''), type(()))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_zip",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "class TestFailingIter:\n\n    def __iter__(self):\n        raise RuntimeError\n\ndef _t():\n    a = (1, 2, 3)\n    b = (4, 5, 6)\n    t = [(1, 4), (2, 5), (3, 6)]\n    assert list(zip(a, b)) == t, ('assertEqual', list(zip(a, b)), t)\n    b = [4, 5, 6]\n    assert list(zip(a, b)) == t, ('assertEqual', list(zip(a, b)), t)\n    b = (4, 5, 6, 7)\n    assert list(zip(a, b)) == t, ('assertEqual', list(zip(a, b)), t)\n\n    class I:\n\n        def __getitem__(self, i):\n            if i < 0 or i > 2:\n                raise IndexError\n            return i + 4\n    assert list(zip(a, I())) == t, ('assertEqual', list(zip(a, I())), t)\n    assert list(zip()) == [], ('assertEqual', list(zip()), [])\n    assert list(zip(*[])) == [], ('assertEqual', list(zip(*[])), [])\n    try:\n        zip(*(None,))\n    except TypeError:\n        pass\n\n    class G:\n        pass\n    try:\n        zip(*(a, G()))\n    except TypeError:\n        pass\n    try:\n        zip(*(a, TestFailingIter()))\n    except RuntimeError:\n        pass\n\n    class SequenceWithoutALength:\n\n        def __getitem__(self, i):\n            if i == 5:\n                raise IndexError\n            else:\n                return i\n    assert list(zip(SequenceWithoutALength(), range(2 ** 30))) == list(enumerate(range(5))), ('assertEqual', list(zip(SequenceWithoutALength(), range(2 ** 30))), list(enumerate(range(5))))\n\n    class BadSeq:\n\n        def __getitem__(self, i):\n            if i == 5:\n                raise ValueError\n            else:\n                return i\n    try:\n        list(*(zip(BadSeq(), BadSeq()),))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_zip_pickle",
@@ -463,7 +583,7 @@
       "oracle": {
         "status": "ok"
       },
-      "snippet": "def iter_error(iterable, error):\n    \"\"\"Collect `iterable` into a list, catching an expected `error`.\"\"\"\n    items = []\n    try:\n        for item in iterable:\n            items.append(item)\n    except error as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    return items\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Error(Exception):\n        pass\n\n    class Iter:\n\n        def __init__(self, size):\n            self.size = size\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            self.size -= 1\n            if self.size < 0:\n                raise Error\n            return self.size\n    l1 = iter_error(zip('AB', Iter(1), strict=True), Error)\n    assert l1 == [('A', 0)], ('assertEqual', l1, [('A', 0)])\n    l2 = iter_error(zip('AB', Iter(2), 'A', strict=True), ValueError)\n    assert l2 == [('A', 1, 'A')], ('assertEqual', l2, [('A', 1, 'A')])\n    l3 = iter_error(zip('AB', Iter(2), 'ABC', strict=True), Error)\n    assert l3 == [('A', 1, 'A'), ('B', 0, 'B')], ('assertEqual', l3, [('A', 1, 'A'), ('B', 0, 'B')])\n    l4 = iter_error(zip('AB', Iter(3), strict=True), ValueError)\n    assert l4 == [('A', 2), ('B', 1)], ('assertEqual', l4, [('A', 2), ('B', 1)])\n    l5 = iter_error(zip(Iter(1), 'AB', strict=True), Error)\n    assert l5 == [(0, 'A')], ('assertEqual', l5, [(0, 'A')])\n    l6 = iter_error(zip(Iter(2), 'A', strict=True), ValueError)\n    assert l6 == [(1, 'A')], ('assertEqual', l6, [(1, 'A')])\n    l7 = iter_error(zip(Iter(2), 'ABC', strict=True), Error)\n    assert l7 == [(1, 'A'), (0, 'B')], ('assertEqual', l7, [(1, 'A'), (0, 'B')])\n    l8 = iter_error(zip(Iter(3), 'AB', strict=True), ValueError)\n    assert l8 == [(2, 'A'), (1, 'B')], ('assertEqual', l8, [(2, 'A'), (1, 'B')])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "snippet": "import platform\n\ndef iter_error(iterable, error):\n    \"\"\"Collect `iterable` into a list, catching an expected `error`.\"\"\"\n    items = []\n    try:\n        for item in iterable:\n            items.append(item)\n    except error as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    return items\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.linux_alpha = platform.system().startswith('Linux') and platform.machine().startswith('alpha')\n    self.system_round_bug = round(5000000000000000.0 + 1) != 5000000000000000.0 + 1\n\n    class Error(Exception):\n        pass\n\n    class Iter:\n\n        def __init__(self, size):\n            self.size = size\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            self.size -= 1\n            if self.size < 0:\n                raise Error\n            return self.size\n    l1 = iter_error(zip('AB', Iter(1), strict=True), Error)\n    assert l1 == [('A', 0)], ('assertEqual', l1, [('A', 0)])\n    l2 = iter_error(zip('AB', Iter(2), 'A', strict=True), ValueError)\n    assert l2 == [('A', 1, 'A')], ('assertEqual', l2, [('A', 1, 'A')])\n    l3 = iter_error(zip('AB', Iter(2), 'ABC', strict=True), Error)\n    assert l3 == [('A', 1, 'A'), ('B', 0, 'B')], ('assertEqual', l3, [('A', 1, 'A'), ('B', 0, 'B')])\n    l4 = iter_error(zip('AB', Iter(3), strict=True), ValueError)\n    assert l4 == [('A', 2), ('B', 1)], ('assertEqual', l4, [('A', 2), ('B', 1)])\n    l5 = iter_error(zip(Iter(1), 'AB', strict=True), Error)\n    assert l5 == [(0, 'A')], ('assertEqual', l5, [(0, 'A')])\n    l6 = iter_error(zip(Iter(2), 'A', strict=True), ValueError)\n    assert l6 == [(1, 'A')], ('assertEqual', l6, [(1, 'A')])\n    l7 = iter_error(zip(Iter(2), 'ABC', strict=True), Error)\n    assert l7 == [(1, 'A'), (0, 'B')], ('assertEqual', l7, [(1, 'A'), (0, 'B')])\n    l8 = iter_error(zip(Iter(3), 'AB', strict=True), ValueError)\n    assert l8 == [(2, 'A'), (1, 'B')], ('assertEqual', l8, [(2, 'A'), (1, 'B')])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_zip_strict_error_handling_stopiteration",
@@ -471,7 +591,7 @@
       "oracle": {
         "status": "ok"
       },
-      "snippet": "def iter_error(iterable, error):\n    \"\"\"Collect `iterable` into a list, catching an expected `error`.\"\"\"\n    items = []\n    try:\n        for item in iterable:\n            items.append(item)\n    except error as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    return items\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Iter:\n\n        def __init__(self, size):\n            self.size = size\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            self.size -= 1\n            if self.size < 0:\n                raise StopIteration\n            return self.size\n    l1 = iter_error(zip('AB', Iter(1), strict=True), ValueError)\n    assert l1 == [('A', 0)], ('assertEqual', l1, [('A', 0)])\n    l2 = iter_error(zip('AB', Iter(2), 'A', strict=True), ValueError)\n    assert l2 == [('A', 1, 'A')], ('assertEqual', l2, [('A', 1, 'A')])\n    l3 = iter_error(zip('AB', Iter(2), 'ABC', strict=True), ValueError)\n    assert l3 == [('A', 1, 'A'), ('B', 0, 'B')], ('assertEqual', l3, [('A', 1, 'A'), ('B', 0, 'B')])\n    l4 = iter_error(zip('AB', Iter(3), strict=True), ValueError)\n    assert l4 == [('A', 2), ('B', 1)], ('assertEqual', l4, [('A', 2), ('B', 1)])\n    l5 = iter_error(zip(Iter(1), 'AB', strict=True), ValueError)\n    assert l5 == [(0, 'A')], ('assertEqual', l5, [(0, 'A')])\n    l6 = iter_error(zip(Iter(2), 'A', strict=True), ValueError)\n    assert l6 == [(1, 'A')], ('assertEqual', l6, [(1, 'A')])\n    l7 = iter_error(zip(Iter(2), 'ABC', strict=True), ValueError)\n    assert l7 == [(1, 'A'), (0, 'B')], ('assertEqual', l7, [(1, 'A'), (0, 'B')])\n    l8 = iter_error(zip(Iter(3), 'AB', strict=True), ValueError)\n    assert l8 == [(2, 'A'), (1, 'B')], ('assertEqual', l8, [(2, 'A'), (1, 'B')])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "snippet": "import platform\n\ndef iter_error(iterable, error):\n    \"\"\"Collect `iterable` into a list, catching an expected `error`.\"\"\"\n    items = []\n    try:\n        for item in iterable:\n            items.append(item)\n    except error as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    return items\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.linux_alpha = platform.system().startswith('Linux') and platform.machine().startswith('alpha')\n    self.system_round_bug = round(5000000000000000.0 + 1) != 5000000000000000.0 + 1\n\n    class Iter:\n\n        def __init__(self, size):\n            self.size = size\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            self.size -= 1\n            if self.size < 0:\n                raise StopIteration\n            return self.size\n    l1 = iter_error(zip('AB', Iter(1), strict=True), ValueError)\n    assert l1 == [('A', 0)], ('assertEqual', l1, [('A', 0)])\n    l2 = iter_error(zip('AB', Iter(2), 'A', strict=True), ValueError)\n    assert l2 == [('A', 1, 'A')], ('assertEqual', l2, [('A', 1, 'A')])\n    l3 = iter_error(zip('AB', Iter(2), 'ABC', strict=True), ValueError)\n    assert l3 == [('A', 1, 'A'), ('B', 0, 'B')], ('assertEqual', l3, [('A', 1, 'A'), ('B', 0, 'B')])\n    l4 = iter_error(zip('AB', Iter(3), strict=True), ValueError)\n    assert l4 == [('A', 2), ('B', 1)], ('assertEqual', l4, [('A', 2), ('B', 1)])\n    l5 = iter_error(zip(Iter(1), 'AB', strict=True), ValueError)\n    assert l5 == [(0, 'A')], ('assertEqual', l5, [(0, 'A')])\n    l6 = iter_error(zip(Iter(2), 'A', strict=True), ValueError)\n    assert l6 == [(1, 'A')], ('assertEqual', l6, [(1, 'A')])\n    l7 = iter_error(zip(Iter(2), 'ABC', strict=True), ValueError)\n    assert l7 == [(1, 'A'), (0, 'B')], ('assertEqual', l7, [(1, 'A'), (0, 'B')])\n    l8 = iter_error(zip(Iter(3), 'AB', strict=True), ValueError)\n    assert l8 == [(2, 'A'), (1, 'B')], ('assertEqual', l8, [(2, 'A'), (1, 'B')])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_bin",
@@ -520,6 +640,14 @@
         "status": "ok"
       },
       "snippet": "def _t():\n    for const in (None, Ellipsis, NotImplemented):\n        tp = type(const)\n        assert tp() is const, ('assertIs', tp(), const)\n        try:\n            tp(*(1, 2))\n        except TypeError:\n            pass\n        try:\n            tp(a=1, b=2)\n        except TypeError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_bool_notimplemented",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    msg = 'NotImplemented should not be used in a boolean context'\n    try:\n        bool(*(NotImplemented,))\n    except TypeError:\n        pass\n    try:\n        if NotImplemented:\n            pass\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        not NotImplemented\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_singleton_attribute_access",
@@ -572,17 +700,17 @@
     {
       "ident": "ImmortalTests.test_immortals",
       "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'IMMORTALS'"
+      "reason": "host-raised:NameError: name 'self' is not defined"
     },
     {
       "ident": "ImmortalTests.test_list_repeat_respect_immortality",
       "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'IMMORTALS'"
+      "reason": "host-raised:NameError: name 'self' is not defined"
     },
     {
       "ident": "ImmortalTests.test_tuple_repeat_respect_immortality",
       "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'IMMORTALS'"
+      "reason": "host-raised:NameError: name 'self' is not defined"
     },
     {
       "ident": "TestType.test_new_type",
@@ -736,14 +864,6 @@
       "reason": "uses-self.assertWarns"
     },
     {
-      "ident": "BuiltinTest.test_all",
-      "reason": "unresolved-name:TestFailingBool"
-    },
-    {
-      "ident": "BuiltinTest.test_any",
-      "reason": "unresolved-name:TestFailingBool"
-    },
-    {
       "ident": "BuiltinTest.test_callable",
       "reason": "unresolved-name:__builtins__"
     },
@@ -752,52 +872,8 @@
       "reason": "self.assertNotHasAttr"
     },
     {
-      "ident": "BuiltinTest.test_delattr",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "BuiltinTest.test_divmod",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "BuiltinTest.test_exec_globals",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
       "ident": "BuiltinTest.test_exec_globals_frozen",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "BuiltinTest.test_exec_globals_dict_subclass",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "BuiltinTest.test_eval_builtins_mapping",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "BuiltinTest.test_exec_builtins_mapping_import",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "BuiltinTest.test_eval_builtins_mapping_reduce",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "BuiltinTest.test_filter",
-      "reason": "unresolved-name:Squares"
-    },
-    {
-      "ident": "BuiltinTest.test_getattr",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "BuiltinTest.test_hasattr",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "BuiltinTest.test_map",
-      "reason": "unresolved-name:Squares"
+      "reason": "unresolved-name:__builtins__"
     },
     {
       "ident": "BuiltinTest.test_open",
@@ -808,10 +884,6 @@
       "reason": "helper:write_testfile(self.addCleanup)"
     },
     {
-      "ident": "BuiltinTest.test_setattr",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
       "ident": "BuiltinTest.test_sum",
       "reason": "self.assertComplexesAreIdentical"
     },
@@ -820,20 +892,12 @@
       "reason": "helper:get_vars_f0(decorated-helper)"
     },
     {
-      "ident": "BuiltinTest.test_zip",
-      "reason": "unresolved-name:TestFailingIter"
-    },
-    {
       "ident": "BuiltinTest.test_zip_bad_iterable",
       "reason": "unresolved-name:cm"
     },
     {
       "ident": "BuiltinTest.test_format",
       "reason": "self.assertStartsWith"
-    },
-    {
-      "ident": "BuiltinTest.test_bool_notimplemented",
-      "reason": "assertRaisesRegex call form"
     },
     {
       "ident": "TestBreakpoint.test_breakpoint",
@@ -870,7 +934,7 @@
   ],
   "counts": {
     "extracted": 133,
-    "pinned": 76,
-    "quarantined": 57
+    "pinned": 92,
+    "quarantined": 41
   }
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,29 +10,47 @@
     "diff_runner.py",
     "jac-py/tests/conv_bytes/conv_bytes_pins.jac"
   ],
-  "generated_at": "2026-08-24T15:01:26",
+  "generated_at": "2026-08-24T22:59:33",
   "hashes": {
-    "pins_jac": "9c1c4350a3043f817ea935880ba6f29389e7470f4de29c5d52a91b84f0c677ba",
-    "conversion_json": "9ff26e8182db9ae21778c6d09e02c15c4b2205a42fd6c4f7cdedccd3d9f37e69",
+    "pins_jac": "f97d6fd20e2730027d4c5000b37f6fe2b7af6ec3aca0d35212a3ee79920b02e5",
+    "conversion_json": "0c5336a4ed7e68c5e178584f6e4f483321ca8663133691a25ef3655e1c9a0b75",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "bytes",
   "status": "failed",
   "timed_out": false,
   "counts": {
-    "converted": 143,
-    "runnable": 44,
-    "green": 18,
-    "quarantined": 99,
-    "failed": 26,
+    "converted": 225,
+    "runnable": 56,
+    "green": 19,
+    "quarantined": 169,
+    "failed": 37,
     "infra_failed": 0
   },
   "failures": [
     {
-      "id": "BaseBytesTest.test_from_mutating_list",
+      "id": "BytesTest.test_from_mutating_list",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC TypeError \"\\'X\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
+      "id": "ByteArrayTest.test_from_mutating_list",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'X\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
+      "id": "BytesTest.test_check_encoding_errors",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.script_helper'\">"
+    },
+    {
+      "id": "BytesTest.test__bytes__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', b\\'bar\\\\\\\\x00foo\\', b\\'bar\\\\\\\\x00foo\\')\"'>"
     },
     {
       "id": "BytesTest.test_getitem_error",
@@ -41,10 +59,16 @@
       "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
     },
     {
+      "id": "BytesTest.test_custom",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', b\\'abc\\', b\\'abc\\')\"'>"
+    },
+    {
       "id": "BytesTest.test_repeat_id_preserving",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 139664801626352, 139664801625488)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 140414412797136, 140414412558928)\"'>"
     },
     {
       "id": "ByteArrayTest.test_setitem_error",
@@ -69,6 +93,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [b\\'Hello\\', b\\'world\\'], [bytearray(b\\'Hello\\'), bytearray(b\\'world\\')])\"'>"
+    },
+    {
+      "id": "ByteArrayTest.test_resize",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
     },
     {
       "id": "ByteArrayTest.test_setslice",
@@ -125,6 +155,30 @@
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', bytearray(b\\'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\'), bytearray(b\\'x\\'))\"'>"
     },
     {
+      "id": "ByteArrayTest.test_extend",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Indexable\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
+      "id": "ByteArrayTest.test_remove",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Indexable\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
+      "id": "ByteArrayTest.test_append",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Indexable\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
+      "id": "ByteArrayTest.test_insert",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Indexable\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
       "id": "ByteArrayTest.test_resize_forbidden",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
@@ -134,7 +188,7 @@
       "id": "ByteArrayTest.test_iterator_pickling2",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f063efe7c10>\"'>"
+      "detail": "RUN<\"AttributeError: module 'builtins' has no attribute 'PicklingError'\">"
     },
     {
       "id": "ByteArrayTest.test_iterator_length_hint",
@@ -147,12 +201,6 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
-    },
-    {
-      "id": "ByteArrayTest.test_search_methods_reentrancy_raises_buffererror",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC TypeError \"argument should be integer or bytes-like object, not \\'Evil\\'\"'>"
     },
     {
       "id": "ByteArrayTest.test_extend_empty_buffer_overflow",
@@ -179,10 +227,28 @@
       "detail": "GOT<'ORACLE_EXC NameError \"name \\'val\\' is not defined\"'>"
     },
     {
+      "id": "ByteArraySubclassTest.test_fromhex",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'fromhex'\">"
+    },
+    {
+      "id": "ByteArraySubclassWithSlotsTest.test_fromhex",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'fromhex'\">"
+    },
+    {
+      "id": "BytesSubclassTest.test_fromhex",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIs\\', <class \\'bytes\\'>, <class \\'__main__.BytesSubclass\\'>)\"'>"
+    },
+    {
       "id": "ByteArraySubclassTest.test_init_override",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <__main__.subclass object at 0x7f063ee0b6d0>, b\\'abcd\\')\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <__main__.subclass object at 0x7fb4c8341ed0>, b\\'abcd\\')\"'>"
     }
   ]
 }

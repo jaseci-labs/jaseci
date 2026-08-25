@@ -1,15 +1,17 @@
 # Triage report: `conv_fractions_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_fractions.py
-- guest leg: 0/36 marks
-- pins: **19 passed** / 36 run (+14 quarantined of 50 extracted)
+- guest leg: 0/41 marks
+- pins: **20 passed** / 41 run (+9 quarantined of 50 extracted)
 
 | pin | result | got |
 |---|---|---|
 | FractionTest.testInit | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'both arguments should be Rational instances'"> |
 | FractionTest.testInitFromFloat | PASS | |
 | FractionTest.testInitFromDecimal | PASS | |
+| FractionTest.testInitFromIntegerRatio | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'too many positional arguments'"> |
 | FractionTest.testFromString | PASS | |
+| FractionTest.test_limit_int | GUEST-WRONG-OUTPUT | RUN<"ImportError: cannot import name 'requires_IEEE_754' from '<unknown>'"> |
 | FractionTest.testImmutable | PASS | |
 | FractionTest.testFromFloat | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'Fraction.from_float() only takes floats, not 10 (int)'"> |
 | FractionTest.testFromDecimal | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'Fraction.from_decimal() only takes Decimals, not 10 (int)'"> |
@@ -24,6 +26,8 @@
 | FractionTest.testMixedArithmetic | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (1.1+0j), (1.1+0j))"'> |
 | FractionTest.testMixingWithDecimal | PASS | |
 | FractionTest.testComparisons | PASS | |
+| FractionTest.testComparisonsDummyRational | PASS | |
+| FractionTest.testComparisonsDummyFloat | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'<\' not supported between instances of \'Fraction\' and \'Fraction\'"'> |
 | FractionTest.testMixedLess | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'<\' not supported between instances of \'int\' and \'Fraction\'"'> |
 | FractionTest.testMixedLessEqual | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'>=\' not supported between instances of \'Fraction\' and \'Fraction\'"'> |
 | FractionTest.testBigFloatComparisons | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'>\' not supported between instances of \'Fraction\' and \'Fraction\'"'> |
@@ -33,6 +37,7 @@
 | FractionTest.testHash | PASS | |
 | FractionTest.testApproximatePi | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'>\' not supported between instances of \'int\' and \'Fraction\'"'> |
 | FractionTest.testApproximateCos1 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "bad operand type for abs(): \'Fraction\'"'> |
+| FractionTest.test_copy_deepcopy_pickle | GUEST-WRONG-OUTPUT | RUN<"AttributeError: module 'builtins' has no attribute 'PicklingError'"> |
 | FractionTest.test_slots | PASS | |
 | FractionTest.test_int_subclass | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'both arguments should be Rational instances'"> |
 | FractionTest.test_format_no_presentation_type | PASS | |
@@ -47,20 +52,15 @@
 
 | test | reason |
 |---|---|
-| FractionTest.testInitFromIntegerRatio | assertRaisesRegex call form |
-| FractionTest.test_limit_int | assertRaisesRegex call form |
-| FractionTest.testFromNumber | unresolved-name:DummyFraction |
+| FractionTest.testFromNumber | unresolved-name:cls |
 | FractionTest.testFromNumber_subclass | self.testFromNumber |
-| FractionTest.testMixedMultiplication | unresolved-name:DummyFraction |
-| FractionTest.testMixedDivision | unresolved-name:DummyFraction |
-| FractionTest.testMixedIntegerDivision | unresolved-name:DummyFraction |
-| FractionTest.testMixedPower | unresolved-name:Polar |
-| FractionTest.testComparisonsDummyRational | unresolved-name:DummyRational |
-| FractionTest.testComparisonsDummyFloat | unresolved-name:DummyFloat |
-| FractionTest.test_copy_deepcopy_pickle | unresolved-name:DummyFraction |
 | FractionTest.testSupportsInt | harness-error:SyntaxError: invalid syntax |
 | FractionTest.testIntGuaranteesIntReturn | harness-error:SyntaxError: invalid syntax |
-| FractionTest.test_float_format_testfile | host-raised:FileNotFoundError: [Errno 2] No such file or directory: '/tmp/conv_suite_h5u84sdp/mathdata/formatfloat_testcases.txt' |
+| FractionTest.testMixedMultiplication | host-raised:TypeError: unsupported operand type(s) for *: 'Rat' and 'Fraction' |
+| FractionTest.testMixedDivision | host-raised:TypeError: unsupported operand type(s) for /: 'Rat' and 'Fraction' |
+| FractionTest.testMixedIntegerDivision | host-raised:TypeError: unsupported operand type(s) for %: 'Rat' and 'Fraction' |
+| FractionTest.testMixedPower | host-raised:TypeError: unsupported operand type(s) for ** or pow(): 'Fraction' and 'Rat' |
+| FractionTest.test_float_format_testfile | host-raised:FileNotFoundError: [Errno 2] No such file or directory: '/tmp/conv_suite_jm3r7578/mathdata/formatfloat_testcases.txt' |
 
 ## Expected vs got
 
@@ -94,6 +94,11 @@
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC TypeError 'argument should be a string or a Rational instance or have the as_integer_ratio() method'">
 
+### FractionTest.testComparisonsDummyFloat (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC TypeError "\'<\' not supported between instances of \'Fraction\' and \'Fraction\'"'>
+
 ### FractionTest.testConversions (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
@@ -113,6 +118,11 @@
 
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC TypeError 'both arguments should be Rational instances'">
+
+### FractionTest.testInitFromIntegerRatio (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC TypeError 'too many positional arguments'">
 
 ### FractionTest.testLargeArithmetic (GUEST-WRONG-OUTPUT)
 
@@ -144,7 +154,17 @@
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC TypeError "type Fraction doesn\'t define **round** method"'>
 
+### FractionTest.test_copy_deepcopy_pickle (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"AttributeError: module 'builtins' has no attribute 'PicklingError'">
+
 ### FractionTest.test_int_subclass (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC TypeError 'both arguments should be Rational instances'">
+
+### FractionTest.test_limit_int (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"ImportError: cannot import name 'requires_IEEE_754' from '<unknown>'">

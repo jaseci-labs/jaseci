@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "f6ad8fcea0e721214fca183e94db144c05df2966",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/sp2-out/test_call-r3/conv_call_pins.jac"
+    "jac-py/tests/conv_call/conv_call_pins.jac"
   ],
-  "generated_at": "2026-08-24T22:46:35",
+  "generated_at": "2026-08-24T23:01:38",
   "hashes": {
-    "pins_jac": "b335ddec3eb46b12e8b0b68dabcdcea0dd9c4dd40e6b0f742a6e5ae16e3079bb",
-    "conversion_json": "0955aa9d8594205988eb58d4fef2a09325c4af73e88b794f01aba3ded20b77ec",
+    "pins_jac": "b92a3d041bdb7ee0f85ea1c1b7c0d7496343a65ebe8d2e6b942b6c4a9b53f657",
+    "conversion_json": "b6f1876cb6a89b925549ff0407b3fe3d35b1629129a77198aab1a27ee0c3d2ae",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "call",
@@ -21,11 +21,11 @@
   "timed_out": false,
   "counts": {
     "converted": 96,
-    "runnable": 3,
-    "green": 1,
-    "quarantined": 93,
-    "failed": 2,
-    "infra_failed": 1
+    "runnable": 46,
+    "green": 38,
+    "quarantined": 50,
+    "failed": 8,
+    "infra_failed": 2
   },
   "failures": [
     {
@@ -35,10 +35,46 @@
       "detail": "GOT<\"ORACLE_EXC TypeError 'argument after ** must be a mapping, not host'\">"
     },
     {
+      "id": "CFunctionCallsErrorMessages.test_varargs4_kw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC ValueError 'not in list'\">"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs17_kw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'int\\' object has no attribute \\'join\\'\"'>"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs18_kw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "CFunctionCallsErrorMessages.test_varargs19_kw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "FastCallTests.test_fastcall_clearing_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'IntWithDict\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
       "id": "TestRecursion.test_recursion_with_kwargs",
       "status": "fail",
       "classification": "VM-CRASH",
-      "detail": "frame() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:15869\n  at exec_code_frame() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:14111\n  at tp_call() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:3994\n  at py_invoke() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:8700\n  at run_fr"
+      "detail": "y/jacpython/ceval.jac:16052\n  at exec_code_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:14273\n  at tp_call() /var/tmp/lane8/jac-py/jacpython/ceval.jac:4067\n  at py_invoke() /var/tmp/lane8/jac-py/jacpython/ceval.jac:8801\n  at run_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:16052\n  at exec_"
+    },
+    {
+      "id": "TestFunctionWithManyArgs.test_function_with_many_args",
+      "status": "fail",
+      "classification": "VM-CRASH",
+      "detail": "y/jacpython/ceval.jac:16052\n  at exec_code_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:14273\n  at tp_call() /var/tmp/lane8/jac-py/jacpython/ceval.jac:4067\n  at py_invoke() /var/tmp/lane8/jac-py/jacpython/ceval.jac:8801\n  at run_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:16052\n  at exec_"
     }
   ]
 }

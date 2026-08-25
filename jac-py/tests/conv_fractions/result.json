@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_fractions/conv_fractions_pins.jac"
   ],
-  "generated_at": "2026-08-24T21:50:45",
+  "generated_at": "2026-08-24T22:59:40",
   "hashes": {
-    "pins_jac": "9e1233f8e4f647a4fbdce5a954091e681558e79565c4ec38ed12ca7940d17f23",
-    "conversion_json": "acdd2b90f18c80cf368d93f5b2245dfb51c859aeb2aeb7ab37a2a285ea0dc3f5",
+    "pins_jac": "78b776f3149ced306941ad02f12af3067fdee9e09871f3add006cd1dd81efa95",
+    "conversion_json": "74ae5e16c3716a90e304ed060dd2943d866eee34f5a4234bf94720fb46127721",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "fractions",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 50,
-    "runnable": 36,
-    "green": 19,
-    "quarantined": 14,
-    "failed": 17,
+    "runnable": 41,
+    "green": 20,
+    "quarantined": 9,
+    "failed": 21,
     "infra_failed": 0
   },
   "failures": [
@@ -33,6 +33,18 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError 'both arguments should be Rational instances'\">"
+    },
+    {
+      "id": "FractionTest.testInitFromIntegerRatio",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'too many positional arguments'\">"
+    },
+    {
+      "id": "FractionTest.test_limit_int",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'requires_IEEE_754' from '<unknown>'\">"
     },
     {
       "id": "FractionTest.testFromFloat",
@@ -89,6 +101,12 @@
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (1.1+0j), (1.1+0j))\"'>"
     },
     {
+      "id": "FractionTest.testComparisonsDummyFloat",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'<\\' not supported between instances of \\'Fraction\\' and \\'Fraction\\'\"'>"
+    },
+    {
       "id": "FractionTest.testMixedLess",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
@@ -123,6 +141,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC TypeError \"bad operand type for abs(): \\'Fraction\\'\"'>"
+    },
+    {
+      "id": "FractionTest.test_copy_deepcopy_pickle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: module 'builtins' has no attribute 'PicklingError'\">"
     },
     {
       "id": "FractionTest.test_int_subclass",

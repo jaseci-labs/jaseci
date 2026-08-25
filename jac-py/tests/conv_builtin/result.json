@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "f6ad8fcea0e721214fca183e94db144c05df2966",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/sp2-out/test_builtin-r3/conv_builtin_pins.jac"
+    "jac-py/tests/conv_builtin/conv_builtin_pins.jac"
   ],
-  "generated_at": "2026-08-24T22:46:26",
+  "generated_at": "2026-08-24T23:01:48",
   "hashes": {
-    "pins_jac": "c8ba867200be7d5db6f700d99dcabfbbf0fb131af5e7f44512d4c6a341d2ad67",
-    "conversion_json": "9f1f5b5b2dbbe507a718aff8e74f48e060584ba3f1ec810be1f407a3d3d8fcda",
+    "pins_jac": "f0b890ae5628261ed0973aca6590a11c84dde81d9d0945daae6e78d9bd44b523",
+    "conversion_json": "562e9f9a7b7451b420d76870f3548ce1d8bf2d0a4faa3f67dea30d50e8670a0c",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "builtin",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 133,
-    "runnable": 65,
-    "green": 37,
-    "quarantined": 68,
-    "failed": 28,
+    "runnable": 92,
+    "green": 43,
+    "quarantined": 41,
+    "failed": 49,
     "infra_failed": 0
   },
   "failures": [
@@ -35,10 +35,28 @@
       "detail": "GOT<'ORACLE_EXC TypeError \"bad operand type for abs(): \\'AbsClass\\'\"'>"
     },
     {
+      "id": "BuiltinTest.test_all",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'TestFailingIter\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_any",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'TestFailingIter\\' object is not iterable\"'>"
+    },
+    {
       "id": "BuiltinTest.test_all_any_tuple_optimization",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 4, 1)\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_builtin_call_async_genexpr_no_crash",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'async_yield' from '<unknown>'\">"
     },
     {
       "id": "BuiltinTest.test_ascii",
@@ -50,7 +68,25 @@
       "id": "BuiltinTest.test_compile_top_level_await_no_coro",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+      "detail": "RUN<'TypeError: expected code object'>"
+    },
+    {
+      "id": "BuiltinTest.test_compile_top_level_await",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'TypeError: expected code object'>"
+    },
+    {
+      "id": "BuiltinTest.test_delattr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError ''\">"
+    },
+    {
+      "id": "BuiltinTest.test_dir",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertNotIn\\', \\'__repr__\\', [\\'__class__\\', \\'__delattr__\\', \\'__dict__\\', \\'__dir__\\', \\'__doc__\\', \\'__eq__\\', \\'__firstlineno__\\', \\'__format__\\', \\'__ge__\\', \\'__getattribute__\\', \\'__getstate__\\', \\'__gt__\\', \\'__hash__\\', \\'__init__\\', \\'__init_subclass__\\', \\'__le__\\', \\'__lt__\\', \\'__module__\\', \\'__ne__\\', \\'__new__\\', \\'__reduce__\\', \\'__reduce_ex__\\', \\'__repr__\\', \\'__setattr__\\', \\'__sizeof__\\', \\'__slots__\\', \\'__static_attributes__\\', \\'__str__\\', \\'__subclasshook__\\', \\'__weakref__\\', \\'bar\\'])\"'>"
     },
     {
       "id": "BuiltinTest.test___ne__",
@@ -60,6 +96,12 @@
     },
     {
       "id": "BuiltinTest.test_eval",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'locals must be a mapping'\">"
+    },
+    {
+      "id": "BuiltinTest.test_general_eval",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError 'locals must be a mapping'\">"
@@ -77,10 +119,34 @@
       "detail": "GOT<\"ORACLE_EXC TypeError 'exec() takes no keyword arguments'\">"
     },
     {
+      "id": "BuiltinTest.test_exec_globals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
       "id": "BuiltinTest.test_exec_globals_error_on_get",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_exec_globals_dict_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'superglobal\\' is not defined\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_exec_builtins_mapping_import",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"object can\\'t be sent\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_eval_builtins_mapping_reduce",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (<built-in function iter>, (<function _jac_make_host_iterator.<locals>._next at 0x7f1d5a9b3530>, <object object at 0x7f1d59eac5d0>)), (<built-in function iter>, ([1, 2],), 0))\"'>"
     },
     {
       "id": "BuiltinTest.test_exec_closure",
@@ -89,16 +155,34 @@
       "detail": "GOT<\"ORACLE_EXC AttributeError '__globals__'\">"
     },
     {
+      "id": "BuiltinTest.test_filter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Squares\\' object is not iterable\"'>"
+    },
+    {
       "id": "BuiltinTest.test_filter_pickle",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "RUN<\"AttributeError: module 'builtins' has no attribute 'PicklingError'\">"
     },
     {
+      "id": "BuiltinTest.test_getattr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError ''\">"
+    },
+    {
       "id": "BuiltinTest.test_hash",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError '__hash__ method should return an integer'\">"
+    },
+    {
+      "id": "BuiltinTest.test_map",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Squares\\' object is not iterable\"'>"
     },
     {
       "id": "BuiltinTest.test_map_pickle",
@@ -123,6 +207,18 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 4, 2)\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_map_strict_error_handling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Iter\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_map_strict_error_handling_stopiteration",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Iter\\' object is not iterable\"'>"
     },
     {
       "id": "BuiltinTest.test_max",
@@ -155,6 +251,12 @@
       "detail": "GOT<'ORACLE_EXC TypeError \"type Fraction doesn\\'t define __round__ method\"'>"
     },
     {
+      "id": "BuiltinTest.test_zip",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'I\\' object is not iterable\"'>"
+    },
+    {
       "id": "BuiltinTest.test_zip_pickle_strict_fail",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
@@ -165,6 +267,24 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 4, 2)\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_zip_strict_error_handling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Iter\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_zip_strict_error_handling_stopiteration",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Iter\\' object is not iterable\"'>"
+    },
+    {
+      "id": "BuiltinTest.test_bool_notimplemented",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
     },
     {
       "id": "TestSorted.test_basic",
@@ -180,6 +300,12 @@
     },
     {
       "id": "TestType.test_new_type",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\'ceval\\', \\'__main__\\')\"'>"
+    },
+    {
+      "id": "TestType.test_type_name",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\'ceval\\', \\'__main__\\')\"'>"

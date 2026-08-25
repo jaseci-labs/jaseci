@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,15 +14,23 @@
     "--name",
     "conv_csv"
   ],
-  "generated_at": "2026-08-24T15:01:58",
+  "generated_at": "2026-08-24T22:59:41",
   "hashes": {
-    "pins_jac": "2486c72a21b2581fd24bec7143b39a2580457828212739bf6fe3f2e432606581"
+    "pins_jac": "9d95da637c32d22435d0d6b999424cde1f7d7d76e585a2416207492d07584a3b"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_csv.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "csv",
   "pins_file": "conv_csv_pins.jac",
   "pins": [
+    {
+      "ident": "Test_Csv.test_reader_arg_valid",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import csv\n\nclass BadIterable:\n\n    def __iter__(self):\n        raise OSError\n\ndef _test_arg_valid(ctor, arg):\n    ctor(arg)\n    try:\n        ctor()\n    except TypeError:\n        pass\n    try:\n        ctor(*(None,))\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), bad_attr=0)\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), delimiter='')\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), escapechar='')\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), quotechar='')\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), delimiter='^^')\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), escapechar='^^')\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), quotechar='^^')\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg, 'foo'))\n    except csv.Error:\n        pass\n    try:\n        ctor(*(arg,), delimiter=None)\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), delimiter=1)\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), escapechar=1)\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), quotechar=1)\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), lineterminator=None)\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), lineterminator=1)\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), quoting=None)\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), quoting=csv.QUOTE_ALL, quotechar='')\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), quoting=csv.QUOTE_ALL, quotechar=None)\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), quoting=csv.QUOTE_NONE, quotechar='')\n    except TypeError:\n        pass\n    try:\n        ctor(*(arg,), delimiter='\\n')\n    except ValueError:\n        pass\n    try:\n        ctor(*(arg,), escapechar='\\n')\n    except ValueError:\n        pass\n    try:\n        ctor(*(arg,), quotechar='\\n')\n    except ValueError:\n        pass\n    try:\n        ctor(*(arg,), delimiter='\\r')\n    except ValueError:\n        pass\n    try:\n        ctor(*(arg,), escapechar='\\r')\n    except ValueError:\n        pass\n    try:\n        ctor(*(arg,), quotechar='\\r')\n    except ValueError:\n        pass\n    ctor(arg, delimiter=' ')\n    ctor(arg, escapechar=' ')\n    ctor(arg, quotechar=' ')\n    ctor(arg, delimiter='\\t', skipinitialspace=True)\n    ctor(arg, escapechar='\\t', skipinitialspace=True)\n    ctor(arg, quotechar='\\t', skipinitialspace=True)\n    ctor(arg, delimiter=' ', skipinitialspace=True)\n    try:\n        ctor(*(arg,), escapechar=' ', skipinitialspace=True)\n    except ValueError:\n        pass\n    try:\n        ctor(*(arg,), quotechar=' ', skipinitialspace=True)\n    except ValueError:\n        pass\n    ctor(arg, delimiter='^')\n    ctor(arg, escapechar='^')\n    ctor(arg, quotechar='^')\n    try:\n        ctor(*(arg,), delimiter='^', escapechar='^')\n    except ValueError:\n        pass\n    try:\n        ctor(*(arg,), delimiter='^', quotechar='^')\n    except ValueError:\n        pass\n    try:\n        ctor(*(arg,), escapechar='^', quotechar='^')\n    except ValueError:\n        pass\n    ctor(arg, delimiter='\\x85')\n    ctor(arg, escapechar='\\x85')\n    ctor(arg, quotechar='\\x85')\n    ctor(arg, lineterminator='\\x85')\n    try:\n        ctor(*(arg,), delimiter='\\x85', lineterminator='\\x85')\n    except ValueError:\n        pass\n    try:\n        ctor(*(arg,), escapechar='\\x85', lineterminator='\\x85')\n    except ValueError:\n        pass\n    try:\n        ctor(*(arg,), quotechar='\\x85', lineterminator='\\x85')\n    except ValueError:\n        pass\n\ndef _t():\n    _test_arg_valid(csv.reader, [])\n    try:\n        csv.reader(*(BadIterable(),))\n    except OSError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
     {
       "ident": "Test_Csv.test_writer_arg_valid",
       "status": "pinned",
@@ -78,6 +86,14 @@
         "status": "ok"
       },
       "snippet": "from io import StringIO\nimport csv\n\ndef _test_dialect_attrs(ctor, *args):\n\n    class dialect:\n        delimiter = '-'\n        doublequote = False\n        escapechar = '^'\n        lineterminator = '$'\n        quotechar = '#'\n        quoting = csv.QUOTE_ALL\n        skipinitialspace = True\n        strict = False\n    args = args + (dialect,)\n    obj = ctor(*args)\n    assert obj.dialect.delimiter == '-', ('assertEqual', obj.dialect.delimiter, '-')\n    assert obj.dialect.doublequote is False, ('assertIs', obj.dialect.doublequote, False)\n    assert obj.dialect.escapechar == '^', ('assertEqual', obj.dialect.escapechar, '^')\n    assert obj.dialect.lineterminator == '$', ('assertEqual', obj.dialect.lineterminator, '$')\n    assert obj.dialect.quotechar == '#', ('assertEqual', obj.dialect.quotechar, '#')\n    assert obj.dialect.quoting == csv.QUOTE_ALL, ('assertEqual', obj.dialect.quoting, csv.QUOTE_ALL)\n    assert obj.dialect.skipinitialspace is True, ('assertIs', obj.dialect.skipinitialspace, True)\n    assert obj.dialect.strict is False, ('assertIs', obj.dialect.strict, False)\n\ndef _t():\n    _test_dialect_attrs(csv.writer, StringIO())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_Csv.test_write_arg_valid",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from tempfile import TemporaryFile\nimport csv\n\nclass BadIterable:\n\n    def __iter__(self):\n        raise OSError\n\ndef _write_error_test(exc, fields, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        try:\n            writer.writerow(fields)\n        except exc as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        fileobj.seek(0)\n        assert fileobj.read() == '', ('assertEqual', fileobj.read(), '')\n\ndef _t():\n    _write_error_test(csv.Error, None)\n    _write_error_test(OSError, BadIterable())\n\n    class BadList:\n\n        def __len__(self):\n            return 10\n\n        def __getitem__(self, i):\n            if i > 2:\n                raise OSError\n    _write_error_test(OSError, BadList())\n\n    class BadItem:\n\n        def __str__(self):\n            raise OSError\n    _write_error_test(OSError, [BadItem()])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "Test_Csv.test_write_bigfield",
@@ -150,6 +166,14 @@
         "status": "ok"
       },
       "snippet": "from tempfile import TemporaryFile\nimport csv\n\ndef _write_test(fields, expect, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        writer.writerow(fields)\n        fileobj.seek(0)\n        assert fileobj.read() == expect + writer.dialect.lineterminator, ('assertEqual', fileobj.read(), expect + writer.dialect.lineterminator)\n\ndef _write_error_test(exc, fields, **kwargs):\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj, **kwargs)\n        try:\n            writer.writerow(fields)\n        except exc as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        fileobj.seek(0)\n        assert fileobj.read() == '', ('assertEqual', fileobj.read(), '')\n\ndef _t():\n    _write_test([''], '\"\"', delimiter=' ', skipinitialspace=False)\n    _write_test([''], '\"\"', delimiter=' ', skipinitialspace=True)\n    _write_test([None], '\"\"', delimiter=' ', skipinitialspace=False)\n    _write_test([None], '\"\"', delimiter=' ', skipinitialspace=True)\n    _write_test(['', ''], ' ', delimiter=' ', skipinitialspace=False)\n    _write_test(['', ''], '\"\" \"\"', delimiter=' ', skipinitialspace=True)\n    _write_test([None, None], ' ', delimiter=' ', skipinitialspace=False)\n    _write_test([None, None], '\"\" \"\"', delimiter=' ', skipinitialspace=True)\n    _write_test(['', ''], ' ', delimiter=' ', skipinitialspace=False, quoting=csv.QUOTE_NONE)\n    _write_error_test(csv.Error, ['', ''], delimiter=' ', skipinitialspace=True, quoting=csv.QUOTE_NONE)\n    for quoting in (csv.QUOTE_STRINGS, csv.QUOTE_NOTNULL):\n        _write_test(['', ''], '\"\" \"\"', delimiter=' ', skipinitialspace=False, quoting=quoting)\n        _write_test(['', ''], '\"\" \"\"', delimiter=' ', skipinitialspace=True, quoting=quoting)\n    for quoting in (csv.QUOTE_NONE, csv.QUOTE_STRINGS, csv.QUOTE_NOTNULL):\n        _write_test([None, None], ' ', delimiter=' ', skipinitialspace=False, quoting=quoting)\n        _write_error_test(csv.Error, [None, None], delimiter=' ', skipinitialspace=True, quoting=quoting)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_Csv.test_writerows_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from tempfile import TemporaryFile\nimport csv\n\nclass BadIterable:\n\n    def __iter__(self):\n        raise OSError\n\ndef _t():\n    with TemporaryFile('w+', encoding='utf-8', newline='') as fileobj:\n        writer = csv.writer(fileobj)\n        try:\n            writer.writerows(*(None,))\n        except TypeError:\n            pass\n        try:\n            writer.writerows(*(BadIterable(),))\n        except OSError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "Test_Csv.test_read_eol",
@@ -667,31 +691,6 @@
       "snippet": "import csv\n\ndef _t():\n\n    def create_invalid(field_name, value, **kwargs):\n\n        class mydialect(csv.Dialect):\n            delimiter = ','\n            quoting = csv.QUOTE_ALL\n            quotechar = '\"'\n            lineterminator = '\\r\\n'\n        setattr(mydialect, field_name, value)\n        for field_name, value in kwargs.items():\n            setattr(mydialect, field_name, value)\n        d = mydialect()\n    for field_name in ('delimiter', 'escapechar', 'quotechar'):\n        try:\n            create_invalid(*(field_name, ''))\n        except csv.Error:\n            pass\n        try:\n            create_invalid(*(field_name, 'abc'))\n        except csv.Error:\n            pass\n        try:\n            create_invalid(*(field_name, b'x'))\n        except csv.Error:\n            pass\n        try:\n            create_invalid(*(field_name, 5))\n        except csv.Error:\n            pass\n        try:\n            create_invalid(*(field_name, '\\n'))\n        except ValueError:\n            pass\n        try:\n            create_invalid(*(field_name, '\\r'))\n        except ValueError:\n            pass\n        if field_name != 'delimiter':\n            try:\n                create_invalid(*(field_name, ' '), skipinitialspace=True)\n            except ValueError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
-      "ident": "TestSniffer.test_issue43625",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample12'"
-    },
-    {
-      "ident": "TestSniffer.test_has_header_strings",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample10'"
-    },
-    {
-      "ident": "TestSniffer.test_has_header",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample1'"
-    },
-    {
-      "ident": "TestSniffer.test_has_header_regex_special_delimiter",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample8'"
-    },
-    {
-      "ident": "TestSniffer.test_has_header_checks_20_rows",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample17'"
-    },
-    {
       "ident": "TestSniffer.test_guess_quote_and_delimiter",
       "status": "pinned",
       "oracle": {
@@ -700,24 +699,20 @@
       "snippet": "import csv\n\ndef _t():\n    sniffer = csv.Sniffer()\n    for header in (\";'123;4';\", \"'123;4';\", \";'123;4'\", \"'123;4'\"):\n        dialect = sniffer.sniff(header, ',;')\n        assert dialect.delimiter == ';', ('assertEqual', dialect.delimiter, ';')\n        assert dialect.quotechar == \"'\", ('assertEqual', dialect.quotechar, \"'\")\n        assert dialect.doublequote is False, ('assertIs', dialect.doublequote, False)\n        assert dialect.skipinitialspace is False, ('assertIs', dialect.skipinitialspace, False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
-      "ident": "TestSniffer.test_sniff",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample1'"
-    },
-    {
-      "ident": "TestSniffer.test_doublequote",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'header1'"
-    },
-    {
       "ident": "TestUnicode.test_unicode_read",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'names'"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.names = ['Martin von L\u00f6wis', 'Marc Andr\u00e9 Lemburg', 'Guido van Rossum', 'Fran\u00e7ois Pinard']\n    with TemporaryFile('w+', newline='', encoding='utf-8') as fileobj:\n        fileobj.write(','.join(self.names) + '\\r\\n')\n        fileobj.seek(0)\n        reader = csv.reader(fileobj)\n        assert list(reader) == [self.names], ('assertEqual', list(reader), [self.names])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestUnicode.test_unicode_write",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'names'"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from tempfile import TemporaryFile\nimport csv\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.names = ['Martin von L\u00f6wis', 'Marc Andr\u00e9 Lemburg', 'Guido van Rossum', 'Fran\u00e7ois Pinard']\n    with TemporaryFile('w+', newline='', encoding='utf-8') as fileobj:\n        writer = csv.writer(fileobj)\n        writer.writerow(self.names)\n        expected = ','.join(self.names) + '\\r\\n'\n        fileobj.seek(0)\n        assert fileobj.read() == expected, ('assertEqual', fileobj.read(), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "KeyOrderingTest.test_ordering_for_the_dict_reader_and_writer",
@@ -779,18 +774,6 @@
       "reason": "decorator:support.cpython_only"
     },
     {
-      "ident": "Test_Csv.test_reader_arg_valid",
-      "reason": "unresolved-name:BadIterable"
-    },
-    {
-      "ident": "Test_Csv.test_write_arg_valid",
-      "reason": "unresolved-name:BadIterable"
-    },
-    {
-      "ident": "Test_Csv.test_writerows_errors",
-      "reason": "unresolved-name:BadIterable"
-    },
-    {
       "ident": "Test_Csv.test_read_oddinputs",
       "reason": "uses-self._read_test"
     },
@@ -839,13 +822,41 @@
       "reason": "unresolved-name:cm"
     },
     {
+      "ident": "TestSniffer.test_issue43625",
+      "reason": "unresolved-name:sample17"
+    },
+    {
+      "ident": "TestSniffer.test_has_header_strings",
+      "reason": "unresolved-name:sample17"
+    },
+    {
+      "ident": "TestSniffer.test_has_header",
+      "reason": "unresolved-name:sample17"
+    },
+    {
+      "ident": "TestSniffer.test_has_header_regex_special_delimiter",
+      "reason": "unresolved-name:sample17"
+    },
+    {
+      "ident": "TestSniffer.test_has_header_checks_20_rows",
+      "reason": "unresolved-name:sample17"
+    },
+    {
+      "ident": "TestSniffer.test_sniff",
+      "reason": "unresolved-name:sample17"
+    },
+    {
       "ident": "TestSniffer.test_delimiters",
-      "reason": "assertRaisesRegex call form"
+      "reason": "unresolved-name:sample17"
+    },
+    {
+      "ident": "TestSniffer.test_doublequote",
+      "reason": "unresolved-name:sample17"
     }
   ],
   "counts": {
     "extracted": 128,
-    "pinned": 66,
-    "quarantined": 62
+    "pinned": 71,
+    "quarantined": 57
   }
 }

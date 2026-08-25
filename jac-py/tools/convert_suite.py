@@ -360,17 +360,22 @@ def _rewrite_raises(call: ast.Call, regex: bool) -> list[ast.stmt]:
             cause=None,
         )
     ]
-    if len(call.args) >= 2 and not regex:
-        fn = call.args[1]
+    if len(call.args) >= (3 if regex else 2):
+        # Call form: assertRaises(E, fn, *a) /
+        # assertRaisesRegex(E, pattern, fn, *a). args[1] (or [2] for the
+        # regex form) is the pattern; everything after it is callable + args.
+        offset = 2 if regex else 1
+        fn = call.args[offset]
+        extra = list(call.args[offset + 1 :])
         starargs: list[ast.expr] = []
-        if len(call.args) > 2:
+        if extra:
             starargs = [
-                ast.Starred(value=ast.Tuple(elts=list(call.args[2:]), ctx=ast.Load()), ctx=ast.Load())
+                ast.Starred(value=ast.Tuple(elts=extra, ctx=ast.Load()), ctx=ast.Load())
             ]
         invoke: ast.expr = ast.Call(func=fn, args=starargs, keywords=list(call.keywords))
         tried: list[ast.stmt] = [ast.Expr(value=invoke)]
     else:
-        if len(call.args) >= 2:
+        if regex:
             raise Unsupported("assertRaisesRegex call form")
         raise Unsupported("context-manager form routed wrongly")
     return [
@@ -1730,6 +1735,14 @@ def run_conversion(source: Path, outdir: Path, name: str, cpython_lib: Path, wri
         "pinned": len(survivors),
         "quarantined": len(meta["pins"]) - len(survivors) + len(extraction.quarantined),
     }
+    # Write-time invariants: the transient class behind a reported
+    # counts-vs-entries mismatch (counts.pinned != #status-pinned entries)
+    # should fail loudly here instead of poisoning downstream dashboards.
+    assert meta["counts"]["pinned"] == sum(
+        1 for p in meta["pins"] if p["status"] == "pinned"
+    ), f"{name}: counts.pinned != status-pinned entries"
+    assert meta["counts"]["extracted"] == len(meta["pins"]) + len(meta["quarantined"]), \
+        f"{name}: counts.extracted != pins + quarantined"
 
     outdir.mkdir(parents=True, exist_ok=True)
     pins_path = outdir / meta["pins_file"]

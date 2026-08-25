@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "f7104d6f6c16d5ec4870e5dba1e5d0868efce504",
+  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_call.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_call.py",
     "-o",
-    "/var/tmp/sp2-out/test_call-r3",
+    "/var/tmp/lane8/jac-py/tests/conv_call",
     "--name",
     "conv_call"
   ],
-  "generated_at": "2026-08-24T22:47:46",
+  "generated_at": "2026-08-24T23:01:28",
   "hashes": {
-    "pins_jac": "a9ef7a624ac73c5bd68a3d4303c97b314411aad4078e97aa408e4c5492e283ea"
+    "pins_jac": "b92a3d041bdb7ee0f85ea1c1b7c0d7496343a65ebe8d2e6b942b6c4a9b53f657"
   },
-  "source_file": "reference/cpython/Lib/test/test_call.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_call.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "call",
   "pins_file": "conv_call_pins.jac",
@@ -40,12 +40,340 @@
       "snippet": "def _t():\n\n    def f():\n        pass\n\n    class C:\n\n        def m(self):\n            pass\n    callables = [f, C.m, [].__len__]\n    for c in callables:\n        for _ in range(1000):\n            try:\n                c(None)\n            except TypeError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "CFunctionCallsErrorMessages.test_varargs0",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '__contains__\\\\(\\\\) takes exactly one argument \\\\(0 given\\\\)'\n    try:\n        {}.__contains__()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs2",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '__contains__\\\\(\\\\) takes exactly one argument \\\\(2 given\\\\)'\n    try:\n        {}.__contains__(*(0, 1))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs3",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '^from_bytes\\\\(\\\\) takes at most 2 positional arguments \\\\(3 given\\\\)'\n    try:\n        int.from_bytes(*(b'a', 'little', False))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs1min",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'get\\\\(\\\\) takes at least 1 argument \\\\(0 given\\\\)|get expected at least 1 argument, got 0'\n    try:\n        {}.get()\n    except TypeError:\n        pass\n    msg = 'expected 1 argument, got 0'\n    try:\n        {}.__delattr__()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs2min",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'getattr expected at least 2 arguments, got 0'\n    try:\n        getattr()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs1max",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'input\\\\(\\\\) takes at most 1 argument \\\\(2 given\\\\)|input expected at most 1 argument, got 2'\n    try:\n        input(*(1, 2))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs2max",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'get\\\\(\\\\) takes at most 2 arguments \\\\(3 given\\\\)|get expected at most 2 arguments, got 3'\n    try:\n        {}.get(*(1, 2, 3))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs1_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '__contains__\\\\(\\\\) takes no keyword arguments'\n    try:\n        {}.__contains__(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs2_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '__contains__\\\\(\\\\) takes no keyword arguments'\n    try:\n        {}.__contains__(x=2, y=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs3_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'bool\\\\(\\\\) takes no keyword arguments'\n    try:\n        bool(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs4_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '^(list[.])?index\\\\(\\\\) takes no keyword arguments$'\n    try:\n        [].index(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs5_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '^hasattr\\\\(\\\\) takes no keyword arguments$'\n    try:\n        hasattr(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs6_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '^getattr\\\\(\\\\) takes no keyword arguments$'\n    try:\n        getattr(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs7_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '^next\\\\(\\\\) takes no keyword arguments$'\n    try:\n        next(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs8_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import struct\n\ndef _t():\n    msg = '^_struct[.]pack\\\\(\\\\) takes no keyword arguments$'\n    try:\n        struct.pack(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs9_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import struct\n\ndef _t():\n    msg = '^_struct[.]pack_into\\\\(\\\\) takes no keyword arguments$'\n    try:\n        struct.pack_into(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs10_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import collections\n\ndef _t():\n    msg = '^deque[.]index\\\\(\\\\) takes no keyword arguments$'\n    try:\n        collections.deque().index(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs11_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import struct\n\ndef _t():\n    msg = '^Struct[.]pack\\\\(\\\\) takes no keyword arguments$'\n    try:\n        struct.Struct.pack(*(struct.Struct(''),), x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs12_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '^staticmethod\\\\(\\\\) takes no keyword arguments$'\n    try:\n        staticmethod(func=id)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs13_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '^classmethod\\\\(\\\\) takes no keyword arguments$'\n    try:\n        classmethod(func=id)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs14_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import itertools\n\ndef _t():\n    msg = '^product\\\\(\\\\) takes at most 1 keyword argument \\\\(2 given\\\\)$'\n    try:\n        itertools.product(*(0,), repeat=1, foo=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs15_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '^ImportError\\\\(\\\\) takes at most 3 keyword arguments \\\\(4 given\\\\)$'\n    try:\n        ImportError(*(0,), name=1, path=2, name_from=3, foo=3)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs16_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = '^min\\\\(\\\\) takes at most 2 keyword arguments \\\\(3 given\\\\)$'\n    try:\n        min(*(0,), default=1, key=2, foo=3)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs17_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = \"print\\\\(\\\\) got an unexpected keyword argument 'foo'$\"\n    try:\n        print(*(0,), sep=1, end=2, file=3, flush=4, foo=5)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs18_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\nclass BadStr(str):\n\n    def __eq__(self, other):\n        return True\n\n    def __hash__(self):\n        return str.__hash__(self) ^ 3\n\ndef testfunction(self):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef testfunction_kw(self, *, kw):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef _t():\n    msg = 'invalid keyword argument for print\\\\(\\\\)$'\n    try:\n        print(0, 1, **{BadStr('foo'): ','})\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_varargs19_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\nclass BadStr(str):\n\n    def __eq__(self, other):\n        return True\n\n    def __hash__(self):\n        return str.__hash__(self) ^ 3\n\ndef testfunction(self):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef testfunction_kw(self, *, kw):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef _t():\n    msg = 'invalid keyword argument for round\\\\(\\\\)$'\n    try:\n        round(1.75, **{BadStr('foo'): 1})\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs0_1",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'keys\\\\(\\\\) takes no arguments \\\\(1 given\\\\)'\n    try:\n        {}.keys(*(0,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs0_2",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'keys\\\\(\\\\) takes no arguments \\\\(2 given\\\\)'\n    try:\n        {}.keys(*(0, 1))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs0_1_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'keys\\\\(\\\\) takes no keyword arguments'\n    try:\n        {}.keys(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs0_2_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'keys\\\\(\\\\) takes no keyword arguments'\n    try:\n        {}.keys(x=2, y=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs1_0",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'count\\\\(\\\\) takes exactly one argument \\\\(0 given\\\\)'\n    try:\n        [].count()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs1_2",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'count\\\\(\\\\) takes exactly one argument \\\\(2 given\\\\)'\n    try:\n        [].count(*(1, 2))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs1_0_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'count\\\\(\\\\) takes no keyword arguments'\n    try:\n        [].count(x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs1_1_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'count\\\\(\\\\) takes no keyword arguments'\n    try:\n        [].count(*({},), x=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_oldargs1_2_kw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = 'count\\\\(\\\\) takes no keyword arguments'\n    try:\n        [].count(x=2, y=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_object_not_callable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    msg = \"^'object' object is not callable$\"\n    try:\n        object()()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_0",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef _t():\n    msg = \"^'module' object is not callable$\"\n    try:\n        types.ModuleType('mod')()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_1",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef _t():\n    msg = \"^'module' object is not callable$\"\n    mod = types.ModuleType('mod')\n    mod.mod = 42\n    try:\n        mod()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_2",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef _t():\n    msg = \"^'module' object is not callable$\"\n    mod = types.ModuleType('mod')\n    del mod.__name__\n    try:\n        mod()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_3",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef _t():\n    msg = \"^'module' object is not callable$\"\n    mod = types.ModuleType('mod')\n    mod.__name__ = 42\n    try:\n        mod()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_suggestion",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef _t():\n    msg = \"^'module' object is not callable\\\\. Did you mean: 'mod\\\\.mod\\\\(\\\\.\\\\.\\\\.\\\\)'\\\\?$\"\n    mod = types.ModuleType('mod')\n    mod.mod = lambda: ...\n    try:\n        mod()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "FastCallTests.test_fastcall_clearing_dict",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
-      "snippet": "import gc\n\ndef testfunction(self):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef testfunction_kw(self, *, kw):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class IntWithDict:\n        __slots__ = ['kwargs']\n\n        def __init__(self, **kwargs):\n            self.kwargs = kwargs\n\n        def __index__(self):\n            self.kwargs.clear()\n            gc.collect()\n            return 0\n    x = IntWithDict(optimize=IntWithDict())\n    compile('pass', '', 'exec', x, **x.kwargs)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+      "snippet": "import gc\n\ndef pyfunc(arg1, arg2):\n    return [arg1, arg2]\n\ndef pyfunc_noarg():\n    return 'noarg'\n\nclass PythonClass:\n\n    def method(self, arg1, arg2):\n        return [arg1, arg2]\n\n    def method_noarg(self):\n        return 'noarg'\n\n    @classmethod\n    def class_method(cls):\n        return 'classmethod'\n\n    @staticmethod\n    def static_method():\n        return 'staticmethod'\nPYTHON_INSTANCE = PythonClass()\n\ndef testfunction(self):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef testfunction_kw(self, *, kw):\n    \"\"\"some doc\"\"\"\n    return self\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.CALLS_KWARGS = [(pyfunc, (1,), {'arg2': 2}, [1, 2]), (pyfunc, (), {'arg1': 1, 'arg2': 2}, [1, 2]), (PYTHON_INSTANCE.method, (1,), {'arg2': 2}, [1, 2]), (PYTHON_INSTANCE.method, (), {'arg1': 1, 'arg2': 2}, [1, 2])]\n    self.CALLS_POSARGS = [(pyfunc, (1, 2), [1, 2]), (pyfunc_noarg, (), 'noarg'), (PythonClass.class_method, (), 'classmethod'), (PythonClass.static_method, (), 'staticmethod'), (PYTHON_INSTANCE.method, (1, 2), [1, 2]), (PYTHON_INSTANCE.method_noarg, (), 'noarg'), (PYTHON_INSTANCE.class_method, (), 'classmethod'), (PYTHON_INSTANCE.static_method, (), 'staticmethod')]\n\n    class IntWithDict:\n        __slots__ = ['kwargs']\n\n        def __init__(self, **kwargs):\n            self.kwargs = kwargs\n\n        def __index__(self):\n            self.kwargs.clear()\n            gc.collect()\n            return 0\n    x = IntWithDict(optimize=IntWithDict())\n    compile('pass', '', 'exec', x, **x.kwargs)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "testfunction",
@@ -232,170 +560,6 @@
       "reason": "decorator:unittest.skipIf"
     },
     {
-      "ident": "CFunctionCallsErrorMessages.test_varargs0",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs2",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs3",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs1min",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs2min",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs1max",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs2max",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs1_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs2_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs3_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs4_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs5_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs6_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs7_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs8_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs9_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs10_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs11_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs12_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs13_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs14_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs15_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs16_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs17_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs18_kw",
-      "reason": "unresolved-name:BadStr"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_varargs19_kw",
-      "reason": "unresolved-name:BadStr"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_oldargs0_1",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_oldargs0_2",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_oldargs0_1_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_oldargs0_2_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_oldargs1_0",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_oldargs1_2",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_oldargs1_0_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_oldargs1_1_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_oldargs1_2_kw",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_object_not_callable",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_0",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_1",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_2",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_3",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
-      "ident": "CFunctionCallsErrorMessages.test_module_not_callable_suggestion",
-      "reason": "assertRaisesRegex call form"
-    },
-    {
       "ident": "TestErrorMessagesUseQualifiedName.test_missing_arguments",
       "reason": "helper:check_raises_type_error(decorated-helper)"
     },
@@ -434,7 +598,7 @@
   ],
   "counts": {
     "extracted": 96,
-    "pinned": 5,
-    "quarantined": 91
+    "pinned": 46,
+    "quarantined": 50
   }
 }

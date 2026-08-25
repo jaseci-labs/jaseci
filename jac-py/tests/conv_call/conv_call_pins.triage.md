@@ -1,14 +1,57 @@
 # Triage report: `conv_call_pins.jac`
 
-- source: reference/cpython/Lib/test/test_call.py
-- guest leg: 0/3 marks
-- pins: **1 passed** / 3 run (+93 quarantined of 96 extracted)
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_call.py
+- guest leg: 0/46 marks
+- pins: **38 passed** / 46 run (+50 quarantined of 96 extracted)
 
 | pin | result | got |
 |---|---|---|
 | FunctionCalls.test_kwargs_order | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'argument after ** must be a mapping, not host'"> |
 | FunctionCalls.test_frames_are_popped_after_failed_calls | PASS | |
-| TestRecursion.test_recursion_with_kwargs | VM-CRASH | frame() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:15869   at exec_code_frame() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:14111   at tp_call() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:3994   at py_invoke() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:8700   at run_fr |
+| CFunctionCallsErrorMessages.test_varargs0 | PASS | |
+| CFunctionCallsErrorMessages.test_varargs2 | PASS | |
+| CFunctionCallsErrorMessages.test_varargs3 | PASS | |
+| CFunctionCallsErrorMessages.test_varargs1min | PASS | |
+| CFunctionCallsErrorMessages.test_varargs2min | PASS | |
+| CFunctionCallsErrorMessages.test_varargs1max | PASS | |
+| CFunctionCallsErrorMessages.test_varargs2max | PASS | |
+| CFunctionCallsErrorMessages.test_varargs1_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs2_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs3_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs4_kw | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC ValueError 'not in list'"> |
+| CFunctionCallsErrorMessages.test_varargs5_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs6_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs7_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs8_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs9_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs10_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs11_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs12_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs13_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs14_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs15_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs16_kw | PASS | |
+| CFunctionCallsErrorMessages.test_varargs17_kw | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AttributeError "\'int\' object has no attribute \'join\'"'> |
+| CFunctionCallsErrorMessages.test_varargs18_kw | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'"> |
+| CFunctionCallsErrorMessages.test_varargs19_kw | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'"> |
+| CFunctionCallsErrorMessages.test_oldargs0_1 | PASS | |
+| CFunctionCallsErrorMessages.test_oldargs0_2 | PASS | |
+| CFunctionCallsErrorMessages.test_oldargs0_1_kw | PASS | |
+| CFunctionCallsErrorMessages.test_oldargs0_2_kw | PASS | |
+| CFunctionCallsErrorMessages.test_oldargs1_0 | PASS | |
+| CFunctionCallsErrorMessages.test_oldargs1_2 | PASS | |
+| CFunctionCallsErrorMessages.test_oldargs1_0_kw | PASS | |
+| CFunctionCallsErrorMessages.test_oldargs1_1_kw | PASS | |
+| CFunctionCallsErrorMessages.test_oldargs1_2_kw | PASS | |
+| CFunctionCallsErrorMessages.test_object_not_callable | PASS | |
+| CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_0 | PASS | |
+| CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_1 | PASS | |
+| CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_2 | PASS | |
+| CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_3 | PASS | |
+| CFunctionCallsErrorMessages.test_module_not_callable_suggestion | PASS | |
+| FastCallTests.test_fastcall_clearing_dict | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'IntWithDict\' object cannot be interpreted as an integer"'> |
+| TestRecursion.test_recursion_with_kwargs | VM-CRASH | y/jacpython/ceval.jac:16052   at exec_code_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:14273   at tp_call() /var/tmp/lane8/jac-py/jacpython/ceval.jac:4067   at py_invoke() /var/tmp/lane8/jac-py/jacpython/ceval.jac:8801   at run_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:16052   at exec_ |
+| TestFunctionWithManyArgs.test_function_with_many_args | VM-CRASH | y/jacpython/ceval.jac:16052   at exec_code_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:14273   at tp_call() /var/tmp/lane8/jac-py/jacpython/ceval.jac:4067   at py_invoke() /var/tmp/lane8/jac-py/jacpython/ceval.jac:8801   at run_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:16052   at exec_ |
 
 ## Quarantined at conversion
 
@@ -53,48 +96,6 @@
 | TestPEP590.test_vectorcall_limited_outgoing_method | decorator:unittest.skipIf |
 | TestRecursion.test_super_deep | decorator:unittest.skipIf |
 | TestCAPI.test_cfunction_call | decorator:unittest.skipIf |
-| CFunctionCallsErrorMessages.test_varargs0 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs2 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs3 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs1min | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs2min | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs1max | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs2max | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs1_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs2_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs3_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs4_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs5_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs6_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs7_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs8_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs9_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs10_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs11_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs12_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs13_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs14_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs15_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs16_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs17_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_varargs18_kw | unresolved-name:BadStr |
-| CFunctionCallsErrorMessages.test_varargs19_kw | unresolved-name:BadStr |
-| CFunctionCallsErrorMessages.test_oldargs0_1 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_oldargs0_2 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_oldargs0_1_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_oldargs0_2_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_oldargs1_0 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_oldargs1_2 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_oldargs1_0_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_oldargs1_1_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_oldargs1_2_kw | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_object_not_callable | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_0 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_1 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_2 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_module_not_callable_no_suggestion_3 | assertRaisesRegex call form |
-| CFunctionCallsErrorMessages.test_module_not_callable_suggestion | assertRaisesRegex call form |
-| FastCallTests.test_fastcall_clearing_dict | uses-self.kwargs |
 | TestErrorMessagesUseQualifiedName.test_missing_arguments | helper:check_raises_type_error(decorated-helper) |
 | TestErrorMessagesUseQualifiedName.test_too_many_positional | helper:check_raises_type_error(decorated-helper) |
 | TestErrorMessagesUseQualifiedName.test_positional_only_passed_as_keyword | helper:check_raises_type_error(decorated-helper) |
@@ -104,22 +105,57 @@
 | TestErrorMessagesSuggestions.test_unexpected_keyword_suggestion_kinds | helper:check_suggestion_includes(decorated-helper) |
 | TestErrorMessagesSuggestions.test_unexpected_keyword_suggestion_via_getargs | helper:check_suggestion_includes(decorated-helper) |
 | TestRecursion.test_margin_is_sufficient | unresolved-name:_testcapi |
-| TestFunctionWithManyArgs.test_function_with_many_args | uses-self.subTest |
 | testfunction | host-raised:NameError: name 'self' is not defined |
 | testfunction_kw | host-raised:NameError: name 'self' is not defined |
 
 ## Expected vs got
+
+### CFunctionCallsErrorMessages.test_varargs17_kw (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC AttributeError "\'int\' object has no attribute \'join\'"'>
+
+### CFunctionCallsErrorMessages.test_varargs18_kw (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'">
+
+### CFunctionCallsErrorMessages.test_varargs19_kw (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'">
+
+### CFunctionCallsErrorMessages.test_varargs4_kw (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC ValueError 'not in list'">
+
+### FastCallTests.test_fastcall_clearing_dict (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC TypeError "\'IntWithDict\' object cannot be interpreted as an integer"'>
 
 ### FunctionCalls.test_kwargs_order (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC TypeError 'argument after ** must be a mapping, not host'">
 
+### TestFunctionWithManyArgs.test_function_with_many_args (VM-CRASH)
+
+- expected: host oracle = `ok`
+- got: y/jacpython/ceval.jac:16052
+  at exec_code_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:14273
+  at tp_call() /var/tmp/lane8/jac-py/jacpython/ceval.jac:4067
+  at py_invoke() /var/tmp/lane8/jac-py/jacpython/ceval.jac:8801
+  at run_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:16052
+  at exec_
+
 ### TestRecursion.test_recursion_with_kwargs (VM-CRASH)
 
 - expected: host oracle = `ok`
-- got: frame() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:15869
-  at exec_code_frame() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:14111
-  at tp_call() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:3994
-  at py_invoke() /var/tmp/slatepetrel-wt/jac-py/jacpython/ceval.jac:8700
-  at run_fr
+- got: y/jacpython/ceval.jac:16052
+  at exec_code_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:14273
+  at tp_call() /var/tmp/lane8/jac-py/jacpython/ceval.jac:4067
+  at py_invoke() /var/tmp/lane8/jac-py/jacpython/ceval.jac:8801
+  at run_frame() /var/tmp/lane8/jac-py/jacpython/ceval.jac:16052
+  at exec_
