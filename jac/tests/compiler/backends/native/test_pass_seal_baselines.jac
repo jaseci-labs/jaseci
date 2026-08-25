@@ -1,488 +1,113 @@
-"""Native seal baselines for every sealing wave, measured from one table.
+"""Native seal census for the fused unit (#8707).
 
-Each root below is measured exactly the way `seal_native_artifacts` measures
-it, and three things are pinned per root -- the discipline
-`test_unitree_seal_baseline.jac` set:
+The per-wave baselines used to pin one closure table per sealed root;
+under the fused seal there is one native unit, so there is one census:
 
-  1. **Closure membership** is exact. A new member beyond the recorded set
-     means a module-level import changed and has to reach zero un-waived
-     seams before the root can keep sealing.
-  2. **The root produces native IR.** A zero-seam census without IR means
+  1. **Closure membership is exact.** The fused unit's measured closure
+     must equal `NATIVE_SEAL_CLOSURE` (minus the generated materializer,
+     which exists only inside a seal run -- the census compiles the
+     source-lane stand-in root from `seal_support`). A new member means a
+     module-level import changed and has to reach zero un-waived seams
+     before the seal can keep building; `NATIVE_SEAL_CLOSURE` is the pin
+     that makes that a reviewed change instead of a drive-by.
+  2. **The unit produces native IR.** A zero-seam census without IR means
      "not reached", not "clean".
-  3. **The seam set matches `NATIVE_SEAL_DEMOTION_WAIVERS` two-way.** An
-     un-waived seam fails (it would ship as an `abort()` stub), and a waiver
-     that stops matching a real seam fails too, so the table can only shrink
-     honestly.
 
-`test_sealed_seam_reachability.jac` proves the other half for every waiver:
-no waived name is reachable through native-internal calls from the root's
-live entry surface, so each stub ships dead.
-
-These five checks were previously seven near-identical files
-(`test_pass_seal_wave1..5,7_baseline.jac`) that differed only in their root
-and closure data -- waves 2 and 4 were byte-identical once the data globs were
-stripped. The data is now `WAVE_CLOSURES` and the checks run once per
-(wave, root) row. `test_pass_seal_wave6_baseline.jac` stays separate: it
-records a refusal, not a baseline. The wave-specific invariants that a few
-waves carry beyond the five follow the parametrized suites below.
-
-Wave 7's file measured its roots under a `WAVE6_CLOSURES` glob and named its
-tests "wave-6"; the roots are keyed "wave-7" here, matching the file they
-came from.
+The two-way seam-vs-waiver check for the fused unit lives in
+`test_sealed_demotion_audit.jac`; reachability of every waived name lives
+in `test_sealed_seam_reachability.jac`. The wave-specific source-coupling
+invariants that outlive the wave tables follow below unchanged: they pin
+refactors (driver-stamped facts, the expr_keys hoist, the rc-facts slot
+moves) whose regression would re-demote methods out of the sealed unit.
 """
 
 import from pathlib { Path }
-import from jaclang.testing.test { parametrize }
 import from jaclang.dist.precompile_bytecode {
     NATIVE_SEAL_CLOSURE,
-    NATIVE_SEAL_ROOTS,
-    seal_waiver_names
+    NATIVE_SEAL_MATERIALIZE_ROOT,
+    NATIVE_SEAL_SERVED_MODULES
 }
 import from tests.compiler.backends.native.seal_support {
+    AUDIT_ROOT_REL,
     PKG_PATH,
     _root_coverage,
-    _seams_by_key
+    write_audit_seal_root
 }
 
-glob WAVE_CLOSURES: dict = {
-         "wave-1": {
-             "compiler/backends/py/module_codegen_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             ),
-             "compiler/passes/uni_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             ),
-             "compiler/passes/endpoint_effect_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/endpoint_effect_pass.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             )
-         },
-         "wave-2": {
-             "compiler/passes/ast_validation_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/ast_validation_pass.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/keyword.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             ),
-             "compiler/passes/semantic_analysis_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/semantic_analysis_pass.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             ),
-             "compiler/passes/sem_def_match_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/sem_def_match_pass.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             )
-         },
-         "wave-3": {
-             "compiler/passes/rc_facts_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/expr_keys.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/dataflow.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/rc_facts_pass.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             )
-         },
-         "wave-4": {
-             "compiler/passes/sym_tab_build_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/sym_tab_build_pass.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             ),
-             "compiler/passes/decl_impl_match_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/decl_impl_match_pass.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             )
-         },
-         "wave-5": {
-             "compiler/passes/jsx_intrinsic_guard_pass.jac": (
-                 "client/targets/react_native/html_tag_map.jac",
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/jsx_intrinsic_guard_pass.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "project/client_kind_paths.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             ),
-             "compiler/passes/access_check_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/access_check_pass.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             )
-         },
-         "wave-7": {
-             "compiler/passes/cfg_build_pass.jac": (
-                 "compiler/backends/py/module_codegen_pass.jac",
-                 "compiler/expr_keys.jac",
-                 "compiler/frontend/codeinfo.jac",
-                 "compiler/frontend/constant.jac",
-                 "compiler/frontend/diagnostic_utils.jac",
-                 "compiler/frontend/diagnostics.jac",
-                 "compiler/frontend/helpers.jac",
-                 "compiler/frontend/srcloc.jac",
-                 "compiler/frontend/unitree.jac",
-                 "compiler/passes/cfg_build_pass.jac",
-                 "compiler/passes/pass_rim.jac",
-                 "compiler/passes/pass_serve.jac",
-                 "compiler/passes/transform.jac",
-                 "compiler/passes/uni_pass.jac",
-                 "compiler/type_registry.jac",
-                 "compiler/types/type_utils.jac",
-                 "compiler/types/types.jac",
-                 "runtime/na_stdlib/_hashlib_native.jac",
-                 "runtime/na_stdlib/contextvars.jac",
-                 "runtime/na_stdlib/fnmatch.jac",
-                 "runtime/na_stdlib/hashlib.jac",
-                 "runtime/na_stdlib/logging.jac",
-                 "runtime/na_stdlib/pathlib.jac",
-                 "runtime/scalars.jac"
-             )
-         }
-     },
-     REFUSED_OWN_SEAMS: dict = {
+glob REFUSED_OWN_SEAMS: dict = {
          "compiler/passes/static_analysis_pass.jac": 6,
          "compiler/passes/ownership_check_pass.jac": 14
      };
 
-"""Every (wave, root) pair in WAVE_CLOSURES, sorted for a stable test order."""
-def _root_rows -> list {
-    rows: list = [];
-    for wave in sorted(WAVE_CLOSURES.keys()) {
-        for rel in sorted(WAVE_CLOSURES[wave].keys()) {
-            rows.append((wave, rel, ));
-        }
+"""Measure the fused stand-in root's coverage; (coverage, has_ir, errors)."""
+def _fused_coverage -> tuple {
+    write_audit_seal_root();
+    try {
+        return _root_coverage(AUDIT_ROOT_REL);
+    } finally {
+        (PKG_PATH / AUDIT_ROOT_REL).unlink(missing_ok=True);
     }
-    return rows;
 }
 
-def _row_id(row: tuple) -> str {
-    (wave, rel) = row;
-    return f"{wave}:{rel[:-4].replace('/', '.')}";
-}
 
-def _registered_test(row: tuple) {
-    (wave, rel) = row;
-    assert rel in NATIVE_SEAL_ROOTS , (
-        f"{rel} is not in NATIVE_SEAL_ROOTS; this coverage would gate nothing "
-        "at seal time"
-    );
-    for member in WAVE_CLOSURES[wave][rel] {
-        assert member in NATIVE_SEAL_CLOSURE , (
-            f"{rel} pulls {member} into its native unit but "
-            "NATIVE_SEAL_CLOSURE does not account for it"
+test "every served module is accounted in the fused closure pin" {
+    for rel in NATIVE_SEAL_SERVED_MODULES {
+        if rel == NATIVE_SEAL_MATERIALIZE_ROOT {
+            continue;
+        }
+        assert rel in NATIVE_SEAL_CLOSURE , (
+            f"the fused root serves {rel} but NATIVE_SEAL_CLOSURE does not "
+            "account for it"
         );
     }
 }
 
-def _closure_exact_test(row: tuple) {
-    (wave, rel) = row;
-    (coverage, _has_ir, errors) = _root_coverage(rel);
+
+test "the fused closure census is exact" {
+    (coverage, _has_ir, errors) = _fused_coverage();
     assert not errors , (
-        f"{rel} compile errors (closure below is 'not reached', not 'clean'): "
-        f"{errors[:5]}"
+        "fused stand-in compile errors (closure below is 'not reached', "
+        f"not 'clean'): {errors[:5]}"
     );
-    seen = tuple(
-        sorted(
+    seen = sorted(
+        rel
+        for rel in (
             Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
             for p in coverage
         )
+        if rel != AUDIT_ROOT_REL
     );
-    assert seen == WAVE_CLOSURES[wave][rel] , (
-        f"{rel}: native closure changed: {seen} != {WAVE_CLOSURES[wave][rel]}. "
-        "A new member has to reach zero un-waived seams before this root can "
-        "keep sealing."
+    expected = sorted(
+        rel
+        for rel in NATIVE_SEAL_CLOSURE
+        if rel != NATIVE_SEAL_MATERIALIZE_ROOT
+    );
+    assert seen == expected , (
+        "the fused native closure changed:\n"
+        f"  gained: {sorted(set(seen) - set(expected))}\n"
+        f"  lost:   {sorted(set(expected) - set(seen))}\n"
+        "A new member has to reach zero un-waived seams before the seal can "
+        "keep building; update NATIVE_SEAL_CLOSURE in the same change."
     );
 }
 
-def _has_ir_test(row: tuple) {
-    (_wave, rel) = row;
-    (_coverage, has_ir, _errors) = _root_coverage(rel);
+
+test "the fused unit produces IR" {
+    (_coverage, has_ir, _errors) = _fused_coverage();
     assert has_ir , (
-        f"no LLVM IR for {rel} -- the compile aborted before codegen, so a "
-        "zero-seam coverage would mean 'not reached', not 'clean'"
+        "no LLVM IR for the fused stand-in -- the compile aborted before "
+        "codegen, so a zero-seam coverage would mean 'not reached', not "
+        "'clean'"
     );
 }
 
-def _no_unwaived_seam_test(row: tuple) {
-    (_wave, rel) = row;
-    seams = _seams_by_key(rel);
-    (allowed, _bare) = seal_waiver_names(rel);
-    unexpected = sorted(
-        k
-        for k in seams
-        if k not in allowed
-    );
-    assert not unexpected , (
-        f"{len(unexpected)} un-waived seam(s) in {rel}'s sealed closure:\n"
-        + "\n".join(f"  {k}: {seams[k]}" for k in unexpected)
-    );
-}
 
-def _no_stale_waiver_test(row: tuple) {
-    (_wave, rel) = row;
-    seams = _seams_by_key(rel);
-    (allowed, _bare) = seal_waiver_names(rel);
-    stale = sorted(
-        k
-        for k in allowed
-        if k not in seams
-    );
-    assert not stale , (
-        f"{rel} waives seams that no longer demote -- drop them:\n"
-        + "\n".join(f"  {k}" for k in stale)
-    );
-}
-
-with entry {
-    parametrize(
-        "seal root is registered", _root_rows(), _registered_test, id_fn=_row_id
-    );
-    parametrize(
-        "seal root closure is exact", _root_rows(), _closure_exact_test, id_fn=_row_id
-    );
-    parametrize("seal root produces IR", _root_rows(), _has_ir_test, id_fn=_row_id);
-    parametrize(
-        "seal root has no un-waived seam",
-        _root_rows(),
-        _no_unwaived_seam_test,
-        id_fn=_row_id
-    );
-    parametrize(
-        "seal root has no stale waiver",
-        _root_rows(),
-        _no_stale_waiver_test,
-        id_fn=_row_id
-    );
-}
-
-test "each refused analysis root still measures its recorded seam count" {
+test "each refused analysis pass still measures its recorded seam count" {
+    import from tests.compiler.backends.native.seal_support { _seams_by_key }
     for (rel, expected) in sorted(REFUSED_OWN_SEAMS.items()) {
-        assert rel not in NATIVE_SEAL_ROOTS , (
-            f"{rel} is sealed now -- move it out of REFUSED_OWN_SEAMS and "
-            "give it a closure and a waiver set above"
+        assert rel not in NATIVE_SEAL_SERVED_MODULES , (
+            f"{rel} is served now -- move it out of REFUSED_OWN_SEAMS and "
+            "account for its waivers in the fused table"
         );
         seams = _seams_by_key(rel);
         mine = sorted(
@@ -499,13 +124,13 @@ test "each refused analysis root still measures its recorded seam count" {
     }
 }
 
+
 test "the rc-facts solver keeps its stamps off the codegen target" {
-    # `codeinfo.jac` is in no pass's native closure, so a `Module.gen`
-    # field store is a store into a module this artifact cannot host --
-    # it demoted `_stamp_last_use`, `_stamp_move_in` and
-    # `_stamp_anon_regions` for exactly that reason. The facts live in
-    # `Module` slots now; a re-introduced `.gen.` stamp would demote the
-    # stamping method again.
+    # `codeinfo.jac`'s `Module.gen` is the host-side codegen target; a
+    # `.gen.` field store from the solver demoted `_stamp_last_use`,
+    # `_stamp_move_in` and `_stamp_anon_regions` out of the sealed unit.
+    # The facts live in `Module` slots now; a re-introduced `.gen.` stamp
+    # would demote the stamping method again.
     src = (PKG_PATH / "compiler/passes/rc_facts_pass.jac").read_text(encoding='utf-8');
     src += (PKG_PATH / "compiler/passes/impl/rc_facts_pass.impl.jac").read_text(
         encoding='utf-8'
@@ -526,7 +151,8 @@ test "the rc-facts solver keeps its stamps off the codegen target" {
     }
 }
 
-test "neither wave-5 root reaches its driver's facts on its own" {
+
+test "neither wave-5 pass reaches its driver's facts on its own" {
     # The seal is only honest if the passes read the stamped slots
     # instead of recomputing them: a re-introduced `get_config`,
     # `find_jac_project_root` or `resolve_client_kind_context` call
@@ -557,6 +183,7 @@ test "neither wave-5 root reaches its driver's facts on its own" {
         }
     }
 }
+
 
 test "the cfg narrowing keys come from the native-clean hoist" {
     src = (PKG_PATH / "compiler/passes/impl/cfg_build_pass.impl.jac").read_text();

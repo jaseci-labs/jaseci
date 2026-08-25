@@ -48,8 +48,8 @@ import from jaclang.compiler.driver.program { JacProgram }
 import jaclang.dist.precompile_bytecode as pb;
 import from jaclang.dist.precompile_bytecode {
     seal_abort_stubs,
-    seal_native_artifacts,
-    seal_native_canary
+    seal_native_canary,
+    seal_one_root
 }
 
 glob FIXTURES = Path(TESTS_DIR) / "compiler" / "backends" / "native" / "fixtures";
@@ -57,7 +57,7 @@ glob FIXTURES = Path(TESTS_DIR) / "compiler" / "backends" / "native" / "fixtures
 
 """Seal one fixture into a fresh temp tree.
 
-Returns (artifacts, captured_stderr, tmpdir).
+Returns (artifact_entry, captured_stderr, tmpdir).
 """
 def _seal(rel: str, waivers: (dict | None) = None, na_debug: bool = False) -> tuple {
     tmp = tempfile.mkdtemp(prefix="jac_seal_integrity_");
@@ -68,9 +68,7 @@ def _seal(rel: str, waivers: (dict | None) = None, na_debug: bool = False) -> tu
     buf = io.StringIO();
     try {
         with contextlib.redirect_stderr(buf) {
-            arts = seal_native_artifacts(
-                FIXTURES, Path(tmp), modules=(rel, ), waivers=waivers
-            );
+            arts = seal_one_root(FIXTURES, Path(tmp), rel, waivers=waivers);
         }
     } finally {
         os.environ.pop("JAC_NA_DEBUG", None);
@@ -140,8 +138,8 @@ test "a fully lowerable module still seals and its artifact is live" {
     (arts, err, tmp) = _seal("seal_clean.jac");
     try {
         assert arts is not None , f"clean module failed the seal:\n{err}";
-        assert "fixtures.seal_clean" in arts , f"unexpected artifacts: {list(arts)}";
-        rec = arts["fixtures.seal_clean"];
+        rec = arts;
+        assert "seal_clean" in str(rec["lib"]) , f"unexpected artifact: {rec}";
         lib = Path(tmp) / rec["lib"];
         assert lib.is_file() , f"no shared library at {lib}";
         assert hashlib.sha256(lib.read_bytes()).hexdigest() == rec["lib_sha256"] , (
@@ -301,7 +299,7 @@ test "waiving that exact method seals and says so; waiving another does not" {
     );
     try {
         assert arts is not None , f"a waived demotion still failed the seal:\n{err}";
-        assert "fixtures.seal_demoted_method" in arts , f"artifacts: {list(arts)}";
+        assert "seal_demoted_method" in str(arts["lib"]) , f"artifact: {arts}";
         diag = _seal_diag(err);
         assert "Gauge.unlowerable" in diag , (
             f"a waived demotion must still be announced by name:\n{diag}"
@@ -417,7 +415,7 @@ test "the canary rejects a broken artifact and accepts a live one" {
     (arts, err, tmp) = _seal("seal_clean.jac");
     try {
         assert arts is not None , err;
-        rec = arts["fixtures.seal_clean"];
+        rec = arts;
         lib = Path(tmp) / rec["lib"];
         layout = json.loads((Path(tmp) / rec["layout"]).read_text(encoding="utf-8"));
         exports = sorted(layout["functions"].keys());

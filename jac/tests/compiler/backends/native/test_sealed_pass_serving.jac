@@ -1,16 +1,15 @@
 """The pass-serving binder: sealed means served, proven end to end.
 
-These tests build REAL artifacts (unitree, the materializer with its
-`mat_merge_probe` crossing, and a sealed pass) with the real seal, then
-present them to the runtime exactly the way a sealed image does, by
-patching `native_artifact_for` / `native_artifact_names`, the seams the
-binder reads in production.
+These tests build the REAL fused artifact (#8707) with the real seal, then
+present it to the runtime exactly the way a sealed image does, by patching
+`native_artifact_for` / `native_served_modules`, the seams the binder
+reads in production.
 
 Three claims, each the runtime half of a manifest claim:
 
-  1. **Binding serves.** First construction of a sealed pass binds every
-     sealed pass artifact (dlopen, `__jac_shared_init`, full advertised
-     method surface, live `jac_str_new`), registers
+  1. **Binding serves.** First construction of a sealed pass binds the
+     fused artifact ONCE (dlopen, `__jac_shared_init`, full advertised
+     method surface, live `jac_str_new`), registers every served pass in
      `_NATIVE_SERVED_PASSES`, and construction
      proceeds; a real compile through the pipeline then works.
   2. **The native-execution proof.** `mat_merge_probe` parses a main and
@@ -54,14 +53,9 @@ import from jaclang.dist.precompile_bytecode { seal_native_artifacts }
 glob PKG_PATH = Path(jaclang.__file__).parent,
      TIER_MODULE: str = "jaclang.compiler.passes.ast_validation_pass",
      MAT_MODULE: str = "jaclang.compiler.native_materialize",
-     SEAL_MODULES: tuple = (
-         "compiler/frontend/unitree.jac",
-         "compiler/native_materialize.jac",
-         "compiler/passes/ast_validation_pass.jac"
-     ),
      _BUILD_MEMO: list = [];
 
-"""Build the three artifacts once for the whole file; (tmpdir, artifacts)."""
+"""Build the fused artifact once for the whole file; (tmpdir, record)."""
 def _built -> tuple {
     if native_true_image() {
         testskip(
@@ -73,9 +67,11 @@ def _built -> tuple {
         return _BUILD_MEMO[0];
     }
     tmp = tempfile.mkdtemp(prefix="jac_pass_serving_");
-    arts = seal_native_artifacts(PKG_PATH, Path(tmp), modules=SEAL_MODULES);
-    assert arts is not None , "the seal refused; serving tests need artifacts";
-    result = (tmp, arts, );
+    record = seal_native_artifacts(PKG_PATH, Path(tmp));
+    assert record is not None and record.get("artifact") , (
+        "the seal refused; serving tests need the fused artifact"
+    );
+    result = (tmp, record, );
     _BUILD_MEMO.append(result);
     return result;
 }
@@ -84,17 +80,22 @@ def native_true_image -> bool {
     return sealed.native_artifact_for(TIER_MODULE) is not None;
 }
 
-def _artifact_resolver(tmp: str, arts: dict) -> any {
+def _artifact_resolver(tmp: str, record: dict) -> any {
+    `entry = record["artifact"];
+    modules = set(record["modules"]);
+    memo: list = [];
     def _resolve(fullname: str) -> (tuple | None) {
-        `entry = arts.get(fullname);
-        if `entry is None {
+        if fullname not in modules {
             return None;
         }
-        lib_path = os.path.join(tmp, `entry["lib"]);
-        layout = json.loads(
-            Path(os.path.join(tmp, `entry["layout"])).read_text(encoding="utf-8")
-        );
-        return (lib_path, layout, );
+        if not memo {
+            lib_path = os.path.join(tmp, `entry["lib"]);
+            layout = json.loads(
+                Path(os.path.join(tmp, `entry["layout"])).read_text(encoding="utf-8")
+            );
+            memo.append((lib_path, layout, ));
+        }
+        return memo[0];
     }
     return _resolve;
 }
@@ -112,12 +113,12 @@ def _run_tier_pass -> any {
 
 
 test "binding serves a sealed pass and a real compile runs" {
-    (tmp, arts) = _built();
+    (tmp, record) = _built();
     real_for = sealed.native_artifact_for;
-    real_names = sealed.native_artifact_names;
+    real_names = sealed.native_served_modules;
     _reset_serving_state();
-    sealed.native_artifact_for = _artifact_resolver(tmp, arts);
-    sealed.native_artifact_names = lambda { list(arts.keys()); };
+    sealed.native_artifact_for = _artifact_resolver(tmp, record);
+    sealed.native_served_modules = lambda { sorted(record["modules"]); };
     try {
         inst = _run_tier_pass();
         assert isinstance(inst.ir_out, uni.Module) , "the tier vehicle pass did not run";
@@ -132,19 +133,19 @@ test "binding serves a sealed pass and a real compile runs" {
         );
     } finally {
         sealed.native_artifact_for = real_for;
-        sealed.native_artifact_names = real_names;
+        sealed.native_served_modules = real_names;
         _reset_serving_state();
     }
 }
 
 
 test "the merge probe proves the annex method body executed natively" {
-    (tmp, arts) = _built();
+    (tmp, record) = _built();
     real_for = sealed.native_artifact_for;
-    real_names = sealed.native_artifact_names;
+    real_names = sealed.native_served_modules;
     _reset_serving_state();
-    sealed.native_artifact_for = _artifact_resolver(tmp, arts);
-    sealed.native_artifact_names = lambda { list(arts.keys()); };
+    sealed.native_artifact_for = _artifact_resolver(tmp, record);
+    sealed.native_served_modules = lambda { sorted(record["modules"]); };
     try {
         np = frontend._native_parse();
         assert np is not None , "the temp materializer artifact did not bind";
@@ -196,23 +197,28 @@ test "the merge probe proves the annex method body executed natively" {
         );
     } finally {
         sealed.native_artifact_for = real_for;
-        sealed.native_artifact_names = real_names;
+        sealed.native_served_modules = real_names;
         _reset_serving_state();
     }
 }
 
 
 test "a sealed pass whose artifact cannot bind refuses construction" {
-    (tmp, arts) = _built();
+    (tmp, record) = _built();
     real_for = sealed.native_artifact_for;
-    real_names = sealed.native_artifact_names;
+    real_names = sealed.native_served_modules;
     _reset_serving_state();
-    broken = dict(arts);
-    `entry = dict(broken[TIER_MODULE]);
-    `entry["lib"] = "native/definitely/not/there.so";
-    broken[TIER_MODULE] = `entry;
-    sealed.native_artifact_for = _artifact_resolver(tmp, broken);
-    sealed.native_artifact_names = lambda { list(broken.keys()); };
+    good_resolve = _artifact_resolver(tmp, record);
+    broken_entry = dict(record["artifact"]);
+    broken_entry["lib"] = "native/definitely/not/there.so";
+    def _broken_resolve(fullname: str) -> (tuple | None) {
+        if fullname == TIER_MODULE {
+            return (os.path.join(tmp, broken_entry["lib"]), {}, );
+        }
+        return good_resolve(fullname);
+    }
+    sealed.native_artifact_for = _broken_resolve;
+    sealed.native_served_modules = lambda { sorted(record["modules"]); };
     try {
         with testraises(RuntimeError, `match=TIER_MODULE) {
             _run_tier_pass();
@@ -222,7 +228,7 @@ test "a sealed pass whose artifact cannot bind refuses construction" {
         );
     } finally {
         sealed.native_artifact_for = real_for;
-        sealed.native_artifact_names = real_names;
+        sealed.native_served_modules = real_names;
         _reset_serving_state();
     }
 }

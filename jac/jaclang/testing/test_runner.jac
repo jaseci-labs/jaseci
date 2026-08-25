@@ -59,6 +59,8 @@ obj TestPlan {
     def is_empty -> bool;
 }
 
+glob STRICT_ENV: str = "JAC_TEST_STRICT";
+
 obj NameFilter {
     has expr: str,
         tree: any = None;
@@ -101,6 +103,7 @@ obj ForkPool {
         jobs: int,
         xit: bool = False,
         maxfail: (int | None) = None,
+        isolate: (set[str] | None) = None,
         cursor: int = 0,
         stopping: bool = False,
         kids: list[dict[(str, any)]] postinit;
@@ -127,9 +130,15 @@ def _should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> bool
 
 def discover(
     paths: (list[str] | None) = None,
-    directory: str = "",
+    directory: (str | list[str]) = "",
     ignore: (list[str] | None) = None
 ) -> TestPlan;
+
+def strict_mode -> bool;
+
+def _match_patterns(files: list[str], patterns: (list[str] | None)) -> set[str];
+
+def _optional_dep_gap(exc: BaseException) -> str;
 
 def run_file(
     filepath: str,
@@ -142,7 +151,7 @@ def run_file(
 
 def run_tests(
     paths: (list[str] | None) = None,
-    directory: str = "",
+    directory: (str | list[str]) = "",
     test_name: str = "",
     filter: str = "",
     xit: bool = False,
@@ -152,7 +161,9 @@ def run_tests(
     resume: bool = False,
     verbose: bool = False,
     ignore: (list[str] | None) = None,
-    jobs: (str | int | None) = None
+    jobs: (str | int | None) = None,
+    isolate: (list[str] | None) = None,
+    serial: (list[str] | None) = None
 ) -> int;
 
 def _parse_pct_range(expr: str) -> tuple[(int, int)];

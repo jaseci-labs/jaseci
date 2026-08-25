@@ -178,7 +178,7 @@ glob STAGE_FILES: tuple = ("types.jac", "ts_decl_parser.jac");
 
 Keyed `<module>::<Type>.<method>` exactly as `_seal_demotions` keys them, so an
 entry reads the same as one in `NATIVE_SEAL_DEMOTION_WAIVERS` when the stage
-eventually joins `NATIVE_SEAL_ROOTS`. A `<field>.__get__` entry is a property;
+eventually joins the fused seal. A `<field>.__get__` entry is a property;
 #8074 made accessors lower as methods, so their bodies reach the backend.
 
 Five element-erasure waivers left this table when optional containers learned
@@ -664,9 +664,8 @@ one step deeper on `isinstance(cur, UniNode)` instead, one for one.
 necessary for the checker's 35 and worth nothing to the evaluator's table,
 which is the kind of thing only measuring finds. Peak RSS for the checker
 compile is **3.40 GiB** (3.14 GiB for the evaluator as its own root over 27
-modules), inside the 4.5 GiB/root the seal pool sizes on, so the grown
-closure needs no new capacity law -- at `JAC_SEAL_JOBS<=3` it is about 10
-GiB of the budget #8280 already provides.
+modules), comparable to the fused seal's single compile, so the grown
+closure needs no new capacity law.
 
 The 14 that remain, by cause. `inherited field access 'ir_in'` (6 --
 `_check_unresolved_lambda_params`, `_insert_builtin_symbols`, `emit`,
@@ -690,8 +689,8 @@ The same gate cleared the same wall elsewhere, measured in the wave
 censuses: ownership's eleven `emit` seams (26 own seams to 12, the `emit`
 family empty, plus both remaining bound-method transfers), and
 `static_analysis_pass`'s `_check_undefined_names` (6 own seams to 5, with
-IR). What remains of the joint seal is roots in `NATIVE_SEAL_ROOTS` and the
-pooled seal's verdict; nothing in the pair needs a lowering change.
+IR). What remains of the joint seal is membership in the fused unit and
+the seal's verdict; nothing in the pair needs a lowering change.
 """
 glob CHECKER_SEAM_WAIVERS: dict[(str, tuple)] = {
          "method 'JacProgram.get_type_evaluator'": ("TypeCheckPass.before_pass", ),

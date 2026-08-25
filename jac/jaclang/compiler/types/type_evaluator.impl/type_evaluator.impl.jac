@@ -2743,7 +2743,9 @@ impl TypeEvaluator._get_type_of_symbol_decl(
                     return self._convert_to_instance(annotation_type);
                 } else {
                     if node_.parent.parent.value is not None {
-                        return self.get_type_of_expression(node_.parent.parent.value);
+                        return self._widen_literal_for_declaration(
+                            self.get_type_of_expression(node_.parent.parent.value)
+                        );
                     }
                 }
             }

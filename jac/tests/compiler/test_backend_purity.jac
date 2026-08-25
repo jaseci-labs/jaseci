@@ -150,6 +150,7 @@ glob FORBIDDEN: dict[str, str] = {
          ("native/na_ir_gen/objects.impl.jac", "private analysis"): 1,
          ("native/na_ir_gen/objects.jac", "private analysis"): 1,
          ("native/na_ir_gen/refcount.impl.jac", "private analysis"): 2,
+         ("native/na_ir_gen/state.jac", "private analysis"): 2,
          ("native/na_ir_gen/types.impl.jac", "private analysis"): 7,
 
      },
