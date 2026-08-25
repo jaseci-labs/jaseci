@@ -376,12 +376,25 @@ def compare_results(
 # -----------------------------------------------------------------------
 # Dispatch helper: run py reference, then try ES and NA backends
 # -----------------------------------------------------------------------
-def assert_full_parity(py_result: dict, backend_result: dict, label: str) {
-    missing = sorted(set(py_result.keys()) - set(backend_result.keys()));
+def assert_full_parity(
+    py_result: dict,
+    backend_result: dict,
+    label: str,
+    allow_missing: (list | None) = None
+) {
+    waived = set(allow_missing or []);
+    missing = sorted((set(py_result.keys()) - set(backend_result.keys())) - waived);
     extra = sorted(set(backend_result.keys()) - set(py_result.keys()));
+    stale = sorted(waived - (set(py_result.keys()) - set(backend_result.keys())));
     assert not missing and not extra , (
         f"[{label}] required backend key set drifted from the py reference: "
-        f"missing {missing}, extra {extra}"
+        f"missing {missing}, extra {extra}. A lane that genuinely cannot "
+        "produce a row declares it in allow_missing at the call site, so the "
+        "gap is visible rather than silently dropped from the comparison."
+    );
+    assert not stale , (
+        f"[{label}] allow_missing names rows the backend now produces: "
+        f"{stale} -- drop them from the waiver"
     );
 }
 
@@ -392,7 +405,8 @@ def run_with_both(
     na_fn: str,
     tolerance: float = 1e-9,
     require: (list | None) = None,
-    strict_keys: bool = False
+    strict_keys: bool = True,
+    allow_missing: (list | None) = None
 ) {
     # `require` names backends ("cl"/"na") that must actually participate: if a
     # required backend fails to compile/run or shares no comparable keys with
@@ -408,7 +422,7 @@ def run_with_both(
         cl_result = run_js_function(js_code, cl_fn);
         cl_keys = len(set(py_result.keys()) & set(cl_result.keys()));
         if strict_keys and "cl" in reqd {
-            assert_full_parity(py_result, cl_result, f"{label} [ES]");
+            assert_full_parity(py_result, cl_result, f"{label} [ES]", allow_missing);
         }
         compare_results(py_result, cl_result, f"{label} [ES]", tolerance);
     } except Exception {
@@ -427,7 +441,7 @@ def run_with_both(
         na_result = run_native_function(eng, na_fn, na_ir);
         na_keys = len(set(py_result.keys()) & set(na_result.keys()));
         if strict_keys and "na" in reqd {
-            assert_full_parity(py_result, na_result, f"{label} [NA]");
+            assert_full_parity(py_result, na_result, f"{label} [NA]", allow_missing);
         }
         compare_results(py_result, na_result, f"{label} [NA]", tolerance);
     } except Exception {

@@ -107,7 +107,8 @@ obj Symbol {
         param_rebound: bool = False,
         na_escapes: bool = False,
         na_region_handle: bool = False,
-        na_stack_ok: bool = False;
+        na_stack_ok: bool = False,
+        _in_stub_scope: (bool | None) = None;
 
     def init(
         defn: NameAtom,
@@ -125,6 +126,7 @@ obj Symbol {
 
     def add_defn(nd: NameAtom) -> None;
     def add_use(nd: NameAtom) -> None;
+    def in_stub_scope -> bool;
     def __repr__ -> str;
 }
 
@@ -264,6 +266,7 @@ obj Expr(UniNode) {
         narrowed_type: (TypeBase | None) postinit,
         coerce_to: (str | None) postinit,
         fw: (str | None) postinit,
+        fw_safe: bool postinit,
         attached_tokens: (list[Token] | None) postinit;
 
     def postinit -> None;

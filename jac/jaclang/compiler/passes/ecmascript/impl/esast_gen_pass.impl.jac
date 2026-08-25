@@ -2788,6 +2788,13 @@ impl EsastGenPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
     if op_tok in (Tok.MINUS, Tok.BW_NOT) {
         _fw_name = nd.fw;
         if _fw_name is not None {
+            if op_tok == Tok.MINUS and nd.fw_safe {
+                nd.gen.es_ast = self.sync_loc(
+                    es.UnaryExpression(operator='-', argument=operand, prefix=True),
+                    jac_node=nd
+                );
+                return;
+            }
             nd.gen.es_ast = self._fw_call(
                 f"{'neg' if op_tok == Tok.MINUS else 'inv'}_{_fw_name}", [operand], nd
             );

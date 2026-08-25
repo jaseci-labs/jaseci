@@ -568,7 +568,7 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
             )
         );
     }
-    _own_anns = cls.__dict__.get('__annotations__', {});
+    _own_anns: dict[str, object] = cls.__dict__.get('__annotations__', {});
     if _own_anns {
         _pre_attrs = dict(cls.__dict__);
         try {
@@ -582,7 +582,10 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
 
             _seen_default = False;
             for _base in reversed(cls.__mro__[1:]) {
-                for _bf in getattr(_base, '__dataclass_fields__', {}).values() {
+                _base_fields: dict[str, dataclasses.Field] = getattr(
+                    _base, '__dataclass_fields__', {}
+                );
+                for _bf in _base_fields.values() {
                     if _bf.`default is not dataclasses.MISSING
                         or _bf.default_factory is not dataclasses.MISSING {
                         _seen_default = True;
@@ -1872,6 +1875,34 @@ impl JacPersistence.get_persistent_memory(config: dict) -> any {
 
 impl JacPersistence.set_persistent_memory_provider(provider: Callable | None) -> None {
     _persistent_memory_provider[0] = provider;
+}
+
+impl JacRuntime.reset_process_state(cls: any, clear_modules: bool = True) -> None {
+    import sys;
+    import from concurrent.futures { ThreadPoolExecutor }
+    if cls.exec_ctx is not None {
+        cls.exec_ctx.mem.close();
+    }
+    cls.exec_ctx = None;
+    if clear_modules {
+        for mod in list(cls.loaded_modules.values()) {
+            if (
+                not mod.__name__.startswith("jaclang.") and (mod.__name__ != "__main__")
+            ) {
+                sys.modules.pop(mod.__name__, None);
+            }
+        }
+        cls.loaded_modules.clear();
+    }
+    stale = cls.pool;
+    cls.pool = ThreadPoolExecutor();
+    if stale is not None {
+        stale.shutdown(`wait=False);
+    }
+    cls.program = None;
+    cls.compiler = None;
+    import from jaclang.project.config { set_config }
+    set_config(None);
 }
 
 impl JacRuntime.get_compiler(cls: any) -> JacCompiler {

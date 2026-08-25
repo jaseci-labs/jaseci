@@ -251,6 +251,9 @@ impl JcirGenPass._fw_checked(
     if row is None or not row.sized {
         return None;
     }
+    if isinstance(jac_node, Expr) and jac_node.fw_safe and op in FW_ELIDABLE_OPS {
+        return None;
+    }
     if row.is_float {
         if row.width != 32 {
             return None;
@@ -339,7 +342,9 @@ impl JcirGenPass._fw_unary(nd: UnaryExpr, name: str) -> None {
         return;
     }
     if op == Tok.MINUS {
-        self._fw_wrap_call(nd, f"_fw_ck_{name}", [got[0]]);
+        if not nd.fw_safe {
+            self._fw_wrap_call(nd, f"_fw_ck_{name}", [got[0]]);
+        }
     } elif op == Tok.BW_NOT and not row.signed {
         self._fw_wrap_call(nd, f"_fw_inv_{name}", [self.val(nd.operand)]);
     }
