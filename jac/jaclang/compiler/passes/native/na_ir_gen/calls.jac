@@ -37,6 +37,7 @@ obj NaIRGenCalls(NaIRGenState) {
     ) -> bool;
 
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
+    def _emit_jid(nd: uni.FuncCall) -> (ir.Value | None);
     def _codegen_decorated_call(nd: uni.FuncCall, func_name: str) -> (ir.Value | None);
     def _emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_isinstance_ptr_tags(operand: ir.Value, tags: list[int]) -> ir.Value;
