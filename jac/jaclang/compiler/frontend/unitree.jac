@@ -1991,7 +1991,8 @@ def decode_string_literal(text: str) -> str | bytes {
 }
 
 obj CModuleAst(EmptyToken) {
-    has orig_src: Source postinit,
+    has ast: object postinit,
+        orig_src: Source postinit,
         file_path: str postinit;
 
     def init(ast: object, orig_src: Source) -> None;
