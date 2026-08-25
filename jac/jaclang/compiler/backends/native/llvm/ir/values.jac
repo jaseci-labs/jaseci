@@ -442,7 +442,10 @@ class _ConstOpMixin(object) {
     The base class for all values.
     """
 class Value(object) {
-    has type: types.Type;
+    has type: types.Type,
+        jac_loc: str = "",
+        jac_signed: bool = False,
+        jac_env_struct: str | None = None;
 
     def get_reference(self: Value) -> str {
         raise NotImplementedError;
