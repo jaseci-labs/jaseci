@@ -3413,6 +3413,10 @@ obj PyBoundMethod(PyObj) {
         if name == "__self__" {
             return self.receiver;
         }
+        # Bound methods are descriptors too (self-reproducing __get__).
+        if name == "__get__" {
+            return PyGetDescriptorFn(t="get_descriptor", target=self);
+        }
         return py_attr(self.function, name);
     }
 }
@@ -3489,6 +3493,10 @@ obj PyClassMethod(PyObj) {
         if name == "__func__" {
             return self.func;
         }
+        # Descriptor protocol visibility (see PyGetDescriptorFn).
+        if name == "__get__" {
+            return PyGetDescriptorFn(t="get_descriptor", target=self);
+        }
         return py_attr(self.func, name);
     }
 
@@ -3503,6 +3511,10 @@ obj PyStaticMethod(PyObj) {
     def tp_getattro(name: str) -> PyObj {
         if name == "__func__" {
             return self.func;
+        }
+        # Descriptor protocol visibility (see PyGetDescriptorFn).
+        if name == "__get__" {
+            return PyGetDescriptorFn(t="get_descriptor", target=self);
         }
         return py_attr(self.func, name);
     }
@@ -3913,6 +3925,27 @@ def descriptor_get(value: PyObj, instance: PyObj, owner: PyObj) -> PyObj {
     return value;
 }
 
+# Bound `__get__` accessor minted by function/classmethod/staticmethod
+# tp_getattro arms so the descriptor protocol is visible through hasattr /
+# getattr on the wrappers themselves (enum's _EnumDict classifies methods via
+# hasattr(obj, '__get__'); inspect/functools/copy do the same). Calling it
+# performs the real binding through descriptor_get.
+obj PyGetDescriptorFn(PyObj) {
+    has target: PyObj;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        instance = py_none();
+        owner = py_none();
+        if len(args) >= 1 {
+            instance = args[0];
+        }
+        if len(args) >= 2 {
+            owner = args[1];
+        }
+        return descriptor_get(self.target, instance, owner);
+    }
+}
+
 obj PyFunction(PyObj) {
     has code: PyCode,
         globals: dict[str, PyObj],
@@ -4016,6 +4049,11 @@ obj PyFunction(PyObj) {
         }
         if name == "__wrapped__" {
             return py_error("AttributeError", name);
+        }
+        # Descriptor protocol visibility: functions ARE descriptors; enum's
+        # _EnumDict and inspect/functools classify via hasattr(obj, '__get__').
+        if name == "__get__" {
+            return PyGetDescriptorFn(t="get_descriptor", target=self);
         }
         return py_error("AttributeError", name);
     }

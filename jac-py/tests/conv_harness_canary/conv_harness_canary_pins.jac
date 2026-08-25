@@ -1,4 +1,4 @@
-# Generated canary — DO NOT EDIT BY HAND.
+# Generated canary -- DO NOT EDIT BY HAND.
 import from layer_p2_libtest { p2_libtest_run_snippet }
 
 def _mark(name: str, source: str) -> None {
@@ -20,5 +20,6 @@ with entry {
     _mark("HarnessCanary.test_guest_class_dunder_fallback", "class C:\n    pass\nassert C.__repr__ is not None\nprint('ok')");
     _mark("HarnessCanary.test_functools_cache_present", "import functools\nassert hasattr(functools, 'cache')\nprint('ok')");
     _mark("HarnessCanary.test_typing_import", "import typing\nprint('ok')");
+    _mark("HarnessCanary.test_function_descriptor_protocol", "def f(): pass\nassert hasattr(f, '__get__')\nprint('ok')");
     print("MARK ALLDONE");
 }

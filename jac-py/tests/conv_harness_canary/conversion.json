@@ -55,14 +55,22 @@
         "status": "ok"
       },
       "snippet": "import typing\nprint('ok')"
+    },
+    {
+      "ident": "HarnessCanary.test_function_descriptor_protocol",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def f(): pass\nassert hasattr(f, '__get__')\nprint('ok')"
     }
   ],
   "quarantined": [],
   "counts": {
-    "converted": 5,
-    "runnable": 5,
+    "converted": 6,
+    "runnable": 6,
     "green": 0,
     "quarantined": 0,
-    "extracted": 5
+    "extracted": 6
   }
 }
