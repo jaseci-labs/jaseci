@@ -66,13 +66,13 @@ glob HOST_DOM: str = 'DOM',
          'DOM': CodeContext.CLIENT,
          'NPM': CodeContext.CLIENT
      },
-     CAPABILITY_SEED_ORDER: tuple = ('FFI', 'DOM', 'NPM'),
-     NPM_SEED_REASONS: tuple = (
+     CAPABILITY_SEED_ORDER: tuple[str, str, str] = ('FFI', 'DOM', 'NPM'),
+     NPM_SEED_REASONS: tuple[str, ...] = (
          'string-path import',
          'virtual @jac import',
          'npm dependency'
      ),
-     JS_DOM_HOST_GLOBALS: tuple = (
+     JS_DOM_HOST_GLOBALS: tuple[str, ...] = (
          'window',
          'document',
          'navigator',
