@@ -8,20 +8,11 @@ import from jaclang.runtimelib.bun_entry { EndpointMeta }
 
 
 def _is_pub(access: any) -> bool {
-    # Same idiom as placement._is_pub_element / esast_gen_pass: str(access)
-    # renders '<SubTag object>', so compare the tag name token instead.
     return access is not None and access.tag.name == Tok.KW_PUB;
 }
 
 
-def _inline_extra_deps(
-    out_dir: Path, chunks: list[str], seen_jac: dict[str, bool]
-) -> None {
-    # String-bundler fallback: cl_stdlib dependency artifacts written next to
-    # the entry must be inlined too, since the fallback produces ONE file.
-    # Relative .js imports between inlined chunks dissolve (their targets are
-    # present), and duplicate `const _jac` runtime preludes collapse to the
-    # first occurrence.
+def _inline_extra_deps(out_dir: Path, chunks: list[str], seen_jac: dict[str, bool]) {
     import re;
     bundled_sources = ('server_runtime.js', 'bun_schema.js', 'bun_store.js');
     extras = [
@@ -67,10 +58,6 @@ def _string_bundle_bun_artifact(out_dir: Path, module_name: str) -> str {
     );
 
     def _rewrite_entry_line(line: str) -> str {
-        # Single-line import rewriting: `import { X as Y } from "./src"` ->
-        # `const Y = X;`. Anything else referencing a bundled source means the
-        # codegen output no longer matches this bundler's assumptions — fail
-        # loudly instead of emitting a bundle with dangling references.
         for src in bundled_sources {
             if f'from "./{src}"' not in line {
                 continue;
@@ -89,7 +76,6 @@ def _string_bundle_bun_artifact(out_dir: Path, module_name: str) -> str {
                 if len(parts) == 2 {
                     aliases.append(f'const {parts[1]} = {parts[0]};');
                 }
-                # A single part is satisfied by the inlined chunk itself.
             }
             return ' '.join(aliases);
         }
@@ -158,11 +144,6 @@ def _bundle_bun_artifact(out_dir: Path, module_name: str, artifact: Path) -> Non
         rt_path = out_dir / 'server_runtime.js';
         rt_original: (str | None) = None;
         try {
-            # EsastGenPass drops the raw-JS import of ./bun_store.js, leaving
-            # its functions as bare global references. The string bundler
-            # flattens every chunk into one scope so that works there, but
-            # Bun.build compiles real modules -- restore the import edge for
-            # the bundle and put the original back if we fall back.
             rt_text = rt_path.read_text(encoding='utf-8');
             if '__jacInitBunStore' in rt_text
                 and 'from "./bun_store.js"' not in rt_text {
@@ -192,8 +173,6 @@ def _bundle_bun_artifact(out_dir: Path, module_name: str, artifact: Path) -> Non
                 timeout=120
             );
             if result.returncode == 0 {
-                # bun names the bundle after the entry file (server.js),
-                # regardless of --outfile — locate and rename it.
                 built = artifact.parent / 'server.js';
                 if not built.exists() {
                     built = Path(f"{artifact.parent / artifact.stem}.js");
@@ -225,8 +204,6 @@ def _bundle_bun_artifact(out_dir: Path, module_name: str, artifact: Path) -> Non
 
 
 def _cl_stdlib_specifiers(js_code: str) -> list[str] {
-    # Bare module specifiers referenced by generated client JS (`from "x"` /
-    # `import "x"`). Relative and absolute paths are not cl_stdlib deps.
     import re;
     found: list[str] = [];
     seen: set[str] = set();
@@ -253,10 +230,6 @@ def _cl_stdlib_specifiers(js_code: str) -> list[str] {
 
 
 def _cl_stdlib_ref(dotted: str) -> tuple[(str, str)] | None {
-    # Resolve a bare specifier against the cl_stdlib root directly. The
-    # builder has already decided to emit a bun artifact, so the project's
-    # configured client target must not veto stdlib resolution here
-    # (resolve_cl_module gates on project_uses_bun_host).
     import os;
     import from jaclang.jac0core.codeinfo { cl_stdlib_root }
     stdlib_root = cl_stdlib_root();
@@ -279,11 +252,6 @@ def _cl_stdlib_ref(dotted: str) -> tuple[(str, str)] | None {
 def _rewrite_bare_specifiers(
     js_code: str, resolved: dict[str, str], depth: int
 ) -> str {
-    # Rewrite bare stdlib specifiers to relative artifact paths so Bun.build
-    # can resolve them (bare specifiers only resolve through node_modules).
-    # `depth` is the nesting level of the file being rewritten under out_dir
-    # (the service module itself sits at depth 0). A plain `import "x";`
-    # becomes a namespace import so `x.func(...)` references keep working.
     if not resolved {
         return js_code;
     }
@@ -308,11 +276,6 @@ def _rewrite_bare_specifiers(
 
 
 def _dep_export_names(dep_js: str) -> list[str] {
-    # Generated client JS declares module symbols as top-level
-    # function/class/const bindings; expose them so importer-side named
-    # imports resolve after bundling. Names already exported by the
-    # generated code itself are not repeated (duplicate named exports are a
-    # Bun.build error).
     import re;
     exported: set[str] = set();
     for m in re.finditer(r'export\s*\{([^}]*)\}', dep_js) {
@@ -338,11 +301,6 @@ def _dep_export_names(dep_js: str) -> list[str] {
 
 
 def _emit_cl_stdlib_deps(js_code: str, prog: any, options: any, out_dir: Path) -> str {
-    # Client-stdlib imports lower to bare specifiers (`from "datetime"`).
-    # Materialize each referenced stdlib module's JS into out_dir (transitively)
-    # and return js_code with every bare specifier rewritten to a relative
-    # artifact path, because Bun.build cannot resolve bare specifiers without
-    # node_modules.
     import from jaclang.jac0core.compiler { run_pass }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
     resolved: dict[str, str] = {};
@@ -395,7 +353,6 @@ def _emit_cl_stdlib_deps(js_code: str, prog: any, options: any, out_dir: Path) -
 def _extract_endpoints(
     ir: any, module_name: str
 ) -> (tuple[list[EndpointMeta], list[EndpointMeta]]) {
-    # Pull walker/function endpoint metadata out of a compiled module IR.
     walkers: list[EndpointMeta] = [];
     functions: list[EndpointMeta] = [];
     for item in ir.body {
@@ -482,11 +439,7 @@ def build_bun_service_artifact(
     }
     pname = project_name or module_name;
     import from jaclang.runtimelib.session { promotions_for }
-    # Single enforcement point for endpoint visibility: only `pub` endpoints
-    # become network surface (routes, listings, handlers). Full lists are
-    # still exported from the module so non-pub symbols remain importable
-    # internally. Mirrors the cpython host, where non-pub endpoints default
-    # to auth-required and the bun host has no auth layer yet.
+
     rc = emit_server_entry(
         out_dir,
         pname,

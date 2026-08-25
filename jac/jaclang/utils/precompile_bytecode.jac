@@ -467,9 +467,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/codeinfo.jac::native_stdlib_root",
          "jac0core/codeinfo.jac::native_wasm_stem",
          "jac0core/codeinfo.jac::resolve_native_module",
-         # Bun-host decision helpers (#8537): they read jac.toml / os.path and
-         # only run at build time -- a sealed native artifact never reaches
-         # them.
          "jac0core/codeinfo.jac::clear_bun_host_decision_cache",
          "jac0core/codeinfo.jac::cl_stdlib_root",
          "jac0core/codeinfo.jac::project_uses_bun_host",

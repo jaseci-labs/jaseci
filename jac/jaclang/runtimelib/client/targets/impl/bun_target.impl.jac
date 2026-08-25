@@ -3,9 +3,7 @@ import subprocess;
 import from pathlib { Path }
 import from typing { Optional }
 import from jaclang.cli.console { console }
-import from jaclang.jac0core.sv_service_host {
-    bun_artifact_is_fresh
-}
+import from jaclang.jac0core.sv_service_host { bun_artifact_is_fresh }
 import from jaclang.runtimelib.client { get_bun }
 import from jaclang.runtimelib.client.bun_installer { bun_unavailable_message }
 import from jaclang.runtimelib.bun_service_builder { build_bun_service_artifact }
@@ -16,7 +14,7 @@ glob JAC_FILE_EXTENSION = ".jac";
 def _module_stem(entry_file: Path) -> str {
     mod = entry_file.name;
     if mod.endswith(JAC_FILE_EXTENSION) {
-        mod = mod[: -len(JAC_FILE_EXTENSION)];
+        mod = mod[:-len(JAC_FILE_EXTENSION)];
     }
     return mod;
 }

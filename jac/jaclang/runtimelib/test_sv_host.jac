@@ -1,10 +1,8 @@
-# In-process test host for sv-to-sv tests (replaces _test_clients in production).
-
 glob _RUNTIMES: dict[str, any] = {},
      _ADAPTERS: dict[str, any] = {};
 
 
-def register_test_adapter(module_name: str, client: any) -> None {
+def register_test_adapter(module_name: str, client: any) {
     _ADAPTERS[module_name] = client;
 }
 
@@ -14,7 +12,7 @@ def get_test_adapter(module_name: str) -> any {
 }
 
 
-def clear_test_adapters -> None {
+def clear_test_adapters {
     _ADAPTERS.clear();
 }
 
@@ -33,7 +31,7 @@ def prepare_test_sv_service(module_name: str, jac_file: str, base_path: str) -> 
 }
 
 
-def close_test_sv_service(module_name: str) -> None {
+def close_test_sv_service(module_name: str) {
     runtime = _RUNTIMES.pop(module_name, None);
     if runtime is not None {
         runtime.close();
@@ -44,7 +42,7 @@ def close_test_sv_service(module_name: str) -> None {
 }
 
 
-def close_all_test_sv_services -> None {
+def close_all_test_sv_services {
     for name in list(_RUNTIMES.keys()) {
         close_test_sv_service(name);
     }

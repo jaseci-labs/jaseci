@@ -74,13 +74,7 @@ test "DOM is limited to browser and webview hosts" {
 }
 
 test "NPM covers every JS host in the capability table" {
-    js_hosts = [
-        HOST_BROWSER,
-        HOST_WEBVIEW,
-        HOST_RN,
-        HOST_BUN,
-        *P3_JS_HOST_KINDS
-    ];
+    js_hosts = [HOST_BROWSER, HOST_WEBVIEW, HOST_RN, HOST_BUN, *P3_JS_HOST_KINDS];
     for kind in js_hosts {
         assert host_provides_kind(kind, HOST_NPM) , f"{kind} must provide NPM";
     }

@@ -72,7 +72,8 @@ test "eager spawn: ensure_all no-op when all already resolved" {
 
     __jac_sv.ensure_all(["already_registered", "already_test_client"]);
     assert __jac_sv._registry.get("already_registered") == "http://somewhere";
-    assert __jac_sv._registry.get("already_test_client") == "test://already_test_client";
+    assert __jac_sv._registry.get("already_test_client")
+        == "test://already_test_client";
 
     __jac_sv.clear_test_clients();
     del __jac_sv._registry["already_registered"];

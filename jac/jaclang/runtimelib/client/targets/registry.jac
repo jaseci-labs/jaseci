@@ -13,10 +13,7 @@ class Host {
 
     def setup(self: Host, project_dir: Path) -> None abst;
     def build(
-        self: Host,
-        entry_file: Path,
-        project_dir: Path,
-        platform: Optional[str] = None
+        self: Host, entry_file: Path, project_dir: Path, platform: Optional[str] = None
     ) -> Path abst;
 
     def dev(
@@ -69,9 +66,6 @@ def get_host_factory -> HostFactory {
     return _factory;
 }
 
-# Deprecated: get_target_registry/get_target_factory are legacy aliases kept
-# for a single caller (cli.jac). Do not add new callers — use
-# get_host_registry/get_host_factory directly, then delete these.
 def get_target_registry -> HostRegistry {
     return get_host_registry();
 }

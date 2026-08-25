@@ -28,8 +28,7 @@ impl spawn_bun_sv_service(
     if scale_mode {
         child_env['JAC_SV_SIBLING'] = '1';
     }
-    # Both modes capture output to a log file — a DEVNULL boot failure used to
-    # surface as a bare URL timeout with zero diagnostics in core mode.
+
     log_dir = Path(base_path) / '.jac' / 'logs';
     log_dir.mkdir(parents=True, exist_ok=True);
     log_path = log_dir / f"{module_name}.log";
@@ -49,9 +48,9 @@ impl spawn_bun_sv_service(
         boot_health_timeout,
         wait_for_health
     }
-    budget = health_timeout if health_timeout is not None else (
-        boot_health_timeout() if scale_mode else 10.0
-    );
+    budget = health_timeout
+        if health_timeout is not None
+        else (boot_health_timeout() if scale_mode else 10.0);
     healthy = wait_for_health(
         base_url, lambda { proc.poll() is None; }, timeout=budget, progress=progress
     );

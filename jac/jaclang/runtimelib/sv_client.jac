@@ -25,7 +25,7 @@ def unregister(module_name: str) {
     }
 }
 
-def register_test_client(module_name: str, client: any = None) -> None {
+def register_test_client(module_name: str, client: any = None) {
     env_key = sv_host_env_key(module_name);
     os.environ[env_key] = 'test';
     _registered_env_keys.add(env_key);

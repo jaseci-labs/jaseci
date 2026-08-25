@@ -1,5 +1,3 @@
-# Shared host dispatch for test/bun sv services used by core + scale runtimes.
-
 import from pathlib { Path }
 import hashlib;
 import from jaclang.jac0core.sv_service_host { resolve_sv_service_host }
@@ -13,18 +11,11 @@ import from jaclang.runtimelib { sv_client }
 
 
 def default_sv_base_port(module_name: str) -> int {
-    # Python's hash() is per-process salted, so two processes would derive
-    # different bases from the same name. Use a stable digest instead.
     digest = int.from_bytes(hashlib.sha1(module_name.encode()).digest()[:4], 'big');
     return 18000 + digest % 1000;
 }
 
 
-# Host test/bun sv services for module_name.
-#
-# Registers the service on sv_client and returns its base_url, or returns
-# None when the caller should fall through to the cpython path. When
-# kinds is given, only those host kinds are dispatched.
 def dispatch_sv_service(
     module_name: str,
     base_path: str,
@@ -50,20 +41,13 @@ def dispatch_sv_service(
         return base_url;
     }
     if host_kind == HOST_BUN {
-        # Port retry parity with the cpython sibling path
-        # (serve_background(port_retries=100)): probe a free port instead of
-        # failing hard when the hash-derived one is occupied.
         spawn_port = port;
         if spawn_port <= 0 {
             import from jaclang.scale.runtime.context.util { pick_free_port }
             spawn_port = pick_free_port(module_name);
         }
         spawn_result = spawn_bun_sv_service(
-            module_name,
-            base_path,
-            spawn_port,
-            scale_mode=scale_mode,
-            progress=progress
+            module_name, base_path, spawn_port, scale_mode=scale_mode, progress=progress
         );
         if on_spawn is not None {
             on_spawn(spawn_result);

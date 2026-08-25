@@ -38,7 +38,7 @@ def _compile_client_module(source: str, target: str) -> JacProgram {
             mod = program.compile(main_path);
             assert mod is not None , (
                 f"fixture failed to compile for target={target}:\n"
-                    + '\n'.join(str(e) for e in program.errors_had)
+                + '\n'.join(str(e) for e in program.errors_had)
             );
             run_pass(TypeCheckPass, mod, program);
             return program;
@@ -95,11 +95,7 @@ test "browser host still merges dom_types for document" {
 }
 
 test "pure server module keeps js_globals invisible" {
-    src = (
-        'def:pub server_only() -> int {\n'
-        '    return Date.now();\n'
-        '}\n'
-    );
+    src = 'def:pub server_only() -> int {\n' '    return Date.now();\n' '}\n';
     program = _compile_client_module(src, 'web');
     pretty = '\n'.join([e.pretty_print() for e in program.errors_had]);
     assert len(program.errors_had) > 0 , (

@@ -440,9 +440,7 @@ def _auto_client_target(config: JacConfig, requested: str, project_dir: Path) ->
     return requested;
 }
 
-def _target_setup_missing(
-    target_name: str, target: Host, project_dir: Path
-) -> bool {
+def _target_setup_missing(target_name: str, target: Host, project_dir: Path) -> bool {
     if not target.requires_setup {
         return False;
     }

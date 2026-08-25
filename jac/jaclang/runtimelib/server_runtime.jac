@@ -9,8 +9,7 @@ import from "./bun_store.js" {
 async def parseJsonBody(req: any) -> any {
     try {
         text = await req.text();
-        # Empty body means no fields — mirrors the cpython host, where a bare
-        # POST /walker/<name> is valid.
+
         if not text or not text.strip() {
             empty: dict = {};
             return empty;
@@ -78,8 +77,7 @@ def serializeApiValue(val: any) -> any {
                 out[key] = serializeApiValue(val[key]);
             }
         }
-        # Reference: Serializer.serialize(api_mode=True) only annotates
-        # archetype instances — plain objects/dicts must stay clean.
+
         if (
             val.constructor
             and val.constructor.name
@@ -98,8 +96,6 @@ def finalizeCallResponse(result: any, reports: any = []) -> dict {
 }
 
 def envelopeResponse(payload: any) -> any {
-    # Mirrors _get_http_status in scale/server/impl/serve.impl.jac: failed
-    # transport envelopes are 500, successful ones 200.
     status: any = 200;
     if not payload.ok {
         status = 500;
@@ -109,7 +105,6 @@ def envelopeResponse(payload: any) -> any {
 }
 
 def okEnvelope(data: any) -> dict {
-    # Mirrors _transport_response_to_dict in jaclang/scale/server/impl/serve.impl.jac
     return {'ok': True, 'type': 'response', 'data': data, 'error': None};
 }
 

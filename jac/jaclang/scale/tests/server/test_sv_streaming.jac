@@ -182,9 +182,7 @@ test "sv_service_call returns a generator when downstream emits SSE" {
 
     sv_client.register_test_client(
         "stream_mod",
-        _StubClient(
-            body_text=_sse_body(events_in), content_type="text/event-stream"
-        )
+        _StubClient(body_text=_sse_body(events_in), content_type="text/event-stream")
     );
     try {
         gen = JacScalePlugin.sv_service_call("stream_mod", "stream_events", {});

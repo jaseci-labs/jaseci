@@ -2,8 +2,8 @@ import from jaclang.runtimelib.store { SCHEMA_VERSION, SCHEMA_STAMP_KEY, SCHEMA_
 
 
 glob _BUN_STORE_NOTE: str = (
-    'BunStore persists through Bun.sql against the shared anchors schema'
-),
+         'BunStore persists through Bun.sql against the shared anchors schema'
+     ),
      _BUN_SQL_API: str = 'Bun.sql';
 
 

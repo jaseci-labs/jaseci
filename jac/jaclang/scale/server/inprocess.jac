@@ -123,9 +123,7 @@ def prepare_inprocess_runtime(
             app=native_server.app, raise_server_exceptions=False
         );
         return PreparedInProcessRuntime(
-            server=server,
-            client=client,
-            _prior_ctx=prior_ctx
+            server=server, client=client, _prior_ctx=prior_ctx
         );
     } except Exception {
         if mod in Jac.loaded_modules {

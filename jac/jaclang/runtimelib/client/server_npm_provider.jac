@@ -20,7 +20,7 @@ def server_npm_root(project_dir: Path) -> Path {
 }
 
 
-def install_server_npm(project_dir: Path) -> None {
+def install_server_npm(project_dir: Path) {
     import from jaclang.runtimelib.client { get_bun }
     import from jaclang.runtimelib.client.bun_installer { bun_unavailable_message }
     import json;

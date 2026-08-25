@@ -59,10 +59,7 @@ def _compile_bun_service(source: str) -> tuple[JacProgram, any] {
             os.chdir(tmp);
             program = JacProgram();
             mod = program.compile(
-                main_path,
-                options=CompileOptions(
-                    force_codespace='client'
-                )
+                main_path, options=CompileOptions(force_codespace='client')
             );
             assert mod is not None , (
                 "fixture failed to compile:\n"
@@ -240,18 +237,14 @@ def _assert_real_js_impl(mod: str) {
         );
     }
     if mod == 'random' {
-        assert (
-            'Math.random' in js or 'getRandomValues' in js
-        ) , "random.randint must use Math.random or crypto.getRandomValues";
+        assert ('Math.random' in js or 'getRandomValues' in js) , "random.randint must use Math.random or crypto.getRandomValues";
     }
     if mod == 'hashlib' {
         assert 'CryptoHasher' in js , "hashlib.sha256 must use Bun.CryptoHasher";
         assert '(i * 7 + len' not in js , "hashlib must not use fake digest stub";
     }
     if mod == 'uuid' {
-        assert (
-            'randomUUID' in js or 'Math.random' in js
-        ) , "uuid.uuid4 must use crypto.randomUUID or Math.random fallback";
+        assert ('randomUUID' in js or 'Math.random' in js) , "uuid.uuid4 must use crypto.randomUUID or Math.random fallback";
         assert '(i * 11 + 5)' not in js , "uuid must not use deterministic fake hex";
     }
 }

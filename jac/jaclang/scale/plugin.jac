@@ -765,7 +765,7 @@ class JacScalePlugin {
             def _cleanup_bun {
                 stop_sv_sibling(module_name);
             }
-            def _register_bun_spawn(spawn_result: any) -> None {
+            def _register_bun_spawn(spawn_result: any) {
                 _sv_sibling_procs[module_name] = spawn_result.proc;
                 atexit.register(_cleanup_bun);
             }

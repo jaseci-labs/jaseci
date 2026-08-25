@@ -431,10 +431,7 @@ test "Jdb.has_breakpoint still reads the compiled bytecode" {
 # ─────────────────────────────────────────────────────────────────────
 
 test "native blocker uses capability requirements instead of signal-node tables" {
-    import from jaclang.jac0core.host {
-        HOST_DOM,
-        native_unmet_capability
-    }
+    import from jaclang.jac0core.host { HOST_DOM, native_unmet_capability }
     assert native_unmet_capability(HOST_DOM);
 }
 

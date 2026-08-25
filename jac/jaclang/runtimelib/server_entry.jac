@@ -40,15 +40,7 @@ def emit_server_entry(
     import from jaclang.jac0core.compiler { run_pass }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
     runtime_src = Path(resolve_client_runtime_cl_path('bun'));
-    # server_runtime.jac is a JS-interop module: it deliberately uses JS
-    # idioms (Reflect.apply, Bun.serve, dynamic wire objects) that the type
-    # checker cannot model, so its diagnostics are expected and do not gate
-    # this internal compile — the same posture main applies to
-    # client_runtime.jac. Since #8399 there is no type_check opt-out; the
-    # gate here is produced JS, and drift is caught by the bun e2e suites,
-    # which execute the artifact through real Bun.build (mislowered or
-    # invalid JS fails the build). User service modules keep the strict
-    # errors_had gate in build_bun_service_artifact.
+
     prog = JacProgram();
     rt_mod = prog.compile(str(runtime_src));
     if rt_mod is not None {
@@ -59,18 +51,14 @@ def emit_server_entry(
         console.error('  server: failed to lower server_runtime.jac');
         return 1;
     }
-    # EsastGenPass does not emit export statements; the entry script imports
-    # named symbols (execWalker, startBunServer) from this module, so expose
-    # every top-level binding -- same treatment the string bundler applies
-    # to cl-stdlib dependency artifacts.
+
     import from jaclang.runtimelib.bun_service_builder { _dep_export_names }
     runtime_exports = _dep_export_names(runtime_js);
     if runtime_exports {
         runtime_js += f"\nexport {{{', '.join(runtime_exports)}}};\n";
     }
     (out_dir / 'server_runtime.js').write_text(runtime_js, encoding='utf-8');
-    # The `_jac` runtime bootstrap as its own module; the entry script
-    # imports it and installs it on globalThis (see bun_entry).
+
     import from jaclang.compiler.passes.ecmascript.jac_runtime_js {
         build_jac_runtime_js
     }
@@ -92,8 +80,7 @@ def emit_server_entry(
             + ';\n'
             + f'export const SCHEMA_VERSION = {int(SCHEMA_VERSION)};\n'
         );
-        # Baked at build time from [database.indexes] via promotions_for() so
-        # BunStore computes the same schema fingerprint as PgStore.
+
         schema_js += 'export const PROMOTIONS = '
             + json.dumps(promotions or {}, sort_keys=True)
             + ';\n';

@@ -15,8 +15,6 @@ impl TestHost.dev(
     raise NotImplementedError("test host is started via ensure_sv_service only");
 }
 
-impl TestHost.start(
-    entry_file: Path, project_dir: Path, api_port: int = 8000
-) -> None {
+impl TestHost.start(entry_file: Path, project_dir: Path, api_port: int = 8000) -> None {
     raise NotImplementedError("test host is started via ensure_sv_service only");
 }

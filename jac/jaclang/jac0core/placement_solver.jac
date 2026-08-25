@@ -397,10 +397,7 @@ def _module_externally_pinned(mod_path: str) -> bool {
 
 def _seed_from_summary(module: uni.Module, prog: any) -> int {
     import from jaclang.jac0core.compiler { _stamp_context_element }
-    import from jaclang.jac0core.host {
-        CAPABILITY_SEED_ORDER,
-        seed_codespace_for_req
-    }
+    import from jaclang.jac0core.host { CAPABILITY_SEED_ORDER, seed_codespace_for_req }
     mod_path = module.loc.mod_path or '';
     ps = get_module_summary(module, prog);
     seeded = 0;
@@ -445,11 +442,7 @@ def _seed_from_summary(module: uni.Module, prog: any) -> int {
                 continue;
             }
             target_ctx = seeded_ctx;
-            ctx_label = (
-                'native'
-                    if seeded_ctx == CodeContext.NATIVE
-                    else 'client'
-            );
+            ctx_label = 'native' if seeded_ctx == CodeContext.NATIVE else 'client';
             why = reason;
             break;
         }

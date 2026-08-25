@@ -4,7 +4,7 @@ obj EndpointMeta {
         `pub: bool = False,
         params: list[str] = [];
 
-    def postinit -> None {
+    def postinit {
         if not self.name {
             raise ValueError('EndpointMeta requires a name');
         }
@@ -19,8 +19,6 @@ def build_bun_server_entry_script(
     module_imports: list[str],
     handler_imports: list[str]
 ) -> str {
-    # Callers pass pub-only endpoint lists (see bun_service_builder, the
-    # single visibility enforcement point).
     walker_names: list[str] = [w.name for w in walkers];
     func_names: list[str] = [f.name for f in functions];
 
@@ -39,10 +37,6 @@ def build_bun_server_entry_script(
     lines: list[str] = [
         f'// Auto-generated Bun server entry for {project_name!r}',
         'import { execWalker, startBunServer } from "./server_runtime.js";',
-        # Generated code references the `_jac` runtime as a global; under the
-        # string bundler a preamble defines it inline, but Bun.build resolves
-        # real ESM imports, so materialize it as a module and install it on
-        # globalThis before any handler runs.
         'import { _jac } from "./jac_runtime.js";',
         'globalThis._jac = _jac;'
     ];
