@@ -17,7 +17,7 @@ glob FIXTURES = os.path.join(
 
 def _codes(name: str) -> list[str] {
     prog = JacProgram();
-    prog.compile(os.path.join(FIXTURES, name), type_check=True);
+    prog.compile(os.path.join(FIXTURES, name));
     out = [
         a.code.code
         for a in (list(prog.errors_had) + list(prog.warnings_had))

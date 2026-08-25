@@ -1161,7 +1161,7 @@ obj ManifestBuilder {
                 '    echo "jac-scale boot: service $JAC_SV_NAME resolves to $SV_FILE, which the shipped bundle does not contain; fix [scale.microservices] and re-deploy." >&2; '
                 "    exit 1; "
                 "  fi; "
-                '  exec jac start "$SV_FILE"; '
+                '  exec jac run --serve "$SV_FILE"; '
                 "fi"
             ]
         };

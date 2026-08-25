@@ -1,5 +1,6 @@
 import from pathlib { Path }
 import json;
+import from http.client { HTTPResponse }
 import from urllib.request { urlopen, Request }
 import from urllib.error { URLError }
 import from functools { lru_cache }
@@ -249,7 +250,8 @@ def _github_api_get(url: str) -> any {
                 "User-Agent": "jac-mcp"
             }
         );
-        with urlopen(req, timeout=10) as resp {
+        opened: HTTPResponse = urlopen(req, timeout=10);
+        with opened as resp {
             return json.loads(resp.read().decode());
         }
     } except (URLError, json.JSONDecodeError, OSError) {
@@ -317,7 +319,8 @@ def _fetch_example_github(github_path: str) -> str {
     for (rel_path, download_url) in sorted(jac_files) {
         try {
             req = Request(download_url, headers={"User-Agent": "jac-mcp"});
-            with urlopen(req, timeout=10) as resp {
+            opened: HTTPResponse = urlopen(req, timeout=10);
+            with opened as resp {
                 content = resp.read().decode();
             }
             result_parts.append(f"--- {rel_path} ---\n{content}");

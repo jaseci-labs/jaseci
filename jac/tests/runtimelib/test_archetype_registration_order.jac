@@ -56,11 +56,15 @@ def _publish_home_module -> (object | None) {
 }
 
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 def _restore_home_module(previous: (object | None)) {
     if previous is None {
         sys.modules.pop(_EarlyNode.__module__, None);
     } else {
-        sys.modules[_EarlyNode.__module__] = previous;
+        sys.modules[_EarlyNode.__module__] = _as_any(previous);
     }
 }
 
@@ -157,13 +161,14 @@ test "a raw append cannot install a hook that skips the back-fill" {
         seen.append(cls);
     }
     installed = False;
+    hooks: any = Archetype._subclass_hooks;
     try {
-        Archetype._subclass_hooks.append(recorder);
+        hooks.append(recorder);
         installed = True;
     } except AttributeError { } finally {
         if installed {
             try {
-                Archetype._subclass_hooks.remove(recorder);
+                hooks.remove(recorder);
             } except Exception { }
         }
     }

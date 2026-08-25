@@ -290,7 +290,7 @@ test "a service pod boots exactly the module the deploy resolved" {
             project, {"JAC_SV_NAME": "svc", "JAC_SV_FILE": "svc.jac"}
         );
         assert rc == 0 , err;
-        assert argv.split() == ["start", "svc.jac"] , argv;
+        assert argv.split() == ["run", "--serve", "svc.jac"] , argv;
     }
 }
 

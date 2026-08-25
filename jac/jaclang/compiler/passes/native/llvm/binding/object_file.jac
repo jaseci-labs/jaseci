@@ -9,7 +9,7 @@ class SectionIteratorRef(ffi.ObjectRef) {
         return ffi.lib.LLVMPY_IsSectionText(self);
     }
 
-    def size(self: SectionIteratorRef) -> object {
+    def size(self: SectionIteratorRef) -> int {
         return ffi.lib.LLVMPY_GetSectionSize(self);
     }
 

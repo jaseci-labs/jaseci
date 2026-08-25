@@ -17,6 +17,4 @@ obj NaIRGenClibAbi(NaIRGenState) {
     def _codegen_clib_call(
         func: ir.Function, func_name: str, args: list[ir.Value]
     ) -> (ir.Value | None);
-
-    def _clib_sext_ret(func_name: str, result: ir.Value) -> ir.Value;
 }

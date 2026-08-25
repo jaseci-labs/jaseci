@@ -151,7 +151,6 @@ test "feature command help stays within its own family" {
     # a sibling feature family.
     owners: dict[str, str] = {
         "setup": "jaclang.runtimelib.client",
-        "start": "jaclang.runtimelib.client",
         "build": "jaclang.runtimelib.client",
         "scale": "jaclang.scale",
         "model": "jaclang.byllm",

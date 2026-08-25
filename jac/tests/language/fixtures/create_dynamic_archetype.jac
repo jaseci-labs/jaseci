@@ -20,7 +20,9 @@ visit [-->];
 
 with entry {
     node_arch = JacRuntime.create_archetype_from_source(source_code);
+    assert node_arch is not None;
     walker_arch = JacRuntime.create_archetype_from_source(walker_code);
+    assert walker_arch is not None;
     node_obj = JacRuntime.spawn_node('dynamic_node', {'value': 99}, node_arch.__name__);
     walker_obj = JacRuntime.spawn_walker(
         'dynamic_walker', module_name=walker_arch.__name__

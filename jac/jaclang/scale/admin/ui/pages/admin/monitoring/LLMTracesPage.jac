@@ -13,7 +13,7 @@ def:pub LLMTracesPage -> JsxElement {
         detailLoading: bool = False,
         autoRefresh: bool = True,
         errorMsg: str = "",
-        expandedIds: list = [],
+        expandedIds: list[str] = [],
         childrenMap: dict = {};
 
     auth = useAuth();
@@ -45,15 +45,18 @@ def:pub LLMTracesPage -> JsxElement {
     }
 
     async def toggleExpand(traceId: str) {
-        idx = expandedIds.indexOf(traceId);
-        if idx >= 0 {
-            expandedIds = expandedIds.slice(0, idx).concat(expandedIds.slice(idx + 1));
+        if traceId in expandedIds {
+            expandedIds = [
+                tid
+                for tid in expandedIds
+                if tid != traceId
+            ];
         } else {
-            expandedIds = expandedIds.concat([traceId]);
+            expandedIds = expandedIds + [traceId];
             if not childrenMap[traceId] {
                 tResult = await getLLMTraceDetail(auth["authToken"], traceId);
                 if tResult["ok"] and tResult["data"] {
-                    newMap = Object.assign({}, childrenMap);
+                    newMap: dict = {** childrenMap};
                     newMap[traceId] = tResult["data"]["child_traces"] or [];
                     childrenMap = newMap;
                 }
@@ -99,9 +102,9 @@ def:pub LLMTracesPage -> JsxElement {
             return "N/A";
         }
         d = Reflect.construct(Date, [Number(ts) * 1000]);
-        hours = String(d.getHours()).padStart(2, "0");
-        mins = String(d.getMinutes()).padStart(2, "0");
-        secs = String(d.getSeconds()).padStart(2, "0");
+        hours = str(d.getHours()).zfill(2);
+        mins = str(d.getMinutes()).zfill(2);
+        secs = str(d.getSeconds()).zfill(2);
         return hours + ":" + mins + ":" + secs;
     }
 
@@ -112,14 +115,18 @@ def:pub LLMTracesPage -> JsxElement {
         return "px-2 py-0.5 rounded text-xs font-bold bg-red-500/30 text-red-300 border border-red-500/50";
     }
 
+    def toFixed(value: float, places: int) -> str {
+        return str(globalThis.Number(value).toFixed(places));
+    }
+
     def formatCost(cost: float) -> str {
         if not cost or cost == 0 {
             return "$0.00";
         }
         if cost >= 0.01 {
-            return "$" + Number(cost).toFixed(2);
+            return "$" + toFixed(cost, 2);
         }
-        return "$" + Number(cost).toFixed(4);
+        return "$" + toFixed(cost, 4);
     }
 
     if isLoading {
@@ -477,16 +484,16 @@ def:pub LLMTracesPage -> JsxElement {
             </div>;
     }
 
-    def appendChildren(parentId: str, depth: int, items: list, visited: list) {
-        if visited.indexOf(parentId) >= 0 {
+    def appendChildren(parentId: str, depth: int, items: list, visited: list[str]) {
+        if parentId in visited {
             return;
         }
-        nextVisited = visited.concat([parentId]);
+        nextVisited: list[str] = visited + [parentId];
         ch = childrenMap[parentId] or [];
         for child in ch {
-            items.push({"trace": child, "depth": depth});
+            items.append({"trace": child, "depth": depth});
             childId = child["invocation_id"] or "";
-            if childId and expandedIds.indexOf(childId) >= 0 {
+            if childId and childId in expandedIds {
                 appendChildren(childId, depth + 1, items, nextVisited);
             }
         }
@@ -495,9 +502,9 @@ def:pub LLMTracesPage -> JsxElement {
     def getDisplayItems -> list {
         items: list = [];
         for i in traces {
-            items.push({"trace": i, "depth": 0});
+            items.append({"trace": i, "depth": 0});
             traceId = i["invocation_id"] or "";
-            if traceId and expandedIds.indexOf(traceId) >= 0 {
+            if traceId and traceId in expandedIds {
                 appendChildren(traceId, 1, items, []);
             }
         }
@@ -573,13 +580,9 @@ def:pub LLMTracesPage -> JsxElement {
                                         toggleExpand(item["trace"]["invocation_id"]);
                                     }}
                                 >
-                                    {expandedIds.indexOf(item["trace"]["invocation_id"])
-                                        >= 0
-                                        and <span className="text-xs">▼</span>}{expandedIds.indexOf(
-                                        item["trace"]["invocation_id"]
-                                    )
-                                        < 0
-                                        and <span className="text-xs">▶</span>}
+                                    {<span className="text-xs">▼</span>
+                                        if item["trace"]["invocation_id"] in expandedIds
+                                        else <span className="text-xs">▶</span>}
                                 </button>}
                             {(item["trace"]["child_count"] or 0) == 0
                                 and <span className="flex-shrink-0 w-5"/>}
@@ -597,7 +600,7 @@ def:pub LLMTracesPage -> JsxElement {
                             >
                                 {item["trace"]["caller_name"] or "unknown"}
                             </span>
-                            {expandedIds.indexOf(item["trace"]["invocation_id"]) >= 0
+                            {item["trace"]["invocation_id"] in expandedIds
                                 and not childrenMap[item["trace"]["invocation_id"]]
                                 and <span
                                     className="text-teal-400 text-xs animate-pulse"

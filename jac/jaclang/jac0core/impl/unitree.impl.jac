@@ -331,8 +331,30 @@ impl Symbol.add_defn(nd: NameAtom) -> None {
 }
 
 impl Symbol.add_use(nd: NameAtom) -> None {
-    self.uses.append(nd);
     nd.sym = self;
+
+    if self.in_stub_scope() {
+        return;
+    }
+    self.uses.append(nd);
+}
+
+impl Symbol.in_stub_scope -> bool {
+    memo = self._in_stub_scope;
+    if memo is not None {
+        return memo;
+    }
+    found = False;
+    cur: (UniScopeNode | None) = self.parent_tab;
+    while cur is not None {
+        if isinstance(cur, Module) {
+            found = cur.stub_only;
+            break;
+        }
+        cur = cur.parent_scope;
+    }
+    self._in_stub_scope = found;
+    return found;
 }
 
 impl Symbol.__repr__ -> str {
@@ -760,6 +782,9 @@ impl Expr.postinit -> None {
     self._type_sym_tab = None;
     self.type = None;
     self.narrowed_type = None;
+    self.coerce_to = None;
+    self.fw = None;
+    self.fw_safe = False;
     self.attached_tokens = None;
 }
 
@@ -868,7 +893,6 @@ impl SubTag.postinit -> None {
 
 impl Module.postinit -> None {
     self.src_terminals = self.terminals;
-    self.annex_mods = [];
     self.rc_last_use = {};
     _rc_move_in: set[int] = set();
     self.rc_move_in = _rc_move_in;
@@ -1156,6 +1180,9 @@ impl ModulePath.native_bundled_path -> (str | None) {
     if not self.in_native_context() {
         return None;
     }
+    if mod_path and mod_path.endswith(".pyi") {
+        return None;
+    }
     base = self.dot_path_str;
     if not is_bundled_native_module(base) {
         return None;
@@ -1223,7 +1250,8 @@ impl ModuleItem.binding_name.getter -> (Name | None) {
     if isinstance(self.name, Name) {
         return self.name;
     }
-    if self.name.value == 'default' {
+
+    if self.name.value in ('default', '*') {
         return self.alias;
     }
     return None;
@@ -1504,6 +1532,19 @@ impl Ability.method_owner.getter -> Archetype | Enum | None {
                 return nodew;
             }
             nodew = nodew.parent;
+        }
+    }
+
+    if found is None {
+        nodew = self.parent;
+        while isinstance(nodew, (IfStmt, ElseStmt, ModuleCode)) {
+            nodew = nodew.parent;
+        }
+        if nodew is not self.parent and isinstance(nodew, (Archetype, Enum)) {
+            mod = self.find_parent_of_type(Module);
+            if mod is not None and mod.is_raised_from_py {
+                return nodew;
+            }
         }
     }
     return found;
@@ -2849,6 +2890,9 @@ impl bind_assignment_targets(nd: Assignment) -> None {
                 (i.sym_name in i.sym_tab.names_in_scope)
                 and ((sym := i.sym_tab.names_in_scope[i.sym_name]) is not None)
             ) {
+                if sym.imported and isinstance(nd.value, Null) {
+                    sym.add_defn(i.name_spec);
+                }
                 sym.add_use(i.name_spec);
                 record_cross_scope_rebind(i.sym_tab, i.sym_name, sym);
             } elif (
@@ -2866,6 +2910,9 @@ impl bind_assignment_targets(nd: Assignment) -> None {
                     if (
                         (outer := py_scope.lookup(i.sym_name, deep=False)) is not None
                     ) {
+                        if outer.imported and isinstance(nd.value, Null) {
+                            outer.add_defn(i.name_spec);
+                        }
                         outer.add_use(i.name_spec);
                         record_cross_scope_rebind(py_scope, i.sym_name, outer);
                     } else {

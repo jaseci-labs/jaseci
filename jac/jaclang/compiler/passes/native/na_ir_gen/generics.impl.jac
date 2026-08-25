@@ -16,6 +16,65 @@ impl NaIRGenGenerics._mangled_of(t: any) -> (str | None) {
     return m;
 }
 
+impl NaIRGenGenerics._syntactic_bind_type_params(
+    tag_node: (uni.UniNode | None), actual: any, tp_names: list[str], solution: dict
+) -> None {
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _SbCT }
+    } except ImportError {
+        return;
+    }
+    nd = tag_node;
+    while isinstance(nd, uni.AtomUnit) and nd.value is not None {
+        nd = nd.value;
+    }
+    if nd is None or actual is None {
+        return;
+    }
+    if isinstance(nd, uni.Name) {
+        if nd.value in tp_names and nd.value not in solution {
+            _a = actual;
+            if isinstance(_a, _SbCT)
+                and not _a.is_instance()
+                and _a.is_instantiable() {
+                _a = _a.clone_as_instance();
+            }
+            solution[nd.value] = _a;
+        }
+        return;
+    }
+    if (
+        isinstance(nd, uni.AtomTrailer)
+        and isinstance(nd.target, uni.Name)
+        and nd.target.value == "type"
+        and isinstance(nd.right, uni.IndexSlice)
+        and len(nd.right.slices) == 1
+        and nd.right.slices[0].start is not None
+        and isinstance(actual, _SbCT)
+        and not actual.is_instance()
+        and actual.is_instantiable()
+    ) {
+        self._syntactic_bind_type_params(
+            nd.right.slices[0].start, actual.clone_as_instance(), tp_names, solution
+        );
+        return;
+    }
+    if (
+        isinstance(nd, uni.AtomTrailer)
+        and isinstance(nd.right, uni.IndexSlice)
+        and isinstance(actual, _SbCT)
+    ) {
+        _args = actual.private.type_args or [];
+        for (i, sl) in enumerate(nd.right.slices) {
+            if sl.start is not None and i < len(_args) {
+                self._syntactic_bind_type_params(
+                    sl.start, _args[i], tp_names, solution
+                );
+            }
+        }
+    }
+}
+
 impl NaIRGenGenerics._solve_generic_call(
     ability: uni.Ability, nd: uni.FuncCall
 ) -> (dict | None) {
@@ -93,6 +152,12 @@ impl NaIRGenGenerics._solve_generic_call(
             positional.append(a);
         }
     }
+    _tp_names: list[str] = [];
+    for tp in (ability.type_params or []) {
+        if tp?.name {
+            _tp_names.append(tp.name.value);
+        }
+    }
     for (i, p) in enumerate(params) {
         p_name = p.name.sym_name if p?.name and p.name is not None else None;
         chosen = positional[i]
@@ -106,6 +171,20 @@ impl NaIRGenGenerics._solve_generic_call(
             decl_t = p.type_tag.tag.type if p.type_tag?.tag else None;
         }
         unify(decl_t, chosen.type);
+        _tp_unsolved = False;
+        for n in _tp_names {
+            if n not in solution {
+                _tp_unsolved = True;
+                break;
+            }
+        }
+        if (
+            _tp_unsolved and p?.type_tag and p.type_tag is not None and p.type_tag?.tag
+        ) {
+            self._syntactic_bind_type_params(
+                p.type_tag.tag, chosen.type, _tp_names, solution
+            );
+        }
     }
     for tp in (ability.type_params or []) {
         tp_name = tp.name.value if tp?.name and tp.name is not None else None;
@@ -142,8 +221,10 @@ impl NaIRGenGenerics._instantiate_generic(
         return _hit;
     }
     import re;
+    import hashlib as _mono_hash;
     safe = re.sub(r"[^0-9A-Za-z_]", "_", "_".join(parts));
-    spec_name = f"__jac_mono_{func_name}_{safe}";
+    _kd = _mono_hash.sha256(key.encode()).hexdigest()[:8];
+    spec_name = f"__jac_mono_{func_name}_{safe}_{_kd}";
     saved_sol = self._mono_solution;
     saved_map = self._mono_mangle_map;
     self._mono_solution = solution;
@@ -265,8 +346,10 @@ impl NaIRGenGenerics._instantiate_generic_for_target(
         return _hit;
     }
     import re;
+    import hashlib as _mono_hash;
     safe = re.sub(r"[^0-9A-Za-z_]", "_", "_".join(parts));
-    spec_name = f"__jac_mono_{func_name}_{safe}";
+    _kd = _mono_hash.sha256(key.encode()).hexdigest()[:8];
+    spec_name = f"__jac_mono_{func_name}_{safe}_{_kd}";
     saved_sol = self._mono_solution;
     saved_map = self._mono_mangle_map;
     self._mono_solution = solution;
@@ -306,8 +389,10 @@ impl NaIRGenGenerics._instantiate_generic_method(
         return _hit;
     }
     import re;
+    import hashlib as _mono_hash;
     safe = re.sub(r"[^0-9A-Za-z_]", "_", "_".join(parts));
-    spec_name = f"__jac_mono_{owner_arch}_{method_name}_{safe}";
+    _kd = _mono_hash.sha256(key.encode()).hexdigest()[:8];
+    spec_name = f"__jac_mono_{owner_arch}_{method_name}_{safe}_{_kd}";
     saved_sol = self._mono_solution;
     saved_map = self._mono_mangle_map;
     self._mono_solution = solution;
@@ -329,6 +414,9 @@ impl NaIRGenGenerics._stamp_mono_method(
     memo_key: str
 ) -> (ir.Function | None) {
     full_name = f"{arch_name}.{method_name}";
+    if full_name in self._native_skipped_methods {
+        return None;
+    }
     struct_type = self.struct_types.get(arch_name);
     sig = ability.signature;
     if struct_type is None
