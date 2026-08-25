@@ -21,9 +21,9 @@ can take a minute or two compiling the import graph; subsequent runs are fast.
 """
 
 import from unittest { mock }
-import jaclang.jac0core.compiler as compiler_mod;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import jaclang.compiler.driver.schedules as compiler_mod;
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 def check_src(src: str) -> list[str] {
     prog = JacProgram();
