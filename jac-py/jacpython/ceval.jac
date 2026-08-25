@@ -1437,6 +1437,7 @@ import from opcode_meta {
     OP_LOAD_FROM_DICT_OR_DEREF,
     OP_LOAD_FROM_DICT_OR_GLOBALS,
     OP_NOT_TAKEN,
+    OP_SETUP_ANNOTATIONS,
     OP_POP_TOP,
     OP_PUSH_EXC_INFO,
     OP_PUSH_NULL,
@@ -14433,6 +14434,14 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_LOAD_LOCALS {
             stack.append(dict_from_str_map(locals));
+            continue;
+        }
+        if op == OP_SETUP_ANNOTATIONS {
+            # CPython SETUP_ANNOTATIONS: bind an empty __annotations__ dict in
+            # the frame namespace when absent (module/class annotation setup).
+            if "__annotations__" not in locals {
+                locals["__annotations__"] = PyDict(t="dict", items={});
+            }
             continue;
         }
         if op == OP_STORE_NAME {
