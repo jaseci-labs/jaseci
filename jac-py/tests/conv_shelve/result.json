@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "4e27b6c6bce510c5490cc3e90b0fe5c36165f1f0",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_shelve/conv_shelve_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:39:03",
+  "hashes": {
+    "pins_jac": "4da41b312b8f54c3e833cff2b587d2d9f18ed215073df5f404f20e28722dfa4b",
+    "conversion_json": "10f3df9e78875a34ffac71d45b806ac4d78bf39673e15a3c989936d10f6e30f1",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "shelve",
+  "status": "passed",
+  "timed_out": false,
+  "counts": {
+    "converted": 14,
+    "runnable": 5,
+    "green": 5,
+    "quarantined": 9,
+    "failed": 0,
+    "infra_failed": 0
+  },
+  "failures": []
+}

@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "4e27b6c6bce510c5490cc3e90b0fe5c36165f1f0",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_minidom/conv_minidom_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:38:46",
+  "hashes": {
+    "pins_jac": "544c855e18ac6e3f5910e73301938edb4b360c5bd35662217b56ba2c7897c8ec",
+    "conversion_json": "99cf41e7be09d391b604f64df45eff2670f54380b121cacf33cedb970ba27cc0",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "minidom",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 131,
+    "runnable": 126,
+    "green": 113,
+    "quarantined": 5,
+    "failed": 13,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "MinidomTest.testParseFromBinaryFile",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testParseFromTextFile",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testGetElementsByTagName",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testAppendChild",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testNonZero",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testUnlink",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testContext",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testCloneNodeEntity",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'swap_attr'\">"
+    },
+    {
+      "id": "MinidomTest.testEncodings",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16'\">"
+    },
+    {
+      "id": "MinidomTest.testPickledDocument",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle <class \\'ceval.Document\\'>: it\\'s not found as ceval.Document\"'>"
+    },
+    {
+      "id": "MinidomTest.testDeepcopiedDocument",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
+    },
+    {
+      "id": "MinidomTest.testDocRemoveChild",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testProcessingInstructionNameError",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    }
+  ]
+}
