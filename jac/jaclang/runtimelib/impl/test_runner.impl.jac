@@ -293,6 +293,46 @@ impl install_warning_filters -> None {
     }
 }
 
+impl _mem_available_bytes -> int {
+    avail = 0;
+    try {
+        with open("/proc/meminfo", encoding="utf-8") as f {
+            for line in f {
+                if line.startswith("MemAvailable:") {
+                    avail = int(line.split()[1]) * 1024;
+                    break;
+                }
+            }
+        }
+    } except Exception {
+        avail = 0;
+    }
+    return avail;
+}
+
+impl _pid_rss_mb(pid: int) -> int {
+    try {
+        with open(f"/proc/{pid}/status", encoding="utf-8") as f {
+            for line in f {
+                if line.startswith("VmRSS:") {
+                    return int(line.split()[1]) // 1024;
+                }
+            }
+        }
+    } except Exception {
+        return 0;
+    }
+    return 0;
+}
+
+impl _loadavg -> float {
+    try {
+        return os.getloadavg()[0];
+    } except Exception {
+        return 0.0;
+    }
+}
+
 impl default_jobs -> int {
     cpus = os.cpu_count() or 1;
     avail = 0;
@@ -872,7 +912,66 @@ impl Reporter.summarize(elapsed: float) -> int {
 }
 
 impl ForkPool.postinit -> None {
+    import time;
     self.kids = [];
+    self.started = time.monotonic();
+    self.mem_last = 0.0;
+    self.mem_trail = [];
+}
+
+impl ForkPool._memory_watchdog -> None {
+    import sys;
+    import time;
+    now = time.monotonic();
+    if (now - self.mem_last) < _MEM_POLL_SECONDS {
+        return;
+    }
+    self.mem_last = now;
+    avail = _mem_available_bytes();
+    rss = 0;
+    live = 0;
+    for k in self.kids {
+        if k["alive"] {
+            live += 1;
+            rss += _pid_rss_mb(k["pid"]);
+        }
+    }
+    elapsed = now - self.started;
+    line = (
+        f"[mem] t={int(elapsed)}s avail={avail // (1024 * 1024)}MB "
+        f"workers={live} worker_rss={rss}MB load={_loadavg():.1f} "
+        f"done={self.cursor}/{len(self.plan.files)}"
+    );
+    self.mem_trail.append(line);
+    sys.stderr.write(line + "\n");
+    sys.stderr.flush();
+    starved = (avail > 0) and (avail < _MEM_FLOOR_BYTES);
+    if not starved and (elapsed < _MEM_DEADLINE_SECONDS) {
+        return;
+    }
+    why = (
+        f"available memory fell to {avail // (1024 * 1024)} MB"
+            if starved
+            else f"the run passed {int(_MEM_DEADLINE_SECONDS)}s without finishing"
+    );
+    sys.stderr.write(
+        f"\n[mem] STOPPING: {why}. The runner is killed at this point with no "
+        f"step log, so the pool stops here and reports instead.\n"
+    );
+    for sample in self.mem_trail[-40:] {
+        sys.stderr.write("  " + sample + "\n");
+    }
+    sys.stderr.flush();
+    self.stopping = True;
+    for k in self.kids {
+        if k["alive"] {
+            try {
+                os.kill(k["pid"], 9);
+            } except OSError {
+                ;
+            }
+        }
+    }
 }
 
 impl ForkPool._should_stop -> bool {
@@ -1154,10 +1253,11 @@ impl ForkPool._pump -> None {
         }
         fds = [k["result_fd"] for k in busy];
         try {
-            (ready, _, _) = select.select(fds, [], []);
+            (ready, _, _) = select.select(fds, [], [], _MEM_POLL_SECONDS);
         } except OSError {
             break;
         }
+        self._memory_watchdog();
         for fd in ready {
             owners = [
                 k
