@@ -65,6 +65,11 @@ glob PAGE_ROUTES = {
          "podenv": PodEnvPage
      };
 
+# Nav items for one sidebar group, typed for the id/label lookups below.
+def groupItems(group: dict) -> list[dict[str, str]] {
+    return group["items"] as list[dict[str, str]];
+}
+
 def:pub DashboardLayout -> JsxElement {
     has activeTab: str = "metrics",
         isLight: bool = False;
@@ -92,7 +97,8 @@ def:pub DashboardLayout -> JsxElement {
         newLight = not isLight;
         isLight = newLight;
         applyThemeClass(newLight);
-        setStorage("jac-admin-theme", newLight and "light" or "dark");
+        themeName: str = "light" if newLight else "dark";
+        setStorage("jac-admin-theme", themeName);
     }
 
     # Restore the persisted theme once on mount.
@@ -165,15 +171,15 @@ def:pub DashboardLayout -> JsxElement {
                                     onClick={makeHandler(item["id"])}
                                     className={"w-full flex items-center gap-2.5 px-2.5 py-2 text-sm rounded-md transition-colors "
                                         + (
-                                            activeTab == item["id"]
-                                            and "bg-accent-weak text-accent font-medium"
-                                            or "text-muted hover:text-fg hover:bg-surface-2"
+                                            "bg-accent-weak text-accent font-medium"
+                                                if activeTab == item["id"]
+                                                else "text-muted hover:text-fg hover:bg-surface-2"
                                         )}
                                 >
                                     {navIcons[item["id"]]
                                         or <Workflow className={iconCls}/>}
                                     <span>{item["label"]}</span>
-                                </button> for item in group["items"]
+                                </button> for item in groupItems(group)
                             ]}
                         </div>
                     </div> for group in navGroups

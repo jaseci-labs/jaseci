@@ -1343,7 +1343,7 @@ obj ManifestBuilder {
                 '  if [ -z "$SV_FILE" ]; then '
                 '    SV_FILE="$(find . -name "${JAC_SV_NAME}.jac" -not -path "*/.*" -print 2>/dev/null | head -n1)"; '
                 '  fi; '
-                '  exec jac start "${SV_FILE:-${JAC_SV_NAME}.jac}"; '
+                '  exec jac run --serve "${SV_FILE:-${JAC_SV_NAME}.jac}"; '
                 "fi"
             ]
         };

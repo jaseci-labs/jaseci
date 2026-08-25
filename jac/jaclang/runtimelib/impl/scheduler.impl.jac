@@ -70,7 +70,12 @@ impl Scheduler.has_pending -> bool {
 }
 
 impl Scheduler._run_loop -> None {
-    heap: list = [];
+    stop_event = self._stop_event;
+    done_event = self._done_event;
+    if stop_event is None or done_event is None {
+        return;
+    }
+    heap: list[tuple[float, int, ScheduledTask]] = [];
     for (i, task) in enumerate(self._tasks) {
         if task.next_run is None {
             continue;
@@ -80,13 +85,13 @@ impl Scheduler._run_loop -> None {
     while self._running {
         self._pick_up_new_tasks(heap);
         if not heap {
-            self._stop_event.`wait(timeout=1.0);
+            stop_event.`wait(timeout=1.0);
             continue;
         }
         (next_ts, idx, task) = heap[0];
         delay = next_ts - datetime.datetime.now(datetime.timezone.utc).timestamp();
         if delay > 0 {
-            self._stop_event.`wait(timeout=delay);
+            stop_event.`wait(timeout=delay);
         }
         if not self._running {
             break;
@@ -101,13 +106,15 @@ impl Scheduler._run_loop -> None {
             heapq.heappush(heap, (new_next.timestamp(), id(task), task));
         }
         if not heap and not self.has_pending() {
-            self._done_event.set();
+            done_event.set();
         }
     }
-    self._done_event.set();
+    done_event.set();
 }
 
-impl Scheduler._pick_up_new_tasks(heap: list) -> None {
+impl Scheduler._pick_up_new_tasks(
+    heap: list[tuple[float, int, ScheduledTask]]
+) -> None {
     heap_tasks = {id(t) for (_, _, t) in heap};
     for (i, task) in enumerate(self._tasks) {
         if task.next_run is None {

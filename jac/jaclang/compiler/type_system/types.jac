@@ -77,7 +77,8 @@ obj AnyType(TypeBase) {
         CATEGORY: ClassVar[TypeCategory] = TypeCategory.Any;
     }
 
-    has is_foreign: bool = False;
+    has is_foreign: bool = False,
+        foreign_scalar: (str | None) = None;
 
     def __str__ -> str;
 }
@@ -214,7 +215,7 @@ obj Parameter {
 obj FunctionType(TypeBase) {
     has func_name: str = "",
         return_type: (TypeBase | None) = None,
-        parameters: (list[Parameter] | None) = None,
+        parameters: list[Parameter] = [],
         function_flags: int = 0,
         type_params: (list[TypeVarType] | None) = None,
         is_async: bool = False,

@@ -33,7 +33,7 @@ Declare dependencies in your `jac.toml` file under `[dependencies.npm]`:
 tailwindcss = "latest"
 ```
 
-Then run `jac start` or `jac install --npm` to install them.
+Then run `jac run` or `jac install --npm` to install them.
 
 ### Via CLI
 

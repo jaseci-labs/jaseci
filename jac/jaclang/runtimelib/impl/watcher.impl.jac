@@ -1,4 +1,5 @@
 import fnmatch;
+import os;
 import logging;
 import threading;
 import time;
@@ -17,20 +18,26 @@ impl JacFileWatcher.start -> None {
     class JacEventHandler(FileSystemEventHandler) {
         def on_modified(inner_self: JacEventHandler, event: FileSystemEvent) {
             if not event.is_directory {
-                watcher._on_change(event.src_path, ChangeType.MODIFIED);
+                watcher._on_change(os.fsdecode(event.src_path), ChangeType.MODIFIED);
             }
         }
 
         def on_created(inner_self: JacEventHandler, event: FileSystemEvent) {
-            watcher._on_change(event.src_path, ChangeType.CREATED, event.is_directory);
+            watcher._on_change(
+                os.fsdecode(event.src_path), ChangeType.CREATED, event.is_directory
+            );
         }
 
         def on_deleted(inner_self: JacEventHandler, event: FileSystemEvent) {
-            watcher._on_change(event.src_path, ChangeType.DELETED, event.is_directory);
+            watcher._on_change(
+                os.fsdecode(event.src_path), ChangeType.DELETED, event.is_directory
+            );
         }
 
         def on_moved(inner_self: JacEventHandler, event: FileSystemEvent) {
-            watcher._on_change(event.src_path, ChangeType.DELETED, event.is_directory);
+            watcher._on_change(
+                os.fsdecode(event.src_path), ChangeType.DELETED, event.is_directory
+            );
             dest = str(getattr(event, 'dest_path', '') or '');
             if dest {
                 watcher._on_change(dest, ChangeType.CREATED, event.is_directory);

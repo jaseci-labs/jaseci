@@ -1,3 +1,10 @@
+def scalar_llvm_type(`entry: JacTypeEntry) -> ir.Type {
+    if `entry.is_float {
+        return ir.FloatType() if `entry.width == 32 else ir.DoubleType();
+    }
+    return ir.IntType(`entry.width);
+}
+
 impl NaIRGenCore.postinit -> None {
     import os as _ni_os;
 
@@ -5,7 +12,7 @@ impl NaIRGenCore.postinit -> None {
     self._rc_debug_codegen = bool(_ni_opts.rc_debug_codegen);
     _ni_src: str = self.ir_in.loc.mod_path if self.ir_in.loc else "";
     _ni_mod_name: str = _ni_os.path.basename(_ni_src) if _ni_src else "jac_native";
-    self.llvm_module = ir.Module(name=_ni_mod_name, context=ir.Context());
+    self._llvm_module = ir.Module(name=_ni_mod_name, context=ir.Context());
     import jaclang.compiler.passes.native.llvm.binding as _llvm_bind;
 
     _ni_target_ovr = _ni_opts.native_target or "";
@@ -47,49 +54,37 @@ impl NaIRGenCore.postinit -> None {
         }
     }
 
-    _spec_map: dict[str, ir.Type] = {
-        "i8": ir.IntType(8),
-        "i16": ir.IntType(16),
-        "i32": ir.IntType(32),
-        "i64": ir.IntType(64),
-        "f32": ir.FloatType(),
-        "f64": ir.DoubleType(),
-        "i1": ir.IntType(1),
-        "i8*": ir.IntType(8).as_pointer()
-    };
-    self.type_map = {};
-    try {
-        import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
-        for (_name, _spec) in JAC_TYPE_REGISTRY.na_type_entries() {
-            self.type_map[_name] = _spec_map[_spec];
+    _byte_ptr = ir.IntType(8).as_pointer();
+    self._type_map = {};
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    for _scalar in JAC_TYPE_REGISTRY.scalar_entries() {
+        if _scalar.name == "str" {
+            continue;
         }
-    } except ImportError {
-        self.type_map["int"] = _spec_map["i64"];
-        self.type_map["float"] = _spec_map["f64"];
-        self.type_map["bool"] = _spec_map["i1"];
-        self.type_map["str"] = _spec_map["i8*"];
+        self.type_map[_scalar.name] = scalar_llvm_type(_scalar);
     }
+    self.type_map["str"] = (
+        _byte_ptr
+            if "wasm" in str(self.llvm_module.triple or "")
+            else self._str_desc_type()
+    );
+    self.type_map["LiteralString"] = self.type_map["str"];
+    self.type_map["Region"] = _byte_ptr;
 
-    if "wasm" not in str(self.llvm_module.triple or "") {
-        self.type_map["str"] = self._str_desc_type();
-    }
-    self.type_map["LiteralString"] = self.type_map.get("str", _spec_map["i8*"]);
-    self.type_map["Region"] = _spec_map["i8*"];
+    self.type_map["type"] = _byte_ptr;
 
-    self.type_map["type"] = _spec_map["i8*"];
-
-    self.complex_struct_type = self.llvm_module.context.get_identified_type(
+    self._complex_struct_type = self.llvm_module.context.get_identified_type(
         "JacComplex"
     );
     self.complex_struct_type.set_body(ir.DoubleType(), ir.DoubleType());
 
-    self.range_struct_type = self.llvm_module.context.get_identified_type("JacRange");
+    self._range_struct_type = self.llvm_module.context.get_identified_type("JacRange");
     self.range_struct_type.set_body(ir.IntType(64), ir.IntType(64), ir.IntType(64));
 
-    self.slice_struct_type = self.llvm_module.context.get_identified_type("JacSlice");
+    self._slice_struct_type = self.llvm_module.context.get_identified_type("JacSlice");
     self.slice_struct_type.set_body(ir.IntType(64), ir.IntType(64), ir.IntType(64));
 
-    self.jacval_type = self.llvm_module.context.get_identified_type("JacVal");
+    self._jacval_type = self.llvm_module.context.get_identified_type("JacVal");
     self.jacval_type.set_body(ir.IntType(8), ir.IntType(64));
 
     super.postinit();
@@ -387,6 +382,12 @@ impl NaIRGenCore._export_native_layout -> None {
         if fname.startswith("__") or fname == "jac_entry" or fname in method_names {
             continue;
         }
+        if ".__jacp_" in str(func.name) {
+            continue;
+        }
+        if fname in self._clib_symbol_lib {
+            continue;
+        }
         param_types = [self._llvm_type_str(a) for a in func.function_type.args];
         param_names: list[str] = [a.name for a in func.args];
         ret_type = self._llvm_type_str(func.function_type.return_type);
@@ -609,10 +610,14 @@ impl NaIRGenCore._register_imported_struct_types -> None {
     _self_key = (
         os.path.realpath(self.ir_in.loc.mod_path) if (self.ir_in?.loc) else None
     );
+    import from jaclang.jac0core.codeinfo { native_module_key }
+
+    _canon_src: dict = {};
+    _src_keys: dict[str, str] = {};
     dep_edges: dict = {};
     qi = 0;
     while qi < len(wq) {
-        (mod_name, cur_base, parent_src) = wq[qi];
+        (mod_name, cur_base, parent_key) = wq[qi];
         qi += 1;
         (src_mod_str, full_path) = resolve_native_module(mod_name, cur_base);
         if src_mod_str is None or full_path is None {
@@ -621,12 +626,12 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         if _self_key is not None and os.path.realpath(full_path) == _self_key {
             continue;
         }
-        if parent_src in dep_edges {
-            dep_edges[parent_src].append(src_mod_str);
-        } else {
-            dep_edges[parent_src] = [src_mod_str];
-        }
         abs_key = os.path.abspath(full_path);
+        if parent_key in dep_edges {
+            dep_edges[parent_key].append(abs_key);
+        } else {
+            dep_edges[parent_key] = [abs_key];
+        }
         if abs_key in processed_modules {
             continue;
         }
@@ -651,30 +656,34 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         if imported_mod is None {
             continue;
         }
-        self._ensure_imported_module_inferred(imported_mod);
+        self._ensure_dep_inference(imported_mod);
         processed_modules.add(abs_key);
+        _canon_src[abs_key] = src_mod_str;
         imported_mods.append((src_mod_str, imported_mod));
+        _src_keys[src_mod_str] = native_module_key(full_path);
 
         sub_base = os.path.dirname(os.path.abspath(full_path));
         for sub_imp in ModuleCodegenPass.iter_module_imports(imported_mod)
             + ModuleCodegenPass.iter_nested_imports(imported_mod, CodeContext.NATIVE) {
             sub_name = self._extract_import_module_name(sub_imp);
             if sub_name {
-                wq.append((sub_name, sub_base, src_mod_str));
+                wq.append((sub_name, sub_base, abs_key));
             }
         }
     }
 
     self._foreign_modules = [m for (_s, m) in imported_mods];
 
-    _own_code_srcs: set = set();
-    for (src_mod_str, imported_mod) in imported_mods {
+    _own_code_keys: set = set();
+    for (_abs_key, (_src_mod_str, imported_mod)) in zip(
+        _canon_src.keys(), imported_mods
+    ) {
         _has_own_code = any(
             not isinstance(s, uni.Import)
             for s in ModuleCodegenPass.iter_context_stmts(imported_mod)
         );
         if _has_own_code {
-            _own_code_srcs.add(src_mod_str);
+            _own_code_keys.add(_abs_key);
         }
     }
     _visited: set = set();
@@ -691,10 +700,12 @@ impl NaIRGenCore._register_imported_struct_types -> None {
             }
         } elif (
             _nd is not None
-            and _nd in _own_code_srcs
-            and _nd not in manifest.native_transitive_sources
+            and _nd in _own_code_keys
+            and _canon_src.get(_nd) is not None
+            and _canon_src[_nd] not in manifest.native_transitive_sources
         ) {
-            manifest.native_transitive_sources.append(_nd);
+            manifest.native_transitive_sources.append(_canon_src[_nd]);
+            manifest.native_transitive_keys.append(_src_keys.get(_canon_src[_nd], ""));
         }
     }
 
@@ -753,33 +764,6 @@ impl NaIRGenCore._permuted_walk_order(mods: list) -> list {
     raise ValueError(f"unknown native_module_walk_order: {_spec!r}");
 }
 
-impl NaIRGenCore._ensure_imported_module_inferred(imported_mod: uni.Module) -> None {
-    if id(imported_mod) in self.prog._inferred_mods {
-        return;
-    }
-    import from dataclasses { replace as _replace_opts }
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.jac0core.compiler { get_cfg_sched, get_inference_sched }
-    compiler = self.prog._get_compiler();
-    _saved_opts = self.prog._compile_options;
-    _base_opts = _saved_opts if _saved_opts is not None else CompileOptions();
-    self.prog._compile_options = _replace_opts(_base_opts, emit_diagnostics=False);
-    try {
-        _analyses = self.prog._analyses_run.get(id(imported_mod), set());
-        if 'cfg' not in _analyses {
-            compiler.run_schedule(
-                mod=imported_mod, target_program=self.prog, passes=get_cfg_sched()
-            );
-        }
-        compiler.run_schedule(
-            mod=imported_mod, target_program=self.prog, passes=get_inference_sched()
-        );
-        self.prog._inferred_mods.add(id(imported_mod));
-    } finally {
-        self.prog._compile_options = _saved_opts;
-    }
-}
-
 impl NaIRGenCore._extract_import_module_name(imp: uni.Import) -> (str | None) {
     if imp.clib_decls {
         return None;
@@ -821,6 +805,14 @@ impl NaIRGenCore._walk_imported_module_type_names(imported_mod: uni.Module) -> N
             if aname is not None and aname not in self.struct_types {
                 struct_type = self.llvm_module.context.get_identified_type(aname);
                 self.struct_types[aname] = struct_type;
+            }
+            if aname is not None and aname not in self._struct_source_name {
+                self._struct_source_name[aname] = imported_mod.name;
+            }
+        } elif isinstance(stmt, uni.Enum) {
+            ename = stmt.name.value if stmt.name else None;
+            if ename is not None and ename not in self._enum_source_name {
+                self._enum_source_name[ename] = imported_mod.name;
             }
         }
     }
@@ -982,7 +974,11 @@ impl NaIRGenCore._walk_imported_module_abilities(
                 and isinstance(_imp_stmt.signature, uni.FuncSignature)
             ) {
                 _im_full = f"{_ia_name}.{_imp_stmt.name_ref.sym_name}";
-                if (_imp_layout is not None and _im_full not in _imp_layout.methods)
+                if (
+                    _imp_layout is not None
+                    and _im_full not in _imp_layout.methods
+                    and not _imp_stmt.type_params
+                )
                     or (_imp_layout is None and _wl_internal) {
                     self._native_skipped_methods.add(_im_full);
                 }
@@ -1031,7 +1027,7 @@ impl NaIRGenCore._forward_declare_archetype_methods(arch: uni.Archetype) -> None
         if isinstance(stmt, uni.Ability) {
             if stmt.signature is not None
                 and isinstance(stmt.signature, uni.FuncSignature) {
-                self._forward_declare_method(aname, stmt);
+                self._forward_declare_method(aname, stmt, imported=True);
             } elif isinstance(stmt.signature, uni.EventSignature)
                 and (arch.arch_kind is not None) {
                 self._forward_declare_event_method(aname, stmt);
@@ -1040,7 +1036,7 @@ impl NaIRGenCore._forward_declare_archetype_methods(arch: uni.Archetype) -> None
         }
     }
     for (_slot, _accvar, _acc) in archetype_accessors(arch) {
-        self._forward_declare_method(aname, _acc, field=_accvar);
+        self._forward_declare_method(aname, _acc, field=_accvar, imported=True);
     }
 }
 
@@ -1197,6 +1193,30 @@ impl NaIRGenCore._forward_declare_imported_ability(
         }
     }
     self._maybe_declare_ability(nd);
+}
+
+impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
+    _provided = self.prog._analyses_run.get(id(dep_mod));
+    if _provided is None {
+        _provided = set();
+        self.prog._analyses_run[id(dep_mod)] = _provided;
+    }
+    if 'inference' in _provided {
+        return;
+    }
+    _provided.add('inference');
+    try {
+        import from jaclang.jac0core.compiler { run_pass }
+        import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
+        import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+        if 'cfg' not in _provided {
+            run_pass(CFGBuildPass, dep_mod, self.prog);
+            _provided.add('cfg');
+        }
+        run_pass(TypeCheckPass, dep_mod, self.prog);
+    } except Exception {
+        ;
+    }
 }
 
 impl NaIRGenCore._imported_function_demotions(

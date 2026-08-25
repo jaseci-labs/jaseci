@@ -76,7 +76,7 @@ def dual_compile_file(path: str) -> tuple {
     return (ref_tree, mods[0][1], blob);
 }
 
-def assert_dump_equal(ref_tree: object, got_tree: object) {
+def assert_dump_equal(ref_tree: any, got_tree: any) {
     want = pyast.dump(ref_tree, include_attributes=True);
     got = pyast.dump(got_tree, include_attributes=True);
     if want != got {
@@ -137,14 +137,14 @@ def code_diffs(a: any, b: any, path: str, out: list) -> list {
     return out;
 }
 
-def assert_bytecode_equal(ref_tree: object, mod_path: str, bytecode: bytes) {
+def assert_bytecode_equal(ref_tree: any, mod_path: str, bytecode: bytes) {
     ref_code = pycompile(ref_tree, mod_path, "exec");
     jcir_code = marshal.loads(bytecode);
     diffs = code_diffs(ref_code, jcir_code, "module", []);
     assert diffs == [] , "\n".join(diffs);
 }
 
-def exec_both(ref_tree: object, got_tree: object, path: str, names: list) {
+def exec_both(ref_tree: any, got_tree: any, path: str, names: list) {
     ref_ns: dict = {};
     got_ns: dict = {};
     pyexec(pycompile(ref_tree, path, "exec"), ref_ns);
@@ -214,7 +214,9 @@ with entry {
     assert_dump_equal(ref_tree, got_tree);
     exec_both(ref_tree, got_tree, "scaffold_fixture.jac", ["p", "b", "e"]);
     assert isinstance(got_tree.body[0], pyast.Expr);
-    assert got_tree.body[0].value.value == "Module docstring survives.";
+    # `Expr.value` is typed as the `expr` base; the docstring is a Constant.
+    docstring_expr: any = got_tree.body[0];
+    assert docstring_expr.value.value == "Module docstring survives.";
 }
 
 test "typed imports wrap in TYPE_CHECKING" {
@@ -488,7 +490,10 @@ with entry {
     missing: list = [];
     for node in pyast.walk(got_tree) {
         if "lineno" in node._attributes {
-            if (node?.lineno is None or node.lineno < 1) {
+            # `lineno` lives on concrete nodes, not the `AST` base the stub
+            # types here; the `_attributes` guard is the real check.
+            located: any = node;
+            if (located.lineno is None or located.lineno < 1) {
                 missing.append(pyast.dump(node)[:60]);
             }
         }

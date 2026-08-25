@@ -26,7 +26,7 @@ test "hyphenated bool Arg: no phantom key, --no-X toggles through the dest" {
     assert vars(parser3.parse_args(["--scale"]))["scale"] is True;
 }
 
-test "jac start --no-client parses to the no_client dest (documented spelling)" {
+test "jac run --no-client parses to the no_client dest (documented spelling)" {
     parser = argparse.ArgumentParser();
     add_argument(
         parser, ArgMeta(name="no-client", typ="bool", `default=False, help="x")

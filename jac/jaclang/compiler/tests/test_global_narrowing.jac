@@ -51,9 +51,7 @@ def check_batch(files: list[str]) -> list[str] {
         }
         prog.compile(
             file_path=file_path,
-            options=CompileOptions(
-                type_check=True, no_cgen=True, force_target_program=True
-            )
+            options=CompileOptions(no_cgen=True, force_target_program=True)
         );
     }
     return [str(e) for e in prog.errors_had];
@@ -76,7 +74,7 @@ def check_src(src: str, search_dir: str) -> JacProgram {
         sys.path.insert(0, search_dir);
         importlib.invalidate_caches();
         prog = JacProgram();
-        prog.compile(file_path="gn_src.jac", use_str=src, type_check=True);
+        prog.compile(file_path="gn_src.jac", use_str=src);
         return prog;
     } finally {
         if search_dir in sys.path {

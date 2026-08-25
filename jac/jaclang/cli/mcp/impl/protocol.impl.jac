@@ -1,6 +1,9 @@
 import json;
 import logging;
+import threading;
 import from http.server { BaseHTTPRequestHandler, ThreadingHTTPServer }
+import from queue { Queue }
+import from typing { BinaryIO }
 
 glob LATEST_PROTOCOL_VERSION: str = "2025-06-18",
      SUPPORTED_PROTOCOL_VERSIONS: list[str] = [
@@ -18,7 +21,7 @@ class McpMethodNotFound(Exception) {}
 
 class McpInvalidParams(Exception) {}
 
-impl McpEngine.handle_message(msg: dict) -> dict | None {
+impl McpEngine.handle_message(msg: dict[str, any]) -> dict[str, any] | None {
     if not isinstance(msg, dict) {
         return _error_response(None, -32600, "Invalid Request");
     }
@@ -51,7 +54,7 @@ impl McpEngine.handle_message(msg: dict) -> dict | None {
     return {"jsonrpc": "2.0", "id": msg_id, "result": result};
 }
 
-impl McpEngine._dispatch(method: str, params: dict) -> dict {
+impl McpEngine._dispatch(method: str, params: dict[str, any]) -> dict[str, any] {
     if method == "initialize" {
         return self._initialize(params);
     } elif method == "ping" {
@@ -74,7 +77,7 @@ impl McpEngine._dispatch(method: str, params: dict) -> dict {
     raise McpMethodNotFound(method);
 }
 
-impl McpEngine._initialize(params: dict) -> dict {
+impl McpEngine._initialize(params: dict[str, any]) -> dict[str, any] {
     requested = params.get("protocolVersion");
     version = requested
         if requested in SUPPORTED_PROTOCOL_VERSIONS
@@ -87,8 +90,8 @@ impl McpEngine._initialize(params: dict) -> dict {
     };
 }
 
-impl McpEngine._list_resources -> dict {
-    out: list = [];
+impl McpEngine._list_resources -> dict[str, any] {
+    out: list[dict[str, any]] = [];
     for item in self.resources.list_resources() {
         out.append(
             {
@@ -102,7 +105,7 @@ impl McpEngine._list_resources -> dict {
     return {"resources": out};
 }
 
-impl McpEngine._read_resource(params: dict) -> dict {
+impl McpEngine._read_resource(params: dict[str, any]) -> dict[str, any] {
     uri = params.get("uri");
     if not uri {
         raise McpInvalidParams("missing required param 'uri'");
@@ -111,8 +114,8 @@ impl McpEngine._read_resource(params: dict) -> dict {
     return {"contents": [{"uri": uri, "mimeType": "text/plain", "text": content}]};
 }
 
-impl McpEngine._list_tools -> dict {
-    out: list = [];
+impl McpEngine._list_tools -> dict[str, any] {
+    out: list[dict[str, any]] = [];
     for item in self.tools.list_tools() {
         out.append(
             {
@@ -127,7 +130,7 @@ impl McpEngine._list_tools -> dict {
     return {"tools": out};
 }
 
-impl McpEngine._call_tool(params: dict) -> dict {
+impl McpEngine._call_tool(params: dict[str, any]) -> dict[str, any] {
     name = params.get("name");
     if not name {
         raise McpInvalidParams("missing required param 'name'");
@@ -140,10 +143,10 @@ impl McpEngine._call_tool(params: dict) -> dict {
     return {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]};
 }
 
-impl McpEngine._list_prompts -> dict {
-    out: list = [];
+impl McpEngine._list_prompts -> dict[str, any] {
+    out: list[dict[str, any]] = [];
     for item in self.prompts.list_prompts() {
-        pargs: list = [];
+        pargs: list[dict[str, any]] = [];
         for arg in item.get("arguments", []) {
             pargs.append(
                 {
@@ -164,7 +167,7 @@ impl McpEngine._list_prompts -> dict {
     return {"prompts": out};
 }
 
-impl McpEngine._get_prompt(params: dict) -> dict {
+impl McpEngine._get_prompt(params: dict[str, any]) -> dict[str, any] {
     name = params.get("name");
     if not name {
         raise McpInvalidParams("missing required param 'name'");
@@ -174,7 +177,7 @@ impl McpEngine._get_prompt(params: dict) -> dict {
         arguments = {};
     }
     result = self.prompts.get_prompt(str(name), arguments);
-    messages: list = [];
+    messages: list[dict[str, any]] = [];
     for msg in result.get("messages", []) {
         messages.append(
             {"role": msg["role"], "content": {"type": "text", "text": msg["content"]}}
@@ -199,14 +202,14 @@ impl build_engine(instructions: str = "") -> McpEngine {
 
 impl serve_stdio(engine: McpEngine) -> None {
     import sys;
-    stdin = sys.stdin.buffer;
-    stdout = sys.stdout.buffer;
+    stdin: BinaryIO = sys.stdin.buffer;
+    stdout: BinaryIO = sys.stdout.buffer;
     while True {
         line = stdin.readline();
         if not line {
             break;
         }
-        text = line.strip();
+        text = line.decode("utf-8", "replace").strip();
         if not text {
             continue;
         }
@@ -240,7 +243,6 @@ impl serve_streamable_http(engine: McpEngine, host: str, port: int) -> None {
 }
 
 impl serve_sse(engine: McpEngine, host: str, port: int) -> None {
-    import threading;
     httpd = _make_http_server(host, port, _SseHandler);
     httpd.engine = engine;
     httpd.sessions = {};
@@ -259,7 +261,7 @@ def _error_response(msg_id: any, code: int, message: str) -> dict {
 
 def _process(engine: McpEngine, msg: any) -> any {
     if isinstance(msg, list) {
-        responses: list = [];
+        responses: list[any] = [];
         for m in msg {
             r = engine.handle_message(m);
             if r is not None {
@@ -291,13 +293,31 @@ def _query_param(path: str, key: str) -> str | None {
     return vals[0] if vals else None;
 }
 
-def _make_http_server(host: str, port: int, handler: object) -> object {
-    httpd = ThreadingHTTPServer((host, port), handler);
+class _McpHttpServer(ThreadingHTTPServer) {
+    has engine: McpEngine,
+        mcp_path: str,
+        session_id: str,
+        sessions: dict[str, Queue[str | None]],
+        lock: threading.Lock;
+}
+
+def _mcp_server(handler: BaseHTTPRequestHandler) -> _McpHttpServer {
+    srv = handler.server;
+    if not isinstance(srv, _McpHttpServer) {
+        raise RuntimeError("handler is not bound to an mcp server");
+    }
+    return srv;
+}
+
+def _make_http_server(
+    host: str, port: int, handler: type[BaseHTTPRequestHandler]
+) -> _McpHttpServer {
+    httpd = _McpHttpServer((host, port), handler);
     httpd.daemon_threads = True;
     return httpd;
 }
 
-def _serve_forever(httpd: object) {
+def _serve_forever(httpd: _McpHttpServer) {
     try {
         httpd.serve_forever();
     } except KeyboardInterrupt { } finally {
@@ -307,7 +327,8 @@ def _serve_forever(httpd: object) {
 
 class _StreamableHttpHandler(BaseHTTPRequestHandler) {
     def do_POST(self: _StreamableHttpHandler) -> None {
-        if self.path.split("?")[0] != self.server.mcp_path {
+        srv = _mcp_server(self);
+        if self.path.split("?")[0] != srv.mcp_path {
             self._send_status(404);
             return;
         }
@@ -327,7 +348,7 @@ class _StreamableHttpHandler(BaseHTTPRequestHandler) {
             self._send_status(202);
             return;
         }
-        reply = _process(self.server.engine, msg);
+        reply = _process(srv.engine, msg);
         if reply is None {
             self._send_status(202);
         } else {
@@ -364,7 +385,7 @@ class _StreamableHttpHandler(BaseHTTPRequestHandler) {
         self.send_response(status);
         self.send_header("Content-Type", "application/json");
         self.send_header("Content-Length", str(len(data)));
-        self.send_header("Mcp-Session-Id", self.server.session_id);
+        self.send_header("Mcp-Session-Id", _mcp_server(self).session_id);
         self.end_headers();
         self.wfile.write(data);
     }
@@ -372,7 +393,7 @@ class _StreamableHttpHandler(BaseHTTPRequestHandler) {
     def _send_status(self: _StreamableHttpHandler, status: int) {
         self.send_response(status);
         self.send_header("Content-Length", "0");
-        self.send_header("Mcp-Session-Id", self.server.session_id);
+        self.send_header("Mcp-Session-Id", _mcp_server(self).session_id);
         self.end_headers();
     }
 
@@ -383,15 +404,15 @@ class _StreamableHttpHandler(BaseHTTPRequestHandler) {
 
 class _SseHandler(BaseHTTPRequestHandler) {
     def do_GET(self: _SseHandler) -> None {
-        import queue;
         if self.path.split("?")[0] != "/sse" {
             self._send_status(404);
             return;
         }
+        srv = _mcp_server(self);
         session_id = _new_session_id();
-        q = queue.Queue();
-        with self.server.lock {
-            self.server.sessions[session_id] = q;
+        q: Queue[str | None] = Queue();
+        with srv.lock {
+            srv.sessions[session_id] = q;
         }
         self.send_response(200);
         self.send_header("Content-Type", "text/event-stream");
@@ -414,8 +435,8 @@ class _SseHandler(BaseHTTPRequestHandler) {
                 self._send_event("message", item);
             }
         } except Exception { } finally {
-            with self.server.lock {
-                self.server.sessions.pop(session_id, None);
+            with srv.lock {
+                srv.sessions.pop(session_id, None);
             }
         }
     }
@@ -426,8 +447,13 @@ class _SseHandler(BaseHTTPRequestHandler) {
             return;
         }
         session_id = _query_param(self.path, "session_id");
-        with self.server.lock {
-            q = self.server.sessions.get(session_id);
+        if session_id is None {
+            self._send_status(404);
+            return;
+        }
+        srv = _mcp_server(self);
+        with srv.lock {
+            q = srv.sessions.get(session_id);
         }
         if q is None {
             self._send_status(404);
@@ -445,7 +471,7 @@ class _SseHandler(BaseHTTPRequestHandler) {
         if msg is None {
             return;
         }
-        reply = _process(self.server.engine, msg);
+        reply = _process(srv.engine, msg);
         if reply is not None {
             q.put(json.dumps(reply));
         }
