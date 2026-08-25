@@ -201,7 +201,7 @@ impl _optional_dep_gap(exc: BaseException) -> str {
     if not isinstance(exc, ModuleNotFoundError) {
         return "";
     }
-    name = getattr(exc, "name", "") or "";
+    name = str(exc.name or "");
     top = name.split(".")[0] if name else "";
     if not top {
         return "";
