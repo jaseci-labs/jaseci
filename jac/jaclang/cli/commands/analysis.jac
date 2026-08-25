@@ -97,7 +97,7 @@ glob registry = get_registry();
             "Check while suppressing selected diagnostics"
         ),
         (
-            "jac check myprogram.jac --parse-only",
+            "jac check myprogram.jac --parse_only",
             "Only check syntax, skip type checking"
         ),
         ("jac check myprogram.jac --nowarn", "Check without warnings"),
