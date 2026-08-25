@@ -1,20 +1,9 @@
-"""Jac0Core - Bootstrap core modules for the Jac compiler.
+"""Pure-Python boot modules (the pre-.jac tier).
 
-This package contains the core Jac modules compiled by jac0 (the bootstrap
-transpiler) during first-run setup. These modules form the compiler
-infrastructure: AST definitions, passes, runtime, and utilities.
-
-Modules:
-- unitree: Core AST definitions
-- constant: Constants and token definitions
-- codeinfo: Code location info for AST nodes
-- passes/: Bootstrap-critical compiler passes
-- runtime: Runtime bootstrap infrastructure
-- helpers: Utility functions
-- log: Logging utilities
-- modresolver: Module resolution utilities
-- treeprinter: AST tree printing utilities
-- settings: Configuration settings
-- compiler: JacCompiler class (compilation singleton)
-- program: JacProgram class (program state)
+Everything that must import before any .jac module can load: the sealed
+image reader (``sealed``), the cache path resolver (``cache_paths``),
+and the extension registry (``ext_registry``). The .jac seed set that
+used to live here moved to function-named homes (compiler/, runtime/,
+lib/, ...) with membership declared in ``jaclang/bootstrap_manifest.py``
+(#8681); this package's own move to ``bootstrap/`` completes that.
 """

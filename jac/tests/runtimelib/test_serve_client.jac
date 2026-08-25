@@ -12,8 +12,8 @@ import shutil;
 import uuid;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.runtimelib.serializer { Serializer }
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.data.serializer { Serializer }
+import from jaclang.testing.testing { JacTestClient }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -29,12 +29,8 @@ run only when JAC_CLIENT_INTEGRATION is set (and are covered by jac-client's own
 suite); core CI skips them.
 """
 def _require_client_integration {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            "client render requires the Vite/Bun toolchain; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 def fixture_abs_path(filename: str) -> str {
@@ -193,8 +189,8 @@ def make_failload_client(tmp_path: str) -> JacTestClient {
 
 Same fixtures as `make_crossboundary_client`, but the entry/server/client files
 are copied into a unique dir inside the jaclang package (where `jac ai --ui` and
-other bundled apps live). `JacCompiler._resolve_program` routes any file under
-the package root to the compiler's `internal_program`, so the cross-boundary
+other bundled apps live). `SelfHostCache.resolve` routes any file under
+the package root to the self-host program, so the cross-boundary
 interop facts land in that hub rather than `Jac.program.mod.hub` -- the exact
 condition under which the serve endpoint collector missed them. Returns
 `(client, cleanup_dir)`; the caller must rmtree `cleanup_dir`.
@@ -704,7 +700,7 @@ test "serve root endpoint" {
 }
 
 test "serve root app inference follows intent not incidence" {
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
     # Explicit config always wins, regardless of what the manifest exports.
     cfg_intro = ModuleIntrospector("serve_api", FIXTURES);
     assert cfg_intro.resolve_root_app("dashboard") == "dashboard";
@@ -1217,7 +1213,7 @@ test "serve render client page returns html" {
         response = client.get("/cl/client_page");
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         assert "/static/client.js?hash=" in html;
         # Check __jac_init__ script contains expected data
         init_match = re.search(
@@ -1226,7 +1222,12 @@ test "serve render client page returns html" {
         assert init_match is not None;
         payload = json.loads(init_match.group(1)) if init_match else {};
         assert payload.get("function") == "client_page";
-        assert payload.get("globals", {}).get("API_LABEL") == "Runtime Test";
+        # Client globals ride the compiled bundle now, not the hydration
+        # payload; the value must reach the browser through the JS artifact.
+        hash_match = re.search(r'/static/client\.js\?hash=([a-f0-9]+)', html);
+        assert hash_match is not None;
+        bundle_js = client.get(f"/static/client.js?hash={hash_match.group(1)}").text;
+        assert "Runtime Test" in bundle_js;
         client.close();
     }
 }
@@ -1252,7 +1253,7 @@ test "serve client page html and bundle" {
         html = response.text;
         # HTML skeleton
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         assert "/static/client.js?hash=" in html;
         # Hydration payload targets the right function
         init_match = re.search(
@@ -1368,7 +1369,7 @@ test "issue 6507: a cross-boundary endpoint module that fails to import is logge
 
 test "bundled app: cross-boundary def:pub endpoint registers for jaclang-bundled app" {
     # Regression for `jac ai --ui`: when the app lives under the jaclang package
-    # root, its modules route to the compiler's internal_program, so the
+    # root, its modules route to the self-host program, so the
     # cross-boundary bindings land there -- not in `Jac.program.mod.hub`. The
     # serve collector must span both hubs (`_search_hubs`); before the fix it
     # scanned only `Jac.program.mod.hub` (empty for a bundled app), so cross_pub
@@ -1619,7 +1620,7 @@ test "serve spa catchall serves html for clean urls" {
         assert response.status_code == 200;
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         assert "/static/client.js?hash=" in html;
         spa.close();
     }
@@ -1633,7 +1634,7 @@ test "serve spa catchall root serves html" {
         assert response.ok;
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         spa.close();
     }
 }
@@ -1673,7 +1674,7 @@ test "serve spa catchall cl route still works" {
         assert response.ok;
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         spa.close();
     }
 }
@@ -1706,7 +1707,7 @@ test "serve sync skips write access check on unchanged anchors" {
         client = make_client(tmpdir);
         client.register_user("syncuser", "pass");
         # Simulate server-restart conditions
-        import from jaclang.jac0core.runtime { JacRuntimeInterface as Jac }
+        import from jaclang.runtime.runtime { JacRuntimeInterface as Jac }
         ctx = Jac.get_context();
         sys_root = ctx.system_root;
         sys_root.persistent = True;
@@ -1716,7 +1717,7 @@ test "serve sync skips write access check on unchanged anchors" {
         # so a subsequent sync() should detect no drift and skip the
         # write-access check.
         import from typing { cast }
-        import from jaclang.runtimelib.session { Session }
+        import from jaclang.server.session { Session }
         serialized = cast(dict, Serializer.serialize(sys_root, include_type=True));
         sys_root_copy = Serializer.deserialize(serialized);
         if sys_root_copy is not None {
@@ -1731,7 +1732,7 @@ test "serve sync skips write access check on unchanged anchors" {
         sess._flushed_hash[sys_root.id] = sys_root.hash;
         sess._dirty.pop(sys_root.id, None);
         # Capture logs
-        logger = logging.getLogger("jaclang.jac0core.runtime");
+        logger = logging.getLogger("jaclang.runtime.runtime");
         cap = capture_log_start(logger);
         buf = cap[0];
         handler = cap[1];
@@ -1752,8 +1753,8 @@ test "serve sync skips write access check on unchanged anchors" {
 test "serve blocking sync walkers run concurrently via to_thread" {
     import asyncio;
     import from time { time }
-    import from jaclang.jac0core.runtime { JacRuntimeInterface as Jac }
-    import from jaclang.runtimelib.server {
+    import from jaclang.runtime.runtime { JacRuntimeInterface as Jac }
+    import from jaclang.server.server {
         ExecutionManager,
         UserManager,
         ModuleIntrospector
@@ -1801,7 +1802,7 @@ test "endpoint effect classifier follows helper calls" {
     # must still be classified as a writer -- otherwise the client cache is
     # never invalidated after the mutation. The classifier has to follow the
     # call into the helper to see the write.
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
 
     jac_file = fixture_abs_path("serve_helper_effects.jac");
     introspector = ModuleIntrospector(
@@ -1823,7 +1824,7 @@ test "spawn_walker_sync and spawn_walker_async dispatch to explicit paths" {
     # picks between these based on walker metadata.
     import asyncio;
     import from time { time }
-    import from jaclang.runtimelib.server {
+    import from jaclang.server.server {
         ExecutionManager,
         UserManager,
         ModuleIntrospector
@@ -1867,7 +1868,7 @@ test "concurrent async walkers run concurrently end-to-end" {
     # through their awaits (asyncio.sleep) and finish concurrently.
     import asyncio;
     import from time { time }
-    import from jaclang.runtimelib.server {
+    import from jaclang.server.server {
         ExecutionManager,
         UserManager,
         ModuleIntrospector
@@ -1908,8 +1909,8 @@ test "Session async mirrors (aget/aput/adelete/ahas/acommit) work" {
     # This verifies the impls round-trip correctly for both the volatile
     # (store-less) and Postgres-backed session.
     import asyncio;
-    import from jaclang.jac0core.archetype { NodeAnchor, Root }
-    import from jaclang.runtimelib.session { Session }
+    import from jaclang.runtime.archetype { NodeAnchor, Root }
+    import from jaclang.server.session { Session }
     import from uuid { uuid4 }
 
     with TemporaryDirectory() as tmpdir {
@@ -1960,8 +1961,8 @@ test "Session concurrent commits from worker threads do not race" {
     import asyncio;
     import os;
     import from uuid { uuid4 }
-    import from jaclang.jac0core.archetype { NodeAnchor, Root }
-    import from jaclang.runtimelib.session { Session }
+    import from jaclang.runtime.archetype { NodeAnchor, Root }
+    import from jaclang.server.session { Session }
 
     with TemporaryDirectory() as tmpdir {
         mem = Session(base_path=tmpdir);
@@ -2003,7 +2004,7 @@ test "CallState.reports is thread-safe (sync walker worker threads put safely)" 
     # waiting - but that is a latent invariant. Use a thread-safe queue
     # so the type itself documents and enforces cross-thread put.
     import asyncio;
-    import from jaclang.runtimelib.context { CallState }
+    import from jaclang.runtime.context { CallState }
 
     call_state = CallState();
 
@@ -2078,7 +2079,7 @@ test "concurrent multi-user requests do not race on ctx.user_root" {
     # asyncio Task gets a task-local view, so the start/end user_root
     # observed inside a walker must match the user that spawned it.
     import asyncio;
-    import from jaclang.runtimelib.server {
+    import from jaclang.server.server {
         ExecutionManager,
         UserManager,
         ModuleIntrospector
@@ -2236,8 +2237,8 @@ bundle layer must retry it on every request (so fetching bun fixes serving
 without a restart), while genuine build failures stay memoized."""
 test "ensure_bundle retries a missing-bun failure and a build error alike" {
     import from unittest.mock { MagicMock }
-    import from jaclang.runtimelib.server { ModuleIntrospector }
-    import from jaclang.runtimelib.client_bundle { ClientBundleError, MissingBunError }
+    import from jaclang.server.server { ModuleIntrospector }
+    import from jaclang.client.client_bundle { ClientBundleError, MissingBunError }
     intro = ModuleIntrospector("serve_api", FIXTURES);
     intro._module = object();
     bun_missing = MagicMock();
@@ -2277,7 +2278,7 @@ obj _SlowRealBuilder {
 
     def build(module: object, force: bool = False) -> object {
         import time;
-        import from jaclang.runtimelib.client_bundle { ClientBundle }
+        import from jaclang.client.client_bundle { ClientBundle }
         self.calls += 1;
         mine = self.calls;
         time.sleep(self.hold);
@@ -2293,7 +2294,7 @@ obj _SlowRealBuilder {
 
 test "concurrent ensure_bundle callers share one build instead of each running their own" {
     import from concurrent.futures { ThreadPoolExecutor }
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
     intro = ModuleIntrospector("serve_api", FIXTURES);
     intro._module = object();
     builder = _SlowRealBuilder();
@@ -2320,7 +2321,7 @@ test "concurrent ensure_bundle callers share one build instead of each running t
 test "a module reload during a build wins over the build's result" {
     import threading;
     import time;
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
     intro = ModuleIntrospector("serve_api", FIXTURES);
     intro._module = object();
     builder = _SlowRealBuilder();
@@ -2398,7 +2399,7 @@ everything else is an honest 404. A stale long-poll client (e.g. a docs-site
 livereload tab) previously got 200 in ~3ms and busy-looped at ~300 req/s -
 non-200 is what flips such clients into their backoff path."""
 test "spa fallback status is route aware when pages exist" {
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
     with TemporaryDirectory() as tmpdir {
         proj = Path(tmpdir);
         shutil.copy(fixture_abs_path("client_app.jac"), proj / "routed_app.jac");
@@ -2421,7 +2422,7 @@ test "spa fallback status is route aware when pages exist" {
 """Without a pages/ directory the route table is unknowable (manual <Router>
 apps declare routes in JSX), so the fallback must stay permissive."""
 test "spa fallback status stays permissive without pages dir" {
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
     intro = ModuleIntrospector("client_app", FIXTURES);
     assert intro.spa_fallback_status("/anything/at/all") == 200;
     assert intro.spa_fallback_status("/livereload/1/2") == 200;
@@ -2447,7 +2448,7 @@ test "serve spa fallback 404s unknown paths but still serves the app html" {
         assert response.status_code == 404 , f"expected 404, got {response.status_code}";
         html = response.text;
         assert "<!DOCTYPE html>" in html , "404 should still serve the app shell";
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         spa.server.introspector._spa_route_patterns = ["/about"];
         response = spa.get("/");
         assert response.status_code == 404 , f"index-less root: expected 404, got {response.status_code}";
@@ -2477,7 +2478,7 @@ through _load_manifest, which clears the cached patterns so the next fallback
 request rescans pages/. Without the reset, a page added after first request
 404s until restart and a deleted page keeps answering 200."""
 test "spa fallback route table refreshes on manifest reload" {
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
     with TemporaryDirectory() as tmpdir {
         proj = Path(tmpdir);
         shutil.copy(fixture_abs_path("client_app.jac"), proj / "routed_app.jac");
@@ -2499,7 +2500,7 @@ test "spa fallback route table refreshes on manifest reload" {
 """A pages-routed project with no index page has no client route for '/', so
 the root must be an honest 404 too (the client renders its catch-all there)."""
 test "spa fallback root is route aware without an index page" {
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
     with TemporaryDirectory() as tmpdir {
         proj = Path(tmpdir);
         pages = proj / "pages";

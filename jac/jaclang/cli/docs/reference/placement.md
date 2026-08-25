@@ -59,7 +59,7 @@ The analysis proposes; lowering disposes. A module that prefers native but
 fails to lower is demoted to the server with a note naming the cause, and a
 client-pulled element that fails ES lowering demotes the same way (its call
 sites bridge instead). The portability table
-(`jaclang/jac0core/portability.jac`) is the curated fact base for which
+(`jaclang/runtime/portability.jac`) is the curated fact base for which
 python modules may follow their referents into another space -- it is
 honestly empty for the client today, so every python import pins server.
 
@@ -106,7 +106,7 @@ imports lower to RPC service stubs.
 
 The solver is the only thing that computes placement; everything else reads
 its verdict. The single query surface is
-`jaclang.jac0core.placement_facts`:
+`jaclang.compiler.placement.placement_facts`:
 
 - `module_spaces(mod)` rolls a compiled module's element-level verdicts up to
   the set of codespaces it emits into (`{"server"}`, `{"client"}`, a mixed
