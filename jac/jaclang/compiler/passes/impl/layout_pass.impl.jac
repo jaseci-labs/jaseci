@@ -996,11 +996,7 @@ impl LayoutPass._same_field_type(a: any, b: any) -> bool {
 }
 
 impl LayoutPass._is_layout_compatible_type(t: any) -> bool {
-    import from jaclang.compiler.types.types {
-        ClassType,
-        FunctionType,
-        UnionType
-    }
+    import from jaclang.compiler.types.types { ClassType, FunctionType, UnionType }
     if t is None {
         return False;
     }

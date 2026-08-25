@@ -5,11 +5,7 @@ import from jaclang.compiler.frontend.constant { OwnershipKind }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.frontend.diagnostics { E5092 }
 import jaclang.compiler.frontend.unitree as uni;
-import from jaclang.compiler.types.types {
-    ClassType,
-    EnumMemberType,
-    FunctionType
-}
+import from jaclang.compiler.types.types { ClassType, EnumMemberType, FunctionType }
 
 obj NaIRGenExpr(NaIRGenState) {
     def _codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None);

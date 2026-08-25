@@ -657,7 +657,10 @@ impl NaIRGenCore._load_native_dep(
 
 impl NaIRGenCore._register_imported_struct_types -> None {
     import os;
-    import from jaclang.compiler.frontend.codeinfo { native_module_key, native_stdlib_root }
+    import from jaclang.compiler.frontend.codeinfo {
+        native_module_key,
+        native_stdlib_root
+    }
     manifest = self.ir_in.gen.interop_manifest;
     reg = self._registry();
     _own_real = os.path.realpath(self.ir_in.loc.mod_path) if self.ir_in?.loc else "";

@@ -359,9 +359,7 @@ test "guardrail: a nested container subscript lowers from its value type" {
         "    return 0;\n"
         "}\n"
     );
-    assert not prog.errors_had , f"the nested read must lower, got: {fmt_errors(
-        prog
-    )}";
+    assert not prog.errors_had , f"the nested read must lower, got: {fmt_errors(prog)}";
     layout = ir.gen.native_layout;
     assert layout is not None , "whole-module native compile aborted";
     assert "run" in layout.functions , (

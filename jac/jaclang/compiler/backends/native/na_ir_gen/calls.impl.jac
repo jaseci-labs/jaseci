@@ -1121,9 +1121,6 @@ impl NaIRGenCalls._intrinsic_operand(
 ) -> (ir.Value | None) {
     _kind = self._tb_kind(self._flow_narrowed_type_of(arg));
     if _kind not in ("int", "bool", "float") {
-        # The checker owns the E5095 misuse verdict for every operand whose
-        # type it can see; what reaches here is a type variable that
-        # monomorphised onto a non-scalar, which has no lowering.
         self.emit(
             E5092,
             node_override=arg,
