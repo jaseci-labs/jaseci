@@ -15,13 +15,34 @@ entry earned tightening (edit the table). Either way the change is
 deliberate and reviewed here.
 
 BURNDOWN (jaseci-labs/jac#8539) is the one table that is allowed to
-shrink silently: it ceilings, per file, the three idioms the native type-seam
-clean break is deleting while the work is in flight (deciding Jac semantics
-from an LLVM value's `ir.Type`, reverse-scanning the backend's own
-name-keyed registries, and the private re-inference helpers). Growth fails
-the gate; shrink is progress. An entry that reaches zero is deleted so its
-file gates at zero from then on, and the table itself goes away with the
-clean break.
+shrink silently: it ceilings, per file, the idioms the native type-seam
+clean break is measuring while the work is in flight. Growth fails the gate;
+shrink is progress, and an entry that reaches zero is deleted so its file
+gates at zero from then on.
+
+Two of the four categories are debt the clean break deletes:
+
+- `semantic dispatch` -- deciding a Jac question (which helper, which
+  overload, is this a bool) from an LLVM value's scalar or aggregate shape.
+  The checker already answered it; reading it back off `ir.IntType` /
+  `ir.DoubleType` / `ir.LiteralStructType` is the second type model.
+- `registry scan` -- recovering a type by reverse-scanning the backend's own
+  name-keyed registries.
+- `private analysis` -- the re-inference helpers.
+
+`shape guard` is measured but is not debt in the same sense. An
+`isinstance(v.type, ir.PointerType)` immediately before emitting a release,
+a null compare or a store asks how the value is *represented*, not what it
+*means*: `_to_bool` already dispatches on the checker kind and reaches the
+pointer test only to pick the LLVM op. No checker fact answers "is this a
+pointer I can release", so most of these are permanent and the category is
+ceilinged to stop growth rather than driven to zero. Entries move from
+`shape guard` to SANCTIONED as they are reviewed one by one.
+
+Splitting the old single `ir sniffing` regex this way is what makes the
+count mean something: it read 245 sites, of which 163 were representation
+guards (`refcount.impl.jac` was 24 of 24) and 81 were the actual second
+type model, three quarters of them in `types.impl.jac`'s coercion matrix.
 """
 
 import re;
@@ -56,7 +77,11 @@ glob FORBIDDEN: dict[str, str] = {
      # file (see the docstring). Scanned like FORBIDDEN; allowed up to the
      # ceiling, never above it.
      BURNDOWN_PATTERNS: dict[str, str] = {
-         "ir sniffing": r"isinstance\([^,]*\.type,\s*\(?ir\.",
+         "semantic dispatch": (
+             r"isinstance\([^,]*\.type,\s*\(?ir\."
+             r"(Int|Double|Float|LiteralStruct|Function|Void|Array)"
+         ),
+         "shape guard": r"isinstance\([^,]*\.type,\s*ir\.PointerType\)",
          "registry scan": (
              r"\.(struct_types|list_types|dict_types|set_types|tuple_types|enum_types"
              r"|arch_ast_map|closure_sig_registry|clib_struct_abi_types)"
@@ -69,45 +94,63 @@ glob FORBIDDEN: dict[str, str] = {
 
      },
      BURNDOWN: dict[tuple, int] = {
-         ("native/impl/primitives_native.impl.jac", "ir sniffing"): 15,
+         ("native/impl/primitives_native.impl.jac", "semantic dispatch"): 4,
+         ("native/na_ir_gen/builtins.impl.jac", "semantic dispatch"): 4,
+         ("native/na_ir_gen/calls.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/clib_vtable.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/comprehensions.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/dicts.impl.jac", "semantic dispatch"): 7,
+         ("native/na_ir_gen/enums.impl.jac", "semantic dispatch"): 2,
+         ("native/na_ir_gen/exceptions.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/expr.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/lists.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/math.impl.jac", "semantic dispatch"): 2,
+         ("native/na_ir_gen/objects.impl.jac", "semantic dispatch"): 4,
+         ("native/na_ir_gen/osp.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/pyb_interop.impl.jac", "semantic dispatch"): 3,
+         ("native/na_ir_gen/repr.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/sets.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/stmt.impl.jac", "semantic dispatch"): 1,
+         ("native/na_ir_gen/tuples.impl.jac", "semantic dispatch"): 7,
+         ("native/na_ir_gen/types.impl.jac", "semantic dispatch"): 36,
+         ("native/primitives_native.jac", "semantic dispatch"): 2,
+         ("native/impl/primitives_native.impl.jac", "shape guard"): 5,
+         ("native/na_ir_gen/builtins.impl.jac", "shape guard"): 10,
+         ("native/na_ir_gen/bytes.impl.jac", "shape guard"): 1,
+         ("native/na_ir_gen/calls.impl.jac", "shape guard"): 15,
+         ("native/na_ir_gen/clib_abi.impl.jac", "shape guard"): 2,
+         ("native/na_ir_gen/clib_vtable.impl.jac", "shape guard"): 3,
+         ("native/na_ir_gen/comprehensions.impl.jac", "shape guard"): 5,
+         ("native/na_ir_gen/container_helpers.impl.jac", "shape guard"): 3,
+         ("native/na_ir_gen/dicts.impl.jac", "shape guard"): 5,
+         ("native/na_ir_gen/exceptions.impl.jac", "shape guard"): 2,
+         ("native/na_ir_gen/expr.impl.jac", "shape guard"): 7,
+         ("native/na_ir_gen/func.impl.jac", "shape guard"): 4,
+         ("native/na_ir_gen/iterators.impl.jac", "shape guard"): 2,
+         ("native/na_ir_gen/lists.impl.jac", "shape guard"): 4,
+         ("native/na_ir_gen/objects.impl.jac", "shape guard"): 9,
+         ("native/na_ir_gen/os.impl.jac", "shape guard"): 2,
+         ("native/na_ir_gen/osp.impl.jac", "shape guard"): 3,
+         ("native/na_ir_gen/pyb_interop.impl.jac", "shape guard"): 1,
+         ("native/na_ir_gen/refcount.impl.jac", "shape guard"): 24,
+         ("native/na_ir_gen/repr.impl.jac", "shape guard"): 2,
+         ("native/na_ir_gen/sets.impl.jac", "shape guard"): 1,
+         ("native/na_ir_gen/stmt.impl.jac", "shape guard"): 22,
+         ("native/na_ir_gen/tuples.impl.jac", "shape guard"): 8,
+         ("native/na_ir_gen/types.impl.jac", "shape guard"): 16,
+         ("native/na_ir_gen/vtable.impl.jac", "shape guard"): 6,
+         ("native/primitives_native.jac", "shape guard"): 1,
          ("native/impl/primitives_native.impl.jac", "registry scan"): 1,
-         ("native/na_ir_gen/builtins.impl.jac", "ir sniffing"): 18,
-         ("native/na_ir_gen/bytes.impl.jac", "ir sniffing"): 1,
-         ("native/na_ir_gen/calls.impl.jac", "ir sniffing"): 16,
-         ("native/na_ir_gen/calls.impl.jac", "private analysis"): 3,
-         ("native/na_ir_gen/clib_abi.impl.jac", "ir sniffing"): 3,
-         ("native/na_ir_gen/clib_vtable.impl.jac", "ir sniffing"): 4,
-         ("native/na_ir_gen/comprehensions.impl.jac", "ir sniffing"): 6,
-         ("native/na_ir_gen/container_helpers.impl.jac", "ir sniffing"): 3,
          ("native/na_ir_gen/core.impl.jac", "registry scan"): 2,
-         ("native/na_ir_gen/dicts.impl.jac", "ir sniffing"): 12,
-         ("native/na_ir_gen/enums.impl.jac", "ir sniffing"): 2,
-         ("native/na_ir_gen/exceptions.impl.jac", "ir sniffing"): 3,
-         ("native/na_ir_gen/expr.impl.jac", "ir sniffing"): 8,
-         ("native/na_ir_gen/func.impl.jac", "ir sniffing"): 4,
+         ("native/na_ir_gen/lists.impl.jac", "registry scan"): 1,
+         ("native/na_ir_gen/types.impl.jac", "registry scan"): 2,
+         ("native/na_ir_gen/calls.impl.jac", "private analysis"): 3,
          ("native/na_ir_gen/generics.impl.jac", "private analysis"): 2,
          ("native/na_ir_gen/generics.jac", "private analysis"): 1,
-         ("native/na_ir_gen/iterators.impl.jac", "ir sniffing"): 2,
-         ("native/na_ir_gen/lists.impl.jac", "ir sniffing"): 5,
-         ("native/na_ir_gen/lists.impl.jac", "registry scan"): 1,
-         ("native/na_ir_gen/math.impl.jac", "ir sniffing"): 3,
-         ("native/na_ir_gen/objects.impl.jac", "ir sniffing"): 13,
          ("native/na_ir_gen/objects.impl.jac", "private analysis"): 1,
          ("native/na_ir_gen/objects.jac", "private analysis"): 1,
-         ("native/na_ir_gen/os.impl.jac", "ir sniffing"): 2,
-         ("native/na_ir_gen/osp.impl.jac", "ir sniffing"): 4,
-         ("native/na_ir_gen/pyb_interop.impl.jac", "ir sniffing"): 4,
-         ("native/na_ir_gen/refcount.impl.jac", "ir sniffing"): 24,
          ("native/na_ir_gen/refcount.impl.jac", "private analysis"): 2,
-         ("native/na_ir_gen/repr.impl.jac", "ir sniffing"): 3,
-         ("native/na_ir_gen/sets.impl.jac", "ir sniffing"): 2,
-         ("native/na_ir_gen/stmt.impl.jac", "ir sniffing"): 24,
-         ("native/na_ir_gen/tuples.impl.jac", "ir sniffing"): 15,
-         ("native/na_ir_gen/types.impl.jac", "ir sniffing"): 52,
          ("native/na_ir_gen/types.impl.jac", "private analysis"): 7,
-         ("native/na_ir_gen/types.impl.jac", "registry scan"): 2,
-         ("native/na_ir_gen/vtable.impl.jac", "ir sniffing"): 6,
-         ("native/primitives_native.jac", "ir sniffing"): 3,
 
      },
      # Remaining relocation work: (relative-path, pattern) -> max count.
