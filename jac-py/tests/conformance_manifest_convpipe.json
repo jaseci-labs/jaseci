@@ -2382,6 +2382,17 @@
       "libtest_snippets": [],
       "notes": "59 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
       "conversion_meta": "jac-py/tests/conv_heapq/heapq.conv.json"
+    },
+    {
+      "stem": "collections",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "jac-py/tests/conv_collections/conv_collections_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "72 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_collections/collections.conv.json"
     }
   ]
 }
