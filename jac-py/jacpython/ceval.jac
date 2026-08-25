@@ -14406,6 +14406,27 @@ def run_frame(frame: PyFrame) -> PyObj {
             cell.filled = True;
             continue;
         }
+        if op == OP_DELETE_DEREF {
+            # CPython TARGET(DELETE_DEREF): unset the shared cell so later
+            # LOAD_DEREFs see the exact unbound error; deleting an already
+            # empty cell is the same unbound error, not a silent no-op.
+            cell = resolve_cell(fast, arg);
+            if cell is None {
+                return py_error("NameError", "free variable is not set");
+            }
+            if not cell.filled {
+                err = format_exc_unbound(co, arg);
+                target = recover_exception(co, err, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return err;
+            }
+            cell.val = py_none();
+            cell.filled = False;
+            continue;
+        }
         if op == OP_MAKE_CELL {
             # Dynamic slot conversion (CPython _PyFrame_MakeAndSetCell): wrap
             # the slot's current value in a fresh cell. Subsequent *_DEREF ops
