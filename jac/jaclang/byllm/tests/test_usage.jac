@@ -351,9 +351,8 @@ test "dispatch_streaming_with_tools passes the stream's own logging_obj to strea
 
 
 test "_rebuild_stream_chunks only forwards logging_obj when the cached support flag is set" {
-    # The flag is a module-level constant computed once at import (litellm's
-    # answer cannot change at runtime), so branch coverage patches the flag
-    # itself rather than swapping stream_chunk_builder's own signature.
+    # The flag is fixed at import, so branch coverage patches it directly
+    # rather than swapping stream_chunk_builder's own signature.
     fake_logging_obj = object();
     seen: list = [];
     def _fake_builder(chunks: list, logging_obj: object = None) -> dict {
@@ -384,10 +383,8 @@ test "_rebuild_stream_chunks only forwards logging_obj when the cached support f
 
 
 test "_stream_chunk_builder_accepts_logging_obj degrades to False and logs when introspection fails" {
-    # An old litellm without logging_obj support is a normal, silent False -
-    # inspect.signature itself raising is the unexpected case that must leave
-    # a trace, since this is what stands between an older litellm and a
-    # silently toolless agent.
+    # No logging_obj support is a normal, silent False; inspect.signature
+    # itself raising is the unexpected case that must leave a trace.
     with unittest.mock.patch(
         "inspect.signature", side_effect=ValueError("boom")
     ), unittest.mock.patch.object(_byllm_llm_mod, "logger") as mock_logger {
@@ -709,9 +706,7 @@ test "byLLM's own follow-up calls get a call_kind distinct from react_iteration"
             f"{expected_kind}: expected exactly one recorded call"
         );
         assert mt_run._usage_history[0]["call_kind"] == expected_kind;
-        # The temporary override must not leak onto later calls on the same
-        # mt_run (compaction never touches parent_mt._call_kind at all, so
-        # this holds trivially true there too).
+        # The temporary override must not leak onto later calls on the mt_run.
         assert mt_run._call_kind == "react_iteration" , (
             f"{expected_kind}: call_kind override must reset after the call"
         );
