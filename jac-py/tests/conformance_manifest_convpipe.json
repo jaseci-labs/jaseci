@@ -2320,6 +2320,24 @@
           "notes": "15/15 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
         }
       }
+    },
+    {
+      "stem": "bisect",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_bisect/conv_bisect_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "42 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_bisect/bisect.conv.json",
+      "jacpython_results": {
+        "bisect": {
+          "passed": 0,
+          "total": 42,
+          "notes": "0/42 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
+        }
+      }
     }
   ]
 }
