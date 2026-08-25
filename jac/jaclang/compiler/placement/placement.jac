@@ -23,7 +23,8 @@ glob PLACEMENT_SCHEMA: int = 1,
      PLACEMENT_HOLD_EXEMPT_ROOTS: tuple = (
          "/jaclang/compiler/",
          "/jaclang/runtime/",
-         "/jaclang/lib/"
+         "/jaclang/lib/",
+         "/jaclang/jac0core/"
      );
 
 obj ElementSummary {
