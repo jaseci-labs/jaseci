@@ -43,7 +43,10 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 }
 import from jaclang.scale.deploy.target.kubernetes.monitoring { MonitoringDeployer }
 import from jaclang.scale.config.config_loader { get_scale_config }
-import from jaclang.scale.injector.pvc_injector { bundle_keys_from_pod_spec }
+import from jaclang.scale.injector.pvc_injector {
+    bundle_keys_from_pod_spec,
+    bundle_pvc_name
+}
 
 glob logger = logging.getLogger(__name__),
      REVISION_ANNOTATION: str = "deployment.kubernetes.io/revision",
@@ -1061,7 +1064,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             );
         }
 
-        ensure_namespace_exists(namespace);
+        ensure_namespace_exists(namespace, k8s_safe_name(self.k8s_config.app_name));
         self.ensure_alb_readiness_gates(core_v1, namespace);
 
         ops_rbac = bundle.get("ops_rbac");
@@ -1739,35 +1742,33 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _destroy_monitoring(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
+    def _destroy_monitoring(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) -> bool {
         try {
             monitoring = MonitoringDeployer(self.k8s_config, self.logger);
             monitoring.destroy(app_name, namespace, apps_v1, core_v1);
+            return True;
         } except Exception as e {
             if self.logger {
-                self.logger.info(
-                    f"Observability stack destroy reported a non-fatal error: {e}",
+                self.logger.warning(
+                    f"Observability stack destroy failed, leaving its "
+                    f"cluster-scoped RBAC in place: {e}",
                     {"app_name": app_name}
                 );
             }
+            return False;
         }
     }
 
+    def _app_pvc_names(app_name: str) -> list[str] {
+        safe_name: str = k8s_safe_name(app_name);
+        pg_name: str = f"{app_name}-postgres";
+        return [bundle_pvc_name(safe_name), f"{pg_name}-data-{pg_name}-0"];
+    }
+
     def _destroy_app_pvcs(app_name: str, namespace: str, core_v1: any) {
-        try {
-            pvcs = core_v1.list_namespaced_persistent_volume_claim(namespace=namespace);
-        } except ApiException as e {
-            if e.status == 404 {
-                return;
-            }
-            raise;
-        }
-        pvc_items: list[any] = pvcs.items;
-        for pvc in pvc_items {
-            pvc_name: str = pvc.metadata.name;
-            if not pvc_name.startswith(app_name) {
-                continue;
-            }
+        for pvc_name in self._app_pvc_names(app_name) {
             delete_if_exists(
                 core_v1.delete_namespaced_persistent_volume_claim,
                 pvc_name,
@@ -1777,9 +1778,22 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _destroy_ops_rbac(namespace: str) {
+    def _destroy_shared_volume_pvcs(namespace: str, core_v1: any) {
+        try {
+            core_v1.delete_collection_namespaced_persistent_volume_claim(
+                namespace=namespace,
+                label_selector="managed=jac-scale,jac-scale.role=shared-volume"
+            );
+        } except ApiException as e {
+            if e.status != 404 {
+                raise;
+            }
+        }
+    }
+
+    def _destroy_ops_rbac(app_name: str, namespace: str) {
         rbac_v1 = client.RbacAuthorizationV1Api();
-        ms_selector: str = "managed=jac-scale";
+        ms_selector: str = f"managed=jac-scale,app={app_name}";
         for delete_collection in [
             rbac_v1.delete_collection_namespaced_role_binding,
             rbac_v1.delete_collection_namespaced_role
@@ -1827,12 +1841,35 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
+    def _destroy_app_database(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) {
+        pg_name: str = f"{app_name}-postgres";
+        delete_if_exists(
+            apps_v1.delete_namespaced_stateful_set, pg_name, namespace, 'StatefulSet'
+        );
+        delete_if_exists(
+            core_v1.delete_namespaced_service,
+            f"{pg_name}-service",
+            namespace,
+            'Service'
+        );
+        delete_k8s_secret(core_v1, namespace, f"{pg_name}-secret");
+        delete_if_exists(
+            core_v1.delete_namespaced_service_account,
+            f"{pg_name}-sa",
+            namespace,
+            'ServiceAccount'
+        );
+    }
+
     def _destroy_in_shared_namespace(
         app_name: str, namespace: str, apps_v1: any, core_v1: any
     ) {
-        self._destroy_database(app_name, namespace, apps_v1, core_v1);
+        self._destroy_app_database(app_name, namespace, apps_v1, core_v1);
         self._destroy_app_pvcs(app_name, namespace, core_v1);
-        self._destroy_ops_rbac(namespace);
+        self._destroy_shared_volume_pvcs(namespace, core_v1);
+        self._destroy_ops_rbac(app_name, namespace);
         delete_k8s_secret(core_v1, namespace, f"{app_name}-secrets");
     }
 
@@ -1869,11 +1906,24 @@ obj KubernetesTarget(KubernetesTargetBase) {
             app_name, namespace, apps_v1, core_v1, policy_v1, networking_v1
         );
 
-        self._destroy_monitoring(app_name, namespace, apps_v1, core_v1);
+        monitoring_reclaimed = self._destroy_monitoring(
+            app_name, namespace, apps_v1, core_v1
+        );
+        owner: str = k8s_safe_name(app_name);
 
-        if namespace_is_owned(core_v1, namespace) {
-            self._reclaim_namespace(namespace, core_v1);
-            return;
+        if namespace_is_owned(core_v1, namespace, owner) {
+            if monitoring_reclaimed {
+                self._reclaim_namespace(namespace, core_v1);
+                return;
+            }
+            if self.logger {
+                self.logger.warning(
+                    f"Keeping namespace '{namespace}': its monitoring RBAC is "
+                    f"cluster-scoped and is named after this namespace, so "
+                    f"deleting it now would orphan roles nothing can attribute",
+                    {"app_name": app_name}
+                );
+            }
         }
         self._destroy_in_shared_namespace(app_name, namespace, apps_v1, core_v1);
     }
@@ -1892,7 +1942,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 app_name, namespace, apps_v1, core_v1, policy_v1, networking_v1
             );
         } elif component == 'database' {
-            self._destroy_database(app_name, namespace, apps_v1, core_v1);
+            self._destroy_app_database(app_name, namespace, apps_v1, core_v1);
             self._destroy_app_pvcs(app_name, namespace, core_v1);
         } elif component == 'monitoring' {
             self._destroy_monitoring(app_name, namespace, apps_v1, core_v1);

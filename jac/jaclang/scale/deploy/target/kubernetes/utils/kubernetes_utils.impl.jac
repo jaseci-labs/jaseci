@@ -372,7 +372,7 @@ impl privileged_pss_labels(existing: dict[str, str]) -> dict[str, str] | None {
 }
 
 
-impl ensure_namespace_exists(namespace: str) -> None {
+impl ensure_namespace_exists(namespace: str, owner: str = '') -> None {
     if (namespace == 'default') {
         return;
     }
@@ -406,7 +406,9 @@ impl ensure_namespace_exists(namespace: str) -> None {
         if (e.status == 404) {
             console.print(f"Namespace '{namespace}' not found. Creating it...");
             create_labels: dict = dict(default_pss_labels());
-            create_labels[NAMESPACE_OWNER_LABEL] = NAMESPACE_OWNER_VALUE;
+            if owner {
+                create_labels[NAMESPACE_OWNER_LABEL] = owner;
+            }
             core_v1.create_namespace(
                 body={
                     'apiVersion': 'v1',
@@ -421,8 +423,10 @@ impl ensure_namespace_exists(namespace: str) -> None {
     }
 }
 
-impl namespace_is_owned(core_v1: client.CoreV1Api, namespace: str) -> bool {
-    if (namespace == 'default') {
+impl namespace_is_owned(
+    core_v1: client.CoreV1Api, namespace: str, owner: str
+) -> bool {
+    if (namespace == 'default') or not owner {
         return False;
     }
     try {
@@ -434,7 +438,7 @@ impl namespace_is_owned(core_v1: client.CoreV1Api, namespace: str) -> bool {
         raise;
     }
     labels: dict = dict(getattr(ns.metadata, "labels", {}) or {});
-    return labels.get(NAMESPACE_OWNER_LABEL) == NAMESPACE_OWNER_VALUE;
+    return labels.get(NAMESPACE_OWNER_LABEL) == owner;
 }
 
 
