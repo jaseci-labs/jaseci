@@ -1545,7 +1545,15 @@ impl run_tests(
     selector = _build_selector(test_name, filter);
     workers = resolve_jobs(jobs);
     started = time.perf_counter();
-    if (workers <= 1) or (len(plan.files) <= 1) or not hasattr(os, "fork") {
+    raw_jobs = jobs
+        if (jobs not in (None, ""))
+        else os.environ.get("JAC_TEST_JOBS", "");
+    forced_serial = str(raw_jobs).strip() == "0";
+    use_pool = hasattr(os, "fork")
+        and not forced_serial
+        and ((workers > 1) or bool(iso_set) or bool(ser_set))
+        and (len(plan.files) > 1 or bool(iso_set) or bool(ser_set));
+    if not use_pool {
         _run_serial(plan, selector, reporter, xit, maxfail);
     } else {
         par_files = [
