@@ -1370,7 +1370,7 @@ import from exceptions_core {
 }
 import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
-import from tracebackmodule { traceback_module_attrs, format_exception_text }
+import from tracebackmodule { traceback_module_attrs, format_exception_text, tb_write_bound, _tb_shim_type_tags }
 import from objects {
     _zero_step_error,
     DictEntry,
@@ -1801,13 +1801,19 @@ def import_native(absname: str) -> PyObj {
         shim_modules["weakref"] = build_weakref_module();
     }
     if absname == "sys" and not ("sys" in shim_modules) {
-        # Serve a delegate snapshot with exc_info OVERRIDDEN: the host sys sees
-        # only host exception state, never guest frames. Snapshot failure falls
-        # through to plain delegation (no worse than before).
+        # Serve a delegate snapshot with exception-state OVERRIDDEN: the host sys
+        # sees only host exception state, never guest frames. Snapshot failure
+        # falls through to plain delegation (no worse than before).
         sysmod = delegated_module("sys");
         if not is_error(sysmod) {
             (sysmod as PyModule).attrs["exc_info"] = PyNativeBuiltin(
                 t="native_builtin", name="exc_info"
+            );
+            (sysmod as PyModule).attrs["exception"] = PyNativeBuiltin(
+                t="native_builtin", name="exception"
+            );
+            (sysmod as PyModule).attrs["intern"] = PyNativeBuiltin(
+                t="native_builtin", name="intern"
             );
             (sysmod as PyModule).attrs["__jac_marker__"] = PyStr(t="str", val="installed");
             shim_modules["sys"] = sysmod;
@@ -1821,6 +1827,25 @@ def import_native(absname: str) -> PyObj {
         (tbmod as PyModule).attrs["format_exc"] = PyNativeBuiltin(
             t="native_builtin", name="tb_format_exc"
         );
+        (tbmod as PyModule).attrs["print_exc"] = PyNativeBuiltin(
+            t="native_builtin", name="tb_print_exc"
+        );
+        (tbmod as PyModule).attrs["print_exception"] = PyNativeBuiltin(
+            t="native_builtin", name="tb_print_exc_legacy"
+        );
+        # Shim type markers: make exposed classes isinstance-matchable
+        # (ratified exception/tb-surface scope; hot-path guard lives in
+        # py_isinstance keyed on one t compare).
+        tagmap = _tb_shim_type_tags();
+        for tname in tagmap {
+            raw_ctor = (tbmod as PyModule).attrs[tname];
+            (tbmod as PyModule).attrs[tname] = ShimTypeMarker(
+                t="shim_type_marker",
+                tag=(tagmap[tname] as PyStr).val,
+                ctor=raw_ctor,
+            );
+        }
+
         shim_modules["traceback"] = tbmod;
     }
     if absname in sys3_modules {
@@ -4129,6 +4154,32 @@ def live_container_bridge(value: PyObj) -> any {
     return None;
 }
 
+# Identity-counting removal of one occurrence per item: generator suspend must
+# deactivate exactly ITS handler entries so unrelated frames stop seeing them
+# (CPython exc_info is dynamic; the global stack is a single-threaded mirror).
+def _handled_stack_remove_each(items: list[PyObj]) -> None {
+    for it in items {
+        idx = -1;
+        i = 0;
+        while i < len(_handled_exc_stack) {
+            if py_identity(_handled_exc_stack[i], it) {
+                idx = i;
+                break;
+            }
+            i = i + 1;
+        }
+        if idx >= 0 {
+            _handled_exc_stack = _handled_exc_stack[:idx] + _handled_exc_stack[idx + 1:];
+        }
+    }
+}
+
+def _handled_stack_append_each(items: list[PyObj]) -> None {
+    for it in items {
+        _handled_exc_stack.append(it);
+    }
+}
+
 def from_host(raw: any) -> PyObj {
     if raw is None {
         return py_none();
@@ -4734,7 +4785,9 @@ def _mint_host_builtin(name: str) -> PyObj {
         or name == "max"
         or name == "min"
         or name == "dir"
-        or name == "vars" {
+        or name == "vars"
+        or name == "anext"
+        or name == "aiter" {
         # globals() must be native: it returns a LIVE view of the running frame's
         # module namespace, so `globals().update({...})` / `globals()[k] = v`
         # (module init idioms, e.g. re._constants) bind real module globals that a
@@ -4777,11 +4830,18 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         shim_modules["types"] = build_types_facade();
     }
     if name == "sys" and not ("sys" in shim_modules) {
-        # Mirror of the import_native site: exc_info must read GUEST state.
+        # Mirror of the import_native site: exception-state attrs must read
+        # GUEST state.
         sysmod = delegated_module("sys");
         if not is_error(sysmod) {
             (sysmod as PyModule).attrs["exc_info"] = PyNativeBuiltin(
                 t="native_builtin", name="exc_info"
+            );
+            (sysmod as PyModule).attrs["exception"] = PyNativeBuiltin(
+                t="native_builtin", name="exception"
+            );
+            (sysmod as PyModule).attrs["intern"] = PyNativeBuiltin(
+                t="native_builtin", name="intern"
             );
             (sysmod as PyModule).attrs["__jac_marker__"] = PyStr(t="str", val="installed");
             shim_modules["sys"] = sysmod;
@@ -4794,6 +4854,24 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         (tbmod as PyModule).attrs["format_exc"] = PyNativeBuiltin(
             t="native_builtin", name="tb_format_exc"
         );
+        (tbmod as PyModule).attrs["print_exc"] = PyNativeBuiltin(
+            t="native_builtin", name="tb_print_exc"
+        );
+        (tbmod as PyModule).attrs["print_exception"] = PyNativeBuiltin(
+            t="native_builtin", name="tb_print_exc_legacy"
+        );
+        # Shim type markers: make exposed classes isinstance-matchable
+        # (ratified exception/tb-surface scope; hot-path guard lives in
+        # py_isinstance keyed on one t compare).
+        tagmap = _tb_shim_type_tags();
+        for tname in tagmap {
+            raw_ctor = (tbmod as PyModule).attrs[tname];
+            (tbmod as PyModule).attrs[tname] = ShimTypeMarker(
+                t="shim_type_marker",
+                tag=(tagmap[tname] as PyStr).val,
+                ctor=raw_ctor,
+            );
+        }
         shim_modules["traceback"] = tbmod;
     }
     if name in shim_modules {
@@ -9451,6 +9529,11 @@ def py_isinstance(ob: PyObj, typ: PyObj) -> bool {
         }
         return False;
     }
+    # Shim type-marker fast path: one t compare on miss, exact tag match on
+    # hit (ratified exception/tb-surface scope; generic across future shims).
+    if typ.t == "shim_type_marker" {
+        return ob.t == ((typ as ShimTypeMarker).tag);
+    }
     if isinstance(ob, PyException) {
         if typ.t == "exception_type" {
             return exc_name_matches(
@@ -10293,6 +10376,27 @@ obj PyYield(PyObj) {
 
 # next()/iter() as native callables (host_builtin routes these here) so they
 # drive a native generator/iterator in-VM rather than draining it to a host list.
+# Native shim "type" marker (isinstance-matchable shim classes): wraps a
+# constructor callable and carries the PyObj.t tag its instances carry.
+# py_isinstance answers marker matches with a single value.t comparison --
+# no getattr probes, no host bridge. Registered by module shims that expose
+# real class-shaped surfaces (traceback.FrameSummary, TracebackException).
+obj ShimTypeMarker(PyObj) {
+    has tag: str,
+        ctor: PyObj;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return (self.ctor as PyObj).tp_call(args, kwargs);
+    }
+
+    def tp_getattro(name2: str) -> PyObj {
+        if name2 == "__jac_shim_tag__" {
+            return PyStr(t="str", val=self.tag);
+        }
+        return (self.ctor as PyObj).tp_getattro(name2);
+    }
+}
+
 obj PyNativeBuiltin(PyObj) {
     has name: str;
 
@@ -10314,12 +10418,104 @@ obj PyNativeBuiltin(PyObj) {
             vals: list[PyObj] = [py_type_of(e), e, tbv];
             return PyTuple(t="tuple", items=vals);
         }
+        if self.name == "anext" {
+            # anext(aiter[, default]): must stay NATIVE -- routed through the
+            # host, a guest async generator crosses to its stand-in face and
+            # the yielded item is lost (silently-None / not-an-async-
+            # iterator). Returns the __anext__ awaitable; the caller's AWAIT
+            # drives it. Divergence: with default=, CPython converts the
+            # terminal StopIteration into the default -- that conversion needs
+            # coroutine wrapping and is documented as absent for now.
+            if len(args) < 1 or len(args) > 2 {
+                return py_error(
+                    "TypeError", "anext expected at least 1 argument, got " + str(len(args))
+                );
+            }
+            result = py_anext(args[0]);
+            if is_error(result) {
+                if len(args) == 2 and exc_name_matches(
+                    (result as PyError).exception.type_name, "StopAsyncIteration"
+                ) {
+                    return args[1];
+                }
+                return result;
+            }
+            return result;
+        }
+        if self.name == "aiter" {
+            if len(args) != 1 {
+                return py_error("TypeError", "aiter expected exactly 1 argument");
+            }
+            return py_aiter(args[0]);
+        }
+        if self.name == "exception" {
+            # sys.exception() over GUEST handled-exception state: the most
+            # recently caught exception, or None with no active handler. Must
+            # agree with the exc_info branch above (same _handled_exc_stack).
+            if len(_handled_exc_stack) == 0 {
+                return py_none();
+            }
+            return _handled_exc_stack[len(_handled_exc_stack) - 1];
+        }
+        if self.name == "intern" {
+            # sys.intern() must return its argument ITSELF (CPython identity
+            # contract). The host bridge would round-trip a guest PyStr into a
+            # fresh host string, breaking `intern(s) is s`; keep it in-VM.
+            if len(args) != 1 {
+                return py_error(
+                    "TypeError",
+                    "intern expected 1 argument, got " + str(len(args))
+                );
+            }
+            if not isinstance(args[0], PyStr) {
+                return py_error(
+                    "TypeError", "intern() argument must be str, not " + args[0].tp_type_name()
+                );
+            }
+            return args[0];
+        }
         if self.name == "tb_format_exc" {
             e = current_handled_exc();
             if isinstance(e, PyNoneType) {
                 return PyStr(t="str", val="NoneType: None\n");
             }
             return format_exception_text(e);
+        }
+        if self.name == "tb_print_exc" or self.name == "tb_print_exc_legacy" {
+            # print_exc()/print_exception(): full-chain text to stderr or a
+            # guest file-like. print_exc with no positional args reads the
+            # CURRENTLY HANDLED exception; legacy form takes (etype, value, tb)
+            # and renders value.
+            target = py_none();
+            for wkey in kwargs {
+                if wkey == "file" {
+                    target = kwargs[wkey];
+                } else {
+                    return py_error("TypeError", "unsupported keyword argument: " + wkey);
+                }
+            }
+            no_pos = len(args) == 0;
+            if self.name == "tb_print_exc" and len(args) > 0 and isinstance(args[0], PyNoneType) {
+                no_pos = True;
+            }
+            if no_pos {
+                e = current_handled_exc();
+                if isinstance(e, PyNoneType) {
+                    return py_error("RuntimeError", "No active exception to re-raise");
+                }
+                text = format_exception_text(e);
+            }
+            elif self.name == "tb_print_exc_legacy" and len(args) >= 2 {
+                text = format_exception_text(args[1]);
+            }
+            else {
+                text = format_exception_text(args[0]);
+            }
+            w = py_attr(target, "write");
+            if is_error(w) {
+                return w;
+            }
+            return py_invoke(w, [text], {});
         }
         if self.name == "sorted" or self.name == "max" or self.name == "min" {
             return builtin_sorted_min_max(self.name, args, kwargs);
@@ -13028,6 +13224,12 @@ def frame_clear(frame: PyFrame) -> None {
     for name in frame.locals {
         held.append(frame.locals[name]);
     }
+    if frame.exc_state is not None {
+        # Abandoned (never-resumed/closed) generator: its suspended handler
+        # entries were already removed at suspend time EXCEPT when cleared
+        # mid-handling after a resume -- drain any residual copies.
+        _handled_stack_remove_each(frame.exc_state as list[PyObj]);
+    }
     frame.fast = [];
     frame.stack = [];
     frame.locals = {};
@@ -13631,6 +13833,7 @@ def run_frame(frame: PyFrame) -> PyObj {
     exc_handling: list[PyObj] = [];
     if frame.exc_state is not None {
         exc_handling = frame.exc_state as list[PyObj];
+        _handled_stack_append_each(exc_handling);
     }
     # Polymorphic opcode scratch slots: handlers below store PyObj values (and
     # occasionally the narrower PyStr/PyException subtypes) here, so they are
@@ -14696,7 +14899,11 @@ def run_frame(frame: PyFrame) -> PyObj {
                 continue;
             }
             reraised = py_raise_value(exc);
-            target = recover_exception(co, reraised, offset, stack);
+            # This is a RERAISE-class event (the error entry for main was
+            # already appended when the awaited __anext__ failed): growing the
+            # traceback here duplicated main's frame (main|main|agen vs host
+            # main|agen). Route through dispatch like every other reraise.
+            target = dispatch_exception(co, reraised, offset, offset, stack);
             if target >= 0 {
                 ip = target;
                 continue;
@@ -15676,6 +15883,10 @@ def run_frame(frame: PyFrame) -> PyObj {
             frame.ip = ip;
             frame.yf = arg == 1;
             frame.exc_state = exc_handling;
+            # Suspend deactivates this frame's handler entries in the global
+            # exc_info view (re-appended on resume); without this, an unrelated
+            # frame reading sys.exc_info() sees the suspended gen's exception.
+            _handled_stack_remove_each(exc_handling);
             return PyYield(t="yield", val=value);
         }
         if op == OP_TO_BOOL {
