@@ -18,7 +18,7 @@
 # in the P3/P4 lane before trusting these two goldens as regressions.
 
 import from host_oracle { host_compile_marshal }
-import from pyc_first { unmarshal, exec_code, to_host }
+import from layer0_replay_harness { unmarshal, exec_code, to_host }
 import from objects { PyObj, PyStr, is_error }
 
 # Exec `src` on ceval with fresh module globals; fails the test on raise.
