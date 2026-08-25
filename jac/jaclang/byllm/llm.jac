@@ -72,8 +72,9 @@ glob DEFAULT_BASE_URL = "http://localhost:4000",
 
 def _stream_chunk_builder_accepts_logging_obj() -> bool {
     import inspect;
+    builder: any = litellm.stream_chunk_builder;
     try {
-        return "logging_obj" in inspect.signature(litellm.stream_chunk_builder).parameters;
+        return "logging_obj" in inspect.signature(builder).parameters;
     } except Exception as e {
         logger.debug(f"could not inspect stream_chunk_builder, omitting logging_obj: {e}");
         return False;

@@ -387,12 +387,12 @@ test "_stream_chunk_builder_accepts_logging_obj degrades to False and logs when 
     # itself raising is the unexpected case that must leave a trace.
     with unittest.mock.patch(
         "inspect.signature", side_effect=ValueError("boom")
-    ), unittest.mock.patch.object(_byllm_llm_mod, "logger") as mock_logger {
+    ), unittest.mock.patch.object(_byllm_llm_mod.logger, "debug") as mock_debug {
         result = _byllm_llm_mod._stream_chunk_builder_accepts_logging_obj();
         assert result == False , (
             "an uninspectable stream_chunk_builder must degrade to False, not raise"
         );
-        assert mock_logger.debug.call_count >= 1 , (
+        assert mock_debug.call_count >= 1 , (
             "a signature-inspection failure must be logged, not silently swallowed"
         );
     }
@@ -406,13 +406,13 @@ test "_usage_to_dict logs rather than silently swallowing a serialization failur
         }
     }
 
-    with unittest.mock.patch.object(_byllm_llm_mod, "logger") as mock_logger {
+    with unittest.mock.patch.object(_byllm_llm_mod.logger, "debug") as mock_debug {
         result = _byllm_llm_mod._usage_to_dict(_Unserializable());
         assert result == {} , (
             "a usage object that fails to serialize must still degrade to an "
             "empty payload"
         );
-        assert mock_logger.debug.call_count >= 1 , (
+        assert mock_debug.call_count >= 1 , (
             "a usage object that fails to serialize must be logged, not "
             "silently swallowed - it looks identical to a real zero-token "
             "call otherwise"

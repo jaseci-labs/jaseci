@@ -289,10 +289,12 @@ def _existing_cost(usage_obj: object) -> object {
 
 
 def _rebuild_stream_chunks(chunks: list, logging_obj: object) -> dict {
-    if _STREAM_CHUNK_BUILDER_ACCEPTS_LOGGING_OBJ {
-        return litellm.stream_chunk_builder(chunks, logging_obj=logging_obj);
-    }
-    return litellm.stream_chunk_builder(chunks);
+    rebuilt: any = (
+        litellm.stream_chunk_builder(chunks, logging_obj=logging_obj)
+            if _STREAM_CHUNK_BUILDER_ACCEPTS_LOGGING_OBJ
+            else litellm.stream_chunk_builder(chunks)
+    );
+    return rebuilt;
 }
 
 
