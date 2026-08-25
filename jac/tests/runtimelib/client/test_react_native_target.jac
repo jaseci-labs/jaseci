@@ -148,21 +148,21 @@ test "react native build source includes iOS and release wiring" {
 
 
 test "native runtime file ships parallel to the web runtime" {
-    # D9: shared logic lives in client_runtime_core; native is platform adapters.
-    runtime_core = _client_dir / "client_runtime_core.jac";
-    runtime_core_impl = _client_dir / "impl" / "client_runtime_core.impl.jac";
+    # D9: shared logic lives in client_react_core; native is platform adapters.
+    runtime_core = _client_dir / "client_react_core.jac";
+    runtime_core_impl = _client_dir / "impl" / "client_react_core.impl.jac";
     runtime_native = _client_dir / "client_runtime_native.jac";
     runtime_native_impl = _client_dir / "impl" / "client_runtime_native.impl.jac";
 
     assert runtime_core.exists() , (
-        f"client_runtime_core.jac not found at {runtime_core}"
+        f"client_react_core.jac not found at {runtime_core}"
     );
     assert runtime_core_impl.exists();
     assert runtime_native.exists() , (
         f"client_runtime_native.jac not found at {runtime_native}"
     );
     assert runtime_native_impl.exists();
-    assert "import from client_runtime_core" in runtime_native.read_text();
+    assert "import from client_react_core" in runtime_native.read_text();
 
     core_content = runtime_core.read_text();
     cl_content = runtime_native.read_text();
@@ -236,8 +236,8 @@ test "JacClientCompiler maps targets to platform runtimes" {
         "COMPOUND_EXTENSIONS must strip .native.jac ahead of the plain .jac "
         "fallback so Header.native.jac maps to Header.js (not Header.native.js)."
     );
-    assert "client_runtime_core.jac" in impl_content , (
-        "compile_runtime_utils must bundle client_runtime_core (D9)"
+    assert "client_react_core.jac" in impl_content , (
+        "compile_runtime_utils must bundle client_react_core (D9)"
     );
     assert "_bundle_runtime_js" in impl_content;
 }

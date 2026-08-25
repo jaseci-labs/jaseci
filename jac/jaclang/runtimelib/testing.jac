@@ -14,7 +14,7 @@ import from jaclang.runtimelib.serving.datatypes {
     URL,
     parse_query_string
 }
-import from jaclang.runtimelib.serving.testing { dispatch_and_collect }
+import from jaclang.runtimelib.serving.testkit { dispatch_and_collect }
 
 obj TestResponse {
     has status_code: int,

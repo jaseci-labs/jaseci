@@ -14,7 +14,13 @@ glob AUTO_LINT_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "tool", "fixtures", "auto_lint"
      ),
      STRESS_TEST_PATH = os.path.join(
-         JAC_ROOT, "jaclang", "tests", "fixtures", "comment_normalize_stress_test.jac"
+         JAC_ROOT,
+         "tests",
+         "compiler",
+         "passes",
+         "tool",
+         "fixtures",
+         "comment_normalize_stress_test.jac"
      );
 
 """Return the path to an auto_lint fixture file."""

@@ -1,7 +1,4 @@
-"""Import pass tests – migrated from test_import_pass.py.
-
-Note: test_py_raise_map and test_py_raised_mods are skipped (TODO: Fix when we have type checker).
-"""
+"""Import pass tests – migrated from test_import_pass.py."""
 
 import os;
 import io;

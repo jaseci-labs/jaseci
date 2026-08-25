@@ -1,3 +1,7 @@
+# Auto-generated CLI command routes.
+# DO NOT EDIT MANUALLY - regenerate with `jac gen-cli-manifest`.
+# Only the routes are generated; the section from the _COMMANDS declaration
+# down is hand-written and preserved by the generator.
 def _command_routes -> list[CommandMeta] {
     return [
         CommandMeta(

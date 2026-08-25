@@ -33,7 +33,6 @@ class JacProgram {
         errors_had: list[Alert],
         warnings_had: list[Alert],
         mtir_map: dict[(str, Info)],
-        py_raise_map: dict[(str, str)],
         type_evaluator: TypeEvaluator | None,
         _compiler: JacCompiler | None;
 

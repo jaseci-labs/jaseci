@@ -25,8 +25,7 @@ glob _WARNING_IGNORES: list[tuple[str, str, str]] = [
              ""
          ),
          ("", "ResourceWarning", ""),
-         ("", "DeprecationWarning", "cattrs"),
-         ("", "DeprecationWarning", "jaclang.vendor.cattrs")
+         ("", "DeprecationWarning", "cattrs")
      ];
 
 glob _WORKER_MEM_BYTES: int = 2 * 1024 * 1024 * 1024,

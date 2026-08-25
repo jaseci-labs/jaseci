@@ -187,6 +187,21 @@ Before submitting, use an AI assistant to audit your diff for unnecessary code. 
 
 > "Can you look at the local changes to see if there is any bloat or inefficient implementation given what these changes are achieving."
 
+**Impl Annex Placement**
+
+A module's `impl` blocks live in the shared `impl/` directory beside the module by default: `foo.jac` pairs with `impl/foo.impl.jac`. Use a per-module annex directory (`foo.impl/` holding several `*.impl.jac` files) only when the implementation genuinely needs a multi-file split (for example a generated annex beside hand-written ones, or a very large implementation split by concern). Inline `impl` blocks in the module file itself are for small modules where an annex would be ceremony. Do not mix placements for one module, and prefer the shared `impl/` directory when in doubt.
+
+**Generated Files**
+
+Every generated file that is tracked in git must carry the standard marker as its first lines, naming the regeneration command:
+
+```
+# Auto-generated <what this is>.
+# DO NOT EDIT MANUALLY - regenerate with `<command>`.
+```
+
+Generated artifacts that are not meant to be tracked must be written to a cache or build-output directory (or be reliably cleaned up), never left in the source tree. If CI can cheaply verify the file is in sync (like `jac gen-cli-manifest --verify`), wire that up; otherwise guard it with a snapshot test.
+
 **Issue Assignment**
 
 Assignees on GitHub issues means the person is **committing to resolve** that issue, not that they "should" work on it. Keep as many issues unassigned as possible so contributors can pick them up.

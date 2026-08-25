@@ -631,23 +631,23 @@ jobs:
           node-version: "20"
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-      # test_auth_models.jac runs in test-reroute-gaps (see there).
+      # test_auth_types.jac runs in test-reroute-gaps (see there).
       - name: Runtime suite via the binary
         working-directory: jac
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
           HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto jac test tests/ \
-            --ignore tests/compiler tests/runtimelib/test_auth_models.jac
+            --ignore tests/compiler tests/runtimelib/test_auth_types.jac
 
   # Tests that do not yet pass through the reroute, run here against the
   # sealed kit so coverage stays what it was. Each entry names a real
   # divergence between the reroute and the sealed payload, not a CI quirk;
   # the job should shrink to nothing as they are fixed.
   #
-  # - tests/runtimelib/test_auth_models.jac: SIGABRT while the test file
+  # - tests/runtimelib/test_auth_types.jac: SIGABRT while the test file
   #   compiles under the reroute's native lowering. The payload ships
-  #   auth_models as sv bytecode, so the sealed lane never lowers it; a plain
+  #   auth_types as sv bytecode, so the sealed lane never lowers it; a plain
   #   `jac run` that imports it reports E5092 ("Native lowering failed for
   #   function 'IdentityInput'") and falls back to sv. With the native
   #   pipeline off, all 8 tests pass.
@@ -687,11 +687,11 @@ jobs:
             "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
-      - name: auth_models (runtime)
+      - name: auth_types (runtime)
         working-directory: jac
         run: |
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/runtimelib/test_auth_models.jac
+          HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/runtimelib/test_auth_types.jac
       - name: MTIR integration (byllm)
         env:
           TEST_ENV: "true"

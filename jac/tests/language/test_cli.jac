@@ -394,9 +394,6 @@ test "jac cli alert based runtime err" {
 }
 
 test "jac impl err" {
-    if "jaclang.tests.fixtures.err" in sys.modules {
-        del sys.modules["jaclang.tests.fixtures.err"];
-    }
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     sys.stderr = captured_output;

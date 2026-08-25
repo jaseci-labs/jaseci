@@ -330,7 +330,7 @@ glob CLIENT_RUNTIME_SOURCE_PATHS: list[str] = [
          "runtimelib/pwa_runtime.jac",
          "runtimelib/wasm_host.jac",
          "runtimelib/client/client_mobui.jac",
-         "runtimelib/client/client_runtime_core.jac",
+         "runtimelib/client/client_react_core.jac",
          "runtimelib/client/client_runtime_native.jac",
          "runtimelib/client/targets/desktop/plugin/desktop_api.jac"
      ];

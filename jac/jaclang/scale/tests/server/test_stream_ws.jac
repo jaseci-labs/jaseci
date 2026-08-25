@@ -231,7 +231,7 @@ test "ws route closes with 1008 when no registry prefix matches" {
     import from jaclang.scale.runtime.gateway.microservice_gateway {
         MicroserviceGateway
     }
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    import from jaclang.runtimelib.serving.testkit { ServingTestClient as TestClient }
     import from jaclang.runtimelib.serving.datatypes { WebSocketDisconnect }
 
     reg = ServiceRegistry();
@@ -265,7 +265,7 @@ test "ws route rejects with 1012 during drain" {
         MicroserviceGateway
     }
     import from jaclang.scale.runtime.lifecycle.drain { reset_drain, start_drain }
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    import from jaclang.runtimelib.serving.testkit { ServingTestClient as TestClient }
 
     reset_drain();
     reg = ServiceRegistry();

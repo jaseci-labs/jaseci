@@ -1,6 +1,6 @@
-"""Unit tests for jaclang.runtimelib.auth_models from_dict validators."""
+"""Unit tests for jaclang.runtimelib.auth_types from_dict validators."""
 
-import from jaclang.runtimelib.auth_models {
+import from jaclang.runtimelib.auth_types {
     IdentityInput,
     CredentialInput,
     LoginRequest,

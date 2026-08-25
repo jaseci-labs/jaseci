@@ -5,7 +5,7 @@ import threading;
 import time;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.runtimelib.scheduler { Scheduler, ScheduleSpec, ScheduledTask }
+import from jaclang.runtimelib.task_scheduler { Scheduler, ScheduleSpec, ScheduledTask }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 

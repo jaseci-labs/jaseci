@@ -1334,7 +1334,13 @@ impl grammar(output: str = "", strict: bool = False) -> int {
     }
     text = pass_.emit_ebnf();
     if output {
+        banner = (
+            "# Auto-generated EBNF snapshot of the Jac grammar.\n"
+            + "# DO NOT EDIT MANUALLY - regenerate with"
+            + " `jac tool grammar -o <path>`.\n\n"
+        );
         with open(output, "w", encoding="utf-8") as f {
+            f.write(banner);
             f.write(text);
             f.write("\n");
         }

@@ -163,10 +163,7 @@ test "deep imports mods" {
 test "deep outer imports one" {
     output = run_module("deep.deeper.deep_outer_import", FIXTURES);
     assert "one level deeperslHello World!" in output;
-    assert (
-        "module 'pyfunc' from " in output
-        or "module 'jaclang.tests.fixtures.pyfunc' from " in output
-    );
+    assert "module 'pyfunc' from " in output;
 }
 
 test "has lambda goodness" {

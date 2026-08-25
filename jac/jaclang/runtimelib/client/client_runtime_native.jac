@@ -21,7 +21,7 @@ import from 'expo-secure-store' { * as SecureStore }
 import from 'expo-constants' { * as ExpoConstants }
 import from 'react-error-boundary' { ErrorBoundary }
 import from 'zod' { z }
-import from client_runtime_core {
+import from client_react_core {
     __createJacSchema,
     jacIsLoggedIn,
     useJacForm,

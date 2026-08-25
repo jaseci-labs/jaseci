@@ -3,7 +3,7 @@ import from jaclang.cli.banners { JAC_DISCORD_URL }
 import from jaclang.runtimelib.serializer { Serializer }
 import from jaclang.runtimelib.client_bundle { MissingBunError, _ensure_js_generated }
 import from jaclang.runtimelib.exceptions { WriteConflict }
-import from jaclang.runtimelib.auth_models {
+import from jaclang.runtimelib.auth_types {
     IdentityInput,
     IdentityType,
     LoginRequest,
@@ -1717,7 +1717,7 @@ def _warm_persistence {
 
 
 impl JacAPIServer.postinit -> None {
-    import from jaclang.runtimelib.scheduler { Scheduler }
+    import from jaclang.runtimelib.task_scheduler { Scheduler }
     _warm_persistence();
     self.user_manager = self._make_user_manager();
 

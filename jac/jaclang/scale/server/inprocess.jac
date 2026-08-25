@@ -73,7 +73,7 @@ def prepare_inprocess_runtime(
     setup_background_services: bool = True,
     transport_kind: str = "testclient"
 ) -> PreparedInProcessRuntime {
-    import from jaclang.runtimelib.serving.testing { ServingTestClient }
+    import from jaclang.runtimelib.serving.testkit { ServingTestClient }
 
     if transport_kind != "testclient" {
         raise NotImplementedError(

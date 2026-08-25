@@ -346,7 +346,7 @@ def _merge_runtime_imports(platform_js: str, core_js: str) -> str {
     seen: set[str] = set();
     merged: list[str] = [];
     for line in _extract_import_lines(platform_js) + _extract_import_lines(core_js) {
-        if 'client_runtime_core' in line {
+        if 'client_react_core' in line {
             continue;
         }
         if line in seen {
@@ -402,17 +402,17 @@ impl JacClientCompiler.compile_runtime_utils(
     self: JacClientCompiler, runtime_filename: str
 ) -> tuple[str, list[str]] {
     plugin_dir = _jac_client_plugin_dir();
-    core_path = plugin_dir / 'client_runtime_core.jac';
+    core_path = plugin_dir / 'client_react_core.jac';
     runtime_utils_path = plugin_dir / runtime_filename;
     if not core_path.exists() {
         raise ClientBundleError(
-            f'Runtime core not found: {core_path}. Expected client_runtime_core.jac.'
+            f'Runtime core not found: {core_path}. Expected client_react_core.jac.'
         );
     }
     if not runtime_utils_path.exists() {
         raise ClientBundleError(
             f'Runtime file not found: {runtime_utils_path}. '
-            'Expected a platform runtime beside client_runtime_core.jac.'
+            'Expected a platform runtime beside client_react_core.jac.'
         );
     }
     (core_js, _core_mod, core_manifest) = self.jac_compiler.compile_module(core_path);

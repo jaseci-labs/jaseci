@@ -348,7 +348,7 @@ def _validate_restspec_target(spec: any, target: any) {
 }
 
 impl schedule(**kwargs: any) -> Callable {
-    import from jaclang.runtimelib.scheduler { ScheduleSpec }
+    import from jaclang.runtimelib.task_scheduler { ScheduleSpec }
     import from jaclang.runtimelib.builtin { ScheduleTrigger }
     trigger = kwargs.pop("trigger", ScheduleTrigger.STATIC);
     if isinstance(trigger, str) {

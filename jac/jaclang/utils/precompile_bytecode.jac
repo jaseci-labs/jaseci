@@ -29,10 +29,10 @@ import from jaclang.jac0core.sealed {
     MANIFEST_FORMAT,
     JIR_FORMAT_VERSION as SEALED_JIR_FORMAT_VERSION,
     PRECOMPILE_SENTINEL as SEALED_SENTINEL,
-    _HEADER_SIZE as SEALED_HEADER_SIZE,
-    _SECTIONS_MAGIC as SEALED_SECTIONS_MAGIC,
-    _SEC_BYTECODE as SEALED_SEC_BYTECODE,
-    _SEC_DEBUG_SRC as SEALED_SEC_DEBUG_SRC
+    HEADER_SIZE as SEALED_HEADER_SIZE,
+    SECTIONS_MAGIC as SEALED_SECTIONS_MAGIC,
+    SEC_BYTECODE as SEALED_SEC_BYTECODE,
+    SEC_DEBUG_SRC as SEALED_SEC_DEBUG_SRC
 }
 
 glob RESULT_NAME: str = "PRECOMPILE_RESULT.json";
@@ -2139,6 +2139,13 @@ def seal_native_roots(
                 );
             }
             _gen_root_src = src;
+            # The generated root is transient: the seal unlinks it as soon as
+            # its artifact is built or reused, and this process-exit hook
+            # covers every failed-seal early return so the source tree never
+            # retains a generated file (missing_ok makes it a no-op when the
+            # eager unlink already ran).
+            import atexit;
+            atexit.register(src.unlink, missing_ok=True);
         }
         if not src.is_file() {
             console.error(f"NATIVE SEAL: missing source {src}");

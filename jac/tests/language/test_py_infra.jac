@@ -411,10 +411,7 @@ test "deep outer imports from loc" {
     }
     stdout_value = captured.getvalue();
     assert "one level deeperslHello World!" in stdout_value;
-    assert (
-        "module 'jaclang.tests.fixtures.pyfunc' from " in stdout_value
-        or "module 'pyfunc' from " in stdout_value
-    );
+    assert "module 'pyfunc' from " in stdout_value;
 }
 
 test "list methods" {

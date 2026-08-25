@@ -11,7 +11,6 @@ impl JacProgram.init(
     self.errors_had: list[Alert] = self.diags.errors;
     self.warnings_had: list[Alert] = self.diags.warnings;
     self.mtir_map: dict[(str, Info)] = self.analysis.mtir_map;
-    self.py_raise_map: dict[(str, str)] = {};
     self.type_evaluator: (TypeEvaluator | None) = None;
     self._compiler: (JacCompiler | None) = None;
 }
