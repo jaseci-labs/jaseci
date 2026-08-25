@@ -14,9 +14,9 @@ import os;
 import shutil;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.modresolver { resolve_module }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.modresolver { resolve_module }
+import from jaclang.compiler.driver.program { JacProgram }
 
 
 test "bare import yields a syntax diagnostic, never an internal error" {
