@@ -1,8 +1,8 @@
 # Triage report: `conv_builtin_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_builtin.py
-- guest leg: 0/92 marks
-- pins: **43 passed** / 92 run (+41 quarantined of 133 extracted)
+- guest leg: 0/93 marks
+- pins: **44 passed** / 93 run (+40 quarantined of 133 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -14,6 +14,7 @@
 | BuiltinTest.test_ascii | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'maximum recursion depth exceeded'"> |
 | BuiltinTest.test_neg | PASS | |
 | BuiltinTest.test_chr | PASS | |
+| BuiltinTest.test_cmp | PASS | |
 | BuiltinTest.test_compile | PASS | |
 | BuiltinTest.test_compile_top_level_await_no_coro | GUEST-WRONG-OUTPUT | RUN<'TypeError: expected code object'> |
 | BuiltinTest.test_compile_top_level_await | GUEST-WRONG-OUTPUT | RUN<'TypeError: expected code object'> |
@@ -33,7 +34,7 @@
 | BuiltinTest.test_exec_globals_dict_subclass | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC NameError "name \'superglobal\' is not defined"'> |
 | BuiltinTest.test_eval_builtins_mapping | PASS | |
 | BuiltinTest.test_exec_builtins_mapping_import | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "object can\'t be sent"'> |
-| BuiltinTest.test_eval_builtins_mapping_reduce | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (<built-in function iter>, (<function_jac_make_host_iterator.<locals>._next at 0x7f1d5a9b3530>, <object object at 0x7f1d59eac5d0>)), (<built-in function iter>, ([1, 2],), 0))"'> |
+| BuiltinTest.test_eval_builtins_mapping_reduce | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (<built-in function iter>, (<function_jac_make_host_iterator.<locals>._next at 0x7f4ddc412cf0>, <object object at 0x7f4ddbae0670>)), (<built-in function iter>, ([1, 2],), 0))"'> |
 | BuiltinTest.test_exec_redirected | PASS | |
 | BuiltinTest.test_exec_closure | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError '**globals**'"> |
 | BuiltinTest.test_filter | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'Squares\' object is not iterable"'> |
@@ -122,7 +123,6 @@
 | PtyTests.test_input_no_stdout_fileno | decorator:unittest.skipUnless |
 | BuiltinTest.test_import | uses-self.assertWarns |
 | BuiltinTest.test_callable | unresolved-name:**builtins** |
-| BuiltinTest.test_cmp | self.assertNotHasAttr |
 | BuiltinTest.test_exec_globals_frozen | unresolved-name:**builtins** |
 | BuiltinTest.test_open | helper:write_testfile(self.addCleanup) |
 | BuiltinTest.test_input | helper:write_testfile(self.addCleanup) |
@@ -220,7 +220,7 @@
 ### BuiltinTest.test_eval_builtins_mapping_reduce (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (<built-in function iter>, (<function_jac_make_host_iterator.<locals>._next at 0x7f1d5a9b3530>, <object object at 0x7f1d59eac5d0>)), (<built-in function iter>, ([1, 2],), 0))"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (<built-in function iter>, (<function_jac_make_host_iterator.<locals>._next at 0x7f4ddc412cf0>, <object object at 0x7f4ddbae0670>)), (<built-in function iter>, ([1, 2],), 0))"'>
 
 ### BuiltinTest.test_exec (GUEST-WRONG-OUTPUT)
 

@@ -14,7 +14,7 @@
 | BytesTest.test_getitem_error | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'"> |
 | BytesTest.test_custom | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', b\'abc\', b\'abc\')"'> |
 | BytesTest.test_bytes_blocking | PASS | |
-| BytesTest.test_repeat_id_preserving | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 140414412797136, 140414412558928)"'> |
+| BytesTest.test_repeat_id_preserving | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 139693626995920, 139693626741328)"'> |
 | ByteArrayTest.test_getitem_error | PASS | |
 | ByteArrayTest.test_setitem_error | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'"> |
 | ByteArrayTest.test_nohash | PASS | |
@@ -61,7 +61,7 @@
 | ByteArraySubclassTest.test_fromhex | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'fromhex'"> |
 | ByteArraySubclassWithSlotsTest.test_fromhex | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'fromhex'"> |
 | BytesSubclassTest.test_fromhex | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <class \'bytes\'>, <class \'**main**.BytesSubclass\'>)"'> |
-| ByteArraySubclassTest.test_init_override | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', <**main**.subclass object at 0x7fb4c8341ed0>, b\'abcd\')"'> |
+| ByteArraySubclassTest.test_init_override | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', <**main**.subclass object at 0x7f0cf6019ed0>, b\'abcd\')"'> |
 
 ## Quarantined at conversion
 
@@ -214,18 +214,18 @@
 | AssortedBytesTest.test_bytearray_str | self.test_bytearray_repr |
 | ByteArrayAsStringTest.test_mixed_cmp | self._assert_cmp |
 | BytesAsStringTest.test_mixed_cmp | self._assert_cmp |
-| ByteArraySubclassTest.test_basic | self.assertIsSubclass |
-| ByteArraySubclassWithSlotsTest.test_basic | self.assertIsSubclass |
-| BytesSubclassTest.test_basic | self.assertIsSubclass |
+| ByteArraySubclassTest.test_basic | uses-self.type2test |
+| ByteArraySubclassWithSlotsTest.test_basic | uses-self.type2test |
+| BytesSubclassTest.test_basic | uses-self.type2test |
 | ByteArraySubclassTest.test_join | uses-self.basetype |
 | ByteArraySubclassWithSlotsTest.test_join | uses-self.basetype |
 | BytesSubclassTest.test_join | uses-self.basetype |
-| ByteArraySubclassTest.test_pickle | self.assertNotHasAttr |
-| ByteArraySubclassWithSlotsTest.test_pickle | self.assertNotHasAttr |
-| BytesSubclassTest.test_pickle | self.assertNotHasAttr |
-| ByteArraySubclassTest.test_copy | self.assertNotHasAttr |
-| ByteArraySubclassWithSlotsTest.test_copy | self.assertNotHasAttr |
-| BytesSubclassTest.test_copy | self.assertNotHasAttr |
+| ByteArraySubclassTest.test_pickle | uses-self.type2test |
+| ByteArraySubclassWithSlotsTest.test_pickle | uses-self.type2test |
+| BytesSubclassTest.test_pickle | uses-self.type2test |
+| ByteArraySubclassTest.test_copy | uses-self.type2test |
+| ByteArraySubclassWithSlotsTest.test_copy | uses-self.type2test |
+| BytesSubclassTest.test_copy | uses-self.type2test |
 | ByteArrayTest.test_check_encoding_errors | host-raised:SkipTest: No module named '_testlimitedcapi' |
 | ByteArrayTest.test_maketrans | host-raised:SkipTest: No module named '_testlimitedcapi' |
 | BytesTest.test_free_after_iterating | host-raised:AttributeError: '_SelfNS' object has no attribute 'assertRaises' |
@@ -257,7 +257,7 @@
 ### ByteArraySubclassTest.test_init_override (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', <**main**.subclass object at 0x7fb4c8341ed0>, b\'abcd\')"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', <**main**.subclass object at 0x7f0cf6019ed0>, b\'abcd\')"'>
 
 ### ByteArraySubclassWithSlotsTest.test_fromhex (GUEST-WRONG-OUTPUT)
 
@@ -422,4 +422,4 @@
 ### BytesTest.test_repeat_id_preserving (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 140414412797136, 140414412558928)"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 139693626995920, 139693626741328)"'>

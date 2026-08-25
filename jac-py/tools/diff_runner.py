@@ -279,6 +279,19 @@ def write_conformance_and_result(
     return conformance_path, result_path
 
 
+def _md_cell(text: str) -> str:
+    """Escape a payload for a markdown table cell.
+
+    Pipes get escaped; payloads containing double underscores are wrapped in
+    a code span so markdownlint emphasis rules cannot rewrite dunder names
+    (``__copy__`` -> **copy**) when auto-fixing the generated triage files.
+    """
+    escaped = text.replace("|", "\\|").replace("\n", " ")
+    if "__" in escaped:
+        return "`" + escaped + "`"
+    return escaped
+
+
 def build_report(
     pins_file: Path,
     meta: dict,
@@ -314,8 +327,7 @@ def build_report(
         if cls is None:
             lines.append(f"| {ident} | PASS | |")
         else:
-            got = cls["detail"].replace("|", "\\|").replace("\n", " ")
-            lines.append(f"| {ident} | {cls['classification']} | {got} |")
+            lines.append(f"| {ident} | {cls['classification']} | {_md_cell(cls['detail'])} |")
     lines.append("")
 
     if quarantined:
@@ -336,7 +348,10 @@ def build_report(
             cls = classifications[ident]
             lines.append(f"### {ident} ({cls['classification']})")
             lines.append("- expected: host oracle = `ok`")
-            lines.append(f"- got: {cls['detail']}")
+            detail = cls["detail"]
+            if "__" in detail:
+                detail = "`" + detail.replace("\n", " ") + "`"
+            lines.append(f"- got: {detail}")
             lines.append("")
     return "\n".join(lines)
 

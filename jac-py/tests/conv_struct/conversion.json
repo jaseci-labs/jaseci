@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,7 +14,7 @@
     "--name",
     "conv_struct"
   ],
-  "generated_at": "2026-08-24T15:03:40",
+  "generated_at": "2026-08-24T23:15:34",
   "hashes": {
     "pins_jac": "0f20d62577e90c6ec9e12e5af7cc91bef02b34a146983e7d18156c8fbbb86747"
   },

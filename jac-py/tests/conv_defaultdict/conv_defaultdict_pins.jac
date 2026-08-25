@@ -49,6 +49,12 @@ test "TestDefaultDict.test_keyerror_without_factory" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TestDefaultDict.test_recursive_repr" {
+    (ok, detail) = p2_libtest_run_snippet("import re as _re\nfrom collections import defaultdict\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class sub(defaultdict):\n\n        def __init__(self):\n            self.default_factory = self._factory\n\n        def _factory(self):\n            return []\n    d = sub()\n    assert _re.search('sub\\\\(<bound method .*sub\\\\._factory of sub\\\\(\\\\.\\\\.\\\\., \\\\{\\\\}\\\\)>, \\\\{\\\\}\\\\)', repr(d)), ('assertRegex', repr(d), 'sub\\\\(<bound method .*sub\\\\._factory of sub\\\\(\\\\.\\\\.\\\\., \\\\{\\\\}\\\\)>, \\\\{\\\\}\\\\)')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TestDefaultDict.test_callable_arg" {
     (ok, detail) = p2_libtest_run_snippet("from collections import defaultdict\n\ndef _t():\n    try:\n        defaultdict(*({},))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

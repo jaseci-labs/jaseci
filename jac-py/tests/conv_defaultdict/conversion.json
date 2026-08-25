@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "f5e921e06eb9d933596b6431443728caa01d1afd",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_defaultdict"
   ],
-  "generated_at": "2026-08-24T15:26:17",
+  "generated_at": "2026-08-24T23:15:25",
   "hashes": {
-    "pins_jac": "b5659ea9b09314e402c38d4d204b534ec8f9c5153a4898b55a77ef6be178d425"
+    "pins_jac": "61d5b843a2485e85ac25d7613212c314251d4750defbb5700b5d45a37ebb30c7"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_defaultdict.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -80,6 +80,14 @@
       "snippet": "from collections import defaultdict\n\ndef _t():\n    d1 = defaultdict()\n    try:\n        d1[1,]\n    except KeyError as err:\n        assert err.args[0] == (1,), ('assertEqual', err.args[0], (1,))\n    else:\n        raise AssertionError('expected KeyError')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestDefaultDict.test_recursive_repr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom collections import defaultdict\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class sub(defaultdict):\n\n        def __init__(self):\n            self.default_factory = self._factory\n\n        def _factory(self):\n            return []\n    d = sub()\n    assert _re.search('sub\\\\(<bound method .*sub\\\\._factory of sub\\\\(\\\\.\\\\.\\\\., \\\\{\\\\}\\\\)>, \\\\{\\\\}\\\\)', repr(d)), ('assertRegex', repr(d), 'sub\\\\(<bound method .*sub\\\\._factory of sub\\\\(\\\\.\\\\.\\\\., \\\\{\\\\}\\\\)>, \\\\{\\\\}\\\\)')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "TestDefaultDict.test_callable_arg",
       "status": "pinned",
       "oracle": {
@@ -120,15 +128,10 @@
       "snippet": "from collections import defaultdict\n\ndef _t():\n\n    class ProblematicFactory:\n\n        def __call__(self):\n            return {}\n\n        def __repr__(self):\n            repr(dd)\n            return f'ProblematicFactory for {dd}'\n    dd = defaultdict(ProblematicFactory())\n    r = repr(dd)\n    assert 'ProblematicFactory for' in r, ('assertIn', 'ProblematicFactory for', r)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
-  "quarantined": [
-    {
-      "ident": "TestDefaultDict.test_recursive_repr",
-      "reason": "self.assertRegex"
-    }
-  ],
+  "quarantined": [],
   "counts": {
     "extracted": 13,
-    "pinned": 12,
-    "quarantined": 1
+    "pinned": 13,
+    "quarantined": 0
   }
 }

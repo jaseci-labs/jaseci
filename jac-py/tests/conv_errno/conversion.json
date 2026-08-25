@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,15 +14,31 @@
     "--name",
     "conv_errno"
   ],
-  "generated_at": "2026-08-24T14:32:44",
+  "generated_at": "2026-08-24T23:14:43",
   "hashes": {
-    "pins_jac": "ca8b9721267d298ba289727b21dd586b52854f44a9e815ab923bc1ad2b0e32e5"
+    "pins_jac": "13c6c65a637e32c430f5236961964d20e49c17595b8ec85b39fd1220f8e3ad33"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_errno.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "errno",
   "pins_file": "conv_errno_pins.jac",
   "pins": [
+    {
+      "ident": "ErrnoAttributeTests.test_for_improper_attributes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import errno\nstd_c_errors = frozenset(['EDOM', 'ERANGE'])\n\ndef _t():\n    for error_code in std_c_errors:\n        assert hasattr(errno, error_code), ('assertHasAttr', errno, error_code)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ErrnoAttributeTests.test_using_errorcode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import errno\n\ndef _t():\n    for value in errno.errorcode.values():\n        assert hasattr(errno, value), ('assertHasAttr', errno, value)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
     {
       "ident": "ErrorcodeTests.test_attributes_in_errorcode",
       "status": "pinned",
@@ -32,19 +48,10 @@
       "snippet": "import errno\n\ndef _t():\n    for attribute in errno.__dict__.keys():\n        if attribute.isupper():\n            assert getattr(errno, attribute) in errno.errorcode, ('assertIn', getattr(errno, attribute), errno.errorcode)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
-  "quarantined": [
-    {
-      "ident": "ErrnoAttributeTests.test_for_improper_attributes",
-      "reason": "self.assertHasAttr"
-    },
-    {
-      "ident": "ErrnoAttributeTests.test_using_errorcode",
-      "reason": "self.assertHasAttr"
-    }
-  ],
+  "quarantined": [],
   "counts": {
     "extracted": 3,
-    "pinned": 1,
-    "quarantined": 2
+    "pinned": 3,
+    "quarantined": 0
   }
 }

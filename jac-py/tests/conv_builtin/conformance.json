@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_builtin/conv_builtin_pins.jac"
   ],
-  "generated_at": "2026-08-24T23:01:48",
+  "generated_at": "2026-08-24T23:12:14",
   "hashes": {
-    "pins_jac": "f0b890ae5628261ed0973aca6590a11c84dde81d9d0945daae6e78d9bd44b523",
-    "conversion_json": "562e9f9a7b7451b420d76870f3548ce1d8bf2d0a4faa3f67dea30d50e8670a0c",
+    "pins_jac": "cb1a53c6854b55648278d7294c66f4dbd6db74e643c49f3d75da8216be61e413",
+    "conversion_json": "e09120c7d15bd4356e13208c174d2ac8b1ef172fdba49425d130c2d597749b90",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "builtin",
   "counts": {
     "converted": 133,
-    "runnable": 92,
-    "green": 43,
-    "quarantined": 41
+    "runnable": 93,
+    "green": 44,
+    "quarantined": 40
   },
   "pins": [
     {
@@ -66,6 +66,10 @@
     },
     {
       "id": "BuiltinTest.test_chr",
+      "status": "pass"
+    },
+    {
+      "id": "BuiltinTest.test_cmp",
       "status": "pass"
     },
     {
@@ -179,7 +183,7 @@
       "id": "BuiltinTest.test_eval_builtins_mapping_reduce",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (<built-in function iter>, (<function _jac_make_host_iterator.<locals>._next at 0x7f1d5a9b3530>, <object object at 0x7f1d59eac5d0>)), (<built-in function iter>, ([1, 2],), 0))\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (<built-in function iter>, (<function _jac_make_host_iterator.<locals>._next at 0x7f4ddc412cf0>, <object object at 0x7f4ddbae0670>)), (<built-in function iter>, ([1, 2],), 0))\"'>"
     },
     {
       "id": "BuiltinTest.test_exec_redirected",
@@ -614,11 +618,6 @@
       "id": "BuiltinTest.test_callable",
       "status": "quarantined",
       "reason": "unresolved-name:__builtins__"
-    },
-    {
-      "id": "BuiltinTest.test_cmp",
-      "status": "quarantined",
-      "reason": "self.assertNotHasAttr"
     },
     {
       "id": "BuiltinTest.test_exec_globals_frozen",

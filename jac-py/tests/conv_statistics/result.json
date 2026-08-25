@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "afaece0e502150e0c8cdff486ef86d0a4880d27a",
+  "jac_sha": "04a42358d6498c6740e9df94cf9b27fbbe2a0a8e",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,24 +10,30 @@
     "diff_runner.py",
     "jac-py/tests/conv_statistics/conv_statistics_pins.jac"
   ],
-  "generated_at": "2026-08-24T21:13:03",
+  "generated_at": "2026-08-24T23:31:20",
   "hashes": {
-    "pins_jac": "1a4022a1b316096af8a390d16cb9e7be6e7e3797ad3add3d1b3953f3a26bf16c",
-    "conversion_json": "65dad64605a10cf1f10b1fd6200214252a7242c64f05558561233974a0bf115e",
+    "pins_jac": "57f494e70bd265ae46eb3f2c9f9f89060a8b661f2785dd87e350046f77e76d7a",
+    "conversion_json": "8d501c91a86b2cef96599166d592ae67b84c799d3d4e2e2358a34715817ad102",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "statistics",
   "status": "failed",
   "timed_out": false,
   "counts": {
-    "converted": 232,
-    "runnable": 100,
+    "converted": 378,
+    "runnable": 270,
     "green": 15,
-    "quarantined": 132,
-    "failed": 85,
+    "quarantined": 108,
+    "failed": 255,
     "infra_failed": 0
   },
   "failures": [
+    {
+      "id": "TestModules.test_py_functions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
     {
       "id": "ApproxEqualSymmetryTest.test_relative_symmetry",
       "status": "fail",
@@ -119,28 +125,46 @@
       "detail": "GOT<\"ORACLE_EXC TypeError 'bad operand type for unary -'\">"
     },
     {
+      "id": "TestNumericTestCase.test_numerictestcase_is_testcase",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'nlargest' from '<unknown>'\">"
+    },
+    {
       "id": "TestNumericTestCase.test_error_msg_numeric",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"AttributeError: 'super' object has no attribute '__init_subclass__'\">"
+      "detail": "RUN<\"ImportError: cannot import name 'nlargest' from '<unknown>'\">"
     },
     {
       "id": "TestNumericTestCase.test_error_msg_sequence",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<\"ImportError: cannot import name 'result' from 'unittest' (/home/jac/.cache/jac/rt/553c250071fd962f-c152554fd6e7fdad/python/lib/python3.14/unittest/__init__.py)\">"
+      "detail": "RUN<\"ImportError: cannot import name 'nlargest' from '<unknown>'\">"
+    },
+    {
+      "id": "GlobalsTest.test_meta",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "StatisticsErrorTest.test_has_exception",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "ExactRatioTest.test_int",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "ExactRatioTest.test_fraction",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "ExactRatioTest.test_float",
@@ -152,157 +176,157 @@
       "id": "ExactRatioTest.test_decimal",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "ExactRatioTest.test_inf",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "ExactRatioTest.test_float_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "ExactRatioTest.test_decimal_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "DecimalToRatioTest.test_infinity",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "DecimalToRatioTest.test_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "DecimalToRatioTest.test_sign",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "DecimalToRatioTest.test_negative_exponent",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "DecimalToRatioTest.test_positive_exponent",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "DecimalToRatioTest.test_regression_20536",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "IsFiniteTest.test_finite",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "IsFiniteTest.test_infinity",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "IsFiniteTest.test_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "CoerceTest.test_bool",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "CoerceTest.test_int",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "CoerceTest.test_fraction",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "CoerceTest.test_decimal",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "CoerceTest.test_float",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "CoerceTest.test_non_numeric_types",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "CoerceTest.test_incompatible_types",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "ConvertTest.test_int",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "ConvertTest.test_inf",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "ConvertTest.test_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "ConvertTest.test_invalid_input_type",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "FailNegTest.test_pass_through",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "FailNegTest.test_negatives_raise",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "FailNegTest.test_error_msg",
@@ -311,100 +335,880 @@
       "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
+      "id": "TestSumCommon.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianLow.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianHigh.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPStdev.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestStdev.test_no_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSumCommon.test_empty_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSumCommon.test_no_inplace_modifications",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSumCommon.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianLow.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianHigh.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPStdev.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestStdev.test_order_doesnt_matter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSumCommon.test_type_of_data_collection",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSumCommon.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianLow.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianHigh.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPStdev.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestStdev.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSum.test_empty_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSum.test_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSum.test_floats",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSum.test_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSum.test_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSum.test_strings_fail",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSum.test_bytes_fail",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestSum.test_mixed_sum",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
       "id": "SumSpecialValues.test_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "SumSpecialValues.test_float_inf",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "SumSpecialValues.test_decimal_inf",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "SumSpecialValues.test_float_mismatched_infs",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "SumSpecialValues.test_decimal_extendedcontext_mismatched_infs_to_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "SumSpecialValues.test_decimal_basiccontext_mismatched_infs_to_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "SumSpecialValues.test_decimal_snan_raises",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianLow.test_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianHigh.test_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_repeated_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_torture_pep",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_floats",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_mismatched_infs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMean.test_big_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestMean.test_regression_20561",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestMean.test_regression_25177",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_zero",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_negative_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_invalid_type_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_floats_exact",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_singleton_lists",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_decimals_exact",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_inf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_nan",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_multiply_data_points",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestHarmonicMean.test_with_weights",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_even_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianLow.test_odd_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianHigh.test_odd_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_odd_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianLow.test_odd_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianHigh.test_odd_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianLow.test_odd_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianHigh.test_odd_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianLow.test_even_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianLow.test_even_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianLow.test_even_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianHigh.test_even_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianHigh.test_even_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianHigh.test_even_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_repeated_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_odd_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_even_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_odd_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_even_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMedianGrouped.test_data_type_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_range_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_nominal_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_discrete_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_bimodal_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_unique_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_none_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestMode.test_counter_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestMultiMode.test_basics",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestFMean.test_basics",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestFMean.test_error_cases",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestFMean.test_special_values",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestFMean.test_weights",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPStdev.test_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_repeated_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_repeated_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPStdev.test_repeated_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestStdev.test_repeated_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_shift_data_exact",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_shift_data_exact",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPStdev.test_shift_data_exact",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestStdev.test_shift_data_exact",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_iter_list_same",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_iter_list_same",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPStdev.test_iter_list_same",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestStdev.test_iter_list_same",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_exact_uniform",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPVariance.test_accuracy_bug_20499",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_fractions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_decimals",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_center_not_at_mean",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestVariance.test_accuracy_bug_20499",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPStdev.test_compare_to_variance",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPStdev.test_center_not_at_mean",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestPStdev.test_gh_140938",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestSqrtHelpers.test_integer_sqrt_of_frac_rto",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestSqrtHelpers.test_decimal_sqrt_of_frac",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestStdev.test_single_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestStdev.test_compare_to_variance",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestStdev.test_center_not_at_mean",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestGeometricMean.test_basics",
@@ -416,37 +1220,37 @@
       "id": "TestGeometricMean.test_various_input_types",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestGeometricMean.test_big_and_small",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestGeometricMean.test_error_cases",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestGeometricMean.test_special_values",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestGeometricMean.test_mixed_int_and_float",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestKDE.test_kde_kernel_specs",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestQuantiles.test_specific_cases",
@@ -464,7 +1268,7 @@
       "id": "TestQuantiles.test_equal_inputs",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestQuantiles.test_equal_sized_groups",
@@ -476,31 +1280,31 @@
       "id": "TestQuantiles.test_error_cases",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestBivariateStatistics.test_unequal_size_error",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestBivariateStatistics.test_small_sample_error",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestCorrelationAndCovariance.test_results",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestCorrelationAndCovariance.test_different_scales",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestCorrelationAndCovariance.test_sqrtprod_helper_function_fundamentals",
@@ -512,31 +1316,247 @@
       "id": "TestCorrelationAndCovariance.test_correlation_spearman",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestLinearRegression.test_constant_input_error",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestLinearRegression.test_results",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestLinearRegression.test_proportional",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "TestLinearRegression.test_float_output",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_slots",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_slots",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_instantiation_and_attributes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_instantiation_and_attributes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_alternative_constructor",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_alternative_constructor",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_sample_generation",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_sample_generation",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_pdf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_pdf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_cdf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_cdf",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_quantiles",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_quantiles",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_overlap",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_overlap",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_zscore",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_zscore",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_properties",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_properties",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_same_type_addition_and_subtraction",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_same_type_addition_and_subtraction",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_translation_and_scaling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_translation_and_scaling",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_unary_operations",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_unary_operations",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_equality",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_equality",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_pickle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_pickle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_hashability",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_hashability",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistPython.test_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "TestNormalDistC.test_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
     }
   ]
 }
