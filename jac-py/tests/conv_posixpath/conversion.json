@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_posixpath"
   ],
-  "generated_at": "2026-08-24T15:03:04",
+  "generated_at": "2026-08-24T23:14:49",
   "hashes": {
-    "pins_jac": "2d77d5731d51b5fbd28d837fd6575f4ded86d12edb5b247fa567d702773bace6"
+    "pins_jac": "5c218a3473d5854dd42c9b883c51ad3dbd85326af5701706d70ba76a43fe1169"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_posixpath.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -145,8 +145,11 @@
     },
     {
       "ident": "PosixPathTest.test_normpath",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'NORMPATH_CASES'"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import posixpath\nfrom posixpath import realpath, abspath, dirname, basename, ALLOW_MISSING\nfrom test.support.os_helper import FakePath, TESTFN\nABSTFN = abspath(TESTFN)\n\ndef setUp():\n    for suffix in ['', '1', '2']:\n        assert not posixpath.lexists(ABSTFN + suffix), ('assertFalse', posixpath.lexists(ABSTFN + suffix))\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.NORMPATH_CASES = [('', '.'), ('/', '/'), ('/.', '/'), ('/./', '/'), ('/.//.', '/'), ('/./foo/bar', '/foo/bar'), ('/foo', '/foo'), ('/foo/bar', '/foo/bar'), ('//', '//'), ('///', '/'), ('///foo/.//bar//', '/foo/bar'), ('///foo/.//bar//.//..//.//baz///', '/foo/baz'), ('///..//./foo/.//bar', '/foo/bar'), ('.', '.'), ('.//.', '.'), ('./foo/bar', 'foo/bar'), ('..', '..'), ('../', '..'), ('../foo', '../foo'), ('../../foo', '../../foo'), ('../foo/../bar', '../bar'), ('../../foo/../bar/./baz/boom/..', '../../bar/baz'), ('/..', '/'), ('/..', '/'), ('/../', '/'), ('/..//', '/'), ('//.', '//'), ('//..', '//'), ('//...', '//...'), ('//../foo', '//foo'), ('//../../foo', '//foo'), ('/../foo', '/foo'), ('/../../foo', '/foo'), ('/../foo/../', '/'), ('/../foo/../bar', '/bar'), ('/../../foo/../bar/./baz/boom/..', '/bar/baz'), ('/../../foo/../bar/./baz/boom/.', '/bar/baz/boom'), ('foo/../bar/baz', 'bar/baz'), ('foo/../../bar/baz', '../bar/baz'), ('foo/../../../bar/baz', '../../bar/baz'), ('foo///../bar/.././../baz/boom', '../baz/boom'), ('foo/bar/../..///../../baz/boom', '../../baz/boom'), ('/foo/..', '/'), ('/foo/../..', '/'), ('//foo/..', '//'), ('//foo/../..', '//'), ('///foo/..', '/'), ('///foo/../..', '/'), ('////foo/..', '/'), ('/////foo/..', '/')]\n    for suffix in ['', '1', '2']:\n        assert not posixpath.lexists(ABSTFN + suffix), ('assertFalse', posixpath.lexists(ABSTFN + suffix))\n    for path, expected in self.NORMPATH_CASES:\n        result = posixpath.normpath(path)\n        assert result == expected, ('assertEqual', result, expected)\n        path = path.encode('utf-8')\n        expected = expected.encode('utf-8')\n        result = posixpath.normpath(path)\n        assert result == expected, ('assertEqual', result, expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "PosixPathTest.test_realpath_strict",
@@ -381,7 +384,7 @@
   ],
   "counts": {
     "extracted": 64,
-    "pinned": 24,
-    "quarantined": 40
+    "pinned": 25,
+    "quarantined": 39
   }
 }

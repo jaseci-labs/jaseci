@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "b1bed97912c863821e93b83c77fd57351337db79",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_deque/conv_deque_pins.jac"
   ],
-  "generated_at": "2026-08-24T22:53:24",
+  "generated_at": "2026-08-24T23:22:01",
   "hashes": {
-    "pins_jac": "5965e88c7c8eff91a57b4907d328b9e657b957742647c2004b6b2e304ea4792c",
-    "conversion_json": "32250bbb8817ee9e626eb70b8c5850f9d3956ca1b32be218138f967d6f0c97fe",
+    "pins_jac": "4310fae9bbc64098e1fca347e730cbf0ab9126b453ec7322b6f953a565f3f579",
+    "conversion_json": "7a22de01de5faf30d03c80ba9a8ba2d44825edd27ae0f3543ba2e0fc4027de76",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "deque",
@@ -21,18 +21,30 @@
   "timed_out": false,
   "counts": {
     "converted": 63,
-    "runnable": 53,
+    "runnable": 60,
     "green": 37,
-    "quarantined": 10,
-    "failed": 16,
+    "quarantined": 3,
+    "failed": 23,
     "infra_failed": 0
   },
   "failures": [
+    {
+      "id": "TestBasic.test_count",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'seq_tests' from '<unknown>'\">"
+    },
     {
       "id": "TestBasic.test_comparisons",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', True, False)\"'>"
+    },
+    {
+      "id": "TestBasic.test_contains",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
     },
     {
       "id": "TestBasic.test_contains_count_index_stop_crashes",
@@ -53,6 +65,12 @@
       "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
+      "id": "TestBasic.test_index",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
       "id": "TestBasic.test_setitem",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
@@ -69,6 +87,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "TestBasic.test_remove",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertTrue\\', False)\"'>"
     },
     {
       "id": "TestBasic.test_repr",
@@ -111,6 +135,24 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC StopIteration ''\">"
+    },
+    {
+      "id": "TestSubclass.test_basics",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'append'\">"
+    },
+    {
+      "id": "TestSubclass.test_copy_pickle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__copy__'\">"
+    },
+    {
+      "id": "TestSubclass.test_pickle_recursive",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'append'\">"
     },
     {
       "id": "TestSubclass.test_weakref",

@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "4b284430547e4829aa532e30bd16fefc5af3eec2",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
-    "sha": "4b284430547e4829aa532e30bd16fefc5af3eec2"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_complex.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_complex.py",
     "-o",
-    "/var/tmp/sp5-out/complex",
+    "/var/tmp/lane8/jac-py/tests/conv_complex",
     "--name",
     "conv_complex"
   ],
-  "generated_at": "2026-08-24T13:50:18",
+  "generated_at": "2026-08-24T23:15:38",
   "hashes": {
-    "pins_jac": "ee50531dd5c6025d0605d079a7449638854c05fcee716b938076be5a07a7c7bb"
+    "pins_jac": "822fcd35a1e915a6b1de4288cec0ef02d885117b5bb65384be78339f11a9afba"
   },
-  "source_file": "reference/cpython/Lib/test/test_complex.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_complex.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "complex",
   "pins_file": "conv_complex_pins.jac",
@@ -96,6 +96,19 @@
       "snippet": "ZERO_DIVISION = ((1 + 1j, 0 + 0j), (1 + 1j, 0.0), (1 + 1j, 0), (1.0, 0 + 0j), (1, 0 + 0j))\n\ndef _t():\n    for a, b in ZERO_DIVISION:\n        try:\n            divmod(*(a, b))\n        except TypeError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "ComplexTest.test_pow",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "ComplexTest.test_pow_with_small_integer_exponents",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "INF = float('inf')\n\ndef _t():\n    values = [complex(5.0, 12.0), complex(5e+100, 1.2e+101), complex(-4.0, INF), complex(INF, 0.0)]\n    exponents = [-19, -5, -3, -2, -1, 0, 1, 2, 3, 5, 19]\n    for value in values:\n        for exponent in exponents:\n            try:\n                int_pow = value ** exponent\n            except OverflowError:\n                int_pow = 'overflow'\n            try:\n                float_pow = value ** float(exponent)\n            except OverflowError:\n                float_pow = 'overflow'\n            try:\n                complex_pow = value ** complex(exponent)\n            except OverflowError:\n                complex_pow = 'overflow'\n            assert str(float_pow) == str(int_pow), ('assertEqual', str(float_pow), str(int_pow))\n            assert str(complex_pow) == str(int_pow), ('assertEqual', str(complex_pow), str(int_pow))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "ComplexTest.test_boolcontext",
       "status": "pinned",
       "oracle": {
@@ -110,6 +123,14 @@
         "status": "ok"
       },
       "snippet": "def _t():\n    assert complex(5.3, 9.8).conjugate() == 5.3 - 9.8j, ('assertEqual', complex(5.3, 9.8).conjugate(), 5.3 - 9.8j)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ComplexTest.test___complex__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "class ComplexSubclass(complex):\n    pass\n\ndef _t():\n    z = 3 + 4j\n    assert z.__complex__() == z, ('assertEqual', z.__complex__(), z)\n    assert type(z.__complex__()) == complex, ('assertEqual', type(z.__complex__()), complex)\n    z = ComplexSubclass(3 + 4j)\n    assert z.__complex__() == 3 + 4j, ('assertEqual', z.__complex__(), 3 + 4j)\n    assert type(z.__complex__()) == complex, ('assertEqual', type(z.__complex__()), complex)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "ComplexTest.test_constructor_negative_nans_from_string",
@@ -139,6 +160,19 @@
       "ident": "ComplexTest.test_abs",
       "status": "quarantined",
       "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "ComplexTest.test_repr_str",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "ident": "ComplexTest.test_pos",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "class ComplexSubclass(complex):\n    pass\n\ndef _t():\n    assert +(1 + 6j) == 1 + 6j, ('assertEqual', +(1 + 6j), 1 + 6j)\n    assert +ComplexSubclass(1, 6) == 1 + 6j, ('assertEqual', +ComplexSubclass(1, 6), 1 + 6j)\n    assert type(+ComplexSubclass(1, 6)) is complex, ('assertIs', type(+ComplexSubclass(1, 6)), complex)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "ComplexTest.test_neg",
@@ -207,20 +241,8 @@
       "reason": "self.assertComplexesAreIdentical"
     },
     {
-      "ident": "ComplexTest.test_pow",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "ident": "ComplexTest.test_pow_with_small_integer_exponents",
-      "reason": "uses-self.subTest"
-    },
-    {
       "ident": "ComplexTest.test_constructor",
       "reason": "self.assertFloatsAreIdentical"
-    },
-    {
-      "ident": "ComplexTest.test___complex__",
-      "reason": "unresolved-name:ComplexSubclass"
     },
     {
       "ident": "ComplexTest.test_constructor_from_string",
@@ -228,24 +250,16 @@
     },
     {
       "ident": "ComplexTest.test_from_number",
-      "reason": "unresolved-name:MyInt"
+      "reason": "unresolved-name:cls"
     },
     {
       "ident": "ComplexTest.test_from_number_subclass",
       "reason": "self.test_from_number"
-    },
-    {
-      "ident": "ComplexTest.test_repr_str",
-      "reason": "uses-self.assertEqual"
-    },
-    {
-      "ident": "ComplexTest.test_pos",
-      "reason": "unresolved-name:ComplexSubclass"
     }
   ],
   "counts": {
     "extracted": 37,
-    "pinned": 17,
-    "quarantined": 20
+    "pinned": 20,
+    "quarantined": 17
   }
 }

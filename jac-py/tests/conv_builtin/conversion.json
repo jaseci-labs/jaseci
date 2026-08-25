@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_builtin"
   ],
-  "generated_at": "2026-08-24T23:01:39",
+  "generated_at": "2026-08-24T23:12:00",
   "hashes": {
-    "pins_jac": "f0b890ae5628261ed0973aca6590a11c84dde81d9d0945daae6e78d9bd44b523"
+    "pins_jac": "cb1a53c6854b55648278d7294c66f4dbd6db74e643c49f3d75da8216be61e413"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_builtin.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -86,6 +86,14 @@
         "status": "ok"
       },
       "snippet": "def _t():\n    assert chr(0) == '\\x00', ('assertEqual', chr(0), '\\x00')\n    assert chr(32) == ' ', ('assertEqual', chr(32), ' ')\n    assert chr(65) == 'A', ('assertEqual', chr(65), 'A')\n    assert chr(97) == 'a', ('assertEqual', chr(97), 'a')\n    assert chr(255) == '\u00ff', ('assertEqual', chr(255), '\u00ff')\n    try:\n        chr()\n    except TypeError:\n        pass\n    try:\n        chr(*(65.0,))\n    except TypeError:\n        pass\n    assert chr(65535) == '\\uffff', ('assertEqual', chr(65535), '\\uffff')\n    assert chr(65536) == '\ud800\udc00', ('assertEqual', chr(65536), '\ud800\udc00')\n    assert chr(65537) == '\ud800\udc01', ('assertEqual', chr(65537), '\ud800\udc01')\n    assert chr(1048574) == '\\U000ffffe', ('assertEqual', chr(1048574), '\\U000ffffe')\n    assert chr(1048575) == '\\U000fffff', ('assertEqual', chr(1048575), '\\U000fffff')\n    assert chr(1048576) == '\\U00100000', ('assertEqual', chr(1048576), '\\U00100000')\n    assert chr(1048577) == '\\U00100001', ('assertEqual', chr(1048577), '\\U00100001')\n    assert chr(1114110) == '\\U0010fffe', ('assertEqual', chr(1114110), '\\U0010fffe')\n    assert chr(1114111) == '\\U0010ffff', ('assertEqual', chr(1114111), '\\U0010ffff')\n    try:\n        chr(*(-1,))\n    except ValueError:\n        pass\n    try:\n        chr(*(1114112,))\n    except ValueError:\n        pass\n    try:\n        chr(*(1 << 24,))\n    except ValueError:\n        pass\n    try:\n        chr(*(2 ** 32 - 1,))\n    except ValueError:\n        pass\n    try:\n        chr(*(-2 ** 32,))\n    except ValueError:\n        pass\n    try:\n        chr(*(2 ** 1000,))\n    except ValueError:\n        pass\n    try:\n        chr(*(-2 ** 1000,))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BuiltinTest.test_cmp",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import builtins\n\ndef _t():\n    assert not hasattr(builtins, 'cmp'), ('assertNotHasAttr', builtins, 'cmp')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "BuiltinTest.test_compile",
@@ -868,10 +876,6 @@
       "reason": "unresolved-name:__builtins__"
     },
     {
-      "ident": "BuiltinTest.test_cmp",
-      "reason": "self.assertNotHasAttr"
-    },
-    {
       "ident": "BuiltinTest.test_exec_globals_frozen",
       "reason": "unresolved-name:__builtins__"
     },
@@ -934,7 +938,7 @@
   ],
   "counts": {
     "extracted": 133,
-    "pinned": 92,
-    "quarantined": 41
+    "pinned": 93,
+    "quarantined": 40
   }
 }

@@ -19,6 +19,12 @@ test "CodeopTests.test_incomplete_warning" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "CodeopTests.test_invalid_warning" {
+    (ok, detail) = p2_libtest_run_snippet("import re as _re\nimport warnings\nfrom codeop import compile_command, PyCF_DONT_IMPLY_DEDENT\n\ndef assertInvalid(str, symbol='single', is_syntax=1):\n    \"\"\"succeed iff str is the start of an invalid piece of code\"\"\"\n    try:\n        compile_command(str, symbol=symbol)\n        raise AssertionError('No exception raised for invalid code')\n    except SyntaxError:\n        assert is_syntax, ('assertTrue', is_syntax)\n    except OverflowError:\n        assert not is_syntax, ('assertTrue', not is_syntax)\n\ndef _t():\n    with warnings.catch_warnings(record=True) as w:\n        warnings.simplefilter('always')\n        assertInvalid(\"'\\\\e' 1\")\n    assert len(w) == 1, ('assertEqual', len(w), 1)\n    assert w[0].category == SyntaxWarning, ('assertEqual', w[0].category, SyntaxWarning)\n    assert _re.search('invalid escape sequence', str(w[0].message)), ('assertRegex', str(w[0].message), 'invalid escape sequence')\n    assert w[0].filename == '<input>', ('assertEqual', w[0].filename, '<input>')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "CodeopTests.test_syntax_errors" {
     (ok, detail) = p2_libtest_run_snippet("import re as _re\nfrom textwrap import dedent\nfrom codeop import compile_command, PyCF_DONT_IMPLY_DEDENT\n\ndef assertSyntaxErrorMatches(code, message):\n    try:\n        compile_command(code, symbol='exec')\n    except SyntaxError as _exc:\n        assert _re.search(message, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\ndef _t():\n    assertSyntaxErrorMatches(dedent('                def foo(x,x):\\n                   pass\\n            '), \"duplicate argument 'x' in function definition\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

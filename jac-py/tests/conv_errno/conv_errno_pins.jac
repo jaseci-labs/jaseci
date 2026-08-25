@@ -7,6 +7,18 @@ import from layer_p2_libtest { p2_libtest_run_snippet }
 
 # Source: test_errno.py
 
+test "ErrnoAttributeTests.test_for_improper_attributes" {
+    (ok, detail) = p2_libtest_run_snippet("import errno\nstd_c_errors = frozenset(['EDOM', 'ERANGE'])\n\ndef _t():\n    for error_code in std_c_errors:\n        assert hasattr(errno, error_code), ('assertHasAttr', errno, error_code)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ErrnoAttributeTests.test_using_errorcode" {
+    (ok, detail) = p2_libtest_run_snippet("import errno\n\ndef _t():\n    for value in errno.errorcode.values():\n        assert hasattr(errno, value), ('assertHasAttr', errno, value)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "ErrorcodeTests.test_attributes_in_errorcode" {
     (ok, detail) = p2_libtest_run_snippet("import errno\n\ndef _t():\n    for attribute in errno.__dict__.keys():\n        if attribute.isupper():\n            assert getattr(errno, attribute) in errno.errorcode, ('assertIn', getattr(errno, attribute), errno.errorcode)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

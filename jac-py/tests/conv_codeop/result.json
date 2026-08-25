@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "b0e07bc64aac7f7377144c7214eec5b5bf33a18b",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_codeop/conv_codeop_pins.jac"
   ],
-  "generated_at": "2026-08-24T21:51:03",
+  "generated_at": "2026-08-24T23:15:24",
   "hashes": {
-    "pins_jac": "a7ebd8b570a4d0075400cef0da80c9a47d3d1027a5d9c5b9337e127c8efbd83f",
-    "conversion_json": "1ad66f9c1692d6ca75e7d227148ef9d14d6e66956f94528e1ddca9e5bc0010d2",
+    "pins_jac": "ba1104a2758033124ab4a810d21a4e9a9bcba96baa8bf5ea8a4d837ed20b75eb",
+    "conversion_json": "e5fd73c944486bdb0ae3b4706a32bdf6818a0224bdf874cc4efbb653f77f7833",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "codeop",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 9,
-    "runnable": 3,
+    "runnable": 4,
     "green": 0,
-    "quarantined": 6,
-    "failed": 3,
+    "quarantined": 5,
+    "failed": 4,
     "infra_failed": 0
   },
   "failures": [
@@ -36,6 +36,12 @@
     },
     {
       "id": "CodeopTests.test_incomplete_warning",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'category must be a Warning subclass'\">"
+    },
+    {
+      "id": "CodeopTests.test_invalid_warning",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError 'category must be a Warning subclass'\">"

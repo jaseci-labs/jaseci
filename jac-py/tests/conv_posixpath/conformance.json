@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_posixpath/conv_posixpath_pins.jac"
   ],
-  "generated_at": "2026-08-24T15:03:11",
+  "generated_at": "2026-08-24T23:14:56",
   "hashes": {
-    "pins_jac": "2d77d5731d51b5fbd28d837fd6575f4ded86d12edb5b247fa567d702773bace6",
-    "conversion_json": "43ccadbcda78b28c0c4885e5263b4736402da0b21f77b28e29c24675da6112ef",
+    "pins_jac": "5c218a3473d5854dd42c9b883c51ad3dbd85326af5701706d70ba76a43fe1169",
+    "conversion_json": "9488c488c0b7ba29c61d61c686cf8a497808c7853e272d532c90731421daf1f2",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "posixpath",
   "counts": {
     "converted": 64,
-    "runnable": 24,
-    "green": 16,
-    "quarantined": 40
+    "runnable": 25,
+    "green": 17,
+    "quarantined": 39
   },
   "pins": [
     {
@@ -94,8 +94,7 @@
     },
     {
       "id": "PosixPathTest.test_normpath",
-      "status": "quarantined",
-      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'NORMPATH_CASES'"
+      "status": "pass"
     },
     {
       "id": "PosixPathTest.test_realpath_strict",

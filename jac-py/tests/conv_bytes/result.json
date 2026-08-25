@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_bytes/conv_bytes_pins.jac"
   ],
-  "generated_at": "2026-08-24T22:59:33",
+  "generated_at": "2026-08-24T23:12:22",
   "hashes": {
     "pins_jac": "f97d6fd20e2730027d4c5000b37f6fe2b7af6ec3aca0d35212a3ee79920b02e5",
-    "conversion_json": "0c5336a4ed7e68c5e178584f6e4f483321ca8663133691a25ef3655e1c9a0b75",
+    "conversion_json": "2a3140f5482ce9053f0155ff3145c853884896230e60ec419e5f4388cd942dc0",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "bytes",
@@ -68,7 +68,7 @@
       "id": "BytesTest.test_repeat_id_preserving",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 140414412797136, 140414412558928)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 139693626995920, 139693626741328)\"'>"
     },
     {
       "id": "ByteArrayTest.test_setitem_error",
@@ -248,7 +248,7 @@
       "id": "ByteArraySubclassTest.test_init_override",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <__main__.subclass object at 0x7fb4c8341ed0>, b\\'abcd\\')\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <__main__.subclass object at 0x7f0cf6019ed0>, b\\'abcd\\')\"'>"
     }
   ]
 }

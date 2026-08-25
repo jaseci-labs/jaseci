@@ -61,6 +61,12 @@ test "ComplexTest.test_divmod_zero_division" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "ComplexTest.test_pow_with_small_integer_exponents" {
+    (ok, detail) = p2_libtest_run_snippet("INF = float('inf')\n\ndef _t():\n    values = [complex(5.0, 12.0), complex(5e+100, 1.2e+101), complex(-4.0, INF), complex(INF, 0.0)]\n    exponents = [-19, -5, -3, -2, -1, 0, 1, 2, 3, 5, 19]\n    for value in values:\n        for exponent in exponents:\n            try:\n                int_pow = value ** exponent\n            except OverflowError:\n                int_pow = 'overflow'\n            try:\n                float_pow = value ** float(exponent)\n            except OverflowError:\n                float_pow = 'overflow'\n            try:\n                complex_pow = value ** complex(exponent)\n            except OverflowError:\n                complex_pow = 'overflow'\n            assert str(float_pow) == str(int_pow), ('assertEqual', str(float_pow), str(int_pow))\n            assert str(complex_pow) == str(int_pow), ('assertEqual', str(complex_pow), str(int_pow))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "ComplexTest.test_boolcontext" {
     (ok, detail) = p2_libtest_run_snippet("from random import random\n\ndef _t():\n    for i in range(100):\n        assert complex(random() + 1e-06, random() + 1e-06), ('assertTrue', complex(random() + 1e-06, random() + 1e-06))\n    assert not complex(0.0, 0.0), ('assertTrue', not complex(0.0, 0.0))\n    assert 1j, ('assertTrue', 1j)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -69,6 +75,12 @@ test "ComplexTest.test_boolcontext" {
 
 test "ComplexTest.test_conjugate" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    assert complex(5.3, 9.8).conjugate() == 5.3 - 9.8j, ('assertEqual', complex(5.3, 9.8).conjugate(), 5.3 - 9.8j)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ComplexTest.test___complex__" {
+    (ok, detail) = p2_libtest_run_snippet("class ComplexSubclass(complex):\n    pass\n\ndef _t():\n    z = 3 + 4j\n    assert z.__complex__() == z, ('assertEqual', z.__complex__(), z)\n    assert type(z.__complex__()) == complex, ('assertEqual', type(z.__complex__()), complex)\n    z = ComplexSubclass(3 + 4j)\n    assert z.__complex__() == 3 + 4j, ('assertEqual', z.__complex__(), 3 + 4j)\n    assert type(z.__complex__()) == complex, ('assertEqual', type(z.__complex__()), complex)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -87,6 +99,12 @@ test "ComplexTest.test_underscores" {
 
 test "ComplexTest.test_hash" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    for x in range(-30, 30):\n        assert hash(x) == hash(complex(x, 0)), ('assertEqual', hash(x), hash(complex(x, 0)))\n        x /= 3.0\n        assert hash(x) == hash(complex(x, 0.0)), ('assertEqual', hash(x), hash(complex(x, 0.0)))\n    assert hash(2000005 - 1j) != -1, ('assertNotEqual', hash(2000005 - 1j), -1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ComplexTest.test_pos" {
+    (ok, detail) = p2_libtest_run_snippet("class ComplexSubclass(complex):\n    pass\n\ndef _t():\n    assert +(1 + 6j) == 1 + 6j, ('assertEqual', +(1 + 6j), 1 + 6j)\n    assert +ComplexSubclass(1, 6) == 1 + 6j, ('assertEqual', +ComplexSubclass(1, 6), 1 + 6j)\n    assert type(+ComplexSubclass(1, 6)) is complex, ('assertIs', type(+ComplexSubclass(1, 6)), complex)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

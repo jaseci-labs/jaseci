@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "615abfd9c3b5ccaab40667ed7c744a40cd1b6d46",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,7 +14,7 @@
     "--name",
     "conv_bytes"
   ],
-  "generated_at": "2026-08-24T22:59:24",
+  "generated_at": "2026-08-24T23:12:14",
   "hashes": {
     "pins_jac": "f97d6fd20e2730027d4c5000b37f6fe2b7af6ec3aca0d35212a3ee79920b02e5"
   },
@@ -1113,15 +1113,15 @@
     },
     {
       "ident": "ByteArraySubclassTest.test_basic",
-      "reason": "self.assertIsSubclass"
+      "reason": "uses-self.type2test"
     },
     {
       "ident": "ByteArraySubclassWithSlotsTest.test_basic",
-      "reason": "self.assertIsSubclass"
+      "reason": "uses-self.type2test"
     },
     {
       "ident": "BytesSubclassTest.test_basic",
-      "reason": "self.assertIsSubclass"
+      "reason": "uses-self.type2test"
     },
     {
       "ident": "ByteArraySubclassTest.test_join",
@@ -1137,27 +1137,27 @@
     },
     {
       "ident": "ByteArraySubclassTest.test_pickle",
-      "reason": "self.assertNotHasAttr"
+      "reason": "uses-self.type2test"
     },
     {
       "ident": "ByteArraySubclassWithSlotsTest.test_pickle",
-      "reason": "self.assertNotHasAttr"
+      "reason": "uses-self.type2test"
     },
     {
       "ident": "BytesSubclassTest.test_pickle",
-      "reason": "self.assertNotHasAttr"
+      "reason": "uses-self.type2test"
     },
     {
       "ident": "ByteArraySubclassTest.test_copy",
-      "reason": "self.assertNotHasAttr"
+      "reason": "uses-self.type2test"
     },
     {
       "ident": "ByteArraySubclassWithSlotsTest.test_copy",
-      "reason": "self.assertNotHasAttr"
+      "reason": "uses-self.type2test"
     },
     {
       "ident": "BytesSubclassTest.test_copy",
-      "reason": "self.assertNotHasAttr"
+      "reason": "uses-self.type2test"
     }
   ],
   "counts": {

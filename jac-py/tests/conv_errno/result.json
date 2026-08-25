@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_errno/conv_errno_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:32:46",
+  "generated_at": "2026-08-24T23:14:44",
   "hashes": {
-    "pins_jac": "ca8b9721267d298ba289727b21dd586b52854f44a9e815ab923bc1ad2b0e32e5",
-    "conversion_json": "a71acbf0c1d56ea4d0bc659a99ec4af262240503f65f8b7bc642797885c355eb",
+    "pins_jac": "13c6c65a637e32c430f5236961964d20e49c17595b8ec85b39fd1220f8e3ad33",
+    "conversion_json": "ed092e0df385353a3bd3e661eb795d3f252e6889d5bc6f37e0727695f6d3c201",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "errno",
@@ -21,9 +21,9 @@
   "timed_out": false,
   "counts": {
     "converted": 3,
-    "runnable": 1,
-    "green": 1,
-    "quarantined": 2,
+    "runnable": 3,
+    "green": 3,
+    "quarantined": 0,
     "failed": 0,
     "infra_failed": 0
   },

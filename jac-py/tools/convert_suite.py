@@ -204,6 +204,42 @@ def _almost_assert(call: ast.Call, negate: bool) -> ast.Assert:
     return ast.Assert(test=test, msg=_msg_of(call, label, [a, b]))
 
 
+def _issubclass_assert(call: ast.Call) -> ast.Assert:
+    _need_args(call, 2)
+    a, b = call.args[0], call.args[1]
+    return ast.Assert(
+        test=ast.Call(func=ast.Name(id="issubclass", ctx=ast.Load()), args=[a, b], keywords=[]),
+        msg=_msg_of(call, "assertIsSubclass", [a, b]),
+    )
+
+
+def _hasattr_assert(call: ast.Call, negate: bool) -> ast.Assert:
+    _need_args(call, 2)
+    obj, attr = call.args[0], call.args[1]
+    test: ast.expr = ast.Call(
+        func=ast.Name(id="hasattr", ctx=ast.Load()), args=[obj, attr], keywords=[]
+    )
+    if negate:
+        test = ast.UnaryOp(op=ast.Not(), operand=test)
+    label = "assertNotHasAttr" if negate else "assertHasAttr"
+    return ast.Assert(test=test, msg=_msg_of(call, label, [obj, attr]))
+
+
+def _regex_assert(call: ast.Call, negate: bool) -> ast.Assert:
+    # assertRegex(text, pattern): CPython searches pattern IN text.
+    _need_args(call, 2)
+    text, pattern = call.args[0], call.args[1]
+    test: ast.expr = ast.Call(
+        func=ast.Attribute(value=ast.Name(id="_re", ctx=ast.Load()), attr="search", ctx=ast.Load()),
+        args=[pattern, text],
+        keywords=[],
+    )
+    if negate:
+        test = ast.UnaryOp(op=ast.Not(), operand=test)
+    label = "assertNotRegex" if negate else "assertRegex"
+    return ast.Assert(test=test, msg=_msg_of(call, label, [text, pattern]))
+
+
 def _count_equal_assert(call: ast.Call) -> ast.Assert:
     _need_args(call, 2)
     a, b = call.args[0], call.args[1]
@@ -311,6 +347,16 @@ def rewrite_assert_stmt(stmt: ast.stmt) -> list[ast.stmt]:
         return [_almost_assert(call, negate=True)]
     if fname == "assertCountEqual":
         return [_count_equal_assert(call)]
+    if fname == "assertIsSubclass":
+        return [_issubclass_assert(call)]
+    if fname == "assertHasAttr":
+        return [_hasattr_assert(call, negate=False)]
+    if fname == "assertNotHasAttr":
+        return [_hasattr_assert(call, negate=True)]
+    if fname == "assertRegex":
+        return [_regex_assert(call, negate=False)]
+    if fname == "assertNotRegex":
+        return [_regex_assert(call, negate=True)]
     raise Unsupported(f"self.{fname}")
 
 
@@ -496,7 +542,15 @@ def rewrite_block(stmts: list[ast.stmt]) -> tuple[list[ast.stmt], bool]:
                     new.append(stmt)
         return new
 
-    return rec(stmts), needs_re
+    new_block = rec(stmts)
+    # Any emitted statement loading _re requires the module import. Scanning
+    # the final AST (not per-rewrite flags) keeps every vocabulary addition
+    # that may emit _re.search honest without plumbing a flag through each.
+    for node in ast.walk(ast.Module(body=new_block, type_ignores=[])):
+        if isinstance(node, ast.Name) and node.id == "_re" and isinstance(node.ctx, ast.Load):
+            needs_re = True
+            break
+    return new_block, needs_re
 
 
 def _with_needs_re(item: ast.withitem) -> bool:
@@ -539,7 +593,23 @@ def _loaded_names(nodes: ast.AST) -> set[str]:
     }
 
 
-def _scan_self_usage(body: list[ast.stmt]) -> tuple[set[str], set[str]]:
+def _self_attr_stores(body: list[ast.stmt]) -> set[str]:
+    """Attribute names assigned via ``self.<attr> = ...`` anywhere in body."""
+    out: set[str] = set()
+    for node in ast.walk(ast.Module(body=body, type_ignores=[])):
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        for t in targets:
+            if isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name) \
+                    and t.value.id == "self":
+                out.add(t.attr)
+    return out
+
+
+def _scan_self_usage(body: list[ast.stmt], namespace_callable: set[str] | None = None) -> tuple[set[str], set[str]]:
     """Partition ``self.*`` references into namespace-safe attrs vs calls.
 
     Returns (ns_attrs, call_attrs): ``ns_attrs`` are plain attribute
@@ -733,6 +803,10 @@ class _FixtureVocab:
         self.lifted: list[ast.FunctionDef] = []  # insertion order
         self.needs_re = False
         self.needs_ns = False
+        # self.<attr> names that resolve to callables at runtime (class-level
+        # attribute seeds or setUp-assigned); calls through them are legal
+        # once the namespace exists.
+        self.allowed_calls: set[str] = set()
         self._ok: dict[str, ast.FunctionDef] = {}
         self._failed: dict[str, Unsupported] = {}
 
@@ -767,9 +841,10 @@ class _FixtureVocab:
         body = [rewriter.visit(stmt) for stmt in fn.body]
         body, needs_re = rewrite_block(body)
         ns_attrs, call_attrs = _scan_self_usage(body)
-        if call_attrs:
-            raise Unsupported(f"uses-self.{sorted(call_attrs)[0]}")
-        if ns_attrs:
+        bad = {a for a in call_attrs if a not in self.allowed_calls}
+        if bad:
+            raise Unsupported(f"uses-self.{sorted(bad)[0]}")
+        if ns_attrs or (call_attrs and self.allowed_calls):
             self.needs_ns = True
         try:
             siblings = {f.name for f in self.lifted} | {
@@ -901,6 +976,34 @@ def _apply_fixture_vocab(
     assignments, needs_re).
     """
     session = _FixtureVocab(cls_name, cmap, available_names)
+    # self.<attr> callables: class-attr seeds plus anything any method of the
+    # class chain (ancestors and descendants) stores onto self (setUp and
+    # friends). Calls through these resolve at runtime once the namespace
+    # exists.
+    related: list[str] = []
+    seen_cls = {cls_name}
+    stack = [cls_name]
+    while stack:
+        name = stack.pop()
+        related.append(name)
+        info = cmap.get(name)
+        if info is not None:
+            for b in info.bases:
+                if b not in seen_cls:
+                    seen_cls.add(b)
+                    stack.append(b)
+            for child in cmap:
+                if cls_name in cmap[child].bases or name in cmap[child].bases:
+                    if child not in seen_cls:
+                        seen_cls.add(child)
+                        stack.append(child)
+    for name in related:
+        info = cmap.get(name)
+        if info is None:
+            continue
+        for meth in info.methods.values():
+            session.allowed_calls |= _self_attr_stores(meth.body)
+    session.allowed_calls |= set(_class_attr_seeds(cls_name, cmap, mod_classes))
     prefix: list[ast.stmt] = []
     if _resolve_method(cmap, cls_name, "setUp") is not None:
         # unittest runs setUp before every test; splice its lifted body so
@@ -912,8 +1015,9 @@ def _apply_fixture_vocab(
     stmts = [rewriter.visit(s) for s in prefix + list(body)]
     rewritten, needs_re = rewrite_block(stmts)
     ns_attrs, call_attrs = _scan_self_usage(rewritten)
-    if call_attrs:
-        raise Unsupported(f"uses-self.{sorted(call_attrs)[0]}")
+    bad = {a for a in call_attrs if a not in session.allowed_calls}
+    if bad:
+        raise Unsupported(f"uses-self.{sorted(bad)[0]}")
     extra_prelude = [
         *session.lifted,
         *_helper_class_deps(session.lifted, mod_classes),

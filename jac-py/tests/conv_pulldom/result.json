@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "4e27b6c6bce510c5490cc3e90b0fe5c36165f1f0",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_pulldom/conv_pulldom_pins.jac"
   ],
-  "generated_at": "2026-08-24T21:38:58",
+  "generated_at": "2026-08-24T23:15:34",
   "hashes": {
-    "pins_jac": "1c34bfc936e0f58bdf1696c734600e25cc34e17c11287334943018e20b416394",
-    "conversion_json": "24df17b65a6d1703b7e0bdb36dd68e2bc46a928d713977cfe708a7ccbf0ea7e6",
+    "pins_jac": "105699845ac9519f40ea4dfb4487e6253e6f893fa0fab742c7a02873edcfe7f5",
+    "conversion_json": "1f8ff486e9fb2b8ffeb94ead4b431275a1f7226a949909e06bc9690302861b21",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "pulldom",
@@ -21,18 +21,30 @@
   "timed_out": false,
   "counts": {
     "converted": 11,
-    "runnable": 3,
-    "green": 2,
-    "quarantined": 8,
-    "failed": 1,
+    "runnable": 7,
+    "green": 4,
+    "quarantined": 4,
+    "failed": 3,
     "infra_failed": 0
   },
   "failures": [
+    {
+      "id": "PullDOMTestCase.test_parse_semantics",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'PullDOM\\' object has no attribute \\'processingInstruction\\'\"'>"
+    },
     {
       "id": "PullDOMTestCase.test_expandItem",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC AttributeError \"\\'PullDOM\\' object has no attribute \\'processingInstruction\\'\"'>"
+    },
+    {
+      "id": "SAX2DOMTestCase.test_basic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'StringIO.__enter__() takes no arguments (1 given)'\">"
     }
   ]
 }

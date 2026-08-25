@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "f5e921e06eb9d933596b6431443728caa01d1afd",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "2c8357127eb79e5ddb6fe029f35111ccf11f390f",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_defaultdict/conv_defaultdict_pins.jac"
   ],
-  "generated_at": "2026-08-24T15:26:31",
+  "generated_at": "2026-08-24T23:15:28",
   "hashes": {
-    "pins_jac": "b5659ea9b09314e402c38d4d204b534ec8f9c5153a4898b55a77ef6be178d425",
-    "conversion_json": "476b2c8c4e83d4f1b4f0ab2bfa294d302d3c21c226648f10801369eab6601d1e",
+    "pins_jac": "61d5b843a2485e85ac25d7613212c314251d4750defbb5700b5d45a37ebb30c7",
+    "conversion_json": "f302b41ed07e2c35c73348f9d4372a1c255f3e7f7a8feb107927491223435d33",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "defaultdict",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 13,
-    "runnable": 12,
+    "runnable": 13,
     "green": 6,
-    "quarantined": 1,
-    "failed": 6,
+    "quarantined": 0,
+    "failed": 7,
     "infra_failed": 0
   },
   "failures": [
@@ -51,6 +51,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "TestDefaultDict.test_recursive_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertRegex\\', \\'<__main__.sub object at 0x7fc4090ee850>\\', \\'sub\\\\\\\\\\\\\\\\(<bound method .*sub\\\\\\\\\\\\\\\\._factory of sub\\\\\\\\\\\\\\\\(\\\\\\\\\\\\\\\\.\\\\\\\\\\\\\\\\.\\\\\\\\\\\\\\\\., \\\\\\\\\\\\\\\\{\\\\\\\\\\\\\\\\}\\\\\\\\\\\\\\\\)>, \\\\\\\\\\\\\\\\{\\\\\\\\\\\\\\\\}\\\\\\\\\\\\\\\\)\\')\"'>"
     },
     {
       "id": "TestDefaultDict.test_union",
