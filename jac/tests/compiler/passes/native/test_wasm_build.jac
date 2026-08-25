@@ -11,7 +11,6 @@ import os;
 import subprocess;
 import shutil;
 import tempfile;
-import pytest;
 import from pathlib { Path }
 import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.program { JacProgram }
@@ -34,9 +33,7 @@ glob FIXTURES = os.path.join(
 # ─── helpers ─────────────────────────────────────────────────────────────────
 def _require_libc {
     if _wasm_libc_dir() is None {
-        pytest.skip(
-            "vendored wasm libc not present (run `zig build vendor-wasm-libc`)"
-        );
+        testskip("vendored wasm libc not present (run `zig build vendor-wasm-libc`)");
     }
 }
 
@@ -48,7 +45,7 @@ def fixture_ir -> str {
         prog = JacProgram();
         ir = prog.compile(
             file_path=os.path.join(FIXTURES, FIXTURE),
-            options=CompileOptions(aot_mode=True, type_check=False)
+            options=CompileOptions(aot_mode=True)
         );
         assert not prog.errors_had;
         return str(ir.gen.llvm_ir);
@@ -87,7 +84,7 @@ test "app FFI stays under env; undeclared imports are a build-time error" {
     imports = wasm_import_map(mod);
     assert imports.get("env") == ["MyThing"];
 
-    with pytest.raises(RuntimeError) as exc {
+    with testraises(RuntimeError) as exc {
         emit_wasm_from_ir(app_ir, ["use"], app_imports=set());
     }
     assert "MyThing" in str(exc.value);
@@ -111,7 +108,7 @@ test "floor-style i64 libc declarations bind through the __jac64 adapters" {
     assert "env" not in imports;
     node_bin = shutil.which("node");
     if not node_bin {
-        pytest.skip("node not available");
+        testskip("node not available");
     }
     d = tempfile.mkdtemp();
     wpath = os.path.join(d, "m.wasm");
@@ -155,7 +152,7 @@ test "the fixture runs under node with ONLY the jac_host1 host object" {
     _require_libc();
     node_bin = shutil.which("node");
     if not node_bin {
-        pytest.skip("node not available");
+        testskip("node not available");
     }
     mod = emit_wasm_from_ir(fixture_ir(), [], app_imports=set());
     d = tempfile.mkdtemp();
@@ -204,6 +201,7 @@ console.log(`out=${JSON.stringify(out)} compute=${c}`);
 test "abi64 adapter gap is reported against the floor, not the app" {
     _require_libc();
     src = _wasm_libc_dir();
+    assert src is not None;
     d = tempfile.mkdtemp();
     floor = os.path.join(d, "libc");
     shutil.copytree(src, floor);
@@ -211,7 +209,7 @@ test "abi64 adapter gap is reported against the floor, not the app" {
     # otherwise complete floor: exactly the shape of a pre-adapter build.
     abi = os.path.join(floor, "jac_abi64.bc");
     if not os.path.exists(abi) {
-        pytest.skip("floor has no jac_abi64.bc to remove");
+        testskip("floor has no jac_abi64.bc to remove");
     }
     os.remove(abi);
     merged = os.path.join(floor, "_merged.bc");
@@ -221,7 +219,7 @@ test "abi64 adapter gap is reported against the floor, not the app" {
     prev = os.environ.get("JAC_NATIVE_WASM_LIBC_DIR", None);
     os.environ["JAC_NATIVE_WASM_LIBC_DIR"] = floor;
     try {
-        with pytest.raises(RuntimeError) as ei {
+        with testraises(RuntimeError) as ei {
             emit_wasm_from_ir(fixture_ir(), [], app_imports=set());
         }
         msg = str(ei.value);
@@ -269,6 +267,7 @@ test "the built floor defines every abi64 adapter" {
     _require_libc();
     import from jaclang.compiler.passes.native.wasm_build { _ABI64_ADAPTED }
     libc_dir = _wasm_libc_dir();
+    assert libc_dir is not None;
     blobs = [
         Path(os.path.join(libc_dir, f)).read_bytes()
         for f in os.listdir(libc_dir)
@@ -294,8 +293,9 @@ test "a floor built from different wasm_rt sources is refused" {
     _require_libc();
     import from jaclang.compiler.passes.native.wasm_build { FLOOR_MANIFEST }
     src = _wasm_libc_dir();
+    assert src is not None;
     if not os.path.isfile(os.path.join(src, FLOOR_MANIFEST)) {
-        pytest.skip("floor predates SOURCES.sha256");
+        testskip("floor predates SOURCES.sha256");
     }
     d = tempfile.mkdtemp();
     floor = os.path.join(d, "libc");
@@ -321,7 +321,7 @@ test "a floor built from different wasm_rt sources is refused" {
     prev = os.environ.get("JAC_NATIVE_WASM_LIBC_DIR", None);
     os.environ["JAC_NATIVE_WASM_LIBC_DIR"] = floor;
     try {
-        with pytest.raises(RuntimeError) as ei {
+        with testraises(RuntimeError) as ei {
             emit_wasm_from_ir(fixture_ir(), [], app_imports=set());
         }
         msg = str(ei.value);
@@ -343,6 +343,7 @@ test "a floor without a manifest still links" {
     _require_libc();
     import from jaclang.compiler.passes.native.wasm_build { FLOOR_MANIFEST }
     src = _wasm_libc_dir();
+    assert src is not None;
     d = tempfile.mkdtemp();
     floor = os.path.join(d, "libc");
     shutil.copytree(src, floor);

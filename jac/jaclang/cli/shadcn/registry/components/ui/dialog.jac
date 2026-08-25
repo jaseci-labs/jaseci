@@ -44,19 +44,19 @@ def:pub DialogContent(props: any) -> JsxElement {
             )}
         >
             {props["children"]}{showCloseButton
-            and <DialogPrimitive.Close data-slot="dialog-close" asChild={True}>
-                <button
-                    className={cn(
-                        buttonVariants().call(
-                            None, {"variant": "ghost", "size": "icon-sm"}
-                        ),
-                        "cn-dialog-close"
-                    )}
-                >
-                    <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2}/>
-                    <span className="sr-only">Close</span>
-                </button>
-            </DialogPrimitive.Close>}
+                and <DialogPrimitive.Close data-slot="dialog-close" asChild={True}>
+                    <button
+                        className={cn(
+                            buttonVariants().call(
+                                None, {"variant": "ghost", "size": "icon-sm"}
+                            ),
+                            "cn-dialog-close"
+                        )}
+                    >
+                        <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2}/>
+                        <span className="sr-only">Close</span>
+                    </button>
+                </DialogPrimitive.Close>}
         </DialogPrimitive.Content>
     </DialogPortal>
 }
@@ -82,11 +82,13 @@ def:pub DialogFooter(props: any) -> JsxElement {
         )}
     >
         {props["children"]}{showCloseButton
-        and <DialogPrimitive.Close asChild={True}>
-            <button className={cn(buttonVariants().call(None, {"variant": "outline"}))}>
-                Close
-            </button>
-        </DialogPrimitive.Close>}
+            and <DialogPrimitive.Close asChild={True}>
+                <button
+                    className={cn(buttonVariants().call(None, {"variant": "outline"}))}
+                >
+                    Close
+                </button>
+            </DialogPrimitive.Close>}
     </div>
 }
 

@@ -10,7 +10,7 @@ The key concept is **per-user data isolation**: when a function or walker is mar
 > - Time: ~30 minutes
 
 !!! note "Auth runtime helpers and `jac check`"
-    The `jacLogin`/`jacSignUp`/`jacLogout`/`jacIsLoggedIn` helpers, walker spawn-result `.reports`, and the `localStorage`/`window.location` browser globals all work at runtime under `jac start`. The static checker has not yet shipped typed stubs for the auth runtime or for walker spawn results, so isolated `jac check` runs on the snippets below report `E1032` warnings.
+    The `jacLogin`/`jacSignUp`/`jacLogout`/`jacIsLoggedIn` helpers, walker spawn-result `.reports`, and the `localStorage`/`window.location` browser globals all work at runtime under `jac run`. The static checker has not yet shipped typed stubs for the auth runtime or for walker spawn results, so isolated `jac check` runs on the snippets below report `E1032` warnings.
 
 ---
 
@@ -450,7 +450,7 @@ def:pub AuthShell() -> JsxLayout {
 The `AuthGuard` component:
 
 - Checks if user is logged in via `jacIsLoggedIn()`
-- If authenticated: renders child routes via `<Outlet />`
+- If authenticated: renders its children, or - given none - the matched child route via `<Outlet />`
 - If not authenticated: redirects to the specified path
 
 ---

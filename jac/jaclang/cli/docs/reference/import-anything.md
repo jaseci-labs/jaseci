@@ -221,7 +221,7 @@ import from "libgeometry.so" {
 ```
 
 !!! info "Fixed-width types at the C boundary"
-    The `import from` declaration uses fixed-width types (`f64`, `i32`, `u8`, `c_void`, …) so the signature matches the C ABI exactly. Carry those same fixed-width types through any function that passes values into a C call -- the native backend coerces, but mixing plain `float`/`int` with `f64`/`i32` at a call site is best avoided. Library paths are platform-specific -- `.so` on Linux, `.dylib` on macOS, and system libraries live in different locations per platform.
+    The `import from` declaration uses fixed-width types (`f64`, `i32`, `u8`, `c_void`, …) so the signature matches the C ABI exactly. Carry those same fixed-width types through any function that passes values into a C call, or cast at the boundary: a plain `int` into an `i32` parameter is the checked cast `i32(n)`, and the checker reports an uncast narrowing (`E1127`) rather than letting the backend truncate silently. Widening (`u8 -> i32`, `f32 -> f64`) stays implicit. Library paths are platform-specific -- `.so` on Linux, `.dylib` on macOS, and system libraries live in different locations per platform.
 
 ---
 
@@ -295,11 +295,11 @@ with entry {
 Syntax-check any snippet before running it -- the Jac compiler parses imports without resolving them, so this catches mistakes fast:
 
 ```bash
-jac check --parse-only myfile.jac   # syntax only -- works for sv, cl, and na
+jac check --parse_only myfile.jac   # syntax only -- works for sv, cl, and na
 jac check myfile.jac                # full type-check (server / client code)
 ```
 
-`--parse-only` is the universally safe check for all three codespaces. For **native (`na`) code that calls C libraries**, the most reliable verification is to compile it -- `jac run myfile.jac` or `jac nacompile myfile.jac` -- since the native backend, not the general type checker, owns C-ABI coercion.
+`--parse_only` is the universally safe check for all three codespaces. For **native (`na`) code that calls C libraries**, the most reliable verification is to compile it -- `jac run myfile.jac` or `jac nacompile myfile.jac` -- since the native backend, not the general type checker, owns C-ABI coercion.
 
 If you have the [`jac mcp`](mcp.md) server connected, the `check_syntax` and `validate_jac` tools do the same thing from your AI assistant.
 

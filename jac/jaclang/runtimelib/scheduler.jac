@@ -3,7 +3,6 @@ import time;
 import heapq;
 import datetime;
 import logging;
-import from collections.abc { Callable }
 import from jaclang.runtimelib.builtin { ScheduleTrigger }
 
 glob _scheduler_instance: (Scheduler | None) = None,
@@ -40,10 +39,10 @@ obj Scheduler {
 
     def start -> None;
     def stop -> None;
-    def wait -> None;
+    def `wait -> None;
     def has_pending -> bool;
     def _run_loop -> None;
-    def _pick_up_new_tasks(heap: list) -> None;
+    def _pick_up_new_tasks(heap: list[tuple[float, int, ScheduledTask]]) -> None;
     def _compute_next_run(
         spec: ScheduleSpec, now: datetime.datetime
     ) -> (datetime.datetime | None);

@@ -162,7 +162,11 @@ def:pub ChannelsTab(
                             <Users size={12}/>
                             <span>
                                 {str(ch.member_count)
-                                + (" member" if ch.member_count == 1 else " members")}
+                                    + (
+                                        " member"
+                                            if ch.member_count == 1
+                                            else " members"
+                                    )}
                             </span>
                         </div>
                     </div>
@@ -200,11 +204,11 @@ def:pub ChannelsTab(
                             <Users size={12}/>
                             <span>
                                 {str(selectedChannel.member_count)
-                                + (
-                                    " member"
-                                        if selectedChannel.member_count == 1
-                                        else " members"
-                                )}
+                                    + (
+                                        " member"
+                                            if selectedChannel.member_count == 1
+                                            else " members"
+                                    )}
                             </span>
                         </div>
                     </div>

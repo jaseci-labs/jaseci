@@ -47,7 +47,7 @@ All storage instances provide these methods:
 ### Usage Example
 
 ```jac
-import from http { UploadFile }
+import from jaclang.runtimelib.serving.datatypes { UploadFile }
 import from uuid { uuid4 }
 
 glob storage = store(base_path="./uploads");
@@ -247,239 +247,14 @@ walker async_processor {
 
 ---
 
-## Direct Database Access (kvstore)
-
-Direct database operations without graph layer abstraction. Supports MongoDB (document queries), Firestore (Firebase-style document CRUD), and Redis (key-value with TTL/atomic ops).
-
-```jac
-import from jaclang.scale.persistence.lib { kvstore }
-
-with entry {
-    mongo_db = kvstore(db_name='my_app', db_type='mongodb');
-    firestore_db = kvstore(db_name='my_app', db_type='firestore');
-    redis_db = kvstore(db_name='cache', db_type='redis');
-}
-```
-
-**Parameters:** `db_name` (str), `db_type` ('mongodb'|'firestore'|'redis'), `uri` (str|None - priority: explicit → env vars → jac.toml)
-
-### Firestore Configuration
-
-```toml
-[scale.database]
-type = "firestore"
-project_id = "my-firebase-project"
-```
-
-Or via environment variable:
-
-```bash
-export FIREBASE_PROJECT_ID="my-firebase-project"
-# Subsystem override (optional):
-# export FIRESTORE_PROJECT_ID="my-firebase-project"
-```
-
-`FIREBASE_PROJECT_ID` is the shared fallback for Auth SSO, Firestore, and Storage. Subsystem-specific vars override it when set.
-
----
-
-## MongoDB Operations
-
-**Common Methods:** `get()`, `set()`, `delete()`, `exists()`
-**Query Methods:** `find_one()`, `find()`, `insert_one()`, `insert_many()`, `update_one()`, `update_many()`, `delete_one()`, `delete_many()`, `find_by_id()`, `update_by_id()`, `delete_by_id()`, `find_nodes()`
-
-**Example:**
-
-```jac
-import from jaclang.scale.persistence.lib { kvstore }
-
-with entry {
-    db = kvstore(db_name='my_app', db_type='mongodb');
-
-    db.insert_one('users', {'name': 'Alice', 'role': 'admin', 'age': 30});
-    alice = db.find_one('users', {'name': 'Alice'});
-    admins = list(db.find('users', {'role': 'admin'}));
-    older = list(db.find('users', {'age': {'$gt': 28}}));
-
-    db.update_one('users', {'name': 'Alice'}, {'$set': {'age': 31}});
-    db.delete_one('users', {'name': 'Bob'});
-
-    db.set('user:123', {'status': 'active'}, 'sessions');
-}
-```
-
-**Query Operators:** `$eq`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$ne`, `$and`, `$or`
-
-### Querying Persisted Nodes (`find_nodes`)
-
-Query persisted graph nodes by type with MongoDB filters. Returns deserialized node instances.
-
-```jac
-with entry{
-    db = kvstore(db_name='jac_db', db_type='mongodb');
-    young_users = list(db.find_nodes('User', {'age': {'$lt': 30}}));
-    admins = list(db.find_nodes('User', {'role': 'admin'}));
-}
-```
-
-**Parameters:** `node_type` (str), `filter` (dict, default `{}`), `col_name` (str, default `'_anchors'`)
-
----
-
-## Firestore Operations
-
-**Common Methods:** `get()`, `set()`, `delete()`, `exists()`
-**Query Methods:** `find_one()`, `find()`, `insert_one()`, `insert_many()`, `update_one()`, `update_many()`, `delete_one()`, `delete_many()`, `find_by_id()`, `update_by_id()`, `delete_by_id()`
-
-**Example:**
-
-```jac
-import from jaclang.scale.lib { kvstore }
-
-with entry {
-    db = kvstore(db_name='my_app', db_type='firestore');
-
-    db.insert_one('users', {'name': 'Alice', 'role': 'admin', 'age': 30});
-    db.insert_one('users', {'name': 'Bob', 'role': 'user', 'age': 25});
-
-    alice = db.find_one('users', {'name': 'Alice'});
-    admins = list(db.find('users', {'role': 'admin'}));
-    older = list(db.find('users', {'age': {'$gte': 25}}));
-
-    todo = db.insert_one('todos', {'title': 'Buy milk', 'done': False});
-    db.update_by_id('todos', todo.inserted_id, {'$set': {'done': True}});
-    done_todos = list(db.find('todos', {'done': True}));
-}
-```
-
-**Supported filter operators:** `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$and`
-
-**Notes:**
-
-- Firestore collections are namespaced internally as `{db_name}__{col_name}`.
-- Querying by `_id` inside `find()` / `find_one()` is not supported; use `get()`, `find_by_id()`, `update_by_id()`, or `delete_by_id()`.
-- `find_nodes()` is intentionally not available for Firestore; Jac graph persistence remains on SQLite / MongoDB.
-
----
-
-## Redis Operations
-
-**Common Methods:** `get()`, `set()`, `delete()`, `exists()`
-**Redis Methods:** `set_with_ttl()`, `expire()`, `incr()`, `scan_keys()`, `set_nx_with_ttl()`, `delete_if_equals()`
-
-**Example:**
-
-```jac
-import from jaclang.scale.persistence.lib { kvstore }
-
-with entry {
-    cache = kvstore(db_name='cache', db_type='redis');
-
-    cache.set('session:user123', {'user_id': '123', 'username': 'alice'});
-    cache.set_with_ttl('temp:token', {'token': 'xyz'}, ttl=60);
-    cache.set_with_ttl('cache:profile', {'name': 'Alice'}, ttl=3600);
-
-    cache.incr('stats:views');
-    sessions = cache.scan_keys('session:*');
-    cache.expire('session:user123', 1800);
-}
-```
-
-**Note:** Database-specific methods raise `NotImplementedError` on wrong database type.
-
----
-
-## Distributed Locks (Redis only)
-
-When a jac-scale app runs with multiple replicas behind a load balancer, two pods can land on the same shared resource (an EFS-backed file, an external API rate limit, a row in a downstream database) at the same instant. Python's `threading.Lock` only serializes inside one process, so it cannot prevent the race. The kvstore exposes two primitives that together build a correct cross-pod mutex on top of Redis.
-
-### Acquire: `set_nx_with_ttl(key, value, ttl)`
-
-Atomically sets the key only if it does not already exist, with an automatic expiration. Maps to Redis `SET key value NX EX ttl`. Returns `True` if the caller acquired the lock, `False` if another caller already holds it.
-
-The TTL is mandatory: if the holder crashes without releasing, Redis frees the lock automatically after `ttl` seconds, so an orphan never blocks the cluster forever.
-
-### Release: `delete_if_equals(key, expected_value)`
-
-Atomically deletes the key only when its current value matches `expected_value`. Implemented with a server-side Lua script so the GET and DEL run as one operation. Returns `True` if deleted, `False` otherwise.
-
-Pair `delete_if_equals` with `set_nx_with_ttl` and a unique fence token: a slow holder whose TTL expired during a long operation will not delete a lock another caller has since acquired, since the values no longer match.
-
-### Cross-pod mutex pattern
-
-```jac
-import os;
-import time;
-import from uuid { uuid4 }
-import from jaclang.scale.persistence.lib { kvstore }
-
-glob _kv = kvstore(db_name='myapp', db_type='redis');
-
-def with_repo_lock(repo_id: str, action: str) -> dict {
-    fence = str(uuid4());
-    payload = {'fence': fence, 'pod': os.environ.get('HOSTNAME', 'local')};
-
-    # Acquire: retry up to ~25s, give up if contention persists.
-    deadline = time.time() + 25.0;
-    acquired = False;
-    while time.time() < deadline {
-        if _kv.set_nx_with_ttl(f'repo_lock:{repo_id}', payload, ttl=30) {
-            acquired = True;
-            break;
-        }
-        time.sleep(0.2);
-    }
-    if not acquired {
-        return {'success': False, 'error': 'lock contention timeout'};
-    }
-
-    try {
-        return run_protected_op(repo_id, action);
-    } finally {
-        # Release: compare-and-delete. Safe even if our TTL already expired
-        # and another pod owns the key now; the value mismatch makes it a no-op.
-        _kv.delete_if_equals(f'repo_lock:{repo_id}', payload);
-    }
-}
-```
-
-### Cluster-wide debounce
-
-`set_nx_with_ttl` also collapses N pods running the same periodic task into a single execution per window. No release needed: the TTL is the window length.
-
-```jac
-def maybe_run_periodic_task(task_id: str) -> bool {
-    payload = {'pod': os.environ.get('HOSTNAME', 'local'), 'ts': time.time()};
-    if _kv.set_nx_with_ttl(f'task_dbnce:{task_id}', payload, ttl=60) {
-        run_task(task_id);
-        return True;
-    }
-    return False;  # Another pod already ran it within the last 60s.
-}
-```
-
-This is the right pattern for autosave debouncing, leader-only reconciliation cycles, and any other "exactly once per window across the cluster" requirement.
-
-### When to use which
-
-| Need | Primitive | Release |
-|---|---|---|
-| Mutual exclusion (only one caller in the cluster runs the protected block) | `set_nx_with_ttl` + retry on `False` | `delete_if_equals` with a unique fence token |
-| Debounce (throttle to one execution per window across the cluster) | `set_nx_with_ttl` once, no retry | None: let TTL expire |
-| Leader election (one pod holds a long-lived role) | `set_nx_with_ttl` with renewing TTL | `delete_if_equals` on graceful shutdown |
-
-`set_nx_with_ttl` and `delete_if_equals` raise `NotImplementedError` on MongoDB; distributed-lock semantics require Redis.
-
----
-
 ## Event Streaming
 
 Optional event-streaming broker for emitting and consuming events between jac code and external systems. Off by default. Provides durable log, consumer groups, replayable offsets via `start_from`, and at-least-once delivery with retries and a DLQ.
 
 Two implementations ship in-tree:
 
-- **`LocalEventStream`** (in-memory): single-process, no persistence. Used automatically when no Redis URL is configured. Right for dev workstations, tests, and single-pod deployments.
-- **`RedisEventStream`** (Redis Streams): durable, cross-pod. Used automatically when a Redis URL resolves and the `[data]` extra is installed.
+- **`LocalEventStream`** (in-memory): single-process, no persistence. Used automatically when no database URL is configured. Right for dev workstations, tests, and single-pod deployments.
+- **`PgEventStream`** (Postgres): durable, cross-pod, backed by the same database that holds the graph. Used automatically when a database URL resolves (`[scale.events].url`, `[scale.database].url`, or `JAC_DB_URL`).
 
 You don't pick the broker; selection happens at startup based on what's available.
 
@@ -490,9 +265,9 @@ Add the section to `jac.toml`. Master switch is `enabled`; everything else has w
 ```toml
 [scale.events]
 enabled = true
-# Optional. If unset, falls back to [scale.database].redis_url; if neither
-# resolves, the in-memory LocalEventStream is used.
-url = "redis://localhost:6379/0"
+# Optional. If unset, falls back to [scale.database].url / JAC_DB_URL; if
+# neither resolves, the in-memory LocalEventStream is used.
+url = "postgresql://user:pass@localhost:5432/jac"
 consumer_group = "jac-scale"
 serializer = "json"
 
@@ -502,7 +277,7 @@ backoff_seconds = [1, 5, 30]
 dead_letter_suffix = ".dlq"
 ```
 
-To use Redis Streams you need `redis` in the project venv -- configure `[scale.database]` (Redis) and run `jac install`. Without it, scale silently uses `LocalEventStream` and logs a warning at startup.
+The Postgres stream needs no extra packages: the driver is vendored with the runtime. With no database URL, scale uses `LocalEventStream` and logs a warning at startup.
 
 ### Publishing
 
@@ -539,7 +314,7 @@ def on_order_placed(event: Event) -> None {
 
 Handlers register at import time. At server startup, the framework walks the registry and wires each handler into the active broker. A daemon consumer thread is spawned per subscription.
 
-`@subscribe` accepts optional `group=` and `retry=` arguments to override the defaults from `jac.toml`, plus `start_from=` to control where a brand-new consumer group begins reading. Default is `"latest"` (only events produced after the group is created); pass `"earliest"` to replay everything still retained, or a broker-specific position token (e.g. a Redis stream id like `"1700000000000-0"`) to resume from a specific offset. `start_from` is a one-time bookmark: existing groups always resume from their stored position and ignore this argument.
+`@subscribe` accepts optional `group=` and `retry=` arguments to override the defaults from `jac.toml`, plus `start_from=` to control where a brand-new consumer group begins reading. Default is `"latest"` (only events produced after the group is created); pass `"earliest"` to replay everything still retained. The argument is a plain `str`; the two positions the shipped brokers understand are named by the `StreamPosition` enum in `jaclang.scale.events.broker`, so `start_from=StreamPosition.EARLIEST.value` says the same thing as `start_from="earliest"`. Any other token is treated as `"latest"`. `start_from` is a one-time bookmark: existing groups always resume from their stored position and ignore this argument.
 
 ```jac
 @subscribe("orders.placed", start_from="earliest")
@@ -565,14 +340,16 @@ def drain(broker: EventStreamBroker) -> int {
 }
 ```
 
-`consume()` blocks for up to `timeout_seconds` waiting for at least one event, then returns whatever has arrived (up to `max_messages`). Each event must be acked individually via `ack(event)` or the broker will redeliver it after its visibility timeout. `consume()` accepts the same `start_from=` argument as `subscribe()`; it only affects the first call that creates the consumer group, subsequent calls resume from the stored position.
+`consume()` blocks for up to `timeout_seconds` (default `5.0`) waiting for at least one event, then returns whatever has arrived (up to `max_messages`). Pass `timeout_seconds=0.0` for a non-blocking poll. Each event must be acked individually via `ack(event)` or the broker will redeliver it after its visibility timeout. `consume()` accepts the same `start_from=` argument as `subscribe()`; it only affects the first call that creates the consumer group, subsequent calls resume from the stored position.
+
+Every broker honors that contract identically, whichever backend is selected: `EventStreamBroker` checks each implementation's method signatures against its own declarations when the subclass is defined, so a broker that drops a parameter, changes a default, or adds a required parameter raises `TypeError` at import instead of failing on a call at runtime. An implementation may widen with additional defaulted parameters.
 
 ### Configuration reference
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `enabled` | `false` | Master switch. When `false`, all event-streaming calls are no-ops. |
-| `url` | `null` | Redis URL. If unset, falls back to `[scale.database].redis_url`. If neither is set or the `redis` extra is missing, `LocalEventStream` (in-memory) is used. |
+| `url` | `null` | Postgres URL for the event stream. If unset, falls back to `[scale.database].url` / `JAC_DB_URL`. If nothing resolves, `LocalEventStream` (in-memory) is used. |
 | `consumer_group` | `jac-scale` | Default consumer group name when `@subscribe` does not specify one. |
 | `serializer` | `json` | Wire format. JSON only. |
 | `retry.max_attempts` | `3` | Number of delivery attempts before sending to the DLQ topic. |
@@ -588,192 +365,77 @@ def drain(broker: EventStreamBroker) -> int {
 
 ### Operational notes
 
-- Each subscription spawns one daemon thread named `jac-scale-broker-<topic>-<group>` (Redis) or `jac-scale-local-<topic>-<group>` (Local). Inspect via standard threading tools.
+- Each subscription spawns one daemon consumer thread per topic/group. Inspect via standard threading tools.
 - Delivery metadata is exposed as first-class fields on `Event`: `event.delivery_id`, `event.delivery_topic`, `event.delivery_group`. Handlers that need them for idempotency keys, structured logging, or dedup can read them directly without importing broker-specific constants. The fields are broker-managed: producers leave them `None`, the broker sets them on `consume()` / push delivery, and they are not serialized to the wire.
-- Startup logs `Events broker enabled (kind={local|redis}, subscriptions=N)` so it is easy to confirm wiring at a glance.
+- Startup logs `Events broker enabled (kind={local|postgres}, subscriptions=N)` so it is easy to confirm wiring at a glance.
 - The wire format is CloudEvents 1.0 valid (`specversion`, `type`, `data`, `id`, `source`, `time`, plus `trace_id` and `headers` as extensions), so strict CE consumers (Argo Events, Knative Eventing, CE-aware Kafka tooling) accept it.
 
 ---
 
-## Database and Dashboards
+## The Database
 
-### Auto-Provisioning
+### One store, everywhere
 
-On the first `jac start app.jac --scale`, jac-scale automatically deploys Redis and MongoDB as Kubernetes StatefulSets with persistent storage. Subsequent deployments only update the application - databases remain untouched.
+Graph persistence is **Postgres-native** and there is exactly one stack:
 
-**What gets provisioned:**
+- **Local development**: the runtime auto-provisions an embedded Postgres server, one database per project. `jac db status` / `jac db stop` manage it; nothing to install.
+- **External server**: set `[scale.database].url` (or the `JAC_DB_URL` env var, which wins) and everything -- graph anchors, identity, scheduler jobs, webhook API keys, the event stream, and the WebSocket broadcast backplane -- runs against that database.
+- **Kubernetes**: `jac scale deploy app.jac` provisions a Postgres StatefulSet with a PersistentVolumeClaim and injects `JAC_DB_URL` into every pod via a Kubernetes Secret. Subsequent deployments only update the application; the database remains untouched.
 
-- **MongoDB** - StatefulSet with PersistentVolumeClaim (graph persistence, `kvstore` backend)
-- **Redis** - Deployment with persistent storage (cache layer, session management)
-- **Application Deployment** - Your Jac app pod(s)
-- **NGINX Ingress Controller** - Single NodePort entry point; routes traffic to ClusterIP services by path
-- **Services** - ClusterIP services for all components (all traffic goes through the Ingress)
-- **ConfigMaps** - Application configuration
-
-| TOML Key | Default | Description |
+| `jac.toml` key (`[scale.database]`) | Default | Description |
 |----------|---------|-------------|
-| `mongodb_enabled` | `true` | Auto-provision MongoDB StatefulSet |
-| `redis_enabled` | `true` | Auto-provision Redis Deployment |
-| `mongodb_root_username` | `admin` | MongoDB root username - stored as a K8s Secret, injected via `secretKeyRef` |
-| `mongodb_root_password` | `password` | MongoDB root password - stored as a K8s Secret, injected via `secretKeyRef` |
-| `redis_username` | `admin` | Redis auth username - stored as a K8s Secret, injected via `secretKeyRef` |
-| `redis_password` | `password` | Redis auth password - stored as a K8s Secret, injected via `secretKeyRef` |
+| `url` | `null` | Postgres connection URL (`postgresql://user:pass@host:port/db`) for this process. `JAC_DB_URL` overrides it at runtime. Set here (not via the env var), it also makes a deploy of this app point at that database instead of provisioning one. |
+| `deploy_mode` | `"image"` | How a provisioned Postgres runs: `"image"` (official postgres image) or `"embedded"` (the app's jac image running `jac db serve`). |
+| `postgres_image` | `"postgres:18"` | Image used in `deploy_mode = "image"`. |
+| `postgres_storage` | `"2Gi"` | PVC size for the provisioned StatefulSet. |
+| `indexes` | `{}` | Archetype fields to index, as `{ Arch = ["field", ...] }`. Each named field is promoted to a generated `jsonb` column over `props->'archetype'->'<field>'` -- the same expression and type the query compiler compares against -- and indexed. Predicates, orderings and composite keys on a promoted field then name the column instead of the raw path, which is the difference between an index scan and a sequential one. |
 
-Credentials are never hardcoded in pod specs. They are stored as Kubernetes `Secret` resources (`{app}-mongodb-secret`, `{app}-redis-secret`) and referenced via `valueFrom.secretKeyRef` - `kubectl describe pod` shows the secret name and key, not the actual value.
+### Promoted fields
 
-**To disable (use an external database instead):**
-
-```toml
-[scale.kubernetes]
-mongodb_enabled = false   # Don't deploy MongoDB - use MONGODB_URI instead
-redis_enabled = false     # Don't deploy Redis - use REDIS_URL instead
-
-[scale.database]
-mongodb_uri = "mongodb://user:pass@external-host:27017"
-redis_url = "redis://external-redis:6379"
-```
-
----
-
-### Connection Configuration
-
-Configure database connection URIs via environment variables or `jac.toml`. **Environment variables take priority over `jac.toml`.**
-
-**Option 1 - Environment variables (recommended for secrets):**
-
-| Variable | Description |
-|----------|-------------|
-| `MONGODB_URI` | MongoDB connection URI |
-| `REDIS_URL` | Redis connection URL |
-
-```env
-# .env
-MONGODB_URI=mongodb://user:password@host:27017/mydb
-REDIS_URL=redis://host:6379/0
-```
-
-**Option 2 - `jac.toml`:**
+A field predicate or an ordering term reads `props->'archetype'->'<field>'`. Postgres cannot use an index for that unless one exists over the same expression, so an unpromoted field is a scan of the joined set:
 
 ```toml
 [scale.database]
-mongodb_uri = "mongodb://localhost:27017"   # External MongoDB URI (skip auto-provisioning)
-redis_url = "redis://localhost:6379"        # External Redis URL (skip auto-provisioning)
-shelf_db_path = ".jac/data/anchor_store.db"  # SQLite/shelf path for local dev
+indexes = { Msg = ["at", "seq"], Post = ["published"] }
 ```
 
-> `MONGODB_URI` and `REDIS_URL` environment variables take precedence over the `jac.toml` values when both are set.
+Three things follow from the column being `jsonb` rather than `text`. Numbers order numerically, so `ORDER BY` and range predicates are correct without a cast. Row comparison works, which is what composite keyset pagination (`(at, seq) < (:a, :b)`) compiles to. And the column matches the comparison the compiler already emits, so promoting a field changes only which plan Postgres picks.
 
-| TOML Key | Default | Description |
+Promotion is an optimisation and never a semantic: an unpromoted field still filters, orders and paginates correctly, just by scanning. The index is created without a predicate so subtypes of the declared archetype are covered too. An existing promoted column of the wrong type is dropped and rebuilt on the next `ensure_schema`.
+
+Deployment intent is a separate decision from runtime identity, and lives under `[scale.kubernetes]`:
+
+| `jac.toml` key (`[scale.kubernetes]`) | Default | Description |
 |----------|---------|-------------|
-| `mongodb_uri`| None | External MongoDB URI. When set, K8s MongoDB StatefulSet is not provisioned. |
-| `redis_url`  | None | External Redis URL. When set, K8s Redis is not provisioned. |
-| `shelf_db_path` | `.jac/data/anchor_store.db` | Local shelf/SQLite storage path for `jac start` (no K8s) |
-| `redis_l1_invalidation_enabled` | `true` | Broadcast/apply cross-pod L1 cache evictions over Redis pub/sub (see [Memory Hierarchy](#cross-pod-l1-invalidation)). |
-| `redis_l1_invalidation_channel` | `"jac:anchor:invalidate"` | Pub/sub channel for L1 invalidation messages; all pods sharing a cache must match. |
+| `database_mode` | `"auto"` | What database the *deployed* app gets: `"provision"` (a per-app Postgres owned by jac), `"external"` (point it at `database_url` / `[scale.database]` `url`), `"none"` (wire no database), or `"auto"` (external when a url is configured, otherwise provision). |
+| `database_url` | `""` | Connection URL handed to the deployed app in external mode. Highest precedence, above `[scale.database]` `url`. |
+| `database_namespace` | `""` | Namespace that runs the external database service, used to qualify a bare service name when the app deploys into a different namespace. |
 
----
+The precedence for a deploy is `[scale.kubernetes]` `database_mode` / `database_url`, then `[scale.database]` `url`, then provision a per-app Postgres. The **deploying process's own `JAC_DB_URL` is never consulted**: it means "the database this process connects to", which is a different fact from "the database the deployed app should connect to". A platform service that deploys tenant apps therefore keeps its own database and still gets one provisioned per app.
 
-### Dashboard Configuration
+A bare Kubernetes service name in an external URL only resolves inside the namespace that owns it. When the deploy targets a different namespace, jac qualifies the host to `<service>.<namespace>.svc.cluster.local` using `database_namespace` (or the deploying pod's own namespace, read from `POD_NAMESPACE` or the ServiceAccount namespace file). When neither is available the deploy fails rather than emitting a manifest whose database host cannot resolve.
 
-Dashboards are **off by default** and must be explicitly enabled in `jac.toml`:
+`postgres_enabled` is deprecated: `false` maps to `database_mode = "none"`, and `true` is ignored because a boolean cannot distinguish provisioning from pointing at an external database.
 
-```toml
-[scale.kubernetes]
-redis_dashboard  = true   # Deploy RedisInsight UI (default: false)
-mongodb_dashboard = true  # Deploy Mongo Express UI (default: false)
-```
+Credentials are never hardcoded in pod specs: the provisioned password lives in a Kubernetes `Secret` (`{app}-postgres-secret`) and pods receive `JAC_DB_URL` via `valueFrom.secretKeyRef`.
 
-| `jac.toml` key | Description | Default |
-|----------------|-------------|---------|
-| `redis_dashboard` | Deploy RedisInsight dashboard UI | `false` |
-| `mongodb_dashboard` | Deploy Mongo Express dashboard UI | `false` |
-| `loki_enabled` | Deploy Loki + Alloy log pipeline and add Pod Logs dashboard to Grafana | `false` |
+#### Server tuning
 
-#### Dashboard Credentials
+Every Postgres jac starts -- the embedded server, `jac db serve`, and the provisioned StatefulSet -- is started with the same three settings, because jac's write transactions are `SERIALIZABLE` and stock Postgres is not sized for that:
 
-When dashboards are enabled, they are served through the NGINX Ingress at fixed subpaths. No separate NodePorts are needed.
+| Setting | Value | Why |
+|---------|-------|-----|
+| `max_connections` | `256` | Absorbs a default `jac test` fan-out plus interactive commands without starving either. |
+| `max_pred_locks_per_transaction` | `1024` | SERIALIZABLE takes one SIReadLock per row/page read, and the pool is `max_pred_locks_per_transaction` x `max_connections` entries -- 262,144 here, against a stock 64 x 100 = 6,400. Overflowing the pool fails **every** statement with `53200 out of shared memory ... CreatePredicateLock`, not just the transaction that overran it. |
+| `idle_in_transaction_session_timeout` | `300000` (5 min) | Disconnects any process that regresses on the no-idle-transaction invariant instead of letting it pin predicate-lock reclamation cluster-wide. The store heals the resulting `25P03` transparently. |
 
-| `jac.toml` key | Description | Default |
-|----------------|-------------|---------|
-| `redis_insight_username` | RedisInsight basic-auth username | `admin` |
-| `redis_insight_password` | RedisInsight basic-auth password | `admin` |
-| `mongo_express_username` | Mongo Express login username | `admin` |
-| `mongo_express_password` | Mongo Express login password | `admin` |
+If you point `[scale.database].url` at a managed Postgres, set `max_pred_locks_per_transaction` there yourself; keep the product of it and `max_connections` comfortably above the peak SIReadLock count your workload holds (`SELECT count(*) FROM pg_locks WHERE mode = 'SIReadLock'`).
 
-> **Note:** When `redis_dashboard = true`, the `/cache-dashboard` route is always protected by HTTP basic authentication using the credentials above. Change the defaults before deploying to a shared or public cluster.
+### Consistency model
 
-**Access URLs:**
+There is no cache tier and no cross-pod invalidation protocol to configure: each request's unit of work reads and writes inside one `SERIALIZABLE` Postgres transaction, and **the transaction is the single source of truth**. Racing requests converge via abort-and-replay; see [Persistence -> Concurrent writes](../persistence.md#concurrent-writes-check-then-create-and-convergence). The infrastructure reads that precede your code (resolving the request context's root anchor, and health probes) run in a declared `REPEATABLE READ READ ONLY` transaction that takes no predicate locks, and the transaction is restarted at SERIALIZABLE before a unit of work can write. Cross-pod signaling (WebSocket broadcasts, event delivery) rides Postgres `LISTEN`/`NOTIFY` on the same database.
 
-| Dashboard | URL |
-|-----------|-----|
-| Redis Insight | `http://localhost:<ingress_node_port>/cache-dashboard/` |
-| Mongo Express | `http://localhost:<ingress_node_port>/db-dashboard` |
-
-**Enable dashboards with custom credentials** (RedisInsight + Mongo Express):
-
-```toml
-# jac.toml
-[scale.kubernetes]
-redis_dashboard          = true
-redis_insight_username   = "admin"
-redis_insight_password   = "strongpassword"
-
-mongodb_dashboard        = true
-mongo_express_username   = "admin"
-mongo_express_password   = "strongpassword"
-```
-
----
-
-### Memory Hierarchy
-
-jac-scale uses a tiered memory system:
-
-| Tier | Backend | Purpose |
-|------|---------|---------|
-| L1 | In-memory | Volatile runtime state |
-| L2 | Redis | Cache layer |
-| L3 | MongoDB | Persistent storage |
-
-```mermaid
-graph TD
-    App["Application"] --- L1["L1: Volatile (in-memory)"]
-    L1 --- L2["L2: Redis (cache)"]
-    L2 --- L3["L3: MongoDB (persistent)"]
-```
-
-#### Cross-Pod L1 Invalidation
-
-L1 is an in-process cache: each request gets a fresh, request-scoped L1 that
-loads anchors from L3 and serves repeated reads of the same anchor from memory
-for the rest of that request. This is what makes a single request fast, but it
-also means that while a request holds an anchor in its L1, a **concurrent
-request on another pod** can commit a new version of that same anchor to L3.
-Without coordination, the first request keeps serving the stale snapshot it
-already loaded.
-
-To prevent that, every write broadcasts a small invalidation message over a
-**Redis pub/sub channel**. One daemon listener per process subscribes to that
-channel and, on each message, flags the named anchor _stale_ in every _other_
-live L1 in the process. The listener never mutates a sibling's cache directly;
-instead each owning request, on its next read of that anchor, drops its copy and
-reloads fresh from L3 -- but **only if the copy is unmodified**. A request that
-has its own uncommitted change to that anchor keeps it, so an in-flight write is
-never silently discarded. The writer's own L1 is excluded from the broadcast (it
-already holds the freshly merged copy), and deletes/quarantines flag everyone.
-The listener self-heals across Redis restarts with capped exponential backoff,
-and if Redis or the `redis` extra is unavailable the feature simply stays off:
-the system degrades to plain per-request L1s with no cross-pod coherence.
-
-This is on by default whenever a Redis URL resolves. Tune it under
-`[scale.database]`:
-
-| `jac.toml` key | Default | Description |
-|----------------|---------|-------------|
-| `redis_l1_invalidation_enabled` | `true` | Broadcast and apply cross-pod L1 evictions over Redis pub/sub. |
-| `redis_l1_invalidation_channel` | `"jac:anchor:invalidate"` | Pub/sub channel used for invalidation messages. All pods sharing a cache must agree on this value. |
-
-L1 invalidation keeps re-reads fresh, but it is a _post-commit_ signal -- it cannot stop two pods that both read an empty `[-->[?:X]]` _before_ either writes from both creating a child (the check-then-create race). That race is closed separately by node-level optimistic concurrency, which converges the loser via replay; see [Persistence -> Concurrent writes: check-then-create](../persistence.md#concurrent-writes-check-then-create-and-convergence).
+The admin dashboard's Ops page (`/admin/ops`) renders a Postgres health card driven by a live `SELECT 1` probe, so a database incident is visible without kubectl.
 
 ---
 

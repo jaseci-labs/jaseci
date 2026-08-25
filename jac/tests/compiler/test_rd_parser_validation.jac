@@ -3,12 +3,12 @@ import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.jac0core.unitree { Module }
-import from jaclang.jac0core.unitree { Test as JacTest }
 import from jaclang.jac0core.helpers { read_file_with_encoding }
 import from jaclang.runtimelib.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
 import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob GAP_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "rd_parser_gaps"
@@ -16,7 +16,7 @@ glob GAP_DIR = os.path.join(
 
 def parse_with_rd(source: str, file_path: str) -> Module | None {
     try {
-        import from jaclang.jac0core.parser.parser { parse }
+        import from jaclang.jac0core.parser.frontend { parse }
         (module, had_error) = parse(source, file_path);
         if had_error {
             return None;
@@ -29,9 +29,7 @@ def parse_with_rd(source: str, file_path: str) -> Module | None {
 
 def rd_parser_test(filename: str) {
     source = read_file_with_encoding(filename);
-    saved_test_count = JacTest.TEST_COUNT;
     rd_ast = parse_with_rd(source, filename);
-    JacTest.TEST_COUNT = saved_test_count;
     assert rd_ast is not None , f"RD parser failed to parse {filename}";
 }
 
@@ -222,7 +220,7 @@ glob GAP_FILES = [
 
 def parse_and_validate(source: str, file_path: str) -> bool {
     try {
-        import from jaclang.jac0core.parser.parser { parse }
+        import from jaclang.jac0core.parser.frontend { parse }
         (module, had_error) = parse(source, file_path);
         if had_error {
             return True;
@@ -231,7 +229,7 @@ def parse_and_validate(source: str, file_path: str) -> bool {
             return True;
         }
         prog = JacProgram();
-        validation = ASTValidationPass(ir_in=module, prog=prog);
+        validation = run_pass(ASTValidationPass, module, prog);
         return len(prog.errors_had) > 0;
     } except Exception {
         return True;
@@ -261,27 +259,30 @@ with entry {
         "rd parse",
         MICRO_JAC_FILES,
         rd_parse_file_test,
-        id_fn=lambda (f) { Path(f).stem; }
+        id_fn=lambda (f: str) { Path(f).stem; }
     );
     parametrize(
-        "rd gap", GAP_FILES, rd_gap_test, id_fn=lambda (f) { f.replace(".jac", ""); }
+        "rd gap",
+        GAP_FILES,
+        rd_gap_test,
+        id_fn=lambda (f: str) { f.replace(".jac", ""); }
     );
     parametrize(
         "rd strict",
         list(MUST_REJECT.items()),
         strictness_test,
-        id_fn=lambda (x) { x[0]; }
+        id_fn=lambda (x: tuple[str, str]) { x[0]; }
     );
     parametrize(
         "rd strict validation",
         list(MUST_REJECT_VALIDATION.items()),
         validation_strictness_test,
-        id_fn=lambda (x) { x[0]; }
+        id_fn=lambda (x: tuple[str, str]) { x[0]; }
     );
     parametrize(
         "rd clean validation",
         list(MUST_VALIDATE_CLEAN.items()),
         validation_clean_test,
-        id_fn=lambda (x) { x[0]; }
+        id_fn=lambda (x: tuple[str, str]) { x[0]; }
     );
 }

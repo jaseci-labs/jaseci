@@ -3,7 +3,7 @@ import shutil;
 import socket;
 import subprocess;
 import from pathlib { Path }
-import from typing { Any, Optional, cast }
+import from typing { Optional, cast }
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.client.targets.build_common { SUBPROCESS_TIMEOUT_SHORT }
 import from jaclang.runtimelib.sv_client { headless_start_args }
@@ -112,8 +112,7 @@ def ensure_watchdog_common(target_name: str) -> bool {
     } except ImportError {
         console.warning(
             f"  watchdog not installed — saving .jac files will not refresh {target_name}. "
-            "Install with: pip install 'watchdog>=3.0.0' (or add to [dev-dependencies]).",
-            style="muted"
+            "Install with: pip install 'watchdog>=3.0.0' (or add to [dev-dependencies])."
         );
         return False;
     }
@@ -146,7 +145,11 @@ def prepare_vite_dev_compilation(project_dir: Path, entry_file: Path) -> tuple {
         builder.vite_package_json = package_json_path;
     }
     compiler = builder._get_compiler();
-    compiler.compiled_dir.mkdir(parents=True, exist_ok=True);
+    compiled_dir = compiler.compiled_dir;
+    if compiled_dir is None {
+        raise RuntimeError("Client compiled directory could not be resolved");
+    }
+    compiled_dir.mkdir(parents=True, exist_ok=True);
     (_, mod, _) = compiler.jac_compiler.compile_module(entry_file);
     if not mod {
         raise RuntimeError(f"Failed to compile client entry module: {entry_file}");
@@ -174,7 +177,7 @@ obj _ClientHmrHandler {
             }
             invalidate_runtime_module_cache([pth, str(self.entry_file)]);
             compile_out = cast(
-                Any, self.compiler.jac_compiler.compile_module(self.entry_file)
+                any, self.compiler.jac_compiler.compile_module(self.entry_file)
             );
             mod2 = compile_out[1];
             if not mod2 {
@@ -241,7 +244,7 @@ def terminate_dev_processes(
         }
         try {
             p.terminate();
-            p.wait(timeout=timeout);
+            p.`wait(timeout=timeout);
         } except Exception {
             try {
                 p.kill();
@@ -255,7 +258,7 @@ def install_dev_signal_handlers {
     import sys;
     import from typing { cast }
     def on_signal(signum: int, frame: any) {
-        sys.exit(0);
+        sys.`exit(0);
     }
     signal.signal(cast(int, signal.SIGINT), on_signal);
     signal.signal(cast(int, signal.SIGTERM), on_signal);

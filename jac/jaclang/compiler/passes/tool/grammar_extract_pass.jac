@@ -2,6 +2,19 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.parser.tokens { TokenKind }
 
+def is_nil_expr(nd: object) -> bool {
+    if isinstance(nd, uni.CfgExpr) {
+        return is_nil_expr(nd.expr);
+    }
+    if isinstance(nd, uni.Null) {
+        return True;
+    }
+    if isinstance(nd, uni.Name) {
+        return nd.value == "NIL";
+    }
+    return False;
+}
+
 obj GExpr {
     def __eq__(other: object) -> bool;
     def __repr__ -> str;
@@ -114,27 +127,9 @@ glob METHOD_TABLE: dict[str, MethodSemantics] = {
          "check_name": ["NAME", "KWESC_NAME"],
          "is_keyword_token": ["NAME"],
          "is_builtin_type_token": [
-             "TYP_STRING",
-             "TYP_INT",
-             "TYP_FLOAT",
-             "TYP_LIST",
-             "TYP_TUPLE",
-             "TYP_SET",
-             "TYP_DICT",
-             "TYP_BOOL",
-             "TYP_BYTES",
-             "TYP_ANY",
-             "TYP_TYPE",
-             "TYP_I8",
-             "TYP_U8",
-             "TYP_I16",
-             "TYP_U16",
-             "TYP_I32",
-             "TYP_U32",
-             "TYP_I64",
-             "TYP_U64",
-             "TYP_F32",
-             "TYP_F64"
+             kind.name
+             for kind in TokenKind
+             if kind.name.startswith("TYP_")
          ]
      };
 
@@ -168,8 +163,8 @@ obj GrammarExtractPass(UniPass) {
     def _collect_strict_diags(rule_name: str, stmts: list) -> None;
     def _walk_strict(rule_name: str, nd: uni.UniNode) -> None;
     def emit_diagnostics -> str;
-    def format_ebnf(expr: GExpr) -> str;
-    def simplify_expr(expr: GExpr) -> GExpr;
+    static def format_ebnf(expr: GExpr) -> str;
+    static def simplify_expr(expr: GExpr) -> GExpr;
     def interpret_stmts(stmts: list) -> GExpr | None;
     def interpret_stmt(stmt: uni.UniNode) -> GExpr | None;
     def interpret_call(call: uni.FuncCall) -> GExpr | None;
@@ -212,7 +207,7 @@ obj GrammarExtractPass(UniPass) {
     def extract_token_kind(expr: uni.Expr) -> str | None;
     def get_self_method(nd: uni.Expr) -> str | None;
     def get_token_args(call: uni.FuncCall) -> list;
-    def get_call_from_expr(expr: uni.Expr) -> uni.FuncCall | None;
+    def get_call_from_expr(expr: (uni.Expr | uni.KWPair)) -> uni.FuncCall | None;
     def get_impl_target_names(nd: uni.ImplDef) -> list;
     def format_rule_pretty(
         rule: GrammarRule, sep: str = "::=", max_line: int = 88

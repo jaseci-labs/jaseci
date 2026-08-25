@@ -16,6 +16,7 @@ import json;
 import os;
 import shutil;
 import subprocess;
+import sys;
 import sysconfig;
 import tempfile;
 import from pathlib { Path }
@@ -198,7 +199,7 @@ def _plugin_mod_names -> list {
 }
 
 """Run a function with the plugin source directory on sys.path, restoring it after."""
-def _with_plugins(fn: callable) {
+def _with_plugins(fn: any) {
     import sys;
     saved_path = sys.path[:];
     sys.path.insert(0, str(_plugin_src_dir()));
@@ -231,6 +232,7 @@ def _import_plugin(mod_name: str) -> object {
             raise ImportError(f"Cannot find {mod_name} as .jac or .py");
         }
         mod = importlib.util.module_from_spec(spec);
+        assert spec.loader is not None;
         spec.loader.exec_module(mod);
         import sys;
         sys.modules[mod_name] = mod;
@@ -282,9 +284,8 @@ test "all plugin files transpile or have jac0 fallback" {
             if not r[1]["ok"]
         ];
         assert len(failures) == 0 , (
-            "Some plugins failed to transpile:\n" + "\n".join(
-                [f"  {r[0]}: {r[1]['error']}" for r in failures]
-            )
+            "Some plugins failed to transpile:\n"
+            + "\n".join([f"  {r[0]}: {r[1]['error']}" for r in failures])
         );
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
@@ -1013,8 +1014,8 @@ test "generated host source contains required elements" {
     );
     # Must contain key elements
     assert "import from webview" in src;
-    assert "import from jacpyembed" in src;
-    assert "jac_engine_boot" in src;
+    assert "import from fused.bringup" in src;
+    assert "engine_boot" in src;
     assert "Py_Finalize" in src;
     assert "_jac_invoke_handler" in src;
     assert "_PH_DISPATCH" in src;
@@ -1109,12 +1110,14 @@ test "js sdk invoke produces correct request format" {
         "var captured = null;"
         "window = {__jac_invoke: function(p,c,a) { captured = {plugin:p,command:c,args:a}; "
         "return Promise.resolve({ok:true,data:{x:1}}); }};"
-    ) + _bootstrap_js_snippet() + (
-        "window.__jac.invoke('fs','read_file',{path:'/tmp/x'}).then(function(r){"
-        "console.log(JSON.stringify(captured));"
-        "console.log('RESULT:'+JSON.stringify(r));"
-        "});"
-    );
+    )
+        + _bootstrap_js_snippet()
+        + (
+            "window.__jac.invoke('fs','read_file',{path:'/tmp/x'}).then(function(r){"
+            "console.log(JSON.stringify(captured));"
+            "console.log('RESULT:'+JSON.stringify(r));"
+            "});"
+        );
     result = subprocess.run(
         [node_bin, "-e", test_code], capture_output=True, text=True, timeout=5
     );
@@ -1164,7 +1167,7 @@ test "client SDK commands map to host plugin commands" {
     assert len(sdk_pairs) > 0 , "no _invoke() calls found in desktop_api.jac";
     # Map host plugin name -> handled commands, parsed from each plugin source.
     host = {};
-    for pf in sorted((plugin_dir / "built_in").glob("*_plugin.jac")) {
+    for pf in sorted((plugin_dir / "built_in").`glob("*_plugin.jac")) {
         text = pf.read_text();
         nm = re.search(r'name="(jac\.[a-z]+)"', text);
         if nm is None {
@@ -1295,7 +1298,8 @@ test "plugin bridge source contains expected elements" {
 
 """plugin_bridge.jac compiles with webview + libpython (link test)."""
 test "plugin bridge links with full native stack" {
-    soname = sysconfig.get_config_var("INSTSONAME") or "libpython3.12.so.1.0";
+    soname = sysconfig.get_config_var("INSTSONAME")
+        or f"libpython{sys.version_info.major}.{sys.version_info.minor}.so.1.0";
     webview_dir = _native_dir() / "webview";
     # The host inlines the bridge code (same pattern as _generate_host_source)
     src = (
@@ -1407,7 +1411,8 @@ test "build pipeline wires the runtime-imported bootstrap" {
     # No transpiled-plugin staging: everything imports from the runtime.
     assert "spec_from_file_location" not in host_src , "must not load staged .py via spec_from_file_location";
     # The one generated Python statement: host_boot.boot(<config json>).
-    assert "from jaclang.runtimelib.client.targets.desktop.native import host_boot" in host_src;
+    assert "from jaclang.runtimelib.client.targets.desktop.native import host_boot"
+        in host_src;
     assert "host_boot.boot(" in host_src;
     # Plugin bootstrap / broker / dispatch wiring live in host_boot, not here.
     assert "bootstrap_plugins" not in host_src;

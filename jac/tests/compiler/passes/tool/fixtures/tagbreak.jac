@@ -22,17 +22,17 @@ with entry {
     c = (
         a()
             if 1
-            and isinstance(a, int)
-            and isinstance(a, int)
-            and isinstance(a, int)
-            and isinstance(a, int)
-            and isinstance(a, int)
+                and isinstance(a, int)
+                and isinstance(a, int)
+                and isinstance(a, int)
+                and isinstance(a, int)
+                and isinstance(a, int)
             else (
                 999
                     if isinstance(a, int)
-                    and isinstance(a, int)
-                    and isinstance(a, int)
-                    and isinstance(4, bool)
+                        and isinstance(a, int)
+                        and isinstance(a, int)
+                        and isinstance(4, bool)
                     else 7
             )
     );
@@ -139,7 +139,7 @@ with entry {
     a = 4 if True else 4;
 }
 
-import from typing { Awaitable, Callable, Coroutine, Optional, ParamSpec, TypeVar }
+import from typing { Optional, ParamSpec }
 
 import from jaclang.jac0core.constant {
     JacSemTokenModifier as SemTokMod,

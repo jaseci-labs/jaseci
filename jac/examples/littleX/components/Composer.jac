@@ -55,11 +55,11 @@ def:pub Composer(
                         {if charsLeft <= 20 {
                             <span
                                 className={"text-xs font-bold tabular-nums "
-                                + (
-                                    "text-destructive"
-                                        if charsLeft < 0
-                                        else "text-primary"
-                                )}
+                                    + (
+                                        "text-destructive"
+                                            if charsLeft < 0
+                                            else "text-primary"
+                                    )}
                             >
                                 {str(charsLeft)}
                             </span>

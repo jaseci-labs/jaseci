@@ -29,7 +29,8 @@ obj JacScaleTestRunner {
     def postinit {
         self.port = get_free_port();
         self.base_url = f"http://localhost:{self.port}";
-        self.session_file = self.example_file.parent / f"{self.session_name}_{self.port}.session";
+        self.session_file = self.example_file.parent
+            / f"{self.session_name}_{self.port}.session";
     }
 
     """Start the jac-scale server."""
@@ -63,10 +64,11 @@ obj JacScaleTestRunner {
         import from jaclang.scale.runtime.context.util { jac_executable }
         cmd = [
             jac_executable(),
-            "start",
-            str(self.example_file),
+            "run",
+            "--serve",
             "--port",
-            str(self.port)
+            str(self.port),
+            str(self.example_file)
         ];
 
         self.server_process = subprocess.Popen(
@@ -114,10 +116,10 @@ obj JacScaleTestRunner {
         if self.server_process {
             self.server_process.terminate();
             try {
-                self.server_process.wait(timeout=5);
+                self.server_process.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 self.server_process.kill();
-                self.server_process.wait();
+                self.server_process.`wait();
             }
             if self.server_process.stdout {
                 self.server_process.stdout.close();
@@ -199,7 +201,7 @@ obj JacScaleTestRunner {
             headers["Authorization"] = f"Bearer {self.token}";
         }
 
-        response = None;
+        response: any = None;
         for attempt in range(max_retries) {
             response = requests.request(
                 method=method, url=url, json=data, headers=headers, timeout=timeout
@@ -265,7 +267,7 @@ obj JacScaleTestRunner {
             headers["Authorization"] = f"Bearer {self.token}";
         }
 
-        response = None;
+        response: any = None;
         for attempt in range(max_retries) {
             try {
                 response = requests.request(

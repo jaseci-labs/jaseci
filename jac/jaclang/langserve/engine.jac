@@ -6,7 +6,7 @@ import time;
 import threading;
 import from collections { deque }
 import from concurrent.futures { Future }
-import from typing { Callable, Optional }
+import from typing { Optional }
 
 import jaclang.jac0core.unitree as uni;
 import from jaclang { JacRuntimeInterface as Jac }
@@ -35,10 +35,13 @@ import from . { utils }
 import from .module_manager { ModuleManager }
 import from .rwlock { ReadWriteLock }
 
+def _uri_of(path: str) -> str;
+def _path_of(uri: str) -> str;
+
 obj Task {
     has file_uri: str,
         task_id: int postinit,
-        cancel_token: threading.Event | None postinit;
+        cancel_token: threading.Event postinit;
 
     static has _task_id: int = 0;
 
@@ -46,8 +49,8 @@ obj Task {
 }
 
 obj JacLangServer(JacProgram, LanguageServer) {
-    has sem_managers: dict = {},
-        module_manager: ModuleManager | None postinit,
+    has sem_managers: dict[str, SemTokManager] = {},
+        module_manager: ModuleManager postinit,
         pipe: deque = deque(maxlen=1),
         dirty_files: dict[str, bool] = {},
         last_task: Task | None = None,
@@ -80,7 +83,7 @@ obj JacLangServer(JacProgram, LanguageServer) {
     def _fanout_dependents(file_uri: str) -> None;
     def get_token_at_position(
         file_path: str, position: lspt.Position
-    ) -> Optional[uni.UniNode];
+    ) -> Optional[uni.AstSymbolNode];
 
     def debug(msg: str) -> None;
     def wait_till_idle_sync(file_uri: str) -> None;
@@ -121,6 +124,15 @@ obj JacLangServer(JacProgram, LanguageServer) {
     def get_outline(file_path: str) -> list[lspt.DocumentSymbol];
     def get_definition(
         file_path: str, position: lspt.Position
+    ) -> Optional[lspt.Location];
+
+    def _string_import_definition(
+        file_path: str, position: lspt.Position
+    ) -> Optional[lspt.Location];
+
+    def _module_spec_target(mp: uni.ModulePath) -> Optional[str];
+    def _npm_item_location(
+        from_loc: uni.ModulePath, item_name: str
     ) -> Optional[lspt.Location];
 
     def get_references(file_path: str, position: lspt.Position) -> list[lspt.Location];

@@ -8,36 +8,11 @@ single i64 so a silent divergence fails an equality assert.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
-import jaclang;
-import from jaclang.jac0core.program { JacProgram }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
+import from tests.support { TESTS_DIR, compile_native, get_func, native_force_opts }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
-
-"""Compile a .jac fixture and return the JIT engine."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    functype = ctypes.CFUNCTYPE(restype, *argtypes);
-    return functype(addr);
-}
 
 # --- 2a: chained comparisons lower every link, not just the first ---
 test "chained comparison: every link is evaluated and ANDed" {
@@ -311,4 +286,47 @@ test "subscript aug: index expression evaluated exactly once" {
     result = fn();
     # m[bump_idx(1)] += 7 -> m[1]==27 with one bump
     assert result == 271 , f"Expected 271, got {result}";
+}
+
+# --- str() identity ownership and negative string indexing ---
+test "str() of an owned temp keeps the value alive" {
+    (eng, _) = compile_native("py_str_identity_index.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "str_of_owned_temp", ctypes.c_int64);
+    result = fn();
+    assert result == 2 , f"Expected 2, got {result}";
+}
+
+test "test-slug shape: str of joined chars survives the arg release" {
+    (eng, _) = compile_native("py_str_identity_index.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "slug_of_desc", ctypes.c_int64);
+    result = fn();
+    # ok=1 (slug == "canary_t"), len=8
+    assert result == 18 , f"Expected 18, got {result}";
+}
+
+test "string subscript wraps negative indices" {
+    (eng, _) = compile_native("py_str_identity_index.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "neg_index_reads", ctypes.c_int64);
+    result = fn();
+    # v[-1]==v[0], v[-1]=='"', v[-2]=='t', "abc"[-3]=='a'
+    assert result == 1111 , f"Expected 1111, got {result}";
+}
+
+test "string subscript raises IndexError below range" {
+    (eng, _) = compile_native("py_str_identity_index.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "neg_index_oob", ctypes.c_int64);
+    result = fn();
+    assert result == 1 , f"Expected 1, got {result}";
+}
+
+test "string subscript raises IndexError above range" {
+    (eng, _) = compile_native("py_str_identity_index.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "pos_index_oob", ctypes.c_int64);
+    result = fn();
+    assert result == 1 , f"Expected 1, got {result}";
 }

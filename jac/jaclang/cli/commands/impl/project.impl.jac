@@ -8,6 +8,7 @@ import base64;
 import importlib.metadata;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
+import type from jaclang.project.template_registry { ProjectTemplate, TemplateRegistry }
 
 impl create(
     name: str = '',
@@ -96,8 +97,7 @@ def _create_body(
     import from jaclang.project.config { find_project_root }
     import from jaclang.project.template_registry {
         TemplateRegistry,
-        get_template_registry,
-        initialize_template_registry
+        get_template_registry
     }
     import from jaclang.project.template_loader {
         load_template_from_json,
@@ -105,10 +105,6 @@ def _create_body(
     }
     import from jaclang.project.kinds { is_valid_kind, VALID_KINDS }
     registry: TemplateRegistry = get_template_registry();
-
-    if registry.is_empty() {
-        initialize_template_registry();
-    }
 
     if list_kinds {
         kinds = registry.list_kinds();
@@ -203,9 +199,17 @@ def _create_body(
         existing = find_project_root(cwd);
         if existing and not force {
             (project_root, toml_path) = existing;
-            console.error(f"Already in a Jac project: {toml_path}");
-            console.print("Use --force to reinitialize.", style="muted");
-            return 1;
+
+            if Path(project_root).resolve() == cwd.resolve() {
+                console.error(f"Already in a Jac project: {toml_path}");
+                console.print("Use --force to reinitialize.", style="muted");
+                return 1;
+            }
+            console.warning(
+                f"Creating a nested project inside {project_root}; the "
+                "nearest jac.toml wins for files under this directory.",
+                emoji=False
+            );
         }
     }
     project_path.mkdir(parents=True, exist_ok=True);
@@ -374,7 +378,7 @@ Start with `jac guide jac-core-cheatsheet` and `jac guide jac-types`.
 - `jac check <file>` -- type-check and lint. Compiler diagnostics link to the
   relevant guide; follow the `-> run 'jac guide ...'` hints.
 - `jac run <file>` -- execute a Jac script.
-- `jac start --dev main.jac` -- start a web-app or service in dev mode
+- `jac run --dev main.jac` -- serve a web-app or service in dev mode
   (hot-reload for client files; restart for server changes). Use this instead
   of `jac run` for apps.
 - `jac browse <action>` -- QA a running app in a headless browser:
@@ -393,7 +397,7 @@ def _project_name_from_cwd(cwd: Path) -> str {
     return cwd.resolve().name;
 }
 
-def _resolve_template(use: str, registry: any) -> any {
+def _resolve_template(use: str, registry: TemplateRegistry) -> ProjectTemplate | None {
     import from jaclang.project.template_loader {
         load_template_from_json,
         load_template_from_directory
@@ -451,14 +455,14 @@ def _resolve_template(use: str, registry: any) -> any {
         return None;
     }
 
-    tmpl = registry.get(use);
-    if tmpl is None {
+    named = registry.get(use);
+    if named is None {
         console.error(f"Unknown template: {use}");
         console.error("Use --list to see available kinds and named variants.");
         console.error("You can also specify a path to a .jacpack file or a URL.");
         return None;
     }
-    return tmpl;
+    return named;
 }
 
 def _quote_toml_key(k: str) -> str {
@@ -551,7 +555,7 @@ impl install(
     extras: list = [],
     no_save: bool = False,
     git: str = "",
-    npm: bool = False,
+    npm: bool | None = None,
     shadcn: bool = False,
     verbose: bool = False,
     force_reinstall: bool = False,
@@ -867,7 +871,7 @@ impl install(
     console.print(f"  Virtual environment: {config.get_venv_dir()}", style="muted");
     console.print();
     try {
-        plan = resolve_plan(config, include_dev=dev, extras=extras, scale=scale);
+        dep_plan = resolve_plan(config, include_dev=dev, extras=extras, scale=scale);
     } except ValueError as e {
         console.error(str(e));
         return 1;
@@ -875,13 +879,13 @@ impl install(
     if extras {
         console.print(f"  Extras: {', '.join(extras)}", style="muted");
     }
-    if plan.is_empty() {
+    if dep_plan.is_empty() {
         console.info("No dependencies to install.");
         return 0;
     }
 
     install_success = True;
-    python_deps = plan.for_ecosystem("python");
+    python_deps = dep_plan.for_ecosystem("python");
     if python_deps {
         with console.status(
             f"Installing {len(python_deps)} package(s)...", spinner="dots"
@@ -898,7 +902,11 @@ impl install(
         if provider.name == "python" {
             continue;
         }
-        provider_deps = plan.for_ecosystem(provider.name);
+        if provider.name == "npm" and npm is False {
+            console.print("\n  Skipping npm dependencies (--no-npm)", style="muted");
+            continue;
+        }
+        provider_deps = dep_plan.for_ecosystem(provider.name);
         if not provider_deps {
             continue;
         }
@@ -1192,7 +1200,7 @@ impl script(name: str = '', list_scripts: bool = False) -> int {
                 style="muted"
             );
             console.print('  [scripts]', style="muted");
-            console.print('  dev = "jac start main.jac"', style="muted");
+            console.print('  dev = "jac run --dev main.jac"', style="muted");
             console.print('  test = "jac test"', style="muted");
             return 0;
         }
@@ -1354,7 +1362,7 @@ impl jacpack(action: str = "", path: str = "", output: str = "") -> int {
         } else {
             jac_toml_path = template_dir / "jac.toml";
             if jac_toml_path.exists() {
-                import from jaclang.jac0core.helpers { read_toml_with_encoding }
+                import from jaclang.jac0core.tomlio { read_toml_with_encoding }
                 jac_config = read_toml_with_encoding(str(jac_toml_path));
                 name = jac_config.get("jacpack", {}).get("name", template_dir.name);
             } else {
@@ -1486,9 +1494,11 @@ def _run_precompiler(src_dir: str, flags: list[str]) -> int {
 
     code = (
         "import _jac_finder as _jf; _jf.apply_dev_source_override(); _jf.install(); "
-        "import sys; sys.argv = ['precompile', " + repr(src_dir) + "] + " + repr(
-            list(flags)
-        ) + "; from jaclang.utils.precompile_bytecode import main; main()"
+        "import sys; sys.argv = ['precompile', "
+        + repr(src_dir)
+        + "] + "
+        + repr(list(flags))
+        + "; from jaclang.utils.precompile_bytecode import main; main()"
     );
     return subprocess.call([sys.executable, "-c", code]);
 }
@@ -1538,22 +1548,24 @@ def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
     }
 
     for jac_path in targets {
-        prev_errors = len(Jac.program.errors_had);
+        prev_errors = len(Jac.get_program().errors_had);
         try {
-            Jac.program.compile(jac_path);
+            Jac.get_program().compile(jac_path);
         } except Exception as e {
             console.error(f"Seal aborted: '{jac_path}' failed to compile: {e}");
             return None;
         }
-        if len(Jac.program.errors_had) > prev_errors {
-            errs = "\n".join(str(e) for e in Jac.program.errors_had[prev_errors:]);
+        if len(Jac.get_program().errors_had) > prev_errors {
+            errs = "\n".join(
+                str(e) for e in Jac.get_program().errors_had[prev_errors:]
+            );
             console.error(f"Seal aborted: '{jac_path}' failed to compile:\n{errs}");
             return None;
         }
     }
 
     client: dict = {};
-    mod = Jac.program.find_module(entry_key);
+    mod = Jac.get_program().find_module(entry_key);
     if mod and mod.gen.client_manifest {
         if not mod.gen.client_manifest.exports {
             _ensure_js_generated(mod, Jac.program);
@@ -1575,7 +1587,7 @@ def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
         return bool(mp) and os.path.abspath(str(mp)).startswith(proj_prefix);
     }
 
-    for hub in Jac.program._search_hubs() {
+    for hub in Jac.get_program()._search_hubs() {
         for hmod in hub.values() {
             if not in_project(hmod) {
                 continue;
@@ -1583,7 +1595,7 @@ def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
             man0 = hmod.gen.interop_manifest if (hmod and hmod.gen) else None;
             if man0 and not (man0.walker_access or man0.func_access) {
                 try {
-                    Jac.program.run_schedule(hmod, get_boundary_analysis_sched());
+                    Jac.get_program().run_schedule(hmod, get_boundary_analysis_sched());
                 } except Exception {
                     ;
                 }
@@ -1596,7 +1608,7 @@ def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
     endpoint_effects: dict[str, any] = {};
     cross: list[dict] = [];
     seen: set = set();
-    for hub in Jac.program._search_hubs() {
+    for hub in Jac.get_program()._search_hubs() {
         for hmod in hub.values() {
             if not in_project(hmod) {
                 continue;
@@ -1669,7 +1681,8 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
     import from jaclang.runtimelib.client { get_bun }
     import from jaclang.runtimelib.client.targets.web_target { WebTarget }
 
-    dist = config.get_client_dir() / 'dist';
+    client_dir: Path = config.get_client_dir();
+    dist = client_dir / 'dist';
     bun = None;
     try {
         bun = get_bun();
@@ -1686,7 +1699,7 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
         }
         return dist if dist.is_dir() else None;
     }
-    if dist.is_dir() and any(dist.glob('client.*.js')) {
+    if dist.is_dir() and any(dist.`glob('client.*.js')) {
         console.print(
             "  ⚠ bun unavailable; baking the existing client dist as-is",
             style="warning"
@@ -1713,7 +1726,7 @@ def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
     }
     try {
         import jaclang.compiler.passes.native.llvm.binding as llvm;
-        triple = llvm.get_default_triple();
+        triple = str(llvm.get_default_triple());
     } except Exception as e {
         console.error(f"Cannot resolve the native target triple: {e}");
         return False;
@@ -1797,11 +1810,12 @@ def _make_sealed_image(
         skipped = _seal_copy_ignore(d, items);
         if out_names and Path(d).resolve() == Path(proj_root).resolve() {
             skipped = list(
-                set(skipped) | {
-                    it
-                    for it in items
-                    if it in out_names
-                }
+                set(skipped)
+                    | {
+                        it
+                        for it in items
+                        if it in out_names
+                    }
             );
         }
         return skipped;
@@ -1917,7 +1931,7 @@ def _vendor_jab_deps(config: any, img: Path) -> bool {
     }
     write_vendor_manifest(img, specs, python_tag=python_tag());
 
-    wheels = sorted(wd.glob("*.whl"));
+    wheels = sorted(wd.`glob("*.whl"));
     total = sum([w.stat().st_size for w in wheels]);
     console.print(
         f"  ✔ Vendored {len(wheels)} wheel(s) ({total:,} bytes); "
@@ -1971,7 +1985,8 @@ def _bundle_binary(config: any, output: str, fat: bool = False) -> int {
     name = config.project.name;
     jac_bin = os.path.realpath(sys.executable);
 
-    if subprocess.run([jac_bin, "__hasruntime"], capture_output=True).returncode != 0 {
+    import from jaclang.runtimelib.fused_binary { has_runtime, append_overlay }
+    if not has_runtime(jac_bin) {
         console.error(
             "jac build --as binary needs a bundled single-file jac to carry the "
             "runtime; the current interpreter is not one (source / pip install).",
@@ -2012,10 +2027,8 @@ def _bundle_binary(config: any, output: str, fat: bool = False) -> int {
 
         console.print("  Appending app image onto the jac runtime", style="muted");
 
-        rc = subprocess.run(
-            [jac_bin, "__appjab", str(jab_path), str(out_bin)]
-        ).returncode;
-        if rc != 0 or not out_bin.is_file() {
+        if not append_overlay(jac_bin, str(jab_path), str(out_bin))
+            or not out_bin.is_file() {
             console.error("Failed to append the app image onto the jac runtime.");
             return 1;
         }
@@ -2051,7 +2064,7 @@ def _tar_gz_dir(top: Path) -> bytes {
         for (dirpath, dirnames, filenames) in os.walk(str(top)) {
             dirnames.sort();
             for fn in sorted(filenames) {
-                full = Path(dirpath) / fn;
+                full = Path(str(dirpath)) / str(fn);
                 tf.add(str(full), arcname=str(full.relative_to(top)), filter=normalize);
             }
         }

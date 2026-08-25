@@ -119,13 +119,26 @@ impl JacByllmConfig.get_parallel_config(self: JacByllmConfig) -> dict[str, any] 
     parallel_config = config.get('parallel', {});
 
     import os;
-    env_enabled = os.environ.get('BYLLM_PARALLEL_TOOL_CALLING', '').lower() in (
-        'true',
-        '1',
-        'yes'
-    );
+    env_enabled = os.environ.get('BYLLM_PARALLEL_TOOL_CALLING', '').lower()
+        in ('true', '1', 'yes');
     toml_enabled = bool(parallel_config.get('enabled', False));
     return {'enabled': env_enabled or toml_enabled};
+}
+
+impl JacByllmConfig.get_tool_stream_config(self: JacByllmConfig) -> dict[str, any] {
+    config = self.load();
+    ts_config = config.get('tool_stream', {});
+
+    import os;
+    env_enabled = os.environ.get('BYLLM_STREAM_TOOL_ARGS', '').lower()
+        in ('true', '1', 'yes');
+    toml_enabled = bool(ts_config.get('enabled', False));
+    return {
+        'enabled': env_enabled or toml_enabled,
+        'min_chars': int(ts_config.get('min_chars', 48)),
+        'min_interval': float(ts_config.get('min_interval', 0.15)),
+        'max_per_call': int(ts_config.get('max_per_call', 200))
+    };
 }
 
 impl JacByllmConfig.get_streaming_config(self: JacByllmConfig) -> dict[str, any] {

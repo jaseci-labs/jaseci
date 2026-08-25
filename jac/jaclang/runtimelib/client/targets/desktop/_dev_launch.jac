@@ -58,11 +58,12 @@ def _prepend_env_path(env: dict[str, str], key: str, path: str) -> None {
     }
     existing = env.get(key, "");
     if existing {
-        parts = [path] + [
-            p
-            for p in existing.split(os.pathsep)
-            if p and p != path
-        ];
+        parts = [path]
+            + [
+                p
+                for p in existing.split(os.pathsep)
+                if p and p != path
+            ];
         env[key] = os.pathsep.join(parts);
     } else {
         env[key] = path;
@@ -100,7 +101,7 @@ def _editable_roots_from_site -> dict[str, str] {
         if not sp.is_dir() {
             continue;
         }
-        for pth in sp.glob("__editable__.*.pth") {
+        for pth in sp.`glob("__editable__.*.pth") {
             line = pth.read_text(encoding="utf-8").strip().split("\n")[0].strip();
             if not line {
                 continue;

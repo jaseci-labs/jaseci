@@ -33,9 +33,7 @@ glob FIXTURES = os.path.join(
 def compile_enforced(fixture: str) -> JacProgram {
     path = os.path.join(FIXTURES, fixture);
     prog = JacProgram();
-    opts = CompileOptions(
-        aot_mode=True, type_check=True, na_gc_mode="none", nogc_enforce_all=True
-    );
+    opts = CompileOptions(aot_mode=True, na_gc_mode="none", nogc_enforce_all=True);
     prog.compile(file_path=path, options=opts);
     return prog;
 }
@@ -45,7 +43,9 @@ def ownership_codes(prog: JacProgram) -> list[str] {
     codes: set[str] = set();
     for alert in (list(prog.errors_had) + list(prog.warnings_had)) {
         if alert.code is not None
-        and (alert.code.code.startswith("E13") or alert.code.code.startswith("E14")) {
+            and (
+                alert.code.code.startswith("E13") or alert.code.code.startswith("E14")
+            ) {
             codes.add(alert.code.code);
         }
     }

@@ -10,18 +10,20 @@ import from jaclang.compiler.passes.native.llvm.ir.values {
     MetaDataArgument,
     MetaDataString,
     AttributeSet,
-    ArgumentAttributes
+    ArgumentAttributes,
+    Value
 }
 import from jaclang.compiler.passes.native.llvm.ir._utils { _HasMetadata }
+import from jaclang.compiler.passes.native.llvm.ir.module { Module }
 class Instruction(NamedValue, _HasMetadata) {
     def init(
         self: Instruction,
-        parent: Any,
-        typ: Any,
-        opname: Any,
-        operands: Any,
-        name: Any = '',
-        flags: Any = ()
+        parent: any,
+        typ: any,
+        opname: any,
+        operands: any,
+        name: any = '',
+        flags: any = ()
     ) -> object {
         super.init(parent, typ, name=name);
         assert isinstance(parent, Block);
@@ -38,11 +40,11 @@ class Instruction(NamedValue, _HasMetadata) {
     }
 
     @property
-    def module(self: Instruction) -> object {
+    def module(self: Instruction) -> Module {
         return self.parent.function.module;
     }
 
-    def descr(self: Instruction, buf: Any) -> object {
+    def descr(self: Instruction, buf: any) -> object {
         opname = self.opname;
         if self.flags {
             opname = ' '.join(([opname] + self.flags));
@@ -53,7 +55,7 @@ class Instruction(NamedValue, _HasMetadata) {
         buf.append("{0} {1} {2}{3}\n".format(opname, typ, operands, metadata));
     }
 
-    def replace_usage(self: Instruction, old: Any, new: Any) -> object {
+    def replace_usage(self: Instruction, old: any, new: any) -> object {
         if (old in self.operands) {
             ops = [];
             for op in self.operands {
@@ -66,7 +68,8 @@ class Instruction(NamedValue, _HasMetadata) {
 
     def __repr__(self: Instruction) -> object {
         return (
-            "<ir.%s %r of type '%s', opname %r, operands %r>" % (
+            "<ir.%s %r of type '%s', opname %r, operands %r>"
+            % (
                 self.__class__.__name__,
                 self.name,
                 self.type,
@@ -108,15 +111,15 @@ class FastMathFlags(AttributeSet) {
 class CallInstr(Instruction) {
     def init(
         self: CallInstr,
-        parent: Any,
-        func: Any,
-        args: Any,
-        name: Any = '',
-        cconv: Any = None,
-        tail: Any = None,
-        fastmath: Any = (),
-        attrs: Any = (),
-        arg_attrs: Any = None
+        parent: any,
+        func: any,
+        args: any,
+        name: any = '',
+        cconv: any = None,
+        tail: any = None,
+        fastmath: any = (),
+        attrs: any = (),
+        arg_attrs: any = None
     ) -> object {
         self.cconv = func.calling_convention
             if ((cconv is None) and isinstance(func, Function))
@@ -168,21 +171,21 @@ class CallInstr(Instruction) {
     }
 
     @property
-    def callee(self: CallInstr) -> object {
+    def callee(self: CallInstr) -> NamedValue {
         return self.operands[0];
     }
 
     @callee.setter
-    def callee(self: CallInstr, newcallee: Any) -> object {
+    def callee(self: CallInstr, newcallee: any) -> object {
         self.operands[0] = newcallee;
     }
 
     @property
-    def args(self: CallInstr) -> object {
+    def args(self: CallInstr) -> list[Value] {
         return self.operands[1:];
     }
 
-    def replace_callee(self: CallInstr, newfunc: Any) -> object {
+    def replace_callee(self: CallInstr, newfunc: any) -> object {
         if (newfunc.function_type != self.callee.function_type) {
             raise TypeError("New function has incompatible type");
         }
@@ -195,8 +198,8 @@ class CallInstr(Instruction) {
         return self.callee;
     }
 
-    def _descr(self: CallInstr, buf: Any, add_metadata: Any) -> object {
-        def descr_arg(i: Any, a: Any) -> object {
+    def _descr(self: CallInstr, buf: any, add_metadata: any) -> object {
+        def descr_arg(i: any, a: any) -> object {
             if (i in self.arg_attributes) {
                 attrs = ' '.join(self.arg_attributes[i]._to_list(a.type)) + ' ';
             } else {
@@ -240,17 +243,17 @@ class CallInstr(Instruction) {
         );
     }
 
-    def descr(self: CallInstr, buf: Any) -> object {
+    def descr(self: CallInstr, buf: any) -> object {
         self._descr(buf, add_metadata=True);
     }
 }
 
 class Terminator(Instruction) {
-    def init(self: Terminator, parent: Any, opname: Any, operands: Any) -> object {
+    def init(self: Terminator, parent: any, opname: any, operands: any) -> object {
         super.init(parent, types.VoidType(), opname, operands);
     }
 
-    def descr(self: Terminator, buf: Any) -> object {
+    def descr(self: Terminator, buf: any) -> object {
         opname = self.opname;
         operands = ', '.join(
             ["{0} {1}".format(op.type, op.get_reference()) for op in self.operands]
@@ -261,8 +264,8 @@ class Terminator(Instruction) {
 }
 
 class PredictableInstr(Instruction) {
-    def set_weights(self: PredictableInstr, weights: Any) -> object {
-        operands = [MetaDataString(self.module, "branch_weights")];
+    def set_weights(self: PredictableInstr, weights: any) -> object {
+        operands: list[Value] = [MetaDataString(self.module, "branch_weights")];
         for w in weights {
             if (w < 0) {
                 raise ValueError("branch weight must be a positive integer");
@@ -275,13 +278,13 @@ class PredictableInstr(Instruction) {
 }
 
 class Ret(Terminator) {
-    def init(self: Ret, parent: Any, opname: Any, return_value: Any = None) -> object {
+    def init(self: Ret, parent: any, opname: any, return_value: any = None) -> object {
         operands = [return_value] if (return_value is not None) else [];
         super.init(parent, opname, operands);
     }
 
     @property
-    def return_value(self: Ret) -> object {
+    def return_value(self: Ret) -> (Value | None) {
         if self.operands {
             return self.operands[0];
         } else {
@@ -289,7 +292,7 @@ class Ret(Terminator) {
         }
     }
 
-    def descr(self: Ret, buf: Any) -> object {
+    def descr(self: Ret, buf: any) -> object {
         return_value = self.return_value;
         metadata = self._stringify_metadata(leading_comma=True);
         if (return_value is not None) {
@@ -311,7 +314,7 @@ class Branch(Terminator) {}
 class ConditionalBranch(PredictableInstr, Terminator) {}
 class SwitchInstr(PredictableInstr, Terminator) {
     def init(
-        self: SwitchInstr, parent: Any, opname: Any, val: Any, default_bb: Any
+        self: SwitchInstr, parent: any, opname: any, val: any, default_bb: any
     ) -> object {
         super.init(parent, opname, [val]);
         self.default_bb = default_bb;
@@ -319,11 +322,11 @@ class SwitchInstr(PredictableInstr, Terminator) {
     }
 
     @property
-    def value(self: SwitchInstr) -> object {
+    def value(self: SwitchInstr) -> Value {
         return self.operands[0];
     }
 
-    def add_case(self: SwitchInstr, val: Any, block: Any) -> object {
+    def add_case(self: SwitchInstr, val: any, block: any) -> object {
         assert isinstance(block, Block);
         if not isinstance(val, Constant) {
             val = Constant(self.value.type, val);
@@ -331,47 +334,7 @@ class SwitchInstr(PredictableInstr, Terminator) {
         self.cases.append((val, block));
     }
 
-    def descr(self: SwitchInstr, buf: Any) -> object {
-        cases = [
-            "{0} {1}, label {2}".format(
-                case.type, case.get_reference(), blk.get_reference()
-            ) for (case, blk) in self.cases
-        ];
-        buf.append(
-            "switch {0} {1}, label {2} [{3}]  {4}\n".format(
-                self.value.type,
-                self.value.get_reference(),
-                self.default_bb.get_reference(),
-                ' '.join(cases),
-                self._stringify_metadata(leading_comma=True)
-            )
-        );
-    }
-}
-
-class SwitchInstr(PredictableInstr, Terminator) {
-    def init(
-        self: SwitchInstr, parent: Any, opname: Any, val: Any, default_bb: Any
-    ) -> object {
-        super.init(parent, opname, [val]);
-        self.default_bb = default_bb;
-        self.cases = [];
-    }
-
-    @property
-    def value(self: SwitchInstr) -> object {
-        return self.operands[0];
-    }
-
-    def add_case(self: SwitchInstr, val: Any, block: Any) -> object {
-        assert isinstance(block, Block);
-        if not isinstance(val, Constant) {
-            val = Constant(self.value.type, val);
-        }
-        self.cases.append((val, block));
-    }
-
-    def descr(self: SwitchInstr, buf: Any) -> object {
+    def descr(self: SwitchInstr, buf: any) -> object {
         cases = [];
         for cs in self.cases {
             cases.append(
@@ -395,12 +358,12 @@ class SwitchInstr(PredictableInstr, Terminator) {
 class SelectInstr(Instruction) {
     def init(
         self: SelectInstr,
-        parent: Any,
-        cond: Any,
-        lhs: Any,
-        rhs: Any,
-        name: Any = '',
-        flags: Any = ()
+        parent: any,
+        cond: any,
+        lhs: any,
+        rhs: any,
+        name: any = '',
+        flags: any = ()
     ) -> object {
         assert (lhs.type == rhs.type);
         super.init(
@@ -409,21 +372,21 @@ class SelectInstr(Instruction) {
     }
 
     @property
-    def cond(self: SelectInstr) -> object {
+    def cond(self: SelectInstr) -> Value {
         return self.operands[0];
     }
 
     @property
-    def lhs(self: SelectInstr) -> object {
+    def lhs(self: SelectInstr) -> Value {
         return self.operands[1];
     }
 
     @property
-    def rhs(self: SelectInstr) -> object {
+    def rhs(self: SelectInstr) -> Value {
         return self.operands[2];
     }
 
-    def descr(self: SelectInstr, buf: Any) -> object {
+    def descr(self: SelectInstr, buf: any) -> object {
         buf.append(
             "select {0} {1} {2}, {3} {4}, {5} {6} {7}\n".format(
                 ' '.join(self.flags),
@@ -443,16 +406,17 @@ class CompareInstr(Instruction) {
     with entry {
         OPNAME = 'invalid-compare';
         VALID_OP = {};
+        VALID_FLAG: `set[str];
     }
 
     def init(
         self: CompareInstr,
-        parent: Any,
-        op: Any,
-        lhs: Any,
-        rhs: Any,
-        name: Any = '',
-        flags: Any = []
+        parent: any,
+        op: any,
+        lhs: any,
+        rhs: any,
+        name: any = '',
+        flags: any = []
     ) -> object {
         if (op not in self.VALID_OP) {
             raise ValueError(("invalid comparison %r for %s" % (op, self.OPNAME)));
@@ -464,7 +428,7 @@ class CompareInstr(Instruction) {
         }
         opname = self.OPNAME;
         if isinstance(lhs.type, types.VectorType) {
-            typ = types.VectorType(types.IntType(1), lhs.type.count);
+            typ: types.Type = types.VectorType(types.IntType(1), lhs.type.count);
         } else {
             typ = types.IntType(1);
         }
@@ -472,7 +436,7 @@ class CompareInstr(Instruction) {
         self.op = op;
     }
 
-    def descr(self: CompareInstr, buf: Any) -> object {
+    def descr(self: CompareInstr, buf: any) -> object {
         buf.append(
             "{opname}{flags} {op} {ty} {lhs}, {rhs} {meta}\n".format(
                 opname=self.opname,
@@ -542,12 +506,12 @@ class FCMPInstr(CompareInstr) {
 
 class CastInstr(Instruction) {
     def init(
-        self: CastInstr, parent: Any, op: Any, val: Any, typ: Any, name: Any = ''
+        self: CastInstr, parent: any, op: any, val: any, typ: any, name: any = ''
     ) -> object {
         super.init(parent, typ, op, [val], name=name);
     }
 
-    def descr(self: CastInstr, buf: Any) -> object {
+    def descr(self: CastInstr, buf: any) -> object {
         buf.append(
             "{0} {1} {2} to {3} {4}\n".format(
                 self.opname,
@@ -562,7 +526,7 @@ class CastInstr(Instruction) {
 
 class LoadInstr(Instruction) {
     def init(
-        self: LoadInstr, parent: Any, ptr: Any, name: Any = '', typ: Any = None
+        self: LoadInstr, parent: any, ptr: any, name: any = '', typ: any = None
     ) -> object {
         if (typ is None) {
             if isinstance(ptr, AllocaInstr) {
@@ -577,7 +541,7 @@ class LoadInstr(Instruction) {
         self.align = None;
     }
 
-    def descr(self: LoadInstr, buf: Any) -> object {
+    def descr(self: LoadInstr, buf: any) -> object {
         [val] = self.operands;
         if (self.align is not None) {
             align = ', align %d' % self.align;
@@ -597,11 +561,12 @@ class LoadInstr(Instruction) {
 }
 
 class StoreInstr(Instruction) {
-    def init(self: StoreInstr, parent: Any, val: Any, ptr: Any) -> object {
+    def init(self: StoreInstr, parent: any, val: any, ptr: any) -> object {
         super.init(parent, types.VoidType(), "store", [val, ptr]);
+        self.align = None;
     }
 
-    def descr(self: StoreInstr, buf: Any) -> object {
+    def descr(self: StoreInstr, buf: any) -> object {
         (val, ptr) = self.operands;
         if (self.align is not None) {
             align = ', align %d' % self.align;
@@ -623,7 +588,7 @@ class StoreInstr(Instruction) {
 
 class AllocaInstr(Instruction) {
     def init(
-        self: AllocaInstr, parent: Any, typ: Any, count: Any, name: Any
+        self: AllocaInstr, parent: any, typ: any, count: any, name: any
     ) -> object {
         operands = [count] if count else ();
         super.init(parent, typ.as_pointer(), "alloca", operands, name);
@@ -631,7 +596,7 @@ class AllocaInstr(Instruction) {
         self.align = None;
     }
 
-    def descr(self: AllocaInstr, buf: Any) -> object {
+    def descr(self: AllocaInstr, buf: any) -> object {
         buf.append("{0} {1}".format(self.opname, self.allocated_type));
         if self.operands {
             (op, ) = self.operands;
@@ -649,12 +614,12 @@ class AllocaInstr(Instruction) {
 class GEPInstr(Instruction) {
     def init(
         self: GEPInstr,
-        parent: Any,
-        ptr: Any,
-        indices: Any,
-        inbounds: Any,
-        name: Any,
-        source_etype: Any = None
+        parent: any,
+        ptr: any,
+        indices: any,
+        inbounds: any,
+        name: any,
+        source_etype: any = None
     ) -> object {
         if (source_etype is not None) {
             typ = ptr.type;
@@ -687,7 +652,7 @@ class GEPInstr(Instruction) {
         self.inbounds = inbounds;
     }
 
-    def descr(self: GEPInstr, buf: Any) -> object {
+    def descr(self: GEPInstr, buf: any) -> object {
         indices = ['{0} {1}'.format(i.type, i.get_reference()) for i in self.indices];
         op = "getelementptr inbounds" if self.inbounds else "getelementptr";
         buf.append(
@@ -705,13 +670,13 @@ class GEPInstr(Instruction) {
 
 class PhiInstr(Instruction) {
     def init(
-        self: PhiInstr, parent: Any, typ: Any, name: Any, flags: Any = ()
+        self: PhiInstr, parent: any, typ: any, name: any, flags: any = ()
     ) -> object {
         super.init(parent, typ, "phi", (), name=name, flags=flags);
         self.incomings = [];
     }
 
-    def descr(self: PhiInstr, buf: Any) -> object {
+    def descr(self: PhiInstr, buf: any) -> object {
         incs = ', '.join(
             '[{0}, {1}]'.format(v.get_reference(), b.get_reference())
             for (v, b) in self.incomings
@@ -726,12 +691,12 @@ class PhiInstr(Instruction) {
         );
     }
 
-    def add_incoming(self: PhiInstr, value: Any, block: Any) -> object {
+    def add_incoming(self: PhiInstr, value: any, block: any) -> object {
         assert isinstance(block, Block);
         self.incomings.append((value, block));
     }
 
-    def replace_usage(self: PhiInstr, old: Any, new: Any) -> object {
+    def replace_usage(self: PhiInstr, old: any, new: any) -> object {
         self.incomings = [
             (new if (val is old) else val, blk) for (val, blk) in self.incomings
         ];
@@ -740,7 +705,7 @@ class PhiInstr(Instruction) {
 
 class ExtractValue(Instruction) {
     def init(
-        self: ExtractValue, parent: Any, agg: Any, indices: Any, name: Any = ''
+        self: ExtractValue, parent: any, agg: any, indices: any, name: any = ''
     ) -> object {
         typ = agg.type;
         try {
@@ -755,7 +720,7 @@ class ExtractValue(Instruction) {
         self.indices = indices;
     }
 
-    def descr(self: ExtractValue, buf: Any) -> object {
+    def descr(self: ExtractValue, buf: any) -> object {
         indices = [str(i) for i in self.indices];
         buf.append(
             "extractvalue {0} {1}, {2} {3}\n".format(
@@ -771,11 +736,11 @@ class ExtractValue(Instruction) {
 class InsertValue(Instruction) {
     def init(
         self: InsertValue,
-        parent: Any,
-        agg: Any,
-        elem: Any,
-        indices: Any,
-        name: Any = ''
+        parent: any,
+        agg: any,
+        elem: any,
+        indices: any,
+        name: any = ''
     ) -> object {
         typ = agg.type;
         try {
@@ -788,12 +753,8 @@ class InsertValue(Instruction) {
         if (elem.type != typ) {
             raise TypeError(
                 (
-                    "Can only insert %s at %r in %s: got %s" % (
-                        typ,
-                        `list(indices),
-                        agg.type,
-                        elem.type
-                    )
+                    "Can only insert %s at %r in %s: got %s"
+                    % (typ, `list(indices), agg.type, elem.type)
                 )
             );
         }
@@ -803,7 +764,7 @@ class InsertValue(Instruction) {
         self.indices = indices;
     }
 
-    def descr(self: InsertValue, buf: Any) -> object {
+    def descr(self: InsertValue, buf: any) -> object {
         indices = [str(i) for i in self.indices];
         buf.append(
             "insertvalue {0} {1}, {2} {3}, {4} {5}\n".format(
@@ -819,18 +780,18 @@ class InsertValue(Instruction) {
 }
 
 class Unreachable(Instruction) {
-    def init(self: Unreachable, parent: Any) -> object {
+    def init(self: Unreachable, parent: any) -> object {
         super.init(parent, types.VoidType(), "unreachable", (), name='');
     }
 
-    def descr(self: Unreachable, buf: Any) -> object {
+    def descr(self: Unreachable, buf: list[str]) -> object {
         buf += (self.opname, "\n");
     }
 }
 
 class InlineAsm(object) {
     def init(
-        self: InlineAsm, ftype: Any, asm: Any, constraint: Any, side_effect: Any = False
+        self: InlineAsm, ftype: any, asm: any, constraint: any, side_effect: any = False
     ) -> object {
         self.type = ftype.return_type;
         self.function_type = ftype;
@@ -839,7 +800,7 @@ class InlineAsm(object) {
         self.side_effect = side_effect;
     }
 
-    def descr(self: InlineAsm, buf: Any) -> object {
+    def descr(self: InlineAsm, buf: any) -> object {
         sideeffect = 'sideeffect' if self.side_effect else '';
         fmt = 'asm {sideeffect} "{asm}", "{constraint}"';
         buf.append(
@@ -861,19 +822,19 @@ class InlineAsm(object) {
 class AtomicRMW(Instruction) {
     def init(
         self: AtomicRMW,
-        parent: Any,
-        op: Any,
-        ptr: Any,
-        val: Any,
-        ordering: Any,
-        name: Any
+        parent: any,
+        op: any,
+        ptr: any,
+        val: any,
+        ordering: any,
+        name: any
     ) -> object {
         super.init(parent, val.type, "atomicrmw", (ptr, val), name=name);
         self.operation = op;
         self.ordering = ordering;
     }
 
-    def descr(self: AtomicRMW, buf: Any) -> object {
+    def descr(self: AtomicRMW, buf: any) -> object {
         (ptr, val) = self.operands;
         fmt = "atomicrmw {op} {ptrty} {ptr}, {valty} {val} {ordering} " "{metadata}\n";
         buf.append(

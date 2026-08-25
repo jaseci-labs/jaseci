@@ -50,9 +50,9 @@ test "an exact pin resolves without listing releases" {
 
 
 test "a range picks the newest published release that satisfies it" {
-    pub = ["0.33.0", "0.34.1", "0.34.2", "0.34.3", "0.35.0"];
+    `pub = ["0.33.0", "0.34.1", "0.34.2", "0.34.3", "0.35.0"];
     with unittest.mock.patch.object(
-        binary_mod, "_list_release_versions", return_value=pub
+        binary_mod, "_list_release_versions", return_value=`pub
     ) {
         assert _resolve_target_version(REPO, ">=0.34,<0.35") == "0.34.3";
         assert _resolve_target_version(REPO, "<=0.34.2") == "0.34.2";
@@ -286,4 +286,56 @@ test "config round-trips the stamped jac-version pin" {
     toml = '[project]\nname = "x"\nversion = "0.1.0"\njac-version = "==0.34.3"\n';
     cfg = JacConfig.from_toml_str(toml);
     assert cfg.project.jac_version == "==0.34.3";
+}
+
+
+test "the preflight refuses a pin that names no published release" {
+    # An exact pin short-circuits resolve_deploy_version, so only the release
+    # record reveals the typo.
+    import from urllib.error { HTTPError }
+    d = _project(
+        '[project]\nname = "x"\nversion = "0.1.0"\njac-version = "==0.34.99"\n'
+    );
+    def _absent(url: str) -> bytes {
+        raise HTTPError(url, 404, "Not Found", {}, None);
+    }
+    with unittest.mock.patch.object(binary_mod, "_http_get_bytes", _absent) {
+        raised = False;
+        try {
+            binary_mod.preflight_pod_runtime(d, "stable", "x86_64");
+        } except RuntimeError {
+            raised = True;
+        }
+        assert raised;
+    }
+}
+
+
+test "the preflight needs the pod binary and the host sealing binary" {
+    # Since jac#7989 a deploy may also fetch a host-platform build of the same
+    # version to seal the .jab, so a release missing either one cannot deploy.
+    d = _project(
+        '[project]\nname = "x"\nversion = "0.1.0"\njac-version = "==0.34.3"\n'
+    );
+    host = f"jac-0.34.3-{binary_mod.host_seal_platform()}-{binary_mod.host_arch()}";
+    for names in [["jac-0.34.3-linux-x86_64"], [host]] {
+        with unittest.mock.patch.object(
+            binary_mod, "_http_get_bytes", return_value=_release_meta(names)
+        ) {
+            raised = False;
+            try {
+                binary_mod.preflight_pod_runtime(d, "stable", "x86_64");
+            } except RuntimeError {
+                raised = True;
+            }
+            assert raised;
+        }
+    }
+    with unittest.mock.patch.object(
+        binary_mod,
+        "_http_get_bytes",
+        return_value=_release_meta(["jac-0.34.3-linux-x86_64", host])
+    ) {
+        assert binary_mod.preflight_pod_runtime(d, "stable", "x86_64") == "0.34.3";
+    }
 }

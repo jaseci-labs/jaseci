@@ -2,12 +2,13 @@ import ctypes;
 import json;
 import from desktop_plugin { PluginError, ErrorCode, DesktopPlugin }
 import from manifest { PluginManifest, PluginContext }
+import from plugin_host { PluginHost }
 
 
 obj WindowPlugin(DesktopPlugin) {
     has _wv: ctypes.CDLL | None = None,
         _handle: int = 0,
-        _host: object | None = None;
+        _host: PluginHost | None = None;
 
     static def manifest -> PluginManifest {
         return PluginManifest(
@@ -35,17 +36,18 @@ obj WindowPlugin(DesktopPlugin) {
     }
 
     def setup_cef(host: object) {
+        assert isinstance(host, PluginHost);
         self._host = host;
     }
 
-    def _handle_cef(command: str, args: dict) -> dict {
+    def _handle_cef(host: PluginHost, command: str, args: dict) -> dict {
         if command == "set_title" {
             title = args.get("title", "");
             if not title {
                 raise PluginError(ErrorCode.INVALID_ARGS, "'title' is required");
             }
-            if not self._host.set_window_title(title) {
-                self._host.eval_js("document.title=" + json.dumps(title));
+            if not host.set_window_title(title) {
+                host.eval_js("document.title=" + json.dumps(title));
             }
             return {};
         }
@@ -58,29 +60,34 @@ obj WindowPlugin(DesktopPlugin) {
                     "'width' and 'height' must be positive integers"
                 );
             }
-            if not self._host.set_window_size(width, height) {
-                self._host.eval_js(
-                    "try{window.resizeTo(" + str(width) + "," + str(height) + ");}catch(e){}"
+            if not host.set_window_size(width, height) {
+                host.eval_js(
+                    "try{window.resizeTo("
+                        + str(width)
+                        + ","
+                        + str(height)
+                        + ");}catch(e){}"
                 );
             }
             return {};
         }
         if command == "fullscreen" {
-            self._host.eval_js(
+            host.eval_js(
                 "document.documentElement.requestFullscreen().catch(function(){});"
             );
             return {};
         }
         if command == "terminate" {
-            self._host.eval_js("window.close();");
+            host.eval_js("window.close();");
             return {};
         }
         return super.handle(command, args);
     }
 
     def handle(command: str, args: dict) -> dict {
-        if self._host is not None {
-            return self._handle_cef(command, args);
+        cef_host = self._host;
+        if cef_host is not None {
+            return self._handle_cef(cef_host, command, args);
         }
         if self._wv is None {
             raise PluginError(ErrorCode.NOT_READY, "Window plugin not yet initialized");

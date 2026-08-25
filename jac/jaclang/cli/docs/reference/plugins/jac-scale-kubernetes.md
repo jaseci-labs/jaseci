@@ -8,9 +8,9 @@
 
 | Mode | Command | Description |
 |------|---------|-------------|
-| **Deploy** | `jac start app.jac --scale` | Ship the project source into the cluster and deploy |
-| **Preview** | `jac start app.jac --scale --dry-run` | Print the manifests that would be applied; change nothing |
-| **Enable HTTPS** | `jac start app.jac --scale --enable-tls` | Enable TLS on a live deployment (no redeploy, run after CNAME propagates) |
+| **Deploy** | `jac scale deploy app.jac` | Ship the project source into the cluster and deploy |
+| **Preview** | `jac scale deploy app.jac --dry-run` | Print the manifests that would be applied; change nothing |
+| **Enable HTTPS** | `jac scale deploy app.jac --enable-tls` | Enable TLS on a live deployment (no redeploy, run after CNAME propagates) |
 
 There is no image-build step. `jac-scale` does not build, tag, or push a Docker
 image, and it needs no registry and no registry credentials: pods run a stock
@@ -38,7 +38,7 @@ Channel precedence is local, then experimental, then dev, then stable -- an `[ex
 
 ```bash
 export JAC_SCALE_BINARY_PATH=/path/to/jac
-jac start app.jac --scale
+jac scale deploy app.jac
 ```
 
 Use this for air-gapped clusters, to pin an exact build, or to deploy a binary you compiled locally. The driver checksum-caches downloaded release binaries per channel and architecture, so an unchanged `stable`/`dev` deploy does not re-download on every run.
@@ -47,11 +47,15 @@ Use this for air-gapped clusters, to pin an exact build, or to deploy a binary y
 
 ### App Artifact (`.jab`)
 
-The app is packed on the deploy driver into a sealed **`.jab`** image, seeded to the bundle PVC, and extracted into the pod's `/app` volume. The `.jab` contains the project source, a `_precompiled/` sealed image (`MANIFEST.json` + content-keyed `.jir` modules built with the pod binary), and the sanitized `jac.toml`.
+The app is packed on the deploy driver into a sealed **`.jab`** image, seeded to the bundle PVC, and extracted into the pod's `/app` volume. The `.jab` contains the project source, a `_precompiled/` sealed image (`MANIFEST.json` + content-keyed `.jir` modules built with the pod binary), and the sanitized `jac.toml` (root and nested project tomls, secrets and `[dev]` sections stripped).
+
+The source copy honors the project's [`.jacignore`](../config/index.md#jacignore) with the same patterns and semantics as `jac check`, on top of a fixed floor of paths that never ship (VCS and build directories, `.env` files, private keys and certificates). A tree parked in `.jacignore` reaches neither the seal stage, the `.jab`, nor the pod, and its nested `jac.toml` is not enumerated either. `.jacignore` itself ships, so editing it moves the bundle's content address and the next deploy re-ships instead of hitting the content-addressed skip.
+
+The seal stage is a valid, sanitized copy of the project: sanitized tomls are written into it before the seal runs, so `[placement.pins]` and nested-project scoping are visible at seal time. The seal compiles exactly the modules that emit server code -- client-only modules (pinned or inferred) produce JS, not pod bytecode, and are skipped via the placement facts API. The per-module placement verdict is recorded in the sealed `MANIFEST.json` (`placement` map, manifest format 5). The seal subprocess timeout defaults to 1800s and is configurable with `[scale] seal_timeout` in `jac.toml`.
 
 Sealing is **mandatory**: if the app cannot be sealed into a valid image, the deploy fails rather than shipping a bundle that cold-compiles on the pod's first boot. When a pod starts, the compiler auto-loads the sibling `_precompiled/` image, so services run from precompiled modules with no on-pod compile step - for both single-app and microservice deployments.
 
-If a module in your project cannot be sealed (for example, a file that fails to compile), the deploy aborts with the seal error. Fix or exclude the offending module and redeploy.
+If a module in your project cannot be sealed (for example, a file that fails to compile), the deploy aborts with the seal error. Fix the offending module, or park its tree in `.jacignore` if it is not part of the served app, and redeploy.
 
 ---
 
@@ -97,8 +101,6 @@ To use a pre-existing shared controller instead, see [Shared Ingress](#shared-in
 |------|-------------|
 | `http://localhost:30080/` | Jaseci application |
 | `http://localhost:30080/grafana` | Grafana dashboard (if monitoring enabled) |
-| `http://localhost:30080/cache-dashboard/` | Redis Insight (if `redis_dashboard = true`); protected by HTTP basic auth using `redis_insight_username` / `redis_insight_password` |
-| `http://localhost:30080/db-dashboard` | Mongo Express (if `mongodb_dashboard = true`) |
 
 **To change in `jac.toml`:**
 
@@ -236,7 +238,7 @@ On the first response, NGINX sets a `route` cookie in the browser. Every subsequ
 
 **Limitations:**
 
-Sticky sessions ensure routing **while a pod is alive**. If a pod is deleted (e.g. during a rolling deployment), in-flight user processes on that pod are lost. The user is automatically re-routed to a new pod, but any in-memory state is gone. For true resilience, externalize per-user state to Redis or a database so any pod can serve any user.
+Sticky sessions ensure routing **while a pod is alive**. If a pod is deleted (e.g. during a rolling deployment), in-flight user processes on that pod are lost. The user is automatically re-routed to a new pod, but any in-memory state is gone. For true resilience, externalize per-user state to the shared Postgres database so any pod can serve any user.
 
 ---
 
@@ -255,7 +257,7 @@ cert_manager_email = "you@example.com"
 ```
 
 ```bash
-jac start app.jac --scale
+jac scale deploy app.jac
 ```
 
 After deploy, the external endpoint is printed along with the DNS record to create. The record type is detected automatically: an IP endpoint (e.g. a bare-metal or local cluster) prompts an `A` record, a hostname endpoint (e.g. an AWS NLB) prompts a `CNAME`:
@@ -268,7 +270,7 @@ Deployment complete! Service available at: http://k8s-default-...elb.amazonaws.c
     Name:  app.example.com
     Value: k8s-default-...elb.amazonaws.com
 
-  Then run: jac start app.jac --scale --enable-tls
+  Then run: jac scale deploy app.jac --enable-tls
 ```
 
 #### Step 2 - Add DNS record
@@ -280,7 +282,7 @@ Wait for DNS propagation (usually 1–15 minutes). Verify with `dig app.example.
 #### Step 3 - Enable TLS
 
 ```bash
-jac start app.jac --scale --enable-tls
+jac scale deploy app.jac --enable-tls
 ```
 
 This installs cert-manager, creates a Let's Encrypt `Issuer`, patches the live Ingress with TLS annotations, and updates all service URLs to HTTPS. No redeployment of your application occurs.
@@ -291,8 +293,6 @@ Output:
 TLS enabled. App is now live at:
   App URL:        https://app.example.com
   Grafana:        https://app.example.com/grafana
-  Mongo Express:  https://app.example.com/db-dashboard
-  RedisInsight:   https://app.example.com/cache-dashboard
 ```
 
 > **Note:** `--enable-tls` requires a domain and `cert_manager_email`. Both are read from the annotations a prior deploy recorded on the live Ingress (`jac-scale/domain`, `jac-scale/cert-email`), falling back to `jac.toml`; it errors if neither source provides them. Because the annotation wins, changing `domain` in `jac.toml` and re-running `--enable-tls` has no effect while a prior deploy's annotation exists -- re-deploy to update it.
@@ -407,6 +407,24 @@ The `"keda"` engine creates a `ScaledObject` custom resource instead of an HPA. 
 !!! note
     KEDA must be installed on the cluster before using this engine. If KEDA CRDs are absent at deploy time, jac-scale emits an install warning with a link to the [KEDA installation docs](https://keda.sh/docs/latest/deploy/) and the deploy continues with the Deployment's static replica count -- 1 for single-app deploys, the configured per-service `replicas` for microservices (no autoscaler is created).
 
+!!! note "HTTP-activated workloads also require the KEDA HTTP Add-on"
+    Workloads scaled via `apply_http_activation` (HTTP request-driven scale-to-zero) require the [KEDA HTTP Add-on](https://keda.sh/docs/latest/deploy/#http-add-on) in addition to core KEDA. Call `KEDAAutoscaler.discover_capabilities()` to check both together: it returns a `KEDACapabilities` object that distinguishes a missing core install from a missing or outdated HTTP Add-on, an RBAC-denied check from a genuinely absent API, and a missing external-scaler or interceptor-proxy Service, each with its own diagnostic. Results are cached per cluster; pass `refresh=True` or call `invalidate_capabilities()` to force a recheck. `apply_http_activation` calls `discover_capabilities()` automatically and raises when the Add-on is installed but broken, instead of deploying a workload that will never receive traffic. If the Add-on is simply absent, it logs a warning and skips activation rather than failing the deploy.
+
+    Install both with Helm:
+    ```bash
+    helm repo add kedacore https://kedacore.github.io/charts
+    helm repo update
+    helm install keda kedacore/keda -n keda --create-namespace --wait
+    helm install http-add-on kedacore/keda-add-ons-http -n keda --wait
+    ```
+
+    Upgrading an older HTTP Add-on install (pre-0.14, `HTTPScaledObject` only) to the current `InterceptorRoute` API:
+    ```bash
+    helm upgrade http-add-on kedacore/keda-add-ons-http -n keda --wait
+    ```
+
+    Chart names, flags, and required values can change over time, so every install/upgrade command surfaced by `discover_capabilities()` also links to the current getting-started guide as the authoritative fallback: [https://keda.sh/http-add-on/0.15/getting-started/](https://keda.sh/http-add-on/0.15/getting-started/).
+
 **Switching between engines is safe.** Each engine removes the other engine's resource (`ScaledObject` or `HPA`) on apply, so two autoscalers never compete for `spec.replicas` on the same Deployment.
 
 !!! note "Scale-down pacing"
@@ -474,30 +492,30 @@ host = { name = "rabbitmq-secret", key = "host" }
 
 ### Persistent Storage
 
-Persistent storage covers two volumes: the **application bundle PVC** (holds the `.jab` source bundle, shared by all pods) and the **MongoDB data PVC**. Redis has no persistent volume -- it runs on `emptyDir` and its contents reset on pod restart.
+Persistent storage covers two volumes: the **application bundle PVC** (holds the `.jab` source bundle, shared by all pods) and the **Postgres data PVC** attached to the provisioned StatefulSet.
 
 **Defaults:**
 
 | TOML Key | Default | Description |
 |----------|---------|-------------|
 | `bundle_storage_class` | `""` | StorageClass for the application bundle PVC. The PVC needs `ReadWriteMany`; set this to an RWX-capable class (e.g. EFS, NFS). When empty, the single-app deploy silently omits `storageClassName` and uses the cluster default; the microservice bundle path errors instead, since most cloud default classes are RWO-only |
-| `mongodb_storage_size` | `1Gi` | Storage size for the MongoDB data PVC |
+| `postgres_storage` (`[scale.database]`) | `2Gi` | Storage size for the Postgres data PVC |
 
 **To change in `jac.toml`:**
 
 ```toml
 [scale.kubernetes]
 bundle_storage_class = "efs-sc"
-mongodb_storage_size = "10Gi"
+postgres_storage = "10Gi"  # under [scale.database]
 ```
 
-**MongoDB PVC resize behaviour:**
+**Postgres PVC resize behaviour:**
 
-- **Increase**: Applying a larger `mongodb_storage_size` on redeploy automatically patches the existing PVC. Your stored data is preserved - only the capacity request is updated.
+- **Increase**: Applying a larger `postgres_storage` on redeploy automatically patches the existing PVC. Your stored data is preserved - only the capacity request is updated.
 - **Decrease**: Attempting to set a smaller value than the current PVC size raises an explicit error and aborts the deploy. Shrinking a PVC is not supported by Kubernetes.
 - **No change**: If the value matches the current size, no action is taken.
 
-> **Note:** MongoDB PVC resize requires the cluster's StorageClass to have `allowVolumeExpansion: true`. Most cloud providers (AWS EBS, GCE PD, Azure Disk) and MicroK8s enable this by default. Verify with `kubectl get storageclass`.
+> **Note:** Postgres PVC resize requires the cluster's StorageClass to have `allowVolumeExpansion: true`. Most cloud providers (AWS EBS, GCE PD, Azure Disk) and MicroK8s enable this by default. Verify with `kubectl get storageclass`.
 > **Note:** The application bundle PVC has a fixed size (1Gi) and is created once, never resized. Bundle contents are content-addressed, so an unchanged app is not re-uploaded on redeploy.
 
 ---
@@ -511,7 +529,7 @@ Controls the base images used for the application pod and init containers. Overr
 | TOML Key  | Default | Description |
 |----------|---------|-------------|
 | `python_image` | `""` (auto) | Base image for the application pod. When empty, the deploy resolves the official image matching the runtime channel -- `jaseci/jaclang:latest` (stable), `:dev`, `:experimental-<PR#>`, or `:<x.y.z>` for a `jac-version` pin -- and pins it to an immutable `@sha256:` digest when Docker Hub is reachable (experimental builds are deliberately not digest-pinned). Falls back to `python:3.12-slim` when the registry is unreachable and always on the local-binary channel |
-| `wait_image` | `busybox` | Init container image used for dependency wait checks (Redis/MongoDB readiness) |
+| `wait_image` | `busybox` | Init container image used for dependency wait checks (Postgres readiness) |
 
 **To change in `jac.toml`:**
 
@@ -649,7 +667,7 @@ jac scale status app.jac
 
 Displays a table with:
 
-- **Component health** - Jaseci App, Redis, MongoDB, Prometheus, Grafana, RedisInsight, Mongo Express, NGINX Ingress (companion components appear when deployed)
+- **Component health** - Jaseci App, Postgres, Prometheus, Grafana, NGINX Ingress (companion components appear when deployed)
 - **Pod readiness** - `ready/total` replica count per component
 - **Service URLs** - application endpoint and Grafana URL
 
@@ -677,7 +695,7 @@ kubectl get all -l managed=jac-scale -A
 
 Tagged resource types: Deployments, StatefulSets, DaemonSets, Services, ServiceAccounts, ConfigMaps, Secrets, PersistentVolumeClaims, ClusterRoles/Bindings, HorizontalPodAutoscalers, ScaledObjects (KEDA engine), TriggerAuthentications (KEDA engine).
 
-> **Note:** Pod-template labeling is inconsistent: some pods carry `managed: jac-scale` (Redis, kube-state-metrics, node-exporter, Alloy, and all microservice pods), while others carry only `app` (the single-app main pod, MongoDB, Prometheus, Grafana, Tempo, Loki, NGINX). `kubectl get pods -l managed=jac-scale` therefore returns a partial, misleading subset -- list pods via their owning Deployment/StatefulSet instead.
+> **Note:** Pod-template labeling is inconsistent: some pods carry `managed: jac-scale` (kube-state-metrics, node-exporter, Alloy, and all microservice pods), while others carry only `app` (the single-app main pod, Postgres, Prometheus, Grafana, Tempo, Loki, NGINX). `kubectl get pods -l managed=jac-scale` therefore returns a partial, misleading subset -- list pods via their owning Deployment/StatefulSet instead.
 
 ---
 
@@ -693,11 +711,11 @@ jac scale destroy app.jac
 Removes:
 
 - Application Deployment and pods
-- Redis Deployment and MongoDB StatefulSet
+- The Postgres StatefulSet
 - PersistentVolumeClaims (data is lost)
 - Services, ConfigMaps, Secrets, and autoscaler resources
 
-For partial teardown, pass `--component` with one of `application`, `database`, `cache`, `monitoring`, or `dashboard` to remove just that component while leaving the rest of the deployment running:
+For partial teardown, pass `--component` with one of `application`, `database`, or `monitoring` to remove just that component while leaving the rest of the deployment running:
 
 ```bash
 jac scale destroy app.jac --component monitoring
@@ -711,9 +729,13 @@ The scale server registers built-in endpoints for Kubernetes probes:
 
 - `/healthz/live` -- Liveness: returns `200` while the server process is up
 - `/healthz/ready` -- Readiness: returns `200` when serving, `503` while the server is draining during shutdown
-- `/healthz` -- Legacy combined health endpoint
+- `/healthz` -- Legacy combined health endpoint, treated as liveness
 
 Microservice deployments wire their probes to `/healthz/live` and `/healthz/ready` automatically. Single-app deployments probe `health_check_path` (default `/docs`); point it at `/healthz/ready` to use the built-in endpoint -- see [Health Probes](#health-probes).
+
+**The two probes answer different questions, and the split is deliberate.** Liveness answers "is this process wedged, restart it"; readiness answers "can this pod serve traffic, keep it in Endpoints". A database outage is only ever the second question, so `/healthz/live` (and the legacy `/healthz`) do **not** build a request context and never touch the database: they answer from the process alone. `/healthz/ready` does build one, so it reflects database health, and returns `503` when the database is unreachable rather than failing. The pod leaves Endpoints, stops taking traffic, and rejoins when the database recovers -- with no restart, and no restart loop that would outlive the incident. Any ordinary request whose context cannot be built returns `503` with `Retry-After` for the same reason: an unreachable dependency is not an internal server error.
+
+Point a `livenessProbe` at `/healthz/live` and a `readinessProbe` at `/healthz/ready`. Never point a liveness probe at anything that queries the database.
 
 You can also create custom health walkers:
 
@@ -873,7 +895,7 @@ Values using `${ENV_VAR}` syntax are resolved from the local environment at depl
 
 ### How It Works
 
-1. At `jac start app.jac --scale`, environment variable references (`${...}`) are resolved
+1. At `jac scale deploy app.jac`, environment variable references (`${...}`) are resolved
 2. A Kubernetes `Opaque` Secret named `{app_name}-secrets` is created (or updated if it already exists)
 3. The Secret is attached to the deployment pod spec via `envFrom.secretRef`
 4. All keys become environment variables inside the container
@@ -885,17 +907,17 @@ Values using `${ENV_VAR}` syntax are resolved from the local environment at depl
 # jac.toml
 [scale.secrets]
 OPENAI_API_KEY = "${OPENAI_API_KEY}"
-MONGO_PASSWORD = "${MONGO_PASSWORD}"
+JAC_DB_URL = "${JAC_DB_URL}"
 JWT_SECRET = "${JWT_SECRET}"
 ```
 
 ```bash
 # Set local env vars, then deploy
 export OPENAI_API_KEY="sk-..."
-export MONGO_PASSWORD="secret123"
+export JAC_DB_URL="postgresql://jac:secret123@db.example.com:5432/jac"
 export JWT_SECRET="my-jwt-key"
 
-jac start app.jac --scale
+jac scale deploy app.jac
 ```
 
 This eliminates the need for manual `kubectl create secret` commands after deployment.
@@ -989,11 +1011,11 @@ PVC mode and hostPath mode are mutually exclusive per entry. K-track applies PVC
 
 ## Microservice Mode in Kubernetes
 
-When `[scale.microservices].enabled = true` and you run `jac start --scale` against a Kubernetes cluster, every entry in `[scale.microservices.routes]` becomes its own Deployment + Service + HPA + PodDisruptionBudget. The gateway runs as a separate pod that fronts every microservice via its routes prefix.
+When `[scale.microservices].enabled = true` and you run `jac scale deploy` against a Kubernetes cluster, every entry in `[scale.microservices.routes]` becomes its own Deployment + Service + HPA + PodDisruptionBudget. The gateway runs as a separate pod that fronts every microservice via its routes prefix.
 
 ### Auto-Injected Peer URLs
 
-Outside Kubernetes, sv-to-sv calls find peer providers via auto-spawn (single-process mode) or `JAC_SV_<MODULE>_URL` env vars (manual multi-host setup). Inside `--scale` Kubernetes mode, K-track auto-injects those env vars on every pod, derived from the routes table:
+Outside Kubernetes, sv-to-sv calls find peer providers via auto-spawn (single-process mode) or `JAC_SV_<MODULE>_URL` env vars (manual multi-host setup). Inside `jac scale deploy` Kubernetes mode, K-track auto-injects those env vars on every pod, derived from the routes table:
 
 ```text
 JAC_SV_<PEER_MODULE>_URL=http://<peer>-service.<namespace>.svc.cluster.local:<container_port>
@@ -1003,7 +1025,7 @@ The env-var key uses the raw module name (the peer's key in `[scale.microservice
 
 Alongside the peer URLs, every pod also receives `JAC_SV_ROUTES` (the full routes map as JSON), `K8S_APP_NAME`, and `K8S_NAMESPACE`. Every pod's entrypoint (gateway included) also exports `JAC_SV_SIBLING=1` -- a shell export in the container command, not a PodSpec `env:` entry. (Sibling-only scoping of that variable exists only in local multi-process mode.)
 
-You do not write these env vars by hand in `--scale` K8s mode; K-track derives them from `[scale.microservices.routes]` and the configured namespace.
+You do not write these env vars by hand in deployed K8s mode; K-track derives them from `[scale.microservices.routes]` and the configured namespace.
 
 Per-service env overrides under `[scale.microservices.services.<name>.env]` cannot shadow these keys. A stale override would silently route sv-to-sv calls to a wrong backend. To point a peer at a non-cluster URL (e.g. a vendor SaaS), use a per-service `deployment_overlay` (which merges raw manifest fields, including env) or edit the Deployment env spec after deploy.
 
@@ -1073,7 +1095,7 @@ Microservice mode can deploy a Loki + Grafana Alloy log aggregation pipeline alo
 enabled = true
 ```
 
-When enabled, `jac start --scale` deploys:
+When enabled, `jac scale deploy` deploys:
 
 - **Loki** -- single-process log store (port 3100, ClusterIP). Uses filesystem/TSDB storage backed by `emptyDir` (logs are ephemeral and reset on pod restart; suitable for dev and staging).
 - **Grafana Alloy** -- DaemonSet on every node (tolerates `NoSchedule`). Tails `/var/log/pods`, labels each stream with `namespace`, `pod`, and `container`, and pushes to Loki via Kubernetes service discovery. River-syntax config; supersedes Promtail (EOL 2026-03-02).
@@ -1125,9 +1147,9 @@ mkdir -p ~/.kube && microk8s config > ~/.kube/config
 chmod 600 ~/.kube/config
 ```
 
-The last two steps are required, not cosmetic: `jac start --scale` reads `~/.kube/config` to reach the cluster and shells out to a real `kubectl` binary to seed the source bundle. A shell alias (`alias kubectl='microk8s kubectl'`) is not enough because subprocesses cannot see it. You do not need the MicroK8s `ingress` addon -- the deploy ships its own NGINX ingress controller.
+The last two steps are required, not cosmetic: `jac scale deploy` reads `~/.kube/config` to reach the cluster and shells out to a real `kubectl` binary to seed the source bundle. A shell alias (`alias kubectl='microk8s kubectl'`) is not enough because subprocesses cannot see it. You do not need the MicroK8s `ingress` addon -- the deploy ships its own NGINX ingress controller.
 
-After `jac start --scale`, the app is reachable at `http://localhost:30080` (see [Ports](#ports)).
+After `jac scale deploy`, the app is reachable at `http://localhost:30080` (see [Ports](#ports)).
 
 ### Docker Desktop
 
@@ -1169,16 +1191,15 @@ kubectl get svc
 ### Database Connection Issues
 
 ```bash
-# Check MongoDB (StatefulSet) and Redis (Deployment)
-kubectl get statefulsets   # MongoDB only -- Redis runs as a Deployment
+# Check Postgres (StatefulSet)
+kubectl get statefulsets
 kubectl get deployments
 
-# Check persistent volumes (MongoDB and the bundle PVC; Redis has none)
+# Check persistent volumes (Postgres and the bundle PVC)
 kubectl get pvc
 
 # View database logs (labels are prefixed with your app name)
-kubectl logs -l app=<app_name>-mongodb
-kubectl logs -l app=<app_name>-redis
+kubectl logs -l app=<app_name>-postgres
 ```
 
 ### Pods Stuck in Init
@@ -1216,3 +1237,107 @@ kubectl get all
 # Check events
 kubectl get events --sort-by='.lastTimestamp'
 ```
+
+## Programmatic SDK
+
+A platform (a PaaS, a CI job, an ops daemon) can drive deploys in-process
+instead of shelling out to `jac scale deploy` and parsing stdout. The SDK is
+`jaclang.scale.sdk`: a `ScaleClient` plus a `DeploySpec` that carries the whole
+deploy configuration in memory. `jac.toml` is never read, nothing prompts for
+input, and every call returns structured data. The CLI is unchanged and shares
+the same deploy engine underneath.
+
+One call deploys a folder (config keys are the `DeploySpec` fields below;
+`app_name` defaults from the folder name):
+
+```jac
+import from jaclang.scale.sdk { deploy }
+
+with entry {
+    result = deploy("apps/orders", {"namespace": "orders-prod", "replicas": 2});
+    print(result.service_url if result.success else result.message);
+}
+```
+
+The full client, for platforms that need events and lifecycle control:
+
+```jac
+import from jaclang.scale.sdk { DeploySpec, ProgressEvent, ScaleClient }
+
+def stream(event: ProgressEvent) {
+    print(f"[{event.phase}:{event.status}] {event.message}");
+}
+
+with entry {
+    client = ScaleClient(kube_context="prod-cluster");
+    result = client.deploy(
+        DeploySpec(
+            app_name="orders",
+            namespace="orders-prod",
+            source="apps/orders/main.jac",
+            secrets={"STRIPE_KEY": "sk-live-1"},
+            env={"FEATURE_CHECKOUT": "on"},
+            replicas=2,
+            labels={"paas.example/project": "orders"}
+        ),
+        on_event=stream
+    );
+    if result.success {
+        print(f"live at {result.service_url}");
+    } else {
+        print(f"failed: {result.message}");
+    }
+}
+```
+
+### DeploySpec
+
+`DeploySpec` mirrors the `[scale.*]` tables, in memory:
+
+| Field | Maps to | Notes |
+|---|---|---|
+| `app_name`, `namespace` | `[scale.kubernetes]` | required / `"default"` |
+| `source` | CLI file argument | entry `.jac` file, or a folder containing `main.jac` |
+| `target` | `--target` | `"auto"` (default), `"kubernetes"`, `"kubernetes-microservice"` |
+| `secrets` | `[scale.secrets]` | shipped as the app Secret; no `.env` file needed |
+| `env` | new | plain (non-secret) env vars injected into every service pod |
+| `domain`, `replicas`, `resources`, `autoscaler` | `[scale.kubernetes]` | `resources` takes `cpu_request`/`cpu_limit`/`memory_request`/`memory_limit`; `autoscaler` entries are raw config keys (`max_replicas`, `autoscaler_engine`, ...) |
+| `client` | `[scale.microservices.client]` | web client build: `entry` (path), or `{"entry": False}` for a headless API app |
+| `microservices` | `[scale.microservices]` | `routes`, `services`, `ingress`, ... |
+| `kube_context` | new | kubeconfig context to deploy through; empty = current context, falling back to in-cluster |
+| `labels` | new | stamped on every generated Deployment and Service (platform-owned tags) |
+| `extra` | any `[scale.kubernetes]` key | escape hatch merged last, e.g. `{"bundle_storage_class": "efs-sc"}` |
+
+With `target = "auto"` the SDK resolves exactly like the CLI: the
+microservice target when `microservices` declares routes (or sets
+`enabled = true`), the single-app `kubernetes` target otherwise. Lifecycle
+calls (`destroy`/`status`/`scale`/`service_url`) have no spec to inspect, so
+`"auto"` there probes the namespace instead: a `jac-scale.role=gateway`
+Deployment means the microservice target, anything else the plain one. Pass
+an explicit `target=` to skip the probe (e.g. when the cluster is not
+reachable at call time).
+
+### ScaleClient
+
+| Method | Returns |
+|---|---|
+| `deploy(spec, on_event=None)` | `DeploymentResult{success, service_url, message, details}` -- `details` is the applied manifest bundle |
+| `preview(spec)` | the manifest bundle, nothing applied (microservice target only, like `--dry-run`) |
+| `destroy(app_name, namespace, component="")` | removes the deployment; never prompts |
+| `status(app_name, namespace)` | full status dict (components, pod counts, URLs) |
+| `resource_status(app_name, namespace)` | `ResourceStatusInfo{status, replicas, ready_replicas}` |
+| `service_url(app_name, namespace)` | externally reachable URL or `None` |
+| `scale(app_name, namespace, replicas)` | resizes the app deployment |
+
+`ScaleClient(kube_context=..., logger=...)` sets a default cluster context for
+every call and an optional custom logger. When `deploy` is given `on_event`,
+the whole run streams typed `ProgressEvent{phase, step, status, message,
+detail}` values: one `deploy` start/ok envelope, the `provision`, `bundle`,
+`apply`, and `rollout` phases (each with `start`/`ok`, or `error` on failure;
+phase *order* is target-specific -- the plain target ships the bundle before
+provisioning backends -- so render by arrival, not a fixed sequence), and
+every engine log line as a `phase="log"` event -- enough to render live build
+output. Without `on_event`, output goes to the console exactly like the CLI.
+One caveat on quiet output: if the deploy tooling (kubernetes client et al.)
+is not installed yet, the first call installs it and prints pip progress to
+stdout.

@@ -75,7 +75,7 @@ def micro_suite_test(filename: str, auto_lint: bool = False) {
         before = ast3.dump(code_gen_pure.gen.py_ast[0], indent=2);
         after = ast3.dump(code_gen_jac.gen.py_ast[0], indent=2);
         assert isinstance(code_gen_pure, uni.Module)
-        and isinstance(code_gen_jac, uni.Module) , "Parsed objects are not modules.";
+            and isinstance(code_gen_jac, uni.Module) , "Parsed objects are not modules.";
         diff = "\n".join(unified_diff(before.splitlines(), after.splitlines()));
         assert not diff , "AST structures differ after formatting.";
     } except Exception as e {
@@ -163,7 +163,7 @@ test "fstring comment not injected" {
     }
 
     # Check 2: Body-level comments must stay next to their statements
-    before_idx = next(
+    before_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -171,7 +171,7 @@ test "fstring comment not injected" {
         ),
         None
     );
-    fstring_idx = next(
+    fstring_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -179,7 +179,7 @@ test "fstring comment not injected" {
         ),
         None
     );
-    after_idx = next(
+    after_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -217,7 +217,7 @@ test "jsx hash text preserved" {
     );
 
     lines = formatted.splitlines();
-    hash_idx = next(
+    hash_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -225,7 +225,7 @@ test "jsx hash text preserved" {
         ),
         None,
     );
-    close_p_idx = next(
+    close_p_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -273,7 +273,7 @@ test "native block comments stay in place" {
     lines = formatted.splitlines();
 
     # Comments must appear between "obj Ops {" and its closing "}", not at EOF
-    na_start = next(
+    na_start: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -287,7 +287,7 @@ test "native block comments stay in place" {
     na_end: int | None = None;
     for i in range(len(lines) - 1, na_start, -1) {
         if lines[i].strip() == "}"
-        and (len(lines[i]) - len(lines[i].lstrip())) <= na_indent {
+            and (len(lines[i]) - len(lines[i].lstrip())) <= na_indent {
             na_end = i;
             break;
         }
@@ -614,7 +614,7 @@ test "if statement outside lambda still breaks" {
 
     # Top-level `if a { b(); }` must break — the opening brace and `b();`
     # must be on different lines.
-    if_a_idx = next(
+    if_a_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -634,7 +634,7 @@ test "if statement outside lambda still breaks" {
 
     # Lambda `if` with else should NOT stay flat.
     assert ("lambda (e: int) { if e > 0 { x = 1; } else { x = 2; } }")
-    not in formatted , (
+        not in formatted , (
         f"lambda `if`/`else` must fall back to hard-line layout:\n{formatted}"
     );
 }
@@ -945,8 +945,8 @@ test "jsx significant whitespace around inline elements is preserved" {
     # boundaries. Specifically, no line may end with a bare word `move` and be
     # followed directly by `<b>Space</b>` losing the space.
     assert "move ·" in long_fmt
-    or 'move ·{" "}' in long_fmt
-    or "move\n" not in long_fmt , (
+        or 'move ·{" "}' in long_fmt
+        or "move\n" not in long_fmt , (
         "space after 'move ·' before next element appears dropped:\n" + long_fmt
     );
     # Idempotency.
@@ -993,10 +993,44 @@ test "long plus chain breaks one operand per line" {
     assert any(ln.lstrip().startswith('+ "bbbb') for ln in lines) , (
         f"continuation lines must lead with the operator, got:\n{formatted}"
     );
+    # The parens own the indent here: operands stay at the paren-contents
+    # level (8 spaces), never doubled by the chain's own indent.
+    assert any(ln.startswith('        + "bbbb') for ln in lines) , (
+        f"paren-wrapped chain must not add extra indent, got:\n{formatted}"
+    );
     # Idempotency.
     prog2 = JacProgram.jac_str_formatter(source_str=formatted, file_path="<test>.jac");
     assert formatted == prog2.mod.main.gen.jac , (
         f"plus-chain wrapping is not idempotent:\n{formatted}"
+    );
+}
+
+test "bare chain continuation indents one level" {
+    source = (
+        'with entry {\n'
+        '    out = "start";\n'
+        '    out += "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n'
+        '    + "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"\n'
+        '    + "cccccccccccccccccccccccccccccccccccc";\n'
+        '}\n'
+    );
+    prog = JacProgram.jac_str_formatter(source_str=source, file_path="<test>.jac");
+    assert not prog.errors_had , f"formatter errors: {prog.errors_had}";
+    formatted = prog.mod.main.gen.jac;
+    lines = formatted.splitlines();
+    # A chain that owns its line start hangs continuations one level in
+    # (statement indent 4 -> operands at 8); flush-left continuations would
+    # read as sibling statements.
+    assert any(ln.startswith('        + "bbbb') for ln in lines) , (
+        f"bare-chain continuation must indent one level, got:\n{formatted}"
+    );
+    assert not any(ln.startswith('+ "bbbb') for ln in lines) , (
+        f"bare-chain continuation must not sit flush left, got:\n{formatted}"
+    );
+    # Idempotency.
+    prog2 = JacProgram.jac_str_formatter(source_str=formatted, file_path="<test>.jac");
+    assert formatted == prog2.mod.main.gen.jac , (
+        f"indented chain wrapping is not idempotent:\n{formatted}"
     );
 }
 

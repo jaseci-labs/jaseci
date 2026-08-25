@@ -1,11 +1,14 @@
 import os;
+import type from jaclang.compiler.passes.native.llvm.binding { ModuleRef, ValueRef }
+import type from jaclang.jac0core.unitree { Module as UniModule }
 
 def _wasm_rt_src_dir -> str {
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "wasm_rt");
 }
 
 def _wasm_libc_dir -> (str | None) {
-    env = os.environ.get("JAC_NATIVE_WASM_LIBC_DIR", "");
+    import from jaclang.jac0core.compile_options { env_wasm_libc_dir }
+    env = env_wasm_libc_dir();
     if env {
         return env if os.path.isdir(env) else None;
     }
@@ -15,11 +18,12 @@ def _wasm_libc_dir -> (str | None) {
     if os.path.isdir(dev) and os.listdir(dev) {
         return dev;
     }
-    shipped = os.path.join(
-        os.path.dirname(pkg_root), "python", "floor", "wasm32", "libc"
-    );
-    if os.path.isdir(shipped) and os.listdir(shipped) {
-        return shipped;
+    import from jaclang.runtimelib.fused_binary { bundled_floor_roots }
+    for floor in bundled_floor_roots(pkg_root) {
+        shipped = os.path.join(floor, "wasm32", "libc");
+        if os.path.isdir(shipped) and os.listdir(shipped) {
+            return shipped;
+        }
     }
     return None;
 }
@@ -67,7 +71,20 @@ def _floor_source_drift(libc_dir: str) -> list[str] | None {
     return drifted;
 }
 
-def _load_libc_module(llvm: object, libc_dir: str, triple: str) -> object {
+def _mod_functions(mod: ModuleRef) -> list[ValueRef] {
+    fns = mod.functions;
+    assert isinstance(fns, Iterator);
+    return list(fns);
+}
+
+def _mod_globals(mod: ModuleRef) -> list[ValueRef] {
+    gvs = mod.global_variables;
+    assert isinstance(gvs, Iterator);
+    return list(gvs);
+}
+
+def _load_libc_module(libc_dir: str, triple: str) -> (ModuleRef | None) {
+    import jaclang.compiler.passes.native.llvm.binding as llvm;
     parts = sorted(
         [
             f
@@ -82,16 +99,18 @@ def _load_libc_module(llvm: object, libc_dir: str, triple: str) -> object {
     newest = max(( os.path.getmtime(os.path.join(libc_dir, f)) for f in parts ));
     if os.path.isfile(merged_path) and os.path.getmtime(merged_path) >= newest {
         with open(merged_path, "rb") as f {
-            merged = llvm.parse_bitcode(f.read());
+            cached = llvm.parse_bitcode(f.read());
         }
-        merged.triple = triple;
-        return merged;
+        assert isinstance(cached, llvm.ModuleRef);
+        cached.triple = triple;
+        return cached;
     }
-    merged = None;
+    merged: (ModuleRef | None) = None;
     for f in parts {
         with open(os.path.join(libc_dir, f), "rb") as fh {
             part = llvm.parse_bitcode(fh.read());
         }
+        assert isinstance(part, llvm.ModuleRef);
         part.triple = triple;
         if merged is None {
             merged = part;
@@ -99,9 +118,21 @@ def _load_libc_module(llvm: object, libc_dir: str, triple: str) -> object {
             merged.link_in(part);
         }
     }
+    assert merged is not None;
     try {
-        with open(merged_path, "wb") as f {
-            f.write(merged.as_bitcode());
+        import tempfile;
+        (tmp_fd, tmp_path) = tempfile.mkstemp(dir=libc_dir, suffix=".merged.tmp");
+        try {
+            with os.fdopen(tmp_fd, "wb") as f {
+                bitcode = merged.as_bitcode();
+                assert isinstance(bitcode, bytes);
+                f.write(bitcode);
+            }
+            os.replace(tmp_path, merged_path);
+        } except OSError {
+            try {
+                os.unlink(tmp_path);
+            } except OSError { }
         }
     } except OSError { }
     return merged;
@@ -138,7 +169,7 @@ glob _LATE_BOUND: set = {
 
      },
      _BACKEND_BOUND: set = {"memcpy", "memmove", "memset", "__multi3"},
-     _ABI64_ADAPTED: set = {
+     _ABI64_ADAPTED: set[str] = {
          "strlen",
          "malloc",
          "calloc",
@@ -159,10 +190,13 @@ def _rebuild_hint(libc_dir: str) -> str {
     if _is_dev_libc_dir(libc_dir) {
         return "run `zig build vendor-wasm-libc` to rebuild it";
     }
-    return "reinstall jac, or point JAC_NATIVE_WASM_LIBC_DIR at a floor built " + "from this source tree";
+    return "reinstall jac, or point JAC_NATIVE_WASM_LIBC_DIR at a floor built "
+        + "from this source tree";
 }
 
-def _assert_abi64_adapters(needed: list[str], provided: set, libc_dir: str) -> None {
+def _assert_abi64_adapters(
+    needed: list[str], provided: set[str], libc_dir: str
+) -> None {
     missing = sorted(
         set(
             [
@@ -177,20 +211,22 @@ def _assert_abi64_adapters(needed: list[str], provided: set, libc_dir: str) -> N
     }
     adapters = ', '.join(['__jac64_' + nm for nm in missing]);
     raise RuntimeError(
-        f"vendored wasm libc at {libc_dir} is stale: the native floor " + f"rewrites {', '.join(
-            missing
-        )} to {adapters}, which the linked " + "bitcode does not define (see _ABI64_ADAPTED and " + "wasm_rt/jac_abi64.c). The adapters exist in source; the compiled " + f"bitcode predates them -- {_rebuild_hint(
-            libc_dir
-        )}."
+        f"vendored wasm libc at {libc_dir} is stale: the native floor "
+            + f"rewrites {', '.join(missing)} to {adapters}, which the linked "
+            + "bitcode does not define (see _ABI64_ADAPTED and "
+            + "wasm_rt/jac_abi64.c). The adapters exist in source; the compiled "
+            + f"bitcode predates them -- {_rebuild_hint(libc_dir)}."
     );
 }
 
-def _link_wasm_libc(mod: object, llvm: object) -> bool {
+def _link_wasm_libc(mod: ModuleRef) -> bool {
     libc_dir = _wasm_libc_dir();
     if libc_dir is None {
         import from jaclang.cli.console { console }
         console.warning(
-            "vendored wasm libc not found (run `zig build vendor-wasm-libc`); " + "libc symbols stay as raw env imports and the jac_host1 import " + "contract is NOT enforced"
+            "vendored wasm libc not found (run `zig build vendor-wasm-libc`); "
+                + "libc symbols stay as raw env imports and the jac_host1 import "
+                + "contract is NOT enforced"
         );
         return False;
     }
@@ -199,75 +235,75 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
         if _is_dev_libc_dir(libc_dir) {
             import from jaclang.cli.console { console }
             console.warning(
-                f"vendored wasm libc at {libc_dir} carries no {FLOOR_MANIFEST}, " + "so it cannot be checked against wasm_rt/; it predates the " + f"manifest -- {_rebuild_hint(
-                    libc_dir
-                )}."
+                f"vendored wasm libc at {libc_dir} carries no {FLOOR_MANIFEST}, "
+                    + "so it cannot be checked against wasm_rt/; it predates the "
+                    + f"manifest -- {_rebuild_hint(libc_dir)}."
             );
         }
     } elif drift {
-        shown = ', '.join(drift[0:4]) + (
-            f" (+{len(drift) - 4} more)" if len(drift) > 4 else ""
-        );
+        shown = ', '.join(drift[0:4])
+            + (f" (+{len(drift) - 4} more)" if len(drift) > 4 else "");
         raise RuntimeError(
-            f"vendored wasm libc at {libc_dir} was built from different " + f"wasm_rt sources than this tree: {shown}. Linking it would fold " + "the old floor into the module and ship behaviour that no longer " + f"matches the source -- {_rebuild_hint(
-                libc_dir
-            )}."
+            f"vendored wasm libc at {libc_dir} was built from different "
+                + f"wasm_rt sources than this tree: {shown}. Linking it would fold "
+                + "the old floor into the module and ship behaviour that no longer "
+                + f"matches the source -- {_rebuild_hint(libc_dir)}."
         );
     }
-    libc = _load_libc_module(llvm, libc_dir, mod.triple);
+    libc = _load_libc_module(libc_dir, str(mod.triple));
     if libc is None {
         return False;
     }
     import from jaclang.compiler.passes.native.wasm_host_abi { WASM_HOST_ABI }
 
-    for fn in libc.functions {
+    for fn in _mod_functions(libc) {
         if not fn.is_declaration and fn.name in WASM_HOST_ABI {
             fn.linkage = "internal";
         }
     }
-    provided = set();
-    libc_sig = {};
-    for fn in libc.functions {
+    provided: set[str] = set();
+    libc_sig: dict[str, str] = {};
+    for fn in _mod_functions(libc) {
         if not fn.is_declaration {
-            provided.add(fn.name);
-            libc_sig[fn.name] = str(fn.global_value_type);
+            provided.add(str(fn.name));
+            libc_sig[str(fn.name)] = str(fn.global_value_type);
         }
     }
-    for gv in libc.global_variables {
+    for gv in _mod_globals(libc) {
         if not gv.is_declaration {
-            provided.add(gv.name);
+            provided.add(str(gv.name));
         }
     }
 
-    renames = [];
-    for fn in mod.functions {
+    renames: list[ValueRef] = [];
+    for fn in _mod_functions(mod) {
         if fn.is_declaration and fn.name in provided and fn.name not in WASM_HOST_ABI {
             if fn.name in _ABI64_ADAPTED {
                 renames.append(fn);
-            } elif str(fn.global_value_type) != libc_sig[fn.name] {
+            } elif str(fn.global_value_type) != libc_sig[str(fn.name)] {
                 raise RuntimeError(
-                    f"native floor declares '{fn.name}' as " + f"{str(
-                        fn.global_value_type
-                    )} but the vendored wasm32 " + f"libc defines {libc_sig[
-                        fn.name
-                    ]}; a mismatched direct " + "call traps on wasm — add a widening adapter to " + "wasm_rt/jac_abi64.c and _ABI64_ADAPTED"
+                    f"native floor declares '{fn.name}' as "
+                        + f"{str(fn.global_value_type)} but the vendored wasm32 "
+                        + f"libc defines {libc_sig[str(fn.name)]}; a mismatched "
+                        + "direct call traps on wasm — add a widening adapter to "
+                        + "wasm_rt/jac_abi64.c and _ABI64_ADAPTED"
                 );
             }
         }
     }
-    _assert_abi64_adapters([fn.name for fn in renames], provided, libc_dir);
+    _assert_abi64_adapters([str(fn.name) for fn in renames], provided, libc_dir);
     for fn in renames {
-        fn.name = "__jac64_" + fn.name;
+        fn.name = "__jac64_" + str(fn.name);
     }
     mod.link_in(libc);
-    for fn in mod.functions {
+    for fn in _mod_functions(mod) {
         if fn.name in provided
-        and not fn.is_declaration
-        and fn.name not in _LATE_BOUND {
+            and not fn.is_declaration
+            and fn.name not in _LATE_BOUND {
             fn.linkage = "internal";
         }
     }
-    for gv in mod.global_variables {
+    for gv in _mod_globals(mod) {
         if gv.name in provided and not gv.is_declaration {
             gv.linkage = "internal";
         }
@@ -275,11 +311,11 @@ def _link_wasm_libc(mod: object, llvm: object) -> bool {
     return True;
 }
 
-def _internalize_late_bound(mod: object) {
-    for fn in mod.functions {
+def _internalize_late_bound(mod: ModuleRef) {
+    for fn in _mod_functions(mod) {
         if fn.name in _LATE_BOUND
-        and fn.name not in _BACKEND_BOUND
-        and not fn.is_declaration {
+            and fn.name not in _BACKEND_BOUND
+            and not fn.is_declaration {
             fn.linkage = "internal";
         }
     }
@@ -298,17 +334,27 @@ def emit_wasm_from_ir(
     llvm.initialize_all_asmprinters();
     mod = llvm.parse_assembly(llvm_ir_str);
     mod.verify();
-    libc_linked = _link_wasm_libc(mod, llvm);
-    tm = llvm.Target.from_triple("wasm32-unknown-unknown").create_target_machine(opt=2);
+    libc_linked = _link_wasm_libc(mod);
+    target = llvm.Target.from_triple("wasm32-unknown-unknown");
+    assert isinstance(target, llvm.Target);
+    tm = target.create_target_machine(opt=2);
+    assert isinstance(tm, llvm.TargetMachine);
     pto = llvm.create_pipeline_tuning_options(speed_level=2);
     pb = llvm.create_pass_builder(tm, pto);
-    pb.getModulePassManager().run(mod, pb);
+    assert isinstance(pb, llvm.PassBuilder);
+    mpm = pb.getModulePassManager();
+    assert isinstance(mpm, llvm.ModulePassManager);
+    mpm.run(mod, pb);
     if libc_linked {
         _internalize_late_bound(mod);
         pb2 = llvm.create_pass_builder(tm, pto);
-        pb2.getModulePassManager().run(mod, pb2);
+        assert isinstance(pb2, llvm.PassBuilder);
+        mpm2 = pb2.getModulePassManager();
+        assert isinstance(mpm2, llvm.ModulePassManager);
+        mpm2.run(mod, pb2);
     }
     obj_bytes = tm.emit_object(mod);
+    assert isinstance(obj_bytes, bytes);
     if not libc_linked {
         return WasmLinker.link(obj_bytes, export_funcs, 256);
     }
@@ -357,18 +403,15 @@ def wasm_import_map(wasm_bytes: bytes) -> dict {
     return out;
 }
 
-def app_declared_imports(ir_module: object) -> set {
-    names = set();
-    gen = ir_module?.gen;
-    if gen is None {
-        return names;
-    }
-    sym_lib = gen?._clib_symbol_lib;
+def app_declared_imports(ir_module: UniModule) -> set[str] {
+    names: set[str] = set();
+    gen = ir_module.gen;
+    sym_lib = gen._clib_symbol_lib;
     if sym_lib {
         names.update(sym_lib.keys());
     }
-    manifest = gen?.interop_manifest;
-    bindings = manifest?.bindings if manifest else None;
+    manifest = gen.interop_manifest;
+    bindings = manifest.bindings if manifest else None;
     if bindings {
         names.update(bindings.keys());
     }
@@ -383,7 +426,7 @@ def _project_gc_settings -> tuple[str, list[str], list[str]] {
         import from jaclang.project { get_config }
         cfg = get_config();
         if cfg {
-            gc_mode = cfg.gc.default;
+            gc_mode = cfg.gc.`default;
             enf_mods = list(cfg.gc.enforce.modules);
             enf_grand = list(cfg.gc.enforce.grandfathered);
         }
@@ -407,38 +450,43 @@ def _assert_ir_rc_free(llvm_ir_str: str, file_path: str) {
     }
     if syms or probes {
         raise RuntimeError(
-            f"'{os.path.basename(file_path)}' compiled under [gc] default =" + " \"none\" but its IR still carries RC machinery (" + ", ".join(
-                sorted(syms) + probes
-            ) + "); add the module to [gc.enforce] modules so the ownership" + " checker reports what re-enters the reference-counted world"
+            f"'{os.path.basename(file_path)}' compiled under [gc] default ="
+                + " \"none\" but its IR still carries RC machinery ("
+                + ", ".join(sorted(syms) + probes)
+                + "); add the module to [gc.enforce] modules so the ownership"
+                + " checker reports what re-enters the reference-counted world"
         );
     }
 }
 
 def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
     import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    import from jaclang.jac0core.compile_options {
+        CompileOptions,
+        push_native_target_env,
+        pop_native_target_env
+    }
+    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
     (gc_mode, enf_mods, enf_grand) = _project_gc_settings();
-    prev = os.environ.get("JAC_NATIVE_TARGET", None);
-    os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
+    prev = push_native_target_env("wasm32-unknown-unknown");
     auto_promote = True;
     try {
         prog = JacProgram();
-        na_census_begin();
+        na_coverage_begin();
         try {
             ir = prog.compile(
                 file_path=os.path.abspath(file_path),
                 options=CompileOptions(
                     aot_mode=True,
-                    type_check=False,
                     default_codespace=('native' if auto_promote else ''),
                     na_gc_mode=gc_mode,
                     nogc_enforce_modules=enf_mods,
-                    nogc_grandfathered=enf_grand
+                    nogc_grandfathered=enf_grand,
+                    native_target="wasm32-unknown-unknown"
                 )
             );
         } finally {
-            census = na_census_end();
+            coverage = na_coverage_end();
         }
         if prog.errors_had {
             first = prog.errors_had[0].pretty_print();
@@ -447,8 +495,10 @@ def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
             raise RuntimeError(f"{first}{suffix}");
         }
         if (ir is None) or (ir.gen.llvm_ir is None) {
-            rec = census.get(os.path.realpath(os.path.abspath(file_path)));
-            reason = "the module did not lower to native IR" + " (no demotion recorded; it likely compiled as a" + " non-native codespace)";
+            rec = coverage.get(os.path.realpath(os.path.abspath(file_path)));
+            reason = "the module did not lower to native IR"
+                + " (no demotion recorded; it likely compiled as a"
+                + " non-native codespace)";
             if rec {
                 code = f" [{rec['code']}]" if rec['code'] else '';
                 detail = f": {rec['detail']}" if rec['detail'] else '';
@@ -461,11 +511,7 @@ def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
         llvm_ir_str = str(ir.gen.llvm_ir);
         app_imports = app_declared_imports(ir);
     } finally {
-        if prev is None {
-            os.environ.pop("JAC_NATIVE_TARGET", None);
-        } else {
-            os.environ["JAC_NATIVE_TARGET"] = prev;
-        }
+        pop_native_target_env(prev);
     }
     if gc_mode == "none" {
         _assert_ir_rc_free(llvm_ir_str, file_path);

@@ -125,9 +125,11 @@ def:pub PodEnvPage -> JsxElement {
                             </td>
                             <td
                                 className={"py-1.5 pr-3 font-mono text-xs "
-                                + (
-                                    "text-muted" if en["shown"] else "text-faint italic"
-                                )}
+                                    + (
+                                        "text-muted"
+                                            if en["shown"]
+                                            else "text-faint italic"
+                                    )}
                             >
                                 {en["value"]}
                             </td>

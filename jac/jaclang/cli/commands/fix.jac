@@ -15,21 +15,21 @@ glob registry = get_registry();
         ),
         Arg.create(
             "paths",
-            kind=ArgKind.MULTI,
-            default=["."],
+            kind=ArgKind.MULTI_POSITIONAL,
+            `default=["."],
             help="Files or directories to migrate (default: current directory)"
         ),
         Arg.create(
             "dry-run",
             typ=bool,
-            default=False,
+            `default=False,
             short="",
             help="Report what would change without writing anything"
         ),
         Arg.create(
             "strip-only",
             typ=bool,
-            default=False,
+            `default=False,
             short="",
             help="Only strip markers and rename files; skip placement verification and jac.toml pin/route recording (for fixture trees)"
         ),

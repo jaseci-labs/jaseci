@@ -16,6 +16,7 @@ import tarfile;
 import tomllib;
 import zipfile;
 import json;
+import sys;
 import tempfile;
 import shutil;
 import from pathlib { Path }
@@ -43,8 +44,13 @@ import from jaclang.publish.builder { WheelBuilder }
 
 
 # Helpers --------------------------------------------------------------------------
+"""Identity helper: routes duck-typed values past the checker."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
 def sha256_b64(data: bytes) -> str {
-    b64 = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=");
+    b64 = _as_any(base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"="));
     return f"sha256={b64.decode('ascii')}";
 }
 
@@ -58,7 +64,13 @@ def scaffold_pkg(pkg_dir: Path, name: str = "mypkg") {
 def pkg_config_with_include(
     pkg_dir: Path, name: str = "mypkg", version: str = "1.0.0"
 ) -> JacConfig {
-    toml = '[project]\nname = "' + name + '"\nversion = "' + version + '"\nrequires-python = ">=3.11"\n\n[project.include]\npackages = ["' + name + '"]\n';
+    toml = '[project]\nname = "'
+        + name
+        + '"\nversion = "'
+        + version
+        + '"\nrequires-python = ">=3.11"\n\n[project.include]\npackages = ["'
+        + name
+        + '"]\n';
     cfg = JacConfig.from_toml_str(toml);
     cfg.project_root = pkg_dir;
     return cfg;
@@ -108,12 +120,13 @@ test "generate_metadata emits Classifier headers in order" {
         for l in meta.splitlines()
         if l.startswith("Classifier:")
     ];
-    assert lines == [
-        "Classifier: Programming Language :: Python :: 3",
-        "Classifier: License :: OSI Approved :: MIT License",
-        "Classifier: Framework :: Jac",
+    assert lines
+        == [
+            "Classifier: Programming Language :: Python :: 3",
+            "Classifier: License :: OSI Approved :: MIT License",
+            "Classifier: Framework :: Jac",
 
-    ];
+        ];
 }
 
 test "generate_metadata raises when package section missing" {
@@ -129,11 +142,11 @@ test "generate_metadata raises when package section missing" {
 # record --------------------------------------------------------------------------
 test "record_entry_from_bytes has correct sha256 and size" {
     data = b"hello jac";
-    entry = record_entry_from_bytes("pkg/main.jac", data);
-    assert entry.path == "pkg/main.jac";
-    assert entry.hash_value == sha256_b64(data);
-    assert entry.size == len(data);
-    assert "=" not in entry.hash_value[len("sha256="):];
+    `entry = record_entry_from_bytes("pkg/main.jac", data);
+    assert `entry.path == "pkg/main.jac";
+    assert `entry.hash_value == sha256_b64(data);
+    assert `entry.size == len(data);
+    assert "=" not in `entry.hash_value[len("sha256="):];
 }
 
 test "generate_record self-entry last with empty hash and unix line endings" {
@@ -207,7 +220,12 @@ test "collect_source_files gathers jac files and excludes build artifacts" {
         (pkg / "stale.pyc").write_bytes(bytes([0]));
         pycache = pkg / "__pycache__";
         pycache.mkdir();
-        (pycache / "main.cpython-312.pyc").write_bytes(bytes([0]));
+        (
+            pycache
+            / f"main.cpython-{sys.version_info.major}{sys.version_info.minor}.pyc"
+        ).write_bytes(
+            bytes([0])
+        );
         cfg = pkg_config_with_include(proj, "mypkg");
         files = collect_source_files(cfg, project_root=proj);
         paths = [sf.wheel_path for sf in files];
@@ -591,7 +609,11 @@ test "rewrite_imports repoints project imports and leaves stdlib alone" {
 
         };
         src = (
-            "from __future__ import annotations\n" + "import os\n" + "import helper\n" + "import helper as h\n" + "from helper import hi\n"
+            "from __future__ import annotations\n"
+            + "import os\n"
+            + "import helper\n"
+            + "import helper as h\n"
+            + "from helper import hi\n"
         );
         out = rewrite_imports(src, proj / "main.jac", module_map);
         assert "import os\n" in out;
@@ -614,7 +636,8 @@ test "WheelBuilder rewrites sibling imports so the installed wheel imports clean
             "def helper_fn() -> int {\n    return 7;\n}\n"
         );
         (proj / "main.jac").write_text(
-            "import helper;\n\ndef use() -> int {\n" + "    return helper.helper_fn();\n}\n"
+            "import helper;\n\ndef use() -> int {\n"
+                + "    return helper.helper_fn();\n}\n"
         );
         cfg = JacConfig.from_toml_str(
             '[project]\nname = "puredemo"\nversion = "0.1.0"\n'
@@ -631,7 +654,8 @@ test "WheelBuilder rewrites sibling imports so the installed wheel imports clean
             [
                 sys.executable,
                 "-c",
-                f"import sys; sys.path.insert(0, {str(site)!r}); " + "import puredemo.main as m; print(m.use())",
+                f"import sys; sys.path.insert(0, {str(site)!r}); "
+                    + "import puredemo.main as m; print(m.use())",
 
             ],
             capture_output=True,
@@ -672,7 +696,8 @@ test "WheelBuilder vendors the jac runtime when transpiled code needs it" {
     try {
         proj = Path(tmpdir);
         (proj / "main.jac").write_text(
-            "node Thing {\n    has n: int = 1;\n}\n\n" + "def use() -> int {\n    return Thing().n;\n}\n"
+            "node Thing {\n    has n: int = 1;\n}\n\n"
+                + "def use() -> int {\n    return Thing().n;\n}\n"
         );
         cfg = JacConfig.from_toml_str(
             '[project]\nname = "vendemo"\nversion = "0.1.0"\n'
@@ -692,6 +717,33 @@ test "WheelBuilder vendors the jac runtime when transpiled code needs it" {
         assert "_jac_use_vendored_runtime()" in init_py;
         assert top_level.strip() == "vendemo";
         assert builder.vendored_runtime_modules > 0;
+    } finally {
+        shutil.rmtree(tmpdir, ignore_errors=True);
+    }
+}
+
+test "WheelBuilder vendors the fixed-width runtime a sized-typed program needs" {
+    tmpdir = tempfile.mkdtemp();
+    try {
+        proj = Path(tmpdir);
+        (proj / "main.jac").write_text(
+            "obj Pixel {\n    has r: u8 = 200;\n}\n\n"
+                + "def bump(p: Pixel) -> u8 {\n    return wrapping_add(p.r, 100);\n}\n"
+        );
+        cfg = JacConfig.from_toml_str(
+            '[project]\nname = "sizeddemo"\nversion = "0.1.0"\n'
+        );
+        cfg.project_root = proj;
+        builder = WheelBuilder(config=cfg, project_root=proj);
+        data = builder.build();
+        with zipfile.ZipFile(io.BytesIO(data)) as zf {
+            names = zf.namelist();
+            assert "sizeddemo/_jac_vendor/jaclang/runtimelib/sized.py" in names;
+            assert "sizeddemo/_jac_vendor/jaclang/jac0core/scalars.py" in names;
+            main_py = zf.read("sizeddemo/main.py").decode("utf-8");
+        }
+        assert "jaclang.runtimelib.sized" in main_py , main_py;
+        assert "_fw_wrapping" in main_py , main_py;
     } finally {
         shutil.rmtree(tmpdir, ignore_errors=True);
     }
@@ -740,9 +792,8 @@ test "sdist build backend rebuilds the wheel with stdlib only" {
                 sys.executable,
                 "-I",
                 "-c",
-                "import sys; sys.path.insert(0, '.'); import _jac_build; " + f"print(_jac_build.build_wheel({str(
-                    out_dir
-                )!r}))",
+                "import sys; sys.path.insert(0, '.'); import _jac_build; "
+                    + f"print(_jac_build.build_wheel({str(out_dir)!r}))",
 
             ],
             capture_output=True,

@@ -13,25 +13,18 @@ impl _lookup_module_in_hub(path_key: str, hub: dict) -> (Module | None) {
 
 impl _ensure_js_generated(mod: Module, program: any) -> None {
     if mod and not mod.gen.js {
-        if id(mod) not in program._inferred_mods {
-            import from jaclang.jac0core.compiler { get_inference_sched }
-            _sched = get_inference_sched();
-            if _sched {
-                program.run_schedule(mod, _sched);
-                program._inferred_mods.add(id(mod));
-            }
-        }
         import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+        import from jaclang.jac0core.compiler { run_pass }
         _err_mark = len(program.errors_had);
-        _warn_mark = len(program.warnings_had);
-        EsastGenPass(ir_in=mod, prog=program);
+        run_pass(EsastGenPass, mod, program);
         if len(program.errors_had) > _err_mark {
-            import from jaclang.jac0core.placement_solver {
-                demote_client_pulled_elements
-            }
-            if demote_client_pulled_elements(mod, program, _err_mark, _warn_mark) {
-                EsastGenPass(ir_in=mod, prog=program);
-            }
+            _detail = '\n\n'.join(
+                _e.pretty_print() for _e in program.errors_had[_err_mark:]
+            );
+            raise ClientBundleError(
+                f"'{os.path.basename(mod.loc.mod_path or '')}' is used by client code "
+                f"but does not lower to the client:\n\n{_detail}"
+            );
         }
     }
 }
@@ -48,7 +41,7 @@ impl _prebuilt_bundle(module: ModuleType, source_path: Path) -> (ClientBundle | 
     if dist is None {
         return None;
     }
-    candidates = sorted(dist.glob('client.*.js'));
+    candidates = sorted(dist.`glob('client.*.js'));
     if not candidates {
         return None;
     }
@@ -84,7 +77,13 @@ impl ClientBundleBuilder.build(
         return prebuilt;
     }
     import from jaclang { JacRuntime as Jac }
-    mod = _lookup_module_in_hub(str(source_path), Jac.program.mod.hub);
+    program = Jac.program;
+    if program is None {
+        raise ClientBundleError(
+            f"No active Jac program; cannot build client bundle for '{source_path}'."
+        );
+    }
+    mod = _lookup_module_in_hub(str(source_path), program.mod.hub);
     if not mod {
         (_, mod) = self._compile_to_js(source_path);
     }
@@ -96,6 +95,10 @@ impl ClientBundleBuilder.build(
         }
     }
     signature = self._signature(bundle_paths);
+    emitted = self._emitted_digest();
+    if emitted {
+        signature = f"{signature}:{emitted}";
+    }
     cached = self._cache.get(module.__name__);
     if (not force and cached and (cached.signature == signature)) {
         return cached.bundle;
@@ -114,7 +117,7 @@ impl ClientBundleBuilder._extract_client_exports(
 impl ClientBundleBuilder._extract_client_globals(
     manifest: (ClientManifest | None), module: ModuleType
 ) -> dict[str, any] {
-    client_globals_map: dict[(str, Any)] = {};
+    client_globals_map: dict[(str, any)] = {};
     if manifest {
         for name in manifest.globals {
             if (name in manifest.globals_values) {
@@ -142,6 +145,11 @@ impl ClientBundleBuilder._compile_bundle(
 impl ClientBundleBuilder._compile_to_js(source_path: Path) -> tuple[str, Module] {
     import from jaclang { JacRuntime as Jac }
     program = Jac.program;
+    if program is None {
+        raise ClientBundleError(
+            f"No active Jac program; cannot compile '{source_path}' for client bundle."
+        );
+    }
     source_key = str(source_path);
     mod = _lookup_module_in_hub(source_key, program.mod.hub);
     if not mod {
@@ -158,6 +166,35 @@ impl ClientBundleBuilder._compile_to_js(source_path: Path) -> tuple[str, Module]
 
     _ensure_js_generated(mod, program);
     return ((mod.gen.js or ''), mod) if mod else ('', mod);
+}
+
+impl ClientBundleBuilder._emitted_digest -> str {
+    return '';
+}
+
+impl emitted_tree_digest(tree_root: Path) -> str {
+    if not tree_root.is_dir() {
+        return '';
+    }
+    hasher = hashlib.sha256();
+    found = False;
+    files = sorted(tree_root.rglob('*'));
+    for p in files {
+        if not p.is_file() or p.suffix not in ('.js', '.css') {
+            continue;
+        }
+        found = True;
+        hasher.update(str(p.relative_to(tree_root)).encode('utf-8'));
+        try {
+            hasher.update(p.read_bytes());
+        } except OSError {
+            hasher.update('?'.encode('utf-8'));
+        }
+    }
+    if not found {
+        return '';
+    }
+    return hasher.hexdigest();
 }
 
 impl ClientBundleBuilder._signature(paths: Iterable[Path]) -> str {

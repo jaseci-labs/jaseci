@@ -30,10 +30,10 @@ Here's a quick map from contribution type to the right part of the codebase:
 
 | I want to... | Look at... |
 |--------------|-----------|
-| Fix a compiler bug | `jac/jaclang/compiler/passes/main/` (Python target) |
+| Fix a compiler bug | `jac/jaclang/jac0core/` (front end, orchestrator, JCIR/Python-bytecode codegen in `jac0core/passes/`) + `compiler/passes/main/` (analysis passes) |
 | Add a language feature | `jac/jaclang/jac0core/` (AST) + `compiler/passes/` (all targets) |
 | Fix type checking | `jac/jaclang/compiler/type_system/` + `passes/main/type_checker_pass.jac` |
-| Work on native compilation | `jac/jaclang/compiler/passes/native/na_ir_gen_pass.impl/` |
+| Work on native compilation | `jac/jaclang/compiler/passes/native/na_ir_gen/` |
 | Work on JS compilation | `jac/jaclang/compiler/passes/ecmascript/` |
 | Improve the CLI | `jac/jaclang/cli/commands/` |
 | Fix a runtime bug | `jac/jaclang/runtimelib/` |
@@ -73,18 +73,18 @@ The most important files to know:
 
 - **`unitree.jac`** -- The unified AST that all backends share. If you're adding or changing syntax, you'll touch this.
 - **`compiler.jac`** -- The pass pipeline orchestrator. It defines schedules like `get_ir_gen_sched()` and `get_py_code_gen()` that chain passes together. This is the authoritative source for pass ordering.
-- **`jir.jac` / `jir_registry.jac`** -- The Jac Intermediate Representation and its node type registry. JIR is the serializable form of compiled modules.
+- **`jir.jac`** -- The JIR container: cached module bytecode plus typed sections (MTIR, placement, native objects), keyed by source content and the running compiler's identity. Trees are never persisted; they are working state, re-derived per process.
 - **`diagnostics.jac`** -- Error and warning reporting infrastructure.
 - **`modresolver.jac`** -- Module import and dependency resolution.
-- **`passes/`** -- Front-end passes: parsing (via Lark grammar), AST validation, symbol table construction, and declaration-implementation matching.
-- **`parser/`** -- The Lark grammar definition and lexer that parse Jac source into the initial AST.
+- **`passes/`** -- Front-end passes (AST validation, symbol table construction, declaration-implementation matching, annex weaving) plus the JCIR codegen passes for the Python target.
+- **`parser/`** -- A hand-written recursive-descent parser and lexer (`lexer.jac` / `parser.jac`) that turn Jac source into the initial AST -- there is no generated grammar. `.impl.jac` / `.test.jac` annexes are woven into the module during parsing (`merge_annex_into` from `passes/annex_weave.jac`). On sealed builds, a natively compiled copy of this parser and the early passes is the **default** compile route (see `prefix_flip.jac` and the [sealed native front end](../internals/compiler_architecture.md) notes); `JAC_PREFIX=off` forces the staged route.
 
 ### `compiler/` -- Multi-Target Compilation
 
 Jac compiles to **three targets** from the same unified AST:
 
 ```
-                            ┌─→ Python bytecode  (passes/main/)
+                            ┌─→ Python bytecode  (jac0core/passes/, via JCIR)
 Jac Source → unitree AST  ──┼─→ LLVM IR / native (passes/native/)
                             └─→ JavaScript        (passes/ecmascript/)
 ```
@@ -107,30 +107,39 @@ The compiler orchestrator in `jac0core/compiler.jac` defines several pass schedu
 4. `SemanticAnalysisPass` -- Resolve names, check imports, validate semantics
 5. `SemDefMatchPass` -- Link semantic definitions across modules
 6. `CFGBuildPass` -- Build control flow graphs for reachability and flow analysis
-7. `MTIRGenPass` -- Generate the mid-tier IR used by downstream passes
-8. `UniTreeEnrichPass` -- Annotate the AST with computed semantic information
+7. `MTIRGenPass` -- Generate the Meaning-Typed IR for `by llm` (scheduled unless MTIR generation is off)
+8. `JsxIntrinsicGuardPass` -- Reject raw HTML host tags per the project's client kind
+9. `PlacementApplyPass` -- Apply the placement solver's per-module seeding and fixpoint
 
-**Type checking** (`get_type_check_sched`, when enabled):
+On sealed builds the parser and the head of this schedule (through `CFGBuildPass`, plus `JsxIntrinsicGuardPass` for no-codegen shapes) run inside the natively compiled front-end artifact by default (`parse_with_prefix` in `jac0core/prefix_flip.jac`), and the executed head is trimmed off the staged schedule.
+
+**Analysis** (`get_analysis_sched` -- unconditional, runs on every compile; the only way to skip it is `--parse_only`):
 
 1. `TypeCheckPass` -- Infer and validate types
-2. `StaticAnalysisPass` -- Detect unreachable code, unused variables, etc.
-3. `UniTreeEnrichPass` -- Final enrichment with type information
+2. `StaticAnalysisPass` -- Unreachable code, unused variables, import refusals
+3. `AccessCheckPass` -- Access-modifier (`:pub`/`:protect`/`:priv`) enforcement
+4. `OwnershipCheckPass` -- Ownership and borrow analysis
+5. `NativeCapabilityCheckPass` -- Native-lowering eligibility facts
+6. `ClientCapabilityCheckPass` -- Client-lowering capability facts
+7. `PortabilityWarnPass` -- Portability warnings for JS-idiom violations
+8. `JacLintCheckPass` -- Lint rules
+
+**Boundary discovery** (`get_boundary_analysis_sched`): `BoundaryAnalysisPass`, `EndpointEffectPass` -- record cross-codespace call boundaries and endpoint effects before codegen.
 
 **Code generation** (`get_py_code_gen`):
 
-1. `InteropAnalysisPass` -- Analyze Python interop requirements
-2. `EsastGenPass` -- Generate JavaScript AST (for JS target)
-3. `NaIRGenPass` -- Generate LLVM IR (for native target)
-4. `NativeCompilePass` -- JIT-compile LLVM IR to machine code
-5. `PyastGenPass` -- Convert the unitree to a Python AST
-6. `PyJacAstLinkPass` -- Link the generated Python AST back to Jac source nodes
-7. `PyBytecodeGenPass` -- Compile the Python AST to bytecode
+1. `EsastGenPass` -- Generate the ESTree AST (for the JS target)
+2. `RcFactsPass` -- Stamp reference-count facts (native schedule only)
+3. `NaIRGenPass` -- Generate LLVM IR (for the native target)
+4. `NativeCompilePass` -- Compile LLVM IR to object code
+5. `JcirGenPass` -- Lower the unitree into the compact codegen IR container (`jac0core/codegen_ir.jac`)
+6. `JcirBytecodeGenPass` -- Rebuild the Python AST from the container and compile it to CPython bytecode (the final Python-target artifact; `co_filename` is the `.jac` path)
 
 See `jac0core/compiler.jac` for the authoritative ordering -- it uses re-entrancy guards during bootstrap that slightly alter the schedule when the compiler is compiling itself.
 
 ### `compiler/passes/native/` -- Native Compilation
 
-The native backend generates LLVM IR via `llvmlite`. The main pass (`na_ir_gen_pass.jac`) delegates to implementation files in `na_ir_gen_pass.impl/`, each handling a different part of the language:
+The native backend generates LLVM IR through the in-tree LLVM binding at `compiler/passes/native/llvm/`, which drives the `libjacllvm` shared library (llvmlite is not used). `na_ir_gen_pass.jac` composes `NaIRGenPass` from the sibling modules under `na_ir_gen/`, each its own compilation unit handling a different part of the language (every `<name>.jac` declares its slice, `<name>.impl.jac` implements it, and shared emitter state lives on `NaIRGenState` in `state.jac`):
 
 | File | What it covers |
 |------|---------------|
@@ -157,8 +166,8 @@ The CLI is organized as a command abstraction in `command.jac` with command grou
 This is what Jac programs depend on at execution time. The key modules:
 
 - **`builtin.jac`** -- Builtin functions and types available in every Jac program.
-- **`memory.jac`** -- Memory management, including the shelved object store for graph persistence.
-- **`server.jac`** -- FastAPI-based HTTP server used by `jac start` to serve walkers as API endpoints.
+- **`store.jac`** -- Graph persistence: the `PgStore` anchor store over the embedded (or remote) Postgres, reached through the Jac-native wire-protocol client in `pgwire.jac`.
+- **`server.jac`** and **`serving/`** -- The Jac-native asyncio HTTP stack (`JacAPIServer` on top of `ServingServer`) used by `jac run` to serve walkers as API endpoints.
 - **`context.jac`** -- Execution context -- tracks the current graph root, walker state, and runtime configuration.
 - **`scheduler.jac`** -- Async task scheduling for concurrent walker execution.
 - **`testing.jac`** -- Test runner integration backing `jac test`.
@@ -181,7 +190,7 @@ Features that once shipped as separate plugin packages now live inside `jaclang`
 | Subsystem | What it adds |
 |--------|-------------|
 | `byllm` (`jac/jaclang/byllm/`) | LLM-powered functions -- annotate a function signature with a docstring and byLLM calls an LLM to implement it at runtime. `litellm` and other model deps are optional, pulled per-project via `[byllm]` config + `jac install`. |
-| `scale` (`jac/jaclang/scale/`) | Cloud deployment -- wraps `jac start` with FastAPI, adds Kubernetes deployment, Docker builds, MongoDB/Redis storage backends. Its optional deps are pulled per-project via `[scale.*]` config + `jac install`. |
+| `scale` (`jac/jaclang/scale/`) | Cloud deployment -- builds on the runtime's serving stack and Postgres store, adds Kubernetes deployment, Docker builds, auth/identity, and observability. Its optional deps are pulled per-project via `[scale.*]` config + `jac install`. |
 | client framework (`jac/jaclang/runtimelib/client/`) | Full-stack web, desktop, and mobile -- compiles `.jac` to JavaScript, bundles with Vite, and hosts desktop webview apps. |
 | MCP server (`jac/jaclang/cli/mcp/`) | `jac mcp` -- exposes the live Jac compiler and project to AI coding assistants. See the [MCP reference](../reference/mcp.md). |
 
@@ -206,15 +215,18 @@ tests/
 **Running tests:**
 
 ```bash
-# All tests (parallel)
-pytest jac -n auto
+# All tests (parallel; worker count is sized from available memory)
+jac test jac/tests
 
 # Specific area
-pytest jac/tests/compiler -n auto
-pytest jac/tests/language -n auto
+jac test jac/tests/compiler
+jac test jac/tests/language
 
 # Single test file
-pytest jac/tests/compiler/passes/test_type_checker.py -v
+jac test jac/tests/compiler/test_compilation.jac -v
+
+# Pin the worker count (0 or 1 runs everything in one process)
+JAC_TEST_JOBS=8 jac test jac/tests
 ```
 
 Many language tests use **fixture files** -- small `.jac` programs in `fixtures/` directories that exercise specific features. The `fixtures_list.jac` file registers them. When you add a new language feature or fix a bug, adding a fixture test is usually the right move.
@@ -266,7 +278,7 @@ GitHub Actions workflows in `.github/workflows/`:
 | `ci.yml` | All PR/push checks: builds the `jac` binary once, then fans out the full test suite, client/scale jobs, lint + format enforcement, docs validation, contribution checks, and the installer/k8s e2e jobs (path-gated) |
 | `release.yml` | The release lifecycle: version-bump PRs, and on merge the tag + GitHub Release + binary publish (human-approved) |
 | `build-binaries.yml` | Builds the per-platform native `jac` binaries and attaches them to a release |
-| `release-dev.yml` | Rolling `dev` prerelease binaries on every push to main |
+| `release-dev.yml` | Rolling `dev` prerelease binaries, rebuilt nightly from main |
 | `nightly.yml` | Cron canaries: notes-app CEF smoke and the live-release installer check |
 
 Local git hooks come from `jac precommit --install`: a pre-commit hook that formats and lints staged `.jac` files, and a commit-msg hook that blocks AI co-author attribution. Markdown lint and the em-dash ban run on every PR via pre-commit.ci (`.pre-commit-config.yaml`).

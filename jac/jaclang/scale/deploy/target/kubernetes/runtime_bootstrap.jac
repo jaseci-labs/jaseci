@@ -21,7 +21,7 @@ def build_service_apt_prefix(k8s_config: KubernetesConfig) -> str {
     import re;
     valid = re.compile(r"^[a-z0-9][a-z0-9.+\-]*$");
     for pkg in packages {
-        if not valid.match(pkg) {
+        if not valid.`match(pkg) {
             raise ValueError(
                 f"[dependencies.system] package name {pkg!r} is not a valid "
                 "Debian package name (allowed characters: a-z 0-9 . + -)."
@@ -127,7 +127,7 @@ def runtime_container_env -> list[dict[str, str]] {
 
 
 def build_bootstrap_init_container(
-    k8s_config: KubernetesConfig, base_image: str, is_gateway: bool = True
+    k8s_config: KubernetesConfig, base_image: str
 ) -> dict[str, any] {
     import from jaclang.scale.injector.binary { OFFICIAL_IMAGE }
     prefer_image_binary = base_image.startswith(f"{OFFICIAL_IMAGE}:experimental-");
@@ -150,16 +150,7 @@ def build_bootstrap_init_container(
 
     commands.append(f'export PIP_PREFIX="{APP_MOUNT_PATH}/.jac/venv"');
 
-    if not is_gateway {
-        commands.append("export JAC_CLIENT_SKIP_NPM_INSTALL=1");
-    } else {
-        commands.append(
-            'if [ -f .jac/client/dist/index.html ]; then echo "[jac-scale] '
-            'prebuilt client dist found; skipping the npm closure"; '
-            "export JAC_CLIENT_SKIP_NPM_INSTALL=1; else echo \"[jac-scale] no "
-            'prebuilt client dist; full install"; fi'
-        );
-    }
+    commands.append("export JAC_CLIENT_SKIP_NPM_INSTALL=1");
 
     vendor_wheels = f"{APP_MOUNT_PATH}/_vendor/wheels";
     commands.append(

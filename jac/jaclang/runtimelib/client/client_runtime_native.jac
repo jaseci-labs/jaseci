@@ -111,9 +111,12 @@ async def:pub __removeLocalStorageAsync(key: str) -> None;
 async def:pub __primeNativeTokenCache -> None;
 def:pub __ensureNativeTokenPrimed -> any;
 
-def:pub AuthGuard(redirect: str = "/login") -> JsxElement;
+def:pub AuthGuard(
+    redirect: str = "/login", children: any = None
+) -> (JsxElement | None);
+
 def:pub ErrorFallback(error: any, resetErrorBoundary: any) -> JsxElement;
 def:pub errorOverlay(filePath: str, errors: str) -> JsxElement;
-def:pub JacForm(props: dict) -> JsxElement;
+def:pub JacForm(props: dict[str, any]) -> JsxElement;
 def:pub __jacInstallErrorHandlers -> None;
 def:pub __jacWirePlatformAdapters -> None;

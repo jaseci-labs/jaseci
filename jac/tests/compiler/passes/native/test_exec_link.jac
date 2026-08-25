@@ -26,7 +26,7 @@ def _compile_ir(fixture: str, triple: str) -> str {
         prog = JacProgram();
         ir = prog.compile(
             file_path=os.path.join(FIXTURES, fixture),
-            options=CompileOptions(aot_mode=True, type_check=False)
+            options=CompileOptions(aot_mode=True)
         );
         assert not prog.errors_had , f"compile errors: {[
             str(e) for e in prog.errors_had
@@ -101,9 +101,15 @@ def _inject_macho(ir_txt: str) -> str {
     globals_ir = ""
         if "__jac_argc" in ir_txt
         else "@__jac_argc = global i32 0\n@__jac_argv = global ptr null\n\n";
-    return ir_txt + (
-        "\n; --- injected entry point ---\n" + globals_ir + "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n" + "    store i32 %argc, ptr @__jac_argc\n" + "    store ptr %argv, ptr @__jac_argv\n" + "    call void @jac_entry()\n    ret i32 0\n}\n"
-    );
+    return ir_txt
+        + (
+            "\n; --- injected entry point ---\n"
+            + globals_ir
+            + "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n"
+            + "    store i32 %argc, ptr @__jac_argc\n"
+            + "    store ptr %argv, ptr @__jac_argv\n"
+            + "    call void @jac_entry()\n    ret i32 0\n}\n"
+        );
 }
 
 

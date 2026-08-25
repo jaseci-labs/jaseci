@@ -1,13 +1,16 @@
-"""Compilation tests – migrated from test_pyast_gen_pass.py and test_language.py.
+"""Compilation tests – migrated from the emitter and language suites.
 
 These tests verify that the Jac compiler can successfully compile various
 fixture files without errors, and test compilation-level behaviour.
 """
 
 import os;
+import from jaclang.jac0core.treeprinter { print_ast_tree }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.passes.tool.jac_formatter_pass { format_module }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.cli.commands { analysis }
 
 glob EXAMPLES = os.path.join(JAC_ROOT, "examples"),
@@ -76,17 +79,17 @@ test "arith precedence" {
 
 test "double format issue" {
     prog = JacProgram().compile("with entry {print(hello);}", "test.jac");
-    prog.unparse();
-    before = prog.format();
-    prog.format();
-    prog.format();
-    after = prog.format();
+    unparse_module(prog);
+    before = format_module(prog);
+    format_module(prog);
+    format_module(prog);
+    after = format_module(prog);
     assert before == after;
 }
 
 test "multiline single tok" {
     mypass = JacProgram().compile(os.path.join(LANG_FIXTURES, "byllmissue.jac"));
-    assert "2:5 - 4:8" in mypass.pp();
+    assert "2:5 - 4:8" in print_ast_tree(mypass);
 }
 
 test "annotation tuple issue" {

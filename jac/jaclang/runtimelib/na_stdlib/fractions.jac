@@ -73,7 +73,7 @@ obj:pub Fraction {
 
     def __eq__(other: Fraction) -> bool {
         return self.numerator == other.numerator
-        and self.denominator == other.denominator;
+            and self.denominator == other.denominator;
     }
 
     def __lt__(other: Fraction) -> bool {

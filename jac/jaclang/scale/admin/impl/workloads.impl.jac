@@ -2,10 +2,10 @@ import os;
 import time;
 import math;
 import logging;
-import from fastapi { Request }
-import from starlette.concurrency { run_in_threadpool }
+import from jaclang.runtimelib.serving.datatypes { Request }
+import asyncio;
 import from jaclang.runtimelib.transport { TransportResponse, Meta }
-import from jaclang.scale.jserver.jserver {
+import from jaclang.runtimelib.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -25,11 +25,11 @@ import from jaclang.scale.admin.workload_helpers {
 
 glob logger = logging.getLogger(__name__);
 
-def _index_by(rows: list, label: str, as_int: bool = False) -> dict {
-    out: dict = {};
-    for entry in rows {
-        key = entry.get("metric", {}).get(label, "");
-        v = entry.get("value", [0, "0"]);
+def _index_by(rows: list, label: str, as_int: bool = False) -> dict[str, float] {
+    out: dict[str, float] = {};
+    for `entry in rows {
+        key = `entry.get("metric", {}).get(label, "");
+        v = `entry.get("value", [0, "0"]);
         if key {
             val = float(v[1]) if len(v) > 1 else 0.0;
             if not math.isfinite(val) {
@@ -107,11 +107,16 @@ def _unavailable_reason -> str {
 }
 
 impl JacAPIServerWorkloads.register_workloads_endpoints -> None {
+    server = self.server;
+    if server is None {
+        return;
+    }
+
     async def summary_handler(request: Request) -> TransportResponse {
         authorization = request.headers.get('Authorization');
-        return await run_in_threadpool(self.admin_workloads_summary, authorization);
+        return await asyncio.to_thread(self.admin_workloads_summary, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/workloads',
@@ -125,9 +130,9 @@ impl JacAPIServerWorkloads.register_workloads_endpoints -> None {
     );
     async def list_handler(request: Request) -> TransportResponse {
         authorization = request.headers.get('Authorization');
-        return await run_in_threadpool(self.admin_workloads_list, authorization);
+        return await asyncio.to_thread(self.admin_workloads_list, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/workloads/list',
@@ -141,9 +146,9 @@ impl JacAPIServerWorkloads.register_workloads_endpoints -> None {
     );
     async def pods_handler(request: Request) -> TransportResponse {
         authorization = request.headers.get('Authorization');
-        return await run_in_threadpool(self.admin_workloads_pods, authorization);
+        return await asyncio.to_thread(self.admin_workloads_pods, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/workloads/pods',
@@ -159,11 +164,11 @@ impl JacAPIServerWorkloads.register_workloads_endpoints -> None {
         request: Request, range_minutes: int = 60
     ) -> TransportResponse {
         authorization = request.headers.get('Authorization');
-        return await run_in_threadpool(
+        return await asyncio.to_thread(
             self.admin_workloads_timeseries, range_minutes, authorization
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/workloads/timeseries',
@@ -173,9 +178,9 @@ impl JacAPIServerWorkloads.register_workloads_endpoints -> None {
                     name='range_minutes',
                     data_type='integer',
                     required=False,
-                    default=60,
+                    default_value=60,
                     description='Range in minutes (60=1h, 360=6h, 1440=24h, 10080=7d)',
-                    type=ParameterType.QUERY
+                    kind=ParameterType.QUERY
                 )
             ],
             response_model=None,
@@ -297,28 +302,28 @@ impl JacAPIServerWorkloads.admin_workloads_list(
     }
     dep_desired = prom_query(_scoped('kube_deployment_spec_replicas', ns_filter)) or [];
     sts_ready = prom_query(_scoped('kube_statefulset_status_replicas_ready', ns_filter))
-    or [];
+        or [];
     sts_desired = prom_query(_scoped('kube_statefulset_replicas', ns_filter)) or [];
     ds_ready = prom_query(_scoped('kube_daemonset_status_number_available', ns_filter))
-    or [];
+        or [];
     ds_desired = prom_query(
         _scoped('kube_daemonset_status_desired_number_scheduled', ns_filter)
     )
-    or [];
+        or [];
     cpu_by_pod = prom_query(
         f'sum(rate(container_cpu_usage_seconds_total{{pod=~".+",container!=""{ns_and}}}[5m])) by (pod)'
     )
-    or [];
+        or [];
     mem_by_pod = prom_query(
         f'sum(container_memory_working_set_bytes{{pod=~".+",container!=""{ns_and}}}) by (pod)'
     )
-    or [];
+        or [];
     restarts_by_pod = prom_query(
         f'sum(increase(kube_pod_container_status_restarts_total{{{ns_filter}}}[1h])) by (pod)'
             if ns_filter
             else 'sum(increase(kube_pod_container_status_restarts_total[1h])) by (pod)'
     )
-    or [];
+        or [];
     dep_created = prom_query(_scoped('kube_deployment_created', ns_filter)) or [];
     sts_created = prom_query(_scoped('kube_statefulset_created', ns_filter)) or [];
     ds_created = prom_query(_scoped('kube_daemonset_created', ns_filter)) or [];
@@ -332,9 +337,9 @@ impl JacAPIServerWorkloads.admin_workloads_list(
 
     entries: list = [];
     wl_names: list = [];
-    for entry in dep_available_raw {
-        m = entry.get("metric", {});
-        v = entry.get("value", [0, "0"]);
+    for `entry in dep_available_raw {
+        m = `entry.get("metric", {});
+        v = `entry.get("value", [0, "0"]);
         name = m.get("deployment", "");
         if not name {
             continue;
@@ -351,9 +356,9 @@ impl JacAPIServerWorkloads.admin_workloads_list(
         );
         wl_names.append(name);
     }
-    for entry in sts_ready {
-        m = entry.get("metric", {});
-        v = entry.get("value", [0, "0"]);
+    for `entry in sts_ready {
+        m = `entry.get("metric", {});
+        v = `entry.get("value", [0, "0"]);
         name = m.get("statefulset", "");
         if not name {
             continue;
@@ -370,9 +375,9 @@ impl JacAPIServerWorkloads.admin_workloads_list(
         );
         wl_names.append(name);
     }
-    for entry in ds_ready {
-        m = entry.get("metric", {});
-        v = entry.get("value", [0, "0"]);
+    for `entry in ds_ready {
+        m = `entry.get("metric", {});
+        v = `entry.get("value", [0, "0"]);
         name = m.get("daemonset", "");
         if not name {
             continue;
@@ -393,49 +398,49 @@ impl JacAPIServerWorkloads.admin_workloads_list(
     cpu_by_owner: dict = {};
     mem_by_owner: dict = {};
     restarts_by_owner: dict = {};
-    for entry in cpu_by_pod {
-        pod = entry.get("metric", {}).get("pod", "");
-        v = entry.get("value", [0, "0"]);
+    for `entry in cpu_by_pod {
+        pod = `entry.get("metric", {}).get("pod", "");
+        v = `entry.get("value", [0, "0"]);
         owner = match_owner(pod, wl_names);
         cpu_by_owner[owner] = cpu_by_owner.get(owner, 0.0) + _finite(v);
     }
-    for entry in mem_by_pod {
-        pod = entry.get("metric", {}).get("pod", "");
-        v = entry.get("value", [0, "0"]);
+    for `entry in mem_by_pod {
+        pod = `entry.get("metric", {}).get("pod", "");
+        v = `entry.get("value", [0, "0"]);
         owner = match_owner(pod, wl_names);
         mem_by_owner[owner] = mem_by_owner.get(owner, 0.0) + _finite(v);
     }
-    for entry in restarts_by_pod {
-        pod = entry.get("metric", {}).get("pod", "");
-        v = entry.get("value", [0, "0"]);
+    for `entry in restarts_by_pod {
+        pod = `entry.get("metric", {}).get("pod", "");
+        v = `entry.get("value", [0, "0"]);
         owner = match_owner(pod, wl_names);
         restarts_by_owner[owner] = restarts_by_owner.get(owner, 0) + int(_finite(v));
     }
 
     tq = _traffic_queries();
-    svc_rps: dict = {};
-    svc_err: dict = {};
-    svc_p95: dict = {};
+    svc_rps: dict[str, float] = {};
+    svc_err: dict[str, float] = {};
+    svc_p95: dict[str, float] = {};
     if tq['by_service'] {
         svc_rps = _index_by(
             prom_query(
                 'sum by (service)(rate({__name__=~".+_gateway_requests_total"}[1m]))'
             )
-            or [],
+                or [],
             'service'
         );
         svc_err = _index_by(
             prom_query(
                 'sum by (service)(rate({__name__=~".+_gateway_requests_total",outcome=~"5xx|err"}[1m]))'
             )
-            or [],
+                or [],
             'service'
         );
         svc_p95 = _index_by(
             prom_query(
                 'histogram_quantile(0.95, sum by (service, le)(rate({__name__=~".+_gateway_request_duration_seconds_bucket"}[5m])))'
             )
-            or [],
+                or [],
             'service'
         );
     } else {
@@ -527,17 +532,17 @@ impl JacAPIServerWorkloads.admin_workloads_pods(
     cpu_by_pod = prom_query(
         f'sum(rate(container_cpu_usage_seconds_total{{pod=~".+",container!=""{ns_and}}}[5m])) by (pod)'
     )
-    or [];
+        or [];
     mem_by_pod = prom_query(
         f'sum(container_memory_working_set_bytes{{pod=~".+",container!=""{ns_and}}}) by (pod)'
     )
-    or [];
+        or [];
     restarts_by_pod = prom_query(
         f'sum(increase(kube_pod_container_status_restarts_total{{{ns_filter}}}[1h])) by (pod)'
             if ns_filter
             else 'sum(increase(kube_pod_container_status_restarts_total[1h])) by (pod)'
     )
-    or [];
+        or [];
     node_by_pod = prom_query(_scoped('kube_pod_info', ns_filter)) or [];
     started_by_pod = prom_query(_scoped('kube_pod_start_time', ns_filter)) or [];
 
@@ -546,8 +551,8 @@ impl JacAPIServerWorkloads.admin_workloads_pods(
     restarts = _index_by(restarts_by_pod, "pod");
     started = _index_by(started_by_pod, "pod");
     node_for: dict = {};
-    for entry in node_by_pod {
-        m = entry.get("metric", {});
+    for `entry in node_by_pod {
+        m = `entry.get("metric", {});
         pod = m.get("pod", "");
         node_name = m.get("node", "");
         if pod {
@@ -555,8 +560,8 @@ impl JacAPIServerWorkloads.admin_workloads_pods(
         }
     }
     pods: list = [];
-    for entry in phase_by_pod {
-        m = entry.get("metric", {});
+    for `entry in phase_by_pod {
+        m = `entry.get("metric", {});
         pod = m.get("pod", "");
         phase = m.get("phase", "Unknown");
         if not pod {
@@ -587,11 +592,11 @@ impl JacAPIServerWorkloads.admin_workloads_pods(
 
 def _rollup_range(rows: list, names: list) -> dict {
     out: dict = {};
-    for entry in rows {
-        pod = entry.get("metric", {}).get("pod", "");
+    for `entry in rows {
+        pod = `entry.get("metric", {}).get("pod", "");
         owner = match_owner(pod, names);
         series = out.get(owner, {});
-        for v in entry.get("values", []) {
+        for v in `entry.get("values", []) {
             if len(v) >= 2 {
                 try {
                     ts = float(v[0]);
@@ -691,7 +696,7 @@ impl JacAPIServerWorkloads.admin_workloads_timeseries(
         now,
         step
     )
-    or [];
+        or [];
     cpu_by_wl = _rollup_range(cpu_rows, names);
     mem_by_wl = _rollup_range(mem_rows, names);
     all_names = set();

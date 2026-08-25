@@ -23,7 +23,6 @@ import os;
 import re;
 import shutil;
 import subprocess;
-import pytest;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
@@ -36,6 +35,7 @@ import from jaclang.runtimelib.client_surface { with_runtime_globals }
 import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
 import from jaclang.runtimelib.client.bun_installer { get_bun }
 import from jaclang.runtimelib.solid_entry { build_pages_solid_entry_script }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures"),
      # Real npm deps. The solid-* / zod versions mirror the canonical Solid set in
@@ -77,7 +77,8 @@ for (const f of fs.readdirSync(".")) {
      # browser globals solid's DOM build needs BEFORE importing it, mount the
      # compiled component via `solid-js/web`'s `render`, and assert render +
      # reactivity. A plain (non-f) string so the JS `${}` / `{}` need no escaping.
-     _HARNESS: str = _BABEL_BUILD + """
+     _HARNESS: str = _BABEL_BUILD
+         + """
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM(
@@ -161,7 +162,8 @@ assert it actually renders + reacts through `babel-preset-solid` — the keyed
 comprehension produces three ordered `<li>` with no stray `key` DOM attribute, and
 the `show` signal toggle swaps the `<Show>` arm. A plain (non-f) string so the JS
 `${}`/`{}` need no escaping; the leading `_BABEL_BUILD` builds `component.src.jsx`."""
-glob _CONTROL_FLOW_HARNESS: str = _BABEL_BUILD + """
+glob _CONTROL_FLOW_HARNESS: str = _BABEL_BUILD
+         + """
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM(
@@ -252,7 +254,8 @@ path, `argv[3]` is `loggedIn`/`loggedOut`. A plain (non-f) string so JS `${}`/`{
 need no escaping. The leading `_BABEL_BUILD` step compiles every emitted
 `*.src.jsx` (pages, layout, runtime shim) to `*.js` via `babel-preset-solid`; the
 entry and route manifest carry no JSX, so their transform is a no-op."""
-glob _ROUTING_HARNESS: str = _BABEL_BUILD + """
+glob _ROUTING_HARNESS: str = _BABEL_BUILD
+         + """
 import { JSDOM } from "jsdom";
 
 const startUrl = process.argv[2] || "/";
@@ -351,7 +354,8 @@ submit flow: dirty → button enabled → click → onSubmit fires (sets
 `globalThis.__jacFormSubmitted`). A plain (non-f) string so JS `${}`/`{}`
 need no escaping; `_BABEL_BUILD` compiles every emitted `*.src.jsx` before any
 import."""
-glob _FORM_HARNESS: str = _BABEL_BUILD + """
+glob _FORM_HARNESS: str = _BABEL_BUILD
+         + """
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM(
@@ -622,7 +626,8 @@ process.exit(failures.length ? 1 : 0);
 Mounts three separate Solid apps in three root divs and asserts each scenario.
 A plain (non-f) string so JS `${}`/`{}` need no escaping; `_BABEL_BUILD` compiles
 every emitted `*.src.jsx` before any import."""
-glob _P2_HARNESS: str = _BABEL_BUILD + """
+glob _P2_HARNESS: str = _BABEL_BUILD
+         + """
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM(
@@ -767,7 +772,7 @@ process.exit(failures.length ? 1 : 0);
 """Skip unless the bun/npm client toolchain is opted in (mirrors preact e2e)."""
 def _require_client_integration {
     if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
+        testskip(
             "Solid jsdom test needs bun + a real npm install; "
             "set JAC_CLIENT_INTEGRATION=1 to run"
         );
@@ -784,7 +789,7 @@ def _compile_solid(path: str) -> str {
         if not issubclass(e.from_pass, TypeCheckPass)
     ];
     assert not fatal , f"compile errors in {path}: {[str(e) for e in fatal]}";
-    es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=SolidBackend());
+    es_pass = run_pass(EsastGenPass, ir, prog, backend=SolidBackend());
     return es_to_js(es_pass.ir_out.gen.es_ast);
 }
 
@@ -817,7 +822,7 @@ test "solid counter mounts and reacts in jsdom" {
     _require_client_integration();
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = SolidBackend();
@@ -891,7 +896,7 @@ test "solid native control flow (<For>/<Show>) renders + reacts in jsdom (Branch
     _require_client_integration();
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = SolidBackend();
@@ -958,7 +963,7 @@ test "solid file-based routing mounts, navigates, and guards in jsdom" {
     _require_client_integration();
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = SolidBackend();
@@ -1080,7 +1085,7 @@ test "solid JacForm renders and validates in jsdom (TanStack Form end-to-end)" {
     _require_client_integration();
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = SolidBackend();
@@ -1148,7 +1153,7 @@ test "solid P2 jsdom matrix: dynamic prop, ref e2e, and callback prop" {
     _require_client_integration();
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = SolidBackend();

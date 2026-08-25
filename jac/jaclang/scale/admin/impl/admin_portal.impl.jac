@@ -1,30 +1,39 @@
 import logging;
-import from collections.abc { Callable }
-import from fastapi { Request }
-import from fastapi.responses {
+import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.runtimelib.serving.datatypes {
+    FileResponse,
     HTMLResponse,
     JSONResponse,
-    Response,
-    FileResponse,
-    RedirectResponse
+    RedirectResponse,
+    Response
 }
 import mimetypes;
 import subprocess;
 import from pathlib { Path }
 import from jaclang.runtimelib.transport { TransportResponse, Meta }
 import from jaclang.runtimelib.server { JsonValue }
-import from jaclang.scale.jserver.jserver {
+import from jaclang.runtimelib.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
     ParameterType
 }
 import from jaclang.scale.config.config_loader { get_scale_config }
-import from jaclang.scale.identity.user_manager { UserRole }
+import from jaclang.scale.identity.user_manager { UserRole, JacScaleUserManager }
 import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.jac0core.constant { Constants as Con }
 
 glob logger = logging.getLogger(__name__);
+
+impl JacAPIServerAdmin._require_user_manager -> JacScaleUserManager {
+    manager = self.user_manager;
+    if manager is None {
+        raise RuntimeError(
+            "Admin portal is not attached to a server with a user manager"
+        );
+    }
+    return manager;
+}
 
 impl JacAPIServerAdmin.register_admin_endpoints -> None {
     admin_config = get_scale_config().get_admin_config();
@@ -35,7 +44,12 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
 
     self.bootstrap_admin();
 
-    self.server.add_endpoint(
+    server = self.server;
+    if server is None {
+        return;
+    }
+
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.POST,
             path='/admin/login',
@@ -45,17 +59,17 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='username',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Admin username',
-                    type=ParameterType.BODY
+                    kind=ParameterType.BODY
                 ),
                 APIParameter(
                     name='password',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Admin password',
-                    type=ParameterType.BODY
+                    kind=ParameterType.BODY
                 )
             ],
             response_model=None,
@@ -65,14 +79,14 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         )
     );
 
-    import from fastapi { Request }
+    import from jaclang.runtimelib.serving.datatypes { Request }
     async def reset_password_handler(
         request: Request, current_password: str, new_password: str
     ) -> TransportResponse {
         authorization = request.headers.get('Authorization');
         return self.reset_password(current_password, new_password, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.POST,
             path='/admin/reset-password',
@@ -82,17 +96,17 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='current_password',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Current password',
-                    type=ParameterType.BODY
+                    kind=ParameterType.BODY
                 ),
                 APIParameter(
                     name='new_password',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='New password',
-                    type=ParameterType.BODY
+                    kind=ParameterType.BODY
                 )
             ],
             response_model=None,
@@ -108,7 +122,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return self.admin_list_users(limit, offset, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/users',
@@ -118,17 +132,17 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='limit',
                     data_type='integer',
                     required=False,
-                    default=100,
+                    default_value=100,
                     description='Max users to return',
-                    type=ParameterType.QUERY
+                    kind=ParameterType.QUERY
                 ),
                 APIParameter(
                     name='offset',
                     data_type='integer',
                     required=False,
-                    default=0,
+                    default_value=0,
                     description='Offset for pagination',
-                    type=ParameterType.QUERY
+                    kind=ParameterType.QUERY
                 )
             ],
             response_model=None,
@@ -141,7 +155,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return self.admin_get_user(username, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/users/{username}',
@@ -151,9 +165,9 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='username',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Username to get',
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 )
             ],
             response_model=None,
@@ -168,7 +182,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return self.admin_create_user(username, password, role, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.POST,
             path='/admin/users',
@@ -178,25 +192,25 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='username',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Username for new user',
-                    type=ParameterType.BODY
+                    kind=ParameterType.BODY
                 ),
                 APIParameter(
                     name='password',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Password for new user',
-                    type=ParameterType.BODY
+                    kind=ParameterType.BODY
                 ),
                 APIParameter(
                     name='role',
                     data_type='string',
                     required=False,
-                    default='user',
+                    default_value='user',
                     description='Role for new user (admin, user)',
-                    type=ParameterType.BODY
+                    kind=ParameterType.BODY
                 )
             ],
             response_model=None,
@@ -216,7 +230,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
             username, role, requires_password_reset, authorization
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.PUT,
             path='/admin/users/{username}',
@@ -226,25 +240,25 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='username',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Username to update',
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 ),
                 APIParameter(
                     name='role',
                     data_type='string',
                     required=False,
-                    default=None,
+                    default_value=None,
                     description='New role (admin, user)',
-                    type=ParameterType.BODY
+                    kind=ParameterType.BODY
                 ),
                 APIParameter(
                     name='requires_password_reset',
                     data_type='boolean',
                     required=False,
-                    default=None,
+                    default_value=None,
                     description='Force password reset on next login',
-                    type=ParameterType.BODY
+                    kind=ParameterType.BODY
                 )
             ],
             response_model=None,
@@ -259,7 +273,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return self.admin_delete_user(username, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.DELETE,
             path='/admin/users/{username}',
@@ -269,9 +283,9 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='username',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Username to delete',
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 )
             ],
             response_model=None,
@@ -280,12 +294,45 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
             description='Delete a user (admin only)'
         )
     );
+    async def expire_legacy_credentials_handler(
+        request: Request, username: str | None = None
+    ) -> TransportResponse {
+        authorization = request.headers.get('Authorization');
+        return self.admin_expire_legacy_credentials(username, authorization);
+    }
+    server.add_endpoint(
+        JEndPoint(
+            method=HTTPMethod.POST,
+            path='/admin/users/expire-legacy-credentials',
+            callback=expire_legacy_credentials_handler,
+            parameters=[
+                APIParameter(
+                    name='username',
+                    data_type='string',
+                    required=False,
+                    default_value=None,
+                    description='Limit to one user; omit to sweep every account',
+                    kind=ParameterType.BODY
+                )
+            ],
+            response_model=None,
+            tags=['Admin'],
+            summary='Expire pre-scrypt credentials',
+            description=(
+                'Flag accounts whose stored password hash predates the 0.36 '
+                'scrypt migration (bcrypt format) as requiring a password '
+                'reset, so operators can drive the reset flow instead of '
+                'users silently failing to log in. Bulk by default; pass '
+                'username to target one account (admin only).'
+            )
+        )
+    );
 
     async def list_sso_providers_handler(request: Request) -> TransportResponse {
         authorization = request.headers.get('Authorization');
         return self.admin_list_sso_providers(authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/sso/providers',
@@ -303,7 +350,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return self.admin_get_user_sso_accounts(username, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/users/{username}/sso',
@@ -313,9 +360,9 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='username',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Username',
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 )
             ],
             response_model=None,
@@ -331,7 +378,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return self.admin_get_config(profile, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/config',
@@ -341,9 +388,9 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='profile',
                     data_type='string',
                     required=False,
-                    default='default',
+                    default_value='default',
                     description='Config profile (default, development, production)',
-                    type=ParameterType.QUERY
+                    kind=ParameterType.QUERY
                 )
             ],
             response_model=None,
@@ -358,7 +405,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return self.admin_update_config(content, profile, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.POST,
             path='/admin/config',
@@ -368,17 +415,17 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='content',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='TOML configuration content',
-                    type=ParameterType.BODY
+                    kind=ParameterType.BODY
                 ),
                 APIParameter(
                     name='profile',
                     data_type='string',
                     required=False,
-                    default='default',
+                    default_value='default',
                     description='Config profile (default, development, production)',
-                    type=ParameterType.QUERY
+                    kind=ParameterType.QUERY
                 )
             ],
             response_model=None,
@@ -394,7 +441,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return self.admin_graph_data(username, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/graph',
@@ -404,9 +451,9 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='username',
                     data_type='string',
                     required=False,
-                    default=None,
+                    default_value=None,
                     description='Username to view graph for (defaults to all users)',
-                    type=ParameterType.QUERY
+                    kind=ParameterType.QUERY
                 )
             ],
             response_model=None,
@@ -420,7 +467,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return self.admin_get_metrics(authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/metrics',
@@ -433,7 +480,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         )
     );
 
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin',
@@ -446,7 +493,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         )
     );
 
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/',
@@ -462,7 +509,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
     async def serve_admin_catchall_handler(request: Request, path: str) -> Response {
         return self.serve_admin_asset(path);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/{path:path}',
@@ -472,9 +519,9 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
                     name='path',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Asset path',
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 )
             ],
             response_model=None,
@@ -487,7 +534,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
 }
 
 impl JacAPIServerAdmin.bootstrap_admin -> None {
-    result = self.user_manager.bootstrap_admin_user();
+    result = self._require_user_manager().bootstrap_admin_user();
     if 'error' not in result {
         if 'created' in result.get('message', '').lower() {
             logger.warning(
@@ -503,11 +550,11 @@ impl JacAPIServerAdmin.validate_admin_token(Authorization: str | None) -> (str |
         return None;
     }
     token = Authorization[7:];
-    user_id = self.user_manager.validate_jwt_token(token);
+    user_id = self._require_user_manager().validate_jwt_token(token);
     if not user_id {
         return None;
     }
-    if not self.user_manager.is_admin(user_id) {
+    if not self._require_user_manager().is_admin(user_id) {
         return None;
     }
     return user_id;
@@ -548,7 +595,7 @@ impl JacAPIServerAdmin.admin_login(username: str, password: str) -> TransportRes
             meta=Meta(extra={'http_status': 400})
         );
     }
-    result = self.user_manager.authenticate(username, password);
+    result = self._require_user_manager().authenticate(username, password);
     if not result {
         return TransportResponse.fail(
             code='UNAUTHORIZED',
@@ -558,15 +605,15 @@ impl JacAPIServerAdmin.admin_login(username: str, password: str) -> TransportRes
     }
     user_id = result.get('user_id', '');
 
-    if not self.user_manager.is_admin(user_id) {
+    if not self._require_user_manager().is_admin(user_id) {
         return TransportResponse.fail(
             code='FORBIDDEN',
             message='Admin access required',
             meta=Meta(extra={'http_status': 403})
         );
     }
-    requires_reset = self.user_manager.requires_password_reset(user_id);
-    token = self.user_manager.create_jwt_token(user_id);
+    requires_reset = self._require_user_manager().requires_password_reset(user_id);
+    token = self._require_user_manager().create_jwt_token(user_id);
     return TransportResponse.success(
         data={
             'message': 'Login successful',
@@ -591,7 +638,7 @@ impl JacAPIServerAdmin.reset_password(
         );
     }
     token = Authorization[7:];
-    user_id = self.user_manager.validate_jwt_token(token);
+    user_id = self._require_user_manager().validate_jwt_token(token);
     if not user_id {
         return TransportResponse.fail(
             code='UNAUTHORIZED',
@@ -614,7 +661,9 @@ impl JacAPIServerAdmin.reset_password(
         );
     }
 
-    result = self.user_manager.update_password(user_id, current_password, new_password);
+    result = self._require_user_manager().update_password(
+        user_id, current_password, new_password
+    );
     if 'error' in result {
         return TransportResponse.fail(
             code='UPDATE_FAILED',
@@ -623,9 +672,9 @@ impl JacAPIServerAdmin.reset_password(
         );
     }
 
-    self.user_manager.set_requires_password_reset(user_id, False);
+    self._require_user_manager().set_requires_password_reset(user_id, False);
 
-    new_token = self.user_manager.create_jwt_token(user_id);
+    new_token = self._require_user_manager().create_jwt_token(user_id);
     return TransportResponse.success(
         data={'message': 'Password updated successfully', 'token': new_token},
         meta=Meta(extra={'http_status': 200})
@@ -639,7 +688,7 @@ impl JacAPIServerAdmin.admin_list_users(
     if error {
         return error;
     }
-    users = self.user_manager.list_all_users(limit, offset);
+    users = self._require_user_manager().list_all_users(limit, offset);
 
     for user in users {
         identities = user.get('identities', []);
@@ -666,7 +715,7 @@ impl JacAPIServerAdmin.admin_get_user(
     if error {
         return error;
     }
-    user = self.user_manager.get_user(username);
+    user = self._require_user_manager().get_user(username);
     if not user {
         return TransportResponse.fail(
             code='NOT_FOUND',
@@ -676,10 +725,10 @@ impl JacAPIServerAdmin.admin_get_user(
     }
     user_id = user.get('user_id', username);
 
-    role = self.user_manager.get_user_role(user_id);
-    requires_reset = self.user_manager.requires_password_reset(user_id);
-    is_pwd_required = self.user_manager.is_password_required(user_id);
-    sso_accounts = self.user_manager.get_sso_accounts(user_id);
+    role = self._require_user_manager().get_user_role(user_id);
+    requires_reset = self._require_user_manager().requires_password_reset(user_id);
+    is_pwd_required = self._require_user_manager().is_password_required(user_id);
+    sso_accounts = self._require_user_manager().get_sso_accounts(user_id);
     return TransportResponse.success(
         data={
             'username': username,
@@ -707,7 +756,7 @@ impl JacAPIServerAdmin.admin_create_user(
             meta=Meta(extra={'http_status': 400})
         );
     }
-    result = self.user_manager.create_user_as_admin(
+    result = self._require_user_manager().create_user_as_admin(
         username=username, password=password, role=role, requires_password_reset=True
     );
     if 'error' in result {
@@ -732,7 +781,7 @@ impl JacAPIServerAdmin.admin_update_user(
     if error {
         return error;
     }
-    user = self.user_manager.get_user(username);
+    user = self._require_user_manager().get_user(username);
     if not user {
         return TransportResponse.fail(
             code='NOT_FOUND',
@@ -743,7 +792,7 @@ impl JacAPIServerAdmin.admin_update_user(
     user_id = user.get('user_id', username);
     updates = [];
     if role is not None {
-        result = self.user_manager.set_user_role(user_id, role);
+        result = self._require_user_manager().set_user_role(user_id, role);
         if 'error' in result {
             return TransportResponse.fail(
                 code='UPDATE_FAILED',
@@ -754,7 +803,7 @@ impl JacAPIServerAdmin.admin_update_user(
         updates.append(f"role set to '{role}'");
     }
     if requires_password_reset is not None {
-        result = self.user_manager.set_requires_password_reset(
+        result = self._require_user_manager().set_requires_password_reset(
             user_id, requires_password_reset
         );
         if 'error' in result {
@@ -779,6 +828,26 @@ impl JacAPIServerAdmin.admin_update_user(
     );
 }
 
+impl JacAPIServerAdmin.admin_expire_legacy_credentials(
+    username: str | None = None, Authorization: str | None = None
+) -> TransportResponse {
+    error = self.require_admin(Authorization);
+    if error {
+        return error;
+    }
+    result = self._require_user_manager().expire_legacy_credentials(username);
+    if 'error' in result {
+        return TransportResponse.fail(
+            code='NOT_FOUND',
+            message=str(result.get('error', 'User not found')),
+            meta=Meta(extra={'http_status': 404})
+        );
+    }
+    return TransportResponse.success(
+        data=result, meta=Meta(extra={'http_status': 200})
+    );
+}
+
 impl JacAPIServerAdmin.admin_delete_user(
     username: str, Authorization: str | None = None
 ) -> TransportResponse {
@@ -786,9 +855,9 @@ impl JacAPIServerAdmin.admin_delete_user(
     if error {
         return error;
     }
-    user = self.user_manager.get_user(username);
+    user = self._require_user_manager().get_user(username);
     user_id = user.get('user_id', username) if user else username;
-    result = self.user_manager.delete_user(user_id);
+    result = self._require_user_manager().delete_user(user_id);
     if 'error' in result {
         return TransportResponse.fail(
             code='DELETE_FAILED',
@@ -854,7 +923,7 @@ impl JacAPIServerAdmin.admin_get_user_sso_accounts(
     if error {
         return error;
     }
-    user = self.user_manager.get_user(username);
+    user = self._require_user_manager().get_user(username);
     if not user {
         return TransportResponse.fail(
             code='NOT_FOUND',
@@ -863,7 +932,7 @@ impl JacAPIServerAdmin.admin_get_user_sso_accounts(
         );
     }
     user_id = user.get('user_id', username);
-    accounts = self.user_manager.get_sso_accounts(user_id);
+    accounts = self._require_user_manager().get_sso_accounts(user_id);
     return TransportResponse.success(
         data={'username': username, 'sso_accounts': accounts},
         meta=Meta(extra={'http_status': 200})
@@ -963,7 +1032,7 @@ impl JacAPIServerAdmin.admin_graph_data(
     }
     import from jaclang.runtimelib.utils { collect_node_connections }
     target_username = username or Con.GUEST.value;
-    root_id = self.user_manager.get_root_id(target_username);
+    root_id = self._require_user_manager().get_root_id(target_username);
     if not root_id {
         return JSONResponse(
             status_code=404,
@@ -1060,11 +1129,11 @@ impl JacAPIServerAdmin.admin_get_metrics(
     }
 }
 
-def _parse_prometheus_text(raw_metrics: str) -> list[dict] {
+def _parse_prometheus_text(raw_metrics: str) -> list[dict[str, any]] {
     import re;
 
-    metrics_data: list[dict] = [];
-    current_metric: dict | None = None;
+    metrics_data: list[dict[str, any]] = [];
+    current_metric: (dict[str, any] | None) = None;
     metric_line_re = re.compile(
         r'^([a-zA-Z_:][a-zA-Z0-9_:]*)((?:\{[^}]*\})?)[ \t]+(.+)$'
     );
@@ -1093,36 +1162,38 @@ def _parse_prometheus_text(raw_metrics: str) -> list[dict] {
         } elif line.startswith('#') {
             continue;
         } else {
-            regex_match = metric_line_re.match(line);
+            regex_match = metric_line_re.`match(line);
             if regex_match {
                 metric_name = regex_match.group(1);
                 labels_str = regex_match.group(2);
                 value_str = regex_match.group(3);
-                labels: dict = {};
+                labels: dict[str, str] = {};
                 if labels_str
-                and labels_str.startswith('{')
-                and labels_str.endswith('}') {
+                    and labels_str.startswith('{')
+                    and labels_str.endswith('}') {
                     for lm in label_re.finditer(labels_str[1:-1]) {
                         labels[lm.group(1)] = lm.group(2);
                     }
                 }
+                value: (float | str) = value_str;
                 try {
                     value = float(value_str);
                 } except ValueError {
                     value = value_str;
                 }
-                found_metric = None;
+                found_metric: (dict[str, any] | None) = None;
                 for m in metrics_data {
-                    if m['name'] == metric_name
-                    or metric_name.startswith(m['name'] + '_') {
+                    m_name: str = m['name'];
+                    if m_name == metric_name or metric_name.startswith(m_name + '_') {
                         found_metric = m;
                         break;
                     }
                 }
                 suffix = '';
                 if found_metric {
-                    if metric_name.startswith(found_metric['name']) {
-                        suffix = metric_name[len(found_metric['name']):];
+                    found_name: str = found_metric['name'];
+                    if metric_name.startswith(found_name) {
+                        suffix = metric_name[len(found_name):];
                     }
                     found_metric['values'].append(
                         {'labels': labels, 'value': value, 'suffix': suffix}
@@ -1143,7 +1214,7 @@ def _parse_prometheus_text(raw_metrics: str) -> list[dict] {
     return metrics_data;
 }
 
-def _calculate_metrics_summary(metrics_data: list[dict]) -> dict {
+def _calculate_metrics_summary(metrics_data: list[dict[str, any]]) -> dict {
     summary: dict = {
         'total_requests': 0,
         'active_requests': 0,
@@ -1175,7 +1246,7 @@ def _calculate_metrics_summary(metrics_data: list[dict]) -> dict {
                 if v['suffix'] == '_sum' and isinstance(v['value'], (int, float)) {
                     total_sum += v['value'];
                 } elif v['suffix'] == '_count'
-                and isinstance(v['value'], (int, float)) {
+                    and isinstance(v['value'], (int, float)) {
                     total_count += int(v['value']);
                 }
             }

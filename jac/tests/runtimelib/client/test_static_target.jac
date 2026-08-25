@@ -10,7 +10,6 @@ over `file://`, so inlining is what makes disk-open work.
 import os;
 import shutil;
 import tempfile;
-import pytest;
 import from pathlib { Path }
 import from subprocess { run }
 
@@ -100,7 +99,7 @@ test "static target is registered and resolvable" {
 
 """An explicit `kind = \"web-static\"` resolves to the static web project kind.
 
-This is the signal `jac build` / `jac start` key off to auto-route a
+This is the signal `jac build` / `jac run --serve` key off to auto-route a
 client-only project to the portable/static path without any --client flag.
 """
 test "web-static kind is detected from jac toml" {
@@ -175,14 +174,14 @@ test "client build renders from file protocol" {
     try {
         import from playwright.sync_api { sync_playwright }
     } except ImportError {
-        pytest.skip("playwright not installed");
+        testskip("playwright not installed");
     }
     import from .test_helpers { get_env_with_npm, get_jac_command }
 
     tests_dir = os.path.dirname(__file__);
     example_src = os.path.join(os.path.dirname(tests_dir), "examples", "basic");
     if not os.path.isdir(example_src) {
-        pytest.skip(f"basic example not found: {example_src}");
+        testskip(f"basic example not found: {example_src}");
     }
 
     with tempfile.TemporaryDirectory() as temp_dir {
@@ -208,17 +207,16 @@ test "client build renders from file protocol" {
             timeout=600,
         );
         if build.returncode != 0 {
-            pytest.skip(
-                f"client build unavailable in this environment:\n{build.stderr}"
-            );
+            testskip(f"client build unavailable in this environment:\n{build.stderr}");
         }
         index_html = Path(project_dir) / ".jac" / "client" / "dist" / "index.html";
         assert index_html.exists() , "portable index.html should be produced";
         html = index_html.read_text(encoding="utf-8");
         assert 'src="' not in html , "build should inline assets (no external src)";
         with sync_playwright() as p {
-            browser = p.chromium.launch(headless=True);
-            page = browser.new_context().new_page();
+            _pw: any = p;
+            browser: any = _pw.chromium.launch(headless=True);
+            page: any = browser.new_context().new_page();
             try {
                 page.goto(index_html.as_uri(), wait_until="load", timeout=60000);
                 page.wait_for_selector("h1", timeout=30000);

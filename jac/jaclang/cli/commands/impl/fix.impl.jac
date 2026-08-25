@@ -1,6 +1,6 @@
 import os;
 import from jaclang.cli.console { console }
-import from jaclang.jac0core.parser.tokens { Token }
+import from jaclang.jac0core.parser.tokens { LexToken }
 
 glob _ELEMENT_KEYWORDS: tuple = (
          'import',
@@ -70,7 +70,7 @@ def _is_string_kind(kind_str: str) -> bool {
 }
 
 
-def _dotted_target(tokens: list[Token], start: int) -> str {
+def _dotted_target(tokens: list[LexToken], start: int) -> str {
     parts: list[str] = [];
     j = start;
     while j < len(tokens) {
@@ -85,7 +85,7 @@ def _dotted_target(tokens: list[Token], start: int) -> str {
 }
 
 
-def _first_name_after(tokens: list[Token], start: int) -> str {
+def _first_name_after(tokens: list[LexToken], start: int) -> str {
     j = start;
     while j < len(tokens) and j < start + 8 {
         tok = tokens[j];
@@ -106,7 +106,7 @@ def _first_name_after(tokens: list[Token], start: int) -> str {
 
 
 def _collect_block_claims(
-    tokens: list[Token], body_start: int, body_end: int, space: str, res: StripResult
+    tokens: list[LexToken], body_start: int, body_end: int, space: str, res: StripResult
 ) {
     depth = 0;
     j = body_start;
@@ -133,8 +133,8 @@ def _collect_block_claims(
                     );
                 }
                 while j < body_end
-                and tokens[j].value != '{'
-                and tokens[j].value != ';' {
+                    and tokens[j].value != '{'
+                    and tokens[j].value != ';' {
                     j += 1;
                 }
                 continue;
@@ -231,8 +231,8 @@ def _strip_markers(src: str, file_path: str) -> StripResult {
                 edits.append((tok.loc.pos_start, nxt.loc.pos_start, ''));
                 if nxt.value == 'import' {
                     if space == 'server'
-                    and i + 2 < n
-                    and tokens[i + 2].value == 'from' {
+                        and i + 2 < n
+                        and tokens[i + 2].value == 'from' {
                         tgt = _dotted_target(tokens, i + 3);
                         if tgt {
                             res.sv_imports.append(tgt);
@@ -632,11 +632,11 @@ impl fix(
     for (old, new) in renamed {
         console.print(f"  rename: {old} -> {new}");
     }
-    for entry in pins_added {
-        console.print(f"  [placement.pins] {entry}");
+    for `entry in pins_added {
+        console.print(f"  [placement.pins] {`entry}");
     }
-    for entry in routes_added {
-        console.print(f"  [scale.microservices.routes] {entry}");
+    for `entry in routes_added {
+        console.print(f"  [scale.microservices.routes] {`entry}");
     }
     for msg in skipped {
         console.warning(f"  skipped: {msg}");

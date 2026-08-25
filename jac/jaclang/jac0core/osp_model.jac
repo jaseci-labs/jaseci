@@ -30,7 +30,7 @@ obj OspModel {
         order_index: dict[(str, int)] = field(default_factory=`dict),
         isa: dict[(str, list[str])] = field(default_factory=`dict),
         slots: list[OspSlot] = field(default_factory=`list),
-        collisions: list[(str, str)] = field(default_factory=`list),
+        collisions: list[tuple[str, str]] = field(default_factory=`list),
         uses_construct: bool = False;
 
     def has_event_ability -> bool {
@@ -114,7 +114,7 @@ obj OspAnalysis {
         if isinstance(cur, uni.Name) {
             return cur.value;
         }
-        if (cur is not None) and cur?.sym_name {
+        if isinstance(cur, uni.AstSymbolNode) and cur.sym_name {
             return cur.sym_name;
         }
         return None;
@@ -159,7 +159,7 @@ obj OspAnalysis {
         }
         for stmt in arch.body {
             if (not isinstance(stmt, uni.Ability))
-            or (not isinstance(stmt.signature, uni.EventSignature)) {
+                or (not isinstance(stmt.signature, uni.EventSignature)) {
                 continue;
             }
             _ability = stmt.name_ref.sym_name if stmt.name_ref else None;
@@ -252,8 +252,8 @@ obj OspAnalysis {
                     return True;
                 }
                 if isinstance(nd, uni.BinaryExpr)
-                and isinstance(nd.op, uni.Token)
-                and (nd.op.name == Tok.KW_SPAWN) {
+                    and isinstance(nd.op, uni.Token)
+                    and (nd.op.name == Tok.KW_SPAWN) {
                     return True;
                 }
                 for k in nd.kid {

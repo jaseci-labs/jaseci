@@ -6,7 +6,7 @@ Microservice architecture:
   - orders_app.jac: order functions; sv imports cart_app for inter-service calls
   - main.jac: this file - client UI + gateway entry point
 
-Run: jac start main.jac
+Run: jac run --serve main.jac
   Gateway on :8000
   Services auto-spawn on-demand via sv import (hash-based ports in 18xxx)
 """
@@ -14,7 +14,13 @@ Run: jac start main.jac
 # Client-side UI - served as static SPA by the gateway
 
 import from .frontend { app as ClientApp }
+import from shared.models { qty_label }
 
 def:pub app -> any {
     <ClientApp/>
+}
+
+
+def:pub cart_label(qty: int) -> str {
+    return qty_label(qty);
 }

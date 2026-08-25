@@ -7,24 +7,25 @@ obj Slot {
 
 obj WalkerDesc {
     has type_tag: int,
-        entry: list[Slot],
-        exit: list[Slot];
+        `entry: list[Slot],
+        `exit: list[Slot];
 }
 
 obj NodeDesc {
     has type_tag: int,
-        entry: list[Slot],
-        exit: list[Slot];
+        `entry: list[Slot],
+        `exit: list[Slot];
 }
 
 obj WalkScope {
     has wlk: any,
-        path: list,
-        next: list,
-        ignores: list,
-        reports: list,
+        path: list[int],
+        next: list[int],
+        ignores: list[int],
+        reports: list[any],
         disengaged: bool = False,
-        next_head: int = 0;
+        next_head: int = 0,
+        nested: bool = False;
 }
 
 obj OspRuntime {
@@ -43,14 +44,14 @@ def _current_scope -> (WalkScope | None) {
     return None;
 }
 
-def osp_visit(targets: list, insert_loc: int = -1) -> bool {
+def osp_visit(targets: list[int], insert_loc: int = -1) -> bool {
     scope = _current_scope();
     if scope is None {
         return False;
     }
     filtered = targets;
     if scope.ignores {
-        kept: list = [];
+        kept: list[int] = [];
         for t in targets {
             if t not in scope.ignores {
                 kept.append(t);
@@ -120,7 +121,7 @@ def run_untyped(slots: list[Slot], a: any, b: any) -> None {
     }
 }
 
-def _dequeue(scope: WalkScope) -> any {
+def _dequeue(scope: WalkScope) -> (int | None) {
     while scope.next_head < len(scope.next) {
         candidate = scope.next[scope.next_head];
         scope.next_head += 1;
@@ -136,9 +137,9 @@ def _dequeue(scope: WalkScope) -> any {
 }
 
 def _visit_recursive(
-    rt: OspRuntime, scope: WalkScope, wdesc: WalkerDesc, loc: any
+    rt: OspRuntime, scope: WalkScope, wdesc: WalkerDesc, loc: int
 ) -> bool {
-    stack_loc: list = [loc];
+    stack_loc: list[int] = [loc];
     stack_ph: list[int] = [0];
     while stack_loc {
         cur = stack_loc.pop();
@@ -150,15 +151,15 @@ def _visit_recursive(
             scope.path.append(cur);
             loc_tag: int = rt.tag_of(cur);
             ndesc = rt.node_desc(loc_tag);
-            run_typed(rt, wdesc.entry, scope.wlk, cur);
+            run_typed(rt, wdesc.`entry, scope.wlk, cur);
             if scope.disengaged {
                 return False;
             }
-            run_untyped(ndesc.entry, cur, scope.wlk);
+            run_untyped(ndesc.`entry, cur, scope.wlk);
             if scope.disengaged {
                 return False;
             }
-            run_typed(rt, ndesc.entry, cur, scope.wlk);
+            run_typed(rt, ndesc.`entry, cur, scope.wlk);
             if scope.disengaged {
                 return False;
             }
@@ -180,15 +181,15 @@ def _visit_recursive(
         } else {
             loc_tag: int = rt.tag_of(cur);
             ndesc = rt.node_desc(loc_tag);
-            run_typed(rt, ndesc.exit, cur, scope.wlk);
+            run_typed(rt, ndesc.`exit, cur, scope.wlk);
             if scope.disengaged {
                 return False;
             }
-            run_untyped(ndesc.exit, cur, scope.wlk);
+            run_untyped(ndesc.`exit, cur, scope.wlk);
             if scope.disengaged {
                 return False;
             }
-            run_typed(rt, wdesc.exit, scope.wlk, cur);
+            run_typed(rt, wdesc.`exit, scope.wlk, cur);
             if scope.disengaged {
                 return False;
             }
@@ -197,15 +198,22 @@ def _visit_recursive(
     return not scope.disengaged;
 }
 
-def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list) -> any {
-    scope = WalkScope(wlk=wlk, path=[], next=`list(starts), ignores=[], reports=[]);
+def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list[int]) -> any {
+    scope = WalkScope(
+        wlk=wlk,
+        path=[],
+        next=`list(starts),
+        ignores=[],
+        reports=[],
+        nested=(len(_walk_stack) > 0)
+    );
     _walk_stack.append(scope);
     ok = False;
     try {
         if scope.next {
             anchor = scope.next[0];
 
-            run_untyped(wdesc.entry, wlk, anchor);
+            run_untyped(wdesc.`entry, wlk, anchor);
         }
 
         while not scope.disengaged {
@@ -219,11 +227,17 @@ def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list) -> any 
         }
 
         if scope.path and (not scope.disengaged) {
-            run_untyped(wdesc.exit, wlk, scope.path[-1]);
+            run_untyped(wdesc.`exit, wlk, scope.path[-1]);
         }
         ok = True;
     } finally {
         _walk_stack.pop();
+        if scope.nested and _walk_stack {
+            outer = _walk_stack[-1];
+            for r in scope.reports {
+                outer.reports.append(r);
+            }
+        }
         rt.on_complete(scope, ok);
     }
     return wlk;

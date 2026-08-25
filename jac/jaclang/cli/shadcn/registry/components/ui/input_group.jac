@@ -60,7 +60,7 @@ def:pub InputGroupAddon(props: any) -> JsxElement {
         className={cn(addonFn.call(None, {"align": align}), props["className"])}
         onClick={lambda (e: any) { if not e.target.closest("button") {
             inputEl = e.currentTarget.parentElement
-            and e.currentTarget.parentElement.querySelector("input");
+                and e.currentTarget.parentElement.querySelector("input");
             if inputEl {
                 inputEl.focus();
             }

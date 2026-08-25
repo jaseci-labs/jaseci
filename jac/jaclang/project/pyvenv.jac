@@ -51,9 +51,8 @@ def _raise_ensurepip_unavailable(err: str) {
     raise RuntimeError(
         "Failed to create virtual environment: ensurepip is not available.\n"
         "On Debian/Ubuntu, install it with: sudo apt install python3-venv\n"
-        "On Fedora/RHEL: sudo dnf install python3-libs\n" + (
-            f"\n{err.strip()}" if err.strip() else ""
-        )
+        "On Fedora/RHEL: sudo dnf install python3-libs\n"
+            + (f"\n{err.strip()}" if err.strip() else "")
     );
 }
 
@@ -227,7 +226,7 @@ def run_pip(
 
 
 def _spec_base_name(spec: str) -> str {
-    m = re.match(r"^([A-Za-z0-9._-]+)\s*(?:[<>=!~@;\[]|$)", spec.strip());
+    m = re.`match(r"^([A-Za-z0-9._-]+)\s*(?:[<>=!~@;\[]|$)", spec.strip());
     return m.group(1).lower() if m else "";
 }
 
@@ -245,7 +244,7 @@ def _extract_terminal_error(stderr: str) -> str {
         if ln.startswith("ERROR: ") {
             return ln[7:].strip();
         }
-        if re.match(r"^[\w.]+(Error|Exception|Unavailable|NotFound):", ln) {
+        if re.`match(r"^[\w.]+(Error|Exception|Unavailable|NotFound):", ln) {
             return ln;
         }
     }
@@ -339,7 +338,10 @@ def get_venv_site_packages(venv_dir: Path) -> Path {
         return venv_dir / "lib" / f"python{version_tag}" / "site-packages";
     }
     return (
-        venv_dir / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+        venv_dir
+        / "lib"
+        / f"python{sys.version_info.major}.{sys.version_info.minor}"
+        / "site-packages"
     );
 }
 
@@ -405,16 +407,14 @@ def remove_venv_from_path(config: JacConfig | None = None) -> None {
         bin_dir = venv_dir / "bin";
     }
 
-    bin_str = os.path.normpath(str(bin_dir.resolve()))
-        if bin_dir.exists()
-        else str(bin_dir);
+    bin_str = os.path.realpath(str(bin_dir));
     current_path = os.environ.get("PATH", "");
     path_parts = current_path.split(os.pathsep);
 
     new_parts = [
         p
         for p in path_parts
-        if os.path.normpath(p) != bin_str
+        if os.path.realpath(p) != bin_str
     ];
     if len(new_parts) != len(path_parts) {
         os.environ["PATH"] = os.pathsep.join(new_parts);

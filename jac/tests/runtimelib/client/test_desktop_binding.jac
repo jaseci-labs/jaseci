@@ -9,6 +9,7 @@ drift, wrong/missing externs, wrong soname, and codegen regressions.
 import os;
 import shutil;
 import subprocess;
+import sys;
 import sysconfig;
 import tempfile;
 import from pathlib { Path }
@@ -18,16 +19,22 @@ def _webview_dir -> Path {
     here = Path(os.path.abspath(__file__)).parent;
     probe = here;
     for _ in range(8) {
-        cand = probe / "jaclang" / "runtimelib" / "client" / "targets" / "desktop" / "native" / "webview";
+        cand = probe
+            / "jaclang"
+            / "runtimelib"
+            / "client"
+            / "targets"
+            / "desktop"
+            / "native"
+            / "webview";
         if (cand / "webview.jac").exists() {
             return cand;
         }
         probe = probe.parent;
     }
     raise RuntimeError(
-        "jaclang/runtimelib/client/targets/desktop/native/webview/webview.jac not found from " + str(
-            here
-        )
+        "jaclang/runtimelib/client/targets/desktop/native/webview/webview.jac not found from "
+            + str(here)
     );
 }
 
@@ -36,16 +43,21 @@ def _native_dir -> Path {
     here = Path(os.path.abspath(__file__)).parent;
     probe = here;
     for _ in range(8) {
-        cand = probe / "jaclang" / "runtimelib" / "client" / "targets" / "desktop" / "native";
+        cand = probe
+            / "jaclang"
+            / "runtimelib"
+            / "client"
+            / "targets"
+            / "desktop"
+            / "native";
         if (cand / "plugin_bridge.jac").exists() {
             return cand;
         }
         probe = probe.parent;
     }
     raise RuntimeError(
-        "jaclang/runtimelib/client/targets/desktop/native/plugin_bridge.jac not found from " + str(
-            here
-        )
+        "jaclang/runtimelib/client/targets/desktop/native/plugin_bridge.jac not found from "
+            + str(here)
     );
 }
 
@@ -115,8 +127,9 @@ test "webview binding host compiles and links libwebview.so" {
 
 """The embedded-CPython host (the desktop runtime model) links libpython."""
 test "embedded-python host compiles and links libpython" {
-    soname = sysconfig.get_config_var("INSTSONAME") or "libpython3.12.so.1.0";
-    stem = soname.split(".so")[0].encode();  # e.g. b"libpython3.12"
+    soname = sysconfig.get_config_var("INSTSONAME")
+        or f"libpython{sys.version_info.major}.{sys.version_info.minor}.so.1.0";
+    stem = soname.split(".so")[0].encode();  # e.g. b"libpython3.14"
     src = (
         f'import from "{soname}" {{\n'
         "    def Py_Initialize() -> None;\n"
@@ -165,7 +178,8 @@ between .jac files). The bridge handles GIL management,
 PyObject_CallOneArg, and inttoptr coercion.
 """
 test "plugin bridge host compiles with webview + libpython" {
-    soname = sysconfig.get_config_var("INSTSONAME") or "libpython3.12.so.1.0";
+    soname = sysconfig.get_config_var("INSTSONAME")
+        or f"libpython{sys.version_info.major}.{sys.version_info.minor}.so.1.0";
     # The host inlines the bridge code (same pattern as _generate_host_source)
     src = (
         f'import from "{soname}" {{\n'

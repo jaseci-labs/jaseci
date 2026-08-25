@@ -68,16 +68,16 @@ remaining rows.
 | # | Direction | Boundary kind | Mechanism | What crosses | Synthesised by |
 |---|-----------|---------------|-----------|--------------|----------------|
 | 1 | **`sv → sv`** (in-process) | Free | Direct Python call | Live CPython objects (by ref) | -- (plain `import`) |
-| 2 | **`sv → sv`** (microservice) | Marshalled | HTTP `POST` between deployments | JSON (`_to_wire`/`_from_wire`) | `PyastGenPass` (service RPC stub for routes-table imports) + `jaclang.scale` |
+| 2 | **`sv → sv`** (microservice) | Marshalled | HTTP `POST` between deployments | JSON (`_to_wire`/`_from_wire`) | `JcirGenPass` (service RPC stub for routes-table imports) + `jaclang.scale` |
 | 3 | **`cl → cl`** | Free | Direct JS call | JS values (by ref) | -- (plain client-side `import`) |
 | 4 | **`na → na`** | Free | Linker symbol reference | Native values / pointers | `NativeCompilePass` relocation |
 | 5 | **`cl → sv`** | Marshalled | HTTP `POST /walker/*` or `/function/*` | JSON envelope | `EsastGenPass` (`__jacSpawn`/`__jacCallFunction`) + `jaclang.scale` |
-| 6 | **`sv → cl`** | Marshalled (one-shot) | Static bundle + bootstrap JSON (CSR) | The compiled JS bundle + init payload | `PyastGenPass` static route + Vite/Bun bundler |
-| 7 | **`sv → na`** | Marshalled | `ctypes.CFUNCTYPE` over the JIT address (or AOT `.so`) | C-ABI scalars; Jac objects as zero-copy views | `PyastGenPass` ctypes stub + `NaIRGenPass` C-ABI export |
+| 6 | **`sv → cl`** | Marshalled (one-shot) | Static bundle + bootstrap JSON (CSR) | The compiled JS bundle + init payload | `JcirGenPass` static route + Vite/Bun bundler |
+| 7 | **`sv → na`** | Marshalled | `ctypes.CFUNCTYPE` over the JIT address (or AOT `.so`) | C-ABI scalars; Jac objects as zero-copy views | `JcirGenPass` ctypes stub + `NaIRGenPass` C-ABI export |
 | 8 | **`na → sv`** | Marshalled | Python callback registered as a JIT symbol | C-ABI scalars | `interop_bridge` (`llvm.add_symbol`) |
 | 9 | **`cl → na`** | Marshalled | JS calls exported wasm functions | wasm scalars / linear memory | `wasm_build` + `WasmLinker` exports |
 | 10 | **`na → cl`** | Marshalled | wasm imports the host `env` object | wasm scalars; host-provided externs | `WasmLinker` import table + cl host shim |
-| 11 | **`sv/na ↔ py`** | Free | Literal Python import / meta-path finder | Live CPython objects | `PyastGenPass` (`import`→`ast.Import`) + `meta_importer` |
+| 11 | **`sv/na ↔ py`** | Free | Literal Python import / meta-path finder | Live CPython objects | `JcirGenPass` (`import`→`ast.Import`) + `meta_importer` |
 | 12 | **`na ↔ C`** | Marshalled (ABI) | System V AMD64 / AAPCS calling convention | C scalars & structs (by value or pointer) | `NaIRGenPass` clib marshaller |
 | 13 | **`na → C host`** | Marshalled (ABI) | `--shared` C-ABI export | Scalars by value; Jac objects as opaque handles | `nacompile` `_inject_shared_init` + platform linkers |
 
@@ -95,7 +95,7 @@ codespace simply reference each other directly:
   another `def` is an ordinary Python call; an `obj` handed to another
   function is the *same* object, not a copy. Plain (untagged) Jac `import`
   statements lower verbatim to Python `import` nodes (`exit_import` in
-  [`pyast_gen_pass.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/passes/impl/pyast_gen_pass.impl.jac)),
+  [`jcir_gen_pass.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/passes/impl/jcir_gen_pass.impl.jac)),
   so resolution is the standard CPython import machinery.
 - **`cl → cl`** -- Client code becomes one JavaScript module graph; a `cl`
   function calling another is a direct JS call, bundled together by Vite.
@@ -191,8 +191,9 @@ deduped, *writer* endpoints fetch then invalidate overlapping readers
 ### The server endpoint
 
 The HTTP server is **not** in the compiler -- it is the built-in `scale` subsystem
-(`jac/jaclang/scale/jserver/`, a FastAPI/uvicorn binding written in Jac).
-`jac start` brings it up. For every public walker it registers two routes
+(`jac/jaclang/scale/server/`, built on the Jac-native asyncio HTTP stack in
+`jaclang/runtimelib/serving/`).
+`jac run` brings it up. For every public walker it registers two routes
 (`register_walkers_endpoints`):
 
 ```text
@@ -256,7 +257,7 @@ manual FFI. The two directions are derived from the `InteropManifest`:
 
 ### `sv → na` -- Python calls native
 
-`PyastGenPass._gen_native_interop_stubs` emits a Python wrapper per native
+`JcirGenPass._gen_native_interop_stubs` emits a Python wrapper per native
 export. At call time it resolves the JIT address and builds a typed ctypes
 trampoline:
 
@@ -286,13 +287,16 @@ a separate shared object loaded across a process boundary.
 
 ### Crossing whole Jac values
 
-For fully native-placed modules, `native_marshal.jac`'s `install_native_wrappers`
-replaces each exported name with a wrapper, and `marshal_value` crosses Jac
-`obj`/`list` values as **zero-copy views**: `NativeStructView` /
-`NativeListView` read fields directly from native memory via ctypes
-`from_address()` (no deep copy); `i8*` decodes to `str` lazily; enum
-ordinals map back to Python enum members. This is why nearly every Jac type
-can cross -- the exception being Python-style monkey-patched classes.
+Whole-value crossings are **one-way and total**: the native side rebuilds
+the value as real CPython objects through libpython externs, and nothing
+native outlives the call. The sealed parser is the worked example -- its
+generated materializer root (`compiler/native_materialize.jac`, written at
+seal time by `gen_native_materialize.jac`) exposes complete crossing
+entries that parse natively and return fully Python-owned trees, envelopes
+and all. There is no view layer: the earlier zero-copy
+`NativeStructView`/`NativeListView` machinery was deleted with #8139 Step 2
+once measurement showed per-access view reads losing to outright
+materialization for every real consumer.
 
 ### AOT alternative
 
@@ -304,13 +308,26 @@ path (below), where the native side is packaged as a real `.so` and a host (Pyth
 it across the process boundary.
 
 The compiler itself ships this way: sealing a release AOT-compiles
-`jac0core/parser/lexer.jac` (plus its `tokens.jac` closure) into a
-per-platform shared library (`_precompiled/native/<triple>/libjac_lexer.*`)
-with a persisted `NativeModuleLayout` JSON, recorded in `MANIFEST.json`
-format 4 under `native_artifacts` (sha256-verified, fail-closed). The
-sealed runtime binds it with plain ctypes via `jac0core/native_dylib.jac` --
-no LLVM on the boot path -- and `parse()` uses it when present; unsealed
-dev trees fall back to the bytecode lexer.
+`compiler/native_materialize.jac` (whose native closure carries the parser,
+lexer and `unitree`) and `jac0core/unitree.jac` into per-platform shared
+libraries (`_precompiled/native/<triple>/libjac_native_materialize.*`,
+`libjac_unitree.*`) with persisted `NativeModuleLayout` JSON, recorded in
+`MANIFEST.json` format 4 under `native_artifacts` (sha256-verified,
+fail-closed). The materializer root is itself native jac, GENERATED AT SEAL TIME by
+`jaclang/utils/gen_native_materialize.py` (never checked in; issue #8133
+tracks the end state): typed per-class emitters rebuild
+the parsed tree as real CPython objects at about 1.6 us per node through
+`import from python` clib externs -- resolved from the host process via ELF
+lazy PLT binds on Linux and Mach-O flat-lookup binds on macOS, so no second
+interpreter is ever loaded -- and the unmodified bytecode pipeline consumes
+the result with no view layer in between. The sealed runtime binds the
+library with plain ctypes via `jac0core/native_dylib.jac` -- no LLVM on the
+boot path -- with the materializer entries bound GIL-held (PYFUNCTYPE), and
+`parse()` and `parse_diags()` serve natively wherever an artifact exists,
+with no bytecode fallback: an artifact that fails to load or verify raises.
+Environments with no artifact at all (dev source trees, platforms the seal
+skips) parse on the bytecode tier, which also remains the bootstrap that
+builds the seal itself.
 
 ---
 
@@ -342,7 +359,7 @@ parameter lowers to `i8*`. A clib declaration with a *body* is an error
 |-------|------|----------------|
 | **Declaration model** | `compiler/targets/foreign.jac` | What the user declared: scalar sizes (`FOREIGN_SCALARS`), C struct layout (`foreign_struct_layout` -- byte offsets, alignment, tail padding, nested-by-value flattening) |
 | **psABI classifier** | `compiler/targets/abi.jac` | Pure calling-convention logic: `classify_struct` dispatches on the triple -- `aarch64`/`arm64` → AAPCS, else System V AMD64 |
-| **Backend marshaller** | `na_ir_gen_pass.impl/clib_abi.impl.jac` | Emits the actual call: applies the plan, builds the parallel `.cabi` LLVM type, copies between Jac and C layouts |
+| **Backend marshaller** | `na_ir_gen/clib_abi.impl.jac` | Emits the actual call: applies the plan, builds the parallel `.cabi` LLVM type, copies between Jac and C layouts |
 
 ### How structs cross
 
@@ -567,10 +584,11 @@ Everything crossing a marshalled boundary is **JSON** (for `cl↔sv` and the
 ### C-ABI wire format (`na`)
 
 Scalars use the `JAC_TO_CTYPES` map (`int→c_int64`, `float→c_double`,
-`bool→c_bool`, `str→c_char_p`). Whole Jac values cross the JIT bridge as
-**zero-copy `NativeStructView`/`NativeListView`** over native memory.
-Foreign C structs cross by the platform ABI (`byval`/`sret`/register
-coerce) as described above.
+`bool→c_bool`, `str→c_char_p`). Whole Jac values cross by
+**materialization** -- the native side constructs real CPython objects
+through libpython externs and hands over ownership (see "Crossing whole
+Jac values" above). Foreign C structs cross by the platform ABI
+(`byval`/`sret`/register coerce) as described above.
 
 ### What is allowed to cross
 
@@ -626,8 +644,8 @@ height = 700
 
 ```bash
 jac build --client desktop   # -> .jac/client/desktop/<app> (binary + dist/ + libwebview.so)
-jac start --client desktop   # build if needed, then launch the native window
-jac start --client desktop --dev   # HMR: Vite on 127.0.0.1 + recompile on .jac saves
+jac run --client desktop     # build if needed, then launch the native window
+jac run --client desktop --dev     # HMR: Vite on 127.0.0.1 + recompile on .jac saves
 (cd .jac/client/desktop && ./my-app)   # or run the binary directly
 ```
 
@@ -698,11 +716,11 @@ RPC to the backend). It is the matrix in miniature.
 | Context split / coercion | [`compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/compiler.jac) (`_coerce_module`); `constant.jac` (`CodeContext`) |
 | `cl → sv` | `compiler/passes/ecmascript/impl/esast_gen_pass.impl.jac` (`__jacSpawn`/`__jacCallFunction`); `runtimelib/impl/client_runtime.impl.jac`; `jac/jaclang/scale/server/impl/serve.endpoints.impl.jac` |
 | `sv → cl` | `runtimelib/client/impl/{compiler,vite_bundler}.impl.jac`; `runtimelib/impl/server.impl.jac`; `passes/ast_gen/impl/jsx_processor.impl.jac` |
-| `sv ↔ na` | `jac0core/{interop_bridge,native_marshal}.jac`; `passes/impl/pyast_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `passes/native/impl/na_compile_pass.impl.jac` |
-| `na ↔ C` | `compiler/targets/{foreign,abi}.jac`; `passes/native/na_ir_gen_pass.impl/{clib_abi,clib_vtable}.impl.jac` |
+| `sv ↔ na` | `jac0core/interop_bridge.jac`; `jac0core/parser/materialize.jac` + `utils/gen_native_materialize.jac` (sealed parse-tree crossing); `passes/impl/jcir_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `passes/native/impl/na_compile_pass.impl.jac` |
+| `na ↔ C` | `compiler/targets/{foreign,abi}.jac`; `passes/native/na_ir_gen/{clib_abi,clib_vtable}.impl.jac` |
 | `na → C host` | `cli/commands/impl/nacompile.impl.jac` (`_inject_shared_init`); `passes/native/impl/{elf,macho,pe}_linker.impl.jac` |
 | `na ↔ cl` (wasm) | `passes/native/{wasm_build,wasm_linker}.jac`; `runtimelib/client/impl/compiler.impl.jac` |
-| Python interop | [`meta_importer.py`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/meta_importer.py); `_jac_finder.py` (launcher `BOOT_SRC`); `passes/impl/pyast_gen_pass.impl.jac` (`exit_import`, `exit_py_inline_code`) |
+| Python interop | [`meta_importer.py`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/meta_importer.py); `_jac_finder.py` (launcher `BOOT_SRC`); `passes/impl/jcir_gen_pass.impl.jac` (`exit_import`, `exit_py_inline_code`) |
 | Marshalling | `runtimelib/impl/{serializer,server,transport}.impl.jac` |
 | Capability boundary | `compiler/passes/main/capability_check_pass.jac`; [`diagnostics.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/diagnostics.jac) (`E5090`) |
 | Desktop | `runtimelib/client/targets/desktop/native_desktop_target.jac` (+ impl); `runtimelib/client/targets/desktop/native/webview/webview.jac`; `runtimelib/client/targets/registry.jac` |

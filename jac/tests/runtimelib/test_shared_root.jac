@@ -4,7 +4,7 @@ Under a server, `root.shared` resolves through the resolver the server
 registers at startup, mapping the internal guest user to its root — so any
 request, authenticated or not, can address the shared public graph without
 an `allroots()` scan. The runtime floors the shared root's access at
-ConnectPerm (it is a commons), so no app-side arming grant is needed.
+AccessLevel.CONNECT (it is a commons), so no app-side arming grant is needed.
 Outside a server there are no separate users, so `root.shared` falls back
 to the current context's root.
 """
@@ -13,6 +13,10 @@ import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.runtimelib.testing { JacTestClient }
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -145,7 +149,7 @@ test "deleting a commons node takes cross-owner edges with it" {
 
 
 test "a cross-owner delete without a write grant no-ops with a warning" {
-    # Notes are opened ReadPerm only: bob's delete must leave the note in
+    # Notes are opened AccessLevel.READ only: bob's delete must leave the note in
     # place, still return 200, and surface a diagnostic in the envelope -
     # a denied delete may be a no-op but never a silent one.
     with TemporaryDirectory() as tmpdir {
@@ -158,7 +162,7 @@ test "a cross-owner delete without a write grant no-ops with a warning" {
         client2.register_user("bob", "secret123");
         blocked = client2.post("/walker/clear_notes", json={});
         assert blocked.ok , "denied delete should still 200";
-        warnings = blocked.data.get("warnings") or [];
+        warnings = _as_any(blocked.data).get("warnings") or [];
         assert len(warnings) > 0 , "denied delete surfaced no warning";
         assert any(["delete" in str(w) for w in warnings]) , "warning does not name the delete";
         readback = client2.post("/walker/read_notes", json={});

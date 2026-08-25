@@ -1,3 +1,10 @@
+impl ServiceEntry.is_routable -> bool {
+    return (
+        self.status in (ServiceStatus.HEALTHY, ServiceStatus.STARTING)
+        and bool(self.url)
+    );
+}
+
 impl ServiceRegistry.register(service_entry: ServiceEntry) -> None {
     self.entries[service_entry.name] = service_entry;
     self._rebuild_prefix_index();
@@ -23,14 +30,14 @@ impl ServiceRegistry.match_route(path: str) -> ServiceEntry | None {
 
 impl ServiceRegistry.health_summary -> dict[str, dict] {
     result: dict[str, dict] = {};
-    for (name, entry) in self.entries.items() {
+    for (name, `entry) in self.entries.items() {
         result[name] = {
-            "file": entry.file,
-            "prefix": entry.prefix,
-            "port": entry.port,
-            "url": entry.url,
-            "status": entry.status.value,
-            "pid": entry.pid
+            "file": `entry.file,
+            "prefix": `entry.prefix,
+            "port": `entry.port,
+            "url": `entry.url,
+            "status": `entry.status.value,
+            "pid": `entry.pid
         };
     }
     return result;

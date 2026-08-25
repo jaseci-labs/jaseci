@@ -524,7 +524,7 @@ node Item { has value: int = 0; }
 walker MyWalker {
     has param: int = 0;
 
-    can visit with Root entry {
+    can `visit with Root entry {
         visit [-->];
     }
     can collect with Item entry {
@@ -567,7 +567,7 @@ Jac provides two ways to expose server logic: `def:pub` functions and `walker` t
 
 ### Walkers as REST APIs
 
-Public walkers automatically become HTTP endpoints when you run `jac start`:
+Public walkers automatically become HTTP endpoints when you run `jac run`:
 
 ```jac
 node Todo {
@@ -594,11 +594,11 @@ walker list_todos {
 ```
 
 !!! note
-    `main.jac` is the default entry point. If your file has a different name (e.g., `app.jac`), pass it explicitly: `jac start app.jac`.
+    `main.jac` is the default entry point. If your file has a different name (e.g., `app.jac`), pass it explicitly: `jac run app.jac`.
 
 ```bash
 # Run as API server
-jac start
+jac run
 
 # Call via HTTP
 curl -X POST http://localhost:8000/walker/add_todo \
@@ -822,8 +822,8 @@ walker:priv DeleteWithChildren {
 |----------|-------------|
 | `jid(node)` | Get unique Jac ID of object |
 | `jobj(node)` | Get Jac object wrapper |
-| `grant(node, user)` | Grant access permission |
-| `revoke(node, user)` | Revoke access permission |
+| `grant(node, level=AccessLevel.READ)` | Open a node to every other user at a level of the ambient `AccessLevel` enum - `NO_ACCESS` / `READ` / `CONNECT` / `WRITE` (no import) |
+| `revoke(node)` | Remove a `grant` |
 | `allroots()` | Get all root references |
 | `save(node)` | Persist node to storage |
 | `commit()` | Commit pending changes |
@@ -860,7 +860,7 @@ walker:pub publish {
     can run with Root entry {
         # Lands on the public graph whoever the caller is.
         fresh = root.shared +>: Posted() :+> Post(text=self.text);
-        grant(fresh, level=ReadPerm);   # author opens the post to readers
+        grant(fresh, level=AccessLevel.READ);   # author opens the post to readers
     }
 }
 
@@ -871,13 +871,52 @@ walker:pub read_feed {
 }
 ```
 
-**Default policy.** The shared root is a commons: its access level is floored at `ConnectPerm`, so every user - authenticated or anonymous - can read it and attach nodes to it without any arming grant. The floor reflects reality rather than weakening security: anonymous requests already act as the shared root's owner through any public endpoint, so withholding access from authenticated users protects nothing.
+**Default policy.** The shared root is a commons: its access level is floored at `AccessLevel.CONNECT`, so every user - authenticated or anonymous - can read it and attach nodes to it without any arming grant. The floor reflects reality rather than weakening security: anonymous requests already act as the shared root's owner through any public endpoint, so withholding access from authenticated users protects nothing.
 
-**Ownership stays the boundary.** Nodes a user hangs on the shared graph remain owned by that user and closed until the author grants. The conventional levels: `ConnectPerm` on container nodes others should build under, `ReadPerm` on leaf contributions others should only see. Anonymous-created content is collectively owned by the anonymous identity and is readable by everyone through the floor.
+**Ownership stays the boundary.** Nodes a user hangs on the shared graph remain owned by that user and closed until the author grants. The conventional levels: `AccessLevel.CONNECT` on container nodes others should build under, `AccessLevel.READ` on leaf contributions others should only see. Anonymous-created content is collectively owned by the anonymous identity and is readable by everyone through the floor.
 
-**Lockdown.** An app can lower the commons explicitly - for example `grant(root.shared, level=ReadPerm)` from an anonymous or system context makes it read-only. Any explicitly set level other than `NoPerm` is respected; only the never-granted state is floored back to `ConnectPerm`.
+**Lockdown.** An app can lower the commons explicitly - for example `grant(root.shared, level=AccessLevel.READ)` from an anonymous or system context makes it read-only. Any explicitly set level other than `AccessLevel.NO_ACCESS` is respected; only the never-granted state is floored back to `AccessLevel.CONNECT`.
 
 Outside a server (CLI runs, scripts, tests without a server) there are no separate users, so `root.shared` is the current root itself: `jid(root.shared) == jid(root)`.
+
+### 7 Archetype-Level Access Policy (`__jac_access__`)
+
+`grant` opens one node its owner chose to share. When openness is an invariant of the *type* - every instance of a machine-generated cache, commons state anyone may rebuild - encode it once on the archetype instead of remembering a `grant()` at every creation site:
+
+```jac
+node PublicNode {
+    def __jac_access__ -> AccessLevel {
+        return AccessLevel.WRITE;   # every instance opens WRITE to every user
+    }
+}
+
+edge PublicEdge {
+    def __jac_access__ -> AccessLevel {
+        return AccessLevel.WRITE;
+    }
+}
+
+node CatalogEntry(PublicNode) {}   # subtypes inherit the policy
+edge Lists(PublicEdge) {}
+```
+
+Whenever a user who does not own the anchor touches it, the runtime consults the hook *before* per-instance grants. Return a member of the ambient `AccessLevel` enum - `NO_ACCESS`, `READ`, `CONNECT`, `WRITE`, no import needed - and that level is final: stored grants are not consulted. Return `None` to fall through to normal grant checking, which makes conditional policies cheap:
+
+```jac
+node Report {
+    has published: bool = False;
+
+    def __jac_access__ -> AccessLevel | None {
+        return AccessLevel.READ if self.published else None;   # unpublished: grants decide
+    }
+}
+```
+
+Always return `AccessLevel` members. String (`"WRITE"`) and int (`2`) spellings are accepted for compatibility, but a typo'd string raises `KeyError` at access-check time - in production, on the first cross-user request - while a misspelled member fails at check time, and the int mapping may change.
+
+**Grant or hook?** `grant`/`allow_root` are per-instance policy the *owner* decides at runtime - right for user-owned contributions (posts, profiles). `__jac_access__` is a per-archetype invariant the *author* decides - right for app-owned public structure (docs caches, catalogs, commons state), where a forgotten grant on one creation path only surfaces when a *second* user hits it. The owner and the system root always have `WRITE` regardless of the hook.
+
+Traversal authorizes the *node* being reached, and deleting an authorized node detaches its incident edges with it - but a non-owner reading, mutating, or deleting an edge object directly is checked against the *edge's* own level, so a fully open structure pairs a `PublicNode` base with a `PublicEdge` base as above.
 
 ---
 
@@ -963,6 +1002,35 @@ walker FilteredWalker {
 
 !!! tip "Skip the `[?:Type]` filter"
     If an edge declares its endpoint node types (see [Typed Edge Endpoints](#4-typed-edge-endpoints)), a neighbour traversal already infers the concrete node type, so the trailing `[?:Type]` filter is only needed to narrow *further* to a subtype.
+
+#### Ordering and bounding a traversal
+
+A reference returns neighbours in edge-creation order. To ask for a different order, write an **ordering term** in the same comma list as the predicates -- a bare field name for ascending, its negation for descending. The position says which side the field is read from, exactly as it does for predicates: the hop slot names the edge, the filter bracket names the node.
+
+```jac
+def orderings(chan: Chan) -> list[Msg] {
+    by_edge = [chan ->:Posted:-sent:-> [?:Msg]];         # the edge's `sent`, descending
+    by_node = [chan ->:Posted:-> [?:Msg, -at]];          # the node's `at`, descending
+    narrowed = [chan ->:Posted:-> [?:Msg, at > 3, -at]]; # predicates first, then ordering
+    return [chan ->:Posted:-> [?:Msg, -at]][:50];        # ordering and bound, one query
+}
+```
+
+Ordering terms follow every predicate on their hop, and only the final hop of a multi-hop chain may carry one -- an earlier hop's ordering has no meaning for the result and is refused rather than silently applied to the wrong hop.
+
+Ordering by an **edge** field has no other spelling, because a reference returns nodes: no key over the result can name the edge that carried them. For a *node* field, `sorted(<reference>, key=lambda (m: Msg) { -m.at; })` is equivalent and resolves the same way.
+
+#### Paging with a composite key
+
+Ordering on a single field drops or repeats rows whenever two share a value, so a page boundary needs a tiebreak. A predicate may compare a tuple of field names against a tuple of the same arity:
+
+```jac
+def page_after(chan: Chan, cur: Cursor, n: int = 50) -> list[Msg] {
+    return [chan ->:Posted:-> [?:Msg, (at, seq) < (cur.at, cur.seq), -at, -seq]][:n];
+}
+```
+
+Left of the operator is field names; right is an ordinary expression evaluated where the reference is written.
 
 ### 3 Entry and Exit Events
 
@@ -1117,7 +1185,7 @@ node Dog(Animal) {}
 node Cat(Animal) {}
 
 walker AnimalVisitor {
-    can visit with Animal entry {
+    can `visit with Animal entry {
         # Typed context block for Dog (subtype of Animal)
         ->Dog{print(f"{here.name} is a dog");}
 

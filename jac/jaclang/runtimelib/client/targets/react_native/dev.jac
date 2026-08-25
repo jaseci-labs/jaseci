@@ -2,7 +2,7 @@ import json;
 import os;
 import subprocess;
 import from pathlib { Path }
-import from typing { Any, Optional, cast }
+import from typing { Optional, cast }
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.watcher { FileChangeEvent }
 import from jaclang.runtimelib.client.targets.react_native.common { resolve_node_tool }
@@ -107,7 +107,7 @@ def rn_hmr_on_jac_changed(
             return;
         }
         invalidate_runtime_module_cache([pth, str(entry_file)]);
-        compile_out = cast(Any, compiler.jac_compiler.compile_module(entry_file));
+        compile_out = cast(any, compiler.jac_compiler.compile_module(entry_file));
         mod2 = compile_out[1];
         if not mod2 {
             return;
@@ -151,11 +151,8 @@ def rn_hmr_on_jac_changed(
 def build_expo_start_argv(
     rn_dir: Path, metro_port: int, clear_cache: bool = True
 ) -> list[str] {
-    argv: list[str] = resolve_node_tool(rn_dir, "expo") + [
-        "start",
-        "--port",
-        str(metro_port)
-    ];
+    argv: list[str] = resolve_node_tool(rn_dir, "expo")
+        + ["start", "--port", str(metro_port)];
     if clear_cache {
         argv.append("--clear");
     }

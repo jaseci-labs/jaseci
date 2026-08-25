@@ -1,7 +1,7 @@
 import os;
 import platform as platform_mod;
 import from pathlib { Path }
-import from typing { Any, Optional, cast }
+import from typing { Optional, cast }
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.watcher { FileChangeEvent }
 import from jaclang.runtimelib.client.mobile_dev_host {
@@ -104,7 +104,7 @@ impl MobileTarget.setup(project_dir: Path) -> None {
     needs_ios = "ios" in platforms;
 
     if (not needs_android or android_dir.exists())
-    and (not needs_ios or ios_dir.exists()) {
+        and (not needs_ios or ios_dir.exists()) {
         return;
     }
 
@@ -157,14 +157,14 @@ impl MobileTarget.setup(project_dir: Path) -> None {
     if needs_android {
         console.print("  Android:");
         console.print(
-            "    Dev:   jac start main.jac --client mobile --dev", style="muted"
+            "    Dev:   jac run --client mobile --dev main.jac", style="muted"
         );
         console.print("    Build: jac build --client mobile --platform android");
     }
     if needs_ios {
         console.print("  iOS:");
         console.print(
-            "    Dev:   jac start main.jac --client mobile --dev --platform ios",
+            "    Dev:   jac run --client mobile --dev --platform ios main.jac",
             style="muted"
         );
         console.print("    Build: jac build --client mobile --platform ios");
@@ -268,7 +268,7 @@ impl MobileTarget.dev(
         _mobile_setup_android_port_reverse(vite_port, server_port);
     }
 
-    cast(Any, bundler).create_vite_config(
+    cast(any, bundler).create_vite_config(
         entry_file,
         api_base_url_override="",
         is_dev=True,
@@ -348,7 +348,7 @@ impl MobileTarget.start(
 
     if api_port != 8000 {
         console.print(
-            f"  Note: --port {api_port} applies to `jac start` flows; "
+            f"  Note: --port {api_port} applies to `jac run` flows; "
             "`cap run` uses the baked web bundle only.",
             style="muted"
         );

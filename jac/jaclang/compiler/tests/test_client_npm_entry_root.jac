@@ -97,7 +97,7 @@ def _check(entry_file: str, lib_dir: str) -> JacProgram {
     sys.path.insert(0, lib_dir);
     try {
         prog = JacProgram();
-        prog.compile(file_path=entry_file, type_check=True, no_cgen=True);
+        prog.compile(file_path=entry_file, no_cgen=True);
         return prog;
     } finally {
         sys.path.remove(lib_dir);
@@ -134,9 +134,10 @@ test "library-local installation never borrows entry declarations" {
         ];
         assert "W1100" not in codes , codes;
         assert "W1102" in codes , (
-            "library's own untyped installation must stay foreign any; typing" + " it means the entry project's declarations leaked across" + " installations: " + str(
-                codes
-            )
+            "library's own untyped installation must stay foreign any; typing"
+            + " it means the entry project's declarations leaked across"
+            + " installations: "
+            + str(codes)
         );
     } finally {
         shutil.rmtree(base_dir, ignore_errors=True);

@@ -8,6 +8,7 @@ import from pathlib { Path }
 import jaclang;
 import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 """Return ``proj_dir/.jac/client/node_modules``."""
 def client_node_modules(proj_dir: Path) -> Path {
@@ -42,9 +43,13 @@ def write_client_jac_project(
 ) -> Path {
     strict_block = '\n[check]\nuntyped-external = "error"\n' if strict else '';
     (proj_dir / "jac.toml").write_text(
-        '[project]\nname = "' + project_name + '"\nversion = "0.1.0"\n'
-        'entry-point = "' + entry_point + '"\n\n'
-        '[dependencies.npm]\n' + npm_dep_lines + strict_block
+        '[project]\nname = "'
+            + project_name
+            + '"\nversion = "0.1.0"\n' 'entry-point = "'
+            + entry_point
+            + '"\n\n' '[dependencies.npm]\n'
+            + npm_dep_lines
+            + strict_block
     );
     (proj_dir / "lib").mkdir(parents=True, exist_ok=True);
     return proj_dir;
@@ -54,7 +59,7 @@ def write_client_jac_project(
 def check_npm_file(path: Path) -> tuple[JacProgram, list[str], list[str]] {
     program = JacProgram();
     mod = program.compile(str(path));
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     err_codes = [
         e.code.code
         for e in program.errors_had

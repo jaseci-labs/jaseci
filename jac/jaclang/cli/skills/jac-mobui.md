@@ -1,11 +1,11 @@
 ---
 name: jac-mobui
-description: Building a cross-platform mobile + web app with MobUI - `client_kind = "mobui"`, the `@jac/mobui` primitives (View/Text/Pressable/TextInput/ScrollView), the no-HTML rule (E1105), RN props/events, StyleSheet styling, cross-platform icons, and the `jac start --client react-native` build. Load when the user wants a mobile / iOS / Android / React Native app, or when editing any `client_kind = "mobui"` project. This is the React Native target - for the Capacitor webview wrapper of a web bundle see `jac-mobile-app`.
+description: Building a cross-platform mobile + web app with MobUI - `client_kind = "mobui"`, the `@jac/mobui` primitives (View/Text/Pressable/TextInput/ScrollView), the no-HTML rule (E1105), RN props/events, StyleSheet styling, cross-platform icons, and the `jac run --client react-native` build. Load when the user wants a mobile / iOS / Android / React Native app, or when editing any `client_kind = "mobui"` project. This is the React Native target - for the Capacitor webview wrapper of a web bundle see `jac-mobile-app`.
 ---
 
 MobUI is Jac's cross-platform UI model: **one source compiles to both native React Native (Expo/Metro) and web (react-native-web)**. It is turned on by `client_kind = "mobui"` in `jac.toml`, which flips on a compiler guard that bans HTML. You author entirely in `@jac/mobui` primitives - **no `<div>`, no `className`, no CSS**.
 
-This is a different target from `jac-mobile-app` (Capacitor), which wraps the *web* bundle in a webview and keeps HTML. MobUI is real React Native components. The in-repo examples are `jac/examples/mobui/` (`hello`, `littlex`); the worked product-scale reference app is `jachammer` (a mobile clone of jacBuilder) in the jacBuilder repo under `mobile/` - copy its patterns.
+This is a different target from `jac-mobile-app` (Capacitor), which wraps the *web* bundle in a webview and keeps HTML. MobUI is real React Native components. The in-repo examples are `jac/examples/mobui/` (`hello`, `littlex`); the worked product-scale reference app is `jachammer` (a mobile clone of jacBuilder) in the jacBuilder repo under `apps/mobile/` - copy its patterns.
 
 A MobUI app is still a normal Jac full-stack app: backend `node`/`walker:pub`, and the client UI built from primitives - client placement is inferred from the JSX and `@jac/mobui` imports. All of `jac-walker-patterns`, `jac-sv-endpoints`, `jac-sv-persistence` apply to the backend unchanged.
 
@@ -20,7 +20,9 @@ In a `mobui` project, any lowercase HTML tag that doesn't resolve to an in-scope
 | `<button>`, `<a>` | `<Pressable>` |
 | `<input>`, `<textarea>` | `<TextInput>` |
 | `<img>` | `<Image>` |
-| `<ul>`, `<ol>`, scroll containers | `<ScrollView>` |
+| `<ul>`, `<ol>`, scroll containers | `<ScrollView>` - use `<FlatList>` / `<SectionList>` once the list can grow past a screenful |
+| `<dialog>` | `<Modal>` |
+| `<input type="checkbox">` | `<Switch>` |
 
 Your own uppercase components (`<TweetCard/>`) are always allowed.
 
@@ -125,7 +127,7 @@ version = "1.0.0"
 client_kind = "mobui"          # THE switch - without it it's a web app and HTML is allowed
 entry-point = "main.jac"
 
-[plugins.client]
+[client]
 
 [dependencies.npm]
 react = "^18.2.0"
@@ -139,15 +141,15 @@ react-native-svg = "^15.13.0"      # peer dep of lucide-react-native
 `client_kind` accepts only `"web"` (default) or `"mobui"`. Run `jac install` after editing `jac.toml`.
 
 ```bash
-jac start main.jac --dev                          # WEB preview (react-native-web via Vite) - iframe-able
+jac run --dev main.jac                            # WEB preview (react-native-web via Vite) - iframe-able
 jac setup react-native                            # one-time Expo scaffold → .jac/mobile-rn/
-jac start main.jac --client react-native --dev    # NATIVE (Metro; press a/i, or Expo Go QR)
+jac run --client react-native --dev main.jac      # NATIVE (Metro; press a/i, or Expo Go QR)
 jac build                                          # web bundle
 jac build --client react-native --platform android # APK (gradle or EAS)
 jac build --client react-native --platform ios     # .app / .ipa (xcodebuild on macOS, or EAS)
 ```
 
-**Iterate on `jac start main.jac --dev`** - the web (react-native-web) target renders `View`→`div`, `Text`→`span` and hot-reloads in a browser. Native needs Metro + a device/simulator and can't render in a plain iframe. Optional native config lives under `[plugins.client.react_native]` (`project_dir`, `default_platform`, `android_builder`/`ios_builder` = `gradle`/`xcodebuild`/`eas`, `eas_profile`, OTA `eas_update*`).
+**Iterate on `jac run --dev main.jac`** - the web (react-native-web) target renders `View`→`div`, `Text`→`span` and hot-reloads in a browser. Native needs Metro + a device/simulator and can't render in a plain iframe. Optional native config lives under `[client.react_native]` (`project_dir`, `default_platform`, `android_builder`/`ios_builder` = `gradle`/`xcodebuild`/`eas`, `eas_profile`, OTA `eas_update*`).
 
 ## Cross-platform icons & native modules
 
@@ -168,7 +170,14 @@ Use `<Icon name="rocket" size={20} color={C.accent}/>` - one call, both platform
 
 ## Keyboard & platform helpers
 
-Import from `@jac/mobui`: `Platform`, `Keyboard`, `KeyboardAvoidingView`, `useWindowDimensions`, `Animated`, `Easing`, `createAnimatedValue`.
+Import from `@jac/mobui`: `Platform`, `Keyboard`, `KeyboardAvoidingView`, `useWindowDimensions`, `Dimensions`, `StatusBar`, `Animated`, `Easing`, `createAnimatedValue`, `Alert`, `Linking`.
+
+`Platform.select` is available too - reach for a `.native.jac` file pair only when the two platforms need *different imports*, not to branch on a value:
+
+```jac
+import from "@jac/mobui" { Platform }
+glob pad = Platform.select({"ios": 20, "android": 12, "default": 16});
+```
 
 ```jac
 import from "@jac/mobui" { KeyboardAvoidingView, Keyboard, Platform }
@@ -183,7 +192,7 @@ def kbBehavior() -> str { return "padding" if Platform.OS == "ios" else "height"
 2. `main.jac` - backend `node`/`walker:pub`, then `def:pub app -> JsxElement`; author the whole UI here in primitives (file-layout trap above).
 3. `theme.jac` - token globals + `buildStyles`.
 4. `icon.jac` + `icon.native.jac` if icons are needed.
-5. `jac install`, then `jac start main.jac --dev` and validate.
+5. `jac install`, then `jac run --dev main.jac` and validate.
 
 ## See also
 
@@ -191,4 +200,4 @@ def kbBehavior() -> str { return "padding" if Platform.OS == "ios" else "height"
 - `jac-mobile-app` - the **Capacitor** target (webview wrapper of a web bundle; keeps HTML) - different from MobUI
 - `jac-fullstack-patterns`, `jac-walker-patterns`, `jac-sv-endpoints` - the backend the UI calls
 - `jac-project-kinds` - target comparison
-- Examples: `jac/examples/mobui/` (`hello`, `littlex`); product-scale reference: `jachammer` in the jacBuilder repo (`mobile/`)
+- Examples: `jac/examples/mobui/` (`hello`, `littlex`); product-scale reference: `jachammer` in the jacBuilder repo (`apps/mobile/`)

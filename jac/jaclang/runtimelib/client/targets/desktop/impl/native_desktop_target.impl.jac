@@ -11,7 +11,7 @@ import from jaclang.runtimelib.client.targets.desktop.desktop_build {
     _find_webview_dir,
     _jac_bin,
     _jac_subprocess_env,
-    _stage_pyembed_shim,
+    _stage_fused_runtime,
     _bundle_runtime,
 }
 import from jaclang.runtimelib.client.targets.desktop._host_bootstrap {
@@ -99,7 +99,7 @@ def _assemble_native_host(
     shutil.copytree(sv_root, sv_stage, ignore=sv_ignore);
     sv_entry_rel = str(entry_file.name);
 
-    _stage_pyembed_shim(output_dir);
+    _stage_fused_runtime(output_dir);
     host_src = _generate_host_source(
         win.title or app_name,
         win.width,
@@ -134,9 +134,10 @@ def _assemble_native_host(
     venv_rel = os.path.relpath(str(venv_dir), str(output_dir));
 
     launcher.write_text(
-        ("#!/bin/sh\n" "cd \"$(dirname \"$0\")\" || exit 1\n") + jac_desktop_webkit_shell_export() + jac_desktop_deps_shell_export(
-            venv_rel
-        ) + f"exec ./{app_name} \"$@\"\n"
+        ("#!/bin/sh\n" "cd \"$(dirname \"$0\")\" || exit 1\n")
+            + jac_desktop_webkit_shell_export()
+            + jac_desktop_deps_shell_export(venv_rel)
+            + f"exec ./{app_name} \"$@\"\n"
     );
     os.chmod(launcher, 0o755);
     return binary;
@@ -155,7 +156,7 @@ impl NativeDesktopTarget.build(
     console.print(f"\n✅ Desktop app built: {binary}", style="bold green");
     console.print(
         f"   run: (cd {binary.parent} && ./{binary.name}-launch.sh)"
-        "  # or jac start --client desktop",
+        "  # or jac run --client desktop",
         style="muted"
     );
     return binary;
@@ -256,7 +257,7 @@ impl NativeDesktopTarget.dev(
 
     try {
         if binary_proc is not None {
-            binary_proc.wait();
+            binary_proc.`wait();
         }
     } except KeyboardInterrupt {
         console.print("\n  Interrupted.", style="muted");

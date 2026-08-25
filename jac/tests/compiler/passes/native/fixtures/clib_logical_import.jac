@@ -12,6 +12,6 @@ import from raylib {
 }
 
 def open_then_close(w: int, h: int, title: str) -> None {
-    InitWindow(w, h, title);
+    InitWindow(i32(w), i32(h), title);
     CloseWindow();
 }

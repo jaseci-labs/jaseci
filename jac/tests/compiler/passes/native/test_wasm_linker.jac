@@ -47,7 +47,7 @@ def emit_wasm_object(fixture: str) -> bytes {
         prog = JacProgram();
         ir = prog.compile(
             file_path=os.path.join(FIXTURES, fixture),
-            options=CompileOptions(aot_mode=True, type_check=False)
+            options=CompileOptions(aot_mode=True)
         );
         assert not prog.errors_had , f"compile errors: {[
             str(e) for e in prog.errors_had
@@ -239,8 +239,7 @@ test "nacompile --target wasm32 writes a valid module via the CLI" {
 test "linked module instantiates and runs under node" {
     node_bin = shutil.which("node");
     if not node_bin {
-        import pytest;
-        pytest.skip("node not available");
+        testskip("node not available");
     }
     mod = WasmLinker.link(emit_wasm_object(FIXTURE), [], 256);
     d = tempfile.mkdtemp();

@@ -103,7 +103,7 @@ def:pub MetricsPage -> JsxElement {
         if maxVal == 0 {
             return "0%";
         }
-        pct = min(100, (value / maxVal) * 100);
+        pct = min(100.0, (value / maxVal) * 100);
         # Floor any non-zero value to a visible sliver so a busy interval
         # never rounds away to 0% when a single tall bar dominates the scale.
         if value > 0 and pct < minPct {
@@ -451,24 +451,24 @@ def:pub MetricsPage -> JsxElement {
                         </div>
                     </div>
                     {slowestLatency > 1000
-                    and <div
-                        className="mt-4 p-3 bg-warning-weak border border-line rounded-lg"
-                    >
-                        <div className="flex items-center gap-2 text-xs">
-                            <AlertTriangle
-                                className="w-3.5 h-3.5 text-warning shrink-0"
-                            />
-                            <span className="text-warning font-medium">
-                                Slowest path
-                            </span>
-                            <span className="text-muted font-mono flex-1 truncate">
-                                {slowestPath}
-                            </span>
-                            <span className="text-fg font-semibold">
-                                {int(slowestLatency / 100) / 10}s
-                            </span>
-                        </div>
-                    </div>}
+                        and <div
+                            className="mt-4 p-3 bg-warning-weak border border-line rounded-lg"
+                        >
+                            <div className="flex items-center gap-2 text-xs">
+                                <AlertTriangle
+                                    className="w-3.5 h-3.5 text-warning shrink-0"
+                                />
+                                <span className="text-warning font-medium">
+                                    Slowest path
+                                </span>
+                                <span className="text-muted font-mono flex-1 truncate">
+                                    {slowestPath}
+                                </span>
+                                <span className="text-fg font-semibold">
+                                    {int(slowestLatency / 100) / 10}s
+                                </span>
+                            </div>
+                        </div>}
                 </div>
                 <div className="bg-surface border border-line rounded-lg p-5 shadow-sm">
                     <div className="flex items-center gap-2 mb-4">

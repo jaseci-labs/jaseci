@@ -31,10 +31,11 @@ impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
     import from jaclang.jac0core.constant { CodeContext }
     import from jaclang { JacRuntime as Jac }
     has_na = False;
-    compiled = Jac.program.mod.hub.get(str(module_path.resolve()));
+    compiled = Jac.get_program().mod.hub.get(str(module_path.resolve()));
     if compiled is None {
         console.warning(
-            f"'{module_path.name}' not found in the compile hub; cannot " + "check for native code, so no wasm will be emitted for it."
+            f"'{module_path.name}' not found in the compile hub; cannot "
+                + "check for native code, so no wasm will be emitted for it."
         );
     } else {
         has_na = compiled.declares_codespace(CodeContext.NATIVE);
@@ -95,7 +96,8 @@ impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> No
         }
         if app_ffi {
             console.print(
-                f"    app FFI imports ({len(app_ffi)}): provide via the shim's" + " env at instantiation (see .wasm.imports.json)"
+                f"    app FFI imports ({len(app_ffi)}): provide via the shim's"
+                    + " env at instantiation (see .wasm.imports.json)"
             );
         }
     } except Exception as e {
@@ -119,7 +121,7 @@ impl ViteCompiler.create_entry_file(self: ViteCompiler, module_path: Path) -> No
 
     try {
         if entry_file.exists()
-        and entry_file.read_text(encoding='utf-8') == entry_content {
+            and entry_file.read_text(encoding='utf-8') == entry_content {
             return;
         }
     } except OSError { }
@@ -171,19 +173,24 @@ impl ViteCompiler.compile_runtime_utils(self: ViteCompiler) -> tuple[str, list[s
     glob_names = list(runtimeutils_manifest.globals) if runtimeutils_manifest else [];
     all_exports = sorted(
         set(
-            runtimeutils_exports_list + self.jac_client_compiler.ROUTER_EXPORTS + glob_names
+            runtimeutils_exports_list
+                + self.jac_client_compiler.ROUTER_EXPORTS
+                + glob_names
         )
     );
     self.compiled_dir.mkdir(parents=True, exist_ok=True);
 
     core_path = runtime_utils_path.parent / 'client_runtime_core.jac';
     if core_path.exists() {
-        core_specifier = './jaclang/runtimelib/client_runtime_core.js';
-        if core_specifier in runtimeutils_js {
+        import re;
+        core_match = re.search(
+            r'from\s+[\'\"]([^\'\"]*client_runtime_core\.js)[\'\"]', runtimeutils_js
+        );
+        if core_match {
             (core_js, core_mod, _) = self.jac_compiler.compile_module(core_path);
             core_js = prepend_active_runtime_globals(core_js);
             runtimeutils_js = runtimeutils_js.replace(
-                core_specifier, './client_runtime_core.js'
+                core_match.group(1), './client_runtime_core.js'
             );
             core_out = self.compiled_dir / 'client_runtime_core.js';
             core_out.write_text(core_js, encoding='utf-8');
@@ -220,7 +227,10 @@ impl ViteCompiler.compile_desktop_sdk(self: ViteCompiler) {
     }
 
     desktop_exports = self.jac_compiler.extract_exports(desktop_manifest);
-    desktop_globals = self.jac_compiler.extract_globals(desktop_manifest, mod);
+    desktop_globals: dict[str, any] = {};
+    if mod is not None {
+        desktop_globals = self.jac_compiler.extract_globals(desktop_manifest, mod);
+    }
     all_names = sorted(set(desktop_exports + list(desktop_globals.keys())));
 
     if not all_names {
@@ -246,7 +256,7 @@ impl ViteCompiler.init(
     runtime_path: (Path | None) = None,
     compile_to_js_func: Callable[([Path], tuple[(str, (ModuleType | None))])],
     extract_exports_func: Callable[([any], list[str])],
-    extract_globals_func: Callable[([any, ModuleType], dict[(str, Any)])]
+    extract_globals_func: Callable[([any, ModuleType], dict[(str, any)])]
 ) {
     if (not vite_package_json or not vite_package_json.exists()) {
         raise ClientBundleError(
@@ -274,7 +284,11 @@ impl ViteCompiler.init(
         extract_exports_func=extract_exports_func,
         extract_globals_func=extract_globals_func
     );
-    self.compiled_dir = self.jac_client_compiler.compiled_dir;
+    compiled_dir = self.jac_client_compiler.compiled_dir;
+    if compiled_dir is None {
+        raise ClientBundleError('Client compiled directory could not be resolved');
+    }
+    self.compiled_dir = compiled_dir;
     self.jac_compiler = JacToJSCompiler(
         compile_to_js_func, extract_exports_func, extract_globals_func
     );

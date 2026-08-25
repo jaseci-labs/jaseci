@@ -76,6 +76,37 @@ impl __jacJsx(tag: any, props: dict = {}, children: any = []) -> JsxElement {
     }
 }
 
+impl useJacState(initial: any) -> any {
+    ref = reactUseRef(None);
+    if ref.current == None {
+        cell: dict[str, any] = {"val": initial, "version": 0, "listeners": []};
+        cell["subscribe"] = lambda (cb: any) {
+            cell["listeners"].append(cb);
+            return lambda {
+                idx = cell["listeners"].indexOf(cb);
+                if idx > -1 {
+                    cell["listeners"].splice(idx, 1);
+                }
+            };
+        };
+        cell["getVersion"] = lambda { return cell["version"]; };
+        cell["set"] = lambda (v: any) {
+            if Object.`is(cell["val"], v) {
+                return;
+            }
+            cell["val"] = v;
+            cell["version"] = cell["version"] + 1;
+            for cb in cell["listeners"].slice() {
+                cb();
+            }
+        };
+        ref.current = cell;
+    }
+    store = ref.current;
+    reactUseSyncExternalStore(store["subscribe"], store["getVersion"]);
+    return store;
+}
+
 impl useRouter -> dict {
     navigate = reactRouterUseNavigate();
     location = reactRouterUseLocation();
@@ -90,16 +121,19 @@ impl useRouter -> dict {
     };
 }
 
-impl AuthGuard(redirect: str = "/login") -> JsxElement {
-    if jacIsLoggedIn() {
-        return <ReactRouterOutlet/>;
+impl AuthGuard(redirect: str = "/login", children: any = None) -> JsxElement {
+    if not jacIsLoggedIn() {
+        return <ReactRouterNavigate to={redirect} replace={True}/>;
     }
-    <ReactRouterNavigate to={redirect} replace={True}/>
+    if children is not None {
+        return <>{children}</>;
+    }
+    <ReactRouterOutlet/>
 }
 
-impl JacAwaiting(props: dict) -> JsxElement {
+impl JacAwaiting(props: dict[str, any]) -> JsxElement {
     return React.createElement(
-        React.Suspense, {"fallback": props.fallback}, props.children
+        React.Suspense, {"fallback": props["fallback"]}, props["children"]
     );
 }
 
@@ -123,23 +157,23 @@ impl useJacForm(form_mode: str, schema: any, onSubmit: any = None) -> any {
         console.warn(f"Unknown validateMode '{form_mode}'; falling back to onBlur");
         validators["onBlur"] = schema;
     }
-    opts = {"defaultValues": defaults, "validators": validators};
+    opts: dict[str, any] = {"defaultValues": defaults, "validators": validators};
     if onSubmit {
         opts["onSubmit"] = lambda (args: any) { return onSubmit(args.value); };
     }
     return useForm(opts);
 }
 
-impl JacForm(props: dict) -> JsxElement {
-    schema = props.schema;
-    onSubmit = props.onSubmit;
-    layout = props.layout or "vertical";
-    field_config = props.field_config or {};
-    submitLabel = props.submitLabel or "Submit";
-    submitClassName = props.submitClassName or "";
-    gridColumns = props.gridColumns or 2;
-    validateMode = props.validateMode or "onTouched";
-    className = props.className or "";
+impl JacForm(props: dict[str, any]) -> JsxElement {
+    schema = props["schema"];
+    onSubmit = props["onSubmit"];
+    layout = props["layout"] or "vertical";
+    field_config: dict[str, any] = props["field_config"] or {};
+    submitLabel = props["submitLabel"] or "Submit";
+    submitClassName = props["submitClassName"] or "";
+    gridColumns = props["gridColumns"] or 2;
+    validateMode: str = props["validateMode"] or "onTouched";
+    className = props["className"] or "";
     actualSchema = __unwrapFormSchema(schema);
     schemaShape = actualSchema.shape or {};
     fieldNames = Object.keys(schemaShape);
@@ -175,7 +209,7 @@ impl JacForm(props: dict) -> JsxElement {
         if validateMode == "onTouched" and not isTouched {
             return None;
         }
-        if not errors or not errors.length {
+        if not errors or len(errors) == 0 {
             return None;
         }
         return (
@@ -191,25 +225,29 @@ impl JacForm(props: dict) -> JsxElement {
             return unwrapped.options;
         }
 
-        if unwrapped.enum {
-            return Object.keys(unwrapped.enum);
+        if unwrapped.`enum {
+            return Object.keys(unwrapped.`enum);
         }
 
         if unwrapped._def and unwrapped._def.entries {
             return Object.keys(unwrapped._def.entries);
         }
-        if unwrapped.def and unwrapped.def.entries {
-            return Object.keys(unwrapped.def.entries);
+        if unwrapped.`def and unwrapped.`def.entries {
+            return Object.keys(unwrapped.`def.entries);
         }
         return [];
     }
     def renderInput(
-        fieldType: str, field: any, config: dict, fieldSchema: any, fieldName: str
+        fieldType: str,
+        field: any,
+        config: dict[str, any],
+        fieldSchema: any,
+        fieldName: str
     ) -> JsxElement {
-        inputClassName = config.inputClassName or "";
-        labelClassName = config.labelClassName or "";
-        placeholder = config.placeholder or "";
-        label = config.label or fieldName;
+        inputClassName = config["inputClassName"] or "";
+        labelClassName = config["labelClassName"] or "";
+        placeholder = config["placeholder"] or "";
+        label = config["label"] or fieldName;
         hasError = (
             field.state.meta.errors
             and field.state.meta.errors.length
@@ -293,7 +331,7 @@ impl JacForm(props: dict) -> JsxElement {
         }
 
         if fieldType == "textarea" {
-            rows = config.rows or 4;
+            rows = config["rows"] or 4;
             return (
                 <textarea
                     name={fieldName}
@@ -318,8 +356,8 @@ impl JacForm(props: dict) -> JsxElement {
             );
         }
 
-        if fieldType == "password" and config.showPasswordToggle {
-            isVisible = passwordVisible[fieldName] or False;
+        if fieldType == "password" and config["showPasswordToggle"] {
+            isVisible = bool(passwordVisible[fieldName]);
             return (
                 <div>
                     <div style={{position: "relative"}}>
@@ -360,8 +398,9 @@ impl JacForm(props: dict) -> JsxElement {
                             type="checkbox"
                             checked={isVisible}
                             onChange={lambda (e: any) { setPasswordVisible(
-                                lambda (prev: any) -> dict {
-                                    newState = Object.assign({}, prev);
+                                lambda (prev: any) -> dict[str, any] {
+                                    newState: dict[str, any] = {};
+                                    newState.update(prev);
                                     newState[fieldName] = not isVisible;
                                     return newState;
                                 }
@@ -397,15 +436,17 @@ impl JacForm(props: dict) -> JsxElement {
     }
     def renderField(fieldName: str) -> JsxElement {
         fieldSchema = schemaShape[fieldName];
-        config = field_config[fieldName] if field_config[fieldName] else {};
-        fieldType = config.type or "text";
-        label = config.label or fieldName;
-        fieldClassName = config.className or "";
-        labelClassName = config.labelClassName or "";
+        config: dict[str, any] = (
+            field_config[fieldName] if field_config[fieldName] else {}
+        );
+        fieldType = config["type"] or "text";
+        label = config["label"] or fieldName;
+        fieldClassName = config["className"] or "";
+        labelClassName = config["labelClassName"] or "";
 
         return (
             <form.Field name={fieldName} key={fieldName}>
-                {lambda (field: JsxElement) { return (
+                {lambda (field: any) { return (
                     <div className={fieldClassName} style={{marginBottom: "1rem"}}>
                         <label
                             className={labelClassName}
@@ -467,7 +508,7 @@ impl JacForm(props: dict) -> JsxElement {
                     isSubmitting: s.isSubmitting
                 }; }}
             >
-                {lambda (fs: JsxElement) {
+                {lambda (fs: any) {
                     btnEffectiveIsValid = (
                         True
                             if (validateMode == "onTouched" and not fs.isTouched)
@@ -487,7 +528,7 @@ impl JacForm(props: dict) -> JsxElement {
                             }}
                         >
                             {fs.isSubmitting and "Submitting..."}{not fs.isSubmitting
-                            and submitLabel}
+                                and submitLabel}
                         </button>
                     );
                 }}

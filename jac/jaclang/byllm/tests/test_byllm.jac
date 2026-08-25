@@ -7,7 +7,6 @@ import sys;
 import warnings;
 import unittest.mock;
 
-import pytest;
 import yaml;
 import from fixtures { python_lib_mode }
 
@@ -28,6 +27,11 @@ import from jaclang { JacRuntimeInterface as Jac }
 
 glob jac_import = Jac.jac_import,
      FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures");
+
+"""Identity cast that keeps duck-typed test payloads out of nominal checks."""
+def _as_any(v: any) -> any {
+    return v;
+}
 
 test "llm mail summerize" {
     captured_output = io.StringIO();
@@ -108,7 +112,8 @@ test "params format" {
     assert add_message[1]["role"] == "user" , "Second message should be of role 'user'";
     assert add_message[3]["role"] == "tool" , "Fourth message should be of role 'tool'";
     assert (
-        add_message[3]["content"] == "The current wind speed in Puttalam is about 18-22 km/h."
+        add_message[3]["content"]
+        == "The current wind speed in Puttalam is about 18-22 km/h."
     ) , "Content mismatch";
 
     add_tool = extracted_dict["tools"][0];
@@ -157,7 +162,8 @@ test "streaming output" {
     sys.stdout = sys.__stdout__;
     stdout_value = captured_output.getvalue();
     assert (
-        "The orca whale, or killer whale, is one of the most intelligent and adaptable marine predators" in stdout_value
+        "The orca whale, or killer whale, is one of the most intelligent and adaptable marine predators"
+        in stdout_value
     );
 }
 
@@ -312,7 +318,8 @@ test "with llm type" {
     assert "14/03/1879" in stdout_value;
     assert (
         'University (University) (obj) = type(__module__="with_llm_type", __doc__=None, '
-        "_jac_entry_funcs_`=[`], _jac_exit_funcs_=[], __init__=function(__wrapped__=function()))" not in stdout_value
+        "_jac_entry_funcs_`=[`], _jac_exit_funcs_=[], __init__=function(__wrapped__=function()))"
+        not in stdout_value
     );
     desired_output_count = stdout_value.count(
         "Person(name='Jason Mars', dob='1994-01-01', age=30)"
@@ -321,7 +328,11 @@ test "with llm type" {
 }
 
 test "with llm image" {
-    pytest.importorskip("PIL", reason="This test requires Pillow to be installed");
+    try {
+        import PIL;
+    } except ImportError {
+        testskip("This test requires Pillow to be installed");
+    }
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     jac_import("with_llm_image", base_path=FIXTURE_DIR + "/");
@@ -343,7 +354,11 @@ test "webp image support" {
 }
 
 test "with llm video" {
-    pytest.importorskip("cv2", reason="This test requires OpenCV to be installed");
+    try {
+        import cv2;
+    } except ImportError {
+        testskip("This test requires OpenCV to be installed");
+    }
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     jac_import("with_llm_video", base_path=FIXTURE_DIR + "/");
@@ -433,8 +448,8 @@ test "visit by for routing" {
 
 test "streaming visit by routes and streams tokens to handler" {
     # `visit [-->] by model(stream=True, stream_handler=fn)` streams the routing
-    # decision token-by-token to the handler (the jac ai --ui firehose path)
-    # while the structured choice still selects the successor edge.
+    # decision token-by-token to the handler (the path a live token feed
+    # consumes) while the structured choice still selects the successor edge.
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     jac_import("streaming_visit_by", base_path=FIXTURE_DIR + "/");
@@ -496,7 +511,8 @@ test "max react iterations" {
     assert "WIND_TOOL_CALLS: 1" in stdout_value;
     assert "UNIT_TOOL_CALLS: 1" in stdout_value;
     assert (
-        "Based on the tool calls and their results above, provide only your final answer." in stdout_value
+        "Based on the tool calls and their results above, provide only your final answer."
+        in stdout_value
     );
 }
 
@@ -593,8 +609,9 @@ test "api key empty when none provided" {
 
 test "api key not overwritten on dispatch" {
     model = Model(model_name="gpt-4o-mini", api_key="sk-test-key");
+    _no_mt: any = None;
     with contextlib.suppress(Exception) {
-        model(temperature=0.5).invoke(None);
+        model(temperature=0.5).invoke(_no_mt);
     }
     assert model.api_key == "sk-test-key";
 }
@@ -646,6 +663,69 @@ test "api key masking formats" {
 
     assert len("x") <= 1;
 }
+
+test "resolved api_base reaches the litellm call" {
+    # `make_model_params` resolves api_base, then dispatch pops it off `params`
+    # into `self.api_base`, an attribute only the proxy and http_client
+    # branches read. On the default litellm path a configured base_url was
+    # therefore dropped and requests went to the provider's own endpoint
+    # (api.openai.com for gpt-*) instead of the configured gateway.
+    if not hasattr(_byllm_llm_mod.litellm, "completion") {
+        testskip("litellm is not installed");
+    }
+    seen: dict[str, object] = {};
+
+    def _fake_completion(**kwargs: object) -> dict[str, object] {
+        seen.clear();
+        seen.update(kwargs);
+        return {
+            "model": "gpt-4o-mini",
+            "choices": [
+                {
+                    "message": {"role": "assistant", "content": "ok"},
+                    "finish_reason": "stop"
+                }
+            ],
+            "usage": {}
+        };
+    }
+    def _dispatched_api_base(model: Model) -> any {
+        with unittest.mock.patch.object(
+            _byllm_llm_mod.litellm, "completion", _fake_completion
+        ) {
+            model.dispatch_no_streaming(
+                MTRuntime(
+                    messages=[
+                        Message(role=MessageRole.SYSTEM, content="s"),
+                        Message(role=MessageRole.USER, content="u")
+                    ],
+                    resp_type=str,
+                    stream=False,
+                    tools=[],
+                    call_params={},
+                    mtir=None
+                )
+            );
+        }
+        return seen.get("api_base");
+    }
+    configured = Model(
+        model_name="gpt-4o-mini",
+        api_key="sk-test",
+        config={"base_url": "https://gateway.example.com/v1"}
+    );
+    assert _dispatched_api_base(configured) == "https://gateway.example.com/v1" , "a configured base_url must reach litellm";
+
+    # With nothing configured the loader's empty-string default must normalise
+    # to None so litellm keeps the provider's endpoint, never DEFAULT_BASE_URL.
+    with unittest.mock.patch.dict(
+        _byllm_llm_mod._model_config, {"base_url": ""}, clear=True
+    ) {
+        bare = Model(model_name="gpt-4o-mini", api_key="sk-test");
+        assert _dispatched_api_base(bare) is None , "api_base must stay unset when nothing configures one";
+    }
+}
+
 
 test "api key not in verbose output" {
     import from loguru { logger }
@@ -731,7 +811,9 @@ test "byllm config uses full_target_path to find jac.toml regardless of cwd" {
 # so that is the correct unit to test.
 glob _TestPerson = dataclasses.make_dataclass(
          "Person", [("name", str), ("age", int)]
-     );
+     ),
+     _TestUnionField = dataclasses.make_dataclass("UnionField", [("value", str | int)]),
+     _TestFieldless = dataclasses.make_dataclass("Fieldless", []);
 
 test "output conversion error on plain text" {
     # LLM returns a narrative string instead of JSON
@@ -943,6 +1025,215 @@ test "finish tool error not raised for valid type" {
     result = finish_tool({"name": "Alice", "age": 30});
     assert result.name == "Alice" , f"Expected name='Alice', got '{result.name}'";
     assert result.age == 30 , f"Expected age=30, got '{result.age}'";
+}
+
+# finish_tool argument robustness (issue #8169).
+test "finish tool argument resolution heals recoverable shapes" {
+    finish_tool = Tool.make_finish_tool(_TestPerson);
+    person = {"name": "Bob", "age": 25};
+    for (sent, why) in [
+        ({"final_output": person}, "canonical name"),
+        ({"output": person}, "misnamed argument"),
+        (person, "flattened kwargs")
+    ] {
+        parsed = finish_tool.parse_arguments(sent);
+        assert parsed["final_output"].name == "Bob" , f"{why}: got {parsed}";
+    }
+    bare = Tool.make_finish_tool(str).parse_arguments("just the answer");  # type: ignore[arg-type]
+    assert bare == {"final_output": "just the answer"} , f"bare payload: got {bare}";
+    # Output type whose OWN field is named final_output, sent flattened.
+    self_named = dataclasses.make_dataclass(
+        "_SelfNamed", [("final_output", str), ("score", int)]
+    );
+    parsed = Tool.make_finish_tool(self_named).parse_arguments(
+        {"final_output": "ok", "score": 5}
+    );
+    assert parsed["final_output"].score == 5 , f"self-named flattened: got {parsed}";
+}
+
+test "unusable tool arguments raise recoverable errors" {
+    finish_tool = Tool.make_finish_tool(_TestPerson);
+    def _sample_tool(city: str) -> str {
+        return city;
+    }
+    regular = Tool(func=_sample_tool);
+    for (tool, sent, needle) in [
+        (finish_tool, {}, "final_output"),
+        (finish_tool, {"a": 1, "b": 2}, "final_output"),
+        (regular, {"location": "Paris"}, "'city'"),
+        (regular, {"return": "Paris"}, "'city'"),
+        (regular, ["Paris"], "JSON object")
+    ] {
+        raised = False;
+        try {
+            tool.parse_arguments(sent);
+        } except ValueError as e {
+            raised = True;
+            assert needle in str(e) , f"{sent}: got {e}";
+        }
+        assert raised , f"Expected ValueError for {sent}";
+    }
+}
+
+test "finish tool invocation failure raises FinishToolError not TypeError" {
+    finish_tool = Tool.make_finish_tool(_TestPerson);
+    raised = False;
+    try {
+        finish_tool();
+    } except FinishToolError as e {
+        raised = True;
+        assert "final_output" in str(e) , f"got: {e}";
+    }
+    assert raised , "Expected FinishToolError for argument-less finish call";
+}
+
+"""Model, finish_tool-only mt_run, and a fake response carrying `arguments`."""
+def _finish_env(arguments: str) -> tuple {
+    model = Model(model_name="test-model");
+    mt_run = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are a helpful assistant."),
+            Message(role=MessageRole.USER, content="Who?")
+        ],
+        resp_type=_TestPerson,
+        stream=False,
+        tools=[Tool.make_finish_tool(_TestPerson)],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+    fake_fn = types.SimpleNamespace(name="finish_tool", arguments=arguments);
+    fake_response = {
+        "choices": [
+            {
+                "message": {
+                    "content": None,
+                    "tool_calls": [types.SimpleNamespace(id="call_1", function=fake_fn)]
+                }
+            }
+        ],
+
+    };
+    return (model, mt_run, fake_response);
+}
+
+
+def _dispatch_finish_call(arguments: str) -> any {
+    (model, mt_run, fake_response) = _finish_env(arguments);
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", return_value=fake_response
+    ) {
+        return model.dispatch_no_streaming(mt_run);
+    }
+}
+
+test "misnamed finish argument is healed end to end" {
+    result = _dispatch_finish_call('{"output": {"name": "Dana", "age": 33}}');
+    finish_tc = result.tool_calls[0];
+    assert finish_tc.is_finish_call() , "Healed call should still be the finish call";
+    assert finish_tc.get_output().name == "Dana" , "Expected healed typed output";
+}
+
+# An error report that classified as the finish call would become the typed output.
+test "unusable finish arguments are recovered end to end" {
+    result = _dispatch_finish_call('{"a": 1, "b": 2}');
+    err_tc = result.tool_calls[0];
+    assert not err_tc.is_finish_call() , (
+        "Recovered error call must not masquerade as the finish call"
+    );
+    content = str(err_tc().content);
+    assert "Tool error" in content and "final_output" in content , f"got: {content}";
+}
+
+test "async dispatch heals a misnamed finish argument" {
+    import asyncio;
+    (model, mt_run, fake_response) = _finish_env(
+        '{"output": {"name": "Eli", "age": 44}}'
+    );
+
+    async def _fake_async_call(params: dict) -> any {
+        return fake_response;
+    }
+
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream_async", _fake_async_call
+    ) {
+        result = asyncio.run(model.adispatch_no_streaming(mt_run));
+    }
+    finish_tc = result.tool_calls[0];
+    assert finish_tc.is_finish_call() , "Async healed call should be the finish call";
+    assert finish_tc.get_output().name == "Eli" , "Expected healed typed output";
+}
+
+# The max-iterations terminal has no retry loop: heal or degrade, never raise.
+test "forced final answer heals or degrades without raising" {
+    for (arguments, expect_typed) in [
+        ('{"output": {"name": "Fay", "age": 51}}', True),
+        ('{"a": 1, "b": 2}', False)
+    ] {
+        (model, mt_run, fake_response) = _finish_env(arguments);
+        with unittest.mock.patch.object(
+            model, "model_call_no_stream", return_value=fake_response
+        ) {
+            out = model._force_final_answer(mt_run);
+        }
+        if expect_typed {
+            assert out.name == "Fay" , f"Expected healed typed output, got: {out}";
+        } else {
+            assert not isinstance(out, _TestPerson) , f"Expected degradation, got: {out}";
+        }
+    }
+}
+
+test "recovery re-prompt heals a misnamed finish argument" {
+    (model, mt_run, fake_response) = _finish_env(
+        '{"output": {"name": "Gus", "age": 29}}'
+    );
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", return_value=fake_response
+    ) {
+        recovery = model._attempt_recovery(mt_run);
+    }
+    assert recovery is not None , "Recovery should run for a structured resp_type";
+    finish_tc = recovery.tool_calls[0];
+    assert finish_tc.is_finish_call() , "Recovered call should be the finish call";
+    assert finish_tc.get_output().name == "Gus" , "Expected healed typed output";
+}
+
+# Some backends downgrade json_schema to json_object and reject requests whose
+# messages lack the word "json" (issue #8114).
+test "response format requests always carry the json word" {
+    def _params(resp_type: type, tools: list) -> dict {
+        model = Model(model_name="test-model");
+        mt_run = MTRuntime(
+            messages=[
+                Message(role=MessageRole.SYSTEM, content="sys"),
+                Message(role=MessageRole.USER, content="do the thing")
+            ],
+            resp_type=resp_type,
+            stream=False,
+            tools=tools,
+            call_params={},
+            mtir=None  # type: ignore[arg-type]
+        );
+        return model.make_model_params(mt_run);
+    }
+    for (label, resp_type, tools, want_rf) in [
+        ("typed no tools", _TestPerson, [], True),
+        ("scalar no tools", int, [], True),
+        # A union field compiles to anyOf with no top-level type, and a fieldless
+        # obj to empty properties: both yield no schema hint lines, so the lead
+        # sentence must not depend on those lines existing.
+        ("union field", _TestUnionField, [], True),
+        ("fieldless obj", _TestFieldless, [], True),
+        ("plain str", str, [], False),
+        ("typed with tools", _TestPerson, [Tool.make_finish_tool(_TestPerson)], False)
+    ] {
+        params = _params(resp_type, tools);
+        has_rf = params.get("response_format") is not None;
+        has_json = "json" in str(params.get("messages", [])).lower();
+        assert has_rf == want_rf , f"{label}: unexpected response_format={has_rf}";
+        assert has_json == want_rf , f"{label}: json-word={has_json} but rf={has_rf}";
+    }
 }
 
 # =============================================================================
@@ -1387,9 +1678,8 @@ test "prompt caching marks system, last non-system message, and last tool for an
     assert "cache_control" not in messages[1];
     assert "cache_control" not in messages[2];
     assert "cache_control" not in messages[3].get("content")[0];
-    assert messages[3].get("content")[-1].get(
-        "cache_control"
-    ) == _CACHE_CONTROL_EPHEMERAL;
+    assert messages[3].get("content")[-1].get("cache_control")
+        == _CACHE_CONTROL_EPHEMERAL;
     # Only last tool marked
     assert "cache_control" not in tools[0];
     assert tools[-1].get("cache_control") == _CACHE_CONTROL_EPHEMERAL;
@@ -1401,10 +1691,213 @@ test "prompt caching disabled via config" {
         'get_prompt_caching_config',
         return_value={'enabled': False}
     ) {
-        assert _is_prompt_caching_eligible(
-            "anthropic/claude-sonnet-4-20250514"
-        ) == False;
+        assert _is_prompt_caching_eligible("anthropic/claude-sonnet-4-20250514")
+            == False;
     }
+}
+
+"""Tool-call deltas are read by dict subscript; content deltas by attribute."""
+def _tc_chunk(delta: dict, finish: str | None = None) -> dict {
+    return {
+        "id": "c1",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "m",
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]
+    };
+}
+
+def _text_chunks(text: str) -> list {
+    return [
+        types.SimpleNamespace(
+            usage=None,
+            choices=[
+                types.SimpleNamespace(delta=types.SimpleNamespace(content=w + " "))
+            ]
+        ) for w in text.split(" ")
+    ];
+}
+
+def _mk_run(tools: list) -> MTRuntime {
+    return MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are an agent."),
+            Message(role=MessageRole.USER, content="Do the thing.")
+        ],
+        resp_type=str,
+        stream=True,
+        tools=[*tools, Tool.make_finish_tool(str)],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+}
+
+# Regression guard for jac#8381: tools serialize ahead of messages in Anthropic's
+# wire format, so shrinking mt_run.tools here broke the cached prefix.
+test "_stream_final_answer keeps the tools array intact" {
+    def tool_a(x: str) -> str {
+        return x;
+    }
+    def tool_b(y: str) -> str {
+        return y;
+    }
+
+    model = Model(model_name="anthropic/claude-test");
+    mt_run = _mk_run([Tool(func=tool_a), Tool(func=tool_b)]);
+    expected = [t.get_name() for t in mt_run.tools];
+
+    seen: list = [];
+    def _serve(params: dict) -> list {
+        seen.append(params);
+        return _text_chunks("Done.");
+    }
+    with unittest.mock.patch.object(
+        model, "model_call_with_stream", side_effect=_serve
+    ) {
+        list(model._stream_final_answer(mt_run));
+    }
+
+    assert len(seen) == 1;
+    assert [t["function"]["name"] for t in seen[0]["tools"]] == expected , (
+        "the narration call must send the same tools as the rest of the "
+        "conversation, or Anthropic's cache prefix breaks"
+    );
+    assert seen[0]["tool_choice"] == "none" , "must still forbid tool calls";
+    assert [t.get_name() for t in mt_run.tools] == expected , "mt_run.tools was mutated";
+}
+
+test "finish_tool exit sends an identical tools payload on the narration call" {
+    def search_files(query: str) -> str {
+        return f"found: {query}";
+    }
+
+    model = Model(model_name="anthropic/claude-test");
+    mt_run = _mk_run([Tool(func=search_files)]);
+
+    finish_chunks = [
+        _tc_chunk(
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "c_f",
+                        "type": "function",
+                        "function": {"name": "finish_tool", "arguments": ""}
+                    }
+                ]
+            }
+        ),
+        _tc_chunk(
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "function": {"arguments": '{"final_output": "Fixed it."}'}
+                    }
+                ]
+            }
+        ),
+        _tc_chunk({}, "tool_calls")
+    ];
+
+    calls: list = [];
+    def _serve(params: dict) -> list {
+        calls.append(params.get("tools"));
+        return finish_chunks if len(calls) == 1 else _text_chunks("Fixed it.");
+    }
+    with unittest.mock.patch.object(
+        model, "model_call_with_stream", side_effect=_serve
+    ) {
+        list(model._invoke_streaming(mt_run));
+    }
+
+    assert len(calls) == 2 , f"expected exactly 2 LLM calls, got {len(calls)}";
+    assert calls[0] == calls[1] , (
+        f"the narration call must send a byte-identical tools payload "
+        f"(cache_control included); got {calls[1]} vs {calls[0]}"
+    );
+}
+
+def _mk_forced_run -> tuple {
+    def extra_tool(x: str) -> str {
+        return x;
+    }
+
+    model = Model(model_name="anthropic/claude-test");
+    mt_run = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are an agent."),
+            Message(role=MessageRole.USER, content="Who?")
+        ],
+        resp_type=_TestPerson,
+        stream=False,
+        tools=[Tool(func=extra_tool), Tool.make_finish_tool(_TestPerson)],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+    fake_fn = types.SimpleNamespace(
+        name="finish_tool", arguments='{"final_output": {"name": "Amy", "age": 30}}'
+    );
+    fake_response = {
+        "choices": [
+            {
+                "message": {
+                    "content": None,
+                    "tool_calls": [types.SimpleNamespace(id="call_1", function=fake_fn)]
+                }
+            }
+        ]
+    };
+    return (model, mt_run, fake_response);
+}
+
+def _assert_forces_finish(expected: list, captured: list) {
+    assert len(captured) == 1;
+    sent_names = [t.get("function", {}).get("name") for t in captured[0]["tools"]];
+    assert sent_names == expected , f"got {sent_names}, expected {expected}";
+    assert captured[0]["tool_choice"]
+        == {"type": "function", "function": {"name": "finish_tool"}} , "must force finish_tool specifically, not just narrow the tools list";
+}
+
+# Same bug, but a structured resp_type still needs finish_tool callable, so this
+# forces it via tool_choice instead of tool_choice="none".
+test "_force_final_answer keeps the tools array intact and forces finish_tool" {
+    (model, mt_run, fake_response) = _mk_forced_run();
+    expected = [t.get_name() for t in mt_run.tools];
+
+    captured: list = [];
+    def _serve(params: dict) -> dict {
+        captured.append(params);
+        return fake_response;
+    }
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", side_effect=_serve
+    ) {
+        out = model._force_final_answer(mt_run);
+    }
+
+    _assert_forces_finish(expected, captured);
+    assert out.name == "Amy" , f"expected the healed typed output, got: {out}";
+}
+
+test "_attempt_recovery keeps the tools array intact and forces finish_tool" {
+    (model, mt_run, fake_response) = _mk_forced_run();
+    expected = [t.get_name() for t in mt_run.tools];
+
+    captured: list = [];
+    def _serve(params: dict) -> dict {
+        captured.append(params);
+        return fake_response;
+    }
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", side_effect=_serve
+    ) {
+        recovery = model._attempt_recovery(mt_run);
+    }
+
+    _assert_forces_finish(expected, captured);
+    assert recovery.tool_calls[0].is_finish_call();
 }
 
 import asyncio;
@@ -1499,7 +1992,7 @@ test "model_call_with_stream_async raises and logs RateLimitError" {
 test "model_call_http_async returns json response" {
     mock_response = unittest.mock.MagicMock();
     mock_response.json.return_value = {"choices": [{"message": {"content": "ok"}}]};
-    async def _run_http_async {
+    async def _run_http_async -> any {
         mock_client = unittest.mock.AsyncMock();
         mock_client.__aenter__.return_value = mock_client;
         mock_client.post.return_value = mock_response;
@@ -1599,7 +2092,7 @@ test "async by llm() end-to-end with mocked acall_llm" {
 
     async def _run_end_to_end -> str {
         # Patch acall_llm so no real API call is made.
-        async def _fake_acall_llm(**kwargs: object) -> object {
+        async def _fake_acall_llm(**kwargs: object) -> any {
             return "summary";
         }
         # acall_llm is imported directly from jaclang.jac0core.jaclib into the
@@ -1709,7 +2202,7 @@ test "gemma models default to the text tool protocol" {
 # (not reloaded, so exception classes stay identical to the test's) and every
 # fixture function is invoked by exactly one test, so the mock outputs are
 # consumed exactly once.
-def _load_retry_fixture -> object {
+def _load_retry_fixture -> any {
     return jac_import("llm_typed_retry", base_path=FIXTURE_DIR + "/")[0];
 }
 
@@ -1888,11 +2381,11 @@ test "a tool call cut off mid-arguments is reported to the model (issue #7657)" 
         ],
         "content": ""
     };
-    damaged = _byllm_llm_mod._sanitize_tool_calls(message);
+    damaged = _byllm_llm_mod._sanitize_tool_calls(_as_any(message));
     assert "call_1" in damaged , f"damaged call must be reported, got {damaged!r}";
     # finish_reason is "tool_calls" for a corrupted batch, so the truncation
     # guard cannot be what reports it.
-    assert not _byllm_llm_mod._truncated_call_ids(message, "tool_calls") , "the truncation guard must not be the thing catching this";
+    assert not _byllm_llm_mod._truncated_call_ids(_as_any(message), "tool_calls") , "the truncation guard must not be the thing catching this";
 
     # A tool that genuinely takes no arguments is normal, not damage.
     blank = {
@@ -1905,7 +2398,7 @@ test "a tool call cut off mid-arguments is reported to the model (issue #7657)" 
         ],
         "content": ""
     };
-    assert not _byllm_llm_mod._sanitize_tool_calls(blank) , "an argument-less call must not be reported as truncated";
+    assert not _byllm_llm_mod._sanitize_tool_calls(_as_any(blank)) , "an argument-less call must not be reported as truncated";
 }
 
 
@@ -1918,10 +2411,10 @@ def _writer_tool(file_path: str, content: str) -> str {
 test "damaged and truncated calls get the advice that fits the cause (issue #7657)" {
     tool = Tool(func=_writer_tool);
 
-    def _get_tool(name: str) -> object {
+    def _get_tool(name: str) -> any {
         return tool;
     }
-    mt_run = types.SimpleNamespace(get_tool=_get_tool);
+    mt_run: any = types.SimpleNamespace(get_tool=_get_tool);
     fn = types.SimpleNamespace(name="_writer_tool", arguments='{"file_path"');
     call = types.SimpleNamespace(id="call_1", function=fn, type="function");
 
@@ -1929,7 +2422,8 @@ test "damaged and truncated calls get the advice that fits the cause (issue #765
     truncated = _byllm_llm_mod._parse_tool_calls(
         mt_run, [call], `set(["call_1"]), `set()
     );
-    truncated_msg = str(truncated[0].tool.func());
+    _trunc_tool: any = truncated[0].tool;
+    truncated_msg = str(_trunc_tool.func());
     assert "smaller payload" in truncated_msg , f"a truncated call should be told to split: {truncated_msg!r}";
 
     # A call corrupted in transit was never too large; telling it to split would
@@ -1937,7 +2431,8 @@ test "damaged and truncated calls get the advice that fits the cause (issue #765
     damaged = _byllm_llm_mod._parse_tool_calls(
         mt_run, [call], `set(), `set(["call_1"])
     );
-    damaged_msg = str(damaged[0].tool.func());
+    _dmg_tool: any = damaged[0].tool;
+    damaged_msg = str(_dmg_tool.func());
     assert "same call again unchanged" in damaged_msg , f"a damaged call should be told to re-send: {damaged_msg!r}";
     assert "smaller payload" not in damaged_msg , f"a damaged call must not be told to split: {damaged_msg!r}";
 }

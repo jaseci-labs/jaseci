@@ -224,7 +224,7 @@ obj SourceLoc {
     def span_to(other: SourceLoc) -> SourceLoc;
 }
 
-obj Token {
+obj LexToken {
     has kind: TokenKind,
         value: str,
         loc: SourceLoc;
@@ -232,11 +232,12 @@ obj Token {
     def __str__ -> str;
 }
 
-obj LexDiag {
+obj SrcDiag {
     has message: str,
         code_str: str,
         loc: SourceLoc,
-        is_error: bool = True;
+        is_error: bool = True,
+        help: str = "";
 }
 
 obj CommentData {
@@ -359,4 +360,19 @@ def lookup_keyword(text: str) -> TokenKind | None {
         return KEYWORDS[text];
     }
     return None;
+}
+
+glob SPECIAL_VAR_KINDS: set[TokenKind] = {
+         TokenKind.KW_SELF,
+         TokenKind.KW_SUPER,
+         TokenKind.KW_ROOT,
+         TokenKind.KW_HERE,
+         TokenKind.KW_VISITOR,
+         TokenKind.KW_PROPS,
+         TokenKind.KW_INIT,
+         TokenKind.KW_POST_INIT
+     };
+
+def is_special_var_kind(kind: TokenKind) -> bool {
+    return kind in SPECIAL_VAR_KINDS;
 }

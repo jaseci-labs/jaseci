@@ -31,14 +31,14 @@ def get_current_md_files -> list[str] {
         f
         for f in get_md_files()
         if "release_notes" not in Path(f).parts
-        and Path(f).name != "breaking-changes.md"
+            and Path(f).name != "breaking-changes.md"
     ];
 }
 
-"""Every flag `jac start` actually accepts, as it would be spelled in the docs."""
-def start_flags -> set[str] {
-    spec = get_registry().get("start");
-    assert spec is not None , "the 'start' command is not registered";
+"""Every flag `jac run` actually accepts, as it would be spelled in the docs."""
+def run_flags -> set[str] {
+    spec = get_registry().get("run");
+    assert spec is not None , "the 'run' command is not registered";
     flags: set[str] = set();
     for arg in spec.get_all_args() {
         flags.add(f"--{arg.name}");
@@ -68,7 +68,7 @@ def collect_anchors(text: str) -> set[str] {
         if fenced or not line.startswith("#") {
             continue;
         }
-        m = re.match(r"^#{1,6}\s+(.*?)\s*$", line);
+        m = re.`match(r"^#{1,6}\s+(.*?)\s*$", line);
         if not m {
             continue;
         }
@@ -189,7 +189,7 @@ test "docs do not describe the removed image-build pipeline" {
     # image loading) was deleted; the copy-source "no-image" path is the only
     # one that ships. Docs kept advertising the removed surface, sending people
     # after a --build flag, config keys, and modules that are not in the tree.
-    assert "--build" not in start_flags() , "jac start grew a --build flag; drop it from `removed` below";
+    assert "--build" not in run_flags() , "jac run grew a --build flag; drop it from `removed` below";
     removed = [
         "--build",
         "_cluster_detect",
@@ -217,8 +217,7 @@ test "docs do not describe the removed image-build pipeline" {
     }
 
     assert not stale , (
-        "docs reference an image-build pipeline that no longer exists:\n" + "\n".join(
-            stale
-        )
+        "docs reference an image-build pipeline that no longer exists:\n"
+        + "\n".join(stale)
     );
 }

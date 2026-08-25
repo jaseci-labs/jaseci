@@ -14,7 +14,8 @@ import from jaclang.compiler.primitives {
 }
 
 obj ESEmitCtx {
-    has unparser: object;
+    has unparser: object,
+        arg_type_names: (list[str] | None) = None;
 }
 
 def _mcall(target: str, method: str, args: list[str]) -> str {
@@ -55,7 +56,15 @@ def _one_arg_cb(fn: str, seq: str, method: str, cb_body: str) -> str {
     as parameters keeps them evaluated once, in the enclosing scope, so a
     call-expression callback is not re-run per element.
     """;
-    return "((_f, _s) => _s." + method + "((_v) => " + cb_body + "))(" + fn + ", " + seq + ")";
+    return "((_f, _s) => _s."
+        + method
+        + "((_v) => "
+        + cb_body
+        + "))("
+        + fn
+        + ", "
+        + seq
+        + ")";
 }
 
 
@@ -1349,6 +1358,34 @@ class ESBuiltinEmitter(BuiltinEmitter[(str, ESEmitCtx)]) {
     ) -> (str | None);
 
     def emit_int(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+    ) -> (str | None);
+
+    def emit_sized_cast(
+        self: ESBuiltinEmitter, name: str, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, op: str, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping_add(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping_sub(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping_mul(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping_shl(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping_neg(
         self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
     ) -> (str | None);
 

@@ -10,9 +10,8 @@ def:pub Badge(text: str, variant: str = "default") -> JsxElement {
         "error": "bg-danger-weak text-danger border border-line"
     };
 
-    classes = "inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md " + (
-        variantClasses[variant] or variantClasses["default"]
-    );
+    classes = "inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md "
+        + (variantClasses[variant] or variantClasses["default"]);
 
     <span className={classes}>{text}</span>
 }

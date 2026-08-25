@@ -1,11 +1,11 @@
 """Operations self-check page for the admin dashboard.
 
 Renders GET /admin/ops/health as one card per signal (traces, logs,
-metrics, mongo, redis, admin API). Each card shows the causal chain as a
+metrics, postgres, admin API). Each card shows the causal chain as a
 vertical stepper: a green check / red x / grey dash per step, with the
 FIRST RED step highlighted - that step IS the diagnosis (e.g. "tracing
 extra NOT installed" closes the count:0 incident in a glance, and
-"Mongo ping reachable: failed" closes the admin-login-HTML incident).
+"Postgres reachable: failed" closes a database-health incident).
 
 Kubeconfig-free: every check is an in-process read or a short backend
 probe done server-side, so operators never need kubectl to know why
@@ -21,13 +21,12 @@ import from ....services.opsService { getOpsHealth }
 import from ....utils.api { getErrorMessage }
 
 # Per-signal display labels. Keys match the backend `signals` dict.
-glob SIGNAL_ORDER = ["traces", "logs", "metrics", "mongo", "redis", "admin_api"],
+glob SIGNAL_ORDER = ["traces", "logs", "metrics", "postgres", "admin_api"],
      SIGNAL_LABELS = {
          "traces": "Traces",
          "logs": "Logs",
          "metrics": "Metrics",
-         "mongo": "Mongo",
-         "redis": "Redis",
+         "postgres": "Postgres",
          "admin_api": "Admin API"
      };
 
@@ -119,7 +118,7 @@ def:pub OpsPage -> JsxElement {
             if first {
                 seenFail = True;
             }
-            out.push(
+            out.append(
                 {
                     "name": step["name"],
                     "ok": step["ok"],
@@ -143,7 +142,7 @@ def:pub OpsPage -> JsxElement {
                 continue;
             }
             status = String(sig["status"] or "fail");
-            out.push(
+            out.append(
                 {
                     "name": name,
                     "label": SIGNAL_LABELS[name] or name,
@@ -164,7 +163,7 @@ def:pub OpsPage -> JsxElement {
         onClick={lambda { loadHealth(); }}
         disabled={isLoading}
     >
-        <RefreshCw className={"w-3.5 h-3.5 " + (isLoading and "animate-spin" or "")}/>
+        <RefreshCw className={"w-3.5 h-3.5 " + ("animate-spin" if isLoading else "")}/>
         Refresh
     </button>;
 
@@ -201,22 +200,24 @@ def:pub OpsPage -> JsxElement {
                             <div
                                 key={step["name"]}
                                 className={"flex items-start gap-2 px-2 py-1.5 rounded "
-                                + (
-                                    "bg-danger-weak ring-1 ring-danger/40"
-                                        if step["_firstFail"]
-                                        else ""
-                                )}
+                                    + (
+                                        "bg-danger-weak ring-1 ring-danger/40"
+                                            if step["_firstFail"]
+                                            else ""
+                                    )}
                             >
                                 {stepIcons[stepKey(step["ok"])]
-                                or <Minus className="w-3.5 h-3.5 text-faint shrink-0"/>}
+                                    or <Minus
+                                        className="w-3.5 h-3.5 text-faint shrink-0"
+                                    />}
                                 <div className="min-w-0">
                                     <div
                                         className={"text-xs "
-                                        + (
-                                            "font-medium text-fg"
-                                                if step["_firstFail"]
-                                                else "text-muted"
-                                        )}
+                                            + (
+                                                "font-medium text-fg"
+                                                    if step["_firstFail"]
+                                                    else "text-muted"
+                                            )}
                                     >
                                         {step["name"]}
                                     </div>

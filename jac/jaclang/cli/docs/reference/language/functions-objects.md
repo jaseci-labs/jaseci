@@ -347,6 +347,17 @@ expression without a trailing `;` is the return value, even in a
 multi-statement body (`lambda (x: int) { y = x + 1; y * 10 }` returns
 `y * 10`).
 
+Multi-statement lambdas are supported in **every expression position**,
+including decorator arguments (`@deco(lambda { ... })`), default parameter
+values (`def f(x = lambda { ... })`), `has` field defaults, callback
+arguments (`sorted(xs, key=lambda { ... })`), compound-statement conditions
+(`if (lambda { ... })(x) { ... }`, `while ...`), and method/function bodies
+returned from a method. On the Python (server) target these positions lower
+via a hoisted helper `def` placed in the nearest enclosing function-or-module
+scope (never inside a class body, and with a single-underscore name so Python
+private-name mangling can't break the reference); the client and native targets
+use inline lowering and were never affected by the hoist bug.
+
 ```jac
 # Simple lambda -- single expression statement is the implicit return
 glob add = lambda (a: int, b: int) -> int { a + b; };
@@ -983,7 +994,7 @@ def hypotenuse(a: f64, b: f64) -> f64 {
 
 Declarations inside the braces are body-less function signatures that become LLVM `declare` (extern) statements. The shared library is loaded automatically at JIT time, and symbols are resolved by name.
 
-**Type mapping:** Jac's `int` maps to `i64` and `float` maps to `f64` in native code. Use fixed-width types (`i8`, `i16`, `i32`, `u8`, `u16`, `u32`, `f32`, etc.) when C functions expect specific sizes. The compiler automatically coerces between standard and fixed-width types at call boundaries.
+**Type mapping:** Jac's `int` maps to `i64` and `float` maps to `f64` in native code. Declare extern parameters with the fixed-width types the C signature uses (`i8`, `i16`, `i32`, `u8`, `u16`, `u32`, `f32`, etc.); the checker then enforces the call site like any other call, so an `int` value flowing into an `i32` parameter needs the explicit cast `i32(n)` (a checked conversion that raises `OverflowError` out of range). Widening conversions such as `u8 -> i32` or `f32 -> f64` stay implicit. See [Fixed-width semantics](types-and-values.md#fixed-width-semantics).
 
 **Example -- calling raylib from Jac:**
 

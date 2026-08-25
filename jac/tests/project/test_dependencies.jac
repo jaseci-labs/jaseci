@@ -294,13 +294,8 @@ test "ensure_venv recreates fused jac-as-python venvs" {
             assert run.call_count == 2 , (
                 "bundled venv create should run venv then ensurepip"
             );
-            assert run.call_args_list[0].args[0] == [
-                "/fake/rt/python/bin/python3.14",
-                "-m",
-                "venv",
-                str(venv_dir),
-
-            ];
+            assert run.call_args_list[0].args[0]
+                == ["/fake/rt/python/bin/python3.14", "-m", "venv", str(venv_dir), ];
             assert "--with-pip" not in run.call_args_list[0].args[0];
             ensurepip_cmd = run.call_args_list[1].args[0];
             assert ensurepip_cmd[-3:] == ["-m", "ensurepip", "--upgrade"];
@@ -443,7 +438,8 @@ test "summarize_pip_failure names package and keeps final error line" {
         ["sympy>=1.10.0", "numpy==1.24.3"], stderr
     );
     assert package == "numpy==1.24.3";
-    assert detail == "pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'setuptools.build_meta'";
+    assert detail
+        == "pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'setuptools.build_meta'";
 }
 
 test "summarize_pip_failure prefers explicit ERROR line" {
@@ -741,7 +737,8 @@ test "python resolve git dependencies" {
         assert git_deps[0].name == "my-lib";
         assert git_deps[0].data["git"] == "https://github.com/user/my-lib.git";
         assert (
-            python.pip_spec(git_deps[0]) == "git+https://github.com/user/my-lib.git@main"
+            python.pip_spec(git_deps[0])
+            == "git+https://github.com/user/my-lib.git@main"
         );
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
@@ -780,7 +777,7 @@ test "provider registry always carries the python provider" {
     reset_provider_registry();
     try {
         registry = get_provider_registry();
-        assert registry.has("python");
+        assert registry.`has("python");
         assert get_python_provider() is not None;
         assert registry.get_by_flag("--nope") is None;
     } finally {
@@ -991,7 +988,10 @@ test "add_venv_to_path adds bin to PATH env" {
 
         add_venv_to_path(config);
 
-        assert bin_str in os.environ.get("PATH", "").split(os.pathsep);
+        path_entries = [
+            os.path.realpath(p) for p in os.environ.get("PATH", "").split(os.pathsep)
+        ];
+        assert os.path.realpath(bin_str) in path_entries;
     } finally {
         sys.path.clear();
         sys.path.extend(saved_path);
@@ -1017,7 +1017,10 @@ test "remove_venv_from_path removes bin from PATH env" {
 
         remove_venv_from_path(config);
 
-        assert bin_str not in os.environ.get("PATH", "").split(os.pathsep);
+        path_entries = [
+            os.path.realpath(p) for p in os.environ.get("PATH", "").split(os.pathsep)
+        ];
+        assert os.path.realpath(bin_str) not in path_entries;
     } finally {
         sys.path.clear();
         sys.path.extend(saved_path);
@@ -1137,6 +1140,41 @@ test "install npm-only project dispatches the npm provider" {
             }
             assert result == 0;
             mock_npm_install.assert_called_once();
+        } finally {
+            os.chdir(original_cwd);
+            reset_provider_registry();
+            reset_config();
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+test "install --no-npm skips the npm provider on a full install" {
+    reset_config();
+    reset_provider_registry();
+    import from jaclang.cli.commands { project as proj_cmds }
+    import from jaclang.runtimelib.client.npm_provider { NpmProvider }
+    tmp = tempfile.mkdtemp(prefix="jac_test_");
+    try {
+        toml = '[project]\nname = "testproj"\nversion = "0.1.0"\n\n[dependencies]\n\n[dependencies.npm]\nreact = "18.0"\n';
+        project_path = create_test_project(tmp, toml);
+        original_cwd = os.getcwd();
+        os.chdir(project_path);
+        reset_config();
+        try {
+            get_provider_registry().register(NpmProvider());
+            with patch("jaclang.project.providers.ensure_venv") as _ev, patch.object(
+                PythonProvider, "_run_project_pip"
+            ) as mock_pip, patch.object(
+                NpmProvider, "install_all"
+            ) as mock_npm_install {
+                mock_pip.return_value = (0, "", "");
+                mock_npm_install.return_value = True;
+                result = proj_cmds.install(npm=False);
+            }
+            assert result == 0;
+            mock_npm_install.assert_not_called();
         } finally {
             os.chdir(original_cwd);
             reset_provider_registry();
@@ -1641,7 +1679,8 @@ test "install git dependency" {
             assert result == 0;
             config = JacConfig.load(Path(project_path) / "jac.toml");
             assert "my-lib" in config.git_dependencies;
-            assert config.git_dependencies["my-lib"]["git"] == "https://github.com/user/my-lib.git";
+            assert config.git_dependencies["my-lib"]["git"]
+                == "https://github.com/user/my-lib.git";
         } finally {
             os.chdir(original_cwd);
             reset_config();
@@ -1978,15 +2017,16 @@ test "pip_command passes flags through unchanged" {
     cmd = pip_command(
         "/path/to/python", ["install", "--force-reinstall", "--prefer-binary", "pkg"]
     );
-    assert cmd == [
-        "/path/to/python",
-        "-m",
-        "pip",
-        "install",
-        "--force-reinstall",
-        "--prefer-binary",
-        "pkg"
-    ];
+    assert cmd
+        == [
+            "/path/to/python",
+            "-m",
+            "pip",
+            "install",
+            "--force-reinstall",
+            "--prefer-binary",
+            "pkg"
+        ];
 }
 
 test "update always uses upgrade flag" {

@@ -303,6 +303,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (t === "string") return "str";
       if (t === "boolean") return "bool";
       if (t === "number") return Number.isInteger(o) ? "int" : "float";
+      if (t === "bigint") return "int";
       if (t === "object") return (o.constructor && o.constructor.name) || "object";
       return t;
     },
@@ -358,9 +359,9 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       // Python `dict.get`: returns the stored value when the key is present
       // (even if it is null), and the default only when the key is absent.
       // A membership check is required — `o[key] ?? default_` would wrongly
-      // substitute the default for a present-but-null value.
-      get: (o, key, default_) =>
-        Object.prototype.hasOwnProperty.call(o, key) ? o[key] : default_,
+      // substitute the default for a present-but-null value. The default
+      // defaults to null so a miss is a real Jac None, never undefined.
+      get: (o, key, default_ = null) => _jac.dict.get(o, key, default_),
       items: (o) => Object.entries(o),
       keys: (o) => Object.keys(o),
       pop: (o, key, default_) => _jac.dict.pop(o, key, default_),
@@ -398,7 +399,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     _map: {
       clear: (m) => { m.clear(); return null; },
       copy: (m) => new Map(m),
-      get: (m, key, default_) => (m.has(key) ? m.get(key) : default_),
+      get: (m, key, default_ = null) => (m.has(key) ? m.get(key) : default_),
       items: (m) => [...m.entries()],
       keys: (m) => [...m.keys()],
       pop: (m, key, default_) => {
@@ -563,7 +564,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       for (let i = 0; i < n; i++) result.push(...arr);
       return result;
     },
-    eq(a, b) { return JSON.stringify(a) === JSON.stringify(b); },
+    eq(a, b) { return _jac.fw.stringify(a) === _jac.fw.stringify(b); },
     lt(a, b) {
       for (let i = 0; i < Math.min(a.length, b.length); i++) {
         if (a[i] < b[i]) return true;
@@ -583,6 +584,9 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
   },
 
   dict: {
+    get(d, key, default_ = null) {
+      return Object.prototype.hasOwnProperty.call(d, key) ? d[key] : default_;
+    },
     pop(d, key, default_) {
       if (key in d) { const v = d[key]; delete d[key]; return v; }
       if (default_ !== undefined) return default_;
@@ -617,7 +621,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
         const va = a[k], vb = b[k];
         if (va !== vb) {
           if (typeof va === "object" && typeof vb === "object" && va !== null && vb !== null) {
-            if (JSON.stringify(va) !== JSON.stringify(vb)) return false;
+            if (_jac.fw.stringify(va) !== _jac.fw.stringify(vb)) return false;
           } else return false;
         }
       }
@@ -1105,7 +1109,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return total;
     },
     sorted(iterable, key, reverse) {
-      const arr = [...iterable];
+      const arr = [..._jac.builtin.iter(iterable)];
       if (key) {
         arr.sort((a, b) => {
           const ka = key(a), kb = key(b);
@@ -1118,6 +1122,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return arr;
     },
     enumerate(iterable, start) {
+      iterable = _jac.builtin.iter(iterable);
       const s = start || 0;
       return [...iterable].map((v, i) => [s + i, v]);
     },
@@ -1247,7 +1252,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return { __jacUnsafeHtml: String(html == null ? "" : html) };
     },
     hash(obj) { return _jac.builtin.id(obj); },
-    repr(obj) { return JSON.stringify(obj); },
+    repr(obj) { return _jac.fw.stringify(obj); },
     pow(base, exp, mod) {
       let result = Math.pow(base, exp);
       if (mod !== undefined) result = ((result % mod) + mod) % mod;
@@ -1300,6 +1305,69 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (x instanceof Set || x instanceof Map) return x.size > 0;
       if (typeof x === "object") return Object.keys(x).length > 0;
       return true;
+    },
+    float(x) {
+      if (typeof x === "bigint") return Number(x);
+      if (typeof x === "number") return x;
+      if (typeof x === "boolean") return x ? 1 : 0;
+      if (typeof x === "string") {
+        const s = x.trim().toLowerCase();
+        if (/^[+-]?(infinity|inf)$/.test(s)) return s[0] === "-" ? -Infinity : Infinity;
+        if (/^[+-]?nan$/.test(s)) return NaN;
+        const n = (s === "" || /[x]/.test(s)) ? NaN : Number(s);
+        if (Number.isNaN(n)) throw new _jac.exc.ValueError("could not convert string to float: '" + x + "'");
+        return n;
+      }
+      throw new _jac.exc.TypeError("float() argument must be a string or a real number, not '" + _jac.poly._typename(x) + "'");
+    },
+    int(x, base) {
+      if (base !== undefined && base !== null) {
+        if (typeof x !== "string") throw new _jac.exc.TypeError("int() can't convert non-string with explicit base");
+        let s = x.trim().toLowerCase();
+        let sign = 1;
+        if (s[0] === "+" || s[0] === "-") { if (s[0] === "-") sign = -1; s = s.slice(1); }
+        if (base === 16 && s.startsWith("0x")) s = s.slice(2);
+        if (base === 8 && s.startsWith("0o")) s = s.slice(2);
+        if (base === 2 && s.startsWith("0b")) s = s.slice(2);
+        const digits = "0123456789abcdefghijklmnopqrstuvwxyz".slice(0, base);
+        if (s === "" || [...s].some((c) => digits.indexOf(c) === -1)) {
+          throw new _jac.exc.ValueError("invalid literal for int() with base " + base + ": '" + x + "'");
+        }
+        return sign * parseInt(s, base);
+      }
+      if (typeof x === "number") return Math.trunc(x);
+      if (typeof x === "bigint") return Number(x);
+      if (typeof x === "boolean") return x ? 1 : 0;
+      if (typeof x === "string") {
+        const s = x.trim();
+        if (!/^[+-]?[0-9]+$/.test(s)) throw new _jac.exc.ValueError("invalid literal for int() with base 10: '" + x + "'");
+        return parseInt(s, 10);
+      }
+      throw new _jac.exc.TypeError("int() argument must be a string or a number, not '" + _jac.poly._typename(x) + "'");
+    },
+    iter(x) {
+      if (x === null || x === undefined) return [];
+      if (x instanceof Map) return Array.from(x.keys());
+      if (typeof x === "object" && !Array.isArray(x) && !(Symbol.iterator in Object(x))) {
+        return Object.keys(x);
+      }
+      return x;
+    },
+    dict(x) {
+      if (x === null || x === undefined) return {};
+      if (x instanceof Map) return Object.fromEntries(x);
+      if (typeof x === "object" && !Array.isArray(x) && !(Symbol.iterator in Object(x))) {
+        return {...x};
+      }
+      return Object.fromEntries(x);
+    },
+    len(x) {
+      if (x === null || x === undefined) throw new _jac.exc.TypeError("object has no len()");
+      if (typeof x === "string" || Array.isArray(x)) return x.length;
+      if (x instanceof Set || x instanceof Map) return x.size;
+      if (typeof x.length === "number") return x.length;
+      if (typeof x === "object") return Object.keys(x).length;
+      throw new _jac.exc.TypeError("object of type '" + typeof x + "' has no len()");
     },
     range(...args) {
       let start, stop, step;
@@ -1360,6 +1428,8 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     }
   },
 
+  fw: __JAC_FW_RUNTIME__,
+
   exc: __JAC_EXC_RUNTIME__
 }""",
      _JS_RESERVED_EXC_NAMES: set[str] = {"TypeError", "ReferenceError"};
@@ -1376,7 +1446,13 @@ def _build_exc_runtime_js -> str {
                 else ((parent + "_") if parent in _JS_RESERVED_EXC_NAMES else parent)
         );
         lines.append(
-            "    class " + local + " extends " + parent_local + " { constructor(m) { super(m); this.name = '" + name + "'; } }"
+            "    class "
+                + local
+                + " extends "
+                + parent_local
+                + " { constructor(m) { super(m); this.name = '"
+                + name
+                + "'; } }"
         );
         exports.append(
             (name + ": " + local) if name in _JS_RESERVED_EXC_NAMES else name
@@ -1399,6 +1475,7 @@ def _build_exc_runtime_js -> str {
 
 def _build_types_runtime_js -> str {
     import from jaclang.jac0core.constant { TOKEN_MAP }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
     import from jaclang.compiler.passes.ecmascript.primitives_es {
         ESBuiltinEmitter,
@@ -1412,14 +1489,18 @@ def _build_types_runtime_js -> str {
             continue;
         }
         emit_fn = getattr(emitter, "emit_" + name, None);
-        if emit_fn is None {
+        if emit_fn is None and not JAC_TYPE_REGISTRY.is_sized(name) {
             continue;
         }
 
         bodies: list[(str | None)] = [];
         for argv in ([], ["a[0]"], ["a[0]", "a[1]"]) {
             try {
-                bodies.append(emit_fn(ctx, argv));
+                if emit_fn is None {
+                    bodies.append(emitter.emit_sized_cast(name, argv));
+                } else {
+                    bodies.append(emit_fn(ctx, argv));
+                }
             } except Exception {
                 bodies.append(None);
             }
@@ -1443,10 +1524,41 @@ def _build_types_runtime_js -> str {
             body = "a.length === 0 ? (" + zero + ") : (" + one + ")";
         } else {
             body = (
-                "a.length === 0 ? (" + zero + ") : a.length === 1 ? (" + one + ") : (" + two + ")"
+                "a.length === 0 ? ("
+                + zero
+                + ") : a.length === 1 ? ("
+                + one
+                + ") : ("
+                + two
+                + ")"
             );
         }
         entries.append("    " + name + ': _t("' + name + '", (...a) => ' + body + ")");
+    }
+    import from jaclang.jac0core.scalars { numeric_shapes }
+    sized_lines: list[str] = [];
+    for shape in numeric_shapes() {
+        if not shape.sized {
+            continue;
+        }
+        sized_lines.append(
+            "    T."
+                + shape.name
+                + ".wrap = (x) => _jac.fw.wrap('"
+                + shape.name
+                + "', x);"
+        );
+        if not shape.is_float {
+            sized_lines.append(
+                "    Object.defineProperties(T."
+                    + shape.name
+                    + ", { MIN: { get: () => _jac.fw.bounds('"
+                    + shape.name
+                    + "')[0] }, MAX: { get: () => _jac.fw.bounds('"
+                    + shape.name
+                    + "')[1] } });"
+            );
+        }
     }
     return "\n".join(
         [
@@ -1455,9 +1567,186 @@ def _build_types_runtime_js -> str {
             "      __jac_type__: tag,",
             "      toString: () => \"<class '\" + tag + \"'>\"",
             "    });",
-            "    return {",
+            "    const T = {",
             ",\n".join(entries),
             "    };",
+            "\n".join(sized_lines),
+            "    return T;",
+            "  })()"
+        ]
+    );
+}
+
+def _build_fw_runtime_js -> str {
+    import from jaclang.jac0core.scalars { numeric_shapes, range_of }
+    rows: list[str] = [];
+    for shape in numeric_shapes() {
+        if not shape.sized {
+            continue;
+        }
+        t = shape.name;
+        w = shape.width;
+        if shape.is_float {
+            rnd = "Math.fround" if w == 32 else "Number";
+            rows.append(f"    F.cast_{t} = (x) => {rnd}(Number(x));");
+            rows.append(f"    F.neg_{t} = (a) => {rnd}(-a);");
+            rows.append(f"    F.abs_{t} = (a) => {rnd}(Math.abs(a));");
+            rows.append(
+                f"    F.div_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float division by zero'); "
+                f"return {rnd}(a / b); }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float floor division by zero'); "
+                f"return {rnd}(Math.floor(a / b)); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float modulo by zero'); "
+                f"return {rnd}(a - b * Math.floor(a / b)); }};"
+            );
+            rows.append(f"    F.pow_{t} = (a, b) => {rnd}(Math.pow(a, b));");
+            continue;
+        }
+        (lo, hi) = range_of(t);
+        big = w == 64;
+        sfx = "n" if big else "";
+        z = f"0{sfx}";
+        one = f"1{sfx}";
+        wn = f"{w}{sfx}";
+        rows.append(f"    const LO_{t} = {lo}{sfx}, HI_{t} = {hi}{sfx};");
+        rows.append(f"    F.c_{t} = (v) => (v >= LO_{t} && v <= HI_{t}) ? v : ovf();");
+        if big {
+            rows.append(
+                f"    F.big_{t} = (x) => F.c_{t}(typeof x === 'bigint' ? x "
+                f": (typeof x === 'string' ? BigInt(x) "
+                f": BigInt(Math.trunc(Number(x)))));"
+            );
+            rows.append(f"    F.cast_{t} = (x) => F.big_{t}(x);");
+            rows.append(f"    F.abs_{t} = (a) => F.c_{t}(a < {z} ? -a : a);");
+            rows.append(
+                f"    F.div_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('division by zero'); return Number(a) / Number(b); }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('integer division or modulo by zero'); let q = a / b; "
+                f"if ((a % b) !== {z} && ((a < {z}) !== (b < {z}))) q -= {one}; "
+                f"return F.c_{t}(q); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('integer division or modulo by zero'); let r = a % b; "
+                f"if (r !== {z} && ((r < {z}) !== (b < {z}))) r += b; return r; }};"
+            );
+            rows.append(
+                f"    F.pow_{t} = (a, b) => {{ if (b < {z}) "
+                f"return Math.pow(Number(a), Number(b)); "
+                f"if ((a > {one} || a < -{one}) && b >= {wn}) ovf(); "
+                f"return F.c_{t}(a ** b); }};"
+            );
+            rows.append(
+                f"    F.shl_{t} = (a, b) => {{ const n = BigInt(b); "
+                f"if (n < {z} || n >= {wn}) shiftErr(); return F.c_{t}(a << n); }};"
+            );
+            rows.append(
+                f"    F.shr_{t} = (a, b) => {{ const n = BigInt(b); "
+                f"if (n < {z} || n >= {wn}) shiftErr(); return a >> n; }};"
+            );
+        } else {
+            rows.append(
+                f"    F.cast_{t} = (x) => {{ const v = Math.trunc(Number(x)); "
+                f"if (!Number.isFinite(v)) ovf(); return F.c_{t}(v || 0); }};"
+            );
+            rows.append(f"    F.abs_{t} = (a) => F.c_{t}(Math.abs(a));");
+            rows.append(
+                f"    F.div_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('division by zero'); return a / b; }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('integer division or modulo by zero'); "
+                f"return F.c_{t}(Math.floor(a / b)); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('integer division or modulo by zero'); "
+                f"return a - b * Math.floor(a / b); }};"
+            );
+            rows.append(
+                f"    F.pow_{t} = (a, b) => {{ if (b < 0) return Math.pow(a, b); "
+                f"if (Math.abs(a) >= 2 && b >= {w}) ovf(); "
+                f"return F.c_{t}(Math.pow(a, b)); }};"
+            );
+            rows.append(
+                f"    F.shl_{t} = (a, b) => {{ if (b < 0 || b >= {w}) shiftErr(); "
+                f"return F.c_{t}(a * Math.pow(2, b)); }};"
+            );
+            rows.append(
+                f"    F.shr_{t} = (a, b) => {{ if (b < 0 || b >= {w}) shiftErr(); "
+                f"return Math.floor(a / Math.pow(2, b)); }};"
+            );
+        }
+        rows.append(f"    F.neg_{t} = (a) => F.c_{t}(-a);");
+        if shape.signed {
+            rows.append(f"    F.inv_{t} = (a) => F.c_{t}(~a);");
+        } elif big {
+            rows.append(f"    F.inv_{t} = (a) => (~a) & HI_{t};");
+        } elif w == 32 {
+            rows.append(f"    F.inv_{t} = (a) => ((~a) >>> 0);");
+        } else {
+            rows.append(f"    F.inv_{t} = (a) => (~a) & HI_{t};");
+        }
+        rows.append(f"    B.{t} = [LO_{t}, HI_{t}];");
+        rows.append(f"    WBITS.{t} = {w}n;");
+        tail = (
+            f"return v >= (1n << {w - 1}n) ? v - m : v; }};"
+                if shape.signed
+                else "return v; };"
+        );
+        rows.append(
+            f"    W.{t} = (x) => {{ const m = 1n << {w}n; "
+            f"let v = (typeof x === 'bigint' ? x : BigInt(Math.trunc(Number(x)))) "
+            f"% m; if (v < 0n) v += m; "
+                + tail
+        );
+    }
+    return "\n".join(
+        [
+            "(() => {",
+            "    const ovf = () => { throw new _jac.exc.OverflowError("
+            "'integer overflow'); };",
+            "    const shiftErr = () => { throw new _jac.exc.OverflowError("
+            "'shift count out of range'); };",
+            "    const zdiv = (m) => { throw new _jac.exc.ZeroDivisionError(m); };",
+            "    const F = {}, B = {}, W = {}, WBITS = {};",
+            "\n".join(rows),
+            "    F.r_f32 = Math.fround;",
+            "    F.bounds = (name) => B[name];",
+            "    F.wrap = (name, x) => { const v = W[name](x); "
+            "return B[name][1] > Number.MAX_SAFE_INTEGER ? v : Number(v); };",
+            "    F.wrapping = (name, a, b, op) => {",
+            "      const A = BigInt(a);",
+            "      const Bv = b === undefined ? 0n : BigInt(b);",
+            "      let r;",
+            "      if (op === '+') r = A + Bv; else if (op === '-') r = A - Bv;",
+            "      else if (op === '*') r = A * Bv;",
+            "      else if (op === 'neg') r = -A;",
+            "      else if (op === '<<') r = A << (Bv & (WBITS[name] - 1n));",
+            "      else throw new _jac.exc.TypeError("
+            "'unsupported wrapping operator ' + op);",
+            "      return F.wrap(name, r);",
+            "    };",
+            "    const SAFE = 9007199254740991n;",
+            "    F.replacer = function (k, v) {",
+            "      if (typeof v !== 'bigint') return v;",
+            "      return (v >= -SAFE && v <= SAFE) ? Number(v) : v.toString();",
+            "    };",
+            "    F.stringify = (v, space) => JSON.stringify(v, F.replacer, space);",
+            "    if (typeof globalThis !== 'undefined')"
+            " globalThis.__jacFwReplacer__ = F.replacer;",
+            "    return F;",
             "  })()"
         ]
     );
@@ -1468,91 +1757,134 @@ def build_jac_runtime_js -> str {
         "__JAC_EXC_RUNTIME__", _build_exc_runtime_js()
     ).replace(
         "__JAC_TYPES_RUNTIME__", _build_types_runtime_js()
+    ).replace(
+        "__JAC_FW_RUNTIME__", _build_fw_runtime_js()
     );
 }
 
-glob _OSP_KERNEL_JS_CACHE: list[str] = [];
+glob _OSP_CORE_JS_CACHE: list[str] = [];
 
-def build_osp_kernel_js -> str {
-    if _OSP_KERNEL_JS_CACHE {
-        return _OSP_KERNEL_JS_CACHE[0];
+def build_osp_core_js -> str {
+    if _OSP_CORE_JS_CACHE {
+        return _OSP_CORE_JS_CACHE[0];
     }
-    import os;
-    import shutil;
-    import tempfile;
-    import jaclang;
+    import from jaclang.jac0core.kernel_units {
+        es_pass_fingerprint,
+        load_unit_artifact,
+        osp_core_unit_path,
+        store_unit_artifact
+    }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
     import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
     import from jaclang.compiler.passes.ecmascript { estree as es }
-    src = os.path.join(os.path.dirname(jaclang.__file__), "jac0core", "osp_kernel.jac");
-
-    tmp_dir = tempfile.mkdtemp();
-    cl_copy = os.path.join(tmp_dir, "osp_kernel_cl.jac");
-    shutil.copyfile(src, cl_copy);
-    js = "";
-    try {
-        import from jaclang.jac0core.compile_options { CompileOptions }
-        prog = JacProgram();
-
-        ir = prog.compile(
-            file_path=cl_copy,
-            options=CompileOptions(
-                force_codespace='client', no_cgen=True, type_check=True
-            )
-        );
-        program = EsastGenPass(ir_in=ir, prog=prog).ir_out.gen.es_ast;
-        kept: list = [];
-        if isinstance(program, es.Program) {
-            for stmt in program.body {
-                is_jac_rt = (
-                    isinstance(stmt, es.VariableDeclaration)
-                    and stmt.declarations
-                    and isinstance(stmt.declarations[0].id, es.Identifier)
-                    and (stmt.declarations[0].id.name == "_jac")
-                );
-                if is_jac_rt or isinstance(stmt, es.ExportNamedDeclaration) {
-                    continue;
-                }
-                kept.append(stmt);
-            }
-        }
-        js = es_to_js(es.Program(body=kept));
-    } finally {
-        shutil.rmtree(tmp_dir, ignore_errors=True);
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    fp = es_pass_fingerprint();
+    cl_copy = osp_core_unit_path('cl');
+    cached = load_unit_artifact(cl_copy, "mjs", fp);
+    if cached is not None {
+        _OSP_CORE_JS_CACHE.append(cached);
+        return cached;
     }
-    _OSP_KERNEL_JS_CACHE.append(js);
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=cl_copy,
+        options=CompileOptions(force_codespace='client', no_cgen=True)
+    );
+    import from jaclang.jac0core.compiler { run_pass }
+    program = run_pass(EsastGenPass, ir, prog).ir_out.gen.es_ast;
+    kept: list = [];
+    if isinstance(program, es.Program) {
+        for stmt in program.body {
+            is_jac_rt = (
+                isinstance(stmt, es.VariableDeclaration)
+                and stmt.declarations
+                and isinstance(stmt.declarations[0].id, es.Identifier)
+                and (stmt.declarations[0].id.name == "_jac")
+            );
+            if is_jac_rt or isinstance(stmt, es.ExportNamedDeclaration) {
+                continue;
+            }
+            kept.append(stmt);
+        }
+    }
+    js = es_to_js(es.Program(body=kept));
+    store_unit_artifact(cl_copy, "mjs", fp, js);
+    _OSP_CORE_JS_CACHE.append(js);
     return js;
 }
 
-def build_osp_graph_js -> str {
+def build_osp_driver_js -> str {
     return r"""
-function __ospConn(srcs, tgts, makeEdge, undirected) {
-  srcs = Array.isArray(srcs) ? srcs : [srcs];
-  tgts = Array.isArray(tgts) ? tgts : [tgts];
+if (!globalThis.__jacOspCore) {
+  globalThis.__jacOspCore = {
+    O: [null], H: new Map(),
+    osp_conn, osp_refs, osp_refs_many, osp_wrap1, osp_disconnect,
+    osp_disconn_between, osp_edge_peer,
+    osp_spawn, osp_visit, osp_report, osp_disengage,
+    WalkerDesc, NodeDesc, Slot, OspRuntime
+  };
+}
+var __ospC = globalThis.__jacOspCore;
+var __ospO = __ospC.O;
+var __ospH = __ospC.H;
+function __ospId(o) {
+  if (o == null) return 0;
+  let h = __ospH.get(o);
+  if (h === undefined) { h = __ospO.length; __ospO.push(o); __ospH.set(o, h); }
+  return h;
+}
+function __ospConnW(src, tgt, mkEdge, undirected, tag = -1) {
+  const srcs = Array.isArray(src) ? src : [src];
+  const tgts = Array.isArray(tgt) ? tgt : [tgt];
   for (const s of srcs) for (const t of tgts) {
-    const e = makeEdge ? makeEdge() : {};
-    e.__src = s; e.__tgt = t; e.__undirected = !!undirected;
-    (s.__edges ??= []).push(e); (t.__edges ??= []).push(e);
+    __ospC.osp_conn(__ospId(s), __ospId(t), __ospId(mkEdge()), undirected ? 1 : 0, tag, 0, 0);
   }
   return tgts.length === 1 ? tgts[0] : tgts;
 }
-function __ospRefs(nodes, dir, edgeTag, edgesOnly) {
-  nodes = Array.isArray(nodes) ? nodes : [nodes];
-  const seen = new Set(), out = [];
-  for (const n of nodes) for (const e of (n.__edges || [])) {
-    if (edgeTag != null && e.__tag !== edgeTag) continue;
-    const eff = e.__undirected ? 3 : dir;
-    if ((eff === 2 || eff === 3) && e.__src === n) {
-      const o = edgesOnly ? e : e.__tgt;
-      if (!seen.has(o)) { seen.add(o); out.push(o); }
-    }
-    if ((eff === 1 || eff === 3) && e.__tgt === n) {
-      const o = edgesOnly ? e : e.__src;
-      if (!seen.has(o)) { seen.add(o); out.push(o); }
+function __ospRefsW(origin, dir, tag = -1, edgesOnly = 0, pred = null) {
+  const oh = __ospId(origin);
+  if (pred === null) {
+    return __ospC.osp_refs(oh, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
+  }
+  if (edgesOnly) {
+    return __ospC.osp_refs(oh, dir, tag, 1).map((h) => __ospO[h]).filter(pred);
+  }
+  const inv = dir === 1 ? 2 : (dir === 2 ? 1 : 3);
+  const mine = __ospC.osp_refs(oh, dir, tag, 1);
+  const out = [];
+  for (const th of __ospC.osp_refs(oh, dir, tag, 0)) {
+    const theirs = new Set(__ospC.osp_refs(th, inv, tag, 1));
+    for (const eh of mine) {
+      if (theirs.has(eh) && pred(__ospO[eh])) { out.push(__ospO[th]); break; }
     }
   }
   return out;
+}
+function __ospRefsManyW(objs, dir, tag = -1, edgesOnly = 0, pred = null) {
+  if (pred === null) {
+    const hs = [];
+    for (const o of objs) hs.push(__ospId(o));
+    return __ospC.osp_refs_many(hs, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
+  }
+  const out = [];
+  const seen = new Set();
+  for (const o of objs) {
+    for (const r of __ospRefsW(o, dir, tag, edgesOnly, pred)) {
+      if (!seen.has(r)) { seen.add(r); out.push(r); }
+    }
+  }
+  return out;
+}
+function __ospDiscW(eobj) {
+  return __ospC.osp_disconnect(__ospId(eobj));
+}
+function __ospDiscBetweenW(a, b, dir, tag = -1) {
+  return __ospC.osp_disconn_between(__ospId(a), __ospId(b), dir, tag);
+}
+function __ospIsA(t, b) {
+  const s = (typeof __ospISA !== 'undefined') && __ospISA[t];
+  return s ? s.has(b) : t === b;
 }
 """;
 }

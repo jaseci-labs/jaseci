@@ -4,7 +4,7 @@ Cross-backend equivalence fixture.
 """
 
 # --- Int arithmetic and bitwise operators ---
-def int_py() -> dict {
+def int_py -> dict {
     a: int = 17;
     b: int = 5;
 
@@ -61,6 +61,12 @@ def int_py() -> dict {
         "int_truediv": a / b,
         "int_floordiv": a // b,
         "int_mod": a % b,
+        "int_floordiv_neg": (-6) // 4,
+        "int_floordiv_pos_neg": 6 // (-4),
+        "int_floordiv_neg_both": (-6) // (-4),
+        "int_mod_neg": (-6) % 4,
+        "int_mod_pos_neg": 6 % (-4),
+        "int_mod_neg_both": (-6) % (-4),
         "int_pow": 2 ** 10,
         "int_neg": -a,
         "int_pos": +a,
@@ -157,7 +163,7 @@ def int_py() -> dict {
     };
 }
 
-def int_cl() -> dict {
+def int_cl -> dict {
     a: int = 17;
     b: int = 5;
 
@@ -194,6 +200,13 @@ def int_cl() -> dict {
         "int_mul": a * b,
         "int_truediv": a / b,
         "int_floordiv": a // b,
+        "int_mod": a % b,
+        "int_floordiv_neg": (-6) // 4,
+        "int_floordiv_pos_neg": 6 // (-4),
+        "int_floordiv_neg_both": (-6) // (-4),
+        "int_mod_neg": (-6) % 4,
+        "int_mod_pos_neg": 6 % (-4),
+        "int_mod_neg_both": (-6) % (-4),
         "int_pow": 2 ** 10,
         "int_neg": -a,
         "int_pos": +a,
@@ -255,7 +268,7 @@ def int_cl() -> dict {
 }
 
 
-def int_na() -> dict[str, any] {
+def int_na -> dict[str, any] {
     a: int = 17;
     b: int = 5;
 
@@ -294,6 +307,12 @@ def int_na() -> dict[str, any] {
         "int_mul": a * b,
         "int_floordiv": a // b,
         "int_mod": a % b,
+        "int_floordiv_neg": (-6) // 4,
+        "int_floordiv_pos_neg": 6 // (-4),
+        "int_floordiv_neg_both": (-6) // (-4),
+        "int_mod_neg": (-6) % 4,
+        "int_mod_pos_neg": 6 % (-4),
+        "int_mod_neg_both": (-6) % (-4),
         "int_pow": 2 ** 10,
         "int_neg": 0 - a,
         "int_bw_and": a & b,

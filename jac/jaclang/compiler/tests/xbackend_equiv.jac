@@ -32,28 +32,61 @@ import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = str(
          Path(jaclang.__file__).parent / "compiler" / "tests" / "fixtures"
-     );
+     ),
+     _FIXTURE_SHADOW: list[str] = [];
 
 # -----------------------------------------------------------------------
 # Python reference helper
 # -----------------------------------------------------------------------
-def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
+def _fixture_shadow_dir -> str {
+    # The reference lane imports the fixture from a copy of the fixtures
+    # directory that lives outside the jaclang tree: a module under jaclang/
+    # imported while the package itself is being served skips analysis (a
+    # bootstrap guard), and this lane needs the checker's annotations
+    # (coerce_to) so the server codegen emits the same conversions the native
+    # and client lanes emit. Importing keeps the compile on the ordinary
+    # module path, so no compiler state leaks into the client and native
+    # compiles that follow in the same process.
+    import shutil;
+    import tempfile;
+    if not _FIXTURE_SHADOW {
+        base_dir = tempfile.mkdtemp(prefix="jac_xbackend_fixtures_");
+        shadow = os.path.join(base_dir, "fixtures");
+        shutil.copytree(FIXTURES, shadow);
+        _FIXTURE_SHADOW.append(shadow);
+    }
+    return _FIXTURE_SHADOW[0];
+}
+
+def call_py_fixture(fixture_stem: str, func_name: str) -> any {
+    shadow = _fixture_shadow_dir();
     added = False;
-    if FIXTURES not in sys.path {
-        sys.path.insert(0, FIXTURES);
+    if shadow not in sys.path {
+        sys.path.insert(0, shadow);
         added = True;
     }
     try {
         sys.modules.pop(fixture_stem, None);
         mod = importlib.import_module(fixture_stem);
         fn = getattr(mod, func_name);
-        return json.loads(json.dumps(fn()));
+        return fn();
     } finally {
         if added {
-            sys.path.remove(FIXTURES);
+            sys.path.remove(shadow);
         }
         sys.modules.pop(fixture_stem, None);
     }
+}
+
+def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
+    return json.loads(json.dumps(call_py_fixture(fixture_stem, func_name)));
+}
+
+"""The server lane's API encoder, which is what a walker response travels
+through: Serializer in api_mode applies the wire rule, json.dumps writes it."""
+def encode_py_wire(value: any) -> str {
+    import from jaclang.runtimelib.serializer { Serializer }
+    return json.dumps(Serializer.serialize(value, api_mode=True), sort_keys=True);
 }
 
 # -----------------------------------------------------------------------
@@ -63,9 +96,9 @@ def compile_fixture_to_js(fixture_name: str) -> str {
     import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
     fixture_path = os.path.join(FIXTURES, fixture_name);
     prog = JacProgram();
-    # type_check=True: EsastGenPass consumes core call facts (call_kind/
+    # EsastGenPass consumes core call facts (call_kind/
     # callee_decl) that only the inference schedule stamps.
-    ir = prog.compile(file_path=fixture_path, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=fixture_path, no_cgen=True);
     fatal = [
         e
         for e in prog.errors_had
@@ -81,7 +114,31 @@ def compile_fixture_to_js(fixture_name: str) -> str {
 }
 
 def run_js_function(js_code: str, func_name: str) -> dict {
-    wrapper = js_code + "\nconsole.log(JSON.stringify(" + func_name + "()));";
+    # The bundle's own replacer, not a BigInt.prototype patch: this is the same
+    # encoder the client transport uses, so what the harness reads is what a
+    # browser would put on the wire.
+    wrapper = js_code
+        + (
+            "\nconst __jac_enc = (typeof _jac !== 'undefined' && _jac.fw)"
+            " ? _jac.fw.stringify : JSON.stringify;"
+            "\nconsole.log(__jac_enc("
+            + func_name
+            + "()));"
+        );
+    result = subprocess.run(
+        ["node", "-e", wrapper], capture_output=True, text=True, timeout=10
+    );
+    assert result.returncode == 0 , f"Node.js failed: {result.stderr}";
+    return json.loads(result.stdout.strip());
+}
+
+"""Evaluate one JS expression against a compiled bundle and return its value.
+
+The bundle is in scope, so the expression can reach `_jac` and assert on the
+runtime itself rather than only on what a fixture function returns.
+"""
+def run_js_expr(js_code: str, expr: str) -> any {
+    wrapper = js_code + "\nconsole.log(JSON.stringify(" + expr + "));";
     result = subprocess.run(
         ["node", "-e", wrapper], capture_output=True, text=True, timeout=10
     );
@@ -124,7 +181,9 @@ def unbox_jacval(jv: JacVal) -> object {
         }
         return ctypes.cast(jv.payload, ctypes.c_char_p).value.decode("utf-8");
     } elif jv.tag == 3 {
-        # List pointer: struct { i64 len, i64 cap, i64* data } (List.i64 layout)
+        # List pointer: {i64 len, i64 cap, T* data}. The RC header's type-tag
+        # string (at payload - 24) names the concrete storage (list_i64,
+        # list_f64, list_jacval, ...) so hetero payloads decode by element tag.
         if jv.payload == 0 {
             return [];
         }
@@ -132,35 +191,65 @@ def unbox_jacval(jv: JacVal) -> object {
             has _fields_: list = [
                 ("len", ctypes.c_int64),
                 ("cap", ctypes.c_int64),
-                ("data", ctypes.POINTER(ctypes.c_int64))
+                ("data", ctypes.c_void_p)
             ];
+        }
+        tname = "";
+        try {
+            _tslot = ctypes.cast(jv.payload - 24, ctypes.POINTER(ctypes.c_void_p));
+            _tp = _tslot.contents.value;
+            if _tp {
+                tname = ctypes.string_at(_tp).decode("utf-8", errors="replace");
+            }
+        } except Exception {
+            tname = "";
         }
         lst_ptr = ctypes.cast(jv.payload, ctypes.POINTER(ListStruct));
         n = lst_ptr.contents.len;
-        return [lst_ptr.contents.data[i] for i in range(n)];
+        data = lst_ptr.contents.data;
+        if (n == 0 or not data) {
+            return [];
+        }
+        if tname == "list_jacval" {
+            jarr = (JacVal * n).from_address(data);
+            return [unbox_jacval(jarr[i]) for i in range(n)];
+        }
+        if tname == "list_f64" {
+            farr = (ctypes.c_double * n).from_address(data);
+            return [float(farr[i]) for i in range(n)];
+        }
+        iarr = (ctypes.c_int64 * n).from_address(data);
+        return [int(iarr[i]) for i in range(n)];
     } elif jv.tag == 4 {
         # Dict pointer: struct { i64 len, i64 cap, i8** keys, JacVal* vals }
         if jv.payload == 0 {
             return {};
         }
+        # Hash-table dict layout (see DictStruct below). `order[0..len]` holds the
+        # keys/vals slot of each entry in insertion order (Python dict semantics),
+        # so iterate order[i] -> keys[slot]/vals[slot].
         class InnerDictStruct(ctypes.Structure) {
             has _fields_: list = [
                 ("len", ctypes.c_int64),
                 ("cap", ctypes.c_int64),
                 ("keys", ctypes.POINTER(ctypes.c_char_p)),
-                ("vals", ctypes.POINTER(JacVal))
+                ("vals", ctypes.POINTER(JacVal)),
+                ("ctrl", ctypes.POINTER(ctypes.c_uint8)),
+                ("used", ctypes.c_int64),
+                ("order", ctypes.POINTER(ctypes.c_int64))
             ];
         }
         dct_ptr = ctypes.cast(jv.payload, ctypes.POINTER(InnerDictStruct));
-        n = dct_ptr.contents.len;
         result: dict = {};
-        for i in range(n) {
-            k = dct_ptr.contents.keys[i].decode("utf-8");
-            result[k] = unbox_jacval(dct_ptr.contents.vals[i]);
+        for i in range(dct_ptr.contents.len) {
+            slot = dct_ptr.contents.order[i];
+            k = dct_ptr.contents.keys[slot].decode("utf-8");
+            result[k] = unbox_jacval(dct_ptr.contents.vals[slot]);
         }
         return result;
     } elif jv.tag == 5 {
-        # Set pointer: struct { i64 len, i64 cap, i64* elems } (Set.i64 layout)
+        # Set pointer: hash-table Set.i64 layout
+        #   {i64 len, i64 cap, i64* keys, i8* ctrl, i64 used, i64* order}
         if jv.payload == 0 {
             return set();
         }
@@ -168,12 +257,15 @@ def unbox_jacval(jv: JacVal) -> object {
             has _fields_: list = [
                 ("len", ctypes.c_int64),
                 ("cap", ctypes.c_int64),
-                ("elems", ctypes.POINTER(ctypes.c_int64))
+                ("keys", ctypes.POINTER(ctypes.c_int64)),
+                ("ctrl", ctypes.POINTER(ctypes.c_uint8)),
+                ("used", ctypes.c_int64),
+                ("order", ctypes.POINTER(ctypes.c_int64))
             ];
         }
         st_ptr = ctypes.cast(jv.payload, ctypes.POINTER(SetStruct));
         n = st_ptr.contents.len;
-        return {st_ptr.contents.elems[i] for i in range(n)};
+        return {st_ptr.contents.keys[st_ptr.contents.order[i]] for i in range(n)};
     } elif jv.tag == 7 {
         # bool: kept distinct from int (tag 0) so it round-trips as True/False
         # rather than 1/0, matching the Python reference exactly.
@@ -183,12 +275,20 @@ def unbox_jacval(jv: JacVal) -> object {
 }
 
 def run_native_function(eng: object, func_name: str, ir: object = None) -> dict {
+    # Open-addressing hash-table dict:
+    #   {i64 len, i64 cap, i8** keys, JacVal* vals, i8* ctrl, i64 used, i64* order}
+    # Live entries sit at sparse hashed slots across `cap`. `order[0..len]` holds
+    # the keys/vals slot index of each entry in INSERTION ORDER (Python dict
+    # semantics), so iterate order[i] -> keys[slot] / vals[slot].
     class DictStruct(ctypes.Structure) {
         has _fields_: list = [
             ("len", ctypes.c_int64),
             ("cap", ctypes.c_int64),
             ("keys", ctypes.POINTER(ctypes.c_char_p)),
-            ("vals", ctypes.POINTER(JacVal))
+            ("vals", ctypes.POINTER(JacVal)),
+            ("ctrl", ctypes.POINTER(ctypes.c_uint8)),
+            ("used", ctypes.c_int64),
+            ("order", ctypes.POINTER(ctypes.c_int64))
         ];
     }
     # Run the module initializer first so module-level and `static has` globals
@@ -230,9 +330,11 @@ def run_native_function(eng: object, func_name: str, ir: object = None) -> dict 
     f = get_func(eng, func_name, ctypes.POINTER(DictStruct));
     dict_ptr = f();
     result: dict = {};
+    # Iterate in insertion order via order[0..len].
     for i in range(dict_ptr.contents.len) {
-        key = dict_ptr.contents.keys[i].decode("utf-8");
-        jv = dict_ptr.contents.vals[i];
+        slot = dict_ptr.contents.order[i];
+        key = dict_ptr.contents.keys[slot].decode("utf-8");
+        jv = dict_ptr.contents.vals[slot];
         result[key] = unbox_jacval(jv);
     }
     return result;
@@ -274,13 +376,37 @@ def compare_results(
 # -----------------------------------------------------------------------
 # Dispatch helper: run py reference, then try ES and NA backends
 # -----------------------------------------------------------------------
+def assert_full_parity(
+    py_result: dict,
+    backend_result: dict,
+    label: str,
+    allow_missing: (list | None) = None
+) {
+    waived = set(allow_missing or []);
+    missing = sorted((set(py_result.keys()) - set(backend_result.keys())) - waived);
+    extra = sorted(set(backend_result.keys()) - set(py_result.keys()));
+    stale = sorted(waived - (set(py_result.keys()) - set(backend_result.keys())));
+    assert not missing and not extra , (
+        f"[{label}] required backend key set drifted from the py reference: "
+        f"missing {missing}, extra {extra}. A lane that genuinely cannot "
+        "produce a row declares it in allow_missing at the call site, so the "
+        "gap is visible rather than silently dropped from the comparison."
+    );
+    assert not stale , (
+        f"[{label}] allow_missing names rows the backend now produces: "
+        f"{stale} -- drop them from the waiver"
+    );
+}
+
 def run_with_both(
     fixture: str,
     py_fn: str,
     cl_fn: str,
     na_fn: str,
     tolerance: float = 1e-9,
-    require: (list | None) = None
+    require: (list | None) = None,
+    strict_keys: bool = True,
+    allow_missing: (list | None) = None
 ) {
     # `require` names backends ("cl"/"na") that must actually participate: if a
     # required backend fails to compile/run or shares no comparable keys with
@@ -295,6 +421,9 @@ def run_with_both(
         js_code = compile_fixture_to_js(fixture);
         cl_result = run_js_function(js_code, cl_fn);
         cl_keys = len(set(py_result.keys()) & set(cl_result.keys()));
+        if strict_keys and "cl" in reqd {
+            assert_full_parity(py_result, cl_result, f"{label} [ES]", allow_missing);
+        }
         compare_results(py_result, cl_result, f"{label} [ES]", tolerance);
     } except Exception {
         if "cl" in reqd {
@@ -311,6 +440,9 @@ def run_with_both(
         (eng, na_ir) = compile_native(fixture);
         na_result = run_native_function(eng, na_fn, na_ir);
         na_keys = len(set(py_result.keys()) & set(na_result.keys()));
+        if strict_keys and "na" in reqd {
+            assert_full_parity(py_result, na_result, f"{label} [NA]", allow_missing);
+        }
         compare_results(py_result, na_result, f"{label} [NA]", tolerance);
     } except Exception {
         if "na" in reqd {

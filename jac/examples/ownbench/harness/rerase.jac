@@ -41,8 +41,8 @@ def rerase(text: str) -> str {
             continue;
         }
         if stack
-        and stripped == "}"
-        and (len(line) - len(line.lstrip())) == stack[-1] {
+            and stripped == "}"
+            and (len(line) - len(line.lstrip())) == stack[-1] {
             stack.pop();
             continue;
         }
@@ -58,7 +58,7 @@ def rerase(text: str) -> str {
 with entry {
     if len(sys.argv) != 2 {
         sys.stderr.write("usage: jac run rerase.jac <kernel.jac>\n");
-        sys.exit(2);
+        sys.`exit(2);
     }
     sys.stdout.write(rerase(Path(sys.argv[1]).read_text()));
 }
