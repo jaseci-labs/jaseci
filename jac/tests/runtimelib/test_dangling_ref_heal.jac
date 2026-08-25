@@ -65,7 +65,7 @@ def _store_for(tmpdir: str, app: str) -> PgStore {
     import os;
     digest = hashlib.sha1(os.path.realpath(tmpdir).encode('utf-8')).hexdigest()[:8];
     admin_rt = PgRuntime(data_dir=shared_pg_data_dir(), database='postgres');
-    admin = PgStore(conninfo=admin_rt.ensure());
+    admin = PgStore(conninfo=admin_rt.ensure(), ensure_cb=admin_rt.ensure);
     admin.begin(TxnIsolation.READ_COMMITTED);
     names = [
         str(r[0])
@@ -78,7 +78,7 @@ def _store_for(tmpdir: str, app: str) -> PgStore {
     admin.close();
     assert names , f"no project database found for digest {digest}";
     rt = PgRuntime(data_dir=shared_pg_data_dir(), database=names[0]);
-    return PgStore(conninfo=rt.ensure());
+    return PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
 }
 
 

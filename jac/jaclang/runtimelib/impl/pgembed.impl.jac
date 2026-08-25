@@ -247,7 +247,7 @@ impl PgRuntime.ensure -> ConnInfo {
     with self._lock {
         if self.is_running() {
             try {
-                self._wait_ready();
+                self._wait_ready(timeout=3.0);
                 self._ensure_database();
                 return self.conninfo();
             } except Exception {
@@ -263,6 +263,16 @@ impl PgRuntime.ensure -> ConnInfo {
         fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX);
         started = False;
         try {
+            if self.is_running() {
+                try {
+                    self._wait_ready(timeout=3.0);
+                } except Exception {
+                    death_deadline = time.monotonic() + 40.0;
+                    while self.is_running() and time.monotonic() < death_deadline {
+                        time.sleep(0.25);
+                    }
+                }
+            }
             if not self.is_running() {
                 bin_dir = self._resolve_binaries();
                 self._initdb_if_needed(bin_dir);
