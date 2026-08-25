@@ -230,12 +230,28 @@ def _replay_prefix_rows(rows: any, claimed: tuple, prog: JacProgram, diag_src: S
     deliver_alerts(errs, warns, prog);
 }
 
+def parse_woven(
+    source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
+) -> tuple {
+    (module, had_error) = parse(source_str, file_path, prog=prog);
+    if had_error or not annexes {
+        return (module, had_error);
+    }
+    import from jaclang.jac0core.passes.annex_weave { merge_annex_into }
+    for (a_src, a_path) in annexes {
+        (a_mod, _a_err) = parse(a_src, a_path, prog=prog);
+        merge_annex_into(module, a_mod);
+    }
+    return (module, had_error);
+}
+
 def parse_and_run_prefix(
     source_str: str,
     file_path: str,
     prog: (JacProgram | None),
     claimed: tuple,
-    facts: any
+    facts: any,
+    annexes: list = []
 ) -> tuple {
     _np = _native_parse();
     if _np is None or not _np.serves_prefix() {
@@ -247,9 +263,10 @@ def parse_and_run_prefix(
     }
     import from jaclang.jac0core.prefix_flip { PREFIX_IR_GEN_NO_CGEN }
     claimed_t = tuple(claimed or ());
-    claimed_n = len(claimed_t) if len(claimed_t) < 6 else 6;
+    _pin_n = len(PREFIX_IR_GEN_NO_CGEN);
+    claimed_n = len(claimed_t) if len(claimed_t) < _pin_n else _pin_n;
     if list(claimed_t[:claimed_n]) != list(PREFIX_IR_GEN_NO_CGEN[:claimed_n]) {
-        (module, had_error) = parse(source_str, file_path, prog=prog);
+        (module, had_error) = parse_woven(source_str, file_path, prog, annexes);
         return (
             module,
             had_error,
@@ -258,6 +275,21 @@ def parse_and_run_prefix(
             "the claimed schedule does not lead with the sealed prefix order",
 
         );
+    }
+    if _np.serves_annex() {
+        _np.annex_reset();
+        for (a_src, a_path) in annexes {
+            (a_errs, a_pd, a_ld, a_lex) = _np.annex_push(a_src, a_path);
+            if prog is not None and (a_pd or a_ld) {
+                a_src_obj = Source(a_src, mod_path=a_path);
+                if a_ld {
+                    _replay_diags(a_ld, Lexer, prog, a_src_obj);
+                }
+                if a_pd {
+                    _replay_diags(a_pd, Parser, prog, a_src_obj);
+                }
+            }
+        }
     }
     proj_root = facts?.jac_project_root;
     r = _np.parse_and_run_prefix(

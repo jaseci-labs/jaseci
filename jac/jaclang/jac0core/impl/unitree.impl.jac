@@ -331,8 +331,30 @@ impl Symbol.add_defn(nd: NameAtom) -> None {
 }
 
 impl Symbol.add_use(nd: NameAtom) -> None {
-    self.uses.append(nd);
     nd.sym = self;
+
+    if self.in_stub_scope() {
+        return;
+    }
+    self.uses.append(nd);
+}
+
+impl Symbol.in_stub_scope -> bool {
+    memo = self._in_stub_scope;
+    if memo is not None {
+        return memo;
+    }
+    found = False;
+    cur: (UniScopeNode | None) = self.parent_tab;
+    while cur is not None {
+        if isinstance(cur, Module) {
+            found = cur.stub_only;
+            break;
+        }
+        cur = cur.parent_scope;
+    }
+    self._in_stub_scope = found;
+    return found;
 }
 
 impl Symbol.__repr__ -> str {
@@ -760,6 +782,9 @@ impl Expr.postinit -> None {
     self._type_sym_tab = None;
     self.type = None;
     self.narrowed_type = None;
+    self.coerce_to = None;
+    self.fw = None;
+    self.fw_safe = False;
     self.attached_tokens = None;
 }
 
@@ -868,7 +893,6 @@ impl SubTag.postinit -> None {
 
 impl Module.postinit -> None {
     self.src_terminals = self.terminals;
-    self.annex_mods = [];
     self.rc_last_use = {};
     _rc_move_in: set[int] = set();
     self.rc_move_in = _rc_move_in;

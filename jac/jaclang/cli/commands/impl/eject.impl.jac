@@ -653,7 +653,7 @@ def _copy_client_runtime(src: Path, frontend_root: Path) -> bool {
         console.warning(
             "  No .jac/client/compiled/client_runtime.js found; "
             "@jac/runtime imports will be unresolved. "
-            "Run `jac install` (or any `jac start`) before `jac eject` "
+            "Run `jac install` (or any `jac run`) before `jac eject` "
             "to build the client runtime."
         );
         return False;

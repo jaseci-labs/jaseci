@@ -335,7 +335,6 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 
 glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "jac0core/unitree.jac",
-         "jac0core/passes/annex_pass.jac",
          "jac0core/passes/ast_validation_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/semantic_analysis_pass.jac",
@@ -376,7 +375,6 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
          "jac0core/parser/tokens.jac",
-         "jac0core/passes/annex_pass.jac",
          "jac0core/passes/annex_weave.jac",
          "jac0core/passes/ast_validation_pass.jac",
          "jac0core/passes/decl_impl_match_pass.jac",
@@ -388,6 +386,7 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "jac0core/passes/sym_tab_build_pass.jac",
          "jac0core/passes/transform.jac",
          "jac0core/passes/uni_pass.jac",
+         "jac0core/scalars.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "compiler/expr_keys.jac",
@@ -437,8 +436,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/type_system/type_utils.jac::class_implements_protocol",
          "compiler/type_system/type_utils.jac::collect_member_syms",
          "compiler/type_system/type_utils.jac::get_completion_items",
-         "compiler/type_system/type_utils.jac::completion_kind_from_sym",
-         "compiler/type_system/type_utils.jac::completion_item_from_sym",
          "compiler/type_system/type_utils.jac::compute_mro_linearization",
          "compiler/type_system/type_utils.jac::build_type_var_solution",
          "compiler/type_system/type_utils.jac::shadowed_type_var_names",
@@ -526,7 +523,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple[str, ...]] = {
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
@@ -587,9 +583,9 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "against a layout not reachable from the root "
              "(`class_implements_protocol`, `doc_of_sym`), `enumerate(...)` "
              "as a for-loop iterable (`build_type_var_solution`, "
-             "`build_solution_from_specialized_class`), and comprehensions or "
-             "matches over element-erased collections "
-             "(`shadowed_type_var_names`, `completion_kind_from_sym`). "
+             "`build_solution_from_specialized_class`), and comprehensions "
+             "over element-erased collections "
+             "(`shadowed_type_var_names`). "
              "Each clears with the named gap."
          ),
          (
@@ -1025,6 +1021,7 @@ glob _PARITY_CANARY_LINES: tuple[str, ...] = (
          "    else { try { raise ValueError('v'); } except ValueError as e { } }",
          "    return self.x if self.x else -1;",
          "}",
+         "sem Hue.RED = \"the warm end of the corpus\";",
          "enum Mood;",
          "impl Mood {",
          "    UP = 1,",
@@ -1329,6 +1326,9 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
     import from jaclang.jac0core.passes.semantic_analysis_pass { SemanticAnalysisPass }
     import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
     import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
+    import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
+        JsxIntrinsicGuardPass
+    }
 
     nl = chr(10);
     sys.stderr.write(f"    canary: prefix parity in {os.path.basename(lib_path)}\n");
@@ -1367,9 +1367,11 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
     import from jaclang.jac0core.passes.prefix_drive {
         PREFIX_NATIVE_FRONTIER as _pfx_frontier
     }
+    import from jaclang.jac0core.prefix_flip { PREFIX_IR_GEN_NO_CGEN as _pfx_pin }
+    _pfx_claim = len(_pfx_pin);
     for (canary_src, canary_path, min_rows) in corpora {
         try {
-            r = np.parse_and_run_prefix(canary_src, canary_path, 6, "", 0, 0);
+            r = np.parse_and_run_prefix(canary_src, canary_path, _pfx_claim, "", 0, 0);
         } except Exception as run_exc {
             if env_na_debug() {
                 traceback.print_exc(file=sys.stderr);
@@ -1433,6 +1435,7 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
             SemanticAnalysisPass,
             SemDefMatchPass,
             CFGBuildPass,
+            JsxIntrinsicGuardPass,
 
         );
         for (pass_ord, cls) in enumerate(_pfx_all_passes[:_pfx_frontier]) {
@@ -1497,6 +1500,20 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
         if n_syms != p_syms {
             return _parity_sym_report(canary_path, n_syms, p_syms);
         }
+        n_tab: list[str] = [];
+        p_tab: list[str] = [];
+        try {
+            n_tab = _sym_table_fingerprint(native_mod);
+            p_tab = _sym_table_fingerprint(py_mod);
+        } except Exception as tab_exc {
+            return (
+                f"{canary_path}: post-pass symbol table fingerprint raised "
+                f"{type(tab_exc).__name__}: {tab_exc}"
+            );
+        }
+        if n_tab != p_tab {
+            return _parity_table_report(canary_path, n_tab, p_tab);
+        }
     }
     return "";
 }
@@ -1521,7 +1538,7 @@ glob _MERGE_PROBE_MAIN: tuple[str, ...] = (
 def _merge_probe_parity(np: any) -> str {
     import from jaclang.jac0core.parser.lexer { tokenize_full }
     import from jaclang.jac0core.parser.parser { Parser }
-    import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
+    import from jaclang.jac0core.passes.annex_weave { merge_annex_into }
     import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
     nl = chr(10);
@@ -1544,7 +1561,7 @@ def _merge_probe_parity(np: any) -> str {
     py_main = Parser(tokens=mt, file_path=main_path, source_code=main_src).parse();
     (at, _ac, _ald, _ale) = tokenize_full(annex_src, annex_path);
     py_annex = Parser(tokens=at, file_path=annex_path, source_code=annex_src).parse();
-    JacAnnexPass._merge_annex(py_main, py_annex);
+    merge_annex_into(py_main, py_annex);
     if len(merged.body) != len(py_main.body) {
         return (
             f"merge probe: woven body lengths diverged (native "
@@ -1743,6 +1760,60 @@ def _sym_name_fingerprint(mod: any) -> list[str] {
     }
     return out;
 }
+
+def _sym_table_fingerprint(mod: any) -> list[str] {
+    import jaclang.jac0core.unitree as uni;
+    out: list[str] = [];
+    for nd in mod._in_mod_nodes {
+        if isinstance(nd, uni.UniScopeNode) {
+            names = ",".join(sorted((nd.names_in_scope or {}).keys()));
+            over = ",".join(sorted((nd.names_in_scope_overload or {}).keys()));
+            reb = ",".join(sorted((nd.implicit_rebinds or {}).keys()));
+            kids = len(nd.kid_scope or []);
+            has_parent = "y" if nd.parent_scope is not None else "n";
+            sems = ",".join(
+                f"{nm}={sym.semstr}"
+                for (nm, sym) in sorted((nd.names_in_scope or {}).items())
+                if sym.semstr
+            );
+            out.append(
+                f"scope {type(nd).__name__}:{nd.scope_name} names=[{names}] "
+                f"over=[{over}] rebind=[{reb}] kids={kids} parent={has_parent} "
+                f"sems=[{sems}]"
+            );
+        }
+        if isinstance(nd, uni.NameAtom) {
+            sym = nd.__dict__.get("_sym");
+            if sym is None {
+                out.append(f"name {type(nd).__name__} sym=none");
+            } else {
+                out.append(
+                    f"name {type(nd).__name__} sym={sym.sym_name}:"
+                    f"{sym.access} defn={len(sym.defn)} uses={len(sym.uses)}"
+                );
+            }
+        }
+    }
+    return out;
+}
+
+
+def _parity_table_report(canary_path: str, n_tab: list[str], p_tab: list[str]) -> str {
+    nl = chr(10);
+    at = _parity_diff_at(n_tab, p_tab);
+    n_show = n_tab[at] if at < len(n_tab) else "<end>";
+    p_show = p_tab[at] if at < len(p_tab) else "<end>";
+    return nl.join(
+        [
+            f"{canary_path}: the symbol table diverged at entry {at + 1} of "
+            f"{len(n_tab)} native / {len(p_tab)} bytecode: "
+            f"native {n_show!r} vs bytecode {p_show!r}",
+            f"    native   {_parity_window(n_tab, at, 2, sep=' | ')}",
+            f"    bytecode {_parity_window(p_tab, at, 2, sep=' | ')}"
+        ]
+    );
+}
+
 
 def _native_lib_filename(stem: str) -> str {
     if sys.platform.startswith("win") {

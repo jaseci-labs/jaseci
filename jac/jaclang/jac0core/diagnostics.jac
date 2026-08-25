@@ -748,6 +748,48 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " ('{name} as LocalName').",
          blocks_codegen=True
      ),
+     E1126 = _err(
+         "E1126",
+         Category.TYPE,
+         "Integer literal {value} does not fit in {type} (range {min}..{max})",
+         help="A literal must be in the target's range; a value outside it never"
+         " truncates silently. Use a wider type, or spell the modular result"
+         " explicitly with `{type}.wrap({value})`."
+     ),
+     E1127 = _err(
+         "E1127",
+         Category.TYPE,
+         "Cannot implicitly convert {src} to {dest}; the conversion is not value-preserving",
+         help="Only widening conversions are implicit (i8 -> i16 -> i32 -> i64 -> int,"
+         " u8 -> u16 -> u32 -> u64 -> int, unsigned into a strictly wider signed type,"
+         " f32 -> f64 -> float). Narrowing, a same-width sign change, `int` into a"
+         " sized type, and 64-bit ints into floats need the checked cast `{dest}(x)`,"
+         " which raises OverflowError out of range, or the modular `{dest}.wrap(x)`."
+     ),
+     E1128 = _err(
+         "E1128",
+         Category.TYPE,
+         "Operands of '{op}' have no common fixed-width type ({left} and {right})",
+         help="Neither operand widens into the other, so the operator has no width"
+         " to compute at. Cast one operand explicitly, e.g. `{left}(rhs)` or"
+         " `{right}(lhs)`, to choose the width and sign of the operation."
+     ),
+     E1129 = _err(
+         "E1129",
+         Category.TYPE,
+         "Unary minus on unsigned type {type}",
+         help="An unsigned type has no negative values, so `-x` cannot be typed."
+         " Negate in a signed type (`-i64(x)`), or use `wrapping_neg(x)` for the"
+         " two's-complement result at the same width."
+     ),
+     E1130 = _err(
+         "E1130",
+         Category.TYPE,
+         "Float literal {value} overflows {type} (largest finite magnitude {max})",
+         help="The literal is past what the target float can represent, so it"
+         " would arrive as `inf`. Use a wider float type, or write the value the"
+         " type can actually hold."
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,
@@ -1587,6 +1629,21 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E5041 = _err("E5041", Category.CODEGEN, "Length mismatch in import names"),
      E5042 = _err("E5042", Category.CODEGEN, "Length mismatch in async for body"),
      E5043 = _err("E5043", Category.CODEGEN, "Bytecode compilation failed: {error}"),
+     W5096 = _warn(
+         "W5096",
+         Category.CODEGEN,
+         "Graph traversal materialized in object space: {reason}",
+         help="This traversal loads every match before the operation runs, so "
+         "its cost is O(degree) in the node's edge count. Shapes that resolve "
+         "in the query instead: a predicate or an ordering term inside "
+         "[?...], a range slice, len(), and a truthiness test. sorted() folds "
+         "when its key is `lambda (x: T) { x.field; }`, its negation, or a "
+         "tuple of those. An in-place .sort() cannot fold because it mutates a "
+         "binding -- use sorted(), or write the ordering into the reference. A "
+         "field named in a sort key or a range predicate needs promoting "
+         "through [scale.database] indexes to reach an index rather than a "
+         "sort."
+     ),
      W5050 = _warn(
          "W5050",
          Category.CODEGEN,
@@ -1656,11 +1713,17 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5094",
          Category.CODEGEN,
          "Graph query filter outside the closed sublanguage: {reason}",
-         help="Predicates inside [?...] on a graph reference must be "
-         "`field <op> value` with op one of ==, !=, <, <=, >, >=, in, "
-         "where the value is a scalar expression evaluated once at query "
-         "construction. Move anything else to a list comprehension over "
-         "the query result, where its object-space cost is visible.",
+         help="A term inside [?...] on a graph reference, or between the "
+         "colons of a typed hop, is one of three shapes. A predicate is "
+         "`field <op> value` with op one of ==, !=, <, <=, >, >=, in, where "
+         "the value is a scalar expression evaluated once at query "
+         "construction. A composite key compares a tuple of field names "
+         "against a tuple value of the same arity, for keyset paging. An "
+         "ordering term is a bare field name (ascending) or its negation "
+         "(descending), written after every predicate on that hop, and only "
+         "on the final hop of a chain. Move anything else to a list "
+         "comprehension over the query result, where its object-space cost "
+         "is visible.",
          blocks_codegen=True
      ),
      E5095 = _err(

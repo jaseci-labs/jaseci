@@ -27,8 +27,8 @@ glob PREFIX_CLAUSES: tuple[tuple[str, str]] = (
          ),
          (
              "annex-present",
-             "the module has .impl.jac/.test.jac annexes; the weave is not in "
-             "the crossing yet"
+             "the module has .impl.jac/.test.jac annexes and the bound "
+             "artifact predates the multi-source crossing"
          ),
          (
              "codespace-pinned",
@@ -213,6 +213,19 @@ def prefix_entry -> tuple[any] {
     }
     _prefix_entry_memo.append(found);
     return found;
+}
+
+def prefix_serves_annex -> bool {
+    if _prefix_entry_override {
+        return True;
+    }
+    try {
+        import from jaclang.jac0core.native_brands { native_parser }
+        np = native_parser("prefix_flip:serves_annex");
+        return np is not None and np.serves_annex();
+    } except Exception {
+        return False;
+    }
 }
 
 def prefix_facts_for(file_path: str, prog: any) -> PrefixFacts {
@@ -554,7 +567,11 @@ def prefix_span_errors(span: tuple[any]) -> int {
 }
 
 def _pre_parse_decline(
-    file_path: str, kind: str, claimed: tuple[str], codespace: str = ""
+    file_path: str,
+    kind: str,
+    claimed: tuple[str],
+    codespace: str = "",
+    n_annexes: int = 0
 ) -> tuple[str] {
     if prefix_disabled() {
         return ("disabled-by-env", f"{PREFIX_ENV}=off");
@@ -572,21 +589,6 @@ def _pre_parse_decline(
             f"no sealed prefix is claimed for schedule kind {kind or '<none>'}"
         );
     }
-    try {
-        import from jaclang.jac0core.bccache { discover_annex_files }
-        annexes = [
-            *discover_annex_files(file_path, ".impl.jac"),
-            *discover_annex_files(file_path, ".test.jac")
-        ];
-    } except Exception {
-        annexes = [];
-    }
-    if annexes {
-        return (
-            "annex-present",
-            f"{len(annexes)} annex source(s) weave into this module"
-        );
-    }
     if codespace in ("client", "native", ) {
         return (
             "codespace-pinned",
@@ -598,12 +600,57 @@ def _pre_parse_decline(
     if fn is None {
         return (clause or "prefix-entry-absent", detail);
     }
+    if n_annexes and not prefix_serves_annex() {
+        return (
+            "annex-present",
+            f"{n_annexes} annex source(s) weave into this module, and the "
+            "bound artifact exports no multi-source crossing"
+        );
+    }
     return ();
 }
 
-def _staged(source_str: str, file_path: str, prog: any) -> tuple[any] {
-    import from jaclang.jac0core.parser { parse as rd_parse }
-    return rd_parse(source_str, file_path, prog=prog);
+def annex_sources(file_path: str) -> list[tuple[str, str]] {
+    if not file_path.endswith(".jac") {
+        return [];
+    }
+    try {
+        import from jaclang.jac0core.bccache {
+            discover_annex_files,
+            discover_base_file
+        }
+        import from jaclang.jac0core.helpers { read_file_with_encoding }
+        if discover_base_file(file_path) is not None {
+            return [];
+        }
+        paths = [
+            *discover_annex_files(file_path, ".impl.jac"),
+            *discover_annex_files(file_path, ".test.jac")
+        ];
+    } except Exception {
+        return [];
+    }
+    out: list[tuple[str, str]] = [];
+    seen: set[str] = set();
+    for pth in paths {
+        if pth in seen {
+            continue;
+        }
+        seen.add(pth);
+        try {
+            out.append((read_file_with_encoding(pth), pth, ));
+        } except Exception {
+            continue;
+        }
+    }
+    return out;
+}
+
+def _staged(
+    source_str: str, file_path: str, prog: any, annexes: list[tuple[str, str]] = []
+) -> tuple[any] {
+    import from jaclang.jac0core.parser.frontend { parse_woven }
+    return parse_woven(source_str, file_path, prog, annexes);
 }
 
 def _fall_back(
@@ -613,9 +660,10 @@ def _fall_back(
     claimed: tuple[str],
     clause: str,
     detail: str,
-    executed: tuple[str] = ()
+    executed: tuple[str] = (),
+    annexes: list[tuple[str, str]] = []
 ) -> tuple[any] {
-    (mod, had_error) = _staged(source_str, file_path, prog);
+    (mod, had_error) = _staged(source_str, file_path, prog, annexes);
     _record(
         PrefixOutcome(
             mod_path=file_path,
@@ -652,21 +700,24 @@ def parse_with_prefix(
     no_cgen: bool = False,
     codespace: str = ""
 ) -> tuple[any] {
+    annexes = annex_sources(file_path);
     if not kind {
         _prefix_handoff.clear();
-        return _staged(source_str, file_path, prog);
+        return _staged(source_str, file_path, prog, annexes);
     }
     claimed = sealed_prefix_names(kind, no_cgen);
-    decline = _pre_parse_decline(file_path, kind, claimed, codespace);
+    decline = _pre_parse_decline(file_path, kind, claimed, codespace, len(annexes));
     if decline {
         (clause, detail) = decline;
-        return _fall_back(source_str, file_path, prog, claimed, clause, detail);
+        return _fall_back(
+            source_str, file_path, prog, claimed, clause, detail, (), annexes
+        );
     }
     (`entry, _c, _d) = prefix_entry();
     facts = prefix_facts_for(file_path, prog);
     err_start = len(prog.errors_had) if prog is not None else 0;
     try {
-        result = `entry(source_str, file_path, prog, claimed, facts);
+        result = `entry(source_str, file_path, prog, claimed, facts, annexes);
     } except Exception as exc {
         return _fall_back(
             source_str,
@@ -674,7 +725,9 @@ def parse_with_prefix(
             prog,
             claimed,
             "crossing-error",
-            f"{type(exc).__name__}: {exc}"
+            f"{type(exc).__name__}: {exc}",
+            (),
+            annexes
         );
     }
     (mod, had_error, executed, clause, detail) = result;

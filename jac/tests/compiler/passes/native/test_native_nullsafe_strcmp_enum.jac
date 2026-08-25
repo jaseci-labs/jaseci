@@ -13,31 +13,10 @@ enum's defining module is walked after the module referencing it.
 import ctypes;
 import os;
 import from pathlib { Path }
-import from tests.support { native_force_opts }
+import from tests.support { compile_native, get_func, native_force_opts }
 import from jaclang.jac0core.program { JacProgram }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures");
-
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
-def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    return ctypes.CFUNCTYPE(restype, *argtypes)(addr);
-}
-
 test "optional string equality is tag arithmetic, matching Python" {
     (eng, _) = compile_native("nullsafe_strcmp_enum.jac");
     # b.label is unset (None); comparing it must be safe, and None == "" is

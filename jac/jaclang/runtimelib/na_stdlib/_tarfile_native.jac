@@ -26,7 +26,7 @@ def:pub tar_write(fd: int, data: bytes) -> int {
     off: int = 0;
     while off < total {
         chunk = data[off:total];
-        n: int = write(fd, chunk, len(chunk));
+        n: int = write(i32(fd), chunk, u64(len(chunk)));
         if n <= 0 {
             return -1;
         }
@@ -37,12 +37,12 @@ def:pub tar_write(fd: int, data: bytes) -> int {
 
 
 def:pub tar_close(fd: int) -> int {
-    return close(fd);
+    return close(i32(fd));
 }
 
 
 def:pub tar_chmod(path: str, mode: int) -> int {
-    return chmod(path, mode);
+    return chmod(path, i32(mode));
 }
 
 

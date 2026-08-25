@@ -192,7 +192,7 @@ deduped, *writer* endpoints fetch then invalidate overlapping readers
 
 The HTTP server is **not** in the compiler -- it is the built-in `scale` subsystem
 (`jac/jaclang/scale/jserver/`, a FastAPI/uvicorn binding written in Jac).
-`jac start` brings it up. For every public walker it registers two routes
+`jac run` brings it up. For every public walker it registers two routes
 (`register_walkers_endpoints`):
 
 ```text
@@ -643,8 +643,8 @@ height = 700
 
 ```bash
 jac build --client desktop   # -> .jac/client/desktop/<app> (binary + dist/ + libwebview.so)
-jac start --client desktop   # build if needed, then launch the native window
-jac start --client desktop --dev   # HMR: Vite on 127.0.0.1 + recompile on .jac saves
+jac run --client desktop     # build if needed, then launch the native window
+jac run --client desktop --dev     # HMR: Vite on 127.0.0.1 + recompile on .jac saves
 (cd .jac/client/desktop && ./my-app)   # or run the binary directly
 ```
 

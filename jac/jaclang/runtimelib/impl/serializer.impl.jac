@@ -13,7 +13,12 @@ impl Serializer._serialize_attrs(
 ) -> dict[str, object] {
     result = {
         a: Serializer._serialize_value(
-            getattr(`obj, a), include_type, api_mode, ref_mode, _seen
+            getattr(`obj, a),
+            include_type,
+            api_mode,
+            ref_mode,
+            _seen,
+            Serializer._declared_of(`obj, a)
         )
         for a in dir(`obj)
         if not a.startswith('_') and not callable(getattr(`obj, a, None))
@@ -54,14 +59,49 @@ impl Serializer.serialize(
     return Serializer._serialize_value(`obj, include_type, api_mode, ref_mode, _seen);
 }
 
+impl Serializer._declared_of(owner: object, attr: str) -> object {
+    cls = type(owner);
+    hit = _SIZED_FIELD_CACHE.get(cls);
+    if hit is None {
+        import from jaclang.runtimelib.sized { SIZED_TYPES }
+        found: dict[str, object] = {};
+        for klass in reversed(cls.__mro__) {
+            ann = klass.__dict__.get('__annotations__');
+            if not isinstance(ann, dict) {
+                continue;
+            }
+            for (name, tag) in ann.items() {
+                sized = SIZED_TYPES.get(tag)
+                    if isinstance(tag, str)
+                    else (tag if tag?.__jac_sized__ is not None else None);
+                if sized is not None {
+                    found[name] = sized;
+                }
+            }
+        }
+        _SIZED_FIELD_CACHE[cls] = found;
+        hit = found;
+    }
+    return hit.get(attr);
+}
+
 impl Serializer._serialize_value(
     val: object,
     include_type: bool,
     api_mode: bool = False,
     ref_mode: bool = False,
-    _seen: (tuple[set, set] | None) = None
+    _seen: (tuple[set, set] | None) = None,
+    declared: object = None
 ) -> object {
-    if val is None or isinstance(val, (str, int, float, bool)) {
+    if val is None {
+        return None;
+    }
+    if isinstance(val, (str, int, float, bool)) {
+        sized_name = declared?.__jac_sized__ if api_mode else None;
+        if isinstance(sized_name, str) {
+            import from jaclang.runtimelib.sized { json_wire_form }
+            return json_wire_form(sized_name, val);
+        }
         return val;
     }
     if isinstance(val, UUID) {
@@ -93,6 +133,9 @@ impl Serializer._serialize_value(
             'all': val.all.value,
             'roots': Serializer._serialize_value(
                 val.roots, include_type, api_mode, ref_mode, _seen
+            ),
+            'groups': Serializer._serialize_value(
+                val.groups, include_type, api_mode, ref_mode, _seen
             )
         };
     }
@@ -190,7 +233,12 @@ impl Serializer._serialize_value(
         for (k, v) in val.__dict__.items() {
             if not k.startswith('_') {
                 result[k] = Serializer._serialize_value(
-                    v, include_type, api_mode, ref_mode, _seen
+                    v,
+                    include_type,
+                    api_mode,
+                    ref_mode,
+                    _seen,
+                    Serializer._declared_of(val, k)
                 );
             }
         }
@@ -457,6 +505,14 @@ impl Serializer.coerce(val: object, target_type: object) -> tuple {
     }
 
     try {
+        sized_name = base?.__jac_sized__;
+        if isinstance(sized_name, str) {
+            import from jaclang.runtimelib.sized { json_wire_read }
+            if isinstance(val, (bool, int, float, str)) {
+                return (json_wire_read(sized_name, val), True);
+            }
+            return (val, False);
+        }
         if base is bool {
             if isinstance(val, (int, float)) {
                 return (bool(val), True);
@@ -971,6 +1027,9 @@ impl Serializer._deserialize_permission(data: object) -> Permission {
     perm.all = access_level_cast(data.get('all', -1));
     if (roots := data.get('roots')) {
         perm.roots = Serializer._deserialize_access(roots);
+    }
+    if (groups := data.get('groups')) {
+        perm.groups = Serializer._deserialize_access(groups);
     }
     return perm;
 }

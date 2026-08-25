@@ -758,7 +758,7 @@ test "stage_native_image_assets leaves canonical compiled dir unchanged" {
 
 
 test "dev helpers exist and are importable" {
-    # The dev module is the entry point for `jac start --client react-native
+    # The dev module is the entry point for `jac run --client react-native
     # --dev`. Importing it must succeed and expose the helper surface the
     # target impl depends on; the impl uses each by name, so a missing
     # export would be a build-time failure for users.
@@ -898,7 +898,7 @@ test "inject_dev_api_base_url rewrites app.json and roundtrips" {
     # Verifies the round-trip invariant: inject returns the original raw
     # bytes; restore puts them back verbatim. This is what guarantees the
     # user's pre-dev app.json (often hand-edited extra fields) survives a
-    # `jac start --dev` session unscathed.
+    # `jac run --dev` session unscathed.
     import json;
     import tempfile;
     import from jaclang.runtimelib.client.targets.react_native.dev {

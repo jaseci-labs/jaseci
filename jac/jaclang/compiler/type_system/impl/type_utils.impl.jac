@@ -453,22 +453,21 @@ impl get_completion_items(ty: (TypeBase | UniScopeNode)) -> list[CompletionItem]
 }
 
 impl completion_kind_from_sym(sym: Symbol) -> CompletionItemKind {
-    match sym.decl.name_of {
-        case ModulePath():
-            return CompletionItemKind.Module;
-
-        case Ability():
-            return CompletionItemKind.Function;
-
-        case Archetype():
-            return CompletionItemKind.Class;
-
-        case UniEnum():
-            return CompletionItemKind.Enum;
-
-        case HasVar():
-            return CompletionItemKind.Variable;
-
+    decl = sym.decl.name_of;
+    if isinstance(decl, ModulePath) {
+        return CompletionItemKind.Module;
+    }
+    if isinstance(decl, Ability) {
+        return CompletionItemKind.Function;
+    }
+    if isinstance(decl, Archetype) {
+        return CompletionItemKind.Class;
+    }
+    if isinstance(decl, UniEnum) {
+        return CompletionItemKind.Enum;
+    }
+    if isinstance(decl, HasVar) {
+        return CompletionItemKind.Variable;
     }
     return CompletionItemKind.Text;
 }
@@ -910,6 +909,12 @@ impl build_solution_from_specialized_class(
                 if tp.name not in solution {
                     solution[tp.name] = class_type.private.type_args[idx];
                 }
+            }
+        }
+    } elif class_type.shared.type_params {
+        for tp in class_type.shared.type_params {
+            if tp.name {
+                solution[tp.name] = AnyType();
             }
         }
     }

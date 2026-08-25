@@ -1710,7 +1710,77 @@ impl ESRangeEmitter.emit_op_contains(
 impl ESBuiltinEmitter.emit_print(
     self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
 ) -> (str | None) {
-    return _fcall("console.log", args);
+    import from jaclang.jac0core.scalars { shape_of }
+    names = ctx.arg_type_names or [];
+    shown: list[str] = [];
+    for (i, a) in enumerate(args) {
+        shape = shape_of(names[i]) if i < len(names) else None;
+        if shape is not None
+            and shape.sized
+            and not shape.is_float
+            and shape.width == 64 {
+            shown.append("String(" + a + ")");
+        } else {
+            shown.append(a);
+        }
+    }
+    return _fcall("console.log", shown);
+}
+
+impl ESBuiltinEmitter.emit_sized_cast(
+    self: ESBuiltinEmitter, name: str, args: list[str]
+) -> (str | None) {
+    return _rt("fw", "cast_" + name, [args[0] if args else "0"]);
+}
+
+impl ESBuiltinEmitter.emit_wrapping(
+    self: ESBuiltinEmitter, ctx: ESEmitCtx, op: str, args: list[str]
+) -> (str | None) {
+    import from jaclang.jac0core.scalars { is_sized }
+    sized_name: (str | None) = None;
+    for n in (ctx.arg_type_names or []) {
+        if is_sized(n) {
+            sized_name = n;
+            break;
+        }
+    }
+    if sized_name is None or not args {
+        return None;
+    }
+    call_args = ['"' + sized_name + '"', args[0]];
+    call_args.append(args[1] if len(args) > 1 else "undefined");
+    call_args.append("'" + op + "'");
+    return _rt("fw", "wrapping", call_args);
+}
+
+impl ESBuiltinEmitter.emit_wrapping_add(
+    self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+) -> (str | None) {
+    return self.emit_wrapping(ctx, "+", args);
+}
+
+impl ESBuiltinEmitter.emit_wrapping_sub(
+    self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+) -> (str | None) {
+    return self.emit_wrapping(ctx, "-", args);
+}
+
+impl ESBuiltinEmitter.emit_wrapping_mul(
+    self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+) -> (str | None) {
+    return self.emit_wrapping(ctx, "*", args);
+}
+
+impl ESBuiltinEmitter.emit_wrapping_shl(
+    self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+) -> (str | None) {
+    return self.emit_wrapping(ctx, "<<", args);
+}
+
+impl ESBuiltinEmitter.emit_wrapping_neg(
+    self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+) -> (str | None) {
+    return self.emit_wrapping(ctx, "neg", args);
 }
 
 impl ESBuiltinEmitter.emit_input(
@@ -1742,6 +1812,11 @@ impl ESBuiltinEmitter.emit_len(
 impl ESBuiltinEmitter.emit_abs(
     self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
 ) -> (str | None) {
+    import from jaclang.jac0core.scalars { is_sized }
+    names = ctx.arg_type_names or [];
+    if args and names and is_sized(names[0]) {
+        return _rt("fw", "abs_" + names[0], [args[0]]);
+    }
     return "Math.abs(" + args[0] + ")";
 }
 

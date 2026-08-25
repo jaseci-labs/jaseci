@@ -136,7 +136,7 @@ test "jac cli run" {
 }
 
 test "proc_file strips compound codespace suffixes to bare module stem" {
-    # Issue #6696: `jac run`/`jac start` failed on `.sv.jac` / `.jac`
+    # Issue #6696: `jac run`/`jac run --serve` failed on `.sv.jac` / `.jac`
     # entries because proc_file stripped only the trailing `.jac`, leaving
     # e.g. `main.sv`, which the meta-importer misread as the package `main.sv`
     # ("No module named 'main.sv'"). Every compound codespace suffix must
@@ -319,7 +319,7 @@ test "jac cli alert based err" {
     sys.stdout = captured_output;
     sys.stderr = captured_output;
     try {
-        execution.enter(fixture_path("err2.jac"), entrypoint="speak", args=[]);
+        execution.run(fixture_path("err2.jac"), entry_name="speak", args=[]);
     } except Exception as e {
         print(f"Error: {e}");
     }
@@ -401,7 +401,7 @@ test "jac impl err" {
     sys.stdout = captured_output;
     sys.stderr = captured_output;
     try {
-        execution.enter(fixture_path("err.jac"), entrypoint="speak", args=[]);
+        execution.run(fixture_path("err.jac"), entry_name="speak", args=[]);
     } except Exception {
         traceback.print_exc();
     }
