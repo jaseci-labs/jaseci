@@ -1,5 +1,5 @@
 import from typing { TypeAlias }
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     Archetype,
     Assignment,
@@ -45,13 +45,13 @@ import from jaclang.jac0core.unitree {
     YieldExpr
 }
 import from jaclang.compiler.passes.main.dataflow { solve_backward_gen_kill }
-import from jaclang.jac0core.constant {
+import from jaclang.compiler.frontend.constant {
     OwnershipKind,
     SymbolStorage,
     Tokens as Tok,
     is_borrow_kind
 }
-import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.compiler.passes.transform { Transform }
 
 glob SymId: TypeAlias = int;
 

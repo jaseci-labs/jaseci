@@ -22,17 +22,17 @@ import sys;
 import types;
 import importlib.machinery as machinery;
 import jaclang;
-import jaclang.jac0core.program as program_mod;
+import jaclang.compiler.driver.program as program_mod;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.source_failures { CompilerSourceError }
-import from jaclang.jac0core.schedules { get_ir_gen_sched, get_symtab_ir_sched }
-import from jaclang.jac0core.codeinfo {
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.source_failures { CompilerSourceError }
+import from jaclang.compiler.driver.schedules { get_ir_gen_sched, get_symtab_ir_sched }
+import from jaclang.compiler.frontend.codeinfo {
     get_effective_default_codespace_override,
     set_effective_default_codespace
 }
-import from jaclang.jac0core.jir {
+import from jaclang.compiler.driver.jir {
     get_module_cache_path,
     module_cache_key,
     module_env_fingerprint

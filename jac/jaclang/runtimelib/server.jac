@@ -38,8 +38,8 @@ import from jaclang.runtimelib.static_files { find_static_candidate, is_asset_re
 import from jaclang { JacRuntime as Jac }
 import from jaclang.project.config { get_config }
 import from jaclang.runtimelib.task_scheduler { ScheduleSpec, Scheduler }
-import from jaclang.jac0core.constant { Constants as Con }
-import type from jaclang.jac0core.constructs { Archetype, WalkerArchetype }
+import from jaclang.compiler.frontend.constant { Constants as Con }
+import type from jaclang.runtime.constructs { Archetype, WalkerArchetype }
 
 glob JsonValue: TypeAlias = None
          | str

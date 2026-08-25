@@ -5,9 +5,9 @@ import io;
 import sys;
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.bccache { discover_annex_files, discover_base_file }
-import from jaclang.jac0core.treeprinter { node_to_dict }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.bccache { discover_annex_files, discover_base_file }
+import from jaclang.compiler.tools.treeprinter { node_to_dict }
 import from jaclang.cli.commands { execution }
 
 glob FIXTURES = os.path.join(

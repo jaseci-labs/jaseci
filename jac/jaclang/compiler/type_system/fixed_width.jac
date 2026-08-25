@@ -1,4 +1,4 @@
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     AtomUnit,
     Expr,
     Float,
@@ -9,8 +9,8 @@ import from jaclang.jac0core.unitree {
     UnaryExpr,
     UniNode
 }
-import from jaclang.jac0core.constant { TOKEN_MAP, Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E1126, E1127, E1128, E1130 }
+import from jaclang.compiler.frontend.constant { TOKEN_MAP, Tokens as Tok }
+import from jaclang.compiler.frontend.diagnostics { E1126, E1127, E1128, E1130 }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
 import from jaclang.compiler.type_system.types {
     AnyType,
@@ -159,7 +159,7 @@ def adopt_literal(
         return AssignVerdict(ok=False);
     }
     if JAC_TYPE_REGISTRY.numeric_kind_of(name) == NumericKind.FloatKind {
-        import from jaclang.jac0core.scalars { float_max }
+        import from jaclang.runtime.scalars { float_max }
         evaluator.emit_diag(E1130, expr, value=value, type=name, max=float_max(name));
         return AssignVerdict(ok=False, diagnosed=True);
     }

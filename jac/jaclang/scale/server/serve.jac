@@ -25,7 +25,7 @@ import from jaclang.runtimelib.serving.endpoint {
     ParameterType,
     WSEndPoint
 }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.server { JacAPIServer as JServer }
 import from jaclang.runtimelib.server { UserManager as CoreUserManager }
 import from jaclang.runtimelib.server { JsonValue }
@@ -75,7 +75,7 @@ import from jaclang.scale.admin.network { JacAPIServerNetwork }
 import from jaclang.scale.admin.podenv { JacAPIServerPodEnv }
 import from jaclang.scale.scheduler.scheduler { JacScaleScheduler, TriggerSpec }
 import from jaclang.runtimelib.builtin { ScheduleTrigger }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 import traceback;
 import from urllib.parse { quote }
 import from jaclang.scale.shared.utils {

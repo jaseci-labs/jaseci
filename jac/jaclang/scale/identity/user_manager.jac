@@ -22,7 +22,7 @@ import from jaclang.scale.identity.identity_storage {
     IdentityStorage,
     PgIdentityStorage
 }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 
 glob _jwt_config = get_scale_config().get_jwt_config(),
      _sso_config = get_scale_config().get_sso_config(),

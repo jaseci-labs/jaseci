@@ -26,7 +26,7 @@ AND unequal ones do not -- so the rule is pinned rather than half-observed.
 
 import ctypes;
 import os;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 import from tests.support { JAC_ROOT, native_force_opts }
 
 glob FIXTURES = os.path.join(

@@ -18,8 +18,8 @@ HIGH's ordinal) or past the end of the array (25, 40) -- a segfault -- and
 import ctypes;
 import os;
 import from tests.support { TESTS_DIR, native_force_opts, native_str_func }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(

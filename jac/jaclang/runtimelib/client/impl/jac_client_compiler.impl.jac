@@ -714,7 +714,7 @@ impl JacClientCompiler.init(
 }
 
 impl JacClientCompiler._collect_na_modules(self: JacClientCompiler, mod: any) -> None {
-    import from jaclang.jac0core.codeinfo { InteropManifest }
+    import from jaclang.compiler.frontend.codeinfo { InteropManifest }
     manifest = mod?.gen?.interop_manifest;
     if not isinstance(manifest, InteropManifest) {
         return;

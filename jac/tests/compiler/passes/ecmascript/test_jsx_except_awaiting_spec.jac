@@ -18,8 +18,8 @@ import jaclang;
 import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob SLOT_EXT = os.path.join(
          JAC_ROOT,

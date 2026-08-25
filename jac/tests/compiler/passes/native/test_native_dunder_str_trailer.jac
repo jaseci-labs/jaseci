@@ -23,7 +23,7 @@ import from tests.support {
     native_str_func
 }
 
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"

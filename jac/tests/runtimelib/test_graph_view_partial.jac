@@ -8,7 +8,7 @@ raising turns one dangling reference into a blank graph for the whole app.
 
 import from uuid { uuid4 }
 
-import from jaclang.jac0core.archetype { EdgeAnchor, GenericEdge, Root }
+import from jaclang.runtime.archetype { EdgeAnchor, GenericEdge, Root }
 import from jaclang.runtimelib.utils { collect_node_connections }
 
 

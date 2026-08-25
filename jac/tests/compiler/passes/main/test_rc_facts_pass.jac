@@ -19,10 +19,10 @@ loop back-edge re-read) is asserted NOT proven.
 import os;
 import from tests.support { TESTS_DIR }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes.main.rc_facts_pass { RcFactsPass }
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(TESTS_DIR, "compiler", "passes", "main", "fixtures");
 

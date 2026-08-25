@@ -1740,7 +1740,7 @@ impl NaIRGenRefcount._emit_jacval_slot_drop_fn(
     if _key in self.container_drop_fns {
         return self.container_drop_fns[_key];
     }
-    import from jaclang.jac0core.codeinfo { native_safe_sym }
+    import from jaclang.compiler.frontend.codeinfo { native_safe_sym }
     i8 = ir.IntType(8);
     i8p = i8.as_pointer();
     i32 = ir.IntType(32);

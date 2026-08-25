@@ -1,7 +1,7 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.scalars { ScalarShape }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.runtime.scalars { ScalarShape }
+import jaclang.compiler.frontend.unitree as uni;
 
 obj NaIRGenSized(NaIRGenState) {
     def _scalar_shape(nd: (uni.UniNode | None)) -> (ScalarShape | None);

@@ -625,7 +625,7 @@ impl JSCodeGenerator.gen_program(nd: es.Program) -> str {
 }
 
 impl JSCodeGenerator.generate(nd: (es.Node | None)) -> str {
-    import from jaclang.jac0core.helpers { pascal_to_snake }
+    import from jaclang.compiler.frontend.helpers { pascal_to_snake }
     if (nd is None) {
         return '';
     }

@@ -4,7 +4,7 @@ An ambient builtin is declared three times by design:
 `jaclang/runtimelib/builtin.jac` carries the runtime behaviour and its
 `__all__` is the public list; `jaclang/compiler/type_system/jac_builtins.pyi`
 carries the signatures the type checker merges into `builtins_module`; and
-`JCIR_BUILTIN_NAMES` in `jac0core/jcir_facts.jac` is what the emitter reads to
+`JCIR_BUILTIN_NAMES` in `compiler/backends/py/jcir_facts.jac` is what the emitter reads to
 decide which bare names become `from jaclang.runtimelib.builtin import <name>`
 in the emitted preamble.
 
@@ -25,7 +25,7 @@ import ast;
 import os;
 import re;
 
-import from jaclang.jac0core.jcir_facts { JCIR_BUILTIN_NAMES }
+import from jaclang.compiler.backends.py.jcir_facts { JCIR_BUILTIN_NAMES }
 import from tests.support { JAC_ROOT }
 
 glob _PYI_PATH: str = os.path.join(

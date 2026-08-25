@@ -31,9 +31,9 @@ communication when this accumulates.
 
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,

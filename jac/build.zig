@@ -81,7 +81,7 @@ const JACBOOT_SRC =
     "    from jaclang.payload.cli import main\n" ++
     "    sys.exit(int(main(argv) or 0))\n" ++
     "sys.argv = ['jac'] + argv\n" ++
-    "from jaclang.jac0core.cli_boot import start_cli\n" ++
+    "from jaclang.cli.cli_boot import start_cli\n" ++
     "start_cli()\n";
 
 /// The Jac build tooling, as a runnable. Every run depends on the host pbs

@@ -11,7 +11,7 @@ import logging;
 import from datetime { date, datetime, time }
 import from enum { Enum }
 import from uuid { UUID, uuid4 }
-import from jaclang.jac0core.archetype { NodeAnchor, Root }
+import from jaclang.runtime.archetype { NodeAnchor, Root }
 # archetype_alias is an ambient Jac builtin (no import). Serializer is
 # an explicit import because we directly test its internals here.
 import from jaclang.runtimelib.serializer { Serializer }
@@ -80,7 +80,7 @@ test "unregistered-class warnings re-emit on the ladder, not once per anchor" {
     key = f"{module_name}.{unique_name}";
     blob = {
         '__type__': 'NodeAnchor',
-        '__module__': 'jaclang.jac0core.archetype',
+        '__module__': 'jaclang.runtime.archetype',
         'id': str(uuid4()),
         'root': None,
         'persistent': False,
@@ -285,7 +285,7 @@ test "aliased-class resolution info re-emits on the ladder, not once per lookup"
 test "non-dict archetype warning re-emits on the ladder, not once per anchor" {
     blob = {
         '__type__': 'NodeAnchor',
-        '__module__': 'jaclang.jac0core.archetype',
+        '__module__': 'jaclang.runtime.archetype',
         'id': str(uuid4()),
         'root': None,
         'persistent': False,
@@ -320,7 +320,7 @@ test "non-dict archetype warning re-emits on the ladder, not once per anchor" {
 test "distinct classes do not share a diagnostic slot" {
     node_blob = {
         '__type__': 'NodeAnchor',
-        '__module__': 'jaclang.jac0core.archetype',
+        '__module__': 'jaclang.runtime.archetype',
         'id': str(uuid4()),
         'root': None,
         'persistent': False,

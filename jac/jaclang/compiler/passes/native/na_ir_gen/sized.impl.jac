@@ -1,4 +1,4 @@
-import from jaclang.jac0core.scalars { range_of, shape_of, wrap_value }
+import from jaclang.runtime.scalars { range_of, shape_of, wrap_value }
 
 glob OVERFLOW_MSG: str = "integer overflow",
      SHIFT_MSG: str = "shift count out of range";

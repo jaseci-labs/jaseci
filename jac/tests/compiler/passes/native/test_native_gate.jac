@@ -13,15 +13,15 @@ on so the gate cannot silently drift from `NaIRGenPass.transform`'s own trigger:
 
 import os;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.schedules {
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.schedules {
     get_analysis_sched,
     get_boundary_analysis_sched,
     get_ir_gen_sched,
     get_py_code_gen,
     providers_of
 }
-import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
+import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
 import from jaclang.compiler.passes.native { NaIRGenPass, NativeCompilePass }
 
 glob FIXTURES = os.path.join(
@@ -51,7 +51,7 @@ test "get_py_code_gen schedules the native passes when native=True" {
 
 
 test "plain Python module carries no native-context statements" {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     prog = JacProgram();
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "gate_python_only.jac"),

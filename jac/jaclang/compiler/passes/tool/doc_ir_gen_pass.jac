@@ -1,7 +1,7 @@
 import jaclang.compiler.passes.tool.doc_ir as doc;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { Tokens as Tok, is_mut_kind }
-import from jaclang.jac0core.passes { UniPass }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.constant { Tokens as Tok, is_mut_kind }
+import from jaclang.compiler.passes { UniPass }
 
 obj DocIRGenPass(UniPass) {
     has _live_comment_ids: (set[int] | None) = None,

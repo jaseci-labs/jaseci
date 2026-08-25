@@ -1,13 +1,13 @@
 import os;
 import type from jaclang.compiler.passes.native.llvm.binding { ModuleRef, ValueRef }
-import type from jaclang.jac0core.unitree { Module as UniModule }
+import type from jaclang.compiler.frontend.unitree { Module as UniModule }
 
 def _wasm_rt_src_dir -> str {
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "wasm_rt");
 }
 
 def _wasm_libc_dir -> (str | None) {
-    import from jaclang.jac0core.compile_options { env_wasm_libc_dir }
+    import from jaclang.compiler.driver.compile_options { env_wasm_libc_dir }
     env = env_wasm_libc_dir();
     if env {
         return env if os.path.isdir(env) else None;
@@ -460,13 +460,13 @@ def _assert_ir_rc_free(llvm_ir_str: str, file_path: str) {
 }
 
 def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.compile_options {
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options {
         CompileOptions,
         push_native_target_env,
         pop_native_target_env
     }
-    import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
     (gc_mode, enf_mods, enf_grand) = _project_gc_settings();
     prev = push_native_target_env("wasm32-unknown-unknown");
     auto_promote = True;

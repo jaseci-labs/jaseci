@@ -1,10 +1,10 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E5092, E9002 }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.diagnostics { E5092, E9002 }
+import jaclang.compiler.frontend.unitree as uni;
 import os;
-import from jaclang.jac0core.constant { OwnershipKind }
+import from jaclang.compiler.frontend.constant { OwnershipKind }
 
 obj NaIRGenStmt(NaIRGenState) {
     def _codegen_body(stmts: (list | tuple)) -> None;

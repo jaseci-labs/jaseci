@@ -3,13 +3,13 @@ import from dataclasses { MISSING }
 import from typing { cast }
 import from uuid { UUID }
 
-import from jaclang.jac0core.archetype { NodeAnchor, Root }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.runtime.archetype { NodeAnchor, Root }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.runtimelib.exceptions { MissingAnchorError }
 import from jaclang.runtimelib.session { Session }
 
 impl ExecutionContext.postinit -> None {
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.runtime.runtime { JacRuntime }
     if self._parent is not None {
         self.mem = self._parent.mem;
         self.base_path_dir = self._parent.base_path_dir;

@@ -1,4 +1,4 @@
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 def collect_foreign_structs(modules: list) -> dict {

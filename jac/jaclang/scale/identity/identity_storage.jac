@@ -6,7 +6,7 @@ import from jaclang.runtimelib.serving.authcrypt {
 }
 import uuid;
 import from datetime { datetime, UTC }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.scale.config.config_loader { get_scale_config }
 
 obj IdentityTakenError(Exception) {}

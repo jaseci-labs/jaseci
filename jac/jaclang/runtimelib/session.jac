@@ -4,7 +4,7 @@ import threading;
 import from collections.abc { Generator }
 import from uuid { UUID }
 
-import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
+import from jaclang.runtime.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
 import from jaclang.runtimelib.dbcatalog {
     DbKind,
     MAINTENANCE_DB,

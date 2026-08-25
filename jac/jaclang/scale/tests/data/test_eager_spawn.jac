@@ -5,7 +5,7 @@ import glob;
 import tempfile;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.runtimelib { sv_client as __jac_sv }
 import from jaclang.runtimelib.serving.testkit { ServingTestClient as TestClient }
 import from jaclang.scale.server.serve { JacAPIServer }

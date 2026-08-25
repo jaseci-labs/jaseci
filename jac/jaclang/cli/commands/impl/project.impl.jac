@@ -1362,7 +1362,7 @@ impl jacpack(action: str = "", path: str = "", output: str = "") -> int {
         } else {
             jac_toml_path = template_dir / "jac.toml";
             if jac_toml_path.exists() {
-                import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+                import from jaclang.project.tomlio { read_toml_with_encoding }
                 jac_config = read_toml_with_encoding(str(jac_toml_path));
                 name = jac_config.get("jacpack", {}).get("name", template_dir.name);
             } else {
@@ -1527,9 +1527,9 @@ def _resolve_entry_file(config: any) -> (Path | None) {
 
 def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
     import os;
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
-    import from jaclang.jac0core.constant { Tokens as Tok }
-    import from jaclang.jac0core.schedules { get_boundary_analysis_sched }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
+    import from jaclang.compiler.driver.schedules { get_boundary_analysis_sched }
     import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
     import from jaclang.utils.precompile_bytecode {
         find_jac_files,
@@ -1717,7 +1717,7 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
 def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
     import os;
     import from jaclang.jac0core.ext_registry { base_stem }
-    import from jaclang.jac0core.placement_solver { native_default_path_ok }
+    import from jaclang.compiler.placement.placement_solver { native_default_path_ok }
     import from jaclang.runtimelib.sealed_serve { NATIVE_DIR_REL }
 
     entry_file = _resolve_entry_file(config);

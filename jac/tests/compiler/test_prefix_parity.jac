@@ -52,11 +52,11 @@ import from tests.compiler.fixtures.prefix_reference {
     diverging_prefix_entry,
     reference_prefix_entry
 }
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.prefix_flip {
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.placement.prefix_flip {
     clear_prefix_entry,
     prefix_outcomes_reset,
     prefix_quarantine_clear,
@@ -71,7 +71,7 @@ glob PARITY_CORPUS: list[str] = [
          "tests/compiler/fixtures/fam.jac",
          "examples/littleX/social_graph.jac",
          "examples/mini_todo/main.jac",
-         "jaclang/jac0core/srcloc.jac",
+         "jaclang/compiler/frontend/srcloc.jac",
          "jaclang/jac0core/expr_keys.jac",
          "jaclang/compiler/expr_keys.jac",
          "tests/compiler/passes/ecmascript/fixtures/advanced_language_features.jac",
@@ -140,7 +140,7 @@ Both are the same class of correction as the dependency warnings scoped out of
 the fields it corrupts. Every comparator, code objects included, still runs
 over the full schedule."""
 def _compile_route(path: str, route: any) -> tuple[any] {
-    import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
     _reset();
     na_coverage_begin();
     if route is not None {

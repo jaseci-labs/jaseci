@@ -1,6 +1,6 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.diagnostics { E9002 }
+import from jaclang.compiler.frontend.diagnostics { E9002 }
 
 obj NaIRGenTraceFn(NaIRGenState) {
     def _emit_trace_fn(arch_name: str) -> None;

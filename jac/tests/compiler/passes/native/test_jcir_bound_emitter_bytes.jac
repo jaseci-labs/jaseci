@@ -50,27 +50,27 @@ import shutil;
 import tempfile;
 import types;
 import jaclang;
-import jaclang.jac0core.parser.frontend as frontend;
+import jaclang.compiler.frontend.parser.frontend as frontend;
 import jaclang.jac0core.sealed as sealed;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from builtins { compile as pycompile }
 import from pathlib { Path }
-import from jaclang.jac0core.codegen_shim { transcribe }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.passes.pass_serve { _BIND_KEEP }
-import from jaclang.jac0core.passes.pass_rim {
+import from jaclang.compiler.backends.py.codegen_shim { transcribe }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.passes.pass_serve { _BIND_KEEP }
+import from jaclang.compiler.passes.pass_rim {
     _NATIVE_PASS_TIER_MEMO,
     _NATIVE_SERVED_PASSES
 }
-import from jaclang.jac0core.passes.jcir_gen_pass { JcirGenPass }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.utils.precompile_bytecode { seal_native_artifacts }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     JCIR_MODULE: str = "jaclang.jac0core.passes.jcir_gen_pass",
+     JCIR_MODULE: str = "jaclang.compiler.backends.py.jcir_gen_pass",
      SEAL_MODULES: tuple = (
-         "jac0core/unitree.jac",
-         "jac0core/passes/jcir_gen_pass.jac"
+         "compiler/frontend/unitree.jac",
+         "compiler/backends/py/jcir_gen_pass.jac"
      ),
      _BUILD_MEMO: list = [];
 

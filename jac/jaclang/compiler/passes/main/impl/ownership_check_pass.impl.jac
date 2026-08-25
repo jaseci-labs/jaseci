@@ -1,4 +1,4 @@
-import from jaclang.jac0core.diagnostics {
+import from jaclang.compiler.frontend.diagnostics {
     E1301,
     E1302,
     E1303,
@@ -375,7 +375,7 @@ impl OwnershipCheckPass._emit_freeze_diagnostics -> None {
 }
 
 impl OwnershipCheckPass._spawn_move_gen(nd: UniCFGNode) -> set[SymId] {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     gen: set[SymId] = set();
     operands: list[Expr] = [];
     for bx in nd.get_all_sub_nodes(BinaryExpr) {

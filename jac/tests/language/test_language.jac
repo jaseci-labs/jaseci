@@ -12,7 +12,7 @@ import json;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.runtime { JacRuntime }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures"),
      EXAMPLES = os.path.join(JAC_ROOT, "examples"),

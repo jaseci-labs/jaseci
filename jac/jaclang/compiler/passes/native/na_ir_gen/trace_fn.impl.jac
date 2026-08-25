@@ -1,5 +1,5 @@
 import from jaclang.compiler.passes.native.llvm { ir }
-import from jaclang.jac0core.diagnostics { E9002 }
+import from jaclang.compiler.frontend.diagnostics { E9002 }
 
 impl NaIRGenTraceFn._require_trace_fn(
     type_name: str, participates: bool, has_trace: bool

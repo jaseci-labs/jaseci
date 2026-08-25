@@ -48,9 +48,9 @@ test "an unknown operand interval is never provable" {
 test "an operation at the operand width is never marked, whatever it flows into" {
     import os;
     import from tests.support { TESTS_DIR }
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.unitree { BinaryExpr }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.frontend.unitree { BinaryExpr }
     src = (
         "with entry {\n"
         "    a: i8 = 100;\n"

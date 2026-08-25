@@ -3234,7 +3234,7 @@ impl ElfLinker.link(
     }
     os.chmod(output_path, 0o755);
 
-    import from jaclang.jac0core.compile_options { env_symmap_requested }
+    import from jaclang.compiler.driver.compile_options { env_symmap_requested }
     if env_symmap_requested() {
         symmap_path = output_path + ".symmap";
         with open(symmap_path, "w") as smf {

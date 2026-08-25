@@ -4,11 +4,11 @@ import os;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 import from jaclang.runtimelib.test { parametrize }
 
 glob FIXTURES = os.path.join(
@@ -3301,7 +3301,7 @@ test "enum_typed_base" {
 """Attribute access on a `Self`-typed value resolves via the enclosing class.
 
 Regression for the E1031 raised on `unloaded.id = self.id;` in
-jac/jaclang/jac0core/impl/archetype.impl.jac, where
+jac/jaclang/runtime/impl/archetype.impl.jac, where
 `object.__new__(self.__class__)` returns Self and the checker treated Self as an
 unbounded TypeVar with no member access. After the fix, attribute access on a
 Self-typed value resolves via the enclosing class — Pyright behavior.

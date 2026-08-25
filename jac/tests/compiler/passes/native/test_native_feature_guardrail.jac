@@ -22,8 +22,8 @@ import ctypes;
 import os;
 import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob FIXTURES_DIR = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
@@ -453,7 +453,7 @@ test "checker: membership over an operand with no static type is refused (E1124)
 #
 # The distinction was not free to learn. An earlier cut of this check also
 # refused unparameterized containers, and the seal caught it: NON_ESCAPED_KEYWORDS
-# in jac0core/constant.jac and _proto_checks_in_progress in
+# in compiler/frontend/constant.jac and _proto_checks_in_progress in
 # type_system/impl/type_utils.impl.jac are both bare `set`, so the compiler
 # refused to compile itself.
 test "checker: a bare container operand is left to the annotation refusal" {

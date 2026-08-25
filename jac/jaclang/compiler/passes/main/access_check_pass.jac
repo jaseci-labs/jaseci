@@ -1,5 +1,5 @@
 import os;
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Archetype,
     AstSymbolNode,
     AtomTrailer,
@@ -8,9 +8,9 @@ import from jaclang.jac0core.unitree {
     Symbol,
     UniNode
 }
-import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.constant { SymbolAccess }
-import from jaclang.jac0core.diagnostics {
+import from jaclang.compiler.passes.transform { Transform }
+import from jaclang.compiler.frontend.constant { SymbolAccess }
+import from jaclang.compiler.frontend.diagnostics {
     E2034,
     W2034,
     E2035,

@@ -1,8 +1,8 @@
 import from pathlib { Path }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.jac0core.mtp {
+import from jaclang.compiler.driver.mtp {
     ClassInfo,
     FieldInfo,
     FunctionInfo,

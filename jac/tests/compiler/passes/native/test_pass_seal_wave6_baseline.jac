@@ -77,7 +77,7 @@ import from jaclang.utils.precompile_bytecode {
 }
 
 glob CAPABILITY: str = "compiler/passes/main/capability_check_pass.jac",
-     MODULE_CODEGEN: str = "jac0core/passes/module_codegen_pass.jac";
+     MODULE_CODEGEN: str = "compiler/backends/py/module_codegen_pass.jac";
 
 """capability_check_pass's exact native closure, as package-relative paths.
 
@@ -93,17 +93,17 @@ glob CAPABILITY_CLOSURE: tuple = (
          "compiler/type_registry.jac",
          "compiler/type_system/type_utils.jac",
          "compiler/type_system/types.jac",
-         "jac0core/codeinfo.jac",
-         "jac0core/constant.jac",
-         "jac0core/diagnostic_utils.jac",
-         "jac0core/diagnostics.jac",
-         "jac0core/helpers.jac",
-         "jac0core/passes/module_codegen_pass.jac",
-         "jac0core/passes/transform.jac",
-         "jac0core/passes/uni_pass.jac",
-         "jac0core/scalars.jac",
-         "jac0core/srcloc.jac",
-         "jac0core/unitree.jac",
+         "compiler/frontend/codeinfo.jac",
+         "compiler/frontend/constant.jac",
+         "compiler/frontend/diagnostic_utils.jac",
+         "compiler/frontend/diagnostics.jac",
+         "compiler/frontend/helpers.jac",
+         "compiler/backends/py/module_codegen_pass.jac",
+         "compiler/passes/transform.jac",
+         "compiler/passes/uni_pass.jac",
+         "runtime/scalars.jac",
+         "compiler/frontend/srcloc.jac",
+         "compiler/frontend/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
          "runtimelib/na_stdlib/contextvars.jac",
          "runtimelib/na_stdlib/fnmatch.jac",

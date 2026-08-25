@@ -39,7 +39,7 @@ glob BOOT_SRC: str = (
          + "import _jac_finder as _jf\n"
          + "_jf.apply_dev_source_override()\n"
          + "_jf.install()\n"
-         + "from jaclang.jac0core.cli_boot import start_cli\n"
+         + "from jaclang.cli.cli_boot import start_cli\n"
          + "start_cli()\n"
      );
 

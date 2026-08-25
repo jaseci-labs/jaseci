@@ -22,7 +22,7 @@ every test.
 """
 
 import types;
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.project.config { JacConfig, get_explicit_config, set_config }
 import from jaclang.runtimelib.test_runner { _fresh_jac_state }
 

@@ -199,7 +199,7 @@ impl _get_jid -> Callable[..., any] {
 }
 
 impl _get_access_level -> type[AccessLevel] {
-    import from jaclang.jac0core.constructs { AccessLevel }
+    import from jaclang.runtime.constructs { AccessLevel }
     return AccessLevel;
 }
 
@@ -411,6 +411,6 @@ impl _jac_chunks(xs: any, n: int) -> list {
 }
 
 def _is_sized_type_name(name: str) -> bool {
-    import from jaclang.jac0core.scalars { is_sized }
+    import from jaclang.runtime.scalars { is_sized }
     return is_sized(name);
 }

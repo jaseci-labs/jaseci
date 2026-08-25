@@ -4,11 +4,11 @@ def _load_native_fmt_kernel_module -> (uni.Module | None) {
     if _NA_FMT_KERNEL_MOD {
         return _NA_FMT_KERNEL_MOD[0];
     }
-    import from jaclang.jac0core.kernel_units { fmt_kernel_unit_path }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.backends.kernel_units { fmt_kernel_unit_path }
+    import from jaclang.compiler.driver.program { JacProgram }
     mod = None;
     try {
-        import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
+        import from jaclang.compiler.driver.compile_options { CompileOptions as _KernelOpts }
         prog = JacProgram();
         mod = prog.compile(
             fmt_kernel_unit_path('na'),

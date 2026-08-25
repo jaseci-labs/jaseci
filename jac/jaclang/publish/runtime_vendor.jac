@@ -3,9 +3,9 @@ import ast as py_ast;
 import from pathlib { Path }
 
 glob _SEEDS: list[str] = [
-         "jaclang.jac0core.jaclib",
-         "jaclang.jac0core.runtime",
-         "jaclang.jac0core.archetype",
+         "jaclang.lib.jaclib",
+         "jaclang.runtime.runtime",
+         "jaclang.runtime.archetype",
          "jaclang.runtimelib.server",
          "jaclang.runtimelib.session",
          "jaclang.runtimelib.store",
@@ -26,21 +26,8 @@ glob _SEEDS: list[str] = [
          "jaclang.cli",
          "jaclang.vendor",
          "jaclang.byllm.cli",
-         "jaclang.jac0core.passes",
-         "jaclang.jac0core.parser",
-         "jaclang.jac0core.program",
-         "jaclang.jac0core.compiler",
-         "jaclang.jac0core.pass_driver",
-         "jaclang.jac0core.schedules",
-         "jaclang.jac0core.source_failures",
-         "jaclang.jac0core.boundary_classify",
-         "jaclang.jac0core.na_coverage",
-         "jaclang.jac0core.unitree",
-         "jaclang.jac0core.bccache",
-         "jaclang.jac0core.jir",
-         "jaclang.jac0core.interop_bridge",
-         "jaclang.jac0core.gen_uni_dispatch",
-         "jaclang.jac0core.cli_boot",
+         "jaclang.jac0core",
+         "jaclang.runtime.interop_bridge",
          "jaclang.runtimelib.client",
          "jaclang.runtimelib.hmr",
          "jaclang.runtimelib.watcher",
@@ -63,9 +50,9 @@ the jac command that produced it.
 
 import sys
 
-import jaclang.jac0core.runtime as _runtime_mod
+import jaclang.runtime.runtime as _runtime_mod
 
-from jaclang.jac0core.runtime import (
+from jaclang.runtime.runtime import (
     JacRuntime,
     JacRuntimeInterface,
 )
@@ -164,7 +151,9 @@ def _compile_runtime_module(pkg_root: Path, path: Path) -> str {
     if path.suffix == ".py" {
         return path.read_text(encoding="utf-8");
     }
-    if str(path).startswith(str(pkg_root / "jac0core")) {
+    import from jaclang.bootstrap_manifest { is_seed_source }
+    rel_posix = path.relative_to(pkg_root).as_posix();
+    if is_seed_source(rel_posix) {
         import from jaclang.jac0 { compile_jac, discover_impl_files }
         jac_source = path.read_text(encoding="utf-8");
         impl_sources: list[tuple[str, str]] = [];
@@ -175,7 +164,7 @@ def _compile_runtime_module(pkg_root: Path, path: Path) -> str {
         }
         return compile_jac(jac_source, str(path), impl_sources=impl_sources or None);
     }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     prog = JacProgram();
     ir = prog.compile(file_path=str(path));
     if prog.errors_had {

@@ -10,26 +10,26 @@ the next emission lowers the import against the real codespace."""
 
 import os;
 import from tests.support { JAC_ROOT }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.codeinfo { InteropBinding, InteropContext }
-import from jaclang.jac0core.na_coverage {
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.codeinfo { InteropBinding, InteropContext }
+import from jaclang.compiler.driver.na_coverage {
     _drop_demoted_native_bindings,
     na_coverage_begin,
     na_coverage_end,
     na_coverage_record,
     na_demotion_note
 }
-import from jaclang.jac0core.boundary_classify {
+import from jaclang.compiler.driver.boundary_classify {
     import_declares_native_target,
     plain_native_import_target
 }
-import from jaclang.jac0core.placement_pins {
+import from jaclang.compiler.placement.placement_pins {
     _mark_demoted_native,
     _na_demotion_memo,
     effective_module_pin
 }
-import from jaclang.jac0core.placement_solver { invalidate_importers_es }
+import from jaclang.compiler.placement.placement_solver { invalidate_importers_es }
 import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
 
 glob PIN_FIXTURE_DIR = os.path.join(

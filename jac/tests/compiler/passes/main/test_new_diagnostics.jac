@@ -20,11 +20,11 @@ import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
 
-import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.parser.frontend { parse }
+import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.parser.frontend { parse }
 import from jaclang.runtimelib.test { parametrize }
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
@@ -41,7 +41,7 @@ glob FIXTURES = os.path.join(
 # ──────────────────────────────────────────────────────────────────
 """Compile a fixture with type checking and static analysis. Returns (program, module)."""
 def compile_and_check(fixture_name: str) -> tuple {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     path = os.path.join(NEW_DIAG_FIXTURES, fixture_name);
     program = JacProgram();
     mod = program.compile(path, options=CompileOptions(default_codespace='server'));

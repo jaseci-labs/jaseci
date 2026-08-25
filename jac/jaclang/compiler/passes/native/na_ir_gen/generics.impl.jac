@@ -468,7 +468,7 @@ impl NaIRGenGenerics._find_source_ability(
     mod_name: str, func_name: str
 ) -> (uni.Ability | None) {
     import os;
-    import from jaclang.jac0core.codeinfo { resolve_native_module }
+    import from jaclang.compiler.frontend.codeinfo { resolve_native_module }
     _base = os.path.dirname(self.ir_in.loc.mod_path) if self.ir_in?.loc else None;
     _clean = mod_name[:-3] if mod_name.endswith(".na") else mod_name;
     (_src, full_path) = resolve_native_module(_clean, _base);

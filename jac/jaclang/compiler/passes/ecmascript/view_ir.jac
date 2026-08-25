@@ -1,5 +1,5 @@
 import jaclang.compiler.passes.ecmascript.estree as es;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 
 obj HostTag {
     has name: str,

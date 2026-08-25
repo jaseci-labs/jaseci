@@ -28,8 +28,8 @@ the next key type to gain a native representation cannot reopen this.
 import tempfile;
 import from pathlib { Path }
 import from dataclasses { fields as dc_fields, is_dataclass }
-import jaclang.jac0core.srcloc as srcloc;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.srcloc as srcloc;
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.utils.gen_native_materialize {
     generate,
     _inner,

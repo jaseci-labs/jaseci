@@ -175,7 +175,7 @@ impl takeover_project(base_path: str, target_path: (str | None) = None) -> int {
 
 
 def _ancestry_of(arch: (object | None)) -> list[str] {
-    import from jaclang.jac0core.constructs {
+    import from jaclang.runtime.constructs {
         Archetype,
         NodeArchetype,
         EdgeArchetype,
@@ -512,7 +512,7 @@ impl Session._evict_uncommitted -> None {
         }
         if dirty {
             if isinstance(anchor, EdgeAnchor) {
-                import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
+                import from jaclang.runtime.osp_graph_sv { sv_forget_edge }
                 sv_forget_edge(anchor, self);
             }
             self.__mem__.pop(id, None);
@@ -528,7 +528,7 @@ impl Session.get_mem -> dict[UUID, Anchor] {
 
 
 impl Session.quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None {
-    import from jaclang.jac0core.osp_graph_sv { sv_forget_by_id }
+    import from jaclang.runtime.osp_graph_sv { sv_forget_by_id }
     sv_forget_by_id(stub.id, self);
     if self.store is not None {
         try {
@@ -602,7 +602,7 @@ impl Session._txn_isolation -> TxnIsolation {
 
 
 impl Session._drop_snapshot_reads -> None {
-    import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
+    import from jaclang.runtime.osp_graph_sv { sv_forget_edge }
     for id in self._snapshot_reads {
         if id in self._dirty or id in self._deleted {
             continue;
@@ -959,6 +959,6 @@ impl Session.close -> None {
     self._dirty.clear();
     self._deleted.clear();
     self._flushed_hash.clear();
-    import from jaclang.jac0core.osp_graph_sv { sv_store_closed }
+    import from jaclang.runtime.osp_graph_sv { sv_store_closed }
     sv_store_closed(self);
 }

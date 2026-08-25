@@ -20,11 +20,11 @@ unit no longer names `prog` at all -- the last of the eight driver names
 
 import os;
 import jaclang;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.boundary_classify { native_only_import_target }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.boundary_classify { native_only_import_target }
+import from jaclang.compiler.driver.program { JacProgram }
 import from tests.support { TESTS_DIR }
 
 glob FIXTURES = os.path.join(

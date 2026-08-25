@@ -28,11 +28,11 @@ import from jaclang.utils.precompile_bytecode {
     _PARITY_CORPUS_LINES
 }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
-import from jaclang.jac0core.parser.materialize { MATERIALIZE_FIXUPS }
-import from jaclang.jac0core.parser.parser { Parser }
-import jaclang.jac0core.parser.lexer as bytecode_lexer;
-import jaclang.jac0core.srcloc as uni_srcloc;
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.frontend.parser.materialize { MATERIALIZE_FIXUPS }
+import from jaclang.compiler.frontend.parser.parser { Parser }
+import jaclang.compiler.frontend.parser.lexer as bytecode_lexer;
+import jaclang.compiler.frontend.srcloc as uni_srcloc;
+import jaclang.compiler.frontend.unitree as uni;
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
      _ARTIFACT_MEMO: list = [];
@@ -74,7 +74,7 @@ def _build_binding -> tuple {
     artifacts = seal_native_artifacts(
         PKG_PATH,
         out_dir,
-        modules=("jac0core/unitree.jac", "compiler/native_materialize.jac", )
+        modules=("compiler/frontend/unitree.jac", "compiler/native_materialize.jac", )
     );
     assert artifacts , (
         "seal_native_artifacts refused the materializer root on this platform"
@@ -85,7 +85,7 @@ def _build_binding -> tuple {
     # Serve the local artifact through the real seam and bind via the real
     # frontend, so every parity test exercises the exact production path.
     import jaclang.jac0core.sealed as sealed;
-    import jaclang.jac0core.parser.frontend as frontend;
+    import jaclang.compiler.frontend.parser.frontend as frontend;
     sealed.native_artifact_for = _ServeLocalArtifact(
         lib_path=lib_path, layout_dict=layout_dict, real=sealed.native_artifact_for
     );
@@ -459,8 +459,8 @@ test "the full compiler pipeline runs over materialized native trees" {
     # frontend memo, so plain frontend.parse and JacProgram.compile run the
     # exact production path over the locally built artifact.
     _build_binding();
-    import jaclang.jac0core.parser.frontend as frontend;
-    import from jaclang.jac0core.program { JacProgram }
+    import jaclang.compiler.frontend.parser.frontend as frontend;
+    import from jaclang.compiler.driver.program { JacProgram }
     (module, had_error) = frontend.parse(_corpus_src(), "__pipeline_corpus__.jac");
     assert not had_error;
     assert isinstance(module, uni.Module);
@@ -605,7 +605,7 @@ test "materialized trees compile to RUNNABLE bytecode (obj __init__)" {
     # an obj compiled through a materialized tree must construct with its
     # has-var __init__.
     _build_binding();
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     import types as _pytypes;
     import sys as _pysys;
     with tempfile.TemporaryDirectory(prefix="jac_mat_exec_") as td {
@@ -792,7 +792,7 @@ test "the tripwire: bytecode branch refuses inside a native-sealed image" {
     # Parity proves the native path is right; only this proves it RAN. When
     # the image declares native roots and the binding is absent, reaching
     # the bytecode parser must be a hard error, never a quiet tier.
-    import jaclang.jac0core.parser.frontend as frontend;
+    import jaclang.compiler.frontend.parser.frontend as frontend;
     import jaclang.jac0core.sealed as sealed;
     saved_memo = list(frontend._NATIVE_PARSE_MEMO);
     saved_fn = sealed.native_tier_required;

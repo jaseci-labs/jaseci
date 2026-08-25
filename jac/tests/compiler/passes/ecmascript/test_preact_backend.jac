@@ -19,14 +19,14 @@ import from jaclang.compiler.passes.ecmascript.reactive_intent {
     StateField
 }
 import jaclang.compiler.passes.ecmascript.estree as es;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.project.config { JacConfig, ClientConfig, set_config }
 import from jaclang.runtimelib.preact_entry { build_simple_preact_entry_script }
 import from jaclang.runtimelib.runtime_source {
     client_runtime_cl_basename,
     resolve_client_runtime_cl_path
 }
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"

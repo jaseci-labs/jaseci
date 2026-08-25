@@ -27,9 +27,9 @@ order deterministically.
 import os;
 import re;
 import jaclang;
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image }
 
 glob FIXTURES = os.path.join(
@@ -249,7 +249,7 @@ test "the verdict resolver refuses an inflight or mid-compile callee" {
         testskip("a sealed image measures its trust boundary, not this");
     }
     import from jaclang.compiler.passes.native.na_compile_pass { native_unit_demotions }
-    import from jaclang.jac0core.compile_options { CompileOptions as _Opts }
+    import from jaclang.compiler.driver.compile_options { CompileOptions as _Opts }
     helpers_path = os.path.realpath(os.path.join(FIXTURES, "demote_cycle_helpers.jac"));
     prog = JacProgram();
     prog.scratch.na_dep_inflight.add(helpers_path);

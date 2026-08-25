@@ -100,7 +100,7 @@ impl NaIRGenDebug.post_transform -> None {
     ir_str = str(self.llvm_module);
 
     if self.prog.options.debug_ir {
-        import from jaclang.jac0core.jir { get_native_cache_dir }
+        import from jaclang.compiler.driver.jir { get_native_cache_dir }
         src_path = self.ir_in.loc.mod_path;
         if src_path {
             stem = os.path.splitext(os.path.basename(src_path))[0];

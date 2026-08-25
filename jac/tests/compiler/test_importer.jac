@@ -16,9 +16,9 @@ import from jaclang { JacRuntime as Jac }
 import from jaclang { JacRuntimeInterface }
 import from jaclang.cli.commands { execution }
 import from jaclang.cli.commands { analysis }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { JacCompiler }
-import from jaclang.jac0core.jir {
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compiler { JacCompiler }
+import from jaclang.compiler.driver.jir {
     get_module_cache_path,
     read_bytecode_only,
     SEC_LLVM_IR,
@@ -221,7 +221,7 @@ test "compiler separates internal from user modules" {
 
         compiler = Jac.get_compiler();
         user_program = Jac.get_program();
-        jaclang_root = compiler._get_jaclang_root();
+        jaclang_root = compiler.selfhost.jaclang_root();
 
         internal_hub_paths = list(compiler.selfhost.program.mod.hub.keys());
         user_hub_paths = list(user_program.mod.hub.keys());
@@ -308,8 +308,8 @@ test "pyi stubs derive identically in every process" {
         sym2 = mod2.sym_tab.lookup("Foo");
         assert sym2 is not None , "Foo symbol missing on second derivation";
 
-        import from jaclang.jac0core.unitree { Archetype }
-        import from jaclang.jac0core.constant { Tokens as Tok }
+        import from jaclang.compiler.frontend.unitree { Archetype }
+        import from jaclang.compiler.frontend.constant { Tokens as Tok }
         foo2: list = [];
         for a in mod2.get_all_sub_nodes(Archetype) {
             if a.name is not None and a.name.value == "Foo" {
@@ -389,7 +389,7 @@ test "pyi loads build via PyastBuildPass and never compile" {
 }
 
 test "resolve_import_source_module never compiles pyi stubs" {
-    import jaclang.jac0core.unitree as uni;
+    import jaclang.compiler.frontend.unitree as uni;
     import from jaclang.compiler.symbol_utils { resolve_import_source_module }
 
     with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as d {
@@ -467,8 +467,8 @@ compared before the mtime fast path can accept the file.  #8181 shortened a
 NODE_SPECS entry by one field, which a fresh-mtime cache written under the old
 schema would then be decoded against, position by position."""
 test "fresh mtime does not admit a cache written under a different environment" {
-    import jaclang.jac0core.jir as jir;
-    import from jaclang.jac0core.jir { is_module_cache_valid }
+    import jaclang.compiler.driver.jir as jir;
+    import from jaclang.compiler.driver.jir { is_module_cache_valid }
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".jac", delete=False, dir=_test_tmp_dir
     ) as tmp {
@@ -530,7 +530,7 @@ test "fresh mtime does not admit a cache written under a different environment" 
 }
 
 def _cached_pins(jir_bytes: bytes) -> dict[str, str] {
-    import from jaclang.jac0core.placement { summary_from_bytes }
+    import from jaclang.compiler.placement.placement { summary_from_bytes }
     pos = jir_bytes.find(SECTIONS_MAGIC, HEADER_SIZE);
     if pos < 0 {
         return {};
@@ -548,7 +548,7 @@ def _cached_pins(jir_bytes: bytes) -> dict[str, str] {
 }
 
 test "editing placement pins in jac.toml invalidates the module cache" {
-    import from jaclang.jac0core.jir { is_module_cache_valid }
+    import from jaclang.compiler.driver.jir { is_module_cache_valid }
     with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as proj {
         toml_path = os.path.join(proj, "jac.toml");
         jac_file = os.path.join(proj, "m.jac");
@@ -603,7 +603,7 @@ test "editing placement pins in jac.toml invalidates the module cache" {
 }
 
 test "stub module cache key is source focused" {
-    import from jaclang.jac0core.jir {
+    import from jaclang.compiler.driver.jir {
         compute_module_key,
         compute_stub_module_key,
         module_cache_key,
@@ -822,8 +822,10 @@ test "internal get_bytecode evicts unit AST after compile" {
     # resolve to the self-host program). Force a fresh compile so we exercise the
     # post-compile eviction path rather than a disk-cache hit.
     samples = [
-        os.path.join(compiler._get_jaclang_root(), "jac0core", "log.jac"),
-        os.path.join(compiler._get_jaclang_root(), "jac0core", "constant.jac")
+        os.path.join(compiler.selfhost.jaclang_root(), "compiler", "driver", "log.jac"),
+        os.path.join(
+            compiler.selfhost.jaclang_root(), "compiler", "frontend", "constant.jac"
+        )
     ];
     for p in samples {
         assert os.path.isfile(p) , f"missing fixture {p}";

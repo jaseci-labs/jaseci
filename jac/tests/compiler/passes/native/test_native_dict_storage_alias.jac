@@ -15,7 +15,7 @@ an int dict, and reads the members back.
 
 import os;
 import ctypes;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 import from tests.support { TESTS_DIR, native_force_opts }
 
 glob FIXTURES = os.path.join(

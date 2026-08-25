@@ -27,9 +27,9 @@ own coupling; `_pass_coverage` skips there.
 import os;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
 glob PASSES_DIR = Path(jaclang.__file__).parent / "jac0core" / "passes";
@@ -68,7 +68,7 @@ glob _COVERAGE_MEMO: dict[(str, tuple)] = {};
 
 """Compile one pass unit natively and return (coverage, module_ir)."""
 def _pass_coverage(pass_file: str) -> tuple {
-    unit = f"jaclang.jac0core.passes.{pass_file[:-4]}";
+    unit = f"jaclang.compiler.passes.{pass_file[:-4]}";
     if _jaclang_image() is not None {
         testskip(
             "this runtime is a sealed jaclang image, so na_ir_gen_pass "

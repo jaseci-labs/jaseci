@@ -1,10 +1,10 @@
 import keyword;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.passes { UniPass }
-import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.constant { TOKEN_MAP }
-import from jaclang.jac0core.parser.tokens { KEYWORDS }
-import from jaclang.jac0core.diagnostics {
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.passes { UniPass }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.constant { TOKEN_MAP }
+import from jaclang.compiler.frontend.parser.tokens { KEYWORDS }
+import from jaclang.compiler.frontend.diagnostics {
     W3001,
     W3002,
     W3003,
@@ -35,7 +35,7 @@ import from jaclang.jac0core.diagnostics {
     W3050,
     W3051
 }
-import type from jaclang.jac0core.program { JacProgram }
+import type from jaclang.compiler.driver.program { JacProgram }
 
 obj JacAutoLintPass(UniPass) {
     has prog: JacProgram,

@@ -1,4 +1,4 @@
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     ArchHas,
     Archetype,
@@ -19,10 +19,10 @@ import from jaclang.jac0core.unitree {
     UnaryExpr,
     UniNode
 }
-import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.const_fold { fold_const }
-import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E5030, W5031, W5032 }
+import from jaclang.compiler.passes.transform { Transform }
+import from jaclang.compiler.backends.py.const_fold { fold_const }
+import from jaclang.compiler.frontend.constant { OwnershipKind, Tokens as Tok }
+import from jaclang.compiler.frontend.diagnostics { E5030, W5031, W5032 }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 glob LAYOUT_COMPATIBLE_PRIMITIVES: set[str] = {
@@ -126,7 +126,7 @@ def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
         return reg;
     }
 
-    import from jaclang.jac0core.pass_driver { run_pass }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
     run_pass(LayoutPass, module, prog);
     return module.gen.layout_registry or LayoutRegistry();
 }
@@ -393,7 +393,7 @@ def adopt_ancestor_methods(lay: ArchetypeLayout, ancestors: list[ArchetypeLayout
 }
 
 def is_erased_base_name(name: str, archetypes: dict[str, Archetype]) -> bool {
-    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES }
+    import from jaclang.compiler.frontend.codeinfo { NATIVE_ERASED_BASES }
     return name in NATIVE_ERASED_BASES and name not in archetypes;
 }
 

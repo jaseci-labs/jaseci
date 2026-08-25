@@ -38,18 +38,18 @@ around each patch so every test states its own precondition.
 import dataclasses;
 import jaclang;
 import jaclang.jac0core.sealed as sealed;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from pathlib { Path }
-import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
-import from jaclang.jac0core.passes.pass_rim {
+import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
+import from jaclang.compiler.passes.pass_rim {
     _NATIVE_PASS_TIER_MEMO,
     _NATIVE_SERVED_PASSES,
     PassRim
 }
-import from jaclang.jac0core.passes.transform { BaseTransform, Transform }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.passes.transform { BaseTransform, Transform }
+import from jaclang.compiler.driver.program { JacProgram }
 
-glob TIER_MODULE: str = "jaclang.jac0core.passes.ast_validation_pass";
+glob TIER_MODULE: str = "jaclang.compiler.passes.ast_validation_pass";
 
 obj LocalPass(Transform) {
     def transform(ir_in: uni.Module) -> uni.Module {

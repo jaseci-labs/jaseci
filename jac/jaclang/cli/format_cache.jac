@@ -19,7 +19,7 @@ glob FORMAT_CACHE_SCHEMA_VERSION: str = "v1",
          "jaclang.compiler.passes.tool.normalize_pass",
          "jaclang.compiler.passes.tool.unparse_pass",
          "jaclang.compiler.passes.tool.doc_ir",
-         "jaclang.jac0core.passes.transform",
+         "jaclang.compiler.passes.transform",
 
      );
 

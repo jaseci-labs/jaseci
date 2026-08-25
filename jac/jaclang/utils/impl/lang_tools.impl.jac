@@ -1,6 +1,6 @@
 import from jaclang.cli.console { console }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
-import from jaclang.jac0core.treeprinter {
+import from jaclang.compiler.tools.treeprinter {
     print_ast_tree,
     print_symtab_tree,
     printgraph_ast_tree,
@@ -24,7 +24,7 @@ impl AstTool.autodoc_uninode -> str {
             typ_str = str(kid.typ);
             arrow = '-.->' if ('Optional' in typ_str) else '-->';
             typ = typ_str.replace('typing.', '').replace(
-                'jaclang.jac0core.unitree.', ''
+                'jaclang.compiler.frontend.unitree.', ''
             ).replace(
                 'Optional[', ''
             ).replace(
@@ -49,7 +49,7 @@ impl AstTool.autodoc_uninode -> str {
 }
 
 impl AstTool.ir(args: list[str]) -> str {
-    import from jaclang.jac0core.pass_driver { run_pass }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
     error = 'Usage: ir <choose one of (sym / sym. / ast / ast. / docir / pyast / py / unparse / esast / es)> <.py or .jac file_path>';
     if (len(args) != 2) {
         return error;
@@ -225,7 +225,7 @@ impl AstTool.py_uni_nodes -> str {
 }
 
 impl AstTool.pass_template -> str {
-    output = 'import jaclang.jac0core.unitree as ast\nfrom jaclang.jac0core.passes import Pass\n\nclass SomePass(Pass):\n';
+    output = 'import jaclang.compiler.frontend.unitree as ast\nfrom jaclang.compiler.passes import Pass\n\nclass SomePass(Pass):\n';
     """Emit to output.""";
     def emit(to_append: str) {
         output += '\n    ' + to_append;
@@ -242,7 +242,7 @@ impl AstTool.pass_template -> str {
         }
         emit('    """\n');
     }
-    output = output.replace('jaclang.jac0core.unitree.', '').replace(
+    output = output.replace('jaclang.compiler.frontend.unitree.', '').replace(
         'typing.', ''
     ).replace(
         "<enum '", ''

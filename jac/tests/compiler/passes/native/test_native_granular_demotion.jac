@@ -20,9 +20,9 @@ seam of its own rather than build a half-initialized object (#8234).
 
 import os;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"

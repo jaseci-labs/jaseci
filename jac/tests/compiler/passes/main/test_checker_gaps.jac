@@ -29,10 +29,10 @@ import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
@@ -544,7 +544,7 @@ test "gap 51 property on union type returns function type" {
 # (cannot access attribute) on every `i.name` / `i.value` and a fan of
 # W1051 warnings on every dependent expression.
 #
-# Real-world failure: jac/jaclang/jac0core/impl/constant.impl.jac:9-15
+# Real-world failure: jac/jaclang/compiler/frontend/impl/constant.impl.jac:9-15
 #   impl JacSemTokenType.as_str_list -> list {
 #       return [i.name.lower() for i in JacSemTokenType if i.name];
 #   }
@@ -585,7 +585,7 @@ test "gap 52 class enum iteration yields enum instance" {
 # Impact: 1,073 false E1032 in lexer.impl.jac, 211 in parser.impl.jac.
 # =========================================================================
 test "gap 53 discover_base_file finds .jac for impl file" {
-    import from jaclang.jac0core.bccache { discover_base_file }
+    import from jaclang.compiler.driver.bccache { discover_base_file }
     impl_path = os.path.join(FIXTURES, "na_impl", "impl", "counter.impl.jac");
     base = discover_base_file(impl_path);
     assert base is not None and base.endswith("counter.jac") , (

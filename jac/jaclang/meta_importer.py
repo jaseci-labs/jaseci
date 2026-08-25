@@ -38,14 +38,14 @@ _jac0_hash = (
     else b""
 )
 
-# Inline logging config (previously in jaclang.jac0core.log)
+# Inline logging config (previously in jaclang.compiler.driver.log)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 
 
 # ---------------------------------------------------------------------------
 # Bootstrap bytecode cache
 #
-# jac0core .jac files are transpiled by jac0 on every invocation.  Caching
+# Seed-tier .jac files are transpiled by jac0 on every invocation.  Caching
 # the resulting bytecode avoids ~200 ms of repeated work when the sources
 # haven't changed.  The cache lives at ~/.cache/jac/jir/bootstrap/ as plain
 # marshalled code objects: the cache *filename* already encodes a digest over
@@ -53,8 +53,8 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 # in-file header or validation is needed.  The directory is resolved by the
 # pure-Python `jaclang.jac0core.cache_paths` (importable here, before the JIR
 # Jac modules are bootstrapped), so it shares one platform-resolution rule with
-# `jaclang.jac0core.jir`; the cache *key*, however, stays independent of that
-# module's `compute_module_key` since it must work before jac0core compiles.
+# `jaclang.compiler.driver.jir`; the cache *key*, however, stays independent of that
+# module's `compute_module_key` since it must work before the seed tier compiles.
 # ---------------------------------------------------------------------------
 
 
@@ -123,7 +123,7 @@ class JacSourceCompileError(ImportError):
 def _retained_failure_details(file_path: str) -> str:
     """Recover diagnostics the internal compile closure already evicted."""
     try:
-        from jaclang.jac0core.source_failures import compiler_source_failure_details
+        from jaclang.compiler.driver.source_failures import compiler_source_failure_details
 
         return compiler_source_failure_details(file_path) or ""
     except Exception:
@@ -156,24 +156,25 @@ def _module_scoped_alerts(program: object, file_path: str) -> list:
 # yet operational at this point. In a sealed image its code object is served
 # frozen from the manifest; a missing/corrupt JIR falls back to the retained
 # source, which jac0 transpiles live.
-_jac0core_dir = os.path.join(os.path.dirname(__file__), "jac0core")
-_modresolver_jac = os.path.join(_jac0core_dir, "modresolver.jac")
+_modresolver_jac = os.path.join(
+    os.path.dirname(__file__), "compiler", "driver", "modresolver.jac"
+)
 _modresolver_code = None
 _modresolver_origin = _modresolver_jac
-_frozen_modresolver = _sealed.find_module("jaclang.jac0core.modresolver")
+_frozen_modresolver = _sealed.find_module("jaclang.compiler.driver.modresolver")
 if _frozen_modresolver is not None and _frozen_modresolver[1].get("bootstrap"):
     _mr_image = _frozen_modresolver[0]
-    _modresolver_code = _mr_image.bootstrap_code("jaclang.jac0core.modresolver")
+    _modresolver_code = _mr_image.bootstrap_code("jaclang.compiler.driver.modresolver")
     if _modresolver_code is not None:
         _modresolver_origin = _mr_image.virtual_origin(_frozen_modresolver[2])
 if _modresolver_code is None:
     with open(_modresolver_jac, encoding="utf-8") as _f:
         _modresolver_code = _bootstrap_compile(_modresolver_jac, _f.read())
-_modresolver = types.ModuleType("jaclang.jac0core.modresolver")
+_modresolver = types.ModuleType("jaclang.compiler.driver.modresolver")
 _modresolver.__file__ = _modresolver_origin
-_modresolver.__package__ = "jaclang.jac0core"
+_modresolver.__package__ = "jaclang.compiler.driver"
 exec(_modresolver_code, _modresolver.__dict__)  # noqa: S102
-sys.modules["jaclang.jac0core.modresolver"] = _modresolver
+sys.modules["jaclang.compiler.driver.modresolver"] = _modresolver
 get_jac_search_paths = _modresolver.get_jac_search_paths
 
 
@@ -340,7 +341,7 @@ class JacMetaImporter(MetaPathFinder, Loader):
         file_path = module.__spec__.origin
 
         # Bootstrap tier: a sealed module the manifest flags as bootstrap, or (in
-        # an unsealed tree) a .jac under jaclang/jac0core/. Either way it is
+        # an unsealed tree) a .jac the seed manifest covers. Either way it is
         # compiled/loaded via jac0, never the full compiler.
         sealed = _sealed.find_module(module.__name__)
         if (
@@ -349,7 +350,7 @@ class JacMetaImporter(MetaPathFinder, Loader):
             self._exec_bootstrap(module, file_path)
             return
 
-        from jaclang.jac0core.runtime import JacRuntime as Jac
+        from jaclang.runtime.runtime import JacRuntime as Jac
 
         is_pkg = module.__spec__.submodule_search_locations is not None
 
@@ -441,7 +442,7 @@ class JacMetaImporter(MetaPathFinder, Loader):
 
         This method is required by runpy when using `python -m module`.
         """
-        from jaclang.jac0core.runtime import JacRuntime as Jac
+        from jaclang.runtime.runtime import JacRuntime as Jac
 
         # Sealed image is authoritative (see find_spec): resolve a sealed module
         # by name from the manifest, no filesystem probing. One lookup: the

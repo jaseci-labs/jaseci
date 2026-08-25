@@ -36,8 +36,8 @@ glob FIXTURES = os.path.join(
 import ctypes
 import sys
 
-from jaclang.jac0core.compile_options import CompileOptions
-from jaclang.jac0core.program import JacProgram
+from jaclang.compiler.driver.compile_options import CompileOptions
+from jaclang.compiler.driver.program import JacProgram
 
 prog = JacProgram()
 ir = prog.compile(
@@ -105,7 +105,7 @@ test "a bare-imported shim's table is live when a JIT'd unit reads it" {
 
 
 test "the initializer plan lists the import closure before the unit itself" {
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.frontend.codeinfo {
         InteropManifest,
         native_glob_init_symbols,
         native_safe_sym
@@ -129,7 +129,7 @@ test "the initializer plan lists the import closure before the unit itself" {
 
 
 test "jac_entry is exempt so it keeps chaining the initializers itself" {
-    import from jaclang.jac0core.codeinfo { install_native_static_init }
+    import from jaclang.compiler.frontend.codeinfo { install_native_static_init }
 
     class _FakeEngine {
         def init(self: _FakeEngine) {

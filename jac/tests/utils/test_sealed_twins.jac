@@ -12,8 +12,8 @@ import marshal;
 import zlib;
 
 import from jaclang.jac0core { sealed }
-import from jaclang.jac0core.jir { patch_co_filenames_bytes }
-import from jaclang.jac0core.jir {
+import from jaclang.compiler.driver.jir { patch_co_filenames_bytes }
+import from jaclang.compiler.driver.jir {
     FORMAT_VERSION,
     HEADER_SIZE,
     SECTIONS_MAGIC,

@@ -9,7 +9,7 @@ test_persistence_migration.jac (fingerprints).
 """
 
 import os;
-import from jaclang.jac0core.archetype { NodeAnchor, Root }
+import from jaclang.runtime.archetype { NodeAnchor, Root }
 import from jaclang.runtimelib.serializer { Serializer }
 import from jaclang.runtimelib.schema_rules {
     SchemaRules,

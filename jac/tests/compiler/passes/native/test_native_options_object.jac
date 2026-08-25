@@ -14,9 +14,9 @@ import shutil;
 import tempfile;
 import uuid;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.jir { get_native_cache_dir }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.jir { get_native_cache_dir }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures");
 

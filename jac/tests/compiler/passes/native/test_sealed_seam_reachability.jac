@@ -63,11 +63,11 @@ fails, and nothing outside the tables is ever excused.
 import os;
 import jaclang;
 import from pathlib { Path }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.frontend.constant { CodeContext }
+import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.main.layout_pass {
     archetype_accessors,
     get_layout_registry
@@ -80,26 +80,26 @@ import from jaclang.utils.precompile_bytecode {
 }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     SEALED_ROOT = "jac0core/parser/parser.jac",
+     SEALED_ROOT = "compiler/frontend/parser/parser.jac",
      WAVE1_ROOTS: tuple = (
-         "jac0core/passes/module_codegen_pass.jac",
-         "jac0core/passes/uni_pass.jac",
-         "jac0core/passes/endpoint_effect_pass.jac"
+         "compiler/backends/py/module_codegen_pass.jac",
+         "compiler/passes/uni_pass.jac",
+         "compiler/passes/endpoint_effect_pass.jac"
      ),
      WAVE2_ROOTS: tuple = (
-         "jac0core/passes/ast_validation_pass.jac",
-         "jac0core/passes/semantic_analysis_pass.jac",
+         "compiler/passes/ast_validation_pass.jac",
+         "compiler/passes/semantic_analysis_pass.jac",
          "compiler/passes/main/sem_def_match_pass.jac"
      ),
      WAVE4_ROOTS: tuple = (
-         "jac0core/passes/sym_tab_build_pass.jac",
-         "jac0core/passes/decl_impl_match_pass.jac"
+         "compiler/passes/sym_tab_build_pass.jac",
+         "compiler/passes/decl_impl_match_pass.jac"
      ),
      WAVE5_ROOTS: tuple = (
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
          "compiler/passes/main/access_check_pass.jac"
      ),
-     JCIR_ROOT = "jac0core/passes/jcir_gen_pass.jac",
+     JCIR_ROOT = "compiler/backends/py/jcir_gen_pass.jac",
      # Documented carve-outs of the receiver-blind accessor rule: `x.a` adds
      # every class's `a` accessor, so a live read of a polymorphic slot flags
      # implementors the receiver's DECLARED type can never be. Each entry
@@ -109,7 +109,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      # (now live) MultiString decoder; the two entries below decode values
      # (a `type` object, `...`) that a MultiString can never hold.
      ACCESSOR_ARGUED: dict[(str, tuple)] = {
-         "jac0core/passes/jcir_gen_pass.jac": (
+         "compiler/backends/py/jcir_gen_pass.jac": (
              "BuiltinType.lit_value.__get__",
              "Ellipsis.lit_value.__get__"
          ),
@@ -161,7 +161,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      SPINE_ROOT_ARGUED: tuple = (),
      _SPINE_FLAGGED: set = set(),
      TYPE_SYSTEM_DIR = "compiler/type_system",
-     PASS_SPINE_DIR = "jac0core/passes",
+     PASS_SPINE_DIR = "compiler/passes",
      _CLOSURE_MEMO: list = [],
      _PASS_MEMO: dict[(str, tuple)] = {};
 
@@ -171,7 +171,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 it, so a root's own entry surface can be told apart from the closure's.
 """
 def _program_tables(rel: str) -> tuple {
-    if native_artifact_for("jaclang.jac0core.unitree") is not None {
+    if native_artifact_for("jaclang.compiler.frontend.unitree") is not None {
         testskip(
             "the sealed closure is served from this runtime's native seal; "
             "reachability is measured in source lanes and at seal time"
@@ -633,16 +633,16 @@ test "every passenger carve-out is declared in the type system" {
 test "wave-1 roots: each walk reaches the pass's own machinery" {
     for (rel, needed) in (
         (
-            "jac0core/passes/module_codegen_pass.jac",
+            "compiler/backends/py/module_codegen_pass.jac",
             ("ModuleCodegenPass.archetype_refs", "NameAtom.sym.__get__")
         ),
         # `UniPass.traverse` was the sentinel here until B4's closure growth
         # demoted it (base-chain `cur_node` write) and its waiver excluded it
         # from the walk; `prune` is the same kind of always-live traversal
         # machinery and keeps the vacuity guard honest.
-        ("jac0core/passes/uni_pass.jac", ("UniPass.prune", "UniPass.enter_node")),
+        ("compiler/passes/uni_pass.jac", ("UniPass.prune", "UniPass.enter_node")),
         (
-            "jac0core/passes/endpoint_effect_pass.jac",
+            "compiler/passes/endpoint_effect_pass.jac",
             ("EndpointEffectPass._callee_body", "Archetype._get_impl_resolved_body")
         )
     ) {
@@ -677,11 +677,11 @@ test "wave-1 roots: no waived seam is native-reachable beyond the argued slots" 
 test "wave-2 roots: each walk reaches the pass's own machinery" {
     for (rel, needed) in (
         (
-            "jac0core/passes/ast_validation_pass.jac",
+            "compiler/passes/ast_validation_pass.jac",
             ("ASTValidationPass._returns_jsx", "AstSymbolNode.sym_name.__get__")
         ),
         (
-            "jac0core/passes/semantic_analysis_pass.jac",
+            "compiler/passes/semantic_analysis_pass.jac",
             ("SemanticAnalysisPass._check_archetype", "Archetype.get_methods")
         ),
         (
@@ -727,11 +727,11 @@ test "wave-4 roots: each walk reaches the pass's own machinery" {
     # sealed-root membership for both declaration binders.
     for (rel, needed) in (
         (
-            "jac0core/passes/sym_tab_build_pass.jac",
+            "compiler/passes/sym_tab_build_pass.jac",
             ("SymTabBuildPass._bind_import_path_symbols", "UniScopeNode.def_insert")
         ),
         (
-            "jac0core/passes/decl_impl_match_pass.jac",
+            "compiler/passes/decl_impl_match_pass.jac",
             ("bind_assignment_targets", "UniScopeNode.lookup")
         )
     ) {

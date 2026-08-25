@@ -13,8 +13,8 @@ impl traverse_graph(
     node_limit: int,
     edge_limit: int
 ) -> None {
-    import from jaclang.jac0core.archetype { EdgeAnchor }
-    import from jaclang.jac0core.osp_graph_sv { sv_live_edges, sv_register_hydrated }
+    import from jaclang.runtime.archetype { EdgeAnchor }
+    import from jaclang.runtime.osp_graph_sv { sv_live_edges, sv_register_hydrated }
     nd_anchor = nd.__jac__;
     sv_register_hydrated(nd_anchor, fetch_stubs=True);
     for `edge in sv_live_edges(nd_anchor, 3, None, True) {
@@ -78,9 +78,9 @@ impl traverse_graph(
 impl collect_node_connections(
     current_node: NodeArchetype, visited_nodes: set, connections: set, edge_ids: set
 ) -> None {
-    import from jaclang.jac0core.archetype { EdgeAnchor, NodeAnchor }
-    import from jaclang.jac0core.osp_graph_sv { sv_live_edges, sv_register_hydrated }
-    import from jaclang.jac0core.runtime { resolve_ref }
+    import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor }
+    import from jaclang.runtime.osp_graph_sv { sv_live_edges, sv_register_hydrated }
+    import from jaclang.runtime.runtime { resolve_ref }
     if (current_node not in visited_nodes) {
         visited_nodes.add(current_node);
         node_anchor = current_node.__jac__;
@@ -107,7 +107,7 @@ impl collect_node_connections(
 impl get_name(target_path: (str | None) = None) -> str | None {
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.runtime.runtime { JacRuntime }
 
     effective_target = target_path or JacRuntime.get_full_target_path();
     if not effective_target {

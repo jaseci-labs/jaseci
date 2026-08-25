@@ -1,5 +1,5 @@
 impl _acl_gated -> bool {
-    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    import from jaclang.runtime.runtime { JacRuntimeInterface }
     try {
         jctx = JacRuntimeInterface.get_context();
     } except Exception {
@@ -11,8 +11,8 @@ impl _acl_gated -> bool {
 
 
 impl _acl_read_ok(anchor: Anchor) -> bool {
-    import from jaclang.jac0core.archetype { AccessLevel }
-    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    import from jaclang.runtime.archetype { AccessLevel }
+    import from jaclang.runtime.runtime { JacRuntimeInterface }
     level = JacRuntimeInterface.check_access_level(anchor);
     return level.value > AccessLevel.NO_ACCESS.value;
 }
@@ -45,8 +45,8 @@ def _acl_pushdown_root(q: GraphQuery, upto: int) -> (str | None) {
     if not _acl_gated() {
         return None;
     }
-    import from jaclang.jac0core.runtime { JacRuntimeInterface }
-    import from jaclang.jac0core.archetype { Archetype }
+    import from jaclang.runtime.runtime { JacRuntimeInterface }
+    import from jaclang.runtime.archetype { Archetype }
     base = Archetype?.__jac_access__;
     for hop in q.hops[:upto] {
         nd = hop.nd;
@@ -562,7 +562,7 @@ impl LazyRefs._count(self: LazyRefs) -> int {
 
 
 impl LazyRefs._mem(self: LazyRefs) -> any {
-    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    import from jaclang.runtime.runtime { JacRuntimeInterface }
     return JacRuntimeInterface.get_context().mem;
 }
 

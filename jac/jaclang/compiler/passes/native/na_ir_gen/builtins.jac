@@ -1,12 +1,12 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.codeinfo { RC_SENTINEL, str_len_tag }
-import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E5092 }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.frontend.codeinfo { RC_SENTINEL, str_len_tag }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.diagnostics { E5092 }
+import jaclang.compiler.frontend.unitree as uni;
 import os;
 import sys;
-import from jaclang.jac0core.constant { OwnershipKind }
+import from jaclang.compiler.frontend.constant { OwnershipKind }
 
 obj NaIRGenBuiltins(NaIRGenState) {
     def _get_or_declare_extern(

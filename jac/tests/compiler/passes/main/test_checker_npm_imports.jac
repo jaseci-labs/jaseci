@@ -19,7 +19,7 @@ Coverage for the full npm-import typing stack:
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.modresolver {
+import from jaclang.compiler.driver.modresolver {
     resolve_client_npm_package,
     resolve_client_npm_declarations
 }

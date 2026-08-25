@@ -8,12 +8,12 @@ import from collections { deque }
 import from concurrent.futures { Future }
 import from typing { Optional }
 
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang { JacRuntimeInterface as Jac }
-import from jaclang.jac0core.constant { SymbolType }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.frontend.constant { SymbolType }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.cli.console { console }
-import from jaclang.jac0core.bccache { discover_base_file, discover_annex_files }
+import from jaclang.compiler.driver.bccache { discover_base_file, discover_annex_files }
 import from jaclang.compiler.type_system.type_utils { doc_of_sym, get_completion_items }
 import from jaclang.compiler.type_system.types {
     ClassType,
@@ -22,10 +22,10 @@ import from jaclang.compiler.type_system.types {
     ModuleType,
     TypeBase
 }
-import from jaclang.jac0core.constant { TOKEN_MAP }
-import from jaclang.jac0core.parser.lexer { tokenize_full }
-import from jaclang.jac0core.parser.tokens { TokenKind }
-import from jaclang.jac0core.unitree { UniScopeNode }
+import from jaclang.compiler.frontend.constant { TOKEN_MAP }
+import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+import from jaclang.compiler.frontend.parser.tokens { TokenKind }
+import from jaclang.compiler.frontend.unitree { UniScopeNode }
 import from .sem_manager { SemTokManager }
 import from jaclang.lsp { uris }
 import from jaclang.lsp.server { LanguageServer }

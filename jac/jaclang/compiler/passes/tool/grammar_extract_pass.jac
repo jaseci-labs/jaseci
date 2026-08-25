@@ -1,6 +1,6 @@
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.passes { UniPass }
-import from jaclang.jac0core.parser.tokens { TokenKind }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.passes { UniPass }
+import from jaclang.compiler.frontend.parser.tokens { TokenKind }
 
 def is_nil_expr(nd: object) -> bool {
     if isinstance(nd, uni.CfgExpr) {

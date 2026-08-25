@@ -1,6 +1,6 @@
 import re;
 import jaclang.compiler.passes.ecmascript.estree as es;
-import from jaclang.jac0core.constant { BROWSER_SEED_GLOBALS }
+import from jaclang.compiler.frontend.constant { BROWSER_SEED_GLOBALS }
 
 glob _AMBIENT_CACHE: set[str] = set(),
      _IDENT_RE: re.Pattern = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*"),

@@ -1,8 +1,8 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.codeinfo { HDR_DTOR_OFF }
-import from jaclang.jac0core.diagnostics { E5092 }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.frontend.codeinfo { HDR_DTOR_OFF }
+import from jaclang.compiler.frontend.diagnostics { E5092 }
+import jaclang.compiler.frontend.unitree as uni;
 
 obj NaIRGenIterators(NaIRGenState) {
     def _adapter_callee(fn_expr: uni.UniNode) -> (tuple | None);

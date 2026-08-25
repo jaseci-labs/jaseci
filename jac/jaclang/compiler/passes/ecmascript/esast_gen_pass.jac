@@ -1,15 +1,15 @@
 import json;
 import from typing { cast }
 import jaclang.compiler.passes.ecmascript.estree as es;
-import jaclang.jac0core.unitree as uni;
-import type from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import type from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.jac0core.constant { CodeContext, SymbolType }
-import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.osp_model { OspAnalysis, OspModel }
-import from jaclang.jac0core.passes.ast_gen { BaseAstGenPass }
-import from jaclang.jac0core.passes.ast_gen.jsx_processor { EsJsxProcessor }
-import from jaclang.jac0core.codeinfo { ClientManifest }
+import from jaclang.compiler.frontend.constant { CodeContext, SymbolType }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
+import from jaclang.runtime.osp_model { OspAnalysis, OspModel }
+import from jaclang.compiler.passes.ast_gen { BaseAstGenPass }
+import from jaclang.compiler.passes.ast_gen.jsx_processor { EsJsxProcessor }
+import from jaclang.compiler.frontend.codeinfo { ClientManifest }
 import from jaclang.compiler.passes.ecmascript.scoped_styles {
     ScopedStyleSheet,
     load_style_annex
@@ -20,12 +20,12 @@ import from jaclang.compiler.passes.ecmascript.free_ident_audit {
     client_ambient_globals,
     free_identifiers
 }
-import from jaclang.jac0core.modresolver {
+import from jaclang.compiler.driver.modresolver {
     convert_to_js_import_path,
     relative_js_specifier,
     resolve_relative_path
 }
-import from jaclang.jac0core.diagnostics {
+import from jaclang.compiler.frontend.diagnostics {
     E2025,
     E5010,
     E5011,

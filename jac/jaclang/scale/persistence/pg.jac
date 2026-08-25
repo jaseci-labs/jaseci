@@ -87,7 +87,7 @@ def shared_store_failure -> (str | None) {
 
 def shared_store -> (any | None) {
     with _lock {
-        import from jaclang.jac0core.runtime { JacRuntime }
+        import from jaclang.runtime.runtime { JacRuntime }
         url = scale_db_url();
         key = url
             or (

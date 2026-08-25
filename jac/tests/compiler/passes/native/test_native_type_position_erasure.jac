@@ -39,10 +39,10 @@ import from jaclang.compiler.passes.main.capability_check_pass {
     native_capability_violations
 }
 import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.parser { parse as rd_parse }
-import from jaclang.jac0core.placement { scan_native_blockers }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.frontend.parser { parse as rd_parse }
+import from jaclang.compiler.placement.placement { scan_native_blockers }
+import from jaclang.compiler.driver.program { JacProgram }
 import from tests.support { TESTS_DIR }
 
 glob FIXTURES = os.path.join(

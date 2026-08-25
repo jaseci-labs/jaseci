@@ -3411,11 +3411,11 @@ impl TypeEvaluator.assign_type(
         isinstance(dest_type, ClassType)
         and dest_type.is_class_instance()
         and dest_type.shared.class_name in _rt_base_kinds
-        and _rt_dest_mod.endswith('jac0core/archetype.jac')
+        and _rt_dest_mod.endswith('runtime/archetype.jac')
         and isinstance(src_type, ClassType)
         and src_type.is_class_instance()
     ) {
-        import from jaclang.jac0core.constant { SymbolType as _RtSymT }
+        import from jaclang.compiler.frontend.constant { SymbolType as _RtSymT }
         _rt_kinds = _rt_base_kinds[dest_type.shared.class_name];
         _rt_cat_map = {
             'node': _RtSymT.NODE_ARCH,
@@ -3824,7 +3824,7 @@ impl TypeEvaluator._is_sv_async_call(expr: FuncCall) -> bool {
     syms = self._sv_async_syms_cache.get(mod_key);
     if syms is None {
         syms = set();
-        import from jaclang.jac0core.boundary_classify { is_client_native_edge_import }
+        import from jaclang.compiler.driver.boundary_classify { is_client_native_edge_import }
         import from jaclang.compiler.symbol_utils {
             ClientImportVerdict,
             classify_client_import_item,
@@ -4820,7 +4820,7 @@ impl TypeEvaluator._find_symbol_by_key(key: str, condition: Expr) -> Symbol | No
 }
 
 impl TypeEvaluator.classify_condition(condition: Expr) -> ConditionInfo | None {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     import from jaclang.compiler.type_system.type_evaluator {
         ConditionInfo,
         NarrowingKind
@@ -4917,7 +4917,7 @@ impl TypeEvaluator.classify_condition(condition: Expr) -> ConditionInfo | None {
 impl TypeEvaluator._find_predicate_for(
     target: NarrowingTarget, condition: Expr
 ) -> NarrowingPredicate | None {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     import from jaclang.compiler.type_system.type_evaluator {
         NarrowingKind,
         NarrowingPredicate,

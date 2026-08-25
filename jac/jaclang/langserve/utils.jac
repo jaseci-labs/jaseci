@@ -1,11 +1,11 @@
 import builtins;
 import from typing { Optional }
 
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.codeinfo { CodeLocInfo }
-import from jaclang.jac0core.srcloc { Span }
-import from jaclang.jac0core.passes.transform { Alert }
-import from jaclang.jac0core.unitree { Symbol, UniScopeNode }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.codeinfo { CodeLocInfo }
+import from jaclang.compiler.frontend.srcloc { Span }
+import from jaclang.compiler.passes.transform { Alert }
+import from jaclang.compiler.frontend.unitree { Symbol, UniScopeNode }
 import from jaclang.lsp { uris }
 
 import jaclang.lsp.types as lspt;

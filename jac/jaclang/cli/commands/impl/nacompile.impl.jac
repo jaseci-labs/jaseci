@@ -280,7 +280,7 @@ impl nacompile(
     }
 
     if scrub {
-        import from jaclang.jac0core.jir { scrub_cache_dirs }
+        import from jaclang.compiler.driver.jir { scrub_cache_dirs }
         src_root = os.path.dirname(os.path.abspath(filename)) or ".";
         _scrubbed = scrub_cache_dirs(src_root);
         if _scrubbed {
@@ -314,8 +314,8 @@ impl nacompile(
 
     console.print(f"Compiling {filename} to native binary");
 
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
 
     try {
         prog = JacProgram();

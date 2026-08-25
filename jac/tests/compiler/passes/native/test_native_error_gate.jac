@@ -14,9 +14,9 @@ holes in the code (exit 0, zero diagnostics).
 import from tests.support { native_force_opts }
 import os;
 import tempfile;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.jir { get_module_cache_path }
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.jir { get_module_cache_path }
+import from jaclang.runtime.runtime { JacRuntime }
 
 # `eval` of a runtime string can never be lowered on the na pathway: it
 # would need an embedded interpreter inside the AOT-compiled binary. The
@@ -112,7 +112,7 @@ test "import of a natively-unlowerable module demotes and succeeds" {
 test "check-path compile surfaces native codegen errors (check/run parity)" {
     src = write_module("gate_bad_check.jac", BAD_NA_SOURCE);
     prog = JacProgram();
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     prog.compile(
         file_path=src,
         options=CompileOptions(

@@ -51,7 +51,7 @@ the discovery:
   `InteropManifest`.
 
 The results land in the schemas in
-[`jac0core/codeinfo.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/codeinfo.jac).
+[`compiler/frontend/codeinfo.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/codeinfo.jac).
 Each backend codegen pass then reads that manifest and emits *its half* of
 every bridge it participates in. No global "target" flag exists -- selection
 is per-node, driven entirely by each node's `code_context` tag.
@@ -95,7 +95,7 @@ codespace simply reference each other directly:
   another `def` is an ordinary Python call; an `obj` handed to another
   function is the *same* object, not a copy. Plain (untagged) Jac `import`
   statements lower verbatim to Python `import` nodes (`exit_import` in
-  [`jcir_gen_pass.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/passes/impl/jcir_gen_pass.impl.jac)),
+  [`jcir_gen_pass.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/py/impl/jcir_gen_pass.impl.jac)),
   so resolution is the standard CPython import machinery.
 - **`cl → cl`** -- Client code becomes one JavaScript module graph; a `cl`
   function calling another is a direct JS call, bundled together by Vite.
@@ -308,7 +308,7 @@ it across the process boundary.
 
 The compiler itself ships this way: sealing a release AOT-compiles
 `compiler/native_materialize.jac` (whose native closure carries the parser,
-lexer and `unitree`) and `jac0core/unitree.jac` into per-platform shared
+lexer and `unitree`) and `compiler/frontend/unitree.jac` into per-platform shared
 libraries (`_precompiled/native/<triple>/libjac_native_materialize.*`,
 `libjac_unitree.*`) with persisted `NativeModuleLayout` JSON, recorded in
 `MANIFEST.json` under `native_artifacts` (sha256-verified,
@@ -320,7 +320,7 @@ the parsed tree as real CPython objects at about 1.6 us per node through
 lazy PLT binds on Linux and Mach-O flat-lookup binds on macOS, so no second
 interpreter is ever loaded -- and the unmodified bytecode pipeline consumes
 the result with no view layer in between. The sealed runtime binds the
-library with plain ctypes via `jac0core/native_dylib.jac` -- no LLVM on the
+library with plain ctypes via `runtime/native_dylib.jac` -- no LLVM on the
 boot path -- with the materializer entries bound GIL-held (PYFUNCTYPE), and
 `parse()` and `parse_diags()` serve natively wherever an artifact exists,
 with no bytecode fallback: an artifact that fails to load or verify raises.
@@ -441,7 +441,7 @@ import from .arena { init, frame }    # arena.jac places native
 
 This is the cl → na twin of the client-to-server RPC bridge. The interop
 manifest records the target as NATIVE with a CLIENT caller
-(`import_binds_client_native` in `jac0core/compiler.jac`), which is the
+(`import_binds_client_native` in `compiler/driver/compiler.jac`), which is the
 discovery signal (the client build compiles the target module to
 `/static/<stem>.wasm`; the module never has to be imported anywhere else),
 and it binds each name to a generated stub: `exit_import` in `EsastGenPass`
@@ -485,8 +485,8 @@ import from billing { ChargeCard }   # billing is in the routes table
 ```
 
 `exit_import` checks `Import.is_service_import` (routes-table membership /
-module-level server pin via `jac0core/service_cut.jac` and
-`jac0core/placement_pins.jac` -- not `code_context`, which is `SERVER` for
+module-level server pin via `compiler/placement/service_cut.jac` and
+`compiler/placement/placement_pins.jac` -- not `code_context`, which is `SERVER` for
 everything by default) and calls `_generate_sv_to_sv_stubs`, replacing the
 import with generated Python:
 
@@ -711,17 +711,17 @@ RPC to the backend). It is the matrix in miniature.
 
 | Concern | Files |
 |---------|-------|
-| Boundary discovery | `jac0core/passes/impl/boundary_analysis_pass.impl.jac`; `BoundaryAnalysisPass`; [`codeinfo.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/codeinfo.jac) (`InteropBinding`, `InteropManifest`) |
-| Context split / coercion | [`compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/compiler.jac) (`_coerce_module`); `constant.jac` (`CodeContext`) |
+| Boundary discovery | `compiler/passes/impl/boundary_analysis_pass.impl.jac`; `BoundaryAnalysisPass`; [`codeinfo.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/codeinfo.jac) (`InteropBinding`, `InteropManifest`) |
+| Context split / coercion | [`compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/compiler.jac) (`_coerce_module`); `constant.jac` (`CodeContext`) |
 | `cl → sv` | `compiler/passes/ecmascript/impl/esast_gen_pass.impl.jac` (`__jacSpawn`/`__jacCallFunction`); `runtimelib/impl/client_runtime.impl.jac`; `jac/jaclang/scale/server/impl/serve.endpoints.impl.jac` |
 | `sv → cl` | `runtimelib/client/impl/{compiler,vite_bundler}.impl.jac`; `runtimelib/impl/server.impl.jac`; `passes/ast_gen/impl/jsx_processor.impl.jac` |
-| `sv ↔ na` | `jac0core/interop_bridge.jac`; `jac0core/parser/materialize.jac` + `utils/gen_native_materialize.jac` (sealed parse-tree crossing); `passes/impl/jcir_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `passes/native/impl/na_compile_pass.impl.jac` |
+| `sv ↔ na` | `runtime/interop_bridge.jac`; `compiler/frontend/parser/materialize.jac` + `utils/gen_native_materialize.jac` (sealed parse-tree crossing); `passes/impl/jcir_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `passes/native/impl/na_compile_pass.impl.jac` |
 | `na ↔ C` | `compiler/targets/{foreign,abi}.jac`; `passes/native/na_ir_gen/{clib_abi,clib_vtable}.impl.jac` |
 | `na → C host` | `cli/commands/impl/nacompile.impl.jac` (`_inject_shared_init`); `passes/native/impl/{elf,macho,pe}_linker.impl.jac` |
 | `na ↔ cl` (wasm) | `passes/native/{wasm_build,wasm_linker}.jac`; `runtimelib/client/impl/compiler.impl.jac` |
 | Python interop | [`meta_importer.py`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/meta_importer.py); `_jac_finder.py` (launcher `BOOT_SRC`); `passes/impl/jcir_gen_pass.impl.jac` (`exit_import`, `exit_py_inline_code`) |
 | Marshalling | `runtimelib/impl/{serializer,server,transport}.impl.jac` |
-| Capability boundary | `compiler/passes/main/capability_check_pass.jac`; [`diagnostics.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/diagnostics.jac) (`E5090`) |
+| Capability boundary | `compiler/passes/main/capability_check_pass.jac`; [`diagnostics.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/diagnostics.jac) (`E5090`) |
 | Desktop | `runtimelib/client/targets/desktop/native_desktop_target.jac` (+ impl); `runtimelib/client/targets/desktop/native/webview/webview.jac`; `runtimelib/client/targets/registry.jac` |
 
 ---

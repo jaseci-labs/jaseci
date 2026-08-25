@@ -2,7 +2,7 @@ import from tests.support { native_force_opts }
 import ctypes;
 import os;
 import from pathlib { Path }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures");
 

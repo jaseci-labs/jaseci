@@ -6,7 +6,7 @@ and micro suite.
 """
 
 import inspect;
-import from jaclang.jac0core.treeprinter { print_ast_tree }
+import from jaclang.compiler.tools.treeprinter { print_ast_tree }
 import io;
 import os;
 import re;
@@ -14,11 +14,11 @@ import sys;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.parser { parse as rd_parse }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.helpers { read_file_with_encoding }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.constant { CodeContext }
+import from jaclang.compiler.frontend.parser { parse as rd_parse }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
 import from jaclang.runtimelib.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
 
@@ -62,7 +62,7 @@ test "parser mod doc test" {
 
 test "all ast has normalize" {
     import from jaclang.compiler.passes.tool.normalize_pass { NormalizePass }
-    import from jaclang.jac0core.helpers { pascal_to_snake }
+    import from jaclang.compiler.frontend.helpers { pascal_to_snake }
 
     exclude = [
         "UniNode",
@@ -784,8 +784,8 @@ with entry {
 test "parser core emits flat diag records without prog" {
     # W1 (#6930): the parser core appends flat SrcDiag records and holds no
     # JacProgram reference; frontend.parse() replays records into Alerts.
-    import from jaclang.jac0core.parser.lexer { tokenize_full }
-    import from jaclang.jac0core.parser.parser { Parser }
+    import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+    import from jaclang.compiler.frontend.parser.parser { Parser }
     src = "with entry { x = ( ; }";
     (tokens, comments, ldiags, lex_errs) = tokenize_full(src, "<probe>");
     parser = Parser(tokens=tokens, file_path="<probe>", source_code=src);
@@ -809,7 +809,7 @@ test "parser core sources are foreign-free" {
         "passes.transform",
         "CodeLocInfo",
         "JacProgram",
-        "jac0core.diagnostics",
+        "compiler.frontend.diagnostics",
         "**kwargs",
         "pathlib",
         "import re"

@@ -22,7 +22,7 @@ with __import__("contextlib").suppress(Exception):
 
 
 # --- Lazy compiler/runtime bootstrap -------------------------------------
-# The compiler and jac0core.runtime were previously imported eagerly here, which
+# The compiler and runtime.runtime were previously imported eagerly here, which
 # pulled them (and the parser/codegen pipeline) in on every `import jaclang`
 # and defeated the lazy CLI fast paths -- `jac --version` / `--help` / `purge`
 # must stay light. They now load on first attribute access (PEP 562) so plain
@@ -33,7 +33,7 @@ def _load_jac_runtime() -> None:
     # the jac0 bootstrap tier, not the full compiler), so we don't pull in
     # `jaclang.compiler` here -- doing so would re-introduce a heavy import on
     # the fast paths. `jaclang.compiler` stays available lazily via __getattr__.
-    from jaclang.jac0core.runtime import JacRuntime, JacRuntimeInterface
+    from jaclang.runtime.runtime import JacRuntime, JacRuntimeInterface
 
     # The legacy `jaclang.runtimelib.runtime` import path is served lazily by the
     # forwarder module installed in `_install_runtime_shim()`, so no eager
@@ -58,7 +58,7 @@ def _install_runtime_shim() -> None:
     # `import jaclang.runtimelib.runtime` would then fail to bind `runtimelib` on
     # `jaclang`. The finder is consulted only after the parent package is
     # imported, and it synthesizes a forwarder module whose PEP 562 __getattr__
-    # pulls the real `jaclang.jac0core.runtime` only on first attribute access --
+    # pulls the real `jaclang.runtime.runtime` only on first attribute access --
     # so the `jac --version` / `--help` / `purge` fast paths stay cheap.
     import importlib.abc
     import importlib.machinery
@@ -76,18 +76,18 @@ def _install_runtime_shim() -> None:
 
         def create_module(self, spec: object) -> object:
             shim = ModuleType(target)
-            shim.__doc__ = "Lazy alias for jaclang.jac0core.runtime."
+            shim.__doc__ = "Lazy alias for jaclang.runtime.runtime."
 
             def _forward(attr: str) -> object:
                 import warnings
 
                 warnings.warn(
                     "jaclang.runtimelib.runtime is a deprecated alias; import "
-                    "from jaclang.jac0core.runtime instead.",
+                    "from jaclang.runtime.runtime instead.",
                     DeprecationWarning,
                     stacklevel=2,
                 )
-                import jaclang.jac0core.runtime as _runtime_mod
+                import jaclang.runtime.runtime as _runtime_mod
 
                 return getattr(_runtime_mod, attr)
 
@@ -112,7 +112,7 @@ _install_runtime_shim()
 # only -- this block never executes, so the laziness is preserved.
 if TYPE_CHECKING:
     import jaclang.compiler as compiler
-    from jaclang.jac0core.runtime import JacRuntime, JacRuntimeInterface
+    from jaclang.runtime.runtime import JacRuntime, JacRuntimeInterface
 
 
 def __getattr__(name: str) -> object:

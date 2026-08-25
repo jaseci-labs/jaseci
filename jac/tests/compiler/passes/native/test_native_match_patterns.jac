@@ -15,7 +15,7 @@ import from tests.support {
     native_force_opts
 }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"

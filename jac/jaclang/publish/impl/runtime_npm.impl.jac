@@ -48,7 +48,7 @@ impl runtime_api_names(framework: str = "") -> set[str] {
 }
 
 def _compile_cl_to_js(src: Path) -> str {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     program = JacProgram();
     prev = len(program.errors_had);
     mod = program.compile(str(src));

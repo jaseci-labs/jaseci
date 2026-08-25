@@ -3,9 +3,9 @@
 import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.pass_driver { run_pass }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT,
@@ -117,7 +117,7 @@ test "inner compr scope linking" {
 test "version conditional symbols are all recorded in the symbol table" {
     import ast as py_ast;
     import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-    import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
+    import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
 
     code = """
 import sys
@@ -155,7 +155,7 @@ test "version-live branch resolves, dead branch does not" {
     import sys;
     import ast as py_ast;
     import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-    import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
+    import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
     import from jaclang.compiler.type_system.type_utils { collect_member_syms }
 
     # Annotated decls (as typeshed writes guarded symbols) stay in the guard
@@ -194,7 +194,7 @@ test "version-guarded class members resolve to the live branch" {
     import sys;
     import ast as py_ast;
     import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-    import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
+    import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
     import from jaclang.compiler.type_system.type_utils { collect_member_syms }
 
     code = """

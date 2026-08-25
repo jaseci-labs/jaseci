@@ -27,8 +27,8 @@ import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 import from jaclang.compiler.passes.ecmascript.backends.preact { PreactBackend }
 import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"

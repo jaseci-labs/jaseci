@@ -9,8 +9,8 @@ import zlib;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
 import from jaclang.jac0core { ext_registry }
-import from jaclang.jac0core.jir { patch_co_filenames_bytes }
-import from jaclang.jac0core.jir {
+import from jaclang.compiler.driver.jir { patch_co_filenames_bytes }
+import from jaclang.compiler.driver.jir {
     write_precompiled_jir,
     FLAG_PRECOMPILED,
     FLAG_BOOTSTRAP,
@@ -44,7 +44,7 @@ def compiler_identity -> str {
             "Precompile aborted: no compiler sources found under the running "
             "jaclang package, so this build cannot state which compiler it is. "
             "Every seeded .jir would then be reusable by any other compiler at "
-            "this version -- the #8178 failure mode. Check that jac0core/ and "
+            "this version -- the #8178 failure mode. Check that the seed tree and "
             "compiler/ ship with the running jaclang."
         );
     }
@@ -142,18 +142,18 @@ def sealable_sources(package_dir: str) -> list[str] {
             and not any(p.startswith(n) for n in nested)
     ];
     if Path(package_dir).name == "jaclang" {
-        import from jaclang.jac0core.placement_facts { toolchain_native_by_policy }
+        import from jaclang.compiler.placement.placement_facts { toolchain_native_by_policy }
         result = [
             p
             for p in candidates
             if not toolchain_native_by_policy(package_dir, p)
         ];
     } else {
-        import from jaclang.jac0core.placement_facts {
+        import from jaclang.compiler.placement.placement_facts {
             discover_spaces,
             spaces_are_client_only
         }
-        import from jaclang.jac0core.program { JacProgram }
+        import from jaclang.compiler.driver.program { JacProgram }
         discovery = JacProgram();
         facts = discover_spaces(candidates, discovery);
         _placement_cache[key] = facts;
@@ -206,7 +206,7 @@ def placement_facts_map(package_dir: str) -> dict[str, list[str]] {
 }
 
 def _emit_unit_diagnostics(jac_path: str, programs: list) {
-    import from jaclang.jac0core.source_failures { compiler_source_failure_details }
+    import from jaclang.compiler.driver.source_failures { compiler_source_failure_details }
     stashed = compiler_source_failure_details(jac_path);
     if stashed {
         stash_lines = stashed.splitlines();
@@ -255,8 +255,8 @@ def _emit_unit_diagnostics(jac_path: str, programs: list) {
 def precompile_unit(
     jac_path: str, pkg_root: str, embed_src: bool = False
 ) -> bytes | None {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+    import from jaclang.compiler.driver.program { JacProgram }
 
     compiler = Jac.get_compiler();
 
@@ -341,20 +341,20 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 }
 
 glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
-         "jac0core/unitree.jac",
-         "jac0core/passes/ast_validation_pass.jac",
-         "jac0core/passes/module_codegen_pass.jac",
-         "jac0core/passes/semantic_analysis_pass.jac",
-         "jac0core/passes/sym_tab_build_pass.jac",
-         "jac0core/passes/decl_impl_match_pass.jac",
-         "jac0core/passes/uni_pass.jac",
-         "jac0core/passes/endpoint_effect_pass.jac",
+         "compiler/frontend/unitree.jac",
+         "compiler/passes/ast_validation_pass.jac",
+         "compiler/backends/py/module_codegen_pass.jac",
+         "compiler/passes/semantic_analysis_pass.jac",
+         "compiler/passes/sym_tab_build_pass.jac",
+         "compiler/passes/decl_impl_match_pass.jac",
+         "compiler/passes/uni_pass.jac",
+         "compiler/passes/endpoint_effect_pass.jac",
          "compiler/passes/main/sem_def_match_pass.jac",
          "compiler/passes/main/access_check_pass.jac",
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
          "compiler/passes/main/cfg_build_pass.jac",
          "compiler/passes/main/rc_facts_pass.jac",
-         "jac0core/passes/jcir_gen_pass.jac",
+         "compiler/backends/py/jcir_gen_pass.jac",
          "compiler/native_materialize.jac",
 
      ),
@@ -372,30 +372,30 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          )
      },
      NATIVE_SEAL_CLOSURE: tuple[str, ...] = (
-         "jac0core/codegen_ir.jac",
-         "jac0core/codeinfo.jac",
-         "jac0core/constant.jac",
-         "jac0core/diagnostic_utils.jac",
-         "jac0core/diagnostics.jac",
-         "jac0core/helpers.jac",
-         "jac0core/jcir_facts.jac",
-         "jac0core/parser/lexer.jac",
-         "jac0core/parser/parser.jac",
-         "jac0core/parser/tokens.jac",
-         "jac0core/passes/annex_weave.jac",
-         "jac0core/passes/ast_validation_pass.jac",
-         "jac0core/passes/decl_impl_match_pass.jac",
-         "jac0core/passes/endpoint_effect_pass.jac",
-         "jac0core/passes/jcir_gen_pass.jac",
-         "jac0core/passes/module_codegen_pass.jac",
-         "jac0core/passes/prefix_drive.jac",
-         "jac0core/passes/semantic_analysis_pass.jac",
-         "jac0core/passes/sym_tab_build_pass.jac",
-         "jac0core/passes/transform.jac",
-         "jac0core/passes/uni_pass.jac",
-         "jac0core/scalars.jac",
-         "jac0core/srcloc.jac",
-         "jac0core/unitree.jac",
+         "compiler/backends/py/codegen_ir.jac",
+         "compiler/frontend/codeinfo.jac",
+         "compiler/frontend/constant.jac",
+         "compiler/frontend/diagnostic_utils.jac",
+         "compiler/frontend/diagnostics.jac",
+         "compiler/frontend/helpers.jac",
+         "compiler/backends/py/jcir_facts.jac",
+         "compiler/frontend/parser/lexer.jac",
+         "compiler/frontend/parser/parser.jac",
+         "compiler/frontend/parser/tokens.jac",
+         "compiler/passes/annex_weave.jac",
+         "compiler/passes/ast_validation_pass.jac",
+         "compiler/passes/decl_impl_match_pass.jac",
+         "compiler/passes/endpoint_effect_pass.jac",
+         "compiler/backends/py/jcir_gen_pass.jac",
+         "compiler/backends/py/module_codegen_pass.jac",
+         "compiler/passes/prefix_drive.jac",
+         "compiler/passes/semantic_analysis_pass.jac",
+         "compiler/passes/sym_tab_build_pass.jac",
+         "compiler/passes/transform.jac",
+         "compiler/passes/uni_pass.jac",
+         "runtime/scalars.jac",
+         "compiler/frontend/srcloc.jac",
+         "compiler/frontend/unitree.jac",
          "compiler/expr_keys.jac",
          "compiler/native_materialize.jac",
          "compiler/passes/main/access_check_pass.jac",
@@ -420,18 +420,18 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
 
      );
 
-glob NATIVE_SEAL_UNITREE_ROOT: str = "jac0core/unitree.jac",
+glob NATIVE_SEAL_UNITREE_ROOT: str = "compiler/frontend/unitree.jac",
      NATIVE_SEAL_MATERIALIZE_ROOT: str = "compiler/native_materialize.jac",
-     NATIVE_SEAL_JCIR_ROOT: str = "jac0core/passes/jcir_gen_pass.jac";
+     NATIVE_SEAL_JCIR_ROOT: str = "compiler/backends/py/jcir_gen_pass.jac";
 
 glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/unitree.jac::ModulePath.resolve_relative_path",
-         "jac0core/unitree.jac::ModulePath.native_bundled_path",
-         "jac0core/unitree.jac::Module.annexable_by.__get__",
-         "jac0core/unitree.jac::Import.__jac_detected.__get__",
-         "jac0core/unitree.jac::Import.is_service_import.__get__",
-         "jac0core/unitree.jac::BuiltinType.lit_value.__get__",
-         "jac0core/unitree.jac::Ellipsis.lit_value.__get__",
+         "compiler/frontend/unitree.jac::ModulePath.resolve_relative_path",
+         "compiler/frontend/unitree.jac::ModulePath.native_bundled_path",
+         "compiler/frontend/unitree.jac::Module.annexable_by.__get__",
+         "compiler/frontend/unitree.jac::Import.__jac_detected.__get__",
+         "compiler/frontend/unitree.jac::Import.is_service_import.__get__",
+         "compiler/frontend/unitree.jac::BuiltinType.lit_value.__get__",
+         "compiler/frontend/unitree.jac::Ellipsis.lit_value.__get__",
 
      ),
      _TYPES_SEAM_WAIVERS: tuple[str, ...] = (
@@ -450,30 +450,30 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      _HELPERS_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/helpers.jac::read_file_with_encoding",
-         "jac0core/helpers.jac::normalize_exclude_patterns",
-         "jac0core/helpers.jac::read_jacignore_patterns",
-         "jac0core/helpers.jac::_is_version_info_access",
-         "jac0core/helpers.jac::_is_type_checking_ref",
-         "jac0core/helpers.jac::_extract_version_tuple",
-         "jac0core/helpers.jac::evaluate_version_condition",
-         "jac0core/helpers.jac::add_line_numbers",
+         "compiler/frontend/helpers.jac::read_file_with_encoding",
+         "compiler/frontend/helpers.jac::normalize_exclude_patterns",
+         "compiler/frontend/helpers.jac::read_jacignore_patterns",
+         "compiler/frontend/helpers.jac::_is_version_info_access",
+         "compiler/frontend/helpers.jac::_is_type_checking_ref",
+         "compiler/frontend/helpers.jac::_extract_version_tuple",
+         "compiler/frontend/helpers.jac::evaluate_version_condition",
+         "compiler/frontend/helpers.jac::add_line_numbers",
 
      ),
      _CODEINFO_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/codeinfo.jac::CodeGenTarget.doc_ir.__get__",
-         "jac0core/codeinfo.jac::_func_layout_to_dict",
-         "jac0core/codeinfo.jac::_inferred_native_path",
-         "jac0core/codeinfo.jac::effective_default_codespace",
-         "jac0core/codeinfo.jac::effective_native_closure_cap",
-         "jac0core/codeinfo.jac::install_native_static_init",
-         "jac0core/codeinfo.jac::is_bundled_native_module",
-         "jac0core/codeinfo.jac::is_client_by_location",
-         "jac0core/codeinfo.jac::is_native_by_location",
-         "jac0core/codeinfo.jac::native_layout_to_dict",
-         "jac0core/codeinfo.jac::native_stdlib_root",
-         "jac0core/codeinfo.jac::native_wasm_stem",
-         "jac0core/codeinfo.jac::resolve_native_module",
+         "compiler/frontend/codeinfo.jac::CodeGenTarget.doc_ir.__get__",
+         "compiler/frontend/codeinfo.jac::_func_layout_to_dict",
+         "compiler/frontend/codeinfo.jac::_inferred_native_path",
+         "compiler/frontend/codeinfo.jac::effective_default_codespace",
+         "compiler/frontend/codeinfo.jac::effective_native_closure_cap",
+         "compiler/frontend/codeinfo.jac::install_native_static_init",
+         "compiler/frontend/codeinfo.jac::is_bundled_native_module",
+         "compiler/frontend/codeinfo.jac::is_client_by_location",
+         "compiler/frontend/codeinfo.jac::is_native_by_location",
+         "compiler/frontend/codeinfo.jac::native_layout_to_dict",
+         "compiler/frontend/codeinfo.jac::native_stdlib_root",
+         "compiler/frontend/codeinfo.jac::native_wasm_stem",
+         "compiler/frontend/codeinfo.jac::resolve_native_module",
 
      ),
      _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
@@ -497,47 +497,47 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      _JCIR_INTEROP_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._gen_native_interop_stubs",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._generate_sv_to_sv_stubs",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass._gen_native_interop_stubs",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass._generate_sv_to_sv_stubs",
          (
-             "jac0core/passes/jcir_gen_pass.jac::"
+             "compiler/backends/py/jcir_gen_pass.jac::"
              "JcirGenPass._native_import_registration_map"
          ),
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_test",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_import",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_test",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_import",
 
      ),
      _JCIR_LOWERING_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._get_sem_decorator",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_ability",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_archetype",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_enum",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_ctrl_stmt",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_module",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_multi_string",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_element",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass._get_sem_decorator",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_ability",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_archetype",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_enum",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_ctrl_stmt",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_module",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_multi_string",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_jsx_element",
 
      ),
      _JCIR_ENTITY_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_normal_attribute",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_text",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_jsx_normal_attribute",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_jsx_text",
 
      ),
      _JCIR_EMITTER_ICE_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_atom_trailer",
+         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_atom_trailer",
 
      ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple[str, ...]] = {
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/uni_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/endpoint_effect_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/ast_validation_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/semantic_analysis_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/sym_tab_build_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/frontend/unitree.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/backends/py/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/uni_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/endpoint_effect_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/ast_validation_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/semantic_analysis_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/sym_tab_build_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
@@ -548,7 +548,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/passes/main/capability_check_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _CAPABILITY_SEAM_WAIVERS
          ),
-         "jac0core/passes/jcir_gen_pass.jac": (
+         "compiler/backends/py/jcir_gen_pass.jac": (
              _CLOSURE_SEAM_WAIVERS
              + _JCIR_INTEROP_SEAM_WAIVERS
              + _JCIR_LOWERING_SEAM_WAIVERS
@@ -865,7 +865,7 @@ def seal_abort_stubs(llvm_ir_text: str) -> list[str] {
 
 def purge_native_ir_cache(root_src: str, deps: (list[str] | None) = None) -> int {
     import glob as _glob;
-    import from jaclang.jac0core.jir { get_native_cache_dir }
+    import from jaclang.compiler.driver.jir { get_native_cache_dir }
     base = os.path.dirname(os.path.abspath(root_src));
     dirs: list[str] = [];
     stems: list[str] = [];
@@ -903,8 +903,8 @@ def purge_native_ir_cache(root_src: str, deps: (list[str] | None) = None) -> int
 def seal_native_canary(lib_path: str, exports: list[str]) -> str {
     import ctypes;
     import traceback;
-    import from jaclang.jac0core.compile_options { env_na_debug }
-    import from jaclang.jac0core.native_dylib { DylibEngine }
+    import from jaclang.compiler.driver.compile_options { env_na_debug }
+    import from jaclang.runtime.native_dylib { DylibEngine }
 
     debug = env_na_debug();
     name = os.path.basename(lib_path);
@@ -1084,7 +1084,7 @@ glob _PARITY_IDENT_PROBES: tuple[str, ...] = (
      );
 
 def _parity_test_names(mod: any) -> list[str] {
-    import jaclang.jac0core.unitree as uni;
+    import jaclang.compiler.frontend.unitree as uni;
     out: list[str] = [];
     for nd in mod._in_mod_nodes {
         if isinstance(nd, uni.Test) {
@@ -1096,8 +1096,8 @@ def _parity_test_names(mod: any) -> list[str] {
 
 
 def _parity_ident_probe(np: any) -> str {
-    import from jaclang.jac0core.parser.lexer { tokenize_full }
-    import from jaclang.jac0core.parser.parser { Parser }
+    import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+    import from jaclang.compiler.frontend.parser.parser { Parser }
 
     nl = chr(10);
     rows: list[str] = [
@@ -1222,10 +1222,10 @@ def _parity_sym_report(canary_path: str, n_syms: list[str], p_syms: list[str]) -
 def seal_parse_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str {
     import traceback;
     import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
-    import from jaclang.jac0core.compile_options { env_na_debug }
-    import from jaclang.jac0core.parser.lexer { tokenize_full }
-    import from jaclang.jac0core.parser.materialize { bind_native_parser }
-    import from jaclang.jac0core.parser.parser { Parser }
+    import from jaclang.compiler.driver.compile_options { env_na_debug }
+    import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+    import from jaclang.compiler.frontend.parser.materialize { bind_native_parser }
+    import from jaclang.compiler.frontend.parser.parser { Parser }
 
     nl = chr(10);
     sys.stderr.write(f"    canary: parse parity in {os.path.basename(lib_path)}\n");
@@ -1322,15 +1322,15 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str 
 def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str {
     import traceback;
     import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
-    import from jaclang.jac0core.compile_options { env_na_debug }
-    import from jaclang.jac0core.parser.lexer { tokenize_full }
-    import from jaclang.jac0core.parser.materialize { bind_native_parser }
-    import from jaclang.jac0core.parser.parser { Parser }
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
-    import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
-    import from jaclang.jac0core.passes.decl_impl_match_pass { DeclImplMatchPass }
-    import from jaclang.jac0core.passes.semantic_analysis_pass { SemanticAnalysisPass }
+    import from jaclang.compiler.driver.compile_options { env_na_debug }
+    import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+    import from jaclang.compiler.frontend.parser.materialize { bind_native_parser }
+    import from jaclang.compiler.frontend.parser.parser { Parser }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
+    import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
+    import from jaclang.compiler.passes.decl_impl_match_pass { DeclImplMatchPass }
+    import from jaclang.compiler.passes.semantic_analysis_pass { SemanticAnalysisPass }
     import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
     import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
     import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
@@ -1371,10 +1371,10 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
         (nl.join(_pfx_alerting_lines), "__seal_prefix_alerting__.jac", 1, ),
 
     ];
-    import from jaclang.jac0core.passes.prefix_drive {
+    import from jaclang.compiler.passes.prefix_drive {
         PREFIX_NATIVE_FRONTIER as _pfx_frontier
     }
-    import from jaclang.jac0core.prefix_flip { PREFIX_IR_GEN_NO_CGEN as _pfx_pin }
+    import from jaclang.compiler.placement.prefix_flip { PREFIX_IR_GEN_NO_CGEN as _pfx_pin }
     _pfx_claim = len(_pfx_pin);
     for (canary_src, canary_path, min_rows) in corpora {
         try {
@@ -1543,9 +1543,9 @@ glob _MERGE_PROBE_MAIN: tuple[str, ...] = (
      );
 
 def _merge_probe_parity(np: any) -> str {
-    import from jaclang.jac0core.parser.lexer { tokenize_full }
-    import from jaclang.jac0core.parser.parser { Parser }
-    import from jaclang.jac0core.passes.annex_weave { merge_annex_into }
+    import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+    import from jaclang.compiler.frontend.parser.parser { Parser }
+    import from jaclang.compiler.passes.annex_weave { merge_annex_into }
     import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
     nl = chr(10);
@@ -1643,10 +1643,10 @@ def _jcir_code_field_diffs(a: any, b: any, at: str, out: list[str]) -> list[str]
 def seal_jcir_container_canary(lib_path: str) -> str {
     import ast as pyast;
     import traceback;
-    import from jaclang.jac0core.codegen_shim { transcribe }
-    import from jaclang.jac0core.compile_options { CompileOptions, env_na_debug }
-    import from jaclang.jac0core.passes.jcir_gen_pass { JcirGenPass }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.backends.py.codegen_shim { transcribe }
+    import from jaclang.compiler.driver.compile_options { CompileOptions, env_na_debug }
+    import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
+    import from jaclang.compiler.driver.program { JacProgram }
 
     nl = chr(10);
     probe_path = "__seal_jcir_probe__.jac";
@@ -1732,7 +1732,7 @@ def seal_jcir_container_canary(lib_path: str) -> str {
 }
 
 def _sym_name_fingerprint(mod: any) -> list[str] {
-    import jaclang.jac0core.unitree as uni;
+    import jaclang.compiler.frontend.unitree as uni;
     out: list[str] = [];
     for nd in mod._in_mod_nodes {
         `entry = "";
@@ -1769,7 +1769,7 @@ def _sym_name_fingerprint(mod: any) -> list[str] {
 }
 
 def _sym_table_fingerprint(mod: any) -> list[str] {
-    import jaclang.jac0core.unitree as uni;
+    import jaclang.compiler.frontend.unitree as uni;
     out: list[str] = [];
     for nd in mod._in_mod_nodes {
         if isinstance(nd, uni.UniScopeNode) {
@@ -1910,7 +1910,7 @@ def seal_source_label(pkg_path: Path, path: Path) -> str {
 }
 
 def seal_source_keys(pkg_path: Path, paths: list[str]) -> (dict[str, str] | None) {
-    import from jaclang.jac0core.jir { module_cache_key }
+    import from jaclang.compiler.driver.jir { module_cache_key }
     pkg_root = Path(pkg_path).resolve();
     keys: dict[str, str] = {};
     for raw in sorted(set(paths)) {
@@ -2093,11 +2093,11 @@ def seal_native_roots(
         }
         return artifacts;
     }
-    import from jaclang.jac0core.jir { cache_mode }
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.jac0core.codeinfo { native_layout_to_dict }
-    import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.jir { cache_mode }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.frontend.codeinfo { native_layout_to_dict }
+    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
     import from jaclang.compiler.passes.native.shared_emit { emit_shared_library }
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
@@ -2125,7 +2125,7 @@ def seal_native_roots(
             if unitree_layout is None {
                 console.error(
                     "NATIVE SEAL: the materializer root is generated from "
-                    "the unitree layout; seal jac0core/unitree.jac first "
+                    "the unitree layout; seal compiler/frontend/unitree.jac first "
                     "(NATIVE_SEAL_ROOTS order, or include it in the "
                     "modules argument)."
                 );
@@ -2588,7 +2588,7 @@ glob _SEAL_WORKER_BOOT: str = "\n".join(
 def seal_jaclang_root -> str {
     try {
         pkg_root = Path(str(__file__)).resolve().parent.parent;
-        return str(pkg_root) if (pkg_root / "jac0core").is_dir() else "";
+        return str(pkg_root) if (pkg_root / "compiler").is_dir() else "";
     } except Exception {
         return "";
     }
@@ -2772,7 +2772,7 @@ def seal_native_pool(
 ) -> (dict[str, dict[str, any]] | None) {
     import tempfile;
     import from concurrent.futures { ThreadPoolExecutor }
-    import from jaclang.jac0core.jir { cache_mode }
+    import from jaclang.compiler.driver.jir { cache_mode }
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
     triple = llvm.get_default_triple();
@@ -3217,7 +3217,7 @@ def seal_finalize(
         shutil.rmtree(stale_boot, ignore_errors=True);
     }
 
-    console.print("  Freezing jac0core bootstrap layer...");
+    console.print("  Freezing the bootstrap seed layer...");
     boot_failed = seal_bootstrap(pkg_path, out_dir, embed_src);
     if boot_failed > 0 {
         console.error(f"Seal aborted: {boot_failed} bootstrap module(s) failed.");
@@ -3355,7 +3355,7 @@ def main {
     finalize_only = "--seal-finalize" in args;
     embed_src = "--debug-src" in args;
     canary_reused = "--seal-skip-reused-canary" not in args;
-    exclude_jac0core = seal or seal_compile;
+    exclude_seed = seal or seal_compile;
     args = [
         a
         for a in args
@@ -3368,13 +3368,13 @@ def main {
         console.print("\nExamples:");
         console.print("  jac run utils/precompile_bytecode.jac./jac");
         console.print("  jac run utils/precompile_bytecode.jac./jac/jaclang/scale");
-        console.print("\n--seal: precompile, freeze the jac0core bootstrap, and emit");
+        console.print("\n--seal: precompile, freeze the bootstrap seed tier, and emit");
         console.print("        MANIFEST.json (JIR-authoritative image; .jac sources");
         console.print(
             "        stay on disk for tracebacks, never compiled at runtime)."
         );
         console.print(
-            "--seal-compile: compile only (exclude jac0core), no finalize -- the"
+            "--seal-compile: compile only (exclude the seed tier), no finalize -- the"
         );
         console.print("        payload build's crash-tolerant first pass.");
         console.print(
@@ -3439,12 +3439,12 @@ def main {
 
     jac_files = (
         sealable_sources(package_dir)
-            if exclude_jac0core
+            if exclude_seed
             else find_jac_files(package_dir)
     );
     console.print(f"  Found {len(jac_files)} .jac files");
 
-    if not jac_files and not exclude_jac0core {
+    if not jac_files and not exclude_seed {
         console.print("  No .jac files to precompile.");
         sys.`exit(0);
     }
@@ -3464,7 +3464,7 @@ def main {
         }
     }
 
-    import from jaclang.jac0core.jir { read_debug_source }
+    import from jaclang.compiler.driver.jir { read_debug_source }
 
     compiled = 0;
     reused = 0;

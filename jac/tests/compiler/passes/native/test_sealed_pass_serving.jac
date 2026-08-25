@@ -34,30 +34,30 @@ import os;
 import shutil;
 import tempfile;
 import jaclang;
-import jaclang.jac0core.parser.frontend as frontend;
+import jaclang.compiler.frontend.parser.frontend as frontend;
 import jaclang.jac0core.sealed as sealed;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from pathlib { Path }
-import from jaclang.jac0core.parser.lexer { tokenize_full }
-import from jaclang.jac0core.parser.parser { Parser }
-import from jaclang.jac0core.passes.annex_weave { merge_annex_into }
-import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
-import from jaclang.jac0core.passes.pass_serve { _BIND_KEEP }
-import from jaclang.jac0core.passes.pass_rim {
+import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+import from jaclang.compiler.frontend.parser.parser { Parser }
+import from jaclang.compiler.passes.annex_weave { merge_annex_into }
+import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
+import from jaclang.compiler.passes.pass_serve { _BIND_KEEP }
+import from jaclang.compiler.passes.pass_rim {
     _NATIVE_PASS_TIER_MEMO,
     _NATIVE_SERVED_PASSES
 }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang.utils.precompile_bytecode { seal_native_artifacts }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     TIER_MODULE: str = "jaclang.jac0core.passes.ast_validation_pass",
+     TIER_MODULE: str = "jaclang.compiler.passes.ast_validation_pass",
      MAT_MODULE: str = "jaclang.compiler.native_materialize",
      SEAL_MODULES: tuple = (
-         "jac0core/unitree.jac",
+         "compiler/frontend/unitree.jac",
          "compiler/native_materialize.jac",
-         "jac0core/passes/ast_validation_pass.jac"
+         "compiler/passes/ast_validation_pass.jac"
      ),
      _BUILD_MEMO: list = [];
 

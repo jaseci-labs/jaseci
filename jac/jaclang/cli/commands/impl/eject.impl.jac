@@ -25,7 +25,7 @@ def load_eject_project_metadata(src: Path) -> dict {
     if not toml_path.exists() {
         raise FileNotFoundError(f"No jac.toml found in {src}");
     }
-    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+    import from jaclang.project.tomlio { read_toml_with_encoding }
     toml_data = read_toml_with_encoding(str(toml_path));
     project_section = toml_data.get("project", {});
     raw_name = project_section.get("name", "") or "";
@@ -126,11 +126,11 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         return 1;
     }
 
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.runtimelib.client_surface { prepend_active_runtime_globals }
 
-    import jaclang.jac0core.unitree as uni;
-    import from jaclang.jac0core.constant { SymbolType }
+    import jaclang.compiler.frontend.unitree as uni;
+    import from jaclang.compiler.frontend.constant { SymbolType }
 
     js_count = 0;
 
@@ -192,7 +192,7 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         server = _is_meaningful_python(py_code) and (not is_client);
 
         if server {
-            import from jaclang.jac0core.constant { CodeContext }
+            import from jaclang.compiler.frontend.constant { CodeContext }
             mod_is_native = ir.decided_codespace == 'native';
             for item in ir.body {
                 if item?.code_context == CodeContext.CLIENT {
@@ -1158,8 +1158,8 @@ def _emit_readme(out: Path, project_name: str, has_frontend: bool, env_files: li
 
 
 def _has_pub_access(ast_item: any) -> bool {
-    import jaclang.jac0core.unitree as uni;
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import jaclang.compiler.frontend.unitree as uni;
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     if not isinstance(ast_item, uni.AstAccessNode) {
         return False;
     }

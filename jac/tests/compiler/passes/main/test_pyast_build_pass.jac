@@ -12,10 +12,10 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
-import from jaclang.jac0core.helpers { pascal_to_snake }
-import from jaclang.jac0core.parser.lexer { tokenize_full }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.unitree { PythonModuleAst, Source }
+import from jaclang.compiler.frontend.helpers { pascal_to_snake }
+import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.unitree { PythonModuleAst, Source }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"

@@ -7,7 +7,7 @@ linked like user code, with zero per-module backend work.
 
 ## How resolution works
 
-`jaclang.jac0core.codeinfo.resolve_native_module` is the single shared resolver
+`jaclang.compiler.frontend.codeinfo.resolve_native_module` is the single shared resolver
 used by `BoundaryAnalysisPass`, `NaIRGenPass`, and `NativeCompilePass`. It
 searches **nearest-wins**:
 

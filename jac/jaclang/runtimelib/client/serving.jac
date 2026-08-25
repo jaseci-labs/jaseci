@@ -3,7 +3,7 @@ import html;
 import json;
 import re;
 import from pathlib { Path }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.server { ModuleIntrospector }
 
 obj HeaderBuilder {

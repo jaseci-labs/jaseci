@@ -1,5 +1,5 @@
 import from typing { TypeAlias }
-import from jaclang.jac0core.unitree { UniCFGNode }
+import from jaclang.compiler.frontend.unitree { UniCFGNode }
 
 glob SymId: TypeAlias = int,
      DataflowTransfer: TypeAlias = Callable[[UniCFGNode, set[SymId]], set[SymId]];

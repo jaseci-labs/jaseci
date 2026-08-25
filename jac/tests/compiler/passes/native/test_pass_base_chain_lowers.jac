@@ -45,13 +45,13 @@ lives in `test_sealed_pass_tier.jac`.
 import os;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
 glob PASSES_DIR = Path(jaclang.__file__).parent / "jac0core" / "passes",
-     TRANSFORM_UNIT = "jaclang.jac0core.passes.transform",
+     TRANSFORM_UNIT = "jaclang.compiler.passes.transform",
      CTOR_PROBE = (
          Path(jaclang.__file__).parent
          / "compiler"
@@ -221,16 +221,16 @@ test "a native root constructs a pass over the linked base chain" {
         "seam-free for the construction measurement to mean anything"
     );
     for base in (
-        "jac0core/passes/transform.jac",
-        "jac0core/passes/uni_pass.jac",
-        "jac0core/passes/module_codegen_pass.jac"
+        "compiler/passes/transform.jac",
+        "compiler/passes/uni_pass.jac",
+        "compiler/backends/py/module_codegen_pass.jac"
     ) {
         assert base in closure , (
             f"{base} left the native root's closure. The chain linking is "
             "what rung 3 is; see this test's docstring"
         );
     }
-    assert "jac0core/codeinfo.jac" in closure , (
+    assert "compiler/frontend/codeinfo.jac" in closure , (
         "codeinfo.jac left the probe's closure. Since B4 emptied "
         "PLACEMENT_INFERENCE_HELD it rides every unit that links the base "
         "chain, its seams waived by name; its absence means the placement "
@@ -263,7 +263,7 @@ test "uni_pass contributes no waiver at all" {
     offending: list[str] = [];
     for names in NATIVE_SEAL_DEMOTION_WAIVERS.values() {
         for `entry in names {
-            if `entry.startswith("jac0core/passes/uni_pass.jac::")
+            if `entry.startswith("compiler/passes/uni_pass.jac::")
                 and `entry not in offending {
                 offending.append(`entry);
             }

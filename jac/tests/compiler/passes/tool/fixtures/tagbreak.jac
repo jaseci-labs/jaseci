@@ -141,7 +141,7 @@ with entry {
 
 import from typing { Optional, ParamSpec }
 
-import from jaclang.jac0core.constant {
+import from jaclang.compiler.frontend.constant {
     JacSemTokenModifier as SemTokMod,
     JacSemTokenType as SemTokType,
 }

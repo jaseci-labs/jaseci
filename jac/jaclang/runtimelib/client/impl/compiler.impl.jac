@@ -28,7 +28,7 @@ impl ViteCompiler.compile_and_bundle(
 }
 
 impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
-    import from jaclang.jac0core.constant { CodeContext }
+    import from jaclang.compiler.frontend.constant { CodeContext }
     import from jaclang { JacRuntime as Jac }
     has_na = False;
     compiled = Jac.get_program().mod.hub.get(str(module_path.resolve()));
@@ -64,7 +64,7 @@ impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
 
 impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> None {
     import from jaclang.compiler.passes.native.wasm_build { compile_to_wasm }
-    import from jaclang.jac0core.codeinfo { native_wasm_stem }
+    import from jaclang.compiler.frontend.codeinfo { native_wasm_stem }
     try {
         wasm = compile_to_wasm(str(module_path));
     } except Exception as e {
@@ -210,7 +210,7 @@ impl ViteCompiler.compile_runtime_utils(self: ViteCompiler) -> tuple[str, list[s
 }
 
 impl ViteCompiler.compile_desktop_sdk(self: ViteCompiler) {
-    import from jaclang.jac0core.modresolver { resolve_jac_virtual_module_path }
+    import from jaclang.compiler.driver.modresolver { resolve_jac_virtual_module_path }
     desktop_src = resolve_jac_virtual_module_path('@jac/desktop');
     if not desktop_src {
         return;
@@ -234,7 +234,7 @@ impl ViteCompiler.compile_desktop_sdk(self: ViteCompiler) {
     all_names = sorted(set(desktop_exports + list(desktop_globals.keys())));
 
     if not all_names {
-        import from jaclang.jac0core.modresolver { resolve_jac_virtual_module_exports }
+        import from jaclang.compiler.driver.modresolver { resolve_jac_virtual_module_exports }
         all_names = sorted(resolve_jac_virtual_module_exports('@jac/desktop'));
     }
     if all_names {

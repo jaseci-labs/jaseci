@@ -4,8 +4,8 @@ import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang { JacRuntime as Jac }
-import from jaclang.jac0core.mtp { ClassInfo, FunctionInfo, MethodInfo }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.mtp { ClassInfo, FunctionInfo, MethodInfo }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"

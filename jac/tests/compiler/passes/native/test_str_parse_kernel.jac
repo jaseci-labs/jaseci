@@ -7,8 +7,8 @@ Behavioral identity across modes rides the ownbench differential."""
 import os;
 import re;
 import from pathlib { Path }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob KERNEL = str(
          Path(__file__).resolve().parents[4]

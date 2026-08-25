@@ -1423,7 +1423,7 @@ impl NaIRGenExpr._codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None) {
     if operand is None {
         return None;
     }
-    import from jaclang.jac0core.constant { is_borrow_kind, OwnershipKind }
+    import from jaclang.compiler.frontend.constant { is_borrow_kind, OwnershipKind }
     if is_borrow_kind(nd.ownership) {
         return operand;
     }

@@ -4,11 +4,11 @@ def _load_native_osp_kernel_module -> (uni.Module | None) {
     if _NA_OSP_KERNEL_MOD {
         return _NA_OSP_KERNEL_MOD[0];
     }
-    import from jaclang.jac0core.kernel_units { osp_core_unit_path }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.backends.kernel_units { osp_core_unit_path }
+    import from jaclang.compiler.driver.program { JacProgram }
     mod = None;
     try {
-        import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
+        import from jaclang.compiler.driver.compile_options { CompileOptions as _KernelOpts }
         prog = JacProgram();
         mod = prog.compile(
             osp_core_unit_path('na'),
@@ -58,7 +58,7 @@ impl NaIRGenOsp._compute_osp_model(archetypes: list[uni.Archetype]) -> None {
             self.arch_ast_map[_n] = arch;
         }
     }
-    import from jaclang.jac0core.osp_model { get_osp_model }
+    import from jaclang.runtime.osp_model { get_osp_model }
     _model = get_osp_model(
         self.ir_in,
         archetypes=(list(archetypes) + list(self.arch_ast_map.values())),

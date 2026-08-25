@@ -27,8 +27,8 @@ import jaclang;
 import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
-import from jaclang.jac0core.codeinfo { native_safe_sym }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.frontend.codeinfo { native_safe_sym }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = str(
          Path(jaclang.__file__).parent / "compiler" / "tests" / "fixtures"

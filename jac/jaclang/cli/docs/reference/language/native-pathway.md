@@ -917,7 +917,7 @@ Assert messages in native tests are limited to string literals: `assert cond, "m
 
 ## Build Options and Artifact Identity
 
-The single authority for codegen-affecting build options is the compile-options object (`CompileOptions` in `jaclang/jac0core/compile_options.jac`). It is constructed once at the CLI/program boundary and threaded to every compiler pass through the program; each option resolves as explicit argument, then environment override, then `jac.toml`, then built-in default. No compiler pass reads the environment directly; a source-scan test over `jaclang/compiler/passes/` enforces this.
+The single authority for codegen-affecting build options is the compile-options object (`CompileOptions` in `jaclang/compiler/driver/compile_options.jac`). It is constructed once at the CLI/program boundary and threaded to every compiler pass through the program; each option resolves as explicit argument, then environment override, then `jac.toml`, then built-in default. No compiler pass reads the environment directly; a source-scan test over `jaclang/compiler/passes/` enforces this.
 
 The codegen options carry a canonical identity string and a short hash of it, the codegen fingerprint. The fingerprint participates in artifact identity: it is folded into the JIR module cache key and into the native import IR cache key, so flipping any codegen option re-keys the artifact and a stale build is never served. Each native import artifact is stamped with the fingerprint of the options that built it; a cached module whose stamp disagrees with the current build is rejected with `E5027` instead of being linked into a mixed-options binary.
 
@@ -992,7 +992,7 @@ A demotion is only a speed cost while Python is still there to catch it. In a se
 
 ```jac
 glob NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
-    "jac0core/parser/parser.jac": ("jac0core/unitree.jac::UniNode.gen.__get__", )
+    "compiler/frontend/parser/parser.jac": ("compiler/frontend/unitree.jac::UniNode.gen.__get__", )
 };
 ```
 

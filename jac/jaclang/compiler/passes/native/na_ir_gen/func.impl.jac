@@ -1,5 +1,5 @@
 import from jaclang.compiler.targets.abi { classify_foreign_fn }
-import from jaclang.jac0core.constant { OwnershipKind }
+import from jaclang.compiler.frontend.constant { OwnershipKind }
 
 
 impl NaIRGenFunc._forward_declare_functions(module: uni.Module) -> None {
@@ -99,7 +99,7 @@ impl NaIRGenFunc._maybe_declare_ability(nd: uni.ElementStmt) -> None {
         if nd.access
             and nd.access.tag.name == Tok.KW_PRIV
             and nd.find_parent_of_type(uni.Archetype) is None {
-            import from jaclang.jac0core.codeinfo { native_safe_sym }
+            import from jaclang.compiler.frontend.codeinfo { native_safe_sym }
             _def_m = nd.find_parent_of_type(uni.Module);
             if _def_m is not None {
                 _emit_name = f"{name}.__jacp_{native_safe_sym(_def_m.name)}";
@@ -518,7 +518,7 @@ impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
 }
 
 impl NaIRGenFunc._codegen_test(nd: uni.Test) -> None {
-    import from jaclang.jac0core.codeinfo { native_test_symbol }
+    import from jaclang.compiler.frontend.codeinfo { native_test_symbol }
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     if self._exc_raise_fn is None {
@@ -772,7 +772,7 @@ impl NaIRGenFunc._codegen_nested_ability(nd: uni.Ability) -> None {
 }
 
 impl NaIRGenFunc._predeclare_nested_siblings(nd: uni.Ability) -> None {
-    import from jaclang.jac0core.constant { SymbolType }
+    import from jaclang.compiler.frontend.constant { SymbolType }
     _p = nd.parent;
     _frame: (uni.UniNode | None) = None;
     while _p is not None {
@@ -1462,7 +1462,7 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     i64 = ir.IntType(64);
     import re;
 
-    import from jaclang.jac0core.codeinfo { native_glob_init_name, native_safe_sym }
+    import from jaclang.compiler.frontend.codeinfo { native_glob_init_name, native_safe_sym }
 
     fnty = ir.FunctionType(ir.VoidType(), []);
     func = self._define_function("jac_entry", fnty);

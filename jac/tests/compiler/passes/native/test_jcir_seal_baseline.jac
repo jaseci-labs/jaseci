@@ -65,9 +65,9 @@ coupling, so `_root_coverage` skips there (both gates below).
 import os;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 import from jaclang.utils.precompile_bytecode {
     NATIVE_SEAL_CLOSURE,
@@ -77,7 +77,7 @@ import from jaclang.utils.precompile_bytecode {
 }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     JCIR_ROOT: str = "jac0core/passes/jcir_gen_pass.jac";
+     JCIR_ROOT: str = "compiler/backends/py/jcir_gen_pass.jac";
 
 """The emitter's exact native closure, as package-relative paths.
 
@@ -93,20 +93,20 @@ glob JCIR_CLOSURE: tuple = (
          "compiler/type_registry.jac",
          "compiler/type_system/type_utils.jac",
          "compiler/type_system/types.jac",
-         "jac0core/codegen_ir.jac",
-         "jac0core/codeinfo.jac",
-         "jac0core/constant.jac",
-         "jac0core/diagnostic_utils.jac",
-         "jac0core/diagnostics.jac",
-         "jac0core/helpers.jac",
-         "jac0core/jcir_facts.jac",
-         "jac0core/passes/jcir_gen_pass.jac",
-         "jac0core/passes/module_codegen_pass.jac",
-         "jac0core/passes/transform.jac",
-         "jac0core/passes/uni_pass.jac",
-         "jac0core/scalars.jac",
-         "jac0core/srcloc.jac",
-         "jac0core/unitree.jac",
+         "compiler/backends/py/codegen_ir.jac",
+         "compiler/frontend/codeinfo.jac",
+         "compiler/frontend/constant.jac",
+         "compiler/frontend/diagnostic_utils.jac",
+         "compiler/frontend/diagnostics.jac",
+         "compiler/frontend/helpers.jac",
+         "compiler/backends/py/jcir_facts.jac",
+         "compiler/backends/py/jcir_gen_pass.jac",
+         "compiler/backends/py/module_codegen_pass.jac",
+         "compiler/passes/transform.jac",
+         "compiler/passes/uni_pass.jac",
+         "runtime/scalars.jac",
+         "compiler/frontend/srcloc.jac",
+         "compiler/frontend/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
          "runtimelib/na_stdlib/contextvars.jac",
          "runtimelib/na_stdlib/fnmatch.jac",
@@ -118,11 +118,11 @@ glob JCIR_CLOSURE: tuple = (
 
 """Closure members that must carry no seam of their own."""
 glob JCIR_CLEAN_MEMBERS: tuple = (
-         "jac0core/codegen_ir.jac",
-         "jac0core/constant.jac",
-         "jac0core/diagnostics.jac",
-         "jac0core/jcir_facts.jac",
-         "jac0core/srcloc.jac",
+         "compiler/backends/py/codegen_ir.jac",
+         "compiler/frontend/constant.jac",
+         "compiler/frontend/diagnostics.jac",
+         "compiler/backends/py/jcir_facts.jac",
+         "compiler/frontend/srcloc.jac",
          "runtimelib/na_stdlib/textwrap.jac"
      );
 

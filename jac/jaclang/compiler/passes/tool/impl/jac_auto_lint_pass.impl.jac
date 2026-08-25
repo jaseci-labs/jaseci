@@ -1,7 +1,7 @@
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
 impl JacAutoLintPass.postinit -> None {
-    import from jaclang.jac0core.pass_driver { diagnostic_policy_for }
+    import from jaclang.compiler.driver.pass_driver { diagnostic_policy_for }
     import from jaclang.project.config {
         JacConfig,
         get_config_for_path,
@@ -29,7 +29,7 @@ impl JacAutoLintPass.postinit -> None {
 }
 
 impl JacAutoLintPass._is_file_excluded(file_path: str) -> bool {
-    import from jaclang.jac0core.helpers { path_matches_exclude }
+    import from jaclang.compiler.frontend.helpers { path_matches_exclude }
     return path_matches_exclude(file_path, self._exclude_patterns, self._project_root);
 }
 
@@ -1419,10 +1419,10 @@ impl JacAutoLintPass._base_decl_archetypes(annex_path: str) -> list[uni.Archetyp
         return self._base_decl_cache;
     }
     self._base_decls_loaded = True;
-    import from jaclang.jac0core.bccache { discover_base_file }
-    import from jaclang.jac0core.parser { parse as rd_parse }
-    import from jaclang.jac0core.helpers { read_file_with_encoding }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.bccache { discover_base_file }
+    import from jaclang.compiler.frontend.parser { parse as rd_parse }
+    import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+    import from jaclang.compiler.driver.program { JacProgram }
     base_path = discover_base_file(annex_path);
     if base_path is None {
         return self._base_decl_cache;
@@ -1854,7 +1854,7 @@ impl JacAutoLintPass._check_is_with_literal(nd: uni.CompareExpr) -> None {
 }
 
 impl JacAutoLintPass._check_filter_compare_tautology(nd: uni.CompareExpr) -> None {
-    import from jaclang.jac0core.diagnostics { W3040 }
+    import from jaclang.compiler.frontend.diagnostics { W3040 }
     if self._is_suppressed(W3040) {
         return;
     }
@@ -1959,7 +1959,7 @@ impl JacAutoLintPass._walk_for_has_uses(
     writes: list[tuple[int, int, str]],
     reads: list[tuple[int, int, str, uni.Name]]
 ) -> None {
-    import from jaclang.jac0core.constant { ExprCtx }
+    import from jaclang.compiler.frontend.constant { ExprCtx }
     if isinstance(nd, (uni.LambdaExpr, uni.Ability, uni.Archetype)) {
         return;
     }

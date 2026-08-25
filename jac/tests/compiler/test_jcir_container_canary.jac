@@ -35,11 +35,11 @@ import ast as pyast;
 import marshal;
 import types;
 import from builtins { compile as pycompile }
-import from jaclang.jac0core.codegen_ir { read_container }
-import from jaclang.jac0core.codegen_shim { transcribe }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.passes.jcir_gen_pass { JcirGenPass }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.backends.py.codegen_ir { read_container }
+import from jaclang.compiler.backends.py.codegen_shim { transcribe }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
+import from jaclang.compiler.driver.program { JacProgram }
 
 """Compile once, returning the pyast tree, the shim tree and the bytes."""
 def emit_both(src: str, path: str) -> tuple {
@@ -273,7 +273,7 @@ test "the container carries its module path and string table" {
 
 
 test "diagnostics cross the container with text severity and span" {
-    import from jaclang.jac0core.codegen_ir { CirDiag, CodegenIrWriter, DIAG_WARNING }
+    import from jaclang.compiler.backends.py.codegen_ir { CirDiag, CodegenIrWriter, DIAG_WARNING }
 
     w = CodegenIrWriter();
     w.begin_module("diag_probe.jac");

@@ -24,7 +24,7 @@ adding to it proves the two arms really do share a representation.
 
 import ctypes;
 import os;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 import from tests.support { JAC_ROOT, native_force_opts }
 
 glob FIXTURES = os.path.join(

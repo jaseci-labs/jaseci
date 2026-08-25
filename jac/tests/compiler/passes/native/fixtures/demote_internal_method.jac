@@ -1,6 +1,6 @@
 """A method call into a jaclang-internal module, verdict-bound or refused.
 
-`CodeGenTarget` lives in `jac0core/codeinfo.jac`, a jaclang-internal module
+`CodeGenTarget` lives in `compiler/frontend/codeinfo.jac`, a jaclang-internal module
 no seal closure admits, and `doc_ir`'s accessor is one of its thirteen
 recorded seams. A consumer method reading it is the methods-side twin of
 the free-function trust hole: if the consumer's emission ever ran ahead of
@@ -11,7 +11,7 @@ consumer either learns the verdict and demotes honestly, or the module
 never joins and the call refuses by name; neither may dangle.
 """
 
-import from jaclang.jac0core.codeinfo { CodeGenTarget }
+import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
 
 obj InternalProbe {
     has hits: int = 0;

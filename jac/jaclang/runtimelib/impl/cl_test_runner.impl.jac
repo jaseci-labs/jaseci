@@ -12,7 +12,7 @@ import from pathlib { Path }
 import from jaclang.cli.console { console }
 
 impl compile_cl_module(filepath: str) -> tuple[str, list, dict, list] {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     prog = JacProgram();
     mod = prog.compile(str(filepath));
     if prog.errors_had {
@@ -27,7 +27,7 @@ impl compile_cl_module(filepath: str) -> tuple[str, list, dict, list] {
 }
 
 impl _compile_runtime_js -> str {
-    import from jaclang.jac0core.modresolver { resolve_jac_virtual_module_path }
+    import from jaclang.compiler.driver.modresolver { resolve_jac_virtual_module_path }
 
     runtime_src = resolve_jac_virtual_module_path("@jac/runtime");
     if (not runtime_src) or (not Path(runtime_src).exists()) {
@@ -38,7 +38,7 @@ impl _compile_runtime_js -> str {
 }
 
 impl _compile_runtime_core_js -> str {
-    import from jaclang.jac0core.modresolver { resolve_jac_virtual_module_path }
+    import from jaclang.compiler.driver.modresolver { resolve_jac_virtual_module_path }
 
     runtime_src = resolve_jac_virtual_module_path("@jac/runtime");
     if (not runtime_src) or (not Path(runtime_src).exists()) {
@@ -547,16 +547,16 @@ impl module_is_client(filepath: str) -> bool {
     if path in _COLOR_CACHE {
         return _COLOR_CACHE[path];
     }
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.jac0core.constant { CodeContext }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.frontend.constant { CodeContext }
+    import from jaclang.compiler.driver.program { JacProgram }
     result = False;
     try {
         mod = JacProgram().compile(path, options=CompileOptions(symtab_ir_only=True));
         result = mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
     } except Exception as probe_exc {
-        import from jaclang.jac0core.source_failures {
+        import from jaclang.compiler.driver.source_failures {
             CompilerSourceError,
             compiler_source_failure_origin
         }

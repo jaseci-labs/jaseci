@@ -1,6 +1,6 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.codeinfo { HDR_DTOR_OFF }
+import from jaclang.compiler.frontend.codeinfo { HDR_DTOR_OFF }
 
 obj NaIRGenClibAbi(NaIRGenState) {
     def _clib_struct_layout(name: str) -> tuple;

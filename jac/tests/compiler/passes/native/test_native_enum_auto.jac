@@ -34,7 +34,7 @@ import subprocess;
 import sys;
 import tempfile;
 import from tests.support { TESTS_DIR, native_force_opts }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
 
 glob FIXTURES = os.path.join(

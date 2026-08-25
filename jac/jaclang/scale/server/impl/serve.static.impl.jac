@@ -11,7 +11,7 @@ import from jaclang.runtimelib.serving.endpoint {
     JEndPoint,
     ParameterType
 }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.server { JsonValue }
 import from jaclang.cli.console { console }
 

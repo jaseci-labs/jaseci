@@ -8,7 +8,7 @@ import from jaclang.compiler.passes.native.na_ir_gen.constants {
     RC_COLOR_SHIFT
 }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.codeinfo {
+import from jaclang.compiler.frontend.codeinfo {
     HDR_ALLOC_ID_OFF,
     HDR_DTOR_OFF,
     HDR_MAGIC,
@@ -21,7 +21,7 @@ import from jaclang.jac0core.codeinfo {
     STR_LEN_TAG_BIT,
     STR_LEN_TAG_SHIFT
 }
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 
 obj NaIRGenRefcount(NaIRGenState) {
     def _emit_jacval_slot_drop_fn(elem_mangle: str) -> (ir.Function | None);

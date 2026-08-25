@@ -1,5 +1,5 @@
 import re;
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Module,
     Ability,
     FuncSignature,

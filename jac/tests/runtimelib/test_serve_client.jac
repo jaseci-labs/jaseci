@@ -1706,7 +1706,7 @@ test "serve sync skips write access check on unchanged anchors" {
         client = make_client(tmpdir);
         client.register_user("syncuser", "pass");
         # Simulate server-restart conditions
-        import from jaclang.jac0core.runtime { JacRuntimeInterface as Jac }
+        import from jaclang.runtime.runtime { JacRuntimeInterface as Jac }
         ctx = Jac.get_context();
         sys_root = ctx.system_root;
         sys_root.persistent = True;
@@ -1731,7 +1731,7 @@ test "serve sync skips write access check on unchanged anchors" {
         sess._flushed_hash[sys_root.id] = sys_root.hash;
         sess._dirty.pop(sys_root.id, None);
         # Capture logs
-        logger = logging.getLogger("jaclang.jac0core.runtime");
+        logger = logging.getLogger("jaclang.runtime.runtime");
         cap = capture_log_start(logger);
         buf = cap[0];
         handler = cap[1];
@@ -1752,7 +1752,7 @@ test "serve sync skips write access check on unchanged anchors" {
 test "serve blocking sync walkers run concurrently via to_thread" {
     import asyncio;
     import from time { time }
-    import from jaclang.jac0core.runtime { JacRuntimeInterface as Jac }
+    import from jaclang.runtime.runtime { JacRuntimeInterface as Jac }
     import from jaclang.runtimelib.server {
         ExecutionManager,
         UserManager,
@@ -1908,7 +1908,7 @@ test "Session async mirrors (aget/aput/adelete/ahas/acommit) work" {
     # This verifies the impls round-trip correctly for both the volatile
     # (store-less) and Postgres-backed session.
     import asyncio;
-    import from jaclang.jac0core.archetype { NodeAnchor, Root }
+    import from jaclang.runtime.archetype { NodeAnchor, Root }
     import from jaclang.runtimelib.session { Session }
     import from uuid { uuid4 }
 
@@ -1960,7 +1960,7 @@ test "Session concurrent commits from worker threads do not race" {
     import asyncio;
     import os;
     import from uuid { uuid4 }
-    import from jaclang.jac0core.archetype { NodeAnchor, Root }
+    import from jaclang.runtime.archetype { NodeAnchor, Root }
     import from jaclang.runtimelib.session { Session }
 
     with TemporaryDirectory() as tmpdir {

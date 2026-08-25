@@ -47,8 +47,8 @@ kind/capabilities/entry/payloads)::
           "package": false,
           "sha256": "..."                  # checked by register_image
         },
-        "jac0core/modresolver.jac": {
-          "module": "jaclang.jac0core.modresolver",
+        "compiler/driver/modresolver.jac": {
+          "module": "jaclang.compiler.driver.modresolver",
           "jir": "jac0core/modresolver.jir",
           "package": false,
           "sha256": "...",
@@ -97,7 +97,7 @@ MANIFEST_FORMAT = 6
 # ships with the very code that loads it, so skew means a stale or partial
 # install.
 MANIFEST_FORMATS_ACCEPTED = (2, 3, 4, 5, MANIFEST_FORMAT)
-# Must match jaclang.jac0core.jir.* ; kept literal here because this module
+# Must match jaclang.compiler.driver.jir.* ; kept literal here because this module
 # must import before any .jac module (including jir.jac) can. This is the whole
 # point of the bootstrap tier: jac0core modules are loaded from their JIR by the
 # pure-Python section reader below, so they need none of the .jac machinery
@@ -178,7 +178,7 @@ def _patch_code_filenames(
     code: types.CodeType, find: str, replace: str
 ) -> types.CodeType:
     """Recursively rewrite ``co_filename`` (pure-Python twin of
-    ``jac0core.jir.patch_co_filenames_bytes``, which is itself a .jac
+    ``compiler.driver.jir.patch_co_filenames_bytes``, which is itself a .jac
     module and therefore unavailable while bootstrapping)."""
     consts = tuple(
         _patch_code_filenames(c, find, replace) if isinstance(c, types.CodeType) else c

@@ -3,7 +3,7 @@
 Walker abilities (`can ... with X entry/exit`) fire on the location the
 walker is at — `X` must be a node, edge, or `Root`. Node/edge abilities
 fire on the visiting walker — `X` must be a walker. The runtime contract
-is in `JacWalker._execute_entries`/`_execute_exits` (jac0core/runtime.jac).
+is in `JacWalker._execute_entries`/`_execute_exits` (runtime/runtime.jac).
 
 Diagnostics:
     E1116 — walker ability trigger that isn't a node/edge/Root.

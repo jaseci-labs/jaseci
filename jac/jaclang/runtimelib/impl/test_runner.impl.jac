@@ -186,7 +186,7 @@ impl _suite_source(filepath: str) -> str {
     import from jaclang.jac0core.ext_registry { is_test }
     if is_test(os.path.basename(filepath)) {
         try {
-            import from jaclang.jac0core.bccache { discover_base_file }
+            import from jaclang.compiler.driver.bccache { discover_base_file }
             base = discover_base_file(filepath);
             if base {
                 return os.path.realpath(base);
@@ -397,8 +397,8 @@ impl _should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> boo
 
 impl _fresh_jac_state(clear_modules: bool = True) -> None {
     import tempfile;
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.runtime { JacRuntime, JacRuntimeInterface }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.runtime.runtime { JacRuntime, JacRuntimeInterface }
     import from jaclang.project.config { get_explicit_config, set_config }
     import from jaclang.runtimelib.session { mark_scratch_base }
     if not _CONFIG_PIN_BASELINE {

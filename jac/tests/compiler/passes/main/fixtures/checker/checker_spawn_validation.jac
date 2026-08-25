@@ -3,7 +3,7 @@
 `a spawn b` is a binary expression where exactly one operand must be a
 walker instance (or list[Walker]); the other operand is the spawn
 "target" and must be a node, edge, or collection thereof. The runtime
-implementation lives in `JacWalker.spawn` (jac0core/runtime.jac).
+implementation lives in `JacWalker.spawn` (runtime/runtime.jac).
 
 Diagnostics:
     E1114 — neither side is a walker instance.

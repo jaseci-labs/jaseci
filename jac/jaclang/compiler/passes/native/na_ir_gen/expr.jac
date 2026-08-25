@@ -1,9 +1,9 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.constant { OwnershipKind }
-import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E5092 }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.frontend.constant { OwnershipKind }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.diagnostics { E5092 }
+import jaclang.compiler.frontend.unitree as uni;
 
 obj NaIRGenExpr(NaIRGenState) {
     def _codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None);

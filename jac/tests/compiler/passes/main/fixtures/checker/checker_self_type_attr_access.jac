@@ -5,7 +5,7 @@ is typed as the `Self` TypeVar. Member access on that value should look up
 attributes on the enclosing class — Pyright treats `Self` as implicitly bound to
 the class that defines the method.
 
-Reproducer mirrors `Anchor.make_stub` in jac/jaclang/jac0core/impl/archetype.impl.jac
+Reproducer mirrors `Anchor.make_stub` in jac/jaclang/runtime/impl/archetype.impl.jac
 where `unloaded.id = self.id;` previously errored with E1031 ("Cannot access
 attribute 'id' for type 'Self'").
 """

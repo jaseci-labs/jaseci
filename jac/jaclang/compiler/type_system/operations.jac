@@ -1,4 +1,4 @@
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     BinaryExpr,
     ConnectOp,
     DisconnectOp,
@@ -10,7 +10,7 @@ import from jaclang.jac0core.unitree {
     TupleVal,
     UniNode
 }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from .types {
     AnyType,
     ClassType,
@@ -21,7 +21,7 @@ import from .types {
     UnionType,
     UnknownType
 }
-import from jaclang.jac0core.diagnostics {
+import from jaclang.compiler.frontend.diagnostics {
     E1010,
     E1033,
     E1035,
@@ -194,7 +194,7 @@ def get_pow_result_type(
     left_node: Expr | None = None,
     diag_node: UniNode | None = None
 ) -> (TypeBase | None) {
-    import from jaclang.jac0core.const_fold { fold_const }
+    import from jaclang.compiler.backends.py.const_fold { fold_const }
     float_class = evaluator.prefetch.float_class;
     if float_class is None or not both_numeric(left_type, right_type) {
         return None;

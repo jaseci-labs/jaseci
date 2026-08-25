@@ -59,9 +59,9 @@ would double-book them here.
 import os;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
@@ -815,7 +815,7 @@ def _coverage_of(src: Path) -> tuple[(dict, bool, list)] {
     # measurement is not expressible: `unitree` sits in `types.jac`'s closure,
     # so the compile would be answered by the sealed artifact and every
     # assertion below would read an empty closure and pass vacuously.
-    if native_artifact_for("jaclang.jac0core.unitree") is not None {
+    if native_artifact_for("jaclang.compiler.frontend.unitree") is not None {
         testskip(
             "unitree is served from this runtime's native seal, so the "
             "type-system closure cannot be measured from source here"

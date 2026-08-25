@@ -38,7 +38,7 @@ Refs #8148
 import ctypes;
 import os;
 import from tests.support { TESTS_DIR, native_force_opts }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures", "nogc"
@@ -50,7 +50,7 @@ glob FIXTURES = os.path.join(
 
 """Headerless: `--gc none` with nogc enforced, the mode with no rc header."""
 def _headerless_opts -> any {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     return CompileOptions(
         force_codespace='native',
         force_target_program=True,

@@ -97,7 +97,7 @@ A fourth category -- `passes/tool/` -- contains non-compilation passes for the f
 
 ### Compilation Pass Ordering
 
-The compiler orchestrator in `jac0core/compiler.jac` defines several pass schedules. For the default Python target, the full pipeline runs roughly as follows:
+The compiler orchestrator in `compiler/driver/compiler.jac` defines several pass schedules. For the default Python target, the full pipeline runs roughly as follows:
 
 **IR generation** (`get_ir_gen_sched`):
 
@@ -125,7 +125,7 @@ The compiler orchestrator in `jac0core/compiler.jac` defines several pass schedu
 5. `JcirGenPass` -- Lower the unitree into the compact codegen IR container
 6. `JcirBytecodeGenPass` -- Rebuild the Python AST from the container and compile it to bytecode
 
-See `jac0core/compiler.jac` for the authoritative ordering -- it uses re-entrancy guards during bootstrap that slightly alter the schedule when the compiler is compiling itself.
+See `compiler/driver/compiler.jac` for the authoritative ordering -- it uses re-entrancy guards during bootstrap that slightly alter the schedule when the compiler is compiling itself.
 
 ### `compiler/passes/native/` -- Native Compilation
 

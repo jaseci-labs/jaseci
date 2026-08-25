@@ -5,8 +5,8 @@ import sys;
 import time;
 import shutil;
 import from pathlib { Path }
-import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.bccache { discover_base_file }
+import from jaclang.compiler.frontend.constant { CodeContext }
+import from jaclang.compiler.driver.bccache { discover_base_file }
 import from jaclang.cli.console { console }
 
 glob logger = logging.getLogger(__name__);
@@ -321,7 +321,7 @@ impl HotReloader._refresh_routing(file_path: str) -> None {
 }
 
 impl HotReloader._reload_server_module(file_path: str) -> None {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     sys.modules.pop(self.module_name, None);
     program = Jac.program;
@@ -366,7 +366,7 @@ impl HotReloader._reload_server_module(file_path: str) -> None {
 }
 
 impl HotReloader._recompile_client_unified(file_path: str) -> None {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.runtimelib.client_bundle { ClientBundleError }
     try {
         source_path = Path(file_path).resolve();
@@ -465,7 +465,7 @@ impl HotReloader._signal_full_reload -> None {
 impl HotReloader._recompile_client_code(
     file_path: str, visited: set | None = None, force: bool = True
 ) -> None {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     if self.client_compiler {
         self._recompile_client_unified(file_path);
         return;
@@ -576,7 +576,7 @@ impl HotReloader._get_js_filename(file_path: str) -> str {
 }
 
 impl HotReloader._classify_declarations(file_path: str) -> tuple[bool, bool] {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     has_client = False;
     has_server = False;
     try {

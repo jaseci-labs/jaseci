@@ -179,8 +179,8 @@ impl OverloadedType.__str__ -> str {
 }
 
 impl ClassType.is_node_type -> bool {
-    import from jaclang.jac0core.unitree { Archetype }
-    import from jaclang.jac0core.constant { SymbolType }
+    import from jaclang.compiler.frontend.unitree { Archetype }
+    import from jaclang.compiler.frontend.constant { SymbolType }
     if self.shared.is_root_class {
         return True;
     }
@@ -190,16 +190,16 @@ impl ClassType.is_node_type -> bool {
 }
 
 impl ClassType.is_edge_type -> bool {
-    import from jaclang.jac0core.unitree { Archetype }
-    import from jaclang.jac0core.constant { SymbolType }
+    import from jaclang.compiler.frontend.unitree { Archetype }
+    import from jaclang.compiler.frontend.constant { SymbolType }
     arch = self.shared.symbol_table;
     assert isinstance(arch, Archetype);
     return (arch.sym_category == SymbolType.EDGE_ARCH);
 }
 
 impl ClassType.is_walker_type -> bool {
-    import from jaclang.jac0core.unitree { Archetype }
-    import from jaclang.jac0core.constant { SymbolType }
+    import from jaclang.compiler.frontend.unitree { Archetype }
+    import from jaclang.compiler.frontend.constant { SymbolType }
     arch = self.shared.symbol_table;
     assert isinstance(arch, Archetype);
     return (arch.sym_category == SymbolType.WALKER_ARCH);
@@ -237,7 +237,7 @@ impl ClassType.is_builtin(class_name: (str | list[str] | None) = None) -> bool {
 impl ClassType.lookup_member_symbol(
     member: str, r_overloaded: list | None = None
 ) -> (Symbol | None) {
-    import from jaclang.jac0core.unitree {
+    import from jaclang.compiler.frontend.unitree {
         Ability,
         Archetype,
         Assignment,
@@ -312,7 +312,7 @@ impl ClassType.lookup_member_symbol(
 }
 
 impl ClassType.get_class_symbol -> (Symbol | None) {
-    import from jaclang.jac0core.unitree { Archetype }
+    import from jaclang.compiler.frontend.unitree { Archetype }
     symbol_table = self.shared.symbol_table;
     if not isinstance(symbol_table, Archetype) {
         return None;

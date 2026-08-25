@@ -1,5 +1,5 @@
 import from typing { cast }
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     Archetype,
     AssertStmt,
@@ -51,7 +51,7 @@ import from jaclang.jac0core.unitree {
     WhileStmt,
     WithStmt
 }
-import from jaclang.jac0core.passes.uni_pass { UniPass }
+import from jaclang.compiler.passes.uni_pass { UniPass }
 
 obj CFGBuildPass(UniPass) {
     static has PROVIDES: tuple = ('cfg', );

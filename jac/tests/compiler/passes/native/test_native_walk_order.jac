@@ -32,9 +32,9 @@ import ctypes;
 import hashlib;
 import os;
 import from pathlib { Path }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
 
 glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures"),
      WALK_ORDERS: list = [None, "reverse", "shuffle:1337", "shuffle:7", "shuffle:42"];

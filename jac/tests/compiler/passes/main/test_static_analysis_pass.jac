@@ -3,8 +3,8 @@
 import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "static_analysis"
@@ -238,9 +238,9 @@ test "bootstrap-compiled modules keep the ambient-import advisory" {
     import from jaclang.compiler.passes.main.static_analysis_pass {
         is_bootstrap_compiled_module
     }
-    assert is_bootstrap_compiled_module("/repo/jac/jaclang/jac0core/runtime.jac");
+    assert is_bootstrap_compiled_module("/repo/jac/jaclang/runtime/runtime.jac");
     assert is_bootstrap_compiled_module(
-        "/repo/jac/jaclang/jac0core/passes/uni_pass.jac"
+        "/repo/jac/jaclang/compiler/passes/uni_pass.jac"
     );
     assert is_bootstrap_compiled_module(
         "C:\\repo\\jac\\jaclang\\jac0core\\runtime.jac"
@@ -256,8 +256,8 @@ test "bootstrap-compiled modules keep the ambient-import advisory" {
     # does, feeding it the entries of changed-jac.txt. Matching only the
     # absolute spelling made the same file report E1125 relatively and nothing
     # absolutely.
-    assert is_bootstrap_compiled_module("jaclang/jac0core/runtime.jac");
-    assert is_bootstrap_compiled_module("jaclang/jac0core/passes/jcir_gen_pass.jac");
+    assert is_bootstrap_compiled_module("jaclang/runtime/runtime.jac");
+    assert is_bootstrap_compiled_module("jaclang/compiler/backends/py/jcir_gen_pass.jac");
     assert is_bootstrap_compiled_module("jaclang\\jac0core\\runtime.jac");
     assert not is_bootstrap_compiled_module(
         "jaclang/compiler/passes/main/layout_pass.jac"

@@ -92,8 +92,8 @@ def _root_entry(stem: str, triple: (str | None) = None) -> dict {
 
 test "a jaclang image whose native roots resolve loads" {
     pdir = _write_image(
-        native={"roots": ["jaclang.jac0core.unitree"], "skip_reason": None},
-        artifacts={"jaclang.jac0core.unitree": _root_entry("unitree")}
+        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
+        artifacts={"jaclang.compiler.frontend.unitree": _root_entry("unitree")}
     );
     image = load_image(pdir);
     assert image is not None;
@@ -102,18 +102,18 @@ test "a jaclang image whose native roots resolve loads" {
 
 test "a declared root with no artifact entry refuses to load, by name" {
     pdir = _write_image(
-        native={"roots": ["jaclang.jac0core.unitree"], "skip_reason": None},
+        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
         artifacts={}
     );
-    with testraises(RuntimeError, `match="jaclang.jac0core.unitree") {
+    with testraises(RuntimeError, `match="jaclang.compiler.frontend.unitree") {
         load_image(pdir);
     }
 }
 
 test "a deliberately removed artifact file fails the image at load" {
     pdir = _write_image(
-        native={"roots": ["jaclang.jac0core.unitree"], "skip_reason": None},
-        artifacts={"jaclang.jac0core.unitree": _root_entry("unitree")}
+        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
+        artifacts={"jaclang.compiler.frontend.unitree": _root_entry("unitree")}
     );
     (pdir / "native/host/libjac_unitree.so").unlink();
     with testraises(RuntimeError, `match="missing its artifact file") {
@@ -123,9 +123,9 @@ test "a deliberately removed artifact file fails the image at load" {
 
 test "a wrong-platform artifact refuses to load rather than dlopen-failing later" {
     pdir = _write_image(
-        native={"roots": ["jaclang.jac0core.unitree"], "skip_reason": None},
+        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
         artifacts={
-            "jaclang.jac0core.unitree": _root_entry("unitree", triple=WRONG_TRIPLE)
+            "jaclang.compiler.frontend.unitree": _root_entry("unitree", triple=WRONG_TRIPLE)
         }
     );
     with testraises(RuntimeError, `match="targets") {
@@ -181,8 +181,8 @@ test "app images keep their compatibility: older formats, no native record" {
 
 test "JAC_NO_SEAL against an existing image refuses instead of degrading" {
     pdir = _write_image(
-        native={"roots": ["jaclang.jac0core.unitree"], "skip_reason": None},
-        artifacts={"jaclang.jac0core.unitree": _root_entry("unitree")}
+        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
+        artifacts={"jaclang.compiler.frontend.unitree": _root_entry("unitree")}
     );
     saved = os.environ.pop("JAC_NO_SEAL", None);
     os.environ["JAC_NO_SEAL"] = "1";
@@ -200,8 +200,8 @@ test "JAC_NO_SEAL against an existing image refuses instead of degrading" {
 
 test "a corrupt artifact entry raises at resolution; an absent one is None" {
     pdir = _write_image(
-        native={"roots": ["jaclang.jac0core.unitree"], "skip_reason": None},
-        artifacts={"jaclang.jac0core.unitree": _root_entry("unitree")}
+        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
+        artifacts={"jaclang.compiler.frontend.unitree": _root_entry("unitree")}
     );
     image = load_image(pdir);
     assert image is not None;
@@ -212,7 +212,7 @@ test "a corrupt artifact entry raises at resolution; an absent one is None" {
     # bytes on disk. A sealed build has no fallback tier for this module, so
     # the resolver must raise, never quietly downgrade.
     with testraises(RuntimeError, `match="sha256") {
-        image.native_artifact("jaclang.jac0core.unitree");
+        image.native_artifact("jaclang.compiler.frontend.unitree");
     }
 }
 

@@ -3,7 +3,7 @@ import os;
 import re;
 import from threading { Event }
 import from typing { TypeAlias, cast }
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     ArchBlockStmt,
     Archetype,
@@ -96,9 +96,9 @@ import from jaclang.jac0core.unitree {
     WithStmt,
     YieldExpr
 }
-import from jaclang.jac0core.constant { Tokens as Tok, RESERVED_IDENT_NAMES }
-import from jaclang.jac0core.diagnostics { E5041, E5042 }
-import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.compiler.frontend.constant { Tokens as Tok, RESERVED_IDENT_NAMES }
+import from jaclang.compiler.frontend.diagnostics { E5041, E5042 }
+import from jaclang.compiler.passes.transform { Transform }
 
 glob T = TypeVar('T', bound=UniNode),
      _reserved_keywords = RESERVED_IDENT_NAMES;

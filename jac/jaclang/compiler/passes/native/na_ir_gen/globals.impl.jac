@@ -245,7 +245,7 @@ impl NaIRGenGlobals._infer_global_init_type(
 impl NaIRGenGlobals._codegen_const_expr(
     nd: uni.UniNode, target_type: ir.Type
 ) -> (ir.Constant | None) {
-    import from jaclang.jac0core.const_fold { fold_const }
+    import from jaclang.compiler.backends.py.const_fold { fold_const }
     if self?.jacval_type and target_type == self.jacval_type {
         return None;
     }

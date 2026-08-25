@@ -1,4 +1,4 @@
-import from jaclang.jac0core.constant { OwnershipKind }
+import from jaclang.compiler.frontend.constant { OwnershipKind }
 
 glob _NA_ABC_REDUCTIONS: dict[str, tuple] = {
          "Sequence": ("list", "tuple", "str", "bytes", "bytearray"),
@@ -2924,7 +2924,7 @@ impl NaIRGenCalls._emit_isinstance_user(
 }
 
 impl NaIRGenCalls._flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | None) {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     asgn = nd.parent;
     if not (
         isinstance(asgn, uni.Assignment)
@@ -2977,7 +2977,7 @@ impl NaIRGenCalls._flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | N
 }
 
 impl NaIRGenCalls._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     if nd.tok is None {
         return None;
     }

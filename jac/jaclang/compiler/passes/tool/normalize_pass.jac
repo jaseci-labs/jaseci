@@ -1,7 +1,7 @@
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.passes { UniPass }
-import from jaclang.jac0core.constant { CodeContext, EdgeDir }
-import from jaclang.jac0core.unitree { Tok, EmptyToken, Token }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.passes { UniPass }
+import from jaclang.compiler.frontend.constant { CodeContext, EdgeDir }
+import from jaclang.compiler.frontend.unitree { Tok, EmptyToken, Token }
 
 obj NormalizePass(UniPass) {
     def enter_sub_tag(nd: uni.SubTag) -> None;

@@ -15,12 +15,12 @@ closure and are deliberately untouched.
 
 import os;
 import types;
-import jaclang.jac0core.helpers as helpers_mod;
+import jaclang.compiler.frontend.helpers as helpers_mod;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.codeinfo { native_safe_sym }
-import from jaclang.jac0core.helpers { pascal_to_snake }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.frontend.codeinfo { native_safe_sym }
+import from jaclang.compiler.frontend.helpers { pascal_to_snake }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
@@ -171,7 +171,7 @@ test "helpers module scope binds os and nothing else" {
 # genuinely cannot lower become seams instead of a whole-module refusal.
 test "helpers.jac lowers when a native unit reaches it" {
     import jaclang;
-    import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
     helpers_path = os.path.join(
         os.path.dirname(jaclang.__file__), "jac0core", "helpers.jac"
     );
@@ -226,12 +226,12 @@ test "helpers no longer exports the moved symbols" {
 }
 
 test "the moved symbols resolve from their new modules" {
-    import from jaclang.jac0core.debugger { Jdb, debugger }
-    import from jaclang.jac0core.tomlio {
+    import from jaclang.runtime.debugger { Jdb, debugger }
+    import from jaclang.project.tomlio {
         MalformedJacTomlError,
         read_toml_with_encoding
     }
-    import from jaclang.jac0core.traceback_render { dump_traceback }
+    import from jaclang.runtime.traceback_render { dump_traceback }
     assert isinstance(debugger, Jdb);
     assert callable(read_toml_with_encoding);
     assert callable(dump_traceback);
@@ -244,7 +244,7 @@ test "the moved symbols resolve from their new modules" {
 test "MalformedJacTomlError keeps its identity and its tomllib base" {
     import tempfile;
     import tomllib;
-    import from jaclang.jac0core.tomlio {
+    import from jaclang.project.tomlio {
         MalformedJacTomlError,
         read_toml_with_encoding
     }
@@ -292,7 +292,7 @@ test "the frozen builtins table matches the running interpreter" {
 
 test "the frozen TestCase assert table matches the running interpreter" {
     import from unittest { TestCase }
-    import from jaclang.jac0core.passes.sym_tab_build_pass { TEST_ASSERT_METHOD_NAMES }
+    import from jaclang.compiler.passes.sym_tab_build_pass { TEST_ASSERT_METHOD_NAMES }
     live = [
         j
         for j in dir(TestCase())
@@ -304,7 +304,7 @@ test "the frozen TestCase assert table matches the running interpreter" {
 }
 
 test "a test block still binds the assert names to symbols" {
-    import from jaclang.jac0core.unitree { Name }
+    import from jaclang.compiler.frontend.unitree { Name }
     prog = JacProgram();
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "_idiom_test_asserts.jac"),
@@ -334,9 +334,9 @@ test "a test block still binds the assert names to symbols" {
 test "version-condition comparisons match the operator table they replaced" {
     import sys;
     import ast as py_ast;
-    import from jaclang.jac0core.unitree { IfStmt, PythonModuleAst, Source }
+    import from jaclang.compiler.frontend.unitree { IfStmt, PythonModuleAst, Source }
     import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-    import from jaclang.jac0core.helpers { evaluate_version_condition }
+    import from jaclang.compiler.frontend.helpers { evaluate_version_condition }
     code = "import sys\n"
     "if sys.version_info >= (3, 11):\n    a = 1\n"
     "if sys.version_info > (3, 11):\n    b = 1\n"
@@ -376,7 +376,7 @@ test "version-condition comparisons match the operator table they replaced" {
 # mapping beside the new one, so every CI platform proves the pair agrees.
 test "native_target_os agrees with the platform.system mapping it replaced" {
     import platform;
-    import from jaclang.jac0core.codeinfo { native_target_os }
+    import from jaclang.compiler.frontend.codeinfo { native_target_os }
     prior = os.environ.pop("JAC_NATIVE_TARGET", None);
     try {
         sysname = platform.system();
@@ -398,7 +398,7 @@ test "native_target_os agrees with the platform.system mapping it replaced" {
 }
 
 test "native_target_os still honors the JAC_NATIVE_TARGET override" {
-    import from jaclang.jac0core.codeinfo { native_target_os }
+    import from jaclang.compiler.frontend.codeinfo { native_target_os }
     prior = os.environ.pop("JAC_NATIVE_TARGET", None);
     try {
         for (raw, want) in [
@@ -419,7 +419,7 @@ test "native_target_os still honors the JAC_NATIVE_TARGET override" {
 
 test "Jdb.has_breakpoint still reads the compiled bytecode" {
     import marshal;
-    import from jaclang.jac0core.debugger { debugger }
+    import from jaclang.runtime.debugger { debugger }
     with_bp = compile("breakpoint()\n", "<probe>", "exec");
     without_bp = compile("x = 1\n", "<probe>", "exec");
     assert debugger.has_breakpoint(marshal.dumps(with_bp));
@@ -435,7 +435,7 @@ test "Jdb.has_breakpoint still reads the compiled bytecode" {
 # beside the type so the runtime does no reflection. Reflection is fine HERE --
 # a test is never lowered natively -- so this pins the pair against drift.
 test "placement blocker tables carry the real class name" {
-    import from jaclang.jac0core.placement {
+    import from jaclang.compiler.placement.placement {
         PLACEMENT_NATIVE_REJECT_NODES,
         PLACEMENT_SV_SIGNAL_NODES
     }
@@ -453,7 +453,7 @@ test "placement blocker tables carry the real class name" {
 }
 
 test "scan_native_blockers names the offending node from the table" {
-    import from jaclang.jac0core.placement { scan_native_blockers }
+    import from jaclang.compiler.placement.placement { scan_native_blockers }
     prog = JacProgram();
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "_idiom_jsx_blocker.jac"),

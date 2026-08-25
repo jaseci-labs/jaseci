@@ -26,8 +26,8 @@ import ctypes;
 import os;
 import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
@@ -142,7 +142,7 @@ test "abc arm: Mapping separates dicts from sequences" {
 
 
 test "abc arm: an ABC with no exact reduction refuses instead of guessing" {
-    import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
     prog = JacProgram();
     na_coverage_begin();
     try {
@@ -164,7 +164,7 @@ test "abc arm: an ABC with no exact reduction refuses instead of guessing" {
 
 
 test "abc arm: a Python-based operand refuses rather than read a partial MRO" {
-    import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
     prog = JacProgram();
     na_coverage_begin();
     try {

@@ -57,7 +57,7 @@ obj NativeJServer {
         _prebound_listen_socket: any = None;
 
     def postinit {
-        import from jaclang.jac0core.runtime { JacRuntime }
+        import from jaclang.runtime.runtime { JacRuntime }
         import from jaclang.scale.runtime.lifecycle.drain { build_drain_middleware }
         server = self;
 

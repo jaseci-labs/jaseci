@@ -16,7 +16,7 @@ impl EsastGenPass._ensure_backend -> None {
             self.backend = resolve_active_backend();
         } except ValueError {
             import from jaclang.project.config { get_config }
-            import from jaclang.jac0core.diagnostics { E5081 }
+            import from jaclang.compiler.frontend.diagnostics { E5081 }
             import from jaclang.compiler.passes.ecmascript.backends.react {
                 ReactBackend
             }
@@ -181,7 +181,7 @@ impl EsastGenPass.exit_name(nd: uni.Name) -> None {
         );
         return;
     }
-    import from jaclang.jac0core.scalars { is_sized }
+    import from jaclang.runtime.scalars { is_sized }
     import from jaclang.compiler.type_system.types { ClassType as _ClassType }
     if (
         is_sized(nd.sym_name)
@@ -1749,7 +1749,7 @@ impl EsastGenPass._warn_rpc_callable_params(
         return;
     }
     import re;
-    import from jaclang.jac0core.diagnostics { W6005 }
+    import from jaclang.compiler.frontend.diagnostics { W6005 }
     _sig = ability_node.signature;
     for _plist in [_sig.posonly_params, _sig.params or [], _sig.kwonlyargs] {
         for _p in _plist {
@@ -1830,7 +1830,7 @@ impl EsastGenPass._build_server_forwarder(
     self._inject_runtime_import('__jacCallFunction', jac_node);
     ret_label = self._forwarder_ret_label(ability_node);
     if ret_label {
-        import from jaclang.jac0core.diagnostics { W6009 }
+        import from jaclang.compiler.frontend.diagnostics { W6009 }
         self.emit(W6009, node_override=jac_node, name=func_name, ret=ret_label);
     }
     return self.sync_loc(
@@ -4694,7 +4694,7 @@ impl EsastGenPass._has_import(name: str) -> bool {
 }
 
 impl EsastGenPass._register_jac_virtual_import(module_id: str) -> None {
-    import from jaclang.jac0core.modresolver { resolve_jac_virtual_module_path }
+    import from jaclang.compiler.driver.modresolver { resolve_jac_virtual_module_path }
     if not self.client_manifest or module_id in self.client_manifest.imports {
         return;
     }
@@ -5179,7 +5179,7 @@ impl EsastGenPass.exit_ability(nd: uni.Ability) -> None {
 }
 
 impl EsastGenPass._osp_model -> OspModel {
-    import from jaclang.jac0core.osp_model { get_osp_model }
+    import from jaclang.runtime.osp_model { get_osp_model }
     _root = self.ir_in if isinstance(self.ir_in, uni.Module) else self.get_main_mod();
     return get_osp_model(_root);
 }
@@ -5551,7 +5551,7 @@ impl EsastGenPass._osp_slots_js(slots: list, tags: dict) -> str {
                 ttag = tags[trig] if (trig in tags) else -1;
                 if ttag < 0 {
                     if self._arch_kind_by_name(trig) in ("node", "edge", "walker") {
-                        import from jaclang.jac0core.osp_model { stable_osp_tag }
+                        import from jaclang.runtime.osp_model { stable_osp_tag }
                         ttag = stable_osp_tag(trig);
                     }
                 }
@@ -5662,12 +5662,12 @@ impl EsastGenPass._edge_tag_literal(
             _xkind = self._arch_kind_of_type(self._expr_class_type(type_expr));
         }
         if _xkind in ("node", "edge") {
-            import from jaclang.jac0core.osp_model { stable_osp_tag }
+            import from jaclang.runtime.osp_model { stable_osp_tag }
             _tag = stable_osp_tag(_etname);
         }
     }
     if (_tag < 0) and hard {
-        import from jaclang.jac0core.diagnostics { E5097 }
+        import from jaclang.compiler.frontend.diagnostics { E5097 }
         self.emit(
             E5097,
             node_override=nd,
@@ -5678,7 +5678,7 @@ impl EsastGenPass._edge_tag_literal(
 }
 
 impl EsastGenPass._build_edge_ref(nd: uni.EdgeRefTrailer) -> es.Expression {
-    import from jaclang.jac0core.diagnostics { E5097 }
+    import from jaclang.compiler.frontend.diagnostics { E5097 }
     fail = self.sync_loc(es.ArrayExpression(elements=[]), jac_node=nd);
     chain = nd.chain;
     if not chain {
@@ -5795,7 +5795,7 @@ impl EsastGenPass._build_edge_ref(nd: uni.EdgeRefTrailer) -> es.Expression {
 impl EsastGenPass._build_osp_filter_pred(
     nd: uni.UniNode, filt: uni.FilterCompr
 ) -> (es.Expression | None) {
-    import from jaclang.jac0core.diagnostics { E5097 }
+    import from jaclang.compiler.frontend.diagnostics { E5097 }
     parts: list[es.Expression] = [];
     if filt.f_type is not None {
         _ntag = self._edge_tag_literal(nd, filt.f_type, True);
@@ -6598,12 +6598,12 @@ impl EsastGenPass._generate_sv_import_stubs(
 }
 
 impl EsastGenPass._is_client_native_import(nd: uni.Import) -> bool {
-    import from jaclang.jac0core.boundary_classify { import_binds_client_native }
+    import from jaclang.compiler.driver.boundary_classify { import_binds_client_native }
     return import_binds_client_native(nd, self.ir_in.gen.interop_manifest);
 }
 
 impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
-    import from jaclang.jac0core.codeinfo { native_wasm_stem }
+    import from jaclang.compiler.frontend.codeinfo { native_wasm_stem }
     resolved_path = nd.from_loc.resolve_relative_path();
     stem = native_wasm_stem(resolved_path);
 
@@ -7605,7 +7605,7 @@ impl EsastGenPass._get_ast_or_default(
         and (nd not in self._unlowered_reported)
         and self._is_client_destined(nd)
     ) {
-        import from jaclang.jac0core.diagnostics { E5097 }
+        import from jaclang.compiler.frontend.diagnostics { E5097 }
         self._unlowered_reported.add(nd);
         self.emit(E5097, node_override=nd, kind=nd.__class__.__name__);
     }
@@ -8133,7 +8133,7 @@ impl EsastGenPass._fw_to_number(
 }
 
 impl EsastGenPass._apply_fw_coercion(nd: uni.Expr) -> None {
-    import from jaclang.jac0core.scalars { shape_of }
+    import from jaclang.runtime.scalars { shape_of }
     dst = nd.coerce_to;
     cur = nd.gen.es_ast;
     if dst is None or not isinstance(cur, es.Expression) {
@@ -8198,7 +8198,7 @@ impl EsastGenPass._apply_fw_coercion(nd: uni.Expr) -> None {
 impl EsastGenPass._fw_binary(
     nd: uni.Expr, op: str, left: es.Expression, right: es.Expression
 ) -> (es.Expression | None) {
-    import from jaclang.jac0core.scalars { shape_of }
+    import from jaclang.runtime.scalars { shape_of }
     name = nd.fw;
     if name is None {
         return None;
@@ -8274,12 +8274,12 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
 }
 
 impl EsastGenPass.before_pass -> None {
-    import from jaclang.jac0core.codeinfo { ClientManifest }
+    import from jaclang.compiler.frontend.codeinfo { ClientManifest }
 
-    import from jaclang.jac0core.passes.module_codegen_pass {
+    import from jaclang.compiler.backends.py.module_codegen_pass {
         client_capability_violations
     }
-    import from jaclang.jac0core.diagnostics { E5096 }
+    import from jaclang.compiler.frontend.diagnostics { E5096 }
     if not self.ir_in.client_viols_reported {
         for (_vnode, _vkind) in client_capability_violations(self.ir_in) {
             self.emit(E5096, node_override=_vnode, kind=_vkind);
@@ -8294,7 +8294,7 @@ impl EsastGenPass.before_pass -> None {
         self.ir_in.gen.interop_manifest.endpoint_effects
     );
 
-    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
+    import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
     self.shared_arch_names: set[str] = {
         a.name.value
         for a in ModuleCodegenPass.shared_archetypes_for_context(

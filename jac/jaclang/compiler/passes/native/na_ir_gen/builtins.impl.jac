@@ -987,7 +987,7 @@ impl NaIRGenBuiltins._codegen_string_slice(
 }
 
 impl NaIRGenBuiltins._hl_view_base_licensed(base_node: object) -> bool {
-    import from jaclang.jac0core.constant { OwnershipKind }
+    import from jaclang.compiler.frontend.constant { OwnershipKind }
     _x = base_node;
     while isinstance(_x, uni.AtomTrailer) {
         _x = _x.target;

@@ -38,10 +38,10 @@ import from tests.support {
     native_force_opts
 }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
@@ -1477,7 +1477,7 @@ test "na_method_import" {
 # native lowering with E5092 ("type 'int'") under inferred-native, while a
 # flat diamond (a imports b and c directly) lowered fine.
 test "cross-module transitive chain executes via native inference" {
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.frontend.codeinfo {
         set_effective_default_codespace,
         get_effective_default_codespace_override
     }
@@ -3001,7 +3001,7 @@ test "cache marker non native file has no llvmir section in jir" {
     import tempfile;
     import time;
     import shutil;
-    import from jaclang.jac0core.jir {
+    import from jaclang.compiler.driver.jir {
         get_module_cache_path,
         read_sections,
         SECTIONS_MAGIC,
@@ -3020,7 +3020,7 @@ test "cache marker non native file has no llvmir section in jir" {
     os.utime(jac_file, (past, past));
 
     try {
-        import from jaclang.jac0core.compiler { JacCompiler }
+        import from jaclang.compiler.driver.compiler { JacCompiler }
         prog = JacProgram();
         JacCompiler().get_bytecode(jac_file, prog);
 
@@ -3202,7 +3202,7 @@ test "clib extensionless import resolves per platform (issue #6387)" {
     # libraylib.so (ELF) / libraylib.dylib (Mach-O) / raylib.dll (PE). Cross-
     # targets via JAC_NATIVE_TARGET, mirroring the AArch64 ABI test below.
     import os as _os;
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     _saved = _os.environ.get("JAC_NATIVE_TARGET");
     _fix = str(os.path.join(FIXTURES, "clib_logical_import.jac"));
     try {
@@ -3233,7 +3233,7 @@ test "clib dotted logical import maps to origin-relative subdir (issue #6387)" {
     # lookup to the binary's directory via the loader token, composing with the
     # $ORIGIN / @loader_path runpath from #6380.
     import os as _os;
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     _saved = _os.environ.get("JAC_NATIVE_TARGET");
     _fix = str(os.path.join(FIXTURES, "clib_logical_dotted.jac"));
     try {
@@ -3388,7 +3388,7 @@ test "clib AArch64 AAPCS ABI lowering" {
     # Cross-targets aarch64 (works from any host) and asserts the emitted
     # foreign-call ABI matches what clang produces under AAPCS (Phase 2 of #6353).
     import os as _os;
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     _saved = _os.environ.get("JAC_NATIVE_TARGET");
     _os.environ["JAC_NATIVE_TARGET"] = "aarch64-unknown-linux-gnu";
     try {
@@ -3617,8 +3617,8 @@ glob CHESS_JAC = os.path.join(JAC_ROOT, "examples", "chess", "chess.jac");
 
 """Compile a regular .jac file under a native default and return the engine."""
 def compile_auto_native(file_path: str) -> tuple[uni.Module, JacProgram] {
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.frontend.codeinfo { set_effective_default_codespace }
     prog = JacProgram();
     try {
         ir = prog.compile(
@@ -4493,8 +4493,8 @@ test "switch_stmt" {
 # --- TestJIRBitcodeCaching ---
 test "jir bitcode cache round-trip" {
     import struct;
-    import from jaclang.jac0core.compiler { JacCompiler }
-    import from jaclang.jac0core.jir {
+    import from jaclang.compiler.driver.compiler { JacCompiler }
+    import from jaclang.compiler.driver.jir {
         get_module_cache_path,
         SECTIONS_MAGIC,
         HEADER_SIZE,
@@ -5037,7 +5037,7 @@ test "mixed transitive dup: unique symbol from B resolves after A was linked" {
 # distinct, and the result must stay LLVM-identifier-safe.
 test "native_safe_sym disambiguates flat vs dotted path collision" {
     import re;
-    import from jaclang.jac0core.codeinfo { native_safe_sym }
+    import from jaclang.compiler.frontend.codeinfo { native_safe_sym }
     flat = "math_utils.na";
     dotted = "math/utils.na";
     # Document the pre-existing collision under the legacy transform: both
@@ -6332,8 +6332,8 @@ test "jac test runs inferred-native test blocks natively (item #19)" {
 test "restore-failure falls back to recompile for inferred modules (item #19)" {
     import shutil;
     import from unittest.mock { patch }
-    import from jaclang.jac0core.compiler { JacCompiler }
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.driver.compiler { JacCompiler }
+    import from jaclang.compiler.frontend.codeinfo {
         set_effective_default_codespace,
         get_effective_default_codespace_override
     }

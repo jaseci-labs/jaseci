@@ -1,5 +1,5 @@
-import from jaclang.jac0core.unitree { Module, SemDef, Symbol, UniScopeNode }
-import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.compiler.frontend.unitree { Module, SemDef, Symbol, UniScopeNode }
+import from jaclang.compiler.passes.transform { Transform }
 
 obj SemDefMatchPass(Transform) {
     def transform(ir_in: Module) -> Module;

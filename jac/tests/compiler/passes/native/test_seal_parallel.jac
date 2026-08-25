@@ -62,7 +62,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      POOL_ROOTS: tuple = ("pool_alpha.jac", "pool_beta.jac"),
      ABSENT_ROOTS: tuple = (
          "compiler/native_materialize.jac",
-         "jac0core/passes/no_such_seal_root.jac"
+         "compiler/passes/no_such_seal_root.jac"
      ),
      _ALPHA_SRC: str = "\n".join(
          [
@@ -168,7 +168,7 @@ test "the pool still refuses the materializer without unitree's layout" {
         assert "the materializer root is generated from the unitree layout" in err , (
             f"the ordering refusal did not survive the worker boundary: {err}"
         );
-        assert "seal jac0core/unitree.jac first" in err , (
+        assert "seal compiler/frontend/unitree.jac first" in err , (
             f"the refusal lost the instruction that makes it actionable: {err}"
         );
     } finally {
@@ -308,7 +308,7 @@ test "a worker reaches the seal from a cwd that has nothing to do with it" {
         Path(os.path.join(decoy, "jaclang", "__init__.jac")).write_text(
             "glob DECOY_JACLANG_BESIDE_THE_CWD: int = 1;\n", encoding="utf-8"
         );
-        proc = _worker_from(decoy, out, "jac0core/passes/no_such_seal_root.jac");
+        proc = _worker_from(decoy, out, "compiler/passes/no_such_seal_root.jac");
         err = proc.stderr or "";
         assert "imported jaclang from" not in err , (
             f"the worker resolved a different jaclang tree than its parent: {err}"

@@ -1,6 +1,6 @@
 import from jaclang.compiler.passes.native.llvm { ir }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
 
 obj NaIRGenState(ModuleCodegenPass) {
     has _llvm_module: (ir.Module | None) = None,

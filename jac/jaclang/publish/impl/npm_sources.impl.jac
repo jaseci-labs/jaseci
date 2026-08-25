@@ -121,7 +121,7 @@ def _crosses_server_boundary(mod: any) -> bool {
 }
 
 def _compile_module(program: any, path: Path) -> any {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     source_key = str(path);
     prev = len(program.errors_had);
 
@@ -132,7 +132,7 @@ def _compile_module(program: any, path: Path) -> any {
         raise ValueError(f"Failed to compile '{path}' for npm bundle:\n{formatted}");
     }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
-    import from jaclang.jac0core.pass_driver { run_pass }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
     if mod and mod.gen and not mod.gen.js {
         run_pass(EsastGenPass, mod, program);
     }
@@ -155,7 +155,7 @@ impl collect_npm_sources(
         );
     }
 
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     program = JacProgram();
 
     runtime_pkg = runtime_pkg_name(config);

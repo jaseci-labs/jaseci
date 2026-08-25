@@ -1474,7 +1474,7 @@ def _build_exc_runtime_js -> str {
 }
 
 def _build_types_runtime_js -> str {
-    import from jaclang.jac0core.constant { TOKEN_MAP }
+    import from jaclang.compiler.frontend.constant { TOKEN_MAP }
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
     import from jaclang.compiler.passes.ecmascript.primitives_es {
@@ -1535,7 +1535,7 @@ def _build_types_runtime_js -> str {
         }
         entries.append("    " + name + ': _t("' + name + '", (...a) => ' + body + ")");
     }
-    import from jaclang.jac0core.scalars { numeric_shapes }
+    import from jaclang.runtime.scalars { numeric_shapes }
     sized_lines: list[str] = [];
     for shape in numeric_shapes() {
         if not shape.sized {
@@ -1578,7 +1578,7 @@ def _build_types_runtime_js -> str {
 }
 
 def _build_fw_runtime_js -> str {
-    import from jaclang.jac0core.scalars { numeric_shapes, range_of }
+    import from jaclang.runtime.scalars { numeric_shapes, range_of }
     rows: list[str] = [];
     for shape in numeric_shapes() {
         if not shape.sized {
@@ -1768,17 +1768,17 @@ def build_osp_core_js -> str {
     if _OSP_CORE_JS_CACHE {
         return _OSP_CORE_JS_CACHE[0];
     }
-    import from jaclang.jac0core.kernel_units {
+    import from jaclang.compiler.backends.kernel_units {
         es_pass_fingerprint,
         load_unit_artifact,
         osp_core_unit_path,
         store_unit_artifact
     }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
     import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
     import from jaclang.compiler.passes.ecmascript { estree as es }
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     fp = es_pass_fingerprint();
     cl_copy = osp_core_unit_path('cl');
     cached = load_unit_artifact(cl_copy, "mjs", fp);
@@ -1791,7 +1791,7 @@ def build_osp_core_js -> str {
         file_path=cl_copy,
         options=CompileOptions(force_codespace='client', no_cgen=True)
     );
-    import from jaclang.jac0core.pass_driver { run_pass }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
     program = run_pass(EsastGenPass, ir, prog).ir_out.gen.es_ast;
     kept: list = [];
     if isinstance(program, es.Program) {

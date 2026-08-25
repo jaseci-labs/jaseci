@@ -2327,7 +2327,7 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                 and not is_inplace_set_op
                 and not _is_raw_int_ptr
             ) {
-                import from jaclang.jac0core.constant { OwnershipKind }
+                import from jaclang.compiler.frontend.constant { OwnershipKind }
                 _own_str_re = (
                     self._nogc_headerless()
                     and len(nd.target) == 1
@@ -2588,7 +2588,7 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                 } else {
                     self.rc_ops_elided += 1;
                 }
-                import from jaclang.jac0core.constant { OwnershipKind }
+                import from jaclang.compiler.frontend.constant { OwnershipKind }
                 _own_str_glob = (
                     self._nogc_headerless()
                     and self._str_desc_ty is not None
@@ -2778,7 +2778,7 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                 if getattr(value, 'opname', '') == 'inttoptr' {
                     self.param_vars.add(var_name);
                 } else {
-                    import from jaclang.jac0core.constant { OwnershipKind }
+                    import from jaclang.compiler.frontend.constant { OwnershipKind }
                     _own_str_tgt = (
                         self._nogc_headerless()
                         and self._str_desc_ty is not None
@@ -3271,7 +3271,7 @@ impl NaIRGenStmt._codegen_for(nd: uni.InForStmt) -> None {
 }
 
 impl NaIRGenStmt._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     _is_flow = False;
     for k in nd.kid {
         if isinstance(k, uni.Token) and k.name == Tok.KW_FLOW {

@@ -5,8 +5,8 @@ import from queue { Queue }
 import from typing { cast }
 import from uuid { UUID }
 
-import from jaclang.jac0core.archetype { NodeAnchor, PermissionDenied, Root }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.runtime.archetype { NodeAnchor, PermissionDenied, Root }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.runtimelib.session { Session }
 
 import from jaclang.runtimelib.query_planner { resolve_query as _rq_anchor }

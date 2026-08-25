@@ -202,7 +202,7 @@ impl resolve_route_exports(module_path: Path) -> tuple[((str | None), (str | Non
 }
 
 impl _route_exports_from_ast(mod: any) -> tuple[((str | None), (str | None))] {
-    import jaclang.jac0core.unitree as uni;
+    import jaclang.compiler.frontend.unitree as uni;
     page_name: (str | None) = None;
     layout_name: (str | None) = None;
     try {

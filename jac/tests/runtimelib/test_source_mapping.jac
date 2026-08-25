@@ -292,7 +292,7 @@ test "read source snippet handles edge case" {
 """Compile a .jac file through the ES compiler and verify that each
 generated JS line maps back to the exact .jac source line."""
 test "es compiler produces exact line mapping for function body statements" {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     with TemporaryDirectory() as tmpdir {
         # Write a .jac file with distinct statements on known lines

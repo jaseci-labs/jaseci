@@ -9,9 +9,9 @@ import os;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import jaclang.jac0core.unitree as ast;
+import jaclang.compiler.frontend.unitree as ast;
 import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.runtimelib.test { parametrize }
 import from tests.fixtures_list { JACLANG_PYTHON_FILES }

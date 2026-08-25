@@ -70,7 +70,7 @@ impl WebTarget.start(
     entry_file: Path, project_dir: Path, api_port: int = 8000
 ) -> None {
     import from jaclang.cli.console { console }
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     bundler = ViteBundler(project_dir=project_dir);
     console.print("\n🌐 Building web bundle for production preview...", style="bold");
@@ -102,7 +102,7 @@ impl WebTarget.build(
     entry_file: Path, project_dir: Path, platform: Optional[str] = None
 ) -> Path {
     import shutil;
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.runtimelib.client.vite_client_bundle {
         make_client_bundle_builder
     }
@@ -148,7 +148,7 @@ impl WebTarget.build(
 }
 
 def _get_client_function_name(loaded_mod: types.ModuleType) -> str {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     mod_path = loaded_mod?.__file__;
     if not mod_path {

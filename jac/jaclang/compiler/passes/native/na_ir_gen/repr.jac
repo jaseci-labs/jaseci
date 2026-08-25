@@ -1,6 +1,6 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
 
 obj NaIRGenRepr(NaIRGenState) {
     def _emit_container_repr(

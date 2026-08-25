@@ -68,7 +68,7 @@ impl JacTestClient._ensure_initialized -> None {
     Jac.set_context(mach);
 
     import from jaclang.project.config { set_config, get_config }
-    import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
+    import from jaclang.compiler.frontend.codeinfo { set_effective_default_codespace }
     pinned = self._config;
     if pinned is not None {
         set_config(pinned);

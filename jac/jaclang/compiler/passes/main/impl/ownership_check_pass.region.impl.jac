@@ -1,4 +1,4 @@
-import from jaclang.jac0core.diagnostics { E1307, E1314, W1310 }
+import from jaclang.compiler.frontend.diagnostics { E1307, E1314, W1310 }
 
 impl OwnershipCheckPass._partition_sugar_reason(call: FuncCall) -> str {
     _params = [p for p in (call.params or [])];

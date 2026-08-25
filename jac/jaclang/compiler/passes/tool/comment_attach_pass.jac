@@ -1,6 +1,6 @@
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.codeinfo { NodeComments }
-import from jaclang.jac0core.passes { Transform }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.codeinfo { NodeComments }
+import from jaclang.compiler.passes { Transform }
 
 obj CommentAttachPass(Transform) {
     def transform(ir_in: uni.Module) -> uni.Module;

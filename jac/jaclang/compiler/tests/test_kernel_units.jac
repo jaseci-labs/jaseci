@@ -16,7 +16,7 @@ import glob;
 import os;
 import jaclang.compiler.passes.ecmascript.jac_runtime_js as _rtjs;
 import jaclang.compiler.passes.native.na_compile_pass as _nacp;
-import from jaclang.jac0core.kernel_units {
+import from jaclang.compiler.backends.kernel_units {
     OSP_CORE_PARTS,
     osp_core_unit_path,
     store_unit_artifact,

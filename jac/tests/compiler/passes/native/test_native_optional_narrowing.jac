@@ -18,7 +18,7 @@ import os;
 import from tests.support { TESTS_DIR, compile_native, native_force_opts }
 import jaclang;
 
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.runtime { JacRuntime }
 
 import from jaclang.compiler.passes.native.na_ir_gen_pass { NaIRGenPass }
 

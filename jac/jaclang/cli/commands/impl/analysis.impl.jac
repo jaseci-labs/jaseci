@@ -31,8 +31,8 @@ impl check(
     placements: bool = False,
     compile_stats: bool = False
 ) -> int {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.frontend.diagnostic_utils { resolve_diagnostic_tokens }
     import from time { time }
     if lint_only {
         return lint(paths=paths, fix=fix, ignore=ignore);
@@ -52,11 +52,11 @@ impl check(
         );
     }
     if native_coverage {
-        import from jaclang.jac0core.na_coverage { na_coverage_begin }
+        import from jaclang.compiler.driver.na_coverage { na_coverage_begin }
         na_coverage_begin();
     }
     if compile_stats {
-        import from jaclang.jac0core.prefix_flip { prefix_outcomes_reset }
+        import from jaclang.compiler.placement.prefix_flip { prefix_outcomes_reset }
         prefix_outcomes_reset();
     }
 
@@ -88,7 +88,7 @@ impl check(
         prog: JacProgram, file_path: str
     ) -> tuple[bool, int, int, list, list] {
         import os;
-        import from jaclang.jac0core.bccache { discover_base_file }
+        import from jaclang.compiler.driver.bccache { discover_base_file }
         path_obj = Path(file_path);
         if not path_obj.exists() {
             console.error(f"File '{file_path}' does not exist.");
@@ -102,18 +102,18 @@ impl check(
             file_path = base_path;
         }
         try {
-            import from jaclang.jac0core.compile_options { CompileOptions }
+            import from jaclang.compiler.driver.compile_options { CompileOptions }
             console.print(f"  Checking {file_path}...");
             (err_start, warn_start) = (len(prog.errors_had), len(prog.warnings_had));
             if parse_only {
-                import from jaclang.jac0core.parser.frontend {
+                import from jaclang.compiler.frontend.parser.frontend {
                     parse_diags,
                     _replay_diags
                 }
-                import from jaclang.jac0core.parser.lexer { Lexer }
-                import from jaclang.jac0core.parser.parser { Parser as _SyntaxParser }
-                import from jaclang.jac0core.unitree { Source as _Src }
-                import from jaclang.jac0core.helpers {
+                import from jaclang.compiler.frontend.parser.lexer { Lexer }
+                import from jaclang.compiler.frontend.parser.parser { Parser as _SyntaxParser }
+                import from jaclang.compiler.frontend.unitree { Source as _Src }
+                import from jaclang.compiler.frontend.helpers {
                     read_file_with_encoding as _read_src
                 }
                 _src_txt = _read_src(file_path);
@@ -136,7 +136,7 @@ impl check(
             }
 
             if placements {
-                import from jaclang.jac0core.placement { collect_placement_rows }
+                import from jaclang.compiler.placement.placement { collect_placement_rows }
                 placement_report.update(collect_placement_rows(prog));
             }
             for m in prog.mod.hub.values() {
@@ -200,7 +200,7 @@ impl check(
     }
 
     if native_coverage {
-        import from jaclang.jac0core.na_coverage { na_coverage_end }
+        import from jaclang.compiler.driver.na_coverage { na_coverage_end }
         print_native_coverage(na_coverage_end());
     }
     if compile_stats {
@@ -222,7 +222,7 @@ impl check(
 }
 
 impl lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     if isinstance(paths, str) {
         paths = [paths];
     }
@@ -302,7 +302,7 @@ impl lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int {
                 }
             }
 
-            import from jaclang.jac0core.bccache { discover_annex_files }
+            import from jaclang.compiler.driver.bccache { discover_annex_files }
             import os;
             annex_paths = (
                 discover_annex_files(str(path_obj), '.impl.jac')
@@ -395,8 +395,8 @@ def _format_single_file_worker(
     logical_path: str = ""
 ) -> dict {
     import os;
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.helpers { read_file_with_encoding }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
     path_obj = Path(file_path);
 
     effective_logical = logical_path or file_path;
@@ -429,7 +429,7 @@ def _format_single_file_worker(
     annex_formatted_map: dict[str, str] = {};
     annex_logical_map: dict[str, str] = {};
     if lintfix {
-        import from jaclang.jac0core.bccache { discover_annex_files }
+        import from jaclang.compiler.driver.bccache { discover_annex_files }
 
         annex_paths = (
             discover_annex_files(file_path, '.impl.jac')
@@ -995,7 +995,7 @@ impl precommit(
             try {
                 checkout_paths = list(rel_targets);
                 try {
-                    import from jaclang.jac0core.bccache { discover_annex_files }
+                    import from jaclang.compiler.driver.bccache { discover_annex_files }
                     rel_set = {r for r in rel_targets};
                     annex_rel: list[str] = [];
                     for rel in rel_targets {
@@ -1313,11 +1313,11 @@ impl gen_parser -> int {
 }
 
 impl grammar(output: str = "", strict: bool = False) -> int {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.passes.tool.grammar_extract_pass { GrammarExtractPass }
     import jaclang;
     parser_path = str(
-        Path(jaclang.__file__).parent / "jac0core" / "parser" / "parser.jac"
+        Path(jaclang.__file__).parent / "compiler" / "frontend" / "parser" / "parser.jac"
     );
     prog = JacProgram();
     mod = prog.compile(parser_path, no_cgen=True);
@@ -1328,7 +1328,7 @@ impl grammar(output: str = "", strict: bool = False) -> int {
         }
         return 1;
     }
-    import from jaclang.jac0core.pass_driver { run_pass }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
     pass_ = run_pass(GrammarExtractPass, mod, prog);
     if len(pass_.rules) == 0 {
         console.error("No grammar rules extracted.");
@@ -1393,7 +1393,7 @@ def _iter_jac_files(
 
 def _drop_covered_annexes(files: list[str], explicit: set[str]) -> list[str] {
     import os;
-    import from jaclang.jac0core.bccache { discover_base_file }
+    import from jaclang.compiler.driver.bccache { discover_base_file }
     import from jaclang.jac0core.ext_registry { is_annex }
     modules = {
         os.path.realpath(f)
@@ -1414,11 +1414,11 @@ def _drop_covered_annexes(files: list[str], explicit: set[str]) -> list[str] {
 }
 
 def _normalize_ignore_patterns(ignore: list) -> list {
-    import from jaclang.jac0core.helpers { normalize_exclude_patterns }
+    import from jaclang.compiler.frontend.helpers { normalize_exclude_patterns }
     return normalize_exclude_patterns(ignore);
 }
 
 def _should_ignore(file_path: str, ignore_patterns: list) -> bool {
-    import from jaclang.jac0core.helpers { path_matches_exclude }
+    import from jaclang.compiler.frontend.helpers { path_matches_exclude }
     return path_matches_exclude(file_path, ignore_patterns);
 }

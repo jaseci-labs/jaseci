@@ -1,4 +1,4 @@
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     Archetype,
     Assignment,
@@ -31,7 +31,7 @@ import from jaclang.jac0core.unitree {
     UniScopeNode,
     VisitStmt
 }
-import from jaclang.jac0core.mtp {
+import from jaclang.compiler.driver.mtp {
     ClassInfo,
     EnumInfo,
     FieldInfo,
@@ -44,7 +44,7 @@ import from jaclang.jac0core.mtp {
     type_to_str
 }
 
-import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.compiler.passes.transform { Transform }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 glob PRIMITIVE_TYPES: list[str] = [

@@ -8,15 +8,15 @@ mutation pass would — otherwise `jac lint` would silently under-report.
 """
 import os;
 import tempfile;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { JacCompiler }
-import from jaclang.jac0core.schedules { get_lint_sched }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compiler { JacCompiler }
+import from jaclang.compiler.driver.schedules { get_lint_sched }
 import from jaclang.compiler.passes.tool.jac_auto_lint_pass {
     JacAutoLintPass,
     JacLintCheckPass
 }
 import from jaclang.project.config { JacConfig, CheckConfig, LintConfig, set_config }
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 def _diag_keys(prog: JacProgram) -> list[str] {
     keys: list[str] = [];

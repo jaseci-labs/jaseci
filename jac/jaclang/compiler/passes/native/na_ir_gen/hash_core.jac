@@ -1,7 +1,7 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.codeinfo { JACSTR_DESC_FIELDS }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.frontend.codeinfo { JACSTR_DESC_FIELDS }
+import jaclang.compiler.frontend.unitree as uni;
 
 obj NaIRGenHashCore(NaIRGenState) {
     def _emit_hash_core_helpers(

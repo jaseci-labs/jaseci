@@ -1,9 +1,9 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.codeinfo { HDR_RC_OFF, RC_SENTINEL }
-import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.diagnostics { E5092 }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.frontend.codeinfo { HDR_RC_OFF, RC_SENTINEL }
+import from jaclang.compiler.frontend.constant { CodeContext }
+import from jaclang.compiler.frontend.diagnostics { E5092 }
+import jaclang.compiler.frontend.unitree as uni;
 
 obj NaIRGenOsp(NaIRGenState) {
     def _codegen_chained_filter(nd: uni.AtomTrailer) -> (ir.Value | None);

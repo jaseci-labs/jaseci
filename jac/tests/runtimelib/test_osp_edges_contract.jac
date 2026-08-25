@@ -22,18 +22,18 @@ import re;
 import jaclang;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.runtimelib.context { ExecutionContext }
 
 glob SCAN_ROOTS: list[str] = ["jac0core", "runtimelib", "scale", "byllm"],
      SANCTIONED: dict[str, tuple] = {
-         "jac0core/impl/archetype.impl.jac": (
+         "runtime/impl/archetype.impl.jac": (
              4,
              "the field's own primitives: __getstate__ stubs the list for "
              "pickling, edge_delta derives the OCC add/remove sets, and "
              "remove_edge is the mutation bookkeeping detach() rides on"
          ),
-         "jac0core/impl/runtime.impl.jac": (
+         "runtime/impl/runtime.impl.jac": (
              7,
              "mutation bookkeeping and persistence: build_edge's dual-write "
              "appends (the store write sits beside them), disconnect's "
@@ -42,7 +42,7 @@ glob SCAN_ROOTS: list[str] = ["jac0core", "runtimelib", "scale", "byllm"],
              "reset_graph's persistence-record rewrite (paired with "
              "sv_forget_by_id so the store retracts in step)"
          ),
-         "jac0core/osp_graph_sv.jac": (
+         "runtime/osp_graph_sv.jac": (
              1,
              "THE hydration mint: sv_register_hydrated loading the "
              "persistence record into the store is the one sanctioned live "

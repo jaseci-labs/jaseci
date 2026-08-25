@@ -15,7 +15,7 @@ import importlib;
 import os;
 import sys;
 import from tests.support { TESTS_DIR, compile_native, native_force_opts }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
@@ -136,9 +136,9 @@ test "an unsupported body-scoped import demotes its function, callers stay loud"
 # C library that module declares -- onto the native link line, so the artifact
 # fails to link anywhere that library is absent.
 test "nested imports are harvested only from native-context elements" {
-    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
-    import from jaclang.jac0core.constant { CodeContext }
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+    import from jaclang.compiler.frontend.constant { CodeContext }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     prog = JacProgram();
     # No forced codespace: the solver places this module's elements on the
     # server, so its body-scoped import is server-context.

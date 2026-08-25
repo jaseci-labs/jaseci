@@ -1,6 +1,6 @@
 """Test that @property resolves to return type on union types."""
 
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 
 def use_scope(scope: uni.UniScopeNode) -> None {}
 

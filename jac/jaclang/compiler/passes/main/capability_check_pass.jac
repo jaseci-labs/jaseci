@@ -1,4 +1,4 @@
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     ArchSpec,
     Archetype,
@@ -33,14 +33,14 @@ import from jaclang.jac0core.unitree {
     UniNode,
     YieldExpr
 }
-import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.passes.module_codegen_pass {
+import from jaclang.compiler.passes.transform { Transform }
+import from jaclang.compiler.backends.py.module_codegen_pass {
     ModuleCodegenPass,
     client_capability_violations
 }
-import from jaclang.jac0core.constant { SymbolType }
-import from jaclang.jac0core.diagnostics { E5090, E5096, W6001, W6002, W6003, W6004 }
-import from jaclang.jac0core.codeinfo { NATIVE_SUPPORTED_STDLIB }
+import from jaclang.compiler.frontend.constant { SymbolType }
+import from jaclang.compiler.frontend.diagnostics { E5090, E5096, W6001, W6002, W6003, W6004 }
+import from jaclang.compiler.frontend.codeinfo { NATIVE_SUPPORTED_STDLIB }
 
 glob NATIVE_REJECT_NODES: tuple[type[PyInlineCode]] = (PyInlineCode, );
 

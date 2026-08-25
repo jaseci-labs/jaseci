@@ -18,7 +18,7 @@ that reports rather than vanishing.
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.runtimelib.context { ExecutionContext }
 import from jaclang.runtimelib.exceptions { WriteConflict }
 

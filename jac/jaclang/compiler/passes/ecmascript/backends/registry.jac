@@ -1,5 +1,5 @@
 import from jaclang.compiler.passes.ecmascript.framework_backend { FrameworkBackend }
-import from jaclang.jac0core.diagnostics { E5081 }
+import from jaclang.compiler.frontend.diagnostics { E5081 }
 
 glob _BACKENDS: dict[str, FrameworkBackend] = {};
 

@@ -10,10 +10,10 @@ super root); single-tenant flows keep the lazy ungated hop path.
 
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.archetype { EdgeAnchor, GenericEdge }
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.archetype { EdgeAnchor, GenericEdge }
+import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.jac0core.graph_query { GraphQuery, QHop }
+import from jaclang.runtime.graph_query { GraphQuery, QHop }
 import from jaclang.runtimelib.query_planner { resolve_query }
 
 node SecretNode {

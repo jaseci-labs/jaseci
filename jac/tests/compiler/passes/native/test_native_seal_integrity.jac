@@ -41,10 +41,10 @@ import shutil;
 import tempfile;
 import from pathlib { Path }
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.jir { get_native_cache_dir }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.jir { get_native_cache_dir }
+import from jaclang.compiler.driver.program { JacProgram }
 import jaclang.utils.precompile_bytecode as pb;
 import from jaclang.utils.precompile_bytecode {
     seal_abort_stubs,

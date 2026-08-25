@@ -11,8 +11,8 @@ import subprocess;
 import sys;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures" / "nogc"),
      PROG = "str_container_prog.jac";

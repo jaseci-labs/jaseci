@@ -1,6 +1,6 @@
 """Visit target validation.
 
-`visit` accepts (per `JacWalker.visit` in jac0core/runtime.jac):
+`visit` accepts (per `JacWalker.visit` in runtime/runtime.jac):
     Node | Edge | GraphQuery
     | list/tuple/set/frozenset of (Node | Edge)
 

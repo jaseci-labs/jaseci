@@ -27,7 +27,7 @@ import os;
 import sys;
 import from tests.support { TESTS_DIR, compile_native, get_func, native_force_opts }
 
-import from jaclang.jac0core.interop_bridge { _pyb_shadows }
+import from jaclang.runtime.interop_bridge { _pyb_shadows }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"

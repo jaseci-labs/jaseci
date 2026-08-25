@@ -1,4 +1,4 @@
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     Archetype,
     Assignment,
@@ -43,9 +43,9 @@ import from jaclang.jac0core.unitree {
     UniScopeNode,
     WhileStmt
 }
-import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.constant { ExprCtx, SymbolType }
-import from jaclang.jac0core.diagnostics {
+import from jaclang.compiler.passes.transform { Transform }
+import from jaclang.compiler.frontend.constant { ExprCtx, SymbolType }
+import from jaclang.compiler.frontend.diagnostics {
     W1103,
     W2001,
     W2002,
@@ -63,7 +63,7 @@ import from jaclang.jac0core.diagnostics {
     E2055,
     E2083
 }
-import type from jaclang.jac0core.program { JacProgram }
+import type from jaclang.compiler.driver.program { JacProgram }
 
 glob BUILTIN_NAMES: set[str] = {
          'ArithmeticError',
@@ -237,7 +237,12 @@ glob BUILTIN_NAMES: set[str] = {
 
 def is_bootstrap_compiled_module(mod_path: str) -> bool {
     norm = mod_path.replace("\\", "/");
-    return norm.startswith("jaclang/jac0core/") or "/jaclang/jac0core/" in norm;
+    return (
+        norm.startswith(("jaclang/compiler/", "jaclang/runtime/", "jaclang/lib/"))
+        or "/jaclang/compiler/" in norm
+        or "/jaclang/runtime/" in norm
+        or "/jaclang/lib/" in norm
+    );
 }
 
 def is_ambient_provider_module(mod_path: str) -> bool {

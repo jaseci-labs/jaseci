@@ -1,5 +1,5 @@
-import from jaclang.jac0core.const_fold { fold_const }
-import from jaclang.jac0core.diagnostics { E1001 }
+import from jaclang.compiler.backends.py.const_fold { fold_const }
+import from jaclang.compiler.frontend.diagnostics { E1001 }
 import type from jaclang.compiler.type_system.type_evaluator {
     TypeEvaluator,
     PrefetchedTypes

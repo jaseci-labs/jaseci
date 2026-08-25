@@ -1,6 +1,6 @@
 impl cfg_dot_from_file(file_name: str) -> str {
-    import from jaclang.jac0core.pass_driver { run_pass }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
+    import from jaclang.compiler.driver.program { JacProgram }
     with open(file_name, encoding="utf-8") as f {
         file_source = f.read();
     }
@@ -92,7 +92,7 @@ impl CoalesceBBPass._has_bool_sc(condition: Expr) -> bool {
 }
 
 impl CoalesceBBPass._node_label(nd: UniNode) -> str {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
     if isinstance(nd, ElseIf) {
@@ -386,7 +386,7 @@ def _unwrap_to_bool(cfg: CfgExpr) -> BoolExpr | None {
 }
 
 def _bool_is_and(expr: BoolExpr) -> bool {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     return isinstance(expr.op, Token) and expr.op.name == Tok.KW_AND;
 }
 
@@ -855,7 +855,7 @@ impl CFGBuildPass.exit_ctrl_stmt(nd: CtrlStmt) -> None {
     if not loop {
         return;
     }
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     if nd.ctrl.name == Tok.KW_CONTINUE {
         self.link_bbs(nd, loop);
     } elif nd.ctrl.name == Tok.KW_BREAK {

@@ -1,4 +1,4 @@
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     ArchHas,
     Archetype,
@@ -55,8 +55,8 @@ import from jaclang.jac0core.unitree {
     WithStmt,
     YieldExpr
 }
-import from jaclang.jac0core.passes.uni_pass { UniPass }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.passes.uni_pass { UniPass }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.type_system.types {
     AnyType,
     ClassType,
@@ -84,8 +84,8 @@ import from jaclang.compiler.type_system.operations {
     get_pow_result_type
 }
 import type from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
-import type from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.diagnostics {
+import type from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.diagnostics {
     Category,
     DiagnosticInfo,
     E1001,

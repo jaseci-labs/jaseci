@@ -15,7 +15,7 @@ a real computation cannot fold either, and keeps its object-space sort.
 
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.runtimelib.context { ExecutionContext }
 
 node SBoard {

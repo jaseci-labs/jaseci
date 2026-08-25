@@ -8,7 +8,7 @@ import from jaclang.compiler.passes.native.na_ir_gen.constants {
     RC_CYCLE_THRESHOLD
 }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.codeinfo {
+import from jaclang.compiler.frontend.codeinfo {
     HDR_ALLOC_ID_OFF,
     HDR_DTOR_OFF,
     HDR_RC_OFF,

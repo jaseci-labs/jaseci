@@ -1,7 +1,7 @@
 import logging;
 import from uuid { UUID }
 
-import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }
+import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
 
 glob logger = logging.getLogger(__name__),
      __all__ = ['CompiledQuery', 'compile_query'];

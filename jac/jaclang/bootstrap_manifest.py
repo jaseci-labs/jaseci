@@ -24,8 +24,36 @@ from __future__ import annotations
 import os
 
 # Everything the jac0 tier compiles. Directory entries cover subtrees.
+# compiler/passes/ and compiler/backends/ are deliberately listed file by
+# file (or py/-subtree): their siblings (main/, ecmascript/, native/,
+# tool/) are full-compiler modules and must never join the seed set by
+# directory accident.
 SEED_PATHS: tuple[str, ...] = (
-    "jac0core/",
+    "compiler/frontend/",
+    "compiler/driver/",
+    "compiler/placement/",
+    "compiler/backends/py/",
+    "compiler/backends/kernel_units.jac",
+    "compiler/backends/fmt_kernel.jac",
+    "compiler/passes/annex_weave.jac",
+    "compiler/passes/ast_gen/",
+    "compiler/passes/ast_validation_pass.jac",
+    "compiler/passes/boundary_analysis_pass.jac",
+    "compiler/passes/decl_impl_match_pass.jac",
+    "compiler/passes/endpoint_effect_pass.jac",
+    "compiler/passes/pass_rim.jac",
+    "compiler/passes/pass_serve.jac",
+    "compiler/passes/prefix_drive.jac",
+    "compiler/passes/semantic_analysis_pass.jac",
+    "compiler/passes/sym_tab_build_pass.jac",
+    "compiler/passes/transform.jac",
+    "compiler/passes/uni_pass.jac",
+    "compiler/tools/treeprinter.jac",
+    "runtime/",
+    "lib/jaclib.jac",
+    "compiler/driver/mtp.jac",
+    "cli/cli_boot.jac",
+    "project/tomlio.jac",
 )
 
 

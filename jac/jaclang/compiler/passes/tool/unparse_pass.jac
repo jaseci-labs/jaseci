@@ -1,6 +1,6 @@
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.passes { UniPass }
-import from jaclang.jac0core.constant { OwnershipKind, is_mut_kind }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.passes { UniPass }
+import from jaclang.compiler.frontend.constant { OwnershipKind, is_mut_kind }
 
 obj UnparsePass(UniPass) {
     def _comma_sep(nodes: Sequence[uni.UniNode]) -> str;
@@ -141,7 +141,7 @@ def unparse_node(nd: uni.UniNode) -> str {
 def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
     import from jaclang.compiler.passes.tool.jac_formatter_pass { format_module }
     import from jaclang.compiler.passes.tool.normalize_pass { NormalizePass }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
 
     own_path = mod.loc.mod_path;
     saved_body = mod.body;
@@ -161,7 +161,7 @@ def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
         mod.set_kids(nodes=head_kid or [uni.EmptyToken()]);
     }
     try {
-        import from jaclang.jac0core.pass_driver { run_pass }
+        import from jaclang.compiler.driver.pass_driver { run_pass }
         run_pass(NormalizePass, mod, JacProgram());
         if requires_format {
             return format_module(mod);

@@ -13,7 +13,7 @@ import from types { NoneType, UnionType }
 import from typing { Union }
 import from uuid { UUID }
 import from jaclang.runtimelib.typecache { get_field_types }
-import from jaclang.jac0core.archetype {
+import from jaclang.runtime.archetype {
     Anchor,
     NodeAnchor,
     EdgeAnchor,
@@ -24,7 +24,7 @@ import from jaclang.jac0core.archetype {
     AccessLevel,
     access_level_cast
 }
-import from jaclang.jac0core.constructs {
+import from jaclang.runtime.constructs {
     Archetype,
     NodeArchetype,
     WalkerArchetype,

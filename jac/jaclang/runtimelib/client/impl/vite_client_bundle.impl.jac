@@ -5,7 +5,7 @@ impl make_client_bundle_builder(
 ) -> ViteClientBundleBuilder {
     import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
     if base_path is None {
-        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        import from jaclang.runtime.runtime { JacRuntime as Jac }
         import from jaclang.project.config { find_project_root }
         base_path_str = Jac.get_base_path_dir();
         base_path_dir = Path(base_path_str) if base_path_str else Path.cwd();

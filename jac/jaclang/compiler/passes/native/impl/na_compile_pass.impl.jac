@@ -24,7 +24,7 @@ impl native_compiler_fingerprint(options: any) -> str {
     _jl_dir = _cfp_os.path.dirname(_cfp_os.path.abspath(_jlm.__file__));
     _nat_dir = _cfp_os.path.join(_jl_dir, "compiler", "passes", "native");
     _comp_h = _cfh_hash.sha256();
-    import from jaclang.jac0core.jir { FORMAT_VERSION }
+    import from jaclang.compiler.driver.jir { FORMAT_VERSION }
     _comp_h.update(str(FORMAT_VERSION).encode());
     for _cp in [
         _cfp_os.path.join(_nat_dir, "impl", "*.jac"),
@@ -32,7 +32,7 @@ impl native_compiler_fingerprint(options: any) -> str {
         _cfp_os.path.join(_jl_dir, "compiler", "type_system", "*.jac"),
         _cfp_os.path.join(_jl_dir, "compiler", "type_system", "*", "*.jac"),
         _cfp_os.path.join(_jl_dir, "compiler", "type_registry.jac"),
-        _cfp_os.path.join(_jl_dir, "jac0core", "scalars.jac")
+        _cfp_os.path.join(_jl_dir, "runtime", "scalars.jac")
     ] {
         for _cf in sorted(_cgl.`glob(_cp)) {
             try {
@@ -49,7 +49,7 @@ impl native_compiler_fingerprint(options: any) -> str {
 impl native_dep_cache_paths(real_path: str, options: any) -> tuple {
     import hashlib as _dcp_hash;
     import os as _dcp_os;
-    import from jaclang.jac0core.jir { get_native_cache_dir }
+    import from jaclang.compiler.driver.jir { get_native_cache_dir }
     _ir_cache_dir = str(get_native_cache_dir(real_path));
     _src_stem = _dcp_os.path.splitext(_dcp_os.path.basename(real_path))[0];
     with open(real_path, "rb") as _sf {
@@ -228,8 +228,8 @@ impl native_unit_demotions(
             return None;
         }
         _ud_all: set = set();
-        import jaclang.jac0core.unitree as _ud_uni;
-        import from jaclang.jac0core.passes.module_codegen_pass {
+        import jaclang.compiler.frontend.unitree as _ud_uni;
+        import from jaclang.compiler.backends.py.module_codegen_pass {
             ModuleCodegenPass as _UdWalk
         }
         for _ud_stmt in _UdWalk.iter_context_stmts(_ud_tree) {
@@ -368,7 +368,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         manifest = module.gen.interop_manifest;
         native_imports = manifest.native_imports;
         if native_imports {
-            import from jaclang.jac0core.interop_bridge { register_py_callbacks }
+            import from jaclang.runtime.interop_bridge { register_py_callbacks }
             py_func_table: dict = {};
             callbacks_list: list = [];
             register_py_callbacks(manifest, py_func_table, callbacks_list);
@@ -433,7 +433,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         _ir_dir = "";
         _stem = "";
         if _native_debug {
-            import from jaclang.jac0core.jir { get_native_cache_dir }
+            import from jaclang.compiler.driver.jir { get_native_cache_dir }
             _mod_path = module.loc.mod_path if module.loc else "jac_native";
             _src_name = _os.path.basename(_mod_path);
             _stem = _os.path.splitext(_src_name)[0];
@@ -586,13 +586,13 @@ impl NativeCompilePass._compile_and_link_native_imports(
     import os;
     import hashlib;
     import json;
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.frontend.codeinfo {
         NativeModuleInfo,
         NativeFunctionInfo,
         native_safe_sym
     }
 
-    import from jaclang.jac0core.compile_options {
+    import from jaclang.compiler.driver.compile_options {
         CompileOptions as _LinkOpts,
         link_fingerprint_mismatches
     }
@@ -655,7 +655,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
         work_queue.append((binding, base_dir));
     }
 
-    import from jaclang.jac0core.codeinfo { native_stdlib_root }
+    import from jaclang.compiler.frontend.codeinfo { native_stdlib_root }
     _bundled_stdlib_root = native_stdlib_root();
     queue_idx = 0;
     _lk_composed = 0;
@@ -676,7 +676,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
         if source_mod_path.endswith(".jac") {
             full_path = os.path.join(cur_base_dir, source_mod_path);
         } else {
-            import from jaclang.jac0core.codeinfo {
+            import from jaclang.compiler.frontend.codeinfo {
                 resolve_native_module as _resolve_na
             }
             (_rn, _rp) = _resolve_na(
@@ -698,7 +698,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
         }
         linked_modules[real_path] = None;
 
-        import from jaclang.jac0core.jir { get_native_cache_dir }
+        import from jaclang.compiler.driver.jir { get_native_cache_dir }
         _src_stem = os.path.splitext(os.path.basename(real_path))[0];
         _ir_cache_dir = str(get_native_cache_dir(real_path));
 
@@ -972,7 +972,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
         try {
             imported_llvm_str = imported_llvm_str_raw;
 
-            import from jaclang.jac0core.codeinfo { native_module_key }
+            import from jaclang.compiler.frontend.codeinfo { native_module_key }
             safe_name = native_safe_sym(native_module_key(real_path));
             entry_rename = f"__jac_entry_{safe_name}";
             imported_llvm_str = imported_llvm_str.replace(
@@ -1132,13 +1132,13 @@ glob _OSP_KERNEL_IR_CACHE: dict[str, str] = {};
 def _compile_osp_kernel_ir(
     gc_mode: str = "cycles", enforce: bool = False
 ) -> (str | None) {
-    import from jaclang.jac0core.kernel_units {
+    import from jaclang.compiler.backends.kernel_units {
         load_unit_artifact,
         osp_core_unit_path,
         store_unit_artifact
     }
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options { CompileOptions as _KernelOpts }
 
     kernel_opts = _KernelOpts(
         aot_mode=True,
@@ -1239,13 +1239,13 @@ impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
 glob _FMT_KERNEL_IR_CACHE: dict = {};
 
 def _compile_fmt_kernel_ir -> (str | None) {
-    import from jaclang.jac0core.kernel_units {
+    import from jaclang.compiler.backends.kernel_units {
         fmt_kernel_unit_path,
         load_unit_artifact,
         store_unit_artifact
     }
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options { CompileOptions as _KernelOpts }
 
     kernel_opts = _KernelOpts(
         aot_mode=True, default_codespace='native', na_gc_mode='cycles'

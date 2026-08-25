@@ -183,7 +183,7 @@ jobs:
           key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/bootstrap/pins.json') }}
 
       # Identity of the compiler this build runs, as git blob ids over the same
-      # file set jir.jac hashes for its module keys (jaclang.jac0core.jir:
+      # file set jir.jac hashes for its module keys (jaclang.compiler.driver.jir:
       # COMPILER_DIGEST_ROOTS, .jac/.py only, test material excluded). Same
       # rule as the step in .github/actions/setup-jac, which seeds the entries
       # this leg reads; keep the three in lockstep.
@@ -194,14 +194,20 @@ jobs:
         run: |
           list="$(git ls-tree -r HEAD -- \
             jac/jaclang/jac0.py \
+            jac/jaclang/bootstrap_manifest.py \
+            jac/jaclang/meta_importer.py \
             jac/jaclang/jac0core \
             jac/jaclang/compiler \
+            jac/jaclang/runtime \
+            jac/jaclang/lib \
+            jac/jaclang/cli/cli_boot.jac \
+            jac/jaclang/project/tomlio.jac \
             jac/jaclang/utils/precompile_bytecode.jac \
             | grep -E '\.(jac|py)$' \
             | grep -vE '(^|/)(tests|test)/|\.test\.jac$' || true)"
           n="$(printf '%s\n' "$list" | grep -c . || true)"
           if [ "$n" -lt 100 ]; then
-            echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/jac0core/jir.jac together."
+            echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/compiler/driver/jir.jac together."
             exit 1
           fi
           fp="$(printf '%s\n' "$list" | git hash-object --stdin)"

@@ -24,9 +24,9 @@ import tempfile;
 import importlib;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.modresolver { resolve_relative_path }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.modresolver { resolve_relative_path }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob PKG_FILES: dict[str, str] = {
          '__init__.jac': '',

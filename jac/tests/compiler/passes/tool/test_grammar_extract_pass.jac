@@ -24,8 +24,8 @@ import from jaclang.compiler.passes.tool.grammar_extract_pass {
     METHOD_TABLE,
     SPECIAL_LOOKAHEAD_TOKENS
 }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob PARSER_PATH = str(
          Path(jaclang.__file__).parent / "jac0core" / "parser" / "parser.jac"
@@ -174,7 +174,7 @@ test "opt hoist skips outer opt when a star choice exists" {
 
 # ── Mini-parser fixture: behaviors of interpretation itself ──────────────
 glob MINI_PARSER_SRC = """
-import from jaclang.jac0core.parser.tokens { TokenKind }
+import from jaclang.compiler.frontend.parser.tokens { TokenKind }
 
 obj Parser {
     def check(kind: TokenKind) -> bool { return True; }

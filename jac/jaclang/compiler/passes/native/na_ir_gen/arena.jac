@@ -1,6 +1,6 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.codeinfo {
+import from jaclang.compiler.frontend.codeinfo {
     HDR_ALLOC_ID_OFF,
     HDR_DTOR_OFF,
     HDR_MAGIC,
@@ -10,7 +10,7 @@ import from jaclang.jac0core.codeinfo {
     HDR_TOTAL,
     RC_SENTINEL
 }
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 
 obj NaIRGenArena(NaIRGenState) {
     def _try_partition_sugar_assign(nd: uni.Assignment) -> bool;

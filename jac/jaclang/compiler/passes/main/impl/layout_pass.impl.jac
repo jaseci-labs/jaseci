@@ -1,4 +1,4 @@
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
 impl LayoutPass.postinit -> None {
@@ -66,8 +66,8 @@ impl LayoutPass._collect_archetypes(module: Module) -> dict[str, Archetype] {
 }
 
 impl LayoutPass._collect_isinstance_targets(module: Module) -> None {
-    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
-    import from jaclang.jac0core.constant { CodeContext }
+    import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+    import from jaclang.compiler.frontend.constant { CodeContext }
     calls: list = [];
     for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
         if isinstance(stmt, FuncCall) {

@@ -9,8 +9,8 @@ by the codegen gate, so hook timing never changes. Zero user action.
 
 import os;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob FIXTURE = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures", "affine_inference.jac"

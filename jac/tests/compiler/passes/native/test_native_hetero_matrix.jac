@@ -25,7 +25,7 @@ import subprocess;
 import sys;
 import tempfile;
 import from tests.support { TESTS_DIR, native_force_opts, native_str_func }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
@@ -34,7 +34,7 @@ glob FIXTURES = os.path.join(
 
 
 def _opts(gc_mode: str | None = None, enforce: bool = False) -> any {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     if gc_mode is None {
         return native_force_opts();
     }

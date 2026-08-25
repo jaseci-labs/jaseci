@@ -18,7 +18,7 @@ import tempfile;
 import from pathlib { Path }
 import from tests.support { TESTS_DIR, compile_native, get_func, native_force_opts }
 
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 import from jaclang.utils.precompile_bytecode { seal_native_artifacts }
 

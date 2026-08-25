@@ -1,7 +1,7 @@
 impl JScaleExecutionContext.init(self: JScaleExecutionContext) -> None {
     import os;
-    import from jaclang.jac0core.constructs { PermissionDenied }
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.runtime.constructs { PermissionDenied }
+    import from jaclang.runtime.runtime { JacRuntime }
     import from jaclang.runtimelib.session {
         Session,
         conninfo_from_url,

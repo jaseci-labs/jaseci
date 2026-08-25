@@ -23,10 +23,10 @@ import from jaclang.compiler.passes.ecmascript.primitives_es {
 }
 import from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
 import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-import from jaclang.jac0core.modresolver { convert_to_js_import_path }
-import from jaclang.jac0core.passes.transform { Alert }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.driver.modresolver { convert_to_js_import_path }
+import from jaclang.compiler.passes.transform { Alert }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
@@ -1160,7 +1160,7 @@ test "sv import duplicate kwarg is a compile error" {
     # ``TypeError: got multiple values for argument 'name'`` and must be
     # reported as a compile-time error so the build fails fast rather than
     # silently emitting a JS object with a duplicated key.
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 
     fixture = os.path.join(FIXTURES, "svc_kwargs/sv_import_kwargs_dup.jac");

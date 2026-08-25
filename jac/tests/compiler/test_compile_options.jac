@@ -10,12 +10,12 @@ import os;
 import re;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options {
+import from jaclang.compiler.driver.compile_options {
     CompileOptions,
     effective_codegen_fingerprint,
     link_fingerprint_mismatches
 }
-import from jaclang.jac0core.jir { compute_module_key }
+import from jaclang.compiler.driver.jir { compute_module_key }
 
 
 def _pinned_opts(**overrides: any) -> CompileOptions {

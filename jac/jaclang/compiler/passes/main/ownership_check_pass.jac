@@ -1,6 +1,6 @@
 import from enum { Enum }
 import from typing { TypeAlias }
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     Archetype,
     Assignment,
@@ -49,16 +49,16 @@ import from jaclang.jac0core.unitree {
     WhileStmt,
     YieldExpr
 }
-import from jaclang.jac0core.constant {
+import from jaclang.compiler.frontend.constant {
     Tokens as Tok,
     OwnershipKind,
     SymbolStorage,
     is_borrow_kind,
     is_mut_kind
 }
-import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.compiler.passes.transform { Transform }
 import from jaclang.compiler.passes.main.dataflow { solve_backward, solve_forward }
-import type from jaclang.jac0core.program { JacProgram }
+import type from jaclang.compiler.driver.program { JacProgram }
 
 glob SymId: TypeAlias = int,
      DataflowTransfer: TypeAlias = Callable[[UniCFGNode, set[SymId]], set[SymId]];

@@ -1,6 +1,6 @@
-import from jaclang.jac0core.unitree { JsxElement, Module, Name, Token, UniNode }
-import from jaclang.jac0core.diagnostics { E1105 }
-import from jaclang.jac0core.passes.uni_pass { UniPass }
+import from jaclang.compiler.frontend.unitree { JsxElement, Module, Name, Token, UniNode }
+import from jaclang.compiler.frontend.diagnostics { E1105 }
+import from jaclang.compiler.passes.uni_pass { UniPass }
 import from jaclang.project.client_kind_paths { mobui_module_exempt }
 
 glob _GENERIC_SUGGESTION: str = "an @jac/mobui component",

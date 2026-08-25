@@ -17,7 +17,7 @@ impl TypeEvaluator._get_ts_declared_item_type(
     if cache_key in self._ts_decl_path_cache {
         dts_path = self._ts_decl_path_cache[cache_key];
     } else {
-        import from jaclang.jac0core.modresolver {
+        import from jaclang.compiler.driver.modresolver {
             resolve_client_npm_declarations,
             sibling_declaration_file
         }
@@ -435,7 +435,7 @@ impl TypeEvaluator._untyped_external_is_error(node_: UniNode) -> bool {
     if not mod_path {
         return False;
     }
-    import from jaclang.jac0core.modresolver { find_jac_project_root }
+    import from jaclang.compiler.driver.modresolver { find_jac_project_root }
     proj_root = find_jac_project_root(mod_path);
     if not proj_root {
         return False;
@@ -446,7 +446,7 @@ impl TypeEvaluator._untyped_external_is_error(node_: UniNode) -> bool {
     import os;
     result = False;
     try {
-        import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+        import from jaclang.project.tomlio { read_toml_with_encoding }
         data = read_toml_with_encoding(os.path.join(proj_root, 'jac.toml'));
         check_cfg = data.get('check', {}) if isinstance(data, dict) else {};
         result = (

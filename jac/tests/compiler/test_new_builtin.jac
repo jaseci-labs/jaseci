@@ -14,10 +14,10 @@ import tempfile;
 import from pathlib { Path }
 import from tempfile { NamedTemporaryFile }
 import jaclang;
-import from jaclang.jac0core.parser.frontend { parse }
-import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.pass_driver { run_pass }
+import from jaclang.compiler.frontend.parser.frontend { parse }
+import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_new_builtin_"),
      _client_tmp_dir: str = os.path.join(_test_tmp_dir, "client");
@@ -203,7 +203,7 @@ test "server: new with builtin types works end-to-end" {
 #  Diagnostic: E0012 should now point at `new(...)`, not `Reflect.construct`
 # ─────────────────────────────────────────────────────────────────────
 test "E0012 message mentions new(...) idiom" {
-    import from jaclang.jac0core.diagnostics { E0012 }
+    import from jaclang.compiler.frontend.diagnostics { E0012 }
     msg = E0012.message_template;
     assert "new(" in msg , (
         "E0012 should recommend `new(target, ...args)`; current template: " + msg

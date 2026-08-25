@@ -322,7 +322,7 @@ test 'register firebase token endpoint' {
         'jaclang.scale.server.serve.get_scale_config', return_value=mock_config
     ) {
         with unittest.mock.patch(
-            'jaclang.jac0core.runtime.JacRuntimeInterface.get_user_manager',
+            'jaclang.runtime.runtime.JacRuntimeInterface.get_user_manager',
             return_value=mock_user_manager
         ) {
             server = JacAPIServer(module_name='test_module', port=8000);

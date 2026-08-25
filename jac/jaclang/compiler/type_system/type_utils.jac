@@ -1,5 +1,5 @@
 import from enum { Enum }
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     ArchHas,
     Archetype,
@@ -23,7 +23,7 @@ import from jaclang.jac0core.unitree {
     UniNode,
     UniScopeNode
 }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from .types {
     NeverType,
     EnumMemberType,

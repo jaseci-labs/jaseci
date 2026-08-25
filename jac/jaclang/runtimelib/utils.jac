@@ -1,7 +1,7 @@
 import platform;
 import from pathlib { Path }
 import from uuid { UUID }
-import type from jaclang.jac0core.constructs { NodeArchetype }
+import type from jaclang.runtime.constructs { NodeArchetype }
 
 def collect_node_connections(
     current_node: NodeArchetype, visited_nodes: set, connections: set, edge_ids: set

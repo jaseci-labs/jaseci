@@ -125,13 +125,13 @@ impl JacLangServer.type_check_file(
             self._clear_alerts_for_file(f);
         }
 
-        import from jaclang.jac0core.compile_options { CompileOptions }
+        import from jaclang.compiler.driver.compile_options { CompileOptions }
         main_doc = self.workspace.get_text_document(_uri_of(main_path));
 
-        import from jaclang.jac0core.parser.frontend { parse_diags, _replay_diags }
-        import from jaclang.jac0core.parser.lexer { Lexer as _Lexer }
-        import from jaclang.jac0core.parser.parser { Parser as _SyntaxParser }
-        import from jaclang.jac0core.unitree { Source as _Src }
+        import from jaclang.compiler.frontend.parser.frontend { parse_diags, _replay_diags }
+        import from jaclang.compiler.frontend.parser.lexer { Lexer as _Lexer }
+        import from jaclang.compiler.frontend.parser.parser { Parser as _SyntaxParser }
+        import from jaclang.compiler.frontend.unitree { Source as _Src }
         (_syn_had, _pd, _ld) = parse_diags(main_doc.source, main_path);
         if _pd or _ld {
             _dsrc = _Src(main_doc.source, mod_path=main_path);
@@ -511,7 +511,7 @@ impl JacLangServer._string_import_definition(
 
 impl JacLangServer._module_spec_target(mp: uni.ModulePath) -> Optional[str] {
     import os;
-    import from jaclang.jac0core.modresolver {
+    import from jaclang.compiler.driver.modresolver {
         is_client_npm_import,
         resolve_client_npm_declarations,
         resolve_client_npm_package
@@ -545,7 +545,7 @@ impl JacLangServer._module_spec_target(mp: uni.ModulePath) -> Optional[str] {
 impl JacLangServer._npm_item_location(
     from_loc: uni.ModulePath, item_name: str
 ) -> Optional[lspt.Location] {
-    import from jaclang.jac0core.modresolver {
+    import from jaclang.compiler.driver.modresolver {
         is_client_npm_import,
         resolve_client_npm_declarations,
         resolve_client_npm_package

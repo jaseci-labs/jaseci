@@ -1710,7 +1710,7 @@ impl ESRangeEmitter.emit_op_contains(
 impl ESBuiltinEmitter.emit_print(
     self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
 ) -> (str | None) {
-    import from jaclang.jac0core.scalars { shape_of }
+    import from jaclang.runtime.scalars { shape_of }
     names = ctx.arg_type_names or [];
     shown: list[str] = [];
     for (i, a) in enumerate(args) {
@@ -1736,7 +1736,7 @@ impl ESBuiltinEmitter.emit_sized_cast(
 impl ESBuiltinEmitter.emit_wrapping(
     self: ESBuiltinEmitter, ctx: ESEmitCtx, op: str, args: list[str]
 ) -> (str | None) {
-    import from jaclang.jac0core.scalars { is_sized }
+    import from jaclang.runtime.scalars { is_sized }
     sized_name: (str | None) = None;
     for n in (ctx.arg_type_names or []) {
         if is_sized(n) {
@@ -1812,7 +1812,7 @@ impl ESBuiltinEmitter.emit_len(
 impl ESBuiltinEmitter.emit_abs(
     self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
 ) -> (str | None) {
-    import from jaclang.jac0core.scalars { is_sized }
+    import from jaclang.runtime.scalars { is_sized }
     names = ctx.arg_type_names or [];
     if args and names and is_sized(names[0]) {
         return _rt("fw", "abs_" + names[0], [args[0]]);

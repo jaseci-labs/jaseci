@@ -22,9 +22,9 @@ Refs #8070
 import ctypes;
 import os;
 import from tests.support { TESTS_DIR, native_force_opts }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.jac0core.codeinfo {
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.compiler.frontend.codeinfo {
     get_effective_default_codespace_override,
     set_effective_default_codespace
 }

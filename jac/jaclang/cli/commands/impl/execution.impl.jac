@@ -15,7 +15,7 @@ def _discover_config_from_file(filename: str) -> None {
     import from pathlib { Path }
     import from jaclang.project.config { JacConfig, get_config, set_config }
     import from jaclang.project.pyvenv { add_venv_to_path }
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     file_path = Path(filename).resolve();
 
@@ -401,8 +401,8 @@ def _resolve_plan(filename: str) -> tuple {
 def _invoke_entrypoint(
     filename: str, entrypoint: str, args: list, main: bool, root_id: str, nd: str
 ) -> int {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
-    import from jaclang.jac0core.constructs { WalkerArchetype }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.constructs { WalkerArchetype }
 
     if not filename.endswith('.jac') {
         console.error('Not a valid file!\nOnly supports `.jac`');
@@ -558,13 +558,13 @@ impl run(
 def _exec_file(
     filename: str, main: bool, cache: bool, diagnostics: str, args: list
 ) -> int {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.project.config { get_config }
 
     _discover_config_from_file(filename);
 
     if not cache {
-        import from jaclang.jac0core.jir { scrub_cache_dirs }
+        import from jaclang.compiler.driver.jir { scrub_cache_dirs }
         scrub_cache_dirs(os.path.dirname(os.path.abspath(filename)) or ".");
     }
 
@@ -591,7 +591,7 @@ def _exec_file(
                 or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
             ) {
                 import ctypes;
-                import from jaclang.jac0core.compile_options {
+                import from jaclang.compiler.driver.compile_options {
                     CompileOptions as _RunOpts
                 }
                 full_path = os.path.abspath(filename);
@@ -657,7 +657,7 @@ def _exec_file(
                     console.error(error.pretty_print());
                 }
             } else {
-                import from jaclang.jac0core.traceback_render { dump_traceback }
+                import from jaclang.runtime.traceback_render { dump_traceback }
                 console.error(dump_traceback(e));
             }
         }
@@ -697,9 +697,9 @@ impl serve(
     platform: str = "auto",
     takeover: bool = False
 ) -> int {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from pathlib { Path }
-    import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
+    import from jaclang.compiler.frontend.codeinfo { set_effective_default_codespace }
 
     use_line_buffered_output();
     set_effective_default_codespace('server');
@@ -765,7 +765,7 @@ impl serve(
                 console.error(error.pretty_print());
             }
         } else {
-            import from jaclang.jac0core.traceback_render { dump_traceback }
+            import from jaclang.runtime.traceback_render { dump_traceback }
             console.error(f"Error loading {filename}: {e}");
             console.error(dump_traceback(e));
         }
@@ -791,7 +791,7 @@ impl serve(
         try {
             server.print_endpoint_docs();
         } except Exception as e {
-            import from jaclang.jac0core.traceback_render { dump_traceback }
+            import from jaclang.runtime.traceback_render { dump_traceback }
             console.error(f"Error generating endpoint documentation: {e}");
             console.error(dump_traceback(e));
             mach.close();
@@ -901,7 +901,7 @@ impl serve(
         mach.close();
         return 0;
     } except Exception as e {
-        import from jaclang.jac0core.traceback_render { dump_traceback }
+        import from jaclang.runtime.traceback_render { dump_traceback }
         console.error(f"Server error: {e}");
         console.error(dump_traceback(e));
         if hot_reloader is not None {
@@ -1105,8 +1105,8 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
 }
 
 impl debug(filename: str, main: bool = True, cache: bool = False) -> int {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.debugger { debugger as db }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.runtime.debugger { debugger as db }
     if len(sys.argv) > 1 and sys.argv[1] == "debug" {
         console.print(
             "note: 'jac debug' is deprecated; use jac run <file> --debug", style="muted"

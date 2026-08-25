@@ -17,7 +17,7 @@ import sys;
 import from tempfile { mkdtemp }
 import from types { ModuleType }
 import from uuid { uuid4 }
-import from jaclang.jac0core.archetype { Archetype, NodeAnchor, Root }
+import from jaclang.runtime.archetype { Archetype, NodeAnchor, Root }
 import from jaclang.runtimelib { serializer as serializer_mod }
 import from jaclang.runtimelib.serializer { Serializer }
 
@@ -73,7 +73,7 @@ def _anchor_blob(arch: object) -> dict {
     raw = Serializer.serialize(arch, include_type=True);
     return {
         '__type__': 'NodeAnchor',
-        '__module__': 'jaclang.jac0core.archetype',
+        '__module__': 'jaclang.runtime.archetype',
         'id': str(uuid4()),
         'root': None,
         'persistent': False,

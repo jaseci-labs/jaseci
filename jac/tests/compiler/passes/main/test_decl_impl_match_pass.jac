@@ -6,14 +6,14 @@ and impl body symbols are resolved.
 """
 
 import io;
-import from jaclang.jac0core.treeprinter { print_ast_tree }
+import from jaclang.compiler.tools.treeprinter { print_ast_tree }
 import sys;
 import os;
 import from pathlib { Path }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang { JacRuntime as Jac }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 def _jac_root -> str {
     here = __file__;

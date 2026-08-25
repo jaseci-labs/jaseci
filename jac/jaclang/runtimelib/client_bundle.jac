@@ -2,8 +2,8 @@ import hashlib;
 import os;
 import from pathlib { Path }
 import from types { ModuleType }
-import type from jaclang.jac0core.codeinfo { ClientManifest }
-import type from jaclang.jac0core.unitree { Module }
+import type from jaclang.compiler.frontend.codeinfo { ClientManifest }
+import type from jaclang.compiler.frontend.unitree { Module }
 
 class ClientBundleError(RuntimeError) {}
 

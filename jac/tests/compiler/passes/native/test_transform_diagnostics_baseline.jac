@@ -59,9 +59,9 @@ path's own coupling; `_coverage` skips there.
 import os;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
 glob TRANSFORM_JAC = str(
@@ -114,7 +114,7 @@ def _coverage -> tuple {
             "coupling, which is what this file pins"
         );
     }
-    if native_artifact_for("jaclang.jac0core.passes.transform") is not None {
+    if native_artifact_for("jaclang.compiler.passes.transform") is not None {
         testskip(
             "transform.jac is served from this runtime's native seal; the "
             "coverage gated the build via seal_demotion_report"
@@ -288,11 +288,11 @@ test "the unit is clean enough to link, and the sealed roots link it" {
         "transform.jac's own closure is empty, so the compile was never "
         "reached and the seam coverage above is vacuous"
     );
-    assert "jac0core/unitree.jac" in linked , (
+    assert "compiler/frontend/unitree.jac" in linked , (
         f"transform.jac stopped linking unitree ({linked}); the measurement "
         "moved rather than the unit getting cleaner"
     );
-    assert "jac0core/codeinfo.jac" in linked , (
+    assert "compiler/frontend/codeinfo.jac" in linked , (
         "codeinfo.jac left transform's unit. Since B4 emptied "
         "PLACEMENT_INFERENCE_HELD it joins through unitree's own edges "
         "(UniNode.gen lowers), with its seams waived by name; its absence "
@@ -303,7 +303,7 @@ test "the unit is clean enough to link, and the sealed roots link it" {
         NATIVE_SEAL_CLOSURE,
         NATIVE_SEAL_DEMOTION_WAIVERS
     }
-    assert "jac0core/passes/transform.jac" in NATIVE_SEAL_CLOSURE , (
+    assert "compiler/passes/transform.jac" in NATIVE_SEAL_CLOSURE , (
         "the roots link transform.jac but NATIVE_SEAL_CLOSURE does not "
         "account for it"
     );
@@ -311,9 +311,9 @@ test "the unit is clean enough to link, and the sealed roots link it" {
     # chain's own members: `uni_pass.jac` and `module_codegen_pass.jac`
     # resolve some of these on their own and carry reduced, measured sets,
     # so they are the wrong place to ask whether the seam is accounted for.
-    ordinary = NATIVE_SEAL_DEMOTION_WAIVERS["jac0core/passes/ast_validation_pass.jac"];
+    ordinary = NATIVE_SEAL_DEMOTION_WAIVERS["compiler/passes/ast_validation_pass.jac"];
     for seam in TRANSFORM_SEAM_WAIVERS {
-        assert f"jac0core/passes/transform.jac::{seam}" in ordinary , (
+        assert f"compiler/passes/transform.jac::{seam}" in ordinary , (
             f"{seam} is demoted inside a unit the roots now link, and no "
             "waiver names it"
         );

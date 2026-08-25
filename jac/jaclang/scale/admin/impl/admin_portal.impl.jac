@@ -20,8 +20,8 @@ import from jaclang.runtimelib.serving.endpoint {
 }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.identity.user_manager { UserRole, JacScaleUserManager }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 
 glob logger = logging.getLogger(__name__);
 

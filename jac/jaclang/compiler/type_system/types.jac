@@ -1,8 +1,8 @@
 import from abc { ABC }
 import from enum { IntEnum, auto }
 import from pathlib { Path }
-import type from jaclang.jac0core.unitree { Expr, Symbol }
-import type from jaclang.jac0core.unitree { UniScopeNode as SymbolTable }
+import type from jaclang.compiler.frontend.unitree { Expr, Symbol }
+import type from jaclang.compiler.frontend.unitree { UniScopeNode as SymbolTable }
 
 enum TypeCategory(IntEnum) {
     Unbound,

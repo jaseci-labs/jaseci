@@ -43,7 +43,7 @@ pure-leaf modules those two drag in.
 Thirty seams, and most of them are one of two causes rather than thirty
 separate ones: an imported archetype's layout is not reachable for
 `isinstance` even when its module is in the unit; and a function-local
-`import jaclang.jac0core.unitree`
+`import jaclang.compiler.frontend.unitree`
 in `helpers.jac` -- the one thing keeping `helpers` out of a module-level
 cycle -- is a Python module import the native lane refuses. The rest are
 cascades on those, each naming its callee.
@@ -74,9 +74,9 @@ a renamed symbol instead of demoting.
 import os;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
@@ -145,18 +145,18 @@ glob UNITREE_CLOSURE: tuple = (
      SEAM_WAIVERS: dict[(str, str)] = {
          "unitree.jac::ModulePath.resolve_relative_path": (
              "Python-only: import resolution runs through "
-             "`jac0core.modresolver` (importlib / sys.path / pathlib), which "
+             "`compiler.driver.modresolver` (importlib / sys.path / pathlib), which "
              "no native unit can host. Unreachable from a sealed parser -- "
              "every caller is a Python-side pass."
          ),
          "unitree.jac::ModulePath.native_bundled_path": (
              "Python-only: `is_bundled_native_module` / "
-             "`resolve_native_module` live in `jac0core.codeinfo`, which can "
+             "`resolve_native_module` live in `compiler.frontend.codeinfo`, which can "
              "never share a native unit with `unitree` (LLVM binding and "
              "estree handles, and it imports `unitree` back)."
          ),
          "unitree.jac::Module.annexable_by.__get__": (
-             "Python-only: calls `jac0core.bccache.discover_base_file`, which "
+             "Python-only: calls `compiler.driver.bccache.discover_base_file`, which "
              "walks the filesystem. Read by the compile driver, not a parse."
          ),
          "unitree.jac::Import.__jac_detected.__get__": (
@@ -168,10 +168,10 @@ glob UNITREE_CLOSURE: tuple = (
          ),
          "unitree.jac::Import.is_service_import.__get__": (
              "Python-only: calls `is_service_module_stem` from "
-             "`jac0core.service_cut`, which stats and parses `jac.toml` "
+             "`compiler.placement.service_cut`, which stats and parses `jac.toml` "
              "(`os.path.getmtime` + `tomllib`), memoizes into a module-global "
              "dict, and resolves the project root through "
-             "`jac0core.modresolver`. The coverage reports E5092 -- the call "
+             "`compiler.driver.modresolver`. The coverage reports E5092 -- the call "
              "will not lower -- not an E5090 import."
          ),
          "unitree.jac::BuiltinType.lit_value.__get__": (
@@ -238,7 +238,7 @@ glob UNITREE_CLOSURE: tuple = (
          ),
          "helpers.jac::_is_version_info_access": (
              "Python-only: reads unitree through a function-local "
-             "`import jaclang.jac0core.unitree as uni`, a bare Python module "
+             "`import jaclang.compiler.frontend.unitree as uni`, a bare Python module "
              "import. The local import is what keeps `helpers` out of a "
              "module-level cycle with `unitree`; hoisting it is the clearing "
              "mechanism, and it needs the cycle to be safe first."
@@ -333,7 +333,7 @@ def _unitree_coverage -> tuple[(dict, bool)] {
     # assertion below would be vacuous. That build already ran this exact
     # coverage at seal time (seal_demotion_report refuses un-waived seams),
     # which is the invariant this file pins for source lanes.
-    if native_artifact_for("jaclang.jac0core.unitree") is not None {
+    if native_artifact_for("jaclang.compiler.frontend.unitree") is not None {
         testskip(
             "unitree is served from this runtime's native seal; the coverage "
             "gated the build via seal_demotion_report"

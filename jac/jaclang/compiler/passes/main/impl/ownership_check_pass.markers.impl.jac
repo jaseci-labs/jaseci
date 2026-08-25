@@ -1,4 +1,4 @@
-import from jaclang.jac0core.diagnostics { E1309 }
+import from jaclang.compiler.frontend.diagnostics { E1309 }
 
 impl OwnershipCheckPass._emit_marker_diagnostics -> None {
     if not self.imm_decl {

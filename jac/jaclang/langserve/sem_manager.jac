@@ -1,6 +1,6 @@
 import logging;
 
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang { JacRuntimeInterface as Jac }
 import jaclang.lsp.types as lspt;
 

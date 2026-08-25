@@ -332,7 +332,7 @@ def deploy_status(file_path: str, target: str = "kubernetes") -> int {
 
 def _scale_split(module_name: str) -> int {
     import tomllib;
-    import from jaclang.jac0core.modresolver { find_jac_project_root }
+    import from jaclang.compiler.driver.modresolver { find_jac_project_root }
     import from .runtime.routing { derive_route_prefix, guard_route_name }
 
     if not module_name {

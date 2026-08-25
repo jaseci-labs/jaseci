@@ -51,7 +51,7 @@ impl TypeEvaluator._type_from_union_annotation_arg(val: Expr) -> TypeBase {
 impl TypeEvaluator._build_field_params(
     class_type: ClassType, skip_deferred: bool = True
 ) -> dict[str, Parameter] {
-    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_RIM_BASES }
+    import from jaclang.compiler.frontend.codeinfo { NATIVE_ERASED_RIM_BASES }
     param_map: dict[str, Parameter] = {};
     _erase_rim = self._in_native_context();
     for cls in class_type.shared.mro[::-1] {
@@ -1492,7 +1492,7 @@ impl TypeEvaluator._resolve_client_npm_module(node_: ModulePath) -> (str | None)
     if not mod_path {
         return None;
     }
-    import from jaclang.jac0core.modresolver { resolve_client_npm_package }
+    import from jaclang.compiler.driver.modresolver { resolve_client_npm_package }
     base = self._client_npm_base(spec, mod_path);
     if base is None {
         return None;
@@ -1501,7 +1501,7 @@ impl TypeEvaluator._resolve_client_npm_module(node_: ModulePath) -> (str | None)
 }
 
 impl TypeEvaluator._client_npm_base(spec: str, mod_path: str) -> (str | None) {
-    import from jaclang.jac0core.modresolver { has_client_npm_package }
+    import from jaclang.compiler.driver.modresolver { has_client_npm_package }
     if has_client_npm_package(spec, mod_path) {
         return mod_path;
     }
@@ -2006,7 +2006,7 @@ impl TypeEvaluator._collect_return_types(
                 );
             if _is_infinite_loop {
                 _has_break = False;
-                import from jaclang.jac0core.constant { Tokens as _Tok }
+                import from jaclang.compiler.frontend.constant { Tokens as _Tok }
                 _loop_types = (WhileStmt, ForeverStmt, IterForStmt, InForStmt);
                 for _ctrl in stmt.get_all_sub_nodes(CtrlStmt) {
                     if _ctrl.ctrl.name != _Tok.KW_BREAK {

@@ -27,11 +27,11 @@ unreported; this closes the divergence the tree can prove.
 
 import os;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.jac0core.codeinfo {
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.compiler.frontend.codeinfo {
     get_effective_default_codespace_override,
     set_effective_default_codespace
 }

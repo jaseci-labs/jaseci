@@ -17,15 +17,15 @@ import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import from unittest.mock { patch }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution, transform }
-import from jaclang.jac0core.jir { get_jir_cache_dir, get_module_cache_path }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.jir { get_jir_cache_dir, get_module_cache_path }
+import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
-import from jaclang.jac0core.helpers { read_file_with_encoding }
-import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+import from jaclang.project.tomlio { read_toml_with_encoding }
 import tomllib;
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures"),
@@ -442,7 +442,7 @@ test "introspection lists archetypes" {
     # Guards JacIntrospection._list_members_of, which calls inspect.getmembers:
     # runtime.jac must keep `import inspect` (a bare `from inspect import getfile`
     # does not bind the module) or list_walkers/nodes/edges raise NameError.
-    import from jaclang.jac0core.archetype {
+    import from jaclang.runtime.archetype {
         WalkerArchetype,
         NodeArchetype,
         EdgeArchetype

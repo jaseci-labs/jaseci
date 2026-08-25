@@ -55,7 +55,7 @@ impl UserManager._ensure_connection -> None {
 }
 
 impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
-    import from jaclang.jac0core.constructs { Root }
+    import from jaclang.runtime.constructs { Root }
     self._ensure_connection();
     assert self._conn is not None;
     with self._lock {
@@ -83,7 +83,7 @@ impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
 }
 
 impl UserManager.reset_root(username: str) -> (str | None) {
-    import from jaclang.jac0core.constructs { Root }
+    import from jaclang.runtime.constructs { Root }
     self._ensure_connection();
     assert self._conn is not None;
     with self._lock {
@@ -264,7 +264,7 @@ impl ExecutionManager.report_collector(
 }
 
 async def _begin_request_context(user_root_id: str) -> tuple[(ExecutionContext, any)] {
-    import from jaclang.jac0core.osp_kernel_sv { isolate_request_walk_stack }
+    import from jaclang.runtime.osp_kernel_sv { isolate_request_walk_stack }
     parent = Jac.get_context();
     req_ctx = ExecutionContext(_parent=parent);
     await req_ctx.aset_user_root(user_root_id);
@@ -525,7 +525,7 @@ impl ExecutionManager.spawn_walker(
 impl ExecutionManager.spawn_walker_sync(
     walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
-    import from jaclang.jac0core.constructs { NodeArchetype }
+    import from jaclang.runtime.constructs { NodeArchetype }
     target_node_id = fields.pop('_jac_spawn_node', None);
     _deserialize_wire_args(fields);
 
@@ -561,7 +561,7 @@ impl ExecutionManager.spawn_walker_sync(
 impl ExecutionManager.spawn_walker_async(
     walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
-    import from jaclang.jac0core.constructs { NodeArchetype }
+    import from jaclang.runtime.constructs { NodeArchetype }
     target_node_id = fields.pop('_jac_spawn_node', None);
     _deserialize_wire_args(fields);
 
@@ -702,7 +702,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
     if not self._module {
         return;
     }
-    import jaclang.jac0core.unitree as uni;
+    import jaclang.compiler.frontend.unitree as uni;
     self._function_access = {};
     self._walker_access = {};
     mod_path: str = getattr(self._module, '__file__', '');
@@ -760,7 +760,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
             }
         }
     }
-    import from jaclang.jac0core.schedules { get_boundary_analysis_sched }
+    import from jaclang.compiler.driver.schedules { get_boundary_analysis_sched }
     for src_mod in sources {
         if not (src_mod and src_mod.gen and src_mod.gen.interop_manifest) {
             continue;
@@ -793,7 +793,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
         }
     }
 
-    import from jaclang.jac0core.archetype { WalkerArchetype as _WalkerArch }
+    import from jaclang.runtime.archetype { WalkerArchetype as _WalkerArch }
     _live_missing = False;
     for _wname in dir(self._module) {
         _wcls = getattr(self._module, _wname, None);
@@ -829,7 +829,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
 impl ModuleIntrospector._register_sealed_bindings(
     sm: dict[str, any], img_root: str
 ) -> None {
-    import from jaclang.jac0core.constructs { WalkerArchetype }
+    import from jaclang.runtime.constructs { WalkerArchetype }
 
     def resolve_sealed(src_path: str, name: str) -> any {
         for loaded in list(Jac.loaded_modules.values()) {
@@ -901,8 +901,8 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
     if not (self._module and Jac.get_program().mod) {
         return;
     }
-    import from jaclang.jac0core.constant { Tokens as Tok }
-    import from jaclang.jac0core.constructs { WalkerArchetype }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
+    import from jaclang.runtime.constructs { WalkerArchetype }
 
     sealed_mod_path: str = getattr(self._module, '__file__', '');
     if sealed_mod_path {
@@ -1097,7 +1097,7 @@ impl ModuleIntrospector._collect_functions -> dict[str, Callable[(..., any)]] {
 }
 
 impl ModuleIntrospector._collect_walkers -> dict[str, type[WalkerArchetype]] {
-    import from jaclang.jac0core.constructs { WalkerArchetype }
+    import from jaclang.runtime.constructs { WalkerArchetype }
     if not self._module {
         return {};
     }
@@ -1115,7 +1115,7 @@ impl ModuleIntrospector._collect_walkers -> dict[str, type[WalkerArchetype]] {
 }
 
 impl ModuleIntrospector._check_module_freshness -> None {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     if not self._module {
         return;
     }

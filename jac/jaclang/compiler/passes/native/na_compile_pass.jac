@@ -4,10 +4,10 @@ import type from jaclang.compiler.passes.native.llvm.binding {
     TargetMachine,
     ValueRef
 }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.passes { Transform }
-import from jaclang.jac0core.codeinfo { CodeGenTarget, install_native_static_init }
-import from jaclang.jac0core.diagnostics {
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.passes { Transform }
+import from jaclang.compiler.frontend.codeinfo { CodeGenTarget, install_native_static_init }
+import from jaclang.compiler.frontend.diagnostics {
     E5020,
     W5021,
     W5022,
@@ -19,7 +19,7 @@ import from jaclang.jac0core.diagnostics {
     E5028,
     E5029
 }
-import type from jaclang.jac0core.program { JacProgram }
+import type from jaclang.compiler.driver.program { JacProgram }
 
 obj DepClibMeta {
     has clib_paths: list[str] = [],

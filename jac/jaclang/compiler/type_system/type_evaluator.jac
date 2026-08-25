@@ -1,7 +1,7 @@
 import os;
 import from pathlib { Path }
 import from typing { cast }
-import from jaclang.jac0core.unitree {
+import from jaclang.compiler.frontend.unitree {
     Ability,
     Archetype,
     AssertStmt,
@@ -101,7 +101,7 @@ import from jaclang.jac0core.unitree {
     WithStmt,
     YieldExpr
 }
-import from jaclang.jac0core.constant {
+import from jaclang.compiler.frontend.constant {
     TOKEN_MAP,
     SymbolType,
     Tokens as Tok,
@@ -132,9 +132,9 @@ import from jaclang.compiler.type_system.types {
     UnknownType,
     create_callable_type
 }
-import from jaclang.jac0core.helpers { read_file_with_encoding }
-import from jaclang.jac0core.passes.transform { Transform }
-import type from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+import from jaclang.compiler.passes.transform { Transform }
+import type from jaclang.compiler.driver.program { JacProgram }
 
 import from jaclang.compiler.type_system.operations {
     BINARY_OPERATOR_MAP,
@@ -185,7 +185,7 @@ import from jaclang.compiler.type_system.ts_decl_parser {
     TsMember
 }
 
-import from jaclang.jac0core.diagnostics {
+import from jaclang.compiler.frontend.diagnostics {
     DiagnosticInfo,
     E1001,
     E1010,

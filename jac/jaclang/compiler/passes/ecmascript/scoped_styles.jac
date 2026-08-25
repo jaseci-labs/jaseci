@@ -1,5 +1,5 @@
 import from hashlib { blake2s }
-import from jaclang.jac0core.bccache { discover_style_annex }
+import from jaclang.compiler.driver.bccache { discover_style_annex }
 
 obj ScopedStyleSheet {
     has module_path: str,

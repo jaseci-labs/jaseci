@@ -17,7 +17,7 @@ import tempfile;
 import from tests.support { JAC_ROOT }
 import from tempfile { NamedTemporaryFile, TemporaryDirectory }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURE_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"

@@ -1612,7 +1612,7 @@ impl TypeCheckPass.exit_report_stmt(self: TypeCheckPass, nd: ReportStmt) -> None
 }
 
 impl TypeCheckPass.exit_impl_def(self: TypeCheckPass, nd: ImplDef) -> None {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
 
     if not (
         nd.decl_link

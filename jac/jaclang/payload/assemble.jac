@@ -37,7 +37,7 @@ glob PAYLOAD_ZSTD_LEVEL: int = 19,
          "        pass\n"
          "import _jac_finder; _jac_finder.install()\n"
          "sys.argv = ['jac', 'run'] + sys.argv[1:]\n"
-         "from jaclang.jac0core.cli_boot import start_cli\n"
+         "from jaclang.cli.cli_boot import start_cli\n"
          "start_cli()\n"
      );
 

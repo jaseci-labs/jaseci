@@ -4,7 +4,7 @@ import subprocess;
 import platform as platform_mod;
 import from typing { Optional }
 import from jaclang.cli.console { console }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.watcher { FileChangeEvent }
 import from jaclang.runtimelib.client.targets.react_native.common {
     DEFAULT_APP_ID,

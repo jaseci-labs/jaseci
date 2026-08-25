@@ -307,7 +307,7 @@ impl NaIRGenCore._llvm_type_str(ty: ir.Type) -> str {
 }
 
 impl NaIRGenCore._export_native_layout -> None {
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.frontend.codeinfo {
         NativeModuleLayout,
         NativeStructLayout,
         NativeFieldInfo,
@@ -550,7 +550,7 @@ impl NaIRGenCore._ret_tuple_hints(fname: str, ret_tuple: any) -> (list | None) {
 
 impl NaIRGenCore._register_imported_struct_types -> None {
     import os;
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.frontend.codeinfo {
         resolve_native_module,
         is_bundled_native_module
     }
@@ -610,7 +610,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
     _self_key = (
         os.path.realpath(self.ir_in.loc.mod_path) if (self.ir_in?.loc) else None
     );
-    import from jaclang.jac0core.codeinfo { native_module_key }
+    import from jaclang.compiler.frontend.codeinfo { native_module_key }
 
     _canon_src: dict = {};
     _src_keys: dict[str, str] = {};
@@ -1206,7 +1206,7 @@ impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
     }
     _provided.add('inference');
     try {
-        import from jaclang.jac0core.pass_driver { run_pass }
+        import from jaclang.compiler.driver.pass_driver { run_pass }
         import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
         import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
         if 'cfg' not in _provided {
@@ -1235,7 +1235,7 @@ impl NaIRGenCore._imported_function_demotions(
     } elif imported_mod.gen.llvm_ir is not None {
         `entry = imported_mod;
     } else {
-        import from jaclang.jac0core.compile_options { CompileOptions as _FdOpts }
+        import from jaclang.compiler.driver.compile_options { CompileOptions as _FdOpts }
         _opts_src = self.prog?.options or _FdOpts();
         if not bool(getattr(_opts_src, "no_ir_cache", False)) {
             try {
@@ -1315,7 +1315,7 @@ impl NaIRGenCore._process_clib_imports(module: uni.Module) -> None {
                     import from jaclang.compiler.passes.main.capability_check_pass {
                         classify_native_import
                     }
-                    import from jaclang.jac0core.codeinfo {
+                    import from jaclang.compiler.frontend.codeinfo {
                         is_bundled_native_module,
                         resolve_native_module
                     }

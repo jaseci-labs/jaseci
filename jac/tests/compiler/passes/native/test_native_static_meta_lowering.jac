@@ -16,8 +16,8 @@ order and none of the instance layout rules.
 """
 
 import os;
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
 import from tests.support { JAC_ROOT }
 
 glob FIXTURES = os.path.join(

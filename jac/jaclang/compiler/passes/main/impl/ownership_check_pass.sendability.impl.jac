@@ -1,7 +1,7 @@
-import from jaclang.jac0core.diagnostics { E1308, E1313 }
+import from jaclang.compiler.frontend.diagnostics { E1308, E1313 }
 
 impl OwnershipCheckPass._flow_for_stmts -> list[InForStmt] {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     out: list[InForStmt] = [];
     for lp in self.ir_in.get_all_sub_nodes(InForStmt) {
         for k in lp.kid {
@@ -15,7 +15,7 @@ impl OwnershipCheckPass._flow_for_stmts -> list[InForStmt] {
 }
 
 impl OwnershipCheckPass._flow_reduce_shape(asgn: Assignment, sid: SymId) -> str {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     if len(asgn.target) != 1 or not isinstance(asgn.target[0], Name) {
         return "";
     }
@@ -179,7 +179,7 @@ impl OwnershipCheckPass._collect_flow_reductions(lp: InForStmt) -> dict[SymId, s
 }
 
 impl OwnershipCheckPass._emit_flow_for_diagnostics -> None {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     _flows = self._flow_for_stmts();
     if not _flows {
         return;
@@ -318,7 +318,7 @@ impl OwnershipCheckPass._emit_sendability_diagnostics -> None {
         }
     }
 
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     for cexpr in self.idx_concurrent {
         if cexpr.tok is not None and cexpr.tok.name == Tok.KW_WAIT {
             continue;
@@ -377,7 +377,7 @@ impl OwnershipCheckPass._emit_sendability_diagnostics -> None {
 impl OwnershipCheckPass._flow_lend_joined(
     cexpr: ConcurrentExpr, owner_sid: SymId
 ) -> bool {
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     asgn = cexpr.find_parent_of_type(Assignment);
     if asgn is None
         or asgn.value is not cexpr

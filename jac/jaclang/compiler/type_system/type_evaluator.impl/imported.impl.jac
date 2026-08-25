@@ -7,7 +7,7 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
         return binding.type;
     }
     item_name = node_.name.value;
-    import from jaclang.jac0core.modresolver { is_untyped_third_party_module }
+    import from jaclang.compiler.driver.modresolver { is_untyped_third_party_module }
     import_node = node_.parent_of_type(Import);
     assert import_node.from_loc is not None;
 
@@ -44,7 +44,7 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
                             symbol_table=None,
                             is_external=True,
                         );
-                        import from jaclang.jac0core.modresolver {
+                        import from jaclang.compiler.driver.modresolver {
                             sibling_declaration_file
                         }
                         sibling_dts = sibling_declaration_file(path_str);
@@ -205,7 +205,7 @@ impl TypeEvaluator._resolve_star_import_symbol(
 }
 
 impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
-    import from jaclang.jac0core.modresolver { is_untyped_third_party_module }
+    import from jaclang.compiler.driver.modresolver { is_untyped_third_party_module }
     if node_.path {
         last_type = node_.path[-1].type;
 
@@ -317,7 +317,7 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
 impl TypeEvaluator._resolve_submodule_attr(
     base_type: ModuleType, attr_name: str
 ) -> (ModuleType | None) {
-    import from jaclang.jac0core.modresolver { is_untyped_third_party_module }
+    import from jaclang.compiler.driver.modresolver { is_untyped_third_party_module }
     if base_type.file_uri is None {
         return None;
     }

@@ -75,7 +75,7 @@ impl dot(
     to_screen: bool = False,
     format: str = "dot"
 ) -> int {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.runtimelib.builtin { printgraph }
     (base, mod, jac_machine) = _proc_file(filename);
     if filename.endswith('.jac') {
@@ -263,7 +263,7 @@ def _install_completion(shell: str, code: str) -> int {
 }
 
 impl gen_uni_dispatch(verify: bool = False) -> int {
-    import from jaclang.jac0core.gen_uni_dispatch { write_all, verify_all }
+    import from jaclang.compiler.frontend.gen_uni_dispatch { write_all, verify_all }
     if verify {
         stale = verify_all();
         for rel in stale {

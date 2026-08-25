@@ -270,7 +270,7 @@ To appreciate how pervasive this pattern is, here is a sampling from across the 
 | [`cli/commands/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands) | 6 command group files | 6 matching impl files |
 | [`compiler/passes/main/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/main) | 6 compiler pass files | 6 matching impl files |
 | [`compiler/passes/tool/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/tool) | 8 tool pass files | 8 matching impl files |
-| [`jac0core/passes/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/jac0core/passes) | 8 pass files | 8 matching impl files |
+| [`compiler/passes/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes) | 8 pass files | 8 matching impl files |
 | [`jac0core/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/jac0core) | `unitree.jac`, `program.jac`, `runtime.jac`, etc. | Matching impl files |
 | [`langserve/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/langserve) | `server.jac`, `engine.jac`, `utils.jac`, etc. | Matching impl files |
 | [`runtimelib/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/runtimelib) | `context.jac`, `memory.jac`, `server.jac`, etc. | Matching impl files |
@@ -377,13 +377,13 @@ obj Identifier(Node) {
 
 Its impl file ([`impl/estree.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/ecmascript/impl/estree.impl.jac)) is only 33 lines -- a single utility function. The vast majority of the module's value is in the declarations themselves.
 
-**[`constructs.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/jac0core/constructs.jac)** -- A 35-line re-export barrel:
+**[`constructs.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/runtime/constructs.jac)** -- A 35-line re-export barrel:
 
 <!-- jac-skip -->
 ```jac
 """Core constructs for Jac Language - re-exports."""
 
-import from jaclang.jac0core.archetype {
+import from jaclang.runtime.archetype {
     AccessLevel, Anchor, Archetype, Root, ...
 }
 

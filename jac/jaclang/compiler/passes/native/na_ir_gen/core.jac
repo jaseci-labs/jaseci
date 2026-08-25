@@ -5,10 +5,10 @@ import from jaclang.compiler.passes.main.layout_pass {
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.type_registry { JacTypeEntry }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.diagnostics { E5060, E5090, E5092 }
-import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.frontend.constant { CodeContext }
+import from jaclang.compiler.frontend.diagnostics { E5060, E5090, E5092 }
+import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+import jaclang.compiler.frontend.unitree as uni;
 import os;
 import sys;
 

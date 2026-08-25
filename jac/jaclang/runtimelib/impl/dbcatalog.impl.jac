@@ -67,7 +67,7 @@ impl sqlstate_of(err: Exception) -> str {
 
 
 impl holds_no_data(info: ConnInfo, database: str) -> bool {
-    import from jaclang.jac0core.constant { Constants as Con }
+    import from jaclang.compiler.frontend.constant { Constants as Con }
     import from jaclang.vendor.pgload { connect }
     try {
         conn: any = connect(

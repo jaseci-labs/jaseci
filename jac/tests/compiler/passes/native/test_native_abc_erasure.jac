@@ -4,7 +4,7 @@
 solver treats as an all-or-nothing verdict on the whole module: one such line
 demotes the file and, through `_native_deps_ok`, every module whose import
 closure reaches it. Two of the compiler's most widely-reached modules carry
-exactly that line -- `type_system/types.jac` and `jac0core/passes/transform.jac`,
+exactly that line -- `type_system/types.jac` and `compiler/passes/transform.jac`,
 the base every pass inherits -- so the reach was most of the pass tree.
 
 Nothing about `ABC` needs to survive to run time. Jac models abstractness with
@@ -25,9 +25,9 @@ alongside the acceptance, so the boundary cannot drift in either direction.
 
 import ctypes;
 import os;
-import from jaclang.jac0core.parser { parse as rd_parse }
-import from jaclang.jac0core.placement { scan_native_blockers }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.frontend.parser { parse as rd_parse }
+import from jaclang.compiler.placement.placement { scan_native_blockers }
+import from jaclang.compiler.driver.program { JacProgram }
 import from tests.support { JAC_ROOT, native_force_opts }
 
 glob FIXTURES = os.path.join(

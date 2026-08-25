@@ -1756,7 +1756,7 @@ impl PyastBuildPass.proc_ann_assign(nd: py_ast.AnnAssign) -> Assignment {
 }
 
 impl PyastBuildPass.proc_aug_assign(nd: py_ast.AugAssign) -> Assignment {
-    import from jaclang.jac0core.constant { TOKEN_MAP }
+    import from jaclang.compiler.frontend.constant { TOKEN_MAP }
     target = self.convert(nd.target);
     op = self.convert(nd.op);
     if isinstance(op, Token) {
@@ -2113,7 +2113,7 @@ impl PyastBuildPass.is_canceled -> bool {
 }
 
 impl PyastBuildPass.convert(nd: py_ast.AST) -> UniNode {
-    import from jaclang.jac0core.helpers { pascal_to_snake }
+    import from jaclang.compiler.frontend.helpers { pascal_to_snake }
     if self.is_canceled() {
         raise StopIteration;
     }

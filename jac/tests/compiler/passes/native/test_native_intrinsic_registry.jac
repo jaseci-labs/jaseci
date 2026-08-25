@@ -15,9 +15,9 @@ import os;
 import shutil;
 import tempfile;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.diagnostics { E5095, W6008 }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.frontend.diagnostics { E5095, W6008 }
 import from jaclang.compiler.intrinsic_registry {
     INTRINSIC_REGISTRY,
     IntrinsicDispatch

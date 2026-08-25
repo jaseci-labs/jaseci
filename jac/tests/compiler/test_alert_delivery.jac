@@ -14,12 +14,12 @@ always), and `Transform.ice` still records its E9001 before raising even
 though the constructor never returns.
 """
 
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.pass_driver { deliver_alerts, run_pass }
-import from jaclang.jac0core.diagnostics { Category, DiagnosticInfo, E1030, Severity }
-import from jaclang.jac0core.passes { Transform }
-import from jaclang.jac0core.passes.transform { DiagnosticPolicy }
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.pass_driver { deliver_alerts, run_pass }
+import from jaclang.compiler.frontend.diagnostics { Category, DiagnosticInfo, E1030, Severity }
+import from jaclang.compiler.passes { Transform }
+import from jaclang.compiler.passes.transform { DiagnosticPolicy }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob PROBE_ERR = DiagnosticInfo(
          code="E9901",

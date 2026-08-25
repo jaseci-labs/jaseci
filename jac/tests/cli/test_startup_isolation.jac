@@ -1,6 +1,6 @@
 """Import isolation checks for manifest-backed CLI fast paths.
 
-Jac bootstrap (including jac0core.runtime) is accepted as the startup floor.
+Jac bootstrap (including runtime.runtime) is accepted as the startup floor.
 These tests assert that lightweight informational paths do not eagerly import
 command implementations or optional feature packages.
 """

@@ -64,19 +64,19 @@ glob _UNITREE_MASK_CORPUS_LINES: tuple[str, ...] = (
 def unitree_profile -> MaterializeProfile {
     nl = chr(10);
     return MaterializeProfile(
-        class_modules=["jaclang.jac0core.unitree", "jaclang.jac0core.srcloc"],
+        class_modules=["jaclang.compiler.frontend.unitree", "jaclang.compiler.frontend.srcloc"],
         enum_modules=[
-            "jaclang.jac0core.unitree",
-            "jaclang.jac0core.constant",
-            "jaclang.jac0core.srcloc"
+            "jaclang.compiler.frontend.unitree",
+            "jaclang.compiler.frontend.constant",
+            "jaclang.compiler.frontend.srcloc"
         ],
-        envelope_modules=["jaclang.jac0core.parser.tokens"],
-        chain_base_module="jaclang.jac0core.unitree",
+        envelope_modules=["jaclang.compiler.frontend.parser.tokens"],
+        chain_base_module="jaclang.compiler.frontend.unitree",
         chain_base_class="UniNode",
-        mask_sources=["jac0core/unitree.jac", "jac0core/parser/impl/parser.impl.jac"],
+        mask_sources=["compiler/frontend/unitree.jac", "compiler/frontend/parser/impl/parser.impl.jac"],
         mask_corpus=nl.join(list(_UNITREE_MASK_CORPUS_LINES)),
         parse_entry="parse_program",
-        parse_entry_module="jaclang.jac0core.parser.parser",
+        parse_entry_module="jaclang.compiler.frontend.parser.parser",
         diag_class="SrcDiag",
         comment_class="CommentData"
     );
@@ -90,8 +90,8 @@ def _materialize_mask(
     if cached is not None {
         return cached;
     }
-    import from jaclang.jac0core.parser.lexer { tokenize_full }
-    import from jaclang.jac0core.parser.parser { Parser }
+    import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+    import from jaclang.compiler.frontend.parser.parser { Parser }
     sources: list[tuple[str, str]] = [(profile.mask_corpus, "__mask_corpus__.jac", )];
     for rel in profile.mask_sources {
         src_file = pkg_path / rel;
@@ -528,7 +528,7 @@ glob _HEADER_LINES: tuple[str, ...] = (
          'the emitters below rebuild everything that crosses the boundary as real',
          'CPython objects through libpython externs resolved from the host process',
          '(ELF lazy PLT / Mach-O flat lookup). Bound with the GIL HELD (PYFUNCTYPE);',
-         'see jac0core/parser/materialize.jac. Erased native slots stay None here',
+         'see compiler/frontend/parser/materialize.jac. Erased native slots stay None here',
          'and are reconstructed by materialize_fixups. mat_merge_probe runs the',
          'sealed annex merge (annex_weave.merge_annex_into) natively over two',
          'native parses and materializes the woven module; mat_annex_push and',
@@ -537,11 +537,11 @@ glob _HEADER_LINES: tuple[str, ...] = (
          '\'\'\'',
          '@UNI_IMPORT@',
          (
-             'import from jaclang.jac0core.passes.prefix_drive {'
+             'import from jaclang.compiler.passes.prefix_drive {'
              ' PrefixAlertRow, run_prefix_passes }'
          ),
          '@ENTRY_IMPORT@',
-         'import from jaclang.jac0core.passes.annex_weave { merge_annex_into }',
+         'import from jaclang.compiler.passes.annex_weave { merge_annex_into }',
          '@CONST_IMPORT@',
          '@SRC_IMPORT@',
          '@ENV_IMPORT@',
