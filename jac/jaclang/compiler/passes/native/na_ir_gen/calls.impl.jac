@@ -3329,6 +3329,9 @@ impl NaIRGenCalls._emit_jid(nd: uni.FuncCall) -> (ir.Value | None) {
     if arg_val.type == self.jacval_type {
         # `any`-boxed receiver: the object address lives in the payload slot.
         addr = self.builder.extract_value(arg_val, 1, name="jid.box.addr");
+    } elif isinstance(arg_val.type, ir.IntType) and arg_val.type.width == 64 {
+        # Unboxed dynamic value: already the raw object address.
+        addr = arg_val;
     } elif (
         isinstance(arg_val.type, ir.PointerType)
         and arg_val.type != ir.IntType(8).as_pointer()
