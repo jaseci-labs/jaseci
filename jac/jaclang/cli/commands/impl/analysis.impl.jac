@@ -127,8 +127,8 @@ impl check(
                 prog.compile(
                     file_path=file_path,
                     options=CompileOptions(
-                        type_check=True,
                         no_cgen=not native_coverage,
+                        native_parity=True,
                         force_target_program=True,
                         suppress_codes=suppressed_codes
                     )
@@ -715,11 +715,12 @@ impl format(
         try {
             import multiprocessing as mp;
             ctx = mp.get_context("fork") if os.name != "nt" else None;
-            with ProcessPoolExecutor(
+            pool: ProcessPoolExecutor = ProcessPoolExecutor(
                 max_workers=max_workers, mp_context=ctx
-            ) as executor {
+            );
+            with pool {
                 futures = {
-                    executor.submit(
+                    pool.submit(
                         _format_single_file_worker,
                         fp,
                         lintfix,
@@ -840,7 +841,8 @@ impl format(
                         console.error(f"Error writing to '{res['path']}': {e}");
                     }
                 }
-                for (impl_path, impl_code) in res['impl_results'] {
+                impl_pairs: list[tuple[str, str]] = res['impl_results'];
+                for (impl_path, impl_code) in impl_pairs {
                     try {
                         if to_screen {
                             console.print(impl_code, markup=False, highlight=False);
@@ -976,7 +978,11 @@ impl precommit(
         targets = list(paths);
     } else {
         config = get_config();
-        targets = [str(config.project_root)] if config?.project_root else ["."];
+        if config is not None and config.project_root {
+            targets = [str(config.project_root)];
+        } else {
+            targets = ["."];
+        }
     }
 
     fmt_targets = targets;
@@ -1070,18 +1076,8 @@ impl precommit(
     if tmp_root {
         shutil.rmtree(tmp_root, ignore_errors=True);
     }
-    run_typecheck = True;
-    pc_config = get_config();
-    if pc_config {
-        run_typecheck = pc_config.precommit.typecheck;
-    }
-    if run_typecheck {
-        console.print("[precommit] Running check...");
-        check_ret = check(targets);
-    } else {
-        console.print("[precommit] Skipping check ([precommit] typecheck = false).");
-        check_ret = 0;
-    }
+    console.print("[precommit] Running check...");
+    check_ret = check(targets);
     if not verify
         and check_ret == 0
         and fmt_ret == 0
@@ -1230,7 +1226,7 @@ impl `test(
     maxfail: int = None,
     directory: str = "",
     verbose: bool = False,
-    ignore: str = ""
+    ignore: (list | None) = None
 ) -> int {
     import os;
     import from jaclang.runtimelib.test_runner { run_tests }
@@ -1288,7 +1284,11 @@ impl `test(
             xit=xit,
             maxfail=maxfail,
             verbose=verbose,
-            ignore=([ignore] if ignore else []),
+            ignore=[
+                p
+                for p in (ignore or [])
+                if p
+            ],
             jobs=jobs
         );
     } except (ValueError, FileNotFoundError) as exc {

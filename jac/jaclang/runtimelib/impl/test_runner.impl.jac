@@ -189,13 +189,13 @@ impl _suite_source(filepath: str) -> str {
             import from jaclang.jac0core.bccache { discover_base_file }
             base = discover_base_file(filepath);
             if base {
-                return os.path.abspath(base);
+                return os.path.realpath(base);
             }
         } except Exception {
             ;
         }
     }
-    return os.path.abspath(filepath);
+    return os.path.realpath(filepath);
 }
 
 impl _iter_candidate_files(start: str, ignore: (list[str] | None) = None) -> list[str] {
@@ -360,33 +360,53 @@ impl _cleanup_test_bases -> None {
     }
 }
 
-impl _fresh_jac_state(clear_modules: bool = True) -> None {
+impl _log_worker_footprint(
+    kid: dict[(str, any)], record: dict[(str, any)], files: list[str], done: any
+) -> None {
     import sys;
+    if not os.environ.get("JAC_TEST_RSS_LOG", "") {
+        return;
+    }
+    rss = record.get("rss");
+    if rss is None {
+        return;
+    }
+    name = os.path.basename(files[done]) if isinstance(done, int) else "?";
+    sys.stderr.write(
+        f"[rss] slot={kid['slot']} served={record.get('served', 0)} "
+        f"rss={rss}MB{' retiring' if record.get('retire') else ''} {name}\n"
+    );
+    sys.stderr.flush();
+}
+
+impl _worker_rss_mb -> int {
+    import resource;
+    import sys;
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss;
+    return int(peak // (1024 * 1024))
+        if sys.platform == "darwin"
+        else int(peak // 1024);
+}
+
+impl _should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> bool {
+    if recycle > 0 and served >= recycle {
+        return True;
+    }
+    return rss_cap > 0 and rss_mb >= rss_cap;
+}
+
+impl _fresh_jac_state(clear_modules: bool = True) -> None {
     import tempfile;
-    import from concurrent.futures { ThreadPoolExecutor }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime, JacRuntimeInterface }
     import from jaclang.runtimelib.session { mark_scratch_base }
-    if JacRuntime.exec_ctx is not None {
-        JacRuntime.exec_ctx.mem.close();
-    }
-    if clear_modules {
-        for mod in list(JacRuntime.loaded_modules.values()) {
-            if (
-                not mod.__name__.startswith("jaclang.") and (mod.__name__ != "__main__")
-            ) {
-                sys.modules.pop(mod.__name__, None);
-            }
-        }
-        JacRuntime.loaded_modules.clear();
-    }
+    JacRuntime.reset_process_state(clear_modules=clear_modules);
     fresh_base = tempfile.mkdtemp(prefix="jac-test-base-");
     _TEST_BASES.append(fresh_base);
     mark_scratch_base(fresh_base);
     JacRuntime.set_base_path(fresh_base);
     JacRuntime.set_full_target_path(None);
     JacRuntime.program = JacProgram();
-    JacRuntime.pool = ThreadPoolExecutor();
     JacRuntime.exec_ctx = JacRuntimeInterface.create_j_context(
         user_root=None, base_path_dir=fresh_base, full_target_path=None
     );
@@ -913,6 +933,20 @@ impl ForkPool._spawn(slot: int) -> dict[(str, any)] {
 impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
     import json;
     install_warning_filters();
+
+    _recycle = 25;
+    try {
+        _recycle = int(os.environ.get("JAC_TEST_RECYCLE", "25") or "25");
+    } except ValueError {
+        _recycle = 25;
+    }
+    _rss_cap = 8192;
+    try {
+        _rss_cap = int(os.environ.get("JAC_TEST_RECYCLE_MB", "8192") or "8192");
+    } except ValueError {
+        _rss_cap = 8192;
+    }
+    _served = 0;
     reader = os.fdopen(dispatch_fd, "r", encoding="utf-8");
     while True {
         line = reader.readline();
@@ -950,12 +984,24 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
                 )
             ];
         }
+        _served += 1;
+        _rss = _worker_rss_mb();
+        _retire = _should_retire(_served, _recycle, _rss, _rss_cap);
         payload = json.dumps(
-            {"idx": request["idx"], "outcomes": [o.to_wire() for o in outcomes]}
+            {
+                "idx": request["idx"],
+                "outcomes": [o.to_wire() for o in outcomes],
+                "retire": _retire,
+                "rss": _rss,
+                "served": _served
+            }
         );
         try {
             os.write(result_fd, (payload + "\n").encode("utf-8"));
         } except OSError {
+            break;
+        }
+        if _retire {
             break;
         }
     }
@@ -999,9 +1045,20 @@ impl ForkPool._handle_record(kid: dict[(str, any)], line: str) -> None {
     } except Exception {
         return;
     }
+    done = kid["inflight"];
     kid["inflight"] = None;
+    _log_worker_footprint(kid, record, self.plan.files, done);
     for item in record.get("outcomes", []) {
         self.reporter.record(TestOutcome.from_wire(item));
+    }
+    if record.get("retire") {
+        kid["retired"] = True;
+        if not self._should_stop() and (self.cursor < len(self.plan.files)) {
+            replacement = self._spawn(kid["slot"]);
+            self.kids.append(replacement);
+            self._dispatch(replacement);
+        }
+        return;
     }
     self._dispatch(kid);
 }
@@ -1044,7 +1101,11 @@ impl ForkPool._reap(kid: dict[(str, any)]) -> None {
         }
         self.reporter.file_crashed(self.plan.files[idx], detail);
     }
-    if not self._should_stop() and (self.cursor < len(self.plan.files)) {
+    if (
+        not kid.get("retired")
+        and not self._should_stop()
+        and (self.cursor < len(self.plan.files))
+    ) {
         replacement = self._spawn(kid["slot"]);
         self.kids.append(replacement);
         self._dispatch(replacement);

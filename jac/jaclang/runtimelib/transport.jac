@@ -30,7 +30,7 @@ obj Meta {
 }
 
 obj TransportResponse {
-    has type: MessageType = MessageType.RESPONSE.value,
+    has type: str = MessageType.RESPONSE.value,
         ok: bool = True,
         data: any = None,
         error: (ErrorInfo | None) = None,
@@ -38,7 +38,7 @@ obj TransportResponse {
 
     static def success(
         data: any = None,
-        msg_type: MessageType = MessageType.RESPONSE.value,
+        msg_type: (MessageType | str) = MessageType.RESPONSE.value,
         meta: (Meta | None) = None
     ) -> TransportResponse;
 
@@ -46,7 +46,7 @@ obj TransportResponse {
         code: str,
         message: str,
         details: any = None,
-        msg_type: MessageType = MessageType.ERROR.value,
+        msg_type: (MessageType | str) = MessageType.ERROR.value,
         meta: (Meta | None) = None
     ) -> TransportResponse;
 }

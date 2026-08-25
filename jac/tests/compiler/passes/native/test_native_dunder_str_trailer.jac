@@ -16,30 +16,21 @@ import ctypes;
 import importlib;
 import os;
 import sys;
-import from tests.support { TESTS_DIR, native_force_opts, native_str_func }
-import from jaclang.jac0core.program { JacProgram }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    native_force_opts,
+    native_str_func
+}
+
 import jaclang.jac0core.unitree as uni;
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
 
-"""Compile a .jac fixture natively and return the JIT engine plus the module."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
 """Import the fixture on the sv/bytecode pathway and hand back its module."""
-def sv_module(stem: str) -> object {
+def sv_module(stem: str) -> any {
     added = False;
     if FIXTURES not in sys.path {
         sys.path.insert(0, FIXTURES);

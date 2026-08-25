@@ -119,7 +119,7 @@ def _spawn_upstream -> tuple[object, object, str] {
     return (stop, server, f"http://127.0.0.1:{server.bound_port}");
 }
 
-def _run(coro: object) -> object {
+def _run(coro: any) -> any {
     loop = asyncio.new_event_loop();
     try {
         return loop.run_until_complete(coro);
@@ -301,7 +301,7 @@ test "ws route rejects with 1012 during drain" {
 
 
 obj FakeClientWS {
-    has inbound: object,
+    has inbound: any,
         sent: list,
         closed: bool = False,
         close_code: int = 0;

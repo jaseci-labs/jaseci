@@ -43,13 +43,6 @@ test_jobs = "8"
 [test]
 directory = "jac/tests"
 
-# The pre-commit hook (`jac precommit --staged --verify`) gates commits on
-# formatting/lint only: the compiler tree itself is not yet `jac check`-clean,
-# so the type-check step would block every commit. Flip to true (or delete)
-# once `jac check jac/` passes.
-[precommit]
-typecheck = false
-
 [check.lint]
 # "all" enables every autolint rule; the two strip-* entries are the opt-in
 # "deslop" rules (W3050/W3051) that remove all comments and docstrings. They
@@ -72,6 +65,10 @@ exclude = [
     # Both were deslopped once by hand and should stay comment/docstring-free.
     "console.impl.jac",
     "cli_boot.jac",
+    # Same reason for the fused runtime's diagnostics: report.jac narrates the
+    # single binary's cold start and its failures to stderr before CPython (and
+    # so the console) exists -- bare print() is its mechanism too.
+    "fused/report.jac",
     # Files whose comments are load-bearing, so they are NOT deslopped:
     #  - uni_pass.jac carries the `# >>> generated visitor surface >>>` markers
     #    that `jac gen-uni-dispatch` uses to locate the region it rewrites;

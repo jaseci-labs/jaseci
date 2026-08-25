@@ -120,8 +120,9 @@ impl WebTarget.build(
     (base, mod) = _parse_entry_file(entry_file);
 
     Jac.jac_import(target=mod, base_path=base, lng=JAC_LANG_ID);
-    if Jac.program.errors_had {
-        errors = '\n'.join(str(e) for e in Jac.program.errors_had);
+    program = Jac.get_program();
+    if program.errors_had {
+        errors = '\n'.join(str(e) for e in program.errors_had);
         raise RuntimeError(f"Failed to compile {entry_file}:\n{errors}");
     }
     loaded_mod = Jac.loaded_modules.get(mod);
@@ -154,7 +155,7 @@ def _get_client_function_name(loaded_mod: types.ModuleType) -> str {
         return DEFAULT_FUNCTION_NAME;
     }
 
-    mod = Jac.program.find_module(mod_path);
+    mod = Jac.get_program().find_module(mod_path);
     if not mod {
         return DEFAULT_FUNCTION_NAME;
     }

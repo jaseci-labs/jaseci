@@ -170,7 +170,7 @@ impl GcsStorage.get_url(
 def _gcs_signed_url_via_iam(blob: any, expiration: any) -> str {
     import google.auth;
     import from google.auth.transport.requests { Request as GoogleAuthRequest }
-    (credentials, _) = google.auth.`default();
+    credentials: any = google.auth.`default()[0];
     credentials.refresh(GoogleAuthRequest());
 
     service_account_email = credentials?.service_account_email;

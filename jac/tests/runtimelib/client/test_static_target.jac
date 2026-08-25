@@ -99,7 +99,7 @@ test "static target is registered and resolvable" {
 
 """An explicit `kind = \"web-static\"` resolves to the static web project kind.
 
-This is the signal `jac build` / `jac start` key off to auto-route a
+This is the signal `jac build` / `jac run --serve` key off to auto-route a
 client-only project to the portable/static path without any --client flag.
 """
 test "web-static kind is detected from jac toml" {
@@ -214,8 +214,9 @@ test "client build renders from file protocol" {
         html = index_html.read_text(encoding="utf-8");
         assert 'src="' not in html , "build should inline assets (no external src)";
         with sync_playwright() as p {
-            browser = p.chromium.launch(headless=True);
-            page = browser.new_context().new_page();
+            _pw: any = p;
+            browser: any = _pw.chromium.launch(headless=True);
+            page: any = browser.new_context().new_page();
             try {
                 page.goto(index_html.as_uri(), wait_until="load", timeout=60000);
                 page.wait_for_selector("h1", timeout=30000);

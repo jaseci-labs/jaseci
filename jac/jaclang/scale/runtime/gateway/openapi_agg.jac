@@ -70,7 +70,11 @@ async def aggregate_openapi(registry: ServiceRegistry) -> dict {
     answers: dict[str, SpecFetch] = {};
 
     async def ask(name: str, service_entry: ServiceEntry) {
-        answers[name] = await fetch_service_spec(service_entry);
+        try {
+            answers[name] = await fetch_service_spec(service_entry);
+        } except BaseException as task_err {
+            _agg_logger.warning(f"openapi aggregate: {name} failed: {task_err}");
+        }
     }
     await asyncio.gather(
         *[ask(name, service_entry) for (name, service_entry) in candidates],
@@ -81,13 +85,14 @@ async def aggregate_openapi(registry: ServiceRegistry) -> dict {
     merged_schemas: dict = {};
     for (name, `entry) in candidates {
         got: SpecFetch | None = answers.get(name);
-        doc: dict | None = got.doc if got is not None else None;
-        if doc is None {
+        doc: any = got.doc if got is not None else None;
+        if not isinstance(doc, dict) {
             _agg_logger.warning(f"openapi aggregate: skipping {name}");
             continue;
         }
 
-        paths: dict = doc.get("paths") or {};
+        raw_paths = doc.get("paths");
+        paths: dict = raw_paths if isinstance(raw_paths, dict) else {};
         for (path, op) in _prefixed_paths(paths, `entry.prefix).items() {
             if path in merged_paths {
                 _agg_logger.warning(
@@ -99,8 +104,10 @@ async def aggregate_openapi(registry: ServiceRegistry) -> dict {
             merged_paths[path] = op;
         }
 
-        comps: dict = doc.get("components") or {};
-        schemas: dict = comps.get("schemas") or {};
+        raw_comps = doc.get("components");
+        comps: dict = raw_comps if isinstance(raw_comps, dict) else {};
+        raw_schemas = comps.get("schemas");
+        schemas: dict = raw_schemas if isinstance(raw_schemas, dict) else {};
         for (schema_name, schema_def) in schemas.items() {
             if schema_name in merged_schemas {
                 if merged_schemas[schema_name] != schema_def {

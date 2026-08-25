@@ -1,6 +1,7 @@
 """The Jac Programming Language."""
 
 import sys
+from typing import TYPE_CHECKING
 
 from jaclang.meta_importer import JacMetaImporter  # noqa: E402
 
@@ -103,6 +104,15 @@ def _install_runtime_shim() -> None:
 
 
 _install_runtime_shim()
+
+
+# The names below are bound at runtime by `_load_jac_runtime()` / `__getattr__`
+# (PEP 562), which keeps `import jaclang` cheap. A type checker cannot see a
+# name injected into globals(), so declare them here for static resolution
+# only -- this block never executes, so the laziness is preserved.
+if TYPE_CHECKING:
+    import jaclang.compiler as compiler
+    from jaclang.jac0core.runtime import JacRuntime, JacRuntimeInterface
 
 
 def __getattr__(name: str) -> object:

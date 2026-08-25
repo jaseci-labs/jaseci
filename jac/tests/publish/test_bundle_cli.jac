@@ -32,11 +32,7 @@ test "bundle succeeds and writes wheel and sdist to dist/" {
     try {
         _make_project(tmp_path);
 
-        result = run(
-            ["jac", "build", "--as", "wheel", "--no_typecheck"],
-            capture_output=True,
-            text=True
-        );
+        result = run(["jac", "build", "--as", "wheel"], capture_output=True, text=True);
 
         assert result.returncode == 0 , (
             f"jac bundle failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
@@ -63,7 +59,7 @@ test "bundle writes wheel to a custom output directory" {
         custom_out = str(Path(tmp_path) / "wheels");
 
         result = run(
-            ["jac", "build", "--as", "wheel", "--no_typecheck", "--output", custom_out],
+            ["jac", "build", "--as", "wheel", "--output", custom_out],
             capture_output=True,
             text=True,
         );
@@ -86,9 +82,7 @@ test "bundle sdist installs with pip" {
         _make_project(tmp_path);
 
         bundle_result = run(
-            ["jac", "build", "--as", "wheel", "--no_typecheck"],
-            capture_output=True,
-            text=True
+            ["jac", "build", "--as", "wheel"], capture_output=True, text=True
         );
         assert bundle_result.returncode == 0 , (
             f"jac bundle failed:\nstdout: {bundle_result.stdout}\nstderr: {bundle_result.stderr}"

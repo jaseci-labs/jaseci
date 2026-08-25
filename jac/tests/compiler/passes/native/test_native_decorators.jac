@@ -50,7 +50,7 @@ def fmt_errors(prog: JacProgram) -> str {
 
 """Compile a .jac fixture, run module glob-init (as init_native_globals
 does in production), and return the JIT engine."""
-def compile_fixture(fixture: str) -> object {
+def compile_fixture(fixture: str) -> any {
     import ctypes;
     import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
     prog = JacProgram();
@@ -69,7 +69,7 @@ def compile_fixture(fixture: str) -> object {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: object, *argtypes: object) -> object {
+def get_func(eng: any, name: str, restype: any, *argtypes: any) -> any {
     import ctypes;
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";

@@ -16,7 +16,6 @@ test "function returning an iterator streams as SSE instead of crashing" {
     with TemporaryDirectory() as tmp {
         app = Path(tmp) / "stream_app.jac";
         app.write_text(
-            'import from typing { Iterator }\n'
             'def:pub stream_numbers -> Iterator[dict] {\n'
             '    for i in range(3) {\n'
             '        yield {"n": i};\n'

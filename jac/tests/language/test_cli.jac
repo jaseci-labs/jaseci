@@ -136,7 +136,7 @@ test "jac cli run" {
 }
 
 test "proc_file strips compound codespace suffixes to bare module stem" {
-    # Issue #6696: `jac run`/`jac start` failed on `.sv.jac` / `.jac`
+    # Issue #6696: `jac run`/`jac run --serve` failed on `.sv.jac` / `.jac`
     # entries because proc_file stripped only the trailing `.jac`, leaving
     # e.g. `main.sv`, which the meta-importer misread as the package `main.sv`
     # ("No module named 'main.sv'"). Every compound codespace suffix must
@@ -319,7 +319,7 @@ test "jac cli alert based err" {
     sys.stdout = captured_output;
     sys.stderr = captured_output;
     try {
-        execution.enter(fixture_path("err2.jac"), entrypoint="speak", args=[]);
+        execution.run(fixture_path("err2.jac"), entry_name="speak", args=[]);
     } except Exception as e {
         print(f"Error: {e}");
     }
@@ -401,7 +401,7 @@ test "jac impl err" {
     sys.stdout = captured_output;
     sys.stderr = captured_output;
     try {
-        execution.enter(fixture_path("err.jac"), entrypoint="speak", args=[]);
+        execution.run(fixture_path("err.jac"), entry_name="speak", args=[]);
     } except Exception {
         traceback.print_exc();
     }
@@ -2089,10 +2089,11 @@ test "syntax error pretty print" {
     program = JacProgram();
     program.compile(fixture_path("test_syntax_err.jac"));
     # The trailing string before '}' is a semicolon-less tail expression
-    # (implicit return), so only the 'print "..."' juncture is a syntax
-    # error alongside the 'can'-signature error.
-    assert len(program.errors_had) == 2 , (
-        f"Expected 2 errors with improved error reporting, got {len(
+    # (implicit return), so the 'print "..."' juncture is a syntax error
+    # alongside the 'can'-signature error; with checking on the critical
+    # path the recovered tree also reports its missing return annotation.
+    assert len(program.errors_had) == 3 , (
+        f"Expected 3 errors with improved error reporting, got {len(
             program.errors_had
         )}"
     );
@@ -2222,7 +2223,9 @@ def _check_captured(
 test "jac check disable_error_code maps to check arg" {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.cli.manifest_parse { build_command_parser }
-    parser = build_command_parser(get_command_meta("check"));
+    check_meta = get_command_meta("check");
+    assert check_meta is not None;
+    parser = build_command_parser(check_meta);
     (args, _) = parser.parse_known_args(
         [fixture_path("warnings_only.jac"), "--disable-error-code", "E1030"]
     );
@@ -2274,7 +2277,9 @@ test "jac check disable_error_code warns on unknown diagnostics" {
 test "jac check native-coverage flag maps to check arg" {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.cli.manifest_parse { build_command_parser }
-    parser = build_command_parser(get_command_meta("check"));
+    check_meta = get_command_meta("check");
+    assert check_meta is not None;
+    parser = build_command_parser(check_meta);
     (args, _) = parser.parse_known_args(
         [fixture_path("warnings_only.jac"), "--native-coverage"]
     );

@@ -485,11 +485,12 @@ impl is_debug_mode(config: object = None) -> bool {
         return False;
     }
 
-    if config {
+    import from jaclang.project.config { JacConfig }
+    if isinstance(config, JacConfig) {
         try {
             client_cfg = config.get_plugin_config("client");
             if client_cfg {
-                return client_cfg.get("debug", True);
+                return bool(client_cfg.get("debug", True));
             }
         } except Exception {
             ;

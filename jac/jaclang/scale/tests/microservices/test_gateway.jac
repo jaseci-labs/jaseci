@@ -881,7 +881,9 @@ test "static_mounts dispatch falls through to dist_dir for non-matching URL" {
 
     resp = client.get("/vendor.js");
     assert resp.status_code == 200;
-    assert "javascript" in resp.headers.get("content-type", "");
+    content_type = resp.headers.get("content-type", "");
+    assert content_type is not None;
+    assert "javascript" in content_type;
 
     import shutil;
     shutil.rmtree(tmp);
@@ -1267,7 +1269,7 @@ obj _FakeScaleConfig {
 }
 
 
-def _with_cors_config(cfg: dict, fn: object) -> object {
+def _with_cors_config(cfg: dict, fn: any) -> any {
     import jaclang.scale.config.config_loader as config_loader;
     orig = config_loader.get_scale_config;
     fake = _FakeScaleConfig(_cors=cfg);
@@ -1331,7 +1333,9 @@ test "CORS preflight returns Allow-Origin + Allow-Methods when configured" {
     );
     assert resp.status_code == 200;
     assert resp.headers.get("access-control-allow-origin") == "http://app.example.com";
-    assert "GET" in resp.headers.get("access-control-allow-methods", "");
+    allow_methods = resp.headers.get("access-control-allow-methods", "");
+    assert allow_methods is not None;
+    assert "GET" in allow_methods;
     assert resp.headers.get("access-control-allow-credentials") == "true";
 }
 

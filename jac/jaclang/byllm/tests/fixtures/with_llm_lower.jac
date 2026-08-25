@@ -8,9 +8,11 @@ obj Person {
         personality: Personality;
 }
 
-glob personality_examples: dict[str, Personality] = {Personality.INTROVERT,Personality.EXTROVERT};
-
-glob llm = MockLLM(
+glob personality_examples: set[Personality] = {
+         Personality.INTROVERT,
+         Personality.EXTROVERT
+     },
+     llm = MockLLM(
          model_name="mockllm",
          config={
              "verbose": True,
