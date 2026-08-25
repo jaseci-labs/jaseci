@@ -305,7 +305,7 @@ obj NaIRGenState(ModuleCodegenPass) {
 
     def _emit_struct_pack_into(
         nd: uni.FuncCall,
-        params: list,
+        params: Sequence[uni.Expr | uni.KWPair],
         fields: list[tuple[str, int, bool]],
         total: int,
         little: bool

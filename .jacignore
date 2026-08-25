@@ -31,8 +31,6 @@ jac/jaclang/compiler/backends/native/na_ir_gen/calls.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/calls.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/clib_abi.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/clib_abi.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/clib_vtable.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/clib_vtable.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/comprehensions.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/comprehensions.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/container_helpers.impl.jac
@@ -81,8 +79,6 @@ jac/jaclang/compiler/backends/native/na_ir_gen/sized.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/sized.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/stmt.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/stmt.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/struct.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/struct.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/tuples.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/tuples.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/types.impl.jac
