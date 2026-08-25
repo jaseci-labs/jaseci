@@ -117,7 +117,7 @@ chunk = src[i:j];
 
 ## Debugging compiled output
 
-Generated JS lives in `.jac/client/` - `compiled/` (per-module JS from your client modules, readable), `dist/` (production bundle), `configs/` (generated vite/tailwind configs). When an interop pattern misbehaves, read `compiled/<module>.js` to see exactly what was emitted. Prefix `console.log("[useAuth] ...")` messages for DevTools filtering. Build failures: `JAC_DEBUG=1 jac start` for raw Vite output (see `jac-fullstack-patterns`).
+Generated JS lives in `.jac/client/` - `compiled/` (per-module JS from your client modules, readable), `dist/` (production bundle), `configs/` (generated vite/tailwind configs). When an interop pattern misbehaves, read `compiled/<module>.js` to see exactly what was emitted. Prefix `console.log("[useAuth] ...")` messages for DevTools filtering. Build failures: `JAC_DEBUG=1 jac run` for raw Vite output (see `jac-fullstack-patterns`).
 
 ## See also
 

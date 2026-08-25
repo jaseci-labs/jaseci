@@ -16,8 +16,8 @@ import shutil;
 import tempfile;
 
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob _BAD_SRC: str = "def widen(a: int, b: int) -> int {\n    return a * b;\n}\n\nwith entry {\n    total: int = widen(\"alpha\", \"beta\");\n}\n",
      _GOOD_SRC: str = "def widen(a: int, b: int) -> int {\n    return a * b;\n}\n\nwith entry {\n    total: int = widen(6, 7);\n}\n";
@@ -70,7 +70,7 @@ test "a clean module still reaches code generation" {
 
 
 test "type inference is a hard requirement of the environment" {
-    import from jaclang.jac0core.compiler {
+    import from jaclang.compiler.driver.schedules {
         TypeshedUnavailableError,
         require_typeshed_stubs,
         typeshed_stubs_available

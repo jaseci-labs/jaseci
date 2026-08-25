@@ -33,7 +33,7 @@ Type "cd myapp && jac install"
 Enter
 Sleep 10s
 
-Type "jac start"
+Type "jac run"
 Enter
 Sleep 10s
 

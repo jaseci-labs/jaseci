@@ -2,7 +2,7 @@ import json;
 import os;
 import sys;
 import from jaclang.cli.console { console }
-import from jaclang.compiler.code_intel { CodeIntelligence }
+import from jaclang.compiler.tools.code_intel { CodeIntelligence }
 import from jaclang.project.config { find_project_root }
 
 glob _SCHEMA_VERSION = 1,

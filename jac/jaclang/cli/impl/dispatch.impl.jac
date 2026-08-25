@@ -4,7 +4,7 @@ import from jaclang.cli.command { ArgKind, arg_consumes_value }
 import from jaclang.cli.manifest { ArgMeta, CommandMeta }
 
 def _discover_project_config {
-    import from jaclang.jac0core.tomlio { MalformedJacTomlError }
+    import from jaclang.project.tomlio { MalformedJacTomlError }
 
     try {
         import from jaclang.project.config { get_config }

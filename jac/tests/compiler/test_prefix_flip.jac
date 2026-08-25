@@ -37,17 +37,17 @@ import from tests.compiler.fixtures.prefix_reference {
     lying_prefix_entry,
     reference_prefix_entry
 }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { get_ir_gen_sched, get_symtab_ir_sched }
-import from jaclang.jac0core.native_brands {
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.schedules { get_ir_gen_sched, get_symtab_ir_sched }
+import from jaclang.compiler.driver.native_brands {
     DRIVER_ORIGIN,
     ensure_native_brands_bound,
     native_brand_origin,
     native_brand_origins,
     native_brands_bound
 }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.prefix_flip {
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.placement.prefix_flip {
     PREFIX_CLAUSES,
     PREFIX_IR_GEN,
     PREFIX_IR_GEN_NO_CGEN,
@@ -133,7 +133,7 @@ test "the claimed prefix is exactly the schedule's head" {
 }
 
 test "the claimed prefix stops at the first unsealed pass" {
-    import from jaclang.utils.precompile_bytecode { NATIVE_SEAL_ROOTS }
+    import from jaclang.dist.precompile_bytecode { NATIVE_SEAL_ROOTS }
     sealed_mods = set(NATIVE_SEAL_ROOTS);
     cgen = get_ir_gen_sched(gen_mtir=True);
     nxt = cgen[len(PREFIX_IR_GEN)];
@@ -219,7 +219,7 @@ test "a late consumer cannot become the brand-binding origin" {
         "overwrote the origin. The origin records who got there FIRST, and so "
         "who would do the binding, never who asked last."
     );
-    import jaclang.jac0core.parser.frontend as _fe;
+    import jaclang.compiler.frontend.parser.frontend as _fe;
     assert len(_fe._NATIVE_PARSE_MEMO) <= 1 , (
         f"the raw binder cached {len(_fe._NATIVE_PARSE_MEMO)} results; brands "
         "register at most once per process"
@@ -263,7 +263,7 @@ the binder at all. This test pins that ordering: the flip's central claim is
 that a declining compile is indistinguishable from one with no flip in the
 tree, and a binder called at a new time breaks it."""
 test "declining the prefix does not force the native parser binding" {
-    import jaclang.jac0core.parser.frontend as _fe;
+    import jaclang.compiler.frontend.parser.frontend as _fe;
     _reset();
     if _fe?.parse_and_run_prefix is not None {
         testskip("the crossing exists; this pins the entry-absent path");
@@ -404,7 +404,7 @@ test "a quarantined module reports the parity-guard trip by name" {
     }
 }
 
-test "a module with annexes declines before it is parsed" {
+test "a module with annexes crosses, and the impl arrives woven" {
     _reset();
     import tempfile;
     try {
@@ -418,10 +418,22 @@ test "a module with annexes declines before it is parsed" {
             );
             (_prog, mod) = _compile(path);
             assert mod is not None;
+            impls = [
+                st
+                for st in mod.body
+                if type(st).__name__ == "ImplDef"
+            ];
+            assert len(impls) == 1 , (
+                "the annex body did not reach the module the crossing "
+                f"produced: {[type(st).__name__ for st in mod.body]}. The "
+                "weave is part of producing a module now, so a module whose "
+                "impl lives in an annex must arrive carrying it."
+            );
         }
         by_clause = prefix_fallbacks_by_clause();
-        assert by_clause.get("annex-present", 0) >= 1 , (
-            f"an annexed module was not declined by name: {by_clause}"
+        assert by_clause.get("annex-present", 0) == 0 , (
+            "an annexed module was declined for carrying annexes, but the "
+            f"bound entry serves the multi-source crossing: {by_clause}"
         );
     } finally {
         _reset();
@@ -548,8 +560,8 @@ stamps `code_context` onto the tree -- but it does that after the parse step
 the crossing owns. A pass running inside the crossing therefore sees the
 `postinit` default, SERVER, no matter what the module is really pinned to.
 
-That is not hypothetical. `ASTValidationPass`, the one seat executing today,
-gates E0067 on exactly that field, so an ECMAScript fixture with backtick
+That is not hypothetical. `ASTValidationPass`, the first seat, gates E0067
+on exactly that field, so an ECMAScript fixture with backtick
 escaped `from`/`class` parameters -- legal in client code -- collected two
 Python-reserved-word errors the staged route never produces. Native and staged
 agree on identical input; what diverged was WHEN the pass ran relative to a
@@ -557,9 +569,11 @@ fact the driver had not stamped yet.
 
 So the crossing declines by name instead of computing on a tree the driver has
 not finished preparing. Carrying the codespace across as a prefix fact and
-coercing inside the drive is the real fix, and it is a prerequisite for
-admitting seat two -- every later seat reads more driver-stamped facts than
-this one does.
+coercing inside the drive is the real fix. Seat two did not need it --
+`SymTabBuildPass` reads neither `code_context` nor the codespace, and the
+clause keeps a pinned module out of the crossing entirely -- but every seat
+after it reads more driver-stamped facts than this one does, so the fix stays
+on the path.
 """
 test "a codespace-pinned module declines instead of crossing" {
     _reset();
@@ -569,8 +583,8 @@ test "a codespace-pinned module declines instead of crossing" {
             str(JAC_ROOT),
             "tests",
             "compiler",
-            "passes",
-            "ecmascript",
+            "backends",
+            "es",
             "fixtures",
             "advanced_language_features.jac"
         );
@@ -711,4 +725,73 @@ test "the stats surface reports natively executed passes per module" {
         _reset();
     }
     assert "no module reached the prefix router" in prefix_stats_lines()[0];
+}
+
+"""Every seat the frontier executes is declared as a `class`, not an `obj`.
+
+The crossing constructs a pass with `Pass(ir_in=mod)` and nothing else,
+because inside the native unit `PassRim` is erased and no `JacProgram`
+exists to hand it. That spelling only type-checks for a `class`
+archetype: `class PassRim { has prog: JacProgram; }` lowers to a bare
+annotation, so no constructor parameter is generated, which
+`pass_rim.jac` records as "exactly the shape this needs". An `obj`
+subclass of the same base materialises `prog` as a required parameter
+instead, and `run_prefix_passes` stops compiling with
+`error[E1050]: Not all required parameters were provided in the function
+call: 'prog'`.
+
+At runtime the two kinds are indistinguishable -- every pass in the chain
+is a dataclass whose `__init__` takes `ir_in` and never takes `prog`,
+because the metaclass pops it before `__init__` runs. So nothing catches
+an `obj` seat until the seal builds the materializer, minutes later, with
+an error that names a parameter rather than the archetype kind that
+caused it.
+
+This is the cheap check that names it up front. `SemDefMatchPass` and
+`CFGBuildPass` are the two `obj` passes in the claimed prefix today, and
+converting them is what admitting seats five and six costs.
+"""
+test "every seat the frontier executes is a class archetype" {
+    import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+    import from jaclang.compiler.frontend.parser.parser { Parser }
+    import from jaclang.compiler.passes.prefix_drive { PREFIX_NATIVE_FRONTIER }
+    import jaclang.compiler.frontend.unitree as uni;
+    import sys;
+
+    pool: dict[str, any] = {};
+    for sched in [
+        get_ir_gen_sched(gen_mtir=True),
+        get_ir_gen_sched(gen_mtir=False),
+        get_symtab_ir_sched()
+    ] {
+        for p in sched {
+            pool[p.__name__] = p;
+        }
+    }
+    executed = list(PREFIX_IR_GEN_NO_CGEN)[:PREFIX_NATIVE_FRONTIER];
+    assert executed , "the frontier claims no seats at all";
+    for name in executed {
+        cls = pool.get(name);
+        assert cls is not None , f"the frontier claims {name}, which no schedule contains";
+        src_file = sys.modules.get(cls.__module__)?.__file__;
+        assert src_file is not None and str(src_file).endswith(".jac") , (
+            f"{name} did not resolve to a .jac source: {src_file}"
+        );
+        src = Path(str(src_file)).read_text(encoding="utf-8");
+        (tokens, _c, _ld, _le) = tokenize_full(src, str(src_file));
+        mod = Parser(tokens=tokens, file_path=str(src_file), source_code=src).parse();
+        kind: (str | None) = None;
+        for arch in mod.get_all_sub_nodes(uni.Archetype) {
+            if arch.name is not None and arch.name.value == name {
+                kind = arch.arch_type.value;
+            }
+        }
+        assert kind is not None , f"no archetype named {name} in {src_file}";
+        assert kind == "class" , (
+            f"seat {executed.index(name) + 1} is `{kind} {name}`; the crossing "
+            f"can only construct a `class` pass, because an `obj` inherits "
+            f"`PassRim.prog` as a required constructor parameter and the "
+            f"native unit has no JacProgram to pass"
+        );
+    }
 }

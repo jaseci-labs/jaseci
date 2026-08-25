@@ -12,18 +12,18 @@ The analysis stage is unconditional, so a pass whose declared inputs are
 missing is a construction error rather than a silently omitted analysis.
 """
 
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compiler {
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.schedules {
     get_analysis_sched,
     get_compile_sched,
     providers_of,
     validate_schedule
 }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
-import from jaclang.compiler.passes.main.ownership_check_pass { OwnershipCheckPass }
-import from jaclang.compiler.passes.main.static_analysis_pass { StaticAnalysisPass }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
+import from jaclang.compiler.passes.ownership_check_pass { OwnershipCheckPass }
+import from jaclang.compiler.passes.static_analysis_pass { StaticAnalysisPass }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 
 
 test "schedule omitting a declared dependency fails fast at construction" {

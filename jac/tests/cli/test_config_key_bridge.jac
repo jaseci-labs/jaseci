@@ -10,9 +10,7 @@ import from jaclang.cli.registry { get_registry }
 glob _EXPECTED_CONFIG_KEYS: list[tuple[str, str, str]] = [
          ("run", "cache", "run.cache"),
          ("run", "main", "run.main"),
-         ("dev", "port", "serve.port"),
-         ("start", "port", "serve.port"),
-         ("start", "main", "run.main"),
+         ("run", "port", "serve.port"),
          ("test", "verbose", "test.verbose"),
 
      ];
