@@ -39,7 +39,15 @@ glob _SEEDS: list[str] = [
      _ALLOW_EXACT: list[str] = [
          "jaclang.cli.console",
          "jaclang.cli.banners",
-         "jaclang.server.serving.endpoint"
+         "jaclang.server.serving.endpoint",
+         "jaclang.compiler.frontend.constant",
+         "jaclang.compiler.frontend.codeinfo",
+         "jaclang.compiler.frontend.srcloc",
+         "jaclang.compiler.frontend.helpers",
+         "jaclang.compiler.driver.modresolver",
+         "jaclang.compiler.driver.mtp",
+         "jaclang.jac0core.ext_registry",
+         "jaclang.client.client_bundle"
      ],
      _VENDORED_INIT: str = '''"""Vendored jaclang runtime.
 
