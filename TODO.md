@@ -406,7 +406,7 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
 
 Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
 
-32. **[MED] e.__traceback__ is None on caught exceptions.** except-block attr
+1. **[MED] e.**traceback** is None on caught exceptions.** except-block attr
     read returns None; CPython guarantees a traceback object there (used by
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
@@ -420,35 +420,35 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     being treated as real. Bundles the phantom-cascade pattern seen with
     objects/ceval mid-edits + annotations partials.
 
-41. **[MED][FIXED f162551ed UltraMoon] hash(None) FNV digest vs CPython constant**
+1. **[MED][FIXED f162551ed UltraMoon] hash(None) FNV digest vs CPython constant**
     4238894112 - byte-parity now.
 
 41b. **[MED][FIXED 59239107b UltraMoon, same-day] None equality was identity-based**
     - py_none() mints fresh instances with no richcompare arm, so None in {None}
     returned False. Fixed via eq/ne-vs-PyNoneType arm; None==0/'' correctly False.
 
-48. **[MED] User exception subclass loses .args READ.** str(e.args) where
+1. **[MED] User exception subclass loses .args READ.** str(e.args) where
     e = MyErr('m') (user subclass of Exception) raises AttributeError('args');
     base builtin exceptions read fine. The class-attr lookup through the
     native-base Exception layout misses the args slot for subclasses.
     Distinct from item 39 (WRITE on base instances) - this is READ on
     subclass instances. Found fuzz round 43. YoungHawk candidate.
 
-46. **[HIGH][FIXED 79ddec285 UltraMoon] List/tuple repetition copied instead of
+2. **[HIGH][FIXED 79ddec285 UltraMoon] List/tuple repetition copied instead of
     aliasing** - root cause: sequence-*int had no native slot, fell through to
     host_binop whose to_host/from_host round-trip turned references into copies.
     Native kind-5 arm + reflected-repeat step. 9-point driver green.
 
-53. **[MED][ROUTE-REPLAY-ONLY] User __str__ ignored - str(obj) returns None.** class P with
-    both __repr__ and __str__: repr(P()) works, str(P()) -> 'None'.
-    __repr__-only classes also fail the str-falls-back-to-repr contract.
+3. **[MED][ROUTE-REPLAY-ONLY] User **str** ignored - str(obj) returns None.** class P with
+    both **repr** and **str**: repr(P()) works, str(P()) -> 'None'.
+    **repr**-only classes also fail the str-falls-back-to-repr contract.
     tp_str synthesis absent at value-exit; walker family.
 
-54. **[MED] PySlice.tp_richcompare missing** (UltraMoon slot-audit):
+4. **[MED] PySlice.tp_richcompare missing** (UltraMoon slot-audit):
     slice(1,2) == slice(1,2) is False natively; CPython 3.14 compares by
     value. Trivial arm; fold into item 42 slice-keys decision.
 
-55. **[MED] complex has ZERO native nb_binop slots** (slot-audit): unary
+5. **[MED] complex has ZERO native nb_binop slots** (slot-audit): unary
     -/~ raise with no fallback, from_host lacks complex branch so all
     complex arithmetic lands as opaque PyHostProxy (tag drift + latent
     unhashability). Needs a suite, not a point fix.
@@ -456,7 +456,7 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     numeric-tower EQUALITY also missing, not just arithmetic. Include eq/ne
     vs int/float/bool in the suite spec.
 
-56. **[ROOT ENABLER] _host_representable() includes MUTABLE tags**
+6. **[ROOT ENABLER] _host_representable() includes MUTABLE tags**
     (slot-audit): any missing mutable-container slot silently falls to
     to_host/from_host COPIES instead of failing loudly. This is why 46/49
     corrupted silently instead of erroring at repro time. Hardening: mutable-
@@ -464,7 +464,7 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     Matrix: UltraMoon /tmp/slot_coverage_matrix.md (197 lines, ~90 rows,
     10 material gaps). Canonical copy to jac-py/docs pending user nod.
 
-57. **[MED] E5092 native-lowering fallback: builtin hash() nondeterministic,
+7. **[MED] E5092 native-lowering fallback: builtin hash() nondeterministic,
     ignores PYTHONHASHSEED.** `with entry { print(hash("spam"), ...); }` run
     via jac run emits error[E5092] (Native lowering failed for builtin call
     'hash') and downgrades to a route where str/bytes hashing uses a
@@ -474,7 +474,7 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     goldens (wave-18 parity suite gates on exactly this). Repro by
     OakArrow, verified by BrightTiger + proxy-hash-probe agent tracing locus.
     Fix-spec pending from trace.
-    SCOPE HINT (r63 hand-sweep): user __str__ DOES dispatch correctly on
+    SCOPE HINT (r63 hand-sweep): user **str** DOES dispatch correctly on
     EXCEPTION subclasses (str(CustomErr()) -> custom text) - item 53's gap
     is confined to PLAIN user classes; exception str path already wired.
     STATUS (UltraMoon, r60): FIX LANDED (72204a6e9, jac/launcher/embed.zig
@@ -489,13 +489,13 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     jac/.pbs-build vendored python has no libpython*.so (corrupted/truncated,
     user-flagged).
 
-52. **[LOW-MED] UnicodeEncodeError surfaces as bare Exception.** '\u20ac'
+8. **[LOW-MED] UnicodeEncodeError surfaces as bare Exception.** '\u20ac'
     .encode('ascii') raises the right MESSAGE but type is generic Exception,
     not UnicodeEncodeError (so `except UnicodeEncodeError` misses it).
     Codec-error subclass wiring absent; likely family: LookupError/
     ValueError-specific codec types. Found fuzz round 51.
 
-58. **[MED][RECLASSIFIED] keywords_in_subclass gate red root cause: to_host()
+9. **[MED][RECLASSIFIED] keywords_in_subclass gate red root cause: to_host()
     of a USER PyType returns None**, so layer1 assertIs(type(u), subclass)
     compares None vs host class and fails. CORRECTION of earlier entry: the
     constructor path is FINE (YoungHawk's exec_code probes pass; my
@@ -507,35 +507,35 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     Affects every layer1 assert involving type() results - likely wider than
     this one family. YoungHawk + UltraMoon to co-decide (harness vs core).
 
-59. **[LOW] to_host(PyClass) name-faithful mirror for repr fidelity**
+10. **[LOW] to_host(PyClass) name-faithful mirror for repr fidelity**
     (split from 58): guest PyType crossing the bridge yields None; a
     name-faithful mirror (repr/type-name only, NOT identity) would fix
     cosmetic type() displays like 'None' in str(type(u)). Explicitly does
     not attempt identity round-trip (unsatisfiable: independent executions).
     UltraMoon lane after 58-harness.
 
-58. **[MED][RECLASSIFIED]** keywords_in_subclass gate red = identity split
+11. **[MED][RECLASSIFIED]** keywords_in_subclass gate red = identity split
     across marshal boundary (see reclassified entry above). RESOLUTION:
     YoungHawk implements atomic guest-side eval of identity-family asserts
     (assertIs/Not) in harness - evaluate `X is Y` wholly in guest, marshal
     bool. Precedent: D-RANGE-ID document-don't-fake.
 
-60. **[MED][ROUTE-REPLAY-ONLY] User __format__ never dispatched (replay route).** format(obj, spec) with
-    user-defined __format__ raises TypeError('unsupported format string
-    passed to NoneType.__format__') - the dunder is ignored, falls to
+12. **[MED][ROUTE-REPLAY-ONLY] User **format** never dispatched (replay route).** format(obj, spec) with
+    user-defined **format** raises TypeError('unsupported format string
+    passed to NoneType.**format**') - the dunder is ignored, falls to
     default object formatting which rejects non-empty specs. f'{obj:spec}'
     broken for all custom formatters. Walker/dunder synthesis family.
     Found fuzz r56.
 
-61. **[MED-HIGH][ROUTE-REPLAY-ONLY] Class-body methods can't mutate enclosing function-scope
-    cells.** def mk(): log=[]; class G: __setattr__ appends to log -> stays []
+13. **[MED-HIGH][ROUTE-REPLAY-ONLY] Class-body methods can't mutate enclosing function-scope
+    cells.** def mk(): log=[]; class G: **setattr** appends to log -> stays []
     after g.x=1. Module-global refs work; plain fn-in-fn closures work; ONLY
     class-body-method-over-function-local broken. Same cellvar-emission
     family as items 28/30 (KeenFalcon's F4 territory) - likely one root fix
     closes 30+61. Found fuzz r57 via setattr-intercept pin.
 
-51. **[MED][ROUTE-REPLAY-ONLY] __slots__ not enforced (replay route; PRODUCTION ENFORCES).** p.z = 3 on a
-    __slots__ class raises nothing; hasattr(p, '__dict__') True. Slot
+14. **[MED][ROUTE-REPLAY-ONLY] **slots** not enforced (replay route; PRODUCTION ENFORCES).** p.z = 3 on a
+    **slots** class raises nothing; hasattr(p, '**dict**') True. Slot
     descriptors exist in layout (Band 5 codegen oracles) but instance-level
     restriction absent. Walker family.
     CORRECTION (YoungHawk, r61): earlier claims that finalize_class_slots
@@ -544,68 +544,68 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     (ceval ~1536). Full diagnosis: jac-py/tools/SPEC_ITEM_51.md. Fix needs
     held-file ceval.jac. Item remains LIVE.
 
-50. **[MED][ROUTE-REPLAY-ONLY] C.__mro__ returns tuple of Nones.** Diamond-inheritance class:
-    str(C.__mro__) -> '(None, None, None, None)' instead of the class tuple.
+15. **[MED][ROUTE-REPLAY-ONLY] C.**mro** returns tuple of Nones.** Diamond-inheritance class:
+    str(C.**mro**) -> '(None, None, None, None)' instead of the class tuple.
     MRO linearization itself works (pin-item2-mro-c3 exercises order via
-    resolution, and issubclass/isinstance pass) - the __mro__ ATTRIBUTE
+    resolution, and issubclass/isinstance pass) - the **mro** ATTRIBUTE
     exposes unfilled slots. Display/attr-materialization gap.
 
-49. **[HIGH-adjacent][ROUTE-REPLAY-ONLY] INPLACE ops REBIND instead of MUTATE.** a = b = [];
-    a += [1]: b stays [0], a is b -> False. CPython list.__iadd__/__imul__
+16. **[HIGH-adjacent][ROUTE-REPLAY-ONLY] INPLACE ops REBIND instead of MUTATE.** a = b = [];
+    a += [1]: b stays [0], a is b -> False. CPython list.**iadd**/**imul**
     mutate in place and return self; jacpython rebinds to fresh object.
     Confirmed on lists (+/*) AND sets (-=); str/immutable forms correct.
     Same silent-wrong-answers family as 46. Owner: YoungHawk queue after 40
     (or UltraMoon lane when ceval frees).
 
-62. **[MED][FIXED 93629975c, VERIFIED] `!=` ignores user `__eq__` - identity
+17. **[MED][FIXED 93629975c, VERIFIED] `!=` ignores user `__eq__` - identity
     fallback.** class V with
-    __eq__ returning True: V(1) != V(1) (distinct objects) yields True.
-    Default __ne__ not derived from user __eq__; falls back to identity so
+    **eq** returning True: V(1) != V(1) (distinct objects) yields True.
+    Default **ne** not derived from user **eq**; falls back to identity so
     any ==-but-not-same object compares unequal. Sneaky: pin tests where
     objects differ pass by accident of the same fallback. HYGIENE (audited):
     zero affected pins today - all 8 assertNotEqual pins in layer0_replay.jac
     compare NATIVE containers (native richcompare path, unaffected). Rule
     until fixed: never pin user-class != on distinct objects; assert
-    __eq__ directly instead. Found fuzz r59
+    **eq** directly instead. Found fuzz r59
     via richcmp pin-down (individual <, ==, != ops green; combo case red).
     FIX VERIFIED (CalmKnight, r61): pins at 93629975c - user-eq negation
     green AND default identity semantics intact (== False / != True /
     same-instance != False). Pre-fix control at parent 205f367d3 fails as
     expected.
 
-63. **[MED-HIGH][ROUTE-REPLAY-ONLY] for-loop over user iterator ERRORS (replay route).** class with
-    __iter__/__next__/StopIteration: `for x in obj` raises, while
+18. **[MED-HIGH][ROUTE-REPLAY-ONLY] for-loop over user iterator ERRORS (replay route).** class with
+    **iter**/**next**/StopIteration: `for x in obj` raises, while
     list(obj) and comprehensions over the SAME class work. GET_ITER/FOR_ITER
     path skips guest dunder dispatch; only the list() builtin route
     resolves it. Found fuzz r59.
 
-64. **[MED][ROUTE-REPLAY-ONLY] two-arg iter(callable, sentinel) errors (replay route). it = iter(pop, 9)
+19. **[MED][ROUTE-REPLAY-ONLY] two-arg iter(callable, sentinel) errors (replay route). it = iter(pop, 9)
     raises before first next(); one-arg iter fine. Found fuzz r59.
 
 ROUTE-DIVERGENCE META-NOTE (expanded r63/r64): items 49/50/51/53/60/61/63/64/65/
     67/68/69/70/71/75/76 were found via the layer1_replay route but are ALL GREEN on
     the compiled-.py production route (`jac run x.py`) - verified byte-for-byte by
-    ~/notes/jac-fuzz/pins/ and hand audits (slots ENFORCED, __format__ dispatched,
-    user-iter for-loops fine, class-body cells fine, __str__/__mro__/inplace/two-arg
+    ~/notes/jac-fuzz/pins/ and hand audits (slots ENFORCED, **format** dispatched,
+    user-iter for-loops fine, class-body cells fine, **str**/**mro**/inplace/two-arg
     iter all host-exact). Same route-dependent pattern as item 57. RECLASSIFIED as
     [ROUTE-REPLAY-ONLY]: real harness-lane divergences, NOT user-facing bugs.
     The actionable meta-bug: layer1_replay route diverges from production; fix the
     route (or retire it) rather than the individual behaviors.
 
-65. ~~[MED][ROUTE-REPLAY-ONLY] Explicit descriptor-protocol dunders absent as attributes -
+1. ~~[MED][ROUTE-REPLAY-ONLY] Explicit descriptor-protocol dunders absent as attributes -
     silent None.~~ FIXED 2026-08-23 by 3830be5f0 (vm-slots lane: dispatch-time MRO
     dunder lookup for heap-type implicit slots, ceval.jac + layer0_replay.jac).
     Verified BOTH routes by CalmKnight: pin_65 PASS on production path AND replay-
-    route driver probes (layer1_replay_source) green incl. __get__ visibility +
-    hasattr(inst,'__getattribute__'). C.v.fget(c) works but C.v.__get__(c) returns None;
-    same for __get__ on plain funcs/classmethods/staticmethods; and
-    hasattr(inst, '__setattr__'/'__getattribute__') is False. IMPLICIT
+    route driver probes (layer1_replay_source) green incl. **get** visibility +
+    hasattr(inst,'**getattribute**'). C.v.fget(c) works but C.v.**get**(c) returns None;
+    same for **get** on plain funcs/classmethods/staticmethods; and
+    hasattr(inst, '**setattr**'/'**getattribute**') is False. IMPLICIT
     protocol fully correct (property get/set/del dispatch right) - only
-    dunder-as-attribute surface missing. list.__getitem__ etc ARE exposed,
+    dunder-as-attribute surface missing. list.**getitem** etc ARE exposed,
     so gap is specific to attribute/descriptor-protocol slots. Silent-wrong.
     Verified by CalmKnight pin. Found fuzz r60a.
 
-66. **[MED] Builtin scalar class patterns in match raise on bind.**
+2. **[MED] Builtin scalar class patterns in match raise on bind.**
     `match v: case int(s):` with matching subject raises TypeError('type()
     accepts 0 positional sub-patterns'); wrong-type subject falls through
     correctly. MATCH_CLASS lacks the implicit one-positional-arg isinstance
@@ -617,39 +617,39 @@ ROUTE-DIVERGENCE META-NOTE (expanded r63/r64): items 49/50/51/53/60/61/63/64/65/
     the scalar-isinstance special case lives in ceval's MATCH_CLASS arm -
     compiler-adjacent, route with match-stmt work, not generic VM slots.
 
-67. ~~[HIGH][ROUTE-REPLAY-ONLY] Instance truthiness ignores __bool__ AND __len__ on replay route -
+3. ~~[HIGH][ROUTE-REPLAY-ONLY] Instance truthiness ignores **bool** AND **len** on replay route -
     truthy.~~ FIXED 2026-08-23 by 3830be5f0 (py_slot_truth incl. POP_JUMP_IF arms).
-    Verified both routes by CalmKnight (pin_67 PASS; replay probes green). if obj: takes TRUE branch even when __bool__ returns False
-    or __len__ returns 0. POP_JUMP_IF path never consults either dunder.
+    Verified both routes by CalmKnight (pin_67 PASS; replay probes green). if obj: takes TRUE branch even when **bool** returns False
+    or **len** returns 0. POP_JUMP_IF path never consults either dunder.
     Silent-wrong control flow on every user-class conditional. Found fuzz
     r60b, verified by CalmKnight pin.
 
-68. ~~[MED][ROUTE-REPLAY-ONLY] bool(obj) returns False for ANY user instance (replay route).~~ FIXED
+4. ~~[MED][ROUTE-REPLAY-ONLY] bool(obj) returns False for ANY user instance (replay route).~~ FIXED
     2026-08-23 by 3830be5f0. Even plain
-    objects and __bool__-returning-True classes: builtin bool() yields
+    objects and **bool**-returning-True classes: builtin bool() yields
     literal False. Independent path from 67 (conditionals always-true vs
     bool() always-false). Native-Jac classes unaffected - confined to
     Python-source/ceval class path. Found fuzz r60b, verified.
 
-69. ~~[HIGH][ROUTE-REPLAY-ONLY] `in` on user class returns None - __contains__ undispatched
+5. ~~[HIGH][ROUTE-REPLAY-ONLY] `in` on user class returns None - **contains** undispatched
     via operator ON REPLAY ROUTE (production green).~~ FIXED 2026-08-23 by 3830be5f0
-    (__contains__ -> iteration fallback -> TypeError). Verified both routes
-    (pin_69 PASS; replay probes green incl. iter-fallback case). n.__contains__(x) direct call works; `x in n` yields
+    (**contains** -> iteration fallback -> TypeError). Verified both routes
+    (pin_69 PASS; replay probes green incl. iter-fallback case). n.**contains**(x) direct call works; `x in n` yields
     None (sq_contains slot/fallback unwired; no iteration fallback,
     consistent with 63). Silent-wrong. Found fuzz r60b, verified.
 
-70. ~~[HIGH][ROUTE-REPLAY-ONLY] Default hash of plain instances raises unhashable (replay route).~~
+6. ~~[HIGH][ROUTE-REPLAY-ONLY] Default hash of plain instances raises unhashable (replay route).~~
     FIXED 2026-08-23 by 3830be5f0 (default identity tp_hash + CPython
     unhashable-eqonly rule). Verified both routes (pin_70 PASS; replay probes
     green incl. eq-only-unhashable rule). Original text:
     hash(R()) on a bare class -> RuntimeError('unhashable type:
     ''instance'''); two distinct instances also fail. Default tp_hash
-    slot missing on ceval-created classes. User-defined __hash__ works;
+    slot missing on ceval-created classes. User-defined **hash** works;
     instance-keyed dicts work when populated directly (identity-eq).
     Found fuzz r60b, verified.
 
-71. ~~[MED][ROUTE-REPLAY-ONLY] int(obj)/float(obj) return None (replay route).~~ FIXED 2026-08-23
-    by 3830be5f0 (conversion builtins over user instances). User __int__/__float__
+7. ~~[MED][ROUTE-REPLAY-ONLY] int(obj)/float(obj) return None (replay route).~~ FIXED 2026-08-23
+    by 3830be5f0 (conversion builtins over user instances). User **int**/**float**
     now dispatched from int()/float(). Verified both routes (pin_71 PASS; replay
     probes green). Original finding:
 
@@ -661,22 +661,22 @@ CONSOLIDATION (r60): 65+67+68+69+70+71 shared one root shape - implicit
     CalmKnight re-verified 2026-08-23: pins 65/67-71 PASS + fresh replay-route
     driver (/tmp/fuzz_slotfix_r26.json) all green.
 
-72. **[LOW-MED] int-subclass user __init__ with kwargs fails.**
-    class N(int): def __init__(self, v, **kw): super().__init__(v); then
+1. **[LOW-MED] int-subclass user **init** with kwargs fails.**
+    class N(int): def **init**(self, v, **kw): super().**init**(v); then
     N(5, foo=1) -> EXEC ERROR. PRE-EXISTING on unpatched tree; item-40's
     patch did NOT cover it (distinct from keywords_in_subclass shapes).
     Locus: PyClass.tp_call immutable-base path, ceval.jac. Source:
     subclass-diag 14-case matrix R3, relayed via UltraMoon. Found during
     item-40 verification.
 
-73. **[LOW] Chained-raise repr loses args.** repr(e.__cause__) yields
+2. **[LOW] Chained-raise repr loses args.** repr(e.**cause**) yields
     'OSError()' where host gives "OSError('o')" - args vanish on chained
-    exceptions accessed via __cause__/__context__. Locus: raise path /
+    exceptions accessed via **cause**/**context**. Locus: raise path /
     exception construction, ceval.jac. Found by exc-setattr agent during
     item-39 verification (797b4118b).
 
 DEFERRED - exception-attr type-enforcement [INFO]: CPython raises TypeError
-    for non-traceback __traceback__, non-bool __suppress_context__,
+    for non-traceback **traceback**, non-bool **suppress_context**,
     non-exception cause/context writes; our tp_setattro (objects.jac) is
     permissive BY NECESSITY - enforcement needs exception-type checks
     unavailable in the na-clean leaf (objects.jac cannot import ceval/
@@ -704,7 +704,7 @@ LANE ASSIGNMENTS (r61, coordinated): items 62/63/64 fixes = QuickViper
     for 70 unhashable-default + 69 in-returns-None). Item 72 unclaimed.
     CalmKnight verifies shas and flips ledger status same-day.
 
-74. **[LOW-MED] unittest assertNotEqual errors when either arg is a
+1. **[LOW-MED] unittest assertNotEqual errors when either arg is a
     user-class instance.** assertNotEqual(P(), P()) and (P(), 5) both fail;
     int args fine; direct p != q comparison fine. Suspect harness/shim
     hashes or richcompares args outside normal dispatch (correlates with
@@ -712,24 +712,24 @@ LANE ASSIGNMENTS (r61, coordinated): items 62/63/64 fixes = QuickViper
     fix), NOT caused by the 62 fix. Found r61 during 62-fix verification.
     Owner: QuickViper lane (owns unittest shim + replay pins).
 
-75. **[HIGH][ROUTE-REPLAY-ONLY] Chained super() dispatch recurses infinitely on replay route.** Depth-3+ chain
+2. **[HIGH][ROUTE-REPLAY-ONLY] Chained super() dispatch recurses infinitely on replay route.** Depth-3+ chain
     where each level's method calls super().m() -> RecursionError (single
     hop green; two hops in one body green). Kills all cooperative-MRO
-    __init__ patterns incl. diamond D(B,C). Mechanism guess: second-hop
+    **init** patterns incl. diamond D(B,C). Mechanism guess: second-hop
     super resolves against type(self)/stale class instead of frame-local
-    __class__, re-finding the middle class's own method. Blocks the
+    **class**, re-finding the middle class's own method. Blocks the
     standard C3 **kw-forwarding idiom on any real codebase. Found fuzz
     r61c. PIN-SUITE CORRECTION (r63): production path GREEN at depth 3
     (Y(X(Z)) -> YXZ) - divergence is replay-route-only.
 
-76. **[LOW-MED][RECLASSIFIED replay-path-only] C.mro() METHOD absent in
+3. **[LOW-MED][RECLASSIFIED replay-path-only] C.mro() METHOD absent in
     exec/eval contexts.** On the compiled-Python production path (`jac run
     x.py`) B.mro() works and hasattr is True (CalmKnight pin, standalone
     diff) - NOT user-facing. The failure appears only via layer1 exec/eval
     (same artifact family as async leads). Keep as replay-coverage note.
     Original report: fuzz r61c.
 
-77. **[HIGH] `raise ... from e` inside except block FAILS - cause leaks,
+4. **[HIGH] `raise ... from e` inside except block FAILS - cause leaks,
     new exception never raised.** Minimal: try: raise ValueError('v')
     except ValueError as e: raise RuntimeError('r') from e -> jacpython
     errors uncaught with the CAUSE'S message ('Error: v') instead of
@@ -750,17 +750,17 @@ ASYNC SURFACE VERDICT (fuzz r62a): compiled-Python path (`jac run x.py`) is
     (INTRINSIC_ASYNC_GEN_WRAP) missing from ceval dispatch; (c) lossy
     to_host(coroutine)->[]. Evidence: /tmp/fuzz-r62a/diff/.
 
-78. **[HIGH] Custom metaclass silently ignored.** class A(metaclass=Meta):
-    compiles and runs, but Meta.__new__/__init__ are NEVER invoked -
-    type(A).__name__ stays 'type', side effects lost (cls.tag assignment in
-    Meta.__new__ invisible). Breaks ABCMeta/Enum/ORM-class patterns
+1. **[HIGH] Custom metaclass silently ignored.** class A(metaclass=Meta):
+    compiles and runs, but Meta.**new**/**init** are NEVER invoked -
+    type(A).**name** stays 'type', side effects lost (cls.tag assignment in
+    Meta.**new** invisible). Breaks ABCMeta/Enum/ORM-class patterns
     wholesale, silently. Found fuzz r63 hand-sweep, verified by CalmKnight
     standalone diff (calls-log probe).
 
-79. **[MED] Class keyword args not forwarded to __init_subclass__.**
-    class C(Base, e='yes') with Base.__init_subclass__(cls, **kw): hook RUNS
-    but kw arrives EMPTY -> cls.extra defaults instead of 'yes'. __set_name__
-    IS green. Same locus family as item 38 (super().__init_subclass__
+2. **[MED] Class keyword args not forwarded to **init_subclass**.**
+    class C(Base, e='yes') with Base.**init_subclass**(cls, **kw): hook RUNS
+    but kw arrives EMPTY -> cls.extra defaults instead of 'yes'. **set_name**
+    IS green. Same locus family as item 38 (super().**init_subclass**
     recursion, spec-only) - one class-hook machinery fix likely covers both.
     Found fuzz r63 hand-sweep, verified by CalmKnight standalone diff.
 
@@ -774,27 +774,27 @@ LITERAL-BUG SET RETIRED (KeenFalcon 58b344f34): parser literal bugs 1-3
     (negative-int constant folding) fixed in compiler_emit + tokenizer with
     64 lines parity tests. All four closed.
 
-47. **[MED] INTRINSIC_TYPEALIAS opcode undispatched in ceval** (band-11
+1. **[MED] INTRINSIC_TYPEALIAS opcode undispatched in ceval** (band-11
     TypeAlias slice 0c5a15a61, byte-exact compiler side). `type X = int`
     compiles but runtime raises unsupported-opcode until VM arm lands.
-    Owner: YoungHawk queue with LOAD_FROM_DICT_OR_GLOBALS + __annotate__
+    Owner: YoungHawk queue with LOAD_FROM_DICT_OR_GLOBALS + **annotate**
     descriptor work (PEP 649/695 runtime completion family).
 
-46. **[HIGH] List/tuple repetition copies instead of aliasing.** [[0]]*3:
+2. **[HIGH] List/tuple repetition copies instead of aliasing.** [[0]]*3:
     rows[0] is rows[1] -> False on jacpython; CPython True (shallow repetition
     repeats references, never copies). rows[0].append(1) then shows [0] at
     rows[1]. Silently breaks matrix-init and shared-reference idioms.
     Suspect: BUILD_LIST-from-repeat path deep-copying element lists. Found in
     fuzz round 41. Ownerless; runtime lane urgent.
 
-44. **[MED] Old-style __getitem__ iteration protocol not implemented.**
-    list(obj) where obj defines only __getitem__ (+IndexError terminator)
+3. **[MED] Old-style **getitem** iteration protocol not implemented.**
+    list(obj) where obj defines only **getitem** (+IndexError terminator)
     raises TypeError("'NoneType' object is not iterable") - py_iter returns
     None instead of synthesizing a sequence iterator. CPython: seq protocol
     fallback via tp_iter==NULL -> PySeqIter_New. Breaks legacy-style classes.
 
-45. **[MED] User __len__ ignored by bool().** bool(Full()) where __len__
-    returns 2 gives False (default truthiness); CPython consults __len__.
+4. **[MED] User **len** ignored by bool().** bool(Full()) where **len**
+    returns 2 gives False (default truthiness); CPython consults **len**.
     bool(Empty()) False is coincidentally right. Asymmetric with len() which
     presumably works. Family: slot synthesis at value-exit points (walker).
 
@@ -818,13 +818,13 @@ ITEM 0 STATUS: root cause deeper than documented - na-runtime over-retains
 USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     to implement on ceval release. Items 28/30 assignment still open.
 
-27. **[HIGH][FIXED 492264de5 UltraMoon] bytes richcompare** - REAL root cause:
+1. **[HIGH][FIXED 492264de5 UltraMoon] bytes richcompare** - REAL root cause:
     Py_LT..Py_GE imports missing from bytesobject.jac; the dispatch arm existed
     all along. All 10 gen-bytes pins flipped green in corpus window at
     3ebab8681 (156g/13r).
-31. **[LOW][FIXED 3ebab8681 UltraMoon] slice hash** per sliceobject.c 3.12+,
+2. **[LOW][FIXED 3ebab8681 UltraMoon] slice hash** per sliceobject.c 3.12+,
     exact host-value match incl. huge-int bounds.
-19. **[MED-HIGH][CLOSED a258dc7c] Native PyRange complete** - P1 gate-verified,
+3. **[MED-HIGH][CLOSED a258dc7c] Native PyRange complete** - P1 gate-verified,
     P2 index/count/hash from rangeobject.c, residual huge-int hash closed via
     real lifted tuple_hash/xxHash machinery. test_range ratchet 28/0/0.
 
@@ -835,55 +835,55 @@ USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     first). Small-int hashes byte-correct. Likely bignum reduction step in the
     None-stub equivalence-class encoding. YoungHawk to close.
 
-34. **[LOW-MED][FIXED, absorbed by band-11 walrus work] Constant-list-display
+1. **[LOW-MED][FIXED, absorbed by band-11 walrus work] Constant-list-display
     packing.** Module-level a = [1] now emits RESUME/LOAD_SMALL_INT 1/
     BUILD_LIST 1/STORE_NAME - byte-exact vs oracle (re-probed at 34bbd0df9 by
     BrightTiger; the >=3 threshold fix in emit covered the 1-element shape).
 
-40. **[GATE-RED, PRE-EXISTING] keywords_in_subclass across test_set/list/tuple
-    + test_generators 2 errors.** Bisected by BrightTiker through tonight's
+2. **[GATE-RED, PRE-EXISTING] keywords_in_subclass across test_set/list/tuple
+    - test_generators 2 errors.** Bisected by BrightTiker through tonight's
     entire window: red at db7e9edcb, d34b16c7e~1, ce4b400e0, 936df7898,
     91e4febef (pre-crash) AND 3ba4b1a1a (split commit this morning). NOT
     caused by PyRange/PyBytes/item-33 trio - UltraMoon's suspicion cleared;
     attribution now 'pre-existing user-class-subclass-instantiation family'
     confirmed by bisect. Owner: runtime lane, likely deep (class-call kwargs
-    path through __init__ / __new__ dispatch). Blocks gate-green.
+    path through **init** / **new** dispatch). Blocks gate-green.
 
-39. **[LOW-MED] Exception attribute reassignment raises AttributeError.**
+3. **[LOW-MED] Exception attribute reassignment raises AttributeError.**
     e.args = ('y',) -> AttributeError('args'); CPython allows args (and
     other BaseException attrs) reassignment. Read-only exception objects.
-    Family: item 32 (__traceback__ surface). Ownerless, YoungHawk candidate.
+    Family: item 32 (**traceback** surface). Ownerless, YoungHawk candidate.
 
-38. **[MED] super().__init_subclass__() recurses infinitely.** Class with
-    __init_subclass__(cls, **kw) calling super().__init_subclass__() hits
+4. **[MED] super().**init_subclass**() recurses infinitely.** Class with
+    **init_subclass**(cls, **kw) calling super().**init_subclass**() hits
     RecursionError - super() in that context re-binds to the defining method
-    instead of object.__init_subclass__. Found via fuzz round 35
+    instead of object.**init_subclass**. Found via fuzz round 35
     (init-subclass-hook). Family: user-class super() dispatch.
 
-35. **[MED][FIXED d34b16c7e BrightTiger] Iterating bytes raised TypeError
+5. **[MED][FIXED d34b16c7e BrightTiger] Iterating bytes raised TypeError
     object-is-not-iterable** - PyBytes was the only core sequence without
     tp_iter. Fixed: yields ints per CPython bytes_iterator semantics.
     Corpus unchanged at HEAD (145/24, no drift).
 
-36. **[MED] Lone surrogates in .jac string literals crash emit** (FastYak via
+6. **[MED] Lone surrogates in .jac string literals crash emit** (FastYak via
     KeenFalcon). `return "\ud800";` passes jac check but jac run dies in
     jcir_gen_pass with utf-8 encode error - surrogates not allowed. Blocks
     json round-trip corpora entirely (json round-trips lone surrogates).
     Fix shape: surrogatepass handling in pyc/cache write or const-string
     encoding. Pre-existing; separate-branch material.
 
-37. **[MED] e.__traceback__ is None on caught exceptions** - see item 32
+7. **[MED] e.**traceback** is None on caught exceptions** - see item 32
     entry above; renumbered here for owner queueing. Ownerless,
     exception-adjacent (YoungHawk candidate).
 
-33. **[HIGH][FIXED e3eb69a80/b1fedc73b BrightTiger] except (A, B) tuple-form
+8. **[HIGH][FIXED e3eb69a80/b1fedc73b BrightTiger] except (A, B) tuple-form
     handler never matched** - exception_matches treated tuple targets as
     unmatchable (target_name stayed ""), so `except (TypeError, ValueError):`
     propagated every raise. Single-type handlers worked, masking the gap.
     Fix: recursive per-item match mirroring PyErr_GivenExceptionMatches.
     Corpus: gen-exc-003 + gen-exc-008 flipped green at HEAD.
 
-31. **[LOW] hash(slice(...)) unsupported** (replay-widener-2, test_slice stem).
+9. **[LOW] hash(slice(...)) unsupported** (replay-widener-2, test_slice stem).
     CPython supports slice hash since 3.12. Ownerless.
 
 ITEM 19 ADDENDUM (from replay-widener-2): test_range replay HANGS/OOMS
@@ -1242,18 +1242,18 @@ green. Class-decorator support needs pinning elsewhere.
 
 Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
 
-32. **[MED] e.__traceback__ is None on caught exceptions.** except-block attr
+1. **[MED] e.**traceback** is None on caught exceptions.** except-block attr
     read returns None; CPython guarantees a traceback object there (used by
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
 
-27. **[HIGH][FIXED 492264de5 UltraMoon] bytes richcompare** - REAL root cause:
+2. **[HIGH][FIXED 492264de5 UltraMoon] bytes richcompare** - REAL root cause:
     Py_LT..Py_GE imports missing from bytesobject.jac; the dispatch arm existed
     all along. All 10 gen-bytes pins flipped green in corpus window at
     3ebab8681 (156g/13r).
-31. **[LOW][FIXED 3ebab8681 UltraMoon] slice hash** per sliceobject.c 3.12+,
+3. **[LOW][FIXED 3ebab8681 UltraMoon] slice hash** per sliceobject.c 3.12+,
     exact host-value match incl. huge-int bounds.
-19. **[MED-HIGH][CLOSED a258dc7c] Native PyRange complete** - P1 gate-verified,
+4. **[MED-HIGH][CLOSED a258dc7c] Native PyRange complete** - P1 gate-verified,
     P2 index/count/hash from rangeobject.c, residual huge-int hash closed via
     real lifted tuple_hash/xxHash machinery. test_range ratchet 28/0/0.
 
@@ -1264,55 +1264,55 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     first). Small-int hashes byte-correct. Likely bignum reduction step in the
     None-stub equivalence-class encoding. YoungHawk to close.
 
-34. **[LOW-MED][FIXED, absorbed by band-11 walrus work] Constant-list-display
+1. **[LOW-MED][FIXED, absorbed by band-11 walrus work] Constant-list-display
     packing.** Module-level a = [1] now emits RESUME/LOAD_SMALL_INT 1/
     BUILD_LIST 1/STORE_NAME - byte-exact vs oracle (re-probed at 34bbd0df9 by
     BrightTiger; the >=3 threshold fix in emit covered the 1-element shape).
 
-40. **[GATE-RED, PRE-EXISTING] keywords_in_subclass across test_set/list/tuple
-    + test_generators 2 errors.** Bisected by BrightTiker through tonight's
+2. **[GATE-RED, PRE-EXISTING] keywords_in_subclass across test_set/list/tuple
+    - test_generators 2 errors.** Bisected by BrightTiker through tonight's
     entire window: red at db7e9edcb, d34b16c7e~1, ce4b400e0, 936df7898,
     91e4febef (pre-crash) AND 3ba4b1a1a (split commit this morning). NOT
     caused by PyRange/PyBytes/item-33 trio - UltraMoon's suspicion cleared;
     attribution now 'pre-existing user-class-subclass-instantiation family'
     confirmed by bisect. Owner: runtime lane, likely deep (class-call kwargs
-    path through __init__ / __new__ dispatch). Blocks gate-green.
+    path through **init** / **new** dispatch). Blocks gate-green.
 
-39. **[LOW-MED] Exception attribute reassignment raises AttributeError.**
+3. **[LOW-MED] Exception attribute reassignment raises AttributeError.**
     e.args = ('y',) -> AttributeError('args'); CPython allows args (and
     other BaseException attrs) reassignment. Read-only exception objects.
-    Family: item 32 (__traceback__ surface). Ownerless, YoungHawk candidate.
+    Family: item 32 (**traceback** surface). Ownerless, YoungHawk candidate.
 
-38. **[MED] super().__init_subclass__() recurses infinitely.** Class with
-    __init_subclass__(cls, **kw) calling super().__init_subclass__() hits
+4. **[MED] super().**init_subclass**() recurses infinitely.** Class with
+    **init_subclass**(cls, **kw) calling super().**init_subclass**() hits
     RecursionError - super() in that context re-binds to the defining method
-    instead of object.__init_subclass__. Found via fuzz round 35
+    instead of object.**init_subclass**. Found via fuzz round 35
     (init-subclass-hook). Family: user-class super() dispatch.
 
-35. **[MED][FIXED d34b16c7e BrightTiger] Iterating bytes raised TypeError
+5. **[MED][FIXED d34b16c7e BrightTiger] Iterating bytes raised TypeError
     object-is-not-iterable** - PyBytes was the only core sequence without
     tp_iter. Fixed: yields ints per CPython bytes_iterator semantics.
     Corpus unchanged at HEAD (145/24, no drift).
 
-36. **[MED] Lone surrogates in .jac string literals crash emit** (FastYak via
+6. **[MED] Lone surrogates in .jac string literals crash emit** (FastYak via
     KeenFalcon). `return "\ud800";` passes jac check but jac run dies in
     jcir_gen_pass with utf-8 encode error - surrogates not allowed. Blocks
     json round-trip corpora entirely (json round-trips lone surrogates).
     Fix shape: surrogatepass handling in pyc/cache write or const-string
     encoding. Pre-existing; separate-branch material.
 
-37. **[MED] e.__traceback__ is None on caught exceptions** - see item 32
+7. **[MED] e.**traceback** is None on caught exceptions** - see item 32
     entry above; renumbered here for owner queueing. Ownerless,
     exception-adjacent (YoungHawk candidate).
 
-33. **[HIGH][FIXED e3eb69a80/b1fedc73b BrightTiger] except (A, B) tuple-form
+8. **[HIGH][FIXED e3eb69a80/b1fedc73b BrightTiger] except (A, B) tuple-form
     handler never matched** - exception_matches treated tuple targets as
     unmatchable (target_name stayed ""), so `except (TypeError, ValueError):`
     propagated every raise. Single-type handlers worked, masking the gap.
     Fix: recursive per-item match mirroring PyErr_GivenExceptionMatches.
     Corpus: gen-exc-003 + gen-exc-008 flipped green at HEAD.
 
-31. **[LOW] hash(slice(...)) unsupported** (replay-widener-2, test_slice stem).
+9. **[LOW] hash(slice(...)) unsupported** (replay-widener-2, test_slice stem).
     CPython supports slice hash since 3.12. Ownerless.
 
 ITEM 19 ADDENDUM (from replay-widener-2): test_range replay HANGS/OOMS
@@ -1404,6 +1404,7 @@ Known harness limits when writing new probes: asserts must be direct statements 
 assert calls; assert args must be interpreter-independent or folded intra-expression;
 host-baked literal expected values are stronger than self-comparisons.
 HARNESS GOTCHA (r60c): a case whose body fails to parse/indent prints `ok ... passed: 0`
+
 - ALWAYS check passed > 0, absence of FUZZFAIL proves nothing. Setup exceptions surface
 only as `errors: ['test_case']` with no message; capture stderr via a standalone probe.
 Also: driver hardcodes /tmp/fuzz_cases.json - concurrent agents must sed a unique path.
