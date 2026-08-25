@@ -10118,6 +10118,40 @@ def _slot_item_type_name(v: PyObj) -> str {
 def make_pyclass_from_map(
     class_name: str, bases: list[PyObj], namespace: dict[str, PyObj], meta: any
 ) -> PyObj {
+    # CPython type_new derives cls.__module__ from the namespace's own
+    # __module__ entry, falling back to the invoking frame's globals. Our
+    # builder runs on paths where neither exists -- a metaclass __prepare__
+    # mapping like enum's _EnumDict carries no seeded entry, and tp_call
+    # dispatch into type.__new__ has no frame to consult. Mirror the fallback
+    # chain here: inherit from the nearest base carrying a real __module__
+    # (each base's MRO in order), else read the calling frame's globals via
+    # jac_current_module_name, else reuse the defining-context module name the
+    # class-body frame seeds as __name__. Without this, classes built through
+    # guest EnumType chains have no provenance -- enum's bootstrap extend guard
+    # compares base __module__/repr provenance and rejects its own classes.
+    if "__module__" not in namespace {
+        for tb in bases {
+            if isinstance(tb, PyClass) {
+                mod = class_lookup_attr(tb as PyClass, "__module__");
+                if not is_error(mod) {
+                    namespace["__module__"] = mod;
+                    break;
+                }
+            }
+        }
+    }
+    if "__module__" not in namespace {
+        fnm = jac_current_module_name();
+        if fnm is not None {
+            namespace["__module__"] = fnm;
+        }
+    }
+    if "__module__" not in namespace and "__name__" in namespace {
+        nm = namespace["__name__"];
+        if isinstance(nm, PyStr) {
+            namespace["__module__"] = nm;
+        }
+    }
     # CPython type_new_staticmethod (Objects/typeobject.c): a plain-function
     # __new__ in the namespace is stored as a STATICMETHOD so it never
     # instance-binds -- super().__new__(mcls, ...) must reach it unbound (the
@@ -14459,7 +14493,41 @@ def exec_code_frame(
     return run_frame(frame);
 }
 
+# Innermost guest frame's globals, published by the run_frame wrapper so
+# native paths can read the CURRENT frame the way CPython internals do
+# (type_new derives cls.__module__ from the invoking frame's globals).
+# One-slot holder rather than a bare `glob` -- a glob rebound inside a
+# function is scoped local and never persists (see layer3_flag note); index
+# assignment mutates the holder in place. An EMPTY dict in slot 0 means no
+# guest frame is executing.
+glob jac_frame_globals_slot: list[dict[str, PyObj]] = [{}];
+
+# The defining-context module name for native class creation, or None when no
+# executing guest frame carries one.
+def jac_current_module_name -> PyObj | None {
+    g = jac_frame_globals_slot[0];
+    if "__name__" in g {
+        nm = g["__name__"];
+        if isinstance(nm, PyStr) {
+            return nm;
+        }
+    }
+    return None;
+}
+
 def run_frame(frame: PyFrame) -> PyObj {
+    # Publish this frame's globals for the duration of its execution;
+    # save/restore keeps recursion and generator resumes correct.
+    outer_globals = jac_frame_globals_slot[0];
+    jac_frame_globals_slot[0] = frame.globals;
+    try {
+        return run_frame_inner(frame);
+    } finally {
+        jac_frame_globals_slot[0] = outer_globals;
+    }
+}
+
+def run_frame_inner(frame: PyFrame) -> PyObj {
     co = frame.co;
     fast = frame.fast;
     assigned = frame.assigned;
