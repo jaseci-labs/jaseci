@@ -1,0 +1,205 @@
+import keyword;
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.passes { UniPass }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.constant { TOKEN_MAP }
+import from jaclang.compiler.frontend.parser.tokens { KEYWORDS }
+import from jaclang.compiler.frontend.diagnostics {
+    W3001,
+    W3002,
+    W3003,
+    W3004,
+    W3005,
+    W3007,
+    W3008,
+    W3009,
+    W3010,
+    W3011,
+    E3012,
+    W3020,
+    W3021,
+    W3022,
+    W3023,
+    W3024,
+    W3025,
+    W3030,
+    W3035,
+    W3036,
+    W3037,
+    W3038,
+    W3039,
+    W3040,
+    W3041,
+    W3042,
+    W3043,
+    W3050,
+    W3051
+}
+import type from jaclang.compiler.driver.program { JacProgram }
+
+obj JacAutoLintPass(UniPass) {
+    has prog: JacProgram,
+        lint_enabled: bool = True,
+        report_only: bool = False,
+        main_module: (uni.Module | None) = None,
+        _exclude_patterns: list[str] = [],
+        _project_root: str = "",
+        _did_convert_usestate: bool = False,
+        _pending_setters: list[dict[str, str]] = [],
+        _base_decl_cache: list[uni.Archetype] = [],
+        _base_decls_loaded: bool = False;
+
+    static has HOST_PASS: bool = True;
+
+    def postinit -> None;
+    def _is_file_excluded(file_path: str) -> bool;
+    def enter_module(nd: uni.Module) -> None;
+    def can_convert_to_glob(assignment: uni.Assignment) -> bool;
+    def names_unsafe_to_globalize(module: uni.Module) -> set[str];
+    def entry_written_names(module: uni.Module) -> set[str];
+    def is_module_level_construct(stmt: uni.UniNode) -> bool;
+    def create_glob_from_assignment(assignment: uni.Assignment) -> uni.GlobalVars;
+    def create_entry_block(stmts: list) -> uni.ModuleCode;
+    def can_combine_has(has1: uni.ArchHas, has2: uni.ArchHas) -> bool;
+    def can_combine_glob(glob1: uni.GlobalVars, glob2: uni.GlobalVars) -> bool;
+    def combine_consecutive_has(body: list) -> list;
+    def combine_consecutive_glob(body: list) -> list;
+    def _merge_run_into_base(
+        base: uni.UniNode, combined_items: list, items_attr: str, strip_semi: bool
+    ) -> None;
+
+    def _combine_has_in_node(nd: uni.Archetype | uni.Enum | uni.Ability) -> None;
+    def enter_archetype(nd: uni.Archetype) -> None;
+    def enter_enum(nd: uni.Enum) -> None;
+    def enter_impl_def(nd: uni.ImplDef) -> None;
+    def exit_impl_def(nd: uni.ImplDef) -> None;
+    def enter_ability(ability_node: uni.Ability) -> None;
+    def _remove_staticmethod_from_kids(ability_node: uni.Ability) -> None;
+    def exit_ability(ability_node: uni.Ability) -> None;
+    def enter_special_var_ref(nd: uni.SpecialVarRef) -> None;
+    def exit_func_call(nd: uni.FuncCall) -> None;
+    def _convert_hasattr_to_null_ok(nd: uni.FuncCall) -> (uni.AtomTrailer | None);
+    def _convert_getattr_to_null_ok(nd: uni.FuncCall) -> (uni.AtomTrailer | None);
+    def _funccall_to_null_safe(
+        fc: uni.FuncCall, require_valid_identifier: bool
+    ) -> (uni.AtomTrailer | None);
+
+    def _replace_child_in_parent(
+        parent: uni.UniNode, old: uni.UniNode, new: uni.Expr
+    ) -> None;
+
+    def _is_matching_attr_access(
+        trailer: uni.AtomTrailer, obj_expr: uni.Expr, attr_name: str
+    ) -> bool;
+
+    def _make_null_ok(trailer: uni.AtomTrailer) -> None;
+    def _bool_expr_has_matching_access(
+        parent: uni.BoolExpr,
+        hasattr_node: uni.FuncCall,
+        obj_expr: uni.Expr,
+        attr_name: str
+    ) -> bool;
+
+    def _collect_atom_trailers(uni_node: uni.UniNode, results: list) -> None;
+    def _expr_to_key(expr: uni.Expr) -> (str | None);
+    def _exprs_are_identical(expr1: uni.Expr, expr2: uni.Expr) -> bool;
+    def _convert_ternary_to_or(if_else_node: uni.IfElseExpr) -> bool;
+    def exit_if_else_expr(if_else_node: uni.IfElseExpr) -> None;
+    def exit_bool_expr(bool_node: uni.BoolExpr) -> None;
+    def _is_future_annotations_import(stmt: uni.UniNode) -> bool;
+    def _fix_impl_signature_mismatch(impl_node: uni.ImplDef) -> None;
+    def _impl_owner_archetype(impl_node: uni.ImplDef) -> (uni.Archetype | None);
+    def _base_decl_archetypes(annex_path: str) -> list[uni.Archetype];
+    def _signatures_match(
+        decl_sig: uni.FuncSignature, impl_sig: uni.FuncSignature
+    ) -> bool;
+
+    def _stmt_body_list(nd: uni.UniNode) -> (Sequence[uni.UniNode] | None);
+    def enter_import(import_node: uni.Import) -> None;
+    def _remove_empty_parens_from_sig(
+        target_node: uni.UniNode, sig: uni.FuncSignature, sig_attr: str
+    ) -> None;
+
+    def _extract_string_literal_value(expr: uni.Expr) -> (str | None);
+    def _check_no_print(nd: uni.FuncCall) -> None;
+    def _check_unnecessary_pass(body: list) -> None;
+    def _check_unnecessary_else_after_return(nd: uni.IfStmt) -> None;
+    def _check_nested_if_to_elif(nd: uni.ElseStmt) -> None;
+    def _check_return_bool_simplification(nd: uni.IfStmt) -> None;
+    def _check_repeated_condition(nd: uni.IfStmt) -> None;
+    def _check_identical_branches(nd: uni.IfStmt) -> None;
+    def _check_too_many_params(nd: uni.FuncSignature) -> None;
+    def _check_is_with_literal(nd: uni.CompareExpr) -> None;
+    def _check_filter_compare_tautology(nd: uni.CompareExpr) -> None;
+    def _check_mutable_default(nd: uni.ParamVar) -> None;
+    def _check_unnecessary_none_return(
+        nd: (uni.Ability | uni.LambdaExpr),
+        body: (uni.UniNode | Sequence[uni.UniNode] | None),
+        sig: (uni.FuncSignature | uni.EventSignature | None),
+        name: str
+    ) -> None;
+
+    def _body_has_return_stmt(body: list) -> bool;
+    def exit_if_stmt(nd: uni.IfStmt) -> None;
+    def enter_else_stmt(nd: uni.ElseStmt) -> None;
+    def exit_compare_expr(nd: uni.CompareExpr) -> None;
+    def exit_func_signature(nd: uni.FuncSignature) -> None;
+    def enter_param_var(nd: uni.ParamVar) -> None;
+    def exit_archetype(nd: uni.Archetype) -> None;
+    def exit_lambda_expr(nd: uni.LambdaExpr) -> None;
+    def _is_usestate_assignment(
+        stmt: uni.UniNode
+    ) -> (tuple[str, str, uni.Expr | None] | None);
+
+    def _infer_type_from_usestate_value(value: (uni.Expr | None)) -> str;
+    def _create_has_from_usestate(
+        ref_node: uni.UniNode,
+        var_name: str,
+        type_str: str,
+        init_value: (uni.Expr | None)
+    ) -> uni.ArchHas;
+
+    def _convert_usestate_vars(ability_node: uni.Ability) -> None;
+    def _strip_usestate_imports(nd: uni.Module) -> None;
+    def exit_expr_stmt(nd: uni.ExprStmt) -> None;
+    def exit_module(nd: uni.Module) -> None;
+    def _strip_noise(nd: uni.Module) -> None;
+    def _strip_docstrings(start: uni.UniNode) -> None;
+    def _collect_doc_nodes(`node: uni.UniNode, results: list[uni.AstDocNode]) -> None;
+    def _check_stale_has_read(ability_node: uni.Ability) -> None;
+    def _collect_reactive_has_names(ability_node: uni.Ability) -> set[str];
+    def _walk_for_has_uses(
+        nd: uni.UniNode,
+        reactive: set[str],
+        writes: list[tuple[int, int, str]],
+        reads: list[tuple[int, int, str, uni.Name]]
+    ) -> None;
+
+    def _make_name_node(ref_node: uni.UniNode, value: str) -> uni.Name;
+    def _detect_map_lambda_jsx(
+        nd: uni.FuncCall
+    ) -> (tuple[str, uni.JsxElement, uni.Expr] | None);
+
+    def _extract_filter_cond(
+        collection: uni.Expr
+    ) -> (tuple[uni.Expr, uni.Expr] | None);
+
+    def _convert_map_to_comprehension(nd: uni.FuncCall) -> bool;
+    def _convert_properties(container: uni.Archetype) -> None;
+    def _property_role_of_ability(ab: uni.Ability) -> str;
+    def _make_accessor_from_ability(src: uni.Ability, kind: str) -> uni.Ability;
+    def _build_property_has(
+        ref_node: uni.UniNode, prop_name: str, type_expr: uni.Expr, accessors: list
+    ) -> uni.ArchHas;
+
+    def _property_impl_roles(
+        arch: uni.Archetype, prop_name: str
+    ) -> dict[str, list[uni.Ability]];
+
+    def _impl_property_kind(nd: uni.ImplDef) -> str;
+    def _convert_property_impl(nd: uni.ImplDef) -> None;
+}
+
+obj JacLintCheckPass(JacAutoLintPass) {
+    has report_only: bool = True;
+}

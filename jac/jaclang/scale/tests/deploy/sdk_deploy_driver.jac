@@ -2,7 +2,7 @@
 
 Deploys an ordinary app folder (the e2e uses a sanitized copy of
 jac/examples/todo_app) through the programmatic SDK instead of
-`jac start --scale`, using the one-call form:
+`jac scale deploy`, using the one-call form:
 
     result = deploy(path, config, on_event=...);
 

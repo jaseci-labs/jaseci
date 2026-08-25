@@ -1,8 +1,8 @@
 # CLI Reference
 
-The `jac` command is your primary interface for working with Jac projects. It handles the full development lifecycle: running programs (`jac run`), type-checking code (`jac check`), running tests (`jac test`), formatting and linting (`jac fmt`, `jac check --lint`), managing dependencies (`jac install`, `jac remove`, `jac update`), serving APIs (`jac start`), and even compiling to native binaries (`jac nacompile`, or `jac build --as native`). Think of it as combining the roles of `python`, `pip`, a test runner, `black`, and `flask` into a single unified tool.
+The `jac` command is your primary interface for working with Jac projects. It handles the full development lifecycle: running programs (`jac run`), type-checking code (`jac check`), running tests (`jac test`), formatting and linting (`jac fmt`, `jac check --lint`), managing dependencies (`jac install`, `jac remove`, `jac update`), serving APIs (`jac run`), and even compiling to native binaries (`jac nacompile`, or `jac build --as native`). Think of it as combining the roles of `python`, `pip`, a test runner, `black`, and `flask` into a single unified tool.
 
-Every capability ships built into the core binary. The `scale` subsystem (formerly the `jac-scale` plugin) provides deployment commands and flags -- for example, `jac start --scale` for Kubernetes deployment. The full-stack client framework (formerly the `jac-client` / `jac-desktop` plugins) contributes others, such as `jac build --client desktop` for desktop app packaging. byLLM likewise ships built in, contributing `jac model` and the AI language features.
+Every capability ships built into the core binary. The `scale` subsystem (formerly the `jac-scale` plugin) provides deployment commands and flags -- for example, `jac scale deploy` for Kubernetes deployment. The full-stack client framework (formerly the `jac-client` / `jac-desktop` plugins) contributes others, such as `jac build --client desktop` for desktop app packaging. byLLM likewise ships built in, contributing `jac model` and the AI language features.
 
 > **💡 Enhanced Output**: All CLI commands render beautiful, colorful Rich-style output out of the box -- themes, panels, and spinners are built into jaclang by default, with no extra install needed.
 
@@ -13,9 +13,9 @@ A task-first index into the commands below. The full alphabetical list follows i
 | I want to… | Command(s) |
 |---|---|
 | Run a program | `jac run` (no filename → runs the project by its `kind`; `--entry <walker>` runs a specific entrypoint) |
-| Start a web/API server | `jac start` |
-| Run the live hot-reload dev loop | `jac dev` · `jac start --dev` |
-| Deploy to Kubernetes | `jac start --scale` · `jac scale status` · `jac scale destroy` |
+| Start a web/API server | `jac run` (server kinds serve; `--serve` forces it) |
+| Run the live hot-reload dev loop | `jac run --dev` |
+| Deploy to Kubernetes | `jac scale deploy` · `jac scale status` · `jac scale destroy` |
 | Create a new project | `jac create` |
 | Set up / build a client shell (web, desktop, mobile) | `jac setup` · `jac build --client <target>` |
 | Compile a native binary or C-ABI shared library | `jac nacompile` · `jac build --as native` |
@@ -32,7 +32,7 @@ A task-first index into the commands below. The full alphabetical list follows i
 | Manage byLLM local models | `jac model` |
 | Use Jac from an AI assistant | `jac guide` · `jac mcp` |
 | Convert between Python, Jac, and JS | `jac tool py2jac` · `jac tool jac2py` · `jac tool jac2js` |
-| Clean caches / artifacts | `jac clean` · `jac purge` |
+| Clean caches / artifacts | `jac clean` |
 
 ---
 
@@ -40,9 +40,7 @@ A task-first index into the commands below. The full alphabetical list follows i
 
 | Command | Description |
 |---------|-------------|
-| `jac run` | Execute a Jac file or `.jab`, or (no filename) run the current project by its kind (`--entry <walker>`, `--debug`) |
-| `jac start` | Start REST API server (use `--scale` for K8s deployment) |
-| `jac dev` | Live hot-reload dev loop (project-entry resolution + HMR serve) |
+| `jac run` | Execute *or* serve a Jac file, a `.jab`, or (no filename) the current project, per its kind (`--entry <walker>`, `--debug`, `--serve`, `--port`, `--dev`) |
 | `jac build` | Type-check gate, then emit one artifact (`--as jab\|sealed\|binary\|wheel\|npm\|source\|native`; default `.jab`; `--client` builds a client shell) |
 | `jac create` | Create new project (`--pack` to bundle a directory into a `.jacpack` template) |
 | `jac check` | Type check code (`--lint` to lint, `--lint --fix` to auto-fix) |
@@ -50,7 +48,6 @@ A task-first index into the commands below. The full alphabetical list follows i
 | `jac fmt` | Format code |
 | `jac precommit` | Run format + check using `jac.toml` lint settings (installable as a git hook) |
 | `jac clean` | Clean project build artifacts |
-| `jac purge` | Purge global bytecode cache (works even if corrupted) |
 | `jac dot` | Generate graph visualization |
 | `jac browse` | Automate a headless browser over CDP (navigate, click, snapshot, screenshot) |
 | `jac code` | Query code structure via the compiler (symbols, uses, walkers, slices) |
@@ -59,7 +56,7 @@ A task-first index into the commands below. The full alphabetical list follows i
 | `jac nacompile` | Compile the native (`na`) subset to a binary, shared library, or WebAssembly |
 | `jac model` | Manage byLLM local-model weights (Gemma 4, Qwen 3.5, …) |
 | `jac config` | Manage project configuration |
-| `jac scale` | Manage local microservices (status/stop/restart/logs) and platform deployments (status/destroy) |
+| `jac scale` | Deploy to a platform (`jac scale deploy`), and manage local microservices (status/stop/restart/logs) and platform deployments (status/destroy) |
 | `jac install` | Install project dependencies from `jac.toml` (`--plan` to preview the resolved plan), or `jac install <pkg>` to add packages to `jac.toml` and install them (`--no-save` to skip recording) |
 | `jac x` | Run an installed CLI tool (Python console-script or npm tool) under the `jac` runtime |
 | `jac remove` | Remove packages from project |
@@ -88,6 +85,9 @@ The CLI cleanup in #7255 folded these former top-level commands into their homes
 | `jac jac2js` | [`jac tool jac2js`](#jac-tool) |
 | `jac py2jac` | [`jac tool py2jac`](#jac-tool) |
 | `jac jac2py` | [`jac tool jac2py`](#jac-tool) |
+| `jac start` | [`jac run --serve`](#jac-run) (`--port`, `--client`, `--faux`, `--takeover` ride along) |
+| `jac dev` | [`jac run --dev`](#jac-run) |
+| `jac start --scale` | [`jac scale deploy`](#jac-scale-deploy) (with `--target`, `--enable-tls`, `--dry-run`, `--show-yaml`) |
 
 ## Version Info
 
@@ -123,26 +123,46 @@ Execute a Jac file, a prebuilt `.jab` artifact, or (with no filename) run the cu
 **Note:** `jac <file>` is shorthand for `jac run <file>` - both work identically.
 
 ```bash
-jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [filename] [args ...]
+jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [--serve | --no-serve] [-p PORT] [-d | --dev] [--api-port API_PORT] [--no-client] [-f | --faux] [--client {web,pwa,mobile,desktop}] [--host HOST] [--platform {auto,android,ios}] [--takeover] [filename] [args ...]
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `filename` | Jac file (or `.jab` artifact) to run. Omit to dispatch on the project's `jac.toml` | (project) |
-| `-s, --show` | Print the resolved project run-plan (kind, action, equivalent command) without executing | `False` |
+| `-s, --show` | Print the resolved run plan (kind, action, equivalent command) without executing | `False` |
 | `-m, --main` | Treat module as `__main__` | `True` |
 | `-c, --cache` | Enable compilation cache | `True` |
 | `-e, --diagnostics` | Diagnostic verbosity: `error`, `all`, or `none` | `error` |
 | `--profile` | Configuration profile to load (e.g. prod, staging) | `""` |
+| `args` | Arguments passed to the script (available via `sys.argv[1:]`) | |
+
+Executing only -- rejected when the resolved action is *serve*:
+
+| Option | Description | Default |
+|--------|-------------|---------|
 | `--entry` | Run a specific entrypoint (function/walker) instead of the module's `with entry` block | None |
 | `-n, --node` | Starting node ID (with `--entry`) | None |
 | `-r, --root` | Root executor ID (with `--entry`) | None |
 | `--debug` | Launch the interactive debugger on the file | `False` |
-| `args` | Arguments passed to the script (available via `sys.argv[1:]`) | |
+
+Serving only -- rejected when the resolved action is *execute* or *build*:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--serve` / `--no-serve` | Force serving (or force executing), overriding the project kind | (kind decides) |
+| `-p, --port` | Port number | `8000` |
+| `-d, --dev` | Enable HMR (Hot Module Replacement) mode | `False` |
+| `--api-port` | Separate API port for HMR mode (0 = same as `--port`) | `0` |
+| `--no-client` | Skip client bundling/serving (API only) | `False` |
+| `-f, --faux` | Print endpoint docs only, no server | `False` |
+| `--client` | Client build target (`web`, `pwa`, `mobile`, `desktop`) | `web` |
+| `--host` | Mobile dev (`--client mobile --dev`) optional live-reload host/IP override | `""` |
+| `--platform` | Mobile platform selector for `--client mobile` (`auto`, `android`, `ios`) | `auto` |
+| `--takeover` | Evict any other session holding this project's database before serving | `False` |
 
 Like Python, everything after the filename is passed to the script. Jac flags must come **before** the filename.
 
-**Project-aware run (no filename).** Inside a project, a bare `jac run` resolves the project *kind* from `[project] kind` in `jac.toml` (or infers it from the entry-point's codespace) and does the natural action for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). Use `jac run --show` to preview the plan and the equivalent primitive command (`run` / `start` / `nacompile` / `build`) without running it. See [project kinds](../../quick-guide/project-kinds.md) and [config `[project]`](../config/index.md).
+**Project-aware run (no filename).** Inside a project, a bare `jac run` resolves the project *kind* from `[project] kind` in `jac.toml` (or infers it from the entry-point's codespace) and does the natural action for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). Use `jac run --show` to preview the plan and the equivalent command without running it. A serve-only flag against a kind that executes (or the reverse) is a hard error, not a silent no-op -- pass `--serve` / `--no-serve` to override the kind deliberately. See [project kinds](../../quick-guide/project-kinds.md) and [config `[project]`](../config/index.md).
 
 **Diagnostics modes:**
 
@@ -195,7 +215,7 @@ jac run --entry process_data main.jac arg1 arg2
 jac run --entry my_walker -r root_id -n node_id main.jac
 ```
 
-**Running a prebuilt `.jab` artifact.** `jac run app.jab` executes a sealed artifact with **zero live compilation** -- the sealed image (client dist, serve manifest, native binaries) is baked in and hash-verified at load. `cli`-kind artifacts execute; use [`jac start`](#jac-start) to production-serve servable kinds.
+**Running a prebuilt `.jab` artifact.** `jac run app.jab` executes a sealed artifact with **zero live compilation** -- the sealed image (client dist, serve manifest, native binaries) is baked in and hash-verified at load. `cli`-kind artifacts execute; servable kinds production-serve.
 
 ```bash
 # Execute a sealed artifact
@@ -248,93 +268,40 @@ jac run greet.jac --name Alice
 
 ---
 
-### jac start
+**Serving (`--serve`, `--port`, `--dev`).** When the project kind is a server kind (`service`, `service-mesh`, `web-app`, `web-static`, `desktop`), `jac run` serves instead of executing -- with or without an explicit filename. Every `:pub` / `:priv` walker becomes an API endpoint, with OpenAPI docs, auth, and persistence. Outside a server-kind project, `--serve` asks for the same thing explicitly.
 
-Start a Jac application as an HTTP API server. Use `--scale` to deploy to Kubernetes (handled by the built-in `scale` subsystem; the first `--scale` run resolves its deploy deps via `jac install`). Use `--dev` for Hot Module Replacement (HMR) during development; live-reload is powered by the `watchdog` library bundled in the `jac` binary, so no extra install is needed.
-
-```bash
-jac start [-h] [-p PORT] [-m | --main | --no-main] [-f | --faux | --no-faux] [-d | --dev | --no-dev] [-a API_PORT] [-n] [--profile PROFILE] [--client {web,pwa,static,mobile,desktop,cef,react-native}] [--host HOST] [--platform {auto,android,ios}] [--scale | --no-scale] [-t TARGET] [--enable-tls | --no-enable-tls] [--dry-run | --no-dry-run] [--show-yaml | --no-show-yaml] [--takeover | --no-takeover] [filename]
-```
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `filename` | Jac file to serve | `main.jac` |
-| `-p, --port` | Port number | `8000` |
-| `-m, --main` | Treat as `__main__` | `True` |
-| `-f, --faux` | Print docs only (no server) | `False` |
-| `-d, --dev` | Enable HMR (Hot Module Replacement) mode | `False` |
-| `--api_port` | Separate API port for HMR mode (0=same as port) | `0` |
-| `--no-client` | Skip client bundling/serving (API only) | `False` |
-| `--profile` | Configuration profile to load (e.g. prod, staging) | `""` |
-| `--client` | Client build target (`web`, `desktop`, `pwa`, `mobile`) | None |
-| `--host` | Mobile dev (`--client mobile --dev`) optional live-reload host/IP override | `""` |
-| `--platform` | Mobile start/dev platform selector for `--client mobile` (`auto`, `android`, `ios`) | `auto` |
-| `--scale` | Deploy to Kubernetes (built-in scale subsystem) | `False` |
-| `--target` | Deployment target (with `--scale`) | `kubernetes` |
-| `--enable-tls` | Enable HTTPS via Let's Encrypt (with `--scale`) | `False` |
-| `--dry-run` | Print the manifests that would be applied; change nothing (with `--scale`) | `False` |
-| `--show-yaml` | With `--dry-run`: dump the raw YAML stream | `False` |
-| `--takeover` | Evict any other session holding this project's database before starting | `False` |
-
-**Examples:**
+`--dev` adds Hot Module Replacement, rebuilding on every save; live-reload is powered by the `watchdog` library bundled in the `jac` binary, so no extra install is needed. A sealed `.jab` never serves in dev mode -- run the project source instead.
 
 ```bash
-# Start with default main.jac on default port
-jac start
+# Serve the current project (server kinds serve on a bare `jac run`)
+jac run
 
-# Start on custom port
-jac start -p 3000
+# Serve a file that no jac.toml marks as servable
+jac run --serve app.jac
 
-# Start with Hot Module Replacement (development)
-jac start --dev
+# Serve on a custom port
+jac run -p 3000
 
-# HMR mode without client bundling (API only)
-jac start --dev --no-client
+# Live hot-reload dev loop
+jac run --dev
+
+# HMR without client bundling (API only)
+jac run --dev --no-client
+
+# Print the endpoint docs without starting a server
+jac run --faux
 
 # Mobile dev (Android default)
-jac start main.jac --client mobile --dev
+jac run --client mobile --dev main.jac
 
-# Mobile dev on iOS simulator
-jac start main.jac --client mobile --dev --platform ios
+# Mobile dev on the iOS simulator
+jac run --client mobile --dev --platform ios main.jac
 
-# Mobile dev with explicit host override
-jac start main.jac --client mobile --dev --host 192.168.1.25
-
-# Deploy to Kubernetes (built-in scale subsystem)
-jac start --scale
-
-# Preview the manifests without touching the cluster
-jac start --scale --dry-run
+# Evict a stuck session holding this project's database
+jac run --takeover
 ```
 
-> **Note**:
->
-> - If your project uses a different entry file (e.g., `app.jac`, `server.jac`), you can specify it explicitly: `jac start app.jac`
->
----
-
-### jac dev
-
-The dedicated live hot-reload development loop. `jac dev` resolves the project entry point and serves it with Hot Module Replacement (HMR), rebuilding on every save. Unlike [`jac run`](#jac-run) / [`jac start`](#jac-start), it always works from **live source** and never reads a sealed `.jab` artifact. (`jac start --dev` still exists for HMR serving; `jac dev` is the purpose-built loop.)
-
-```bash
-jac dev [-h] [-p PORT] [--api_port API_PORT]
-```
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `-p, --port` | Port to serve on | `8000` |
-| `--api_port` | Separate API port for HMR (0 = same as `port`) | `0` |
-
-**Examples:**
-
-```bash
-# Start the hot-reload dev loop
-jac dev
-
-# On a custom port
-jac dev -p 3000
-```
+To deploy the same program to Kubernetes instead of serving it locally, see [`jac scale deploy`](#jac-scale-deploy).
 
 ---
 
@@ -1091,7 +1058,7 @@ jac config [action] [key] [value] [-g GROUP] [-o FORMAT]
 
 - `project` - Project metadata (name, version, description)
 - `run` - Runtime settings (cache, session)
-- `build` - Build settings (typecheck, output directory)
+- `build` - Build settings (output directory)
 - `test` - Test settings (verbose, filters)
 - `serve` - Server settings (port, host)
 - `format` - Formatting options
@@ -1138,13 +1105,27 @@ jac config list -o toml
 
 ## Deployment (scale)
 
-### jac start --scale
+### jac scale deploy
 
-Deploy to Kubernetes using the built-in `scale` subsystem. See the [`jac start`](#jac-start) command above for full options.
+Deploy to a platform target using the built-in `scale` subsystem. With no file, the project's `[project] entry-point` is deployed. The first deploy resolves its own deps (`kubernetes`, `docker`) via `jac install`.
 
 ```bash
-jac start --scale             # Deploy
-jac start --scale --dry-run   # Print the manifests; change nothing
+jac scale deploy [app.jac] [--target TARGET] [--enable-tls] [--dry-run] [--show-yaml]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `app.jac` | App file to deploy. Omit to deploy the project's entry-point | (project) |
+| `--target` | Deployment target platform | `kubernetes` |
+| `--enable-tls` | Enable HTTPS via Let's Encrypt (run after pointing your domain CNAME at the NLB) | `False` |
+| `--dry-run` | Print the manifests that would be applied; touch nothing | `False` |
+| `--show-yaml` | With `--dry-run`: dump the raw YAML stream | `False` |
+
+```bash
+jac scale deploy                        # Deploy this project's entry-point
+jac scale deploy app.jac                # Deploy a specific app file
+jac scale deploy --dry-run              # Print the manifests; change nothing
+jac scale deploy --dry-run --show-yaml  # ... plus the raw multi-doc YAML
 ```
 
 ---
@@ -1156,7 +1137,7 @@ jac start --scale --dry-run   # Print the manifests; change nothing
 - **Local microservices** -- `jac scale <action> [name]` manages locally-running services: `status`, `stop`, `restart`, `logs`.
 - **Platform deployment** -- given a `.jac` app file, `jac scale <action> <file.jac> [--target T] [--component C]` operates on a platform deployment: `status` (health of each component) and `destroy` (tear the deployment down). This absorbs the former top-level `jac status` / `jac destroy` verbs.
 
-To *deploy* in the first place, run `jac start --scale` (see [`jac start`](#jac-start) above).
+To *deploy* in the first place, run [`jac scale deploy`](#jac-scale-deploy).
 
 ```bash
 jac scale <action> [name|file] [--target TARGET] [--component COMPONENT]
@@ -1179,10 +1160,10 @@ jac scale <action> [name|file] [--target TARGET] [--component COMPONENT]
 │ Component         │ Status                 │ Pods  │
 ├───────────────────┼────────────────────────┼───────┤
 │ Jaseci App        │ ● Running              │  1/1  │
-│ Redis             │ ● Running              │  1/1  │
-│ MongoDB           │ ● Running              │  1/1  │
+│ PostgreSQL        │ ● Running              │  1/1  │
 │ Prometheus        │ ● Running              │  1/1  │
 │ Grafana           │ ● Running              │  1/1  │
+│ NGINX Ingress     │ ● Running              │  1/1  │
 └───────────────────┴────────────────────────┴───────┘
 
   Service URLs
@@ -1501,28 +1482,7 @@ jac clean --data --cache
 jac clean --all --force
 ```
 
-> **💡 Troubleshooting Tip:** If you encounter unexpected syntax errors, "NodeAnchor is not a valid reference" errors, or other strange behavior after modifying your code, try clearing the cache with `jac clean --cache` (`rm -rf .jac`) or `jac purge`. Stale bytecode can cause issues when source files change.
-
----
-
-### jac purge
-
-Purge the global bytecode cache. Works even when the cache is corrupted.
-
-```bash
-jac purge
-```
-
-**When to use:**
-
-- After upgrading Jaseci packages
-- When encountering cache-related errors (`jaclang.pycore`, `NodeAnchor`, etc.)
-- When setup stalls during first-time compilation
-
-| Command | Scope |
-|---------|-------|
-| `jac clean --cache` | Local project (`.jac/cache/`) |
-| `jac purge` | Global system cache |
+> **💡 Troubleshooting Tip:** If you encounter unexpected syntax errors, "NodeAnchor is not a valid reference" errors, or other strange behavior after modifying your code, try clearing the project cache with `jac clean --cache` (removes `.jac/cache/`). If that doesn't help -- for example after upgrading Jaseci packages -- also remove the global per-user cache with `rm -rf ~/.cache/jac`. Stale bytecode can cause issues when source files change.
 
 ---
 
@@ -1559,7 +1519,7 @@ jac build [-h] [--as {jab,sealed,binary,wheel,npm,source,native}] [-o OUTPUT] [-
 
 **The type-check gate.** `jac build` refuses to emit an artifact if the program fails type checking, and there is no flag that skips it. Because every compilation type-checks, the artifact compile *is* the gate rather than a separate pass over the project. Use `--check_only` to run the whole-project check and emit nothing (useful in CI).
 
-**The `.jab` artifact.** A `.jab` is a single self-describing sealed app bundle: client dist, serve manifest, and native binaries are baked in and hash-verified at load, so [`jac run app.jab`](#jac-run) / [`jac start app.jab`](#jac-start) execute or serve it with **zero live compilation**. It is kind-aware: `cli` kinds execute, servable kinds production-serve, and attachable packages refuse to run standalone.
+**The `.jab` artifact.** A `.jab` is a single self-describing sealed app bundle: client dist, serve manifest, and native binaries are baked in and hash-verified at load, so [`jac run app.jab`](#jac-run) execute or serve it with **zero live compilation**. It is kind-aware: `cli` kinds execute, servable kinds production-serve, and attachable packages refuse to run standalone.
 
 **Shipping an executable: `binary` vs `native`.** These two projections solve different problems and are easy to confuse:
 
@@ -1573,7 +1533,7 @@ jac build --fat                 # fat .jab in dist/
 jac build --as binary --fat     # fully offline-capable executable
 ```
 
-- **Offline materialize.** When [`jac run app.jab`](#jac-run) / [`jac start app.jab`](#jac-start) (or a `--fat` binary) materializes the bundle, the vendored wheels install offline into a cache-scoped site directory that goes on `sys.path`, so the app imports its dependencies with **no PyPI access**. The install runs once per bundle and is skipped on subsequent runs.
+- **Offline materialize.** When [`jac run app.jab`](#jac-run) (or a `--fat` binary) materializes the bundle, the vendored wheels install offline into a cache-scoped site directory that goes on `sys.path`, so the app imports its dependencies with **no PyPI access**. The install runs once per bundle and is skipped on subsequent runs.
 - **Content-addressed for free.** The wheels ride inside the tarball as a sibling of the sealed image, so the jab's existing sha256 content addressing covers them: bump a dependency, get a new digest, get a fresh cache directory, with no stale-dependency aliasing.
 - **What is vendored.** The closure is exactly what [`jac install`](#jac-install) would install: your declared dependencies plus the capability dependencies derived from `jac.toml` intents. Wheels are resolved for the build host by default (like a `.jir`, the bundle is version-locked to the building runtime). Vendoring honors pip's environment (`PIP_INDEX_URL`, `PIP_FIND_LINKS`, `PIP_NO_INDEX`), and fails the build if a dependency has no installable wheel rather than shipping a bundle that cannot materialize. Git dependencies are not vendored and still install normally. The build summary prints the vendored wheel count and total size.
 
@@ -1714,7 +1674,7 @@ jac tool ir sym main.jac
 jac tool ir py main.jac
 ```
 
-> **Deprecated:** `jac js` is a deprecated alias for `jac tool jac2js` and will be removed in a future release. It still works but emits a deprecation warning on stderr; update scripts to use `jac tool jac2js`.
+> **Removed:** `jac js` has been removed. Running it prints a pointer and exits with an error; use `jac tool jac2js` instead.
 
 ---
 
@@ -1895,7 +1855,7 @@ jac setup mobile --platform all
 |-------------|-----------|-------------|
 | `jac create` | `--kind web-app` | Create full-stack project template |
 | `jac create` | `--skip` | Skip npm package installation |
-| `jac start` | `--client <target>` | Client build target for dev server |
+| `jac run` | `--client <target>` | Client build target for dev server |
 | `jac install` | `--npm` | Add npm (client-side) dependency |
 | `jac remove` | `--npm` | Remove npm (client-side) dependency |
 
@@ -1904,8 +1864,8 @@ jac setup mobile --platform all
 The `desktop` and `cef` client targets ship with `jaclang` core -- no
 separate install. There is no separate `jac desktop` command and no setup step.
 Build and run the OS-native webview target with `jac build --client desktop` /
-`jac start --client desktop`, or the Chromium Embedded Framework target with
-`jac build --client cef` / `jac start --client cef`. Set
+`jac run --client desktop`, or the Chromium Embedded Framework target with
+`jac build --client cef` / `jac run --client cef`. Set
 `engine = "cef"` under `[desktop]` for CEF projects. See the
 [jac-desktop Reference](../plugins/jac-desktop.md) for configuration and CEF
 runtime flags.
@@ -1962,14 +1922,14 @@ twine upload dist/*
 ### Production
 
 !!! note
-    `main.jac` is the default entry point for `jac start`. If your entry point differs (e.g., `app.jac`), pass it explicitly: `jac start app.jac --scale`.
+    `main.jac` is the default entry point for `jac run`. If your entry point differs (e.g., `app.jac`), pass it explicitly: `jac scale deploy app.jac`.
 
 ```bash
 # Start locally
-jac start -p 8000
+jac run -p 8000
 
 # Deploy to Kubernetes
-jac start --scale
+jac scale deploy
 
 # Check deployment status
 jac scale status main.jac

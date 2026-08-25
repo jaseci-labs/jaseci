@@ -64,10 +64,11 @@ obj JacScaleTestRunner {
         import from jaclang.scale.runtime.context.util { jac_executable }
         cmd = [
             jac_executable(),
-            "start",
-            str(self.example_file),
+            "run",
+            "--serve",
             "--port",
-            str(self.port)
+            str(self.port),
+            str(self.example_file)
         ];
 
         self.server_process = subprocess.Popen(

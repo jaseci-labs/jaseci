@@ -84,10 +84,10 @@ jobs:
           name: jac-kit-macos
       - name: Run native Mach-O linker regression tests
         run: |
-          jac test jac/tests/compiler/passes/native/test_shared_lib.jac
-          jac test jac/tests/compiler/passes/native/test_exec_link.jac
+          jac test jac/tests/compiler/backends/native/test_shared_lib.jac
+          jac test jac/tests/compiler/backends/native/test_exec_link.jac
       - name: Run na->wasm floor + import-contract tests
-        run: jac test jac/tests/compiler/passes/native/test_wasm_build.jac
+        run: jac test jac/tests/compiler/backends/native/test_wasm_build.jac
       - name: Run bundled-stdlib equivalence pins (darwin)
         env:
           JAC_TEST_JOBS: "0"

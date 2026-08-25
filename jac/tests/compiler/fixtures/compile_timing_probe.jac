@@ -28,18 +28,18 @@ import os;
 import time;
 
 import from pathlib { Path }
-import from jaclang.jac0core.compiler {
+import from jaclang.compiler.driver.schedules {
     get_boundary_analysis_sched,
     get_ir_gen_sched,
     get_py_code_gen
 }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob CORPUS: list[str] = [
-         "jaclang/jac0core/srcloc.jac",
-         "jaclang/jac0core/parser/tokens.jac",
-         "jaclang/jac0core/passes/uni_pass.jac",
-         "jaclang/jac0core/constant.jac",
+         "jaclang/compiler/frontend/srcloc.jac",
+         "jaclang/compiler/frontend/parser/tokens.jac",
+         "jaclang/compiler/passes/uni_pass.jac",
+         "jaclang/compiler/frontend/constant.jac",
          "examples/chess/chess.jac"
      ],
      PHASES: list[str] = ["parse", "ir_gen", "boundary", "codegen", "full"];

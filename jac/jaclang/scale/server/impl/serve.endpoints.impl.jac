@@ -107,8 +107,8 @@ impl JacAPIServerEndpoints.create_walker_parameters(
 impl JacAPIServerEndpoints.create_walker_callback(
     walker_name: str, has_node_param: bool = False
 ) -> Callable[..., (TransportResponse | StreamingResponse)] {
-    import from jaclang.runtimelib.transport { TransportResponse, Meta }
-    import from jaclang.runtimelib.serving.datatypes { Request }
+    import from jaclang.server.transport { TransportResponse, Meta }
+    import from jaclang.server.serving.datatypes { Request }
     requires_auth = self.introspector.is_auth_required_for_walker(walker_name);
     async def callback(
         request: Request, nd: (str | None) = None, **kwargs: JsonValue
@@ -128,7 +128,7 @@ impl JacAPIServerEndpoints.create_walker_callback(
             self.get_walkers()[walker_name], kwargs, (username or Con.GUEST.value)
         );
         if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
-            import from jaclang.runtimelib.serving.sse { sse_frame_stream }
+            import from jaclang.server.serving.sse { sse_frame_stream }
             return StreamingResponse(
                 sse_frame_stream(result),
                 media_type='text/event-stream',
@@ -148,10 +148,10 @@ impl JacAPIServerEndpoints.create_walker_callback(
                 );
             }
             return TransportResponse.fail(
-                code='EXECUTION_ERROR',
+                code=str(result.get('error_code') or 'EXECUTION_ERROR').upper(),
                 message=result.get('error', 'Walker execution failed'),
                 details=result.get('traceback') if 'traceback' in result else None,
-                meta=Meta(extra={'http_status': 500})
+                meta=Meta(extra={'http_status': int(result.get('http_status') or 500)})
             );
         }
         return TransportResponse.success(
@@ -252,8 +252,8 @@ impl JacAPIServerEndpoints.create_function_parameters(
 impl JacAPIServerEndpoints.create_function_callback(
     func_name: str
 ) -> Callable[..., (TransportResponse | StreamingResponse | Response)] {
-    import from jaclang.runtimelib.transport { TransportResponse, Meta }
-    import from jaclang.runtimelib.serving.datatypes { Request }
+    import from jaclang.server.transport { TransportResponse, Meta }
+    import from jaclang.server.serving.datatypes { Request }
     requires_auth = self.introspector.is_auth_required_for_function(func_name);
 
     func_spec = self.get_functions()[func_name].restspec
@@ -281,7 +281,7 @@ impl JacAPIServerEndpoints.create_function_callback(
         );
 
         if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
-            import from jaclang.runtimelib.serving.sse { sse_frame_stream }
+            import from jaclang.server.serving.sse { sse_frame_stream }
             return StreamingResponse(
                 sse_frame_stream(result),
                 media_type='text/event-stream',
@@ -301,10 +301,10 @@ impl JacAPIServerEndpoints.create_function_callback(
                 );
             }
             return TransportResponse.fail(
-                code='EXECUTION_ERROR',
+                code=str(result.get('error_code') or 'EXECUTION_ERROR').upper(),
                 message=result.get('error', 'Function execution failed'),
                 details=result.get('traceback') if 'traceback' in result else None,
-                meta=Meta(extra={'http_status': 500})
+                meta=Meta(extra={'http_status': int(result.get('http_status') or 500)})
             );
         }
         if raw_body {

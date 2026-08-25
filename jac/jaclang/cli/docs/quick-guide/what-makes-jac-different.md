@@ -257,7 +257,7 @@ Three habits shift when you program this way:
 2. **Queries become paths.** "Every task scheduled after 9am" is not a join to compose but a route to name: `[root->:Scheduled:time>"9:00am":->]`.
 3. **Algorithms become itineraries.** Instead of a procedure that branches on what it holds, a walker's abilities say what to do at each kind of place, and arrival does the dispatch.
 
-This composes with the previous two concepts to produce Jac's signature moves. Because the graph persists (concept 2), a walker's world outlives the process -- which is why an **AI agent's memory** in Jac is just a topology hung from `root`, where remembering is walking and context assembly is path selection instead of vector-store glue. And because a walker's `has` fields fully describe its inputs and its `report`s describe its outputs, marking one `:pub` makes `jac start` serve it as a REST endpoint with no route table -- the declaration *is* the interface. [Object-Spatial Programming tutorial →](../tutorials/language/osp.md)
+This composes with the previous two concepts to produce Jac's signature moves. Because the graph persists (concept 2), a walker's world outlives the process -- which is why an **AI agent's memory** in Jac is just a topology hung from `root`, where remembering is walking and context assembly is path selection instead of vector-store glue. And because a walker's `has` fields fully describe its inputs and its `report`s describe its outputs, marking one `:pub` makes `jac run` serve it as a REST endpoint with no route table -- the declaration *is* the interface. [Object-Spatial Programming tutorial →](../tutorials/language/osp.md)
 
 ---
 
