@@ -1077,12 +1077,23 @@ def _prelude_bindings(item: ast.stmt) -> set[str]:
 
 
 def _prune_prelude(
-    body: list[ast.stmt], prelude: list[ast.stmt], prelude_names: set[str]
+    body: list[ast.stmt], prelude: list[ast.stmt], prelude_names: set[str],
+    force_ids: set[int] | None = None,
 ) -> list[ast.stmt]:
     """Fixpoint: keep only prelude items whose bindings the body (+ kept
-    items transitively) reference."""
+    items transitively) reference.
+
+    ``force_ids`` pins statements that must survive (the namespace block):
+    they bind attributes (``self.module = ...``), not names, so the
+    binding-based usage test would wrongly drop them.
+    """
+    force = force_ids or set()
     used = set(_loaded_names(ast.Module(body=body, type_ignores=[])))
     kept: dict[int, ast.stmt] = {}
+    for idx, item in enumerate(prelude):
+        if id(item) in force:
+            kept[idx] = item
+            used |= _loaded_names(item)
     changed = True
     while changed:
         changed = False
@@ -1185,14 +1196,21 @@ def extract_tests(tree: ast.Module, source: str) -> Extraction:
                 # strict sweep there (any self.* reference is unsupported).
                 _check_self_usage(rewritten)
             if ns_block:
-                rewritten = ns_block + rewritten
+                # The namespace binding must precede lifted helpers:
+                # render_snippet emits extra_prelude at module scope above
+                # the wrapped test body, so a helper reading self.<attr>
+                # needs ``self`` bound before it runs.
+                extra_prelude = [*ns_block, *extra_prelude]
             pool = prelude + extra_prelude
             pool_names = prelude_names | {
                 binding
                 for item in extra_prelude
                 for binding in _prelude_bindings(item)
             }
-            kept_prelude = _prune_prelude(rewritten, pool, pool_names)
+            kept_prelude = _prune_prelude(
+                rewritten, pool, pool_names,
+                force_ids={id(s) for s in ns_block},
+            )
             available = pool_names | _bound_names(ast.Module(body=kept_prelude, type_ignores=[]))
             _check_names(rewritten, available)
         except Unsupported as exc:
