@@ -36,8 +36,8 @@ def emit_server_entry(
     }
 
     import from jaclang.client.runtime_source { resolve_client_runtime_cl_path }
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.compiler { run_pass }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
     import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
     runtime_src = Path(resolve_client_runtime_cl_path('bun'));
 

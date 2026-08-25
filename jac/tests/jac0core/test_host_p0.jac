@@ -8,7 +8,7 @@ import subprocess;
 import tempfile;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
-import from jaclang.jac0core.constant { CodeContext }
+import from jaclang.compiler.frontend.constant { CodeContext }
 import from jaclang.compiler.frontend.codeinfo {
     clear_bun_host_decision_cache,
     project_uses_bun_host

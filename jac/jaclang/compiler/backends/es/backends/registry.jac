@@ -1,4 +1,4 @@
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.backends.es.framework_backend { FrameworkBackend }
 import from jaclang.compiler.frontend.diagnostics { E5081 }
 

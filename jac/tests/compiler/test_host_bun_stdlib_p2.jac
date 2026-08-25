@@ -7,9 +7,9 @@ Each must compile for bun server modules without E5017 blocks_codegen failures.
 
 import os;
 import tempfile;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.frontend.codeinfo { cl_stdlib_root }
 import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
 

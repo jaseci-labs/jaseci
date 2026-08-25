@@ -1,6 +1,6 @@
 import os;
-import type from jaclang.jac0core.unitree { Module, UniNode }
-import from jaclang.jac0core.constant { CodeContext }
+import type from jaclang.compiler.frontend.unitree { Module, UniNode }
+import from jaclang.compiler.frontend.constant { CodeContext }
 
 glob HOST_DOM: str = 'DOM',
      HOST_NPM: str = 'NPM',
@@ -161,7 +161,7 @@ def host_kind_for_node(nd: UniNode) -> str {
         return HOST_BARE_METAL;
     }
     if nd.in_client_context() {
-        import jaclang.jac0core.unitree as uni;
+        import jaclang.compiler.frontend.unitree as uni;
         mod = nd.find_parent_of_type(uni.Module);
         mod_path = '';
         if mod is not None and mod.loc is not None {

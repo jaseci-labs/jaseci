@@ -1,7 +1,7 @@
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import shutil;
 import from pathlib { Path }
-import from jaclang.jac0core.constant { SymbolType, Tokens as Tok }
+import from jaclang.compiler.frontend.constant { SymbolType, Tokens as Tok }
 import from jaclang.cli.console { console }
 import from jaclang.server_entry { emit_server_entry }
 import from jaclang.bun_entry { EndpointMeta }
@@ -301,7 +301,7 @@ def _dep_export_names(dep_js: str) -> list[str] {
 
 
 def _emit_cl_stdlib_deps(js_code: str, prog: any, options: any, out_dir: Path) -> str {
-    import from jaclang.jac0core.compiler { run_pass }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
     import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
     resolved: dict[str, str] = {};
     pending: list[tuple[str, int]] = [(s, 0) for s in _cl_stdlib_specifiers(js_code)];
@@ -395,7 +395,7 @@ def _extract_endpoints(
 def build_bun_service_artifact(
     module_name: str, base_path: str, project_name: str = ''
 ) -> Path {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     base_dir = Path(base_path);
     module_file = base_dir / f"{module_name}.jac";
     if not module_file.exists() {
@@ -404,7 +404,7 @@ def build_bun_service_artifact(
         );
     }
     prog = JacProgram();
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     ir = prog.compile(
         file_path=str(module_file), options=CompileOptions(force_codespace='client')
     );
@@ -412,7 +412,7 @@ def build_bun_service_artifact(
         errs = '\n'.join(str(e) for e in prog.errors_had);
         raise RuntimeError(f"Failed to compile {module_file}:\n{errs}");
     }
-    import from jaclang.jac0core.compiler { run_pass }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
     import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
     js_code = ir.gen.js if ir is not None and ir.gen is not None else '';
     if ir is not None and not js_code.strip() {
