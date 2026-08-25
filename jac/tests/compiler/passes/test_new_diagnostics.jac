@@ -208,14 +208,17 @@ test "E0001: bare tuple target in for loop names the parenthesized form" {
     );
     assert has_diagnostic_code(prog, "E0001");
     assert count_diagnostic_code(prog, "E0001") == 1;
-    alert = None;
-    for a in prog.errors_had {
-        if "parenthesized" in a.msg {
-            alert = a;
+
+    def paren_help() -> (str | None) {
+        for a in prog.errors_had {
+            if "parenthesized" in a.msg {
+                return a.help_text;
+            }
         }
+        return None;
     }
-    assert alert is not None;
-    assert "for (n, c) in" in (alert.help_text or "");
+
+    assert "for (n, c) in" in (paren_help() or "");
 }
 
 test "E0001: bare tuple target in comprehension names the parenthesized form" {
@@ -223,14 +226,17 @@ test "E0001: bare tuple target in comprehension names the parenthesized form" {
         'with entry { d = {"a": 1}; ks = [k for k, v in d.items()]; }'
     );
     assert has_diagnostic_code(prog, "E0001");
-    alert = None;
-    for a in prog.errors_had {
-        if "parenthesized" in a.msg {
-            alert = a;
+
+    def paren_help() -> (str | None) {
+        for a in prog.errors_had {
+            if "parenthesized" in a.msg {
+                return a.help_text;
+            }
         }
+        return None;
     }
-    assert alert is not None;
-    assert "(k, v)" in (alert.help_text or "");
+
+    assert "(k, v)" in (paren_help() or "");
 }
 
 test "E0001: bare triple target emits one diagnostic and resyncs at 'in'" {
