@@ -10350,8 +10350,18 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
             orig_base_list, bases_changed
         );
     }
+    # CPython __build_class__ seeds the body namespace's __name__ from the
+    # CALLING FRAME's globals so type.__new__ derives cls.__module__ from the
+    # defining module -- never a hardcoded "__main__".
+    modname = "__main__";
+    if "__name__" in body.globals {
+        gm = body.globals["__name__"];
+        if isinstance(gm, PyStr) {
+            modname = (gm as PyStr).val;
+        }
+    }
     # Default `type`: execute the body into a plain namespace and box a PyClass.
-    namespace: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
+    namespace: dict[str, PyObj] = {"__name__": PyStr(t="str", val=modname)};
     body_result = exec_code_frame(
         body.code, [], {}, body.globals, namespace, body.closure, [], {}
     );
@@ -10407,6 +10417,14 @@ def build_class_via_metaclass(
     orig_bases: list[PyObj],
     bases_changed: bool
 ) -> PyObj {
+    # Module identity for __module__ derivation (same rule as py_build_class).
+    modname = "__main__";
+    if "__name__" in body.globals {
+        gm = body.globals["__name__"];
+        if isinstance(gm, PyStr) {
+            modname = (gm as PyStr).val;
+        }
+    }
     bases_tuple = PyTuple(t="tuple", items=bases);
     prepared: PyObj = py_none();
     prep = class_lookup_attr(metaclass, "__prepare__");
@@ -10453,15 +10471,32 @@ def build_class_via_metaclass(
                 }
             }
         }
+            # NOTE: no __name__ injection into custom mappings here - enum's
+            # _EnumDict diverges from host on dunder writes (raises where host
+            # ignores); the module identity is stamped on the RESULTING class
+            # below instead, mirroring type.__new__'s frame-globals fallback.
         call_args: list[PyObj] = [
             PyStr(t="str", val=class_name),
             bases_tuple,
             prepared
         ];
-        return py_invoke(metaclass, call_args, class_kwds);
+        res_cls = py_invoke(metaclass, call_args, class_kwds);
+        if is_error(res_cls) {
+            return res_cls;
+        }
+        # Stamp the defining module onto classes whose classdict lacked
+        # __module__ (type.__new__ derives it from the invoking frame's
+        # globals; our native builder substitutes this explicit fallback).
+        if isinstance(res_cls, PyClass) {
+            rc = res_cls as PyClass;
+            if "__module__" not in rc.attrs {
+                rc.attrs["__module__"] = PyStr(t="str", val=modname);
+            }
+        }
+        return res_cls;
     }
     # A plain-dict (or absent) namespace: seed, run the body, box a real dict.
-    namespace2: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
+    namespace2: dict[str, PyObj] = {"__name__": PyStr(t="str", val=modname)};
     if isinstance(prepared, PyDict) {
         prep_map = pydict_to_str_map(prepared as PyDict);
         for pk in prep_map {
