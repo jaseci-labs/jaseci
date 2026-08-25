@@ -14,7 +14,7 @@ on:
     branches: [jac-python]
 
 concurrency:
-  group: jacpy-gates-${{ github.ref }}
+  group: jacpy-merge-gate-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
