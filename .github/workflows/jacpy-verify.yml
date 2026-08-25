@@ -1,0 +1,51 @@
+# jac-py VERIFY — heavy jac-test verification on the AWS farm's self-hosted
+# runners (labels: jacpy-farm). GitHub-HOSTED runners are too small and HANG on
+# the dev-jac build; the farm's real EC2 instances build+run jac fine. This is
+# where runtime behavior is gated so it never runs on the coordinator box.
+# Dispatch per-branch (the desk gates merges on this); the fast python-only
+# `jac-py merge gate` stays the cheap always-on check.
+name: jac-py verify (farm)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: branch or sha to verify
+        required: false
+        default: jac-python
+
+concurrency:
+  group: jacpy-verify-${{ github.event.inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: jac-py verify (farm)
+    runs-on: [self-hosted, jacpy-farm, x64]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.ref || 'jac-python' }}
+      - name: Set up pinned CPython 3.14.6
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14.6"
+      - name: Pin CPython reference checkout
+        run: python3 jac-py/tools/fetch_cpython_reference.py
+      - name: Build jac (dev binary; big instance handles it)
+        uses: ./.github/actions/setup-jac
+        with:
+          skip-precompile: "true"
+          ninja: "false"
+      - name: Core oracle + parity suites (runtime behavior)
+        run: |
+          set -e
+          jac test jac-py/jacpython/layer4_compile.jac
+          jac test jac-py/jacpython/test_conv_exceptions.jac
+          jac test jac-py/jacpython/test_conv_protocols.jac
+          jac test jac-py/jacpython/test_conv_classes.jac
+          jac test jac-py/jacpython/test_exc_hierarchy.jac
