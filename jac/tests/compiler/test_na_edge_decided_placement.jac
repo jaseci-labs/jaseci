@@ -14,8 +14,8 @@ target's own in-body native evidence.
 
 import os;
 import tempfile;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob ARENA_SRC: str = (
          "def:pub tick(buf: own str) -> int {\n" "    return len(buf);\n" "}\n"

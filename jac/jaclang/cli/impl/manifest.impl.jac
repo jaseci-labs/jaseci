@@ -1,3 +1,7 @@
+# Auto-generated CLI command routes.
+# DO NOT EDIT MANUALLY - regenerate with `jac gen-cli-manifest`.
+# Only the routes are generated; the section from the _COMMANDS declaration
+# down is hand-written and preserved by the generator.
 def _command_routes -> list[CommandMeta] {
     return [
         CommandMeta(
@@ -167,7 +171,7 @@ def _command_routes -> list[CommandMeta] {
                     'Check while suppressing selected diagnostics'
                 ),
                 (
-                    'jac check myprogram.jac --parse-only',
+                    'jac check myprogram.jac --parse_only',
                     'Only check syntax, skip type checking'
                 ),
                 ('jac check myprogram.jac --nowarn', 'Check without warnings')
@@ -630,46 +634,6 @@ def _command_routes -> list[CommandMeta] {
                     typ='bool',
                     `default=False,
                     help='With `prune`: also drop databases with no recorded owner that hold no data beyond the system root',
-                    short=''
-                ),
-
-            ]
-        ),
-        CommandMeta(
-            name='dev',
-            help='Serve with hot reload and live compilation',
-            group='execution',
-            tier='core',
-            hidden=False,
-            handler_module='jaclang.cli.commands.execution',
-            handler_name='dev',
-            examples=[
-                ('jac dev', 'Dev-serve the current project with hot reload'),
-                (
-                    'jac dev main.jac --port 3000',
-                    'Dev-serve a specific entry on port 3000'
-                )
-            ],
-            args=[
-                ArgMeta(
-                    name='filename',
-                    kind=ArgKind.POSITIONAL,
-                    `default='',
-                    help='Entry .jac file (default: [project] entry-point from jac.toml)'
-                ),
-                ArgMeta(
-                    name='port',
-                    typ='int',
-                    `default=8000,
-                    help='Port to serve on',
-                    short='p',
-                    config_key='serve.port'
-                ),
-                ArgMeta(
-                    name='api_port',
-                    typ='int',
-                    `default=0,
-                    help='Backend API port for client dev servers (0 = auto)',
                     short=''
                 ),
 
@@ -1525,7 +1489,7 @@ def _command_routes -> list[CommandMeta] {
         ),
         CommandMeta(
             name='run',
-            help='Run a Jac program',
+            help='Run a Jac program or project (executes or serves, per project kind)',
             group='execution',
             tier='core',
             hidden=False,
@@ -1536,7 +1500,7 @@ def _command_routes -> list[CommandMeta] {
                 ('jac run', 'Run the current project per its jac.toml kind'),
                 (
                     'jac run app.jab',
-                    "Run a sealed app bundle (kind-aware; servable kinds use the app's configured port -- override with jac start app.jab --port N)"
+                    "Run a sealed app bundle (kind-aware; servable kinds serve on the app's configured port)"
                 ),
                 (
                     'jac run --entry my_walker app.jac arg1',
@@ -1545,7 +1509,7 @@ def _command_routes -> list[CommandMeta] {
                 ('jac run --debug app.jac', 'Run under the Python debugger'),
                 (
                     'jac run --show',
-                    'Print what the project would run/build, without doing it'
+                    'Print what the project would run/serve/build, without doing it'
                 ),
                 ('jac run --no-cache app.jac', 'Run without caching'),
                 ('jac run --profile prod app.jac', 'Run with production profile'),
@@ -1553,21 +1517,36 @@ def _command_routes -> list[CommandMeta] {
                     'jac run -e all app.jac',
                     'Run and show all diagnostics (errors+warnings)'
                 ),
-                ('jac run -e none app.jac', 'Run silently, suppress all diagnostics'),
-                ('jac run script.jac arg1 arg2', 'Run with script arguments')
+                ('jac run script.jac arg1 arg2', 'Run with script arguments'),
+                (
+                    'jac run --serve app.jac',
+                    'Serve a file that no jac.toml marks as servable'
+                ),
+                ('jac run --port 3000', 'Serve the current project on port 3000'),
+                (
+                    'jac run --dev',
+                    'Serve the current project with hot module replacement'
+                ),
+                ('jac run --dev --no-client', 'HMR mode without client bundling'),
+                ('jac run --faux', "Print the project's endpoint docs without serving"),
+                ('jac run --client mobile', 'Run the mobile client dev server'),
+                (
+                    'jac run --takeover',
+                    "Evict a stuck session holding this project's database"
+                )
             ],
             args=[
                 ArgMeta(
                     name='filename',
                     kind=ArgKind.POSITIONAL,
                     `default='',
-                    help="Path to .jac or .py file (omit to use the project's jac.toml)"
+                    help="Path to .jac, .py or .jab file (omit to use the project's jac.toml)"
                 ),
                 ArgMeta(
                     name='show',
                     typ='bool',
                     `default=False,
-                    help='Print the resolved project-kind run plan without executing it',
+                    help='Print the resolved run plan without executing it',
                     short='s'
                 ),
                 ArgMeta(
@@ -1601,7 +1580,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='entry',
                     `default='',
-                    help="Invoke a specific function/walker entrypoint (absorbs 'jac enter')",
+                    help='Invoke a specific function/walker entrypoint',
                     short='',
                     dest='entry_name'
                 ),
@@ -1623,9 +1602,71 @@ def _command_routes -> list[CommandMeta] {
                     name='debug',
                     typ='bool',
                     `default=False,
-                    help="Run under the Python debugger (absorbs 'jac debug')",
+                    help='Run under the Python debugger',
                     short='',
                     dest='debug_mode'
+                ),
+                ArgMeta(
+                    name='serve',
+                    typ='bool',
+                    help='Serve instead of executing (default: the project kind decides)',
+                    short='',
+                    dest='serve_mode'
+                ),
+                ArgMeta(
+                    name='port',
+                    typ='int',
+                    help='Server port (serving only)',
+                    short='p',
+                    config_key='serve.port'
+                ),
+                ArgMeta(
+                    name='dev',
+                    typ='bool',
+                    help='Serve with hot reload / HMR (serving only)',
+                    short='d'
+                ),
+                ArgMeta(
+                    name='api-port',
+                    typ='int',
+                    help='Separate backend API port in --dev mode (serving only)',
+                    short='',
+                    dest='api_port'
+                ),
+                ArgMeta(
+                    name='no-client',
+                    typ='bool',
+                    help='Skip client bundling/serving, API only (serving only)',
+                    short=''
+                ),
+                ArgMeta(
+                    name='faux',
+                    typ='bool',
+                    help='Print endpoint docs only, no server (serving only)',
+                    short='f'
+                ),
+                ArgMeta(
+                    name='client',
+                    help='Client build target for the dev server (web, pwa, mobile, desktop). Choices reflect installed targets (desktop builds a native webview app).',
+                    short='',
+                    choices=['web', 'pwa', 'mobile', 'desktop']
+                ),
+                ArgMeta(
+                    name='host',
+                    help='Mobile dev (--client mobile --dev): optional host/IP override for Capacitor live-reload. When omitted, jac auto-selects a host.',
+                    short=''
+                ),
+                ArgMeta(
+                    name='platform',
+                    help='Mobile serving: android or ios (auto = use [client.mobile] default_platform or android)',
+                    short='',
+                    choices=['auto', 'android', 'ios']
+                ),
+                ArgMeta(
+                    name='takeover',
+                    typ='bool',
+                    help="Evict any other session holding this project's database before serving (use when a previous jac process is stuck)",
+                    short=''
                 ),
                 ArgMeta(
                     name='args',
@@ -1638,13 +1679,26 @@ def _command_routes -> list[CommandMeta] {
         ),
         CommandMeta(
             name='scale',
-            help='Manage scale deployments: local microservices (status/stop/restart/logs) and platform deployments (status/destroy on a .jac app)',
+            help='Manage scale deployments: local microservices (status/stop/restart/logs) and platform deployments (deploy/status/destroy on a .jac app)',
             group='microservices',
             tier='',
             hidden=False,
             handler_module='jaclang.scale.plugin',
             handler_name='scale_cmd',
             examples=[
+                (
+                    'jac scale deploy',
+                    "Deploy this project's entry-point to the default target"
+                ),
+                ('jac scale deploy app.jac', 'Deploy a specific app file'),
+                (
+                    'jac scale deploy app.jac --target aws',
+                    'Deploy the app to a specific platform target'
+                ),
+                (
+                    'jac scale deploy app.jac --dry-run --show-yaml',
+                    'Print the manifests that would be applied, touching nothing'
+                ),
                 ('jac scale status', 'Show status of all microservices'),
                 (
                     'jac scale split orders',
@@ -1665,14 +1719,14 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='action',
                     kind=ArgKind.POSITIONAL,
-                    help='Action: status, stop, restart, logs, destroy, split',
+                    help='Action: deploy, status, stop, restart, logs, destroy, split',
                     required=True
                 ),
                 ArgMeta(
                     name='service_name',
                     kind=ArgKind.POSITIONAL,
                     `default='',
-                    help='Service name (stop/restart/logs), module to declare as a service (split), or a .jac app file for platform status/destroy'
+                    help='Service name (stop/restart/logs), module to declare as a service (split), or a .jac app file for platform deploy/status/destroy'
                 ),
                 ArgMeta(
                     name='lines',
@@ -1693,6 +1747,27 @@ def _command_routes -> list[CommandMeta] {
                     help='Platform destroy: component to remove (application, database, monitoring; default: entire deployment)',
                     short='c'
                 ),
+                ArgMeta(
+                    name='enable-tls',
+                    typ='bool',
+                    `default=False,
+                    help="Platform deploy: enable HTTPS via Let's Encrypt (run after pointing your domain CNAME to the NLB)",
+                    short=''
+                ),
+                ArgMeta(
+                    name='dry-run',
+                    typ='bool',
+                    `default=False,
+                    help='Platform deploy: print the manifests that would be applied; touch nothing (no cluster contact, no downloads, no client build, no DB provisioning, no TLS issuance, no deploy tooling installed)',
+                    short=''
+                ),
+                ArgMeta(
+                    name='show-yaml',
+                    typ='bool',
+                    `default=False,
+                    help='Platform deploy, with --dry-run: dump the raw YAML stream',
+                    short=''
+                ),
 
             ]
         ),
@@ -1702,7 +1777,7 @@ def _command_routes -> list[CommandMeta] {
             group='project',
             tier='',
             hidden=False,
-            handler_module='jaclang.runtimelib.client.cli',
+            handler_module='jaclang.client.cli',
             handler_name='setup',
             examples=[
                 ('jac setup mobile', 'Setup mobile target (default platform)'),
@@ -1729,164 +1804,6 @@ def _command_routes -> list[CommandMeta] {
             ]
         ),
         CommandMeta(
-            name='start',
-            help='Start server for a Jac program',
-            group='execution',
-            tier='core',
-            hidden=False,
-            handler_module='jaclang.cli.commands.execution',
-            handler_name='start',
-            examples=[
-                ('jac start', 'Start server with default main.jac'),
-                ('jac start app.jac', 'Start server with specific file'),
-                ('jac start --port 3000', 'Start main.jac on port 3000'),
-                ('jac start app.jac --faux', 'Generate API docs without starting'),
-                ('jac start --dev', 'Start with hot module replacement'),
-                (
-                    'jac start app.jac --dev --no-client',
-                    'HMR mode without client bundling'
-                ),
-                ('jac start --profile prod', 'Start with production profile'),
-                ('jac start --client mobile', 'Run the mobile client dev server'),
-                (
-                    'jac start --scale',
-                    'Deploy to a platform target instead of serving locally'
-                ),
-                (
-                    'jac start --takeover',
-                    "Evict a stuck session holding this project's database"
-                )
-            ],
-            args=[
-                ArgMeta(
-                    name='filename',
-                    kind=ArgKind.POSITIONAL,
-                    `default='main.jac',
-                    help='Path to .jac file (default: main.jac)'
-                ),
-                ArgMeta(
-                    name='port',
-                    typ='int',
-                    `default=8000,
-                    help='Server port',
-                    short='p',
-                    config_key='serve.port'
-                ),
-                ArgMeta(
-                    name='main',
-                    typ='bool',
-                    `default=True,
-                    help='Treat as __main__',
-                    short='m',
-                    config_key='run.main'
-                ),
-                ArgMeta(
-                    name='faux',
-                    typ='bool',
-                    `default=False,
-                    help='Print docs only (no server)',
-                    short='f'
-                ),
-                ArgMeta(
-                    name='dev',
-                    typ='bool',
-                    `default=False,
-                    help='Enable HMR (Hot Module Replacement) mode',
-                    short='d'
-                ),
-                ArgMeta(
-                    name='api_port',
-                    typ='int',
-                    `default=0,
-                    help='Separate API port for HMR mode (0=same as port)',
-                    short='a'
-                ),
-                ArgMeta(
-                    name='no-client',
-                    typ='bool',
-                    `default=False,
-                    help='Skip client bundling/serving (API only)',
-                    short='n'
-                ),
-                ArgMeta(
-                    name='profile',
-                    `default='',
-                    help='Configuration profile to load (e.g. prod, staging)',
-                    short=''
-                ),
-                ArgMeta(
-                    name='client',
-                    `default='web',
-                    help='Client build target for dev server (web, pwa, mobile, desktop). Choices reflect installed targets (desktop builds a native webview app).',
-                    short='',
-                    choices=[
-                        'web',
-                        'pwa',
-                        'static',
-                        'mobile',
-                        'desktop',
-                        'cef',
-                        'react-native'
-                    ]
-                ),
-                ArgMeta(
-                    name='host',
-                    `default='',
-                    help='Mobile dev (--client mobile --dev): optional host/IP override for Capacitor live-reload. When omitted, jac auto-selects a host.',
-                    short=''
-                ),
-                ArgMeta(
-                    name='platform',
-                    `default='auto',
-                    help='Mobile start/dev: android or ios (auto = use [client.mobile] default_platform or android)',
-                    short='',
-                    choices=['auto', 'android', 'ios']
-                ),
-                ArgMeta(
-                    name='scale',
-                    typ='bool',
-                    `default=False,
-                    help='Deploy to a target platform instead of running locally',
-                    short=''
-                ),
-                ArgMeta(
-                    name='target',
-                    `default='kubernetes',
-                    help='Deployment target (kubernetes, aws, gcp, etc.)',
-                    short='t'
-                ),
-                ArgMeta(
-                    name='enable-tls',
-                    typ='bool',
-                    `default=False,
-                    help="Enable HTTPS via Let's Encrypt (run after pointing your domain CNAME to the NLB)",
-                    short=''
-                ),
-                ArgMeta(
-                    name='dry-run',
-                    typ='bool',
-                    `default=False,
-                    help='Print the manifests that would be applied; touch nothing (no cluster contact, no downloads, no client build, no DB provisioning, no TLS issuance, no deploy tooling installed)',
-                    short=''
-                ),
-                ArgMeta(
-                    name='show-yaml',
-                    typ='bool',
-                    `default=False,
-                    help='With --dry-run: dump the raw YAML stream',
-                    short=''
-                ),
-                ArgMeta(
-                    name='takeover',
-                    typ='bool',
-                    `default=False,
-                    help="Evict any other session holding this project's database before starting (use when a previous jac process is stuck)",
-                    short=''
-                ),
-
-            ]
-        ),
-        CommandMeta(
             name='test',
             help='Run Jac test suite',
             group='analysis',
@@ -1902,7 +1819,10 @@ def _command_routes -> list[CommandMeta] {
                 (
                     'jac test --xit --verbose',
                     'Stop on first failure with verbose output'
-                )
+                ),
+                ('jac test --collect_only', 'List test files without running them'),
+                ('jac test --range 15-20', 'Run only that percent slice of the plan'),
+                ('jac test -x --resume', 'Fix-and-continue from the last failure')
             ],
             args=[
                 ArgMeta(
@@ -1936,6 +1856,27 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='directory', `default='', help='Test directory', short='d'
+                ),
+                ArgMeta(
+                    name='collect_only',
+                    typ='bool',
+                    `default=False,
+                    help='List collected test files without running them',
+                    short='c'
+                ),
+                ArgMeta(
+                    name='range',
+                    `default='',
+                    help='Run only this percent slice of the plan (N-M, N-, or -M)',
+                    short='',
+                    dest='pct_range'
+                ),
+                ArgMeta(
+                    name='resume',
+                    typ='bool',
+                    `default=False,
+                    help='Restart the plan from the file that failed last run',
+                    short='r'
                 ),
                 ArgMeta(
                     name='verbose',

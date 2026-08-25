@@ -10,7 +10,7 @@ import logging;
 import uuid;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.testing.testing { JacTestClient }
 
 def _as_any(v: any) -> any {
     return v;
@@ -149,7 +149,7 @@ test "client error endpoint rejects empty payload" {
 # =============================================================================
 test "prod render_page injects early error handler before module bundle script" {
     import types;
-    import from jaclang.runtimelib.client.serving { JacClient }
+    import from jaclang.client.serving { JacClient }
     introspector = types.SimpleNamespace(
         _client_manifest={'exports': ['app'], 'endpoint_effects': {}},
         _bundle=None,

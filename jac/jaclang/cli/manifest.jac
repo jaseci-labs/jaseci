@@ -1,6 +1,6 @@
 import from jaclang.cli.command { ArgKind }
 
-glob VERB_BUDGET: int = 28,
+glob VERB_BUDGET: int = 26,
      TOMBSTONED_VERBS: dict[str, str] = {
          "add": "jac install <pkg>",
          "format": "jac fmt",
@@ -10,6 +10,8 @@ glob VERB_BUDGET: int = 28,
          "jacpack": "jac create --pack <dir>",
          "enter": "jac run --entry <name> <file>",
          "debug": "jac run --debug <file>",
+         "start": "jac run --serve [--port N] <file>",
+         "dev": "jac run --dev",
          "bundle": "jac build [--as jab|sealed|binary|wheel|npm]",
          "eject": "jac build --as source",
          "js": "jac tool jac2js <file>",

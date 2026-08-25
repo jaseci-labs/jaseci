@@ -26,10 +26,10 @@ directly so the process-local gate is out of the picture.
 import threading;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.session { shared_pg_data_dir, project_db_name }
-import from jaclang.runtimelib.store { PgStore }
-import from jaclang.runtimelib.pgwire { PgWireError }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.server.session { shared_pg_data_dir, project_db_name }
+import from jaclang.data.store { PgStore }
+import from jaclang.data.pgwire { PgWireError }
 
 glob _RACERS = 8,
      _ROUNDS = 3,
