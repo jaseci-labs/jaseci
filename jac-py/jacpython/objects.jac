@@ -121,6 +121,61 @@ obj PyObj {
     }
 }
 
+# Objects/longobject.c long_true_divide (port of the canonical TestLong
+# helper): correctly-rounded int/int true division via bit-shift scaling.
+# Oversized operands never cross the host float boundary whole, so huge-int
+# division yields guest-exact doubles or a guest OverflowError instead of an
+# escaping host error.
+def int_true_divide(av: int, bv: int) -> PyObj {
+    DBL_MAX_EXP = 1024;
+    DBL_MIN_EXP = -1021;
+    DBL_MANT_DIG = 53;
+    DBL_MIN_OVERFLOW = 2 ** DBL_MAX_EXP - 2 ** (DBL_MAX_EXP - DBL_MANT_DIG - 1);
+    if bv == 0 {
+        return py_error("ZeroDivisionError", "division by zero");
+    }
+    negative = (av < 0) != (bv < 0);
+    a = av;
+    b = bv;
+    if a < 0 { a = -a; }
+    if b < 0 { b = -b; }
+    if a >= DBL_MIN_OVERFLOW * b {
+        return py_error(
+            "OverflowError", "integer division result too large for a float"
+        );
+    }
+    d = a.bit_length() - b.bit_length();
+    if (d >= 0 and a >= 2 ** d * b) or (d < 0 and a * 2 ** (-d) >= b) {
+        d = d + 1;
+    }
+    exp = d;
+    if exp < DBL_MIN_EXP {
+        exp = DBL_MIN_EXP;
+    }
+    exp = exp - DBL_MANT_DIG;
+    aa = a;
+    bb = b;
+    if exp < 0 {
+        aa = aa << -exp;
+    } else {
+        bb = bb << exp;
+    }
+    q = aa // bb;
+    r = aa % bb;
+    r2 = r + r;
+    if r2 > bb or (r2 == bb and q % 2 == 1) {
+        q = q + 1;
+    }
+    result = float(q);
+    scale = 2.0 ** exp;
+    result = result * scale;
+    if negative {
+        result = -result;
+    }
+    return PyFloat(t="float", val=result);
+}
+
+
 obj PyInt(PyObj) {
     has val: int;
 
@@ -164,10 +219,7 @@ obj PyInt(PyObj) {
         # NB_TRUE_DIVIDE: int / int is always float, even when it divides
         # evenly (6 / 2 == 3.0, not 3).
         if kind == NB_TRUE_DIVIDE {
-            if b == 0 {
-                return py_error("ZeroDivisionError", "division by zero");
-            }
-            return PyFloat(t="float", val=float(a) / float(b));
+            return int_true_divide(a, b);
         }
         if kind == NB_XOR {
             return PyInt(t="int", val=a ^ b);
@@ -175,6 +227,11 @@ obj PyInt(PyObj) {
         if kind == NB_LSHIFT {
             if b < 0 {
                 return py_error("ValueError", "negative shift count");
+            }
+            # CPython long_lshift short-circuits a zero left operand before
+            # any digit allocation: 0 << huge is 0, never an overflow.
+            if a == 0 {
+                return PyInt(t="int", val=0);
             }
             # A shift count at or beyond 2**63 overflows the C ssize_t shift
             # bound; CPython rejects it before allocating
