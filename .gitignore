@@ -15,7 +15,7 @@ _planning/
 play/
 build/
 develop-eggs/
-dist/
+/dist/
 downloads/
 eggs/
 .eggs/

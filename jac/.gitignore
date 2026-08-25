@@ -20,7 +20,7 @@ venv
 play/
 build/
 develop-eggs/
-dist/
+/dist/
 downloads/
 eggs/
 .eggs/
@@ -71,7 +71,7 @@ out.txt
 # Zig build
 .zig-cache/
 zig-out/
-dist/
+/dist/
 .pbs-build/
 # Pinned bun fetched per target by the payload tool's fetch-bun subcommand
 # (jaclang/dist/payload/) and bundled into the payload (never committed). See
