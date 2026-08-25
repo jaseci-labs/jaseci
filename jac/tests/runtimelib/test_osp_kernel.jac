@@ -1,10 +1,10 @@
 """Unit tests for the portable Object-Spatial traversal kernel
-(jaclang.jac0core.osp_kernel), driven directly with toy descriptors and an
+(jaclang.runtime.osp_kernel), driven directly with toy descriptors and an
 OspRuntime - no backend wiring. Pins the dispatch model the kernel provides to
 sv/cl/na: DFS-recursive traversal with subtype dispatch, post-order exits,
 opt-in visit-once via `scope.ignores`, and report collection."""
 
-import from jaclang.jac0core.osp_kernel {
+import from jaclang.runtime.osp_kernel {
     Slot,
     WalkerDesc,
     NodeDesc,

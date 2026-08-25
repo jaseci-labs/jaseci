@@ -6,7 +6,7 @@ generated JS directly rather than building a full bundle.
 
 import os;
 import from tests.support { JAC_ROOT }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "runtimelib", "fixtures");
 

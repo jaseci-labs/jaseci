@@ -24,7 +24,7 @@ def _seed_foreign_anchor(db: str) -> str {
     anchor_id = str(uuid4());
     payload = {
         "__type__": "NodeAnchor",
-        "__module__": "jaclang.jac0core.archetype",
+        "__module__": "jaclang.runtime.archetype",
         "id": anchor_id,
         "root": anchor_id,
         "persistent": True,
@@ -61,8 +61,8 @@ def _table_ids(db: str, table: str) -> list {
 
 test "sibling resolve_ref skips a peer's ref without heal-pruning" {
     import from uuid { uuid4 as _uuid4 }
-    import from jaclang.jac0core.archetype { EdgeAnchor }
-    import from jaclang.jac0core.runtime { JacRuntimeInterface, resolve_ref }
+    import from jaclang.runtime.archetype { EdgeAnchor }
+    import from jaclang.runtime.runtime { JacRuntimeInterface, resolve_ref }
 
     stub: any = EdgeAnchor.__new__(EdgeAnchor);
     stub.id = _uuid4();
@@ -87,8 +87,8 @@ test "sibling resolve_ref skips a peer's ref without heal-pruning" {
 
 test "non-sibling resolve_ref still heals a genuine dangler" {
     import from uuid { uuid4 as _uuid4 }
-    import from jaclang.jac0core.archetype { EdgeAnchor }
-    import from jaclang.jac0core.runtime { JacRuntimeInterface, resolve_ref }
+    import from jaclang.runtime.archetype { EdgeAnchor }
+    import from jaclang.runtime.runtime { JacRuntimeInterface, resolve_ref }
 
     stub: any = EdgeAnchor.__new__(EdgeAnchor);
     stub.id = _uuid4();

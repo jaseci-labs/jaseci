@@ -1,8 +1,8 @@
 import logging;
 import mimetypes;
 import from pathlib { Path }
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse, Request, Response }
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.datatypes { JSONResponse, Request, Response }
 import from jaclang.scale.runtime.gateway.gateway { Gateway }
 import from jaclang.scale.runtime.gateway.service_registry { ServiceRegistry }
 import from jaclang.scale.runtime.gateway.dispatch {

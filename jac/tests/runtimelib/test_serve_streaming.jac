@@ -10,7 +10,7 @@ yielded item as a canonical `data: {json}\n\n` SSE frame, terminated by
 
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.testing.testing { JacTestClient }
 
 test "function returning an iterator streams as SSE instead of crashing" {
     with TemporaryDirectory() as tmp {

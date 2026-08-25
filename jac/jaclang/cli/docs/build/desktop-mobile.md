@@ -3,7 +3,7 @@
 Take a full-stack Jac app and wrap it in a native shell -- a desktop window that embeds the OS webview, an Android/iOS webview build, or (for platform-native views) a React Native build. These map to the `desktop` and `mobile` [project kinds](../quick-guide/project-kinds.md) and the `mobui` client kind.
 
 !!! note "Status: beta 🧪"
-    The desktop binary renders your `cl` UI and runs `sv` walkers/functions **in-process** on the embedded interpreter (shipped), with full HMR dev mode via `jac start --client desktop --dev`. Only per-OS installers/code-signing remain open ([issue #6436](https://github.com/jaseci-labs/jaseci/issues/6436)). Both mobile paths are frontend-only -- the app talks to a Jac server you deploy separately. Everything else on this page works as shown.
+    The desktop binary renders your `cl` UI and runs `sv` walkers/functions **in-process** on the embedded interpreter (shipped), with full HMR dev mode via `jac run --client desktop --dev`. Only per-OS installers/code-signing remain open ([issue #6436](https://github.com/jaseci-labs/jaseci/issues/6436)). Both mobile paths are frontend-only -- the app talks to a Jac server you deploy separately. Everything else on this page works as shown.
 
 ## Your 5-minute quick win {#desktop}
 
@@ -11,13 +11,13 @@ Start from any [full-stack app](fullstack-web.md). Jac compiles your `cl` UI int
 
 ```bash
 jac build --client desktop      # → .jac/client/desktop/<app>  (single binary)
-jac start --client desktop      # build + launch the native window
-jac start --client desktop --dev   # HMR: Vite serves cl on 127.0.0.1, recompiles on .jac saves
+jac run --client desktop        # build + launch the native window
+jac run --client desktop --dev     # HMR: Vite serves cl on 127.0.0.1, recompiles on .jac saves
 ```
 
 In dev mode the native host is built once, then your `cl` UI is served from
 Vite on loopback and recompiled on every `.jac` save -- the desktop window
-hot-reloads just like `jac start --dev` does for web. Walker/function calls
+hot-reloads just like `jac run --dev` does for web. Walker/function calls
 still go through the embedded in-process runtime, so RPC works identically
 to the packaged build.
 
@@ -30,7 +30,7 @@ Ship the same client bundle to mobile via **Capacitor**, which wraps it in a nat
 ```bash
 # prerequisites: Android: JDK + Android SDK; iOS (macOS): Xcode (no Node.js -- JS tooling runs on the bundled Bun)
 jac setup mobile --platform android               # one-time scaffold
-jac start main.jac --client mobile --dev          # live reload on device/emulator
+jac run --client mobile --dev main.jac            # live reload on device/emulator
 jac build --client mobile --platform android      # → app-debug.apk
 ```
 
@@ -43,7 +43,7 @@ For **true native views** instead of a webview, the React Native target compiles
 ```bash
 # prerequisites: Android: JDK + Android SDK; iOS (macOS): Xcode (no Node.js -- JS tooling runs on the bundled Bun)
 jac setup react-native                            # one-time Expo scaffold (.jac/mobile-rn/)
-jac start main.jac --client react-native --dev    # Metro Fast Refresh on device/emulator
+jac run --client react-native --dev main.jac      # Metro Fast Refresh on device/emulator
 jac build --client react-native --platform android  # → APK (iOS: .app via xcodebuild, .ipa via EAS)
 ```
 

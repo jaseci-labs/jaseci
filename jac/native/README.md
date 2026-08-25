@@ -6,12 +6,12 @@ third-party code** under BSD-2-Clause (see [`LICENSE`](LICENSE)).
 
 Zig compiles these sources and statically links a host-only LLVM into the `jac`
 binary, exporting the `LLVMPY_*` symbols so the in-tree Jac binding
-(`jaclang/compiler/passes/native/llvm/binding/`) resolves them in-process via
+(`jaclang/compiler/backends/native/llvm/binding/`) resolves them in-process via
 `ctypes`. This replaces the bundled 167 MB `libllvmlite.so` from the llvmlite
 wheel.
 
 - The Jac side (IR builder + ctypes binding) is a `py2jac` translation and is
-  maintained as first-party code under `jaclang/compiler/passes/native/llvm/`.
+  maintained as first-party code under `jaclang/compiler/backends/native/llvm/`.
 - These `.cpp` files are kept verbatim (numba/llvmlite v0.48.0rc1) so they track
   upstream llvmlite for a given LLVM version (currently **LLVM 22.1.x**).
 
@@ -36,7 +36,7 @@ libstdc++, not libc++ as LLVM 20 was -- a `link_libcpp` shim leaves LLVM's
 
 `zig build jacllvm` builds just the shim (`jac/zig-out/lib/libjacllvm.so`, 310
 `LLVMPY_*` symbols) and places it at
-`jaclang/compiler/passes/native/llvm/libjacllvm.so` (gitignored) so the editable
+`jaclang/compiler/backends/native/llvm/libjacllvm.so` (gitignored) so the editable
 dev loop -- which runs jaclang from source, not the binary's payload -- finds
 it. `JAC_LLVM_SHIM=/path/to/libjacllvm.so` overrides the lookup if needed.
 
