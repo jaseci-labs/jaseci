@@ -24,7 +24,6 @@ glob FIXTURES = os.path.join(
          "tests",
          "compiler",
          "passes",
-         "main",
          "fixtures",
          "ownership_regress"
      );

@@ -236,8 +236,8 @@ test "no positional intrinsic name matching inside _codegen_call" {
     calls_impl = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
-        "native",
+        "backends",
+         "native",
         "na_ir_gen",
         "calls.impl.jac"
     );
@@ -323,8 +323,8 @@ test "native type identity never reads walk-time registration maps" {
     native_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
-        "native"
+        "backends",
+         "native"
     );
     assert os.path.isdir(native_dir) , f"native dir missing: {native_dir}";
     impl_dir = os.path.join(native_dir, "na_ir_gen");
@@ -431,8 +431,8 @@ test "container lifecycle emission lives only in the shared emitters" {
     impl_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
-        "native",
+        "backends",
+         "native",
         "na_ir_gen"
     );
     per_container = [
@@ -480,8 +480,8 @@ test "no numeric header offsets outside the HDR_* constants" {
     native_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
-        "native"
+        "backends",
+         "native"
     );
     hdr_pat = re.compile(r"Constant\([^,()]*i64[^,()]*,\s*-(8|16|24|32)\)\s*\]");
     offenders: list[str] = [];
@@ -514,8 +514,8 @@ test "one static-string constructor" {
     native_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
-        "native"
+        "backends",
+         "native"
     );
     marker = "LiteralStructType([i64,i64,arr_type])";
     hits: list[str] = [];
@@ -552,8 +552,8 @@ test "set shares the dict hash core with no linear-scan sibling" {
     native_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
-        "native"
+        "backends",
+         "native"
     );
     impl_dir = os.path.join(native_dir, "na_ir_gen");
     core_callers: list[str] = [];
@@ -642,8 +642,8 @@ test "no consumer-site NULL guards on string operands" {
     native_dir = os.path.join(
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
-        "passes",
-        "native"
+        "backends",
+         "native"
     );
     assert os.path.isdir(native_dir) , f"native dir missing: {native_dir}";
     banned = [

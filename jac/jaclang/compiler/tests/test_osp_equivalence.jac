@@ -283,8 +283,8 @@ test "osp cross-module: spawn / connect / edge-ref on imported archetypes" {
         os.path.dirname(os.path.dirname(jaclang.__file__)),
         "tests",
         "compiler",
-        "passes",
-        "native",
+        "backends",
+         "native",
         "fixtures",
         "osp_xmod_main.jac"
     );
@@ -309,8 +309,8 @@ test "osp cross-module general: consumer with its OWN OSP archetype still agrees
         os.path.dirname(os.path.dirname(jaclang.__file__)),
         "tests",
         "compiler",
-        "passes",
-        "native",
+        "backends",
+         "native",
         "fixtures",
         "osp_xmod_local.jac"
     );
@@ -333,8 +333,8 @@ test "osp cross-module two libraries: OSP imported from two modules agrees" {
         os.path.dirname(os.path.dirname(jaclang.__file__)),
         "tests",
         "compiler",
-        "passes",
-        "native",
+        "backends",
+         "native",
         "fixtures",
         "osp_xmod_two.jac"
     );
@@ -360,8 +360,8 @@ test "osp cross-module field read: imported node reserves its OSP header" {
         os.path.dirname(os.path.dirname(jaclang.__file__)),
         "tests",
         "compiler",
-        "passes",
-        "native",
+        "backends",
+         "native",
         "fixtures",
         "xmod_fieldread_main.jac"
     );
@@ -385,8 +385,8 @@ test "osp cross-module inherited write: write an inherited field of imported nod
         os.path.dirname(os.path.dirname(jaclang.__file__)),
         "tests",
         "compiler",
-        "passes",
-        "native",
+        "backends",
+         "native",
         "fixtures",
         "xmod_inherited_main.jac"
     );
@@ -411,8 +411,8 @@ test "osp cross-module union return: narrow `Area | None`, read / pass / spawn" 
         os.path.dirname(os.path.dirname(jaclang.__file__)),
         "tests",
         "compiler",
-        "passes",
-        "native",
+        "backends",
+         "native",
         "fixtures",
         "xmod_unionret_main.jac"
     );
@@ -440,8 +440,8 @@ test "xmod narrow: `is not None` narrowing applies on the imported-module path" 
         os.path.dirname(os.path.dirname(jaclang.__file__)),
         "tests",
         "compiler",
-        "passes",
-        "native",
+        "backends",
+         "native",
         "fixtures",
         "xmod_narrow_main.jac"
     );

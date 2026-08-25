@@ -17,8 +17,7 @@ glob AUTO_LINT_FIXTURES = os.path.join(
          JAC_ROOT,
          "tests",
          "compiler",
-         "passes",
-         "tool",
+         "tools",
          "fixtures",
          "comment_normalize_stress_test.jac"
      );

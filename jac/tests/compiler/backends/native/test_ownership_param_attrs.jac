@@ -15,7 +15,7 @@ import from jaclang.compiler.driver.compile_options { CompileOptions }
 glob FIXTURE = os.path.join(
          TESTS_DIR,
          "compiler",
-         "passes",
+         "backends",
          "native",
          "fixtures",
          "ownership_param_attrs.jac"

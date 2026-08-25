@@ -65,7 +65,6 @@ test "an operation at the operand width is never marked, whatever it flows into"
             TESTS_DIR,
             "compiler",
             "passes",
-            "main",
             "fixtures",
             "checker",
             "_elide_probe.jac"

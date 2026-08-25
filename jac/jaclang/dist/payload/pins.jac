@@ -5,7 +5,9 @@ glob _PKG_DIR: str = os.path.dirname(os.path.abspath(__file__));
 glob _PKG_PINS: str = os.path.join(_PKG_DIR, "pins.json");
 
 glob _REPO_PINS: str = os.path.join(
-         os.path.dirname(os.path.dirname(_PKG_DIR)), "bootstrap", "pins.json"
+         os.path.dirname(os.path.dirname(os.path.dirname(_PKG_DIR))),
+         "bootstrap",
+         "pins.json"
      ),
      PINS_FILE: str = _PKG_PINS if os.path.exists(_PKG_PINS) else _REPO_PINS;
 

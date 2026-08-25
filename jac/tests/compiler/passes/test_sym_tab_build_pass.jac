@@ -12,7 +12,6 @@ glob FIXTURES = os.path.join(
          "tests",
          "compiler",
          "passes",
-         "main",
          "fixtures",
          "symtab_build_tests"
      );

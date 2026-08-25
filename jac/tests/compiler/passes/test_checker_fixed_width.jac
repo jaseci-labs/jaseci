@@ -23,7 +23,6 @@ glob FW_CODES: tuple = ("E1126", "E1127", "E1128", "E1129", "E1130"),
          TESTS_DIR,
          "compiler",
          "passes",
-         "main",
          "fixtures",
          "checker",
          "_fw_inline.jac"

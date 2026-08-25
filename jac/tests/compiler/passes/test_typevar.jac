@@ -15,7 +15,6 @@ glob CHECKER_FIXTURES = os.path.join(
          "tests",
          "compiler",
          "passes",
-         "main",
          "fixtures",
          "checker",
          "typevar"

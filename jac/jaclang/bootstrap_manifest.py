@@ -67,6 +67,7 @@ SEED_PATHS: tuple[str, ...] = (
     "lib/jaclib.jac",
     "compiler/driver/mtp.jac",
     "cli/cli_boot.jac",
+    "jac0core/cli_boot.jac",
     "project/tomlio.jac",
 )
 

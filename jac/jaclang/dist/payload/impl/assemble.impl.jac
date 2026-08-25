@@ -107,7 +107,7 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
 
         copy_file(
             os.path.join(repo_root, "bootstrap", "pins.json"),
-            os.path.join(site, "jaclang", "payload", "pins.json")
+            os.path.join(site, "jaclang", "dist", "payload", "pins.json")
         );
     } else {
         log(
@@ -301,8 +301,8 @@ impl stage_tree(
             "site",
             "jaclang",
             "compiler",
-            "passes",
-            "native",
+            "backends",
+         "native",
             "llvm",
             shim_file_name()
         )

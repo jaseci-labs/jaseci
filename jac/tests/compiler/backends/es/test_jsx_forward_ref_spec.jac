@@ -28,8 +28,8 @@ glob SLOT_EXT = os.path.join(
          JAC_ROOT,
          "tests",
          "compiler",
-         "passes",
-         "ecmascript",
+         "backends",
+         "es",
          "fixtures",
          "slot_extensions"
      );

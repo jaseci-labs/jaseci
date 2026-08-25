@@ -36,7 +36,7 @@ glob FIXTURES = os.path.join(
          os.path.dirname(os.path.dirname(os.path.realpath(jaclang.__file__))),
          "tests",
          "compiler",
-         "passes",
+         "backends",
          "native",
          "fixtures"
      ),

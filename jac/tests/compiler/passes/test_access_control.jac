@@ -29,7 +29,6 @@ glob MEMBER_FIXTURE = os.path.join(
          "tests",
          "compiler",
          "passes",
-         "main",
          "fixtures",
          "access",
          "member_access.jac"

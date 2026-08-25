@@ -251,8 +251,8 @@ test "jsx comprehensive fixture" {
         JAC_ROOT,
         "tests",
         "compiler",
-        "passes",
-        "ecmascript",
+        "backends",
+         "es",
         "fixtures",
         "client_jsx.jac"
     );

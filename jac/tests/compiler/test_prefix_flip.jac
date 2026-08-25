@@ -583,8 +583,8 @@ test "a codespace-pinned module declines instead of crossing" {
             str(JAC_ROOT),
             "tests",
             "compiler",
-            "passes",
-            "ecmascript",
+            "backends",
+         "es",
             "fixtures",
             "advanced_language_features.jac"
         );

@@ -19,7 +19,6 @@ glob FIXTURE = os.path.join(
          TESTS_DIR,
          "compiler",
          "passes",
-         "main",
          "fixtures",
          "ownership",
          "own_glob_ok.jac"

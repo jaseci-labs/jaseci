@@ -21,7 +21,6 @@ glob FIXTURE = os.path.join(
          TESTS_DIR,
          "compiler",
          "passes",
-         "main",
          "fixtures",
          "nogc_ownfield",
          "ref_loop.jac"
