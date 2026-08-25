@@ -6,12 +6,7 @@ glob SPACE_SERVER: str = 'server',
      SPACE_NATIVE: str = 'native';
 
 glob TOOLCHAIN_NATIVE_ONLY_REL: tuple = ("runtime", "na_stdlib"),
-     TOOLCHAIN_MIXED_NATIVE_REL: tuple = (
-         "client",
-         "targets",
-         "desktop",
-         "native"
-     );
+     TOOLCHAIN_MIXED_NATIVE_REL: tuple = ("client", "targets", "desktop", "native");
 
 
 def project_root_of(source_path: str) -> (str | None) {
@@ -177,7 +172,9 @@ def toolchain_native_by_policy(package_dir: str, source_path: str) -> bool {
     }
     mixed = os.path.join(*TOOLCHAIN_MIXED_NATIVE_REL) + os.sep;
     if rel.startswith(mixed) {
-        import from jaclang.compiler.placement.placement_solver { native_default_path_ok }
+        import from jaclang.compiler.placement.placement_solver {
+            native_default_path_ok
+        }
         return native_default_path_ok(source_path);
     }
     return False;

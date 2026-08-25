@@ -13,7 +13,12 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob FIXTURE = os.path.join(
-         TESTS_DIR, "compiler", "backends", "native", "fixtures", "clib_str_membrane.jac"
+         TESTS_DIR,
+         "compiler",
+         "backends",
+         "native",
+         "fixtures",
+         "clib_str_membrane.jac"
      ),
      EXPECTED = "0\nTrue\nllo\nend\n",
      MODE_FLAGS = {

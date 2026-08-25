@@ -7,9 +7,7 @@ import from jaclang { JacRuntime as Jac }
 import from jaclang.compiler.driver.mtp { ClassInfo, FunctionInfo, MethodInfo }
 import from jaclang.compiler.driver.program { JacProgram }
 
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
-     );
+glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures");
 
 test "mtir gen basic" {
     prog = JacProgram();

@@ -17,10 +17,7 @@ import from jaclang.compiler.backends.es.es_unparse {
     es_to_js,
     template_element_raw
 }
-import from jaclang.compiler.backends.es.primitives_es {
-    ESDictEmitter,
-    ESEmitCtx
-}
+import from jaclang.compiler.backends.es.primitives_es { ESDictEmitter, ESEmitCtx }
 import from jaclang.compiler.backends.es.estree { Node as EsNode }
 import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.compiler.driver.modresolver { convert_to_js_import_path }

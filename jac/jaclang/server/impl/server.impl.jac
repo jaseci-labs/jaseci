@@ -906,10 +906,7 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
 
     sealed_mod_path: str = getattr(self._module, '__file__', '');
     if sealed_mod_path {
-        import from jaclang.server.sealed_serve {
-            serve_manifest_for,
-            sealed_root_for
-        }
+        import from jaclang.server.sealed_serve { serve_manifest_for, sealed_root_for }
         sm_sealed = serve_manifest_for(sealed_mod_path);
         if sm_sealed is not None {
             self._register_sealed_bindings(
@@ -1398,10 +1395,7 @@ impl ModuleIntrospector.spa_fallback_status(url_path: str) -> int {
 
 impl ModuleIntrospector._load_spa_routes -> (list[str] | None) {
     import from pathlib { Path }
-    import from jaclang.client.route_scanner {
-        RouteScanner,
-        resolve_route_exports
-    }
+    import from jaclang.client.route_scanner { RouteScanner, resolve_route_exports }
     if not self.base_path {
         return None;
     }

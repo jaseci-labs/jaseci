@@ -130,9 +130,7 @@ def start_backend_server_common(entry_file: Path, project_dir: Path, port: int) 
 
 def prepare_vite_dev_compilation(project_dir: Path, entry_file: Path) -> tuple {
     import from jaclang.client.vite_bundler { ViteBundler }
-    import from jaclang.client.vite_client_bundle {
-        make_client_bundle_builder
-    }
+    import from jaclang.client.vite_client_bundle { make_client_bundle_builder }
 
     console.print("  Preparing compilation for Vite dev…", style="muted");
     bundler = ViteBundler(project_dir=project_dir);

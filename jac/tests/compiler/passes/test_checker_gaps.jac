@@ -34,9 +34,7 @@ import from jaclang.compiler.driver.compile_options { CompileOptions }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.driver.pass_driver { run_pass }
 
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
-     ),
+glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures"),
      CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "fixtures", "checker"
      );

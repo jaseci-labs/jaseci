@@ -257,11 +257,11 @@ test "bootstrap-compiled modules keep the ambient-import advisory" {
     # absolute spelling made the same file report E1125 relatively and nothing
     # absolutely.
     assert is_bootstrap_compiled_module("jaclang/runtime/runtime.jac");
-    assert is_bootstrap_compiled_module("jaclang/compiler/backends/py/jcir_gen_pass.jac");
-    assert is_bootstrap_compiled_module("jaclang\\jac0core\\runtime.jac");
-    assert not is_bootstrap_compiled_module(
-        "jaclang/compiler/passes/layout_pass.jac"
+    assert is_bootstrap_compiled_module(
+        "jaclang/compiler/backends/py/jcir_gen_pass.jac"
     );
+    assert is_bootstrap_compiled_module("jaclang\\jac0core\\runtime.jac");
+    assert not is_bootstrap_compiled_module("jaclang/compiler/passes/layout_pass.jac");
     assert not is_bootstrap_compiled_module("apps/jac0core/module.jac");
     assert not is_bootstrap_compiled_module("myjaclang/jac0core/module.jac");
 }

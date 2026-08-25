@@ -10,9 +10,7 @@ import from jaclang.client.targets.react_native.common {
     REACT_NATIVE_VERSION,
     run_manifest_install
 }
-import from jaclang.client.targets.react_native.build {
-    build_native_index_entry_body
-}
+import from jaclang.client.targets.react_native.build { build_native_index_entry_body }
 import from jaclang.project.config { JacConfig }
 import from jaclang.project.providers { manifest_plugin_subdeps }
 

@@ -11,9 +11,7 @@ import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 import from jaclang.testing.test { parametrize }
 
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
-     ),
+glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures"),
      CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "fixtures", "checker"
      ),

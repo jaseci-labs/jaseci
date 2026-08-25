@@ -746,11 +746,7 @@ test "one silent window never condemns a live owner behind a partition" {
 
 
 test "silence is only ever read as abandonment on a scratch record" {
-    import from jaclang.data.dbcatalog {
-        DbKind,
-        DbRecord,
-        LIVE_PID_GRACE_SECONDS
-    }
+    import from jaclang.data.dbcatalog { DbKind, DbRecord, LIVE_PID_GRACE_SECONDS }
     # Only scratch stores heartbeat, so a project database is silent by
     # construction between runs. Nothing may read that as abandonment: it would
     # condemn every project database in the cluster on the first prune.

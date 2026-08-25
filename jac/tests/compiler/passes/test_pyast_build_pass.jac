@@ -17,9 +17,7 @@ import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.frontend.unitree { PythonModuleAst, Source }
 
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
-     );
+glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures");
 
 test "synced to latest py ast" {
     # Python 3.14 moved the unparser to `_ast_unparse` and binds

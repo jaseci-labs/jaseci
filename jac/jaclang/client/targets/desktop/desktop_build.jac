@@ -32,9 +32,7 @@ def _jaclang_src_roots -> list[Path] {
 
 def _find_desktop_native_dir -> Path {
     for src in _jaclang_src_roots() {
-        native = (
-            src / "jaclang" / "client" / "targets" / "desktop" / "native"
-        );
+        native = src / "jaclang" / "client" / "targets" / "desktop" / "native";
         if (
             (native / "oauth_broker.jac").is_file()
             and (native / "inprocess_dispatch.jac").is_file()
@@ -71,15 +69,7 @@ def _find_native_asset_dir(subdir: str, marker: str) -> Path {
         return _find_desktop_native_dir() / "webview";
     }
     for src in _jaclang_src_roots() {
-        dev = (
-            src
-            / "jaclang"
-            / "client"
-            / "targets"
-            / "desktop"
-            / "native"
-            / subdir
-        );
+        dev = src / "jaclang" / "client" / "targets" / "desktop" / "native" / subdir;
         if (dev / marker).exists() {
             return dev;
         }

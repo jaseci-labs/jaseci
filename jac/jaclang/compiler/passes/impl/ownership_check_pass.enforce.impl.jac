@@ -146,10 +146,7 @@ impl OwnershipCheckPass._nogc_local_shape(nm: Name) -> str {
 }
 
 impl OwnershipCheckPass._nogc_infer_locals -> None {
-    import from jaclang.compiler.passes.rc_facts_pass {
-        result_ownership,
-        Ownership
-    }
+    import from jaclang.compiler.passes.rc_facts_pass { result_ownership, Ownership }
     import from jaclang.compiler.types.types { AnyType }
     for nd in self.idx_assignments {
         if len(nd.target) != 1 {
@@ -264,10 +261,7 @@ impl OwnershipCheckPass._nogc_local_shape_expr_heap(expr: Expr | None) -> bool {
             return self._nogc_local_shape(_root) == "heap";
         }
     }
-    import from jaclang.compiler.passes.rc_facts_pass {
-        result_ownership,
-        Ownership
-    }
+    import from jaclang.compiler.passes.rc_facts_pass { result_ownership, Ownership }
     _own = result_ownership(expr);
     if _own == Ownership.STATIC or _own == Ownership.BORROWED {
         return False;

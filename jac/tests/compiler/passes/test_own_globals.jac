@@ -16,12 +16,7 @@ import tempfile;
 import from tests.support { TESTS_DIR }
 
 glob FIXTURE = os.path.join(
-         TESTS_DIR,
-         "compiler",
-         "passes",
-         "fixtures",
-         "ownership",
-         "own_glob_ok.jac"
+         TESTS_DIR, "compiler", "passes", "fixtures", "ownership", "own_glob_ok.jac"
      ),
      MODE_FLAGS = {
          "none": ["--enforce-nogc", "--gc", "none", "--assert-no-rc"],

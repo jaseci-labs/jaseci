@@ -4,9 +4,7 @@ import subprocess;
 import from pathlib { Path }
 import from typing { Optional }
 import from jaclang.cli.console { console }
-import from jaclang.client.targets.desktop.plugin.webview_lib {
-    libwebview_name
-}
+import from jaclang.client.targets.desktop.plugin.webview_lib { libwebview_name }
 import from jaclang.client.targets.desktop.desktop_build {
     _find_webview_dir,
     _jac_bin,
@@ -14,9 +12,7 @@ import from jaclang.client.targets.desktop.desktop_build {
     _stage_fused_runtime,
     _bundle_runtime,
 }
-import from jaclang.client.targets.desktop._host_bootstrap {
-    _generate_host_source
-}
+import from jaclang.client.targets.desktop._host_bootstrap { _generate_host_source }
 import from jaclang.client.targets.desktop._dev_launch {
     ensure_dev_build_env,
     desktop_app_runtime_env,

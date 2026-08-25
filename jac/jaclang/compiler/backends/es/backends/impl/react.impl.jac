@@ -77,9 +77,7 @@ impl ReactBackend.vite_plugin_lines -> (tuple[str, str] | None) {
 }
 
 impl ReactBackend._get_setter_name(var_name: str) -> str {
-    import from jaclang.compiler.backends.es.framework_backend {
-        state_setter_name
-    }
+    import from jaclang.compiler.backends.es.framework_backend { state_setter_name }
     return state_setter_name(var_name);
 }
 

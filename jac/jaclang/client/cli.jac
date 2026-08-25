@@ -346,10 +346,7 @@ def run_npm_add(packages: list, dev: bool, install_global: bool = False) -> int 
 def run_npm_add_global(packages: list, dev: bool) -> int {
     import subprocess;
     import from jaclang.cli.console { console }
-    import from jaclang.client.bun_installer {
-        get_bun,
-        bun_unavailable_message
-    }
+    import from jaclang.client.bun_installer { get_bun, bun_unavailable_message }
     import from jaclang.project.tool_paths { node_root }
 
     if not packages {

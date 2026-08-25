@@ -64,7 +64,10 @@ glob _UNITREE_MASK_CORPUS_LINES: tuple[str, ...] = (
 def unitree_profile -> MaterializeProfile {
     nl = chr(10);
     return MaterializeProfile(
-        class_modules=["jaclang.compiler.frontend.unitree", "jaclang.compiler.frontend.srcloc"],
+        class_modules=[
+            "jaclang.compiler.frontend.unitree",
+            "jaclang.compiler.frontend.srcloc"
+        ],
         enum_modules=[
             "jaclang.compiler.frontend.unitree",
             "jaclang.compiler.frontend.constant",
@@ -73,7 +76,10 @@ def unitree_profile -> MaterializeProfile {
         envelope_modules=["jaclang.compiler.frontend.parser.tokens"],
         chain_base_module="jaclang.compiler.frontend.unitree",
         chain_base_class="UniNode",
-        mask_sources=["compiler/frontend/unitree.jac", "compiler/frontend/parser/impl/parser.impl.jac"],
+        mask_sources=[
+            "compiler/frontend/unitree.jac",
+            "compiler/frontend/parser/impl/parser.impl.jac"
+        ],
         mask_corpus=nl.join(list(_UNITREE_MASK_CORPUS_LINES)),
         parse_entry="parse_program",
         parse_entry_module="jaclang.compiler.frontend.parser.parser",

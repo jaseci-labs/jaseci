@@ -36,8 +36,7 @@ def _cef_dir -> Path {
         probe = probe.parent;
     }
     raise RuntimeError(
-        "jaclang/client/targets/desktop/native/cef/cef.jac not found from "
-            + str(here)
+        "jaclang/client/targets/desktop/native/cef/cef.jac not found from " + str(here)
     );
 }
 

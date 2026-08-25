@@ -584,7 +584,7 @@ test "a codespace-pinned module declines instead of crossing" {
             "tests",
             "compiler",
             "backends",
-         "es",
+            "es",
             "fixtures",
             "advanced_language_features.jac"
         );

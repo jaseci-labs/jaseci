@@ -49,12 +49,7 @@ test "the baked builtin surface matches runtime.builtin.__all__" {
 
 
 test "the baked ambient typing names match typing_ambient.pyi" {
-    stub = (
-        Path(jaclang.__file__).parent
-        / "compiler"
-        / "types"
-        / "typing_ambient.pyi"
-    );
+    stub = Path(jaclang.__file__).parent / "compiler" / "types" / "typing_ambient.pyi";
     text = stub.read_text(encoding="utf-8");
     marker = text.find("__all__ =");
     open_b = text.find("[", marker);

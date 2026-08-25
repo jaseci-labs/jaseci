@@ -248,7 +248,9 @@ test "the verdict resolver refuses an inflight or mid-compile callee" {
     if _jaclang_image() is not None {
         testskip("a sealed image measures its trust boundary, not this");
     }
-    import from jaclang.compiler.backends.native.na_compile_pass { native_unit_demotions }
+    import from jaclang.compiler.backends.native.na_compile_pass {
+        native_unit_demotions
+    }
     import from jaclang.compiler.driver.compile_options { CompileOptions as _Opts }
     helpers_path = os.path.realpath(os.path.join(FIXTURES, "demote_cycle_helpers.jac"));
     prog = JacProgram();

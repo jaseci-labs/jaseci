@@ -14,13 +14,7 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob SLOT_POS = os.path.join(
-         JAC_ROOT,
-         "tests",
-         "compiler",
-         "backends",
-         "es",
-         "fixtures",
-         "slot_positions"
+         JAC_ROOT, "tests", "compiler", "backends", "es", "fixtures", "slot_positions"
      ),
      ACC = "__jac_view_kids";
 

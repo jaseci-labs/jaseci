@@ -26,10 +26,7 @@ impl Serializer._serialize_attrs(
 
     if include_type and not api_mode {
         if hasattr(type(`obj), '__jac_schema__') {
-            import from jaclang.data.schema_rules {
-                merged_rules_for,
-                repair_mode
-            }
+            import from jaclang.data.schema_rules { merged_rules_for, repair_mode }
             if repair_mode() == 'repair' and (rules := merged_rules_for(type(`obj))) {
                 for a in rules.aliases {
                     if a.new_name in result and a.stored_name not in result {
@@ -406,11 +403,7 @@ impl Serializer.register_alias(old_name: str, cls: type) -> None {
 }
 
 impl Serializer.repair(data: dict[str, object], cls: type) -> tuple {
-    import from jaclang.data.schema_rules {
-        apply_rules,
-        merged_rules_for,
-        repair_mode
-    }
+    import from jaclang.data.schema_rules { apply_rules, merged_rules_for, repair_mode }
     mode = repair_mode();
     if mode == 'off' {
         return (data, []);

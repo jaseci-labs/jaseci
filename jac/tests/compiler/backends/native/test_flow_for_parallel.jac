@@ -18,14 +18,24 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob FIXTURE = os.path.join(
-         TESTS_DIR, "compiler", "backends", "native", "fixtures", "flow_for_parallel.jac"
+         TESTS_DIR,
+         "compiler",
+         "backends",
+         "native",
+         "fixtures",
+         "flow_for_parallel.jac"
      ),
      EXPECTED = "81313683\nend\n",
      RED_FIXTURE = os.path.join(
          TESTS_DIR, "compiler", "backends", "native", "fixtures", "flow_for_reduce.jac"
      ),
      SHARED_FIXTURE = os.path.join(
-         TESTS_DIR, "compiler", "backends", "native", "fixtures", "flow_for_rc_shared.jac"
+         TESTS_DIR,
+         "compiler",
+         "backends",
+         "native",
+         "fixtures",
+         "flow_for_rc_shared.jac"
      ),
      RED_EXPECTED = "31712031\n14722\n975010\nend\n",
      MODE_FLAGS = {

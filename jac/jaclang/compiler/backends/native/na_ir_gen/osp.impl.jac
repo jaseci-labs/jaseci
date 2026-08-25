@@ -8,7 +8,9 @@ def _load_native_osp_kernel_module -> (uni.Module | None) {
     import from jaclang.compiler.driver.program { JacProgram }
     mod = None;
     try {
-        import from jaclang.compiler.driver.compile_options { CompileOptions as _KernelOpts }
+        import from jaclang.compiler.driver.compile_options {
+            CompileOptions as _KernelOpts
+        }
         prog = JacProgram();
         mod = prog.compile(
             osp_core_unit_path('na'),

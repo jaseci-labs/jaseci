@@ -19,10 +19,7 @@ import re;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
-import from jaclang.client.route_scanner {
-    RouteScanner,
-    describe_pages_without_routes
-}
+import from jaclang.client.route_scanner { RouteScanner, describe_pages_without_routes }
 
 
 """Write `body` to `base/rel`, creating parent directories."""

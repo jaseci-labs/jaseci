@@ -3,11 +3,7 @@ import mimetypes;
 import from pathlib { Path }
 import from jaclang.server.serving.app { ServingApp }
 import from jaclang.server.serving.datatypes { Request }
-import from jaclang.server.serving.datatypes {
-    HTMLResponse,
-    JSONResponse,
-    Response
-}
+import from jaclang.server.serving.datatypes { HTMLResponse, JSONResponse, Response }
 import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry,

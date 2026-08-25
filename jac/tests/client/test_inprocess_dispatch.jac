@@ -220,9 +220,7 @@ test "forward() before boot() returns a 503 envelope, never raises" {
     # on a fresh module instance so a prior boot in this process can't mask it.
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     # Force the "never booted" state regardless of test order.
     saved_tc = ipd._tc;
     saved_err = ipd._BOOT_ERROR;
@@ -313,9 +311,7 @@ test "handle() copies the call id, dispatches off the UI thread, and replies off
     import queue;
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
 
     # Install our capture in place of the (absent) host webview_return symbol,
     # and make sure a worker is draining the queue (boot() may have started one).
@@ -366,9 +362,7 @@ test "handle() times out a slow call and drops the late reply (P1-A)" {
     import time;
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     _REPLIES.clear();
     _CAP_DONE = threading.Event();
     ipd._wv_return = _capture_return;
@@ -416,9 +410,7 @@ test "handle() replies BUSY when the dispatch queue is saturated (P1-A)" {
     import queue;
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     _REPLIES.clear();
     _CAP_DONE = threading.Event();
     ipd._wv_return = _capture_return;
@@ -457,9 +449,7 @@ test "handle() replies BUSY when the dispatch queue is saturated (P1-A)" {
 test "dispatch() returns a NATIVE_BOOT_ERROR envelope when boot failed (P1-B)" {
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_err = ipd._BOOT_ERROR;
     orig_debug = ipd._debug;
     try {
@@ -490,9 +480,7 @@ test "dispatch() returns a NATIVE_BOOT_ERROR envelope when boot failed (P1-B)" {
 test "error envelopes gate the traceback behind debug and always carry a request_id (P1-C)" {
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_err = ipd._BOOT_ERROR;
     orig_debug = ipd._debug;
     try {
@@ -529,9 +517,7 @@ test "boot() records the failure reason and re-raises (P1-B)" {
     import from importlib { import_module }
     import tempfile;
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     ipd._BOOT_ERROR = "";
     raised = False;
     try {
@@ -556,9 +542,7 @@ test "boot() clears stale _BOOT_ERROR at entry" {
     import from importlib { import_module }
     import tempfile;
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_err = ipd._BOOT_ERROR;
     orig_tc = ipd._tc;
     try {
@@ -600,9 +584,7 @@ test "boot() clears stale _BOOT_ERROR at entry" {
 test "shutdown() is a no-op when boot() never ran" {
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_q = ipd._work_q;
     orig_tc = ipd._tc;
     orig_runtime = ipd._runtime;
@@ -632,9 +614,7 @@ test "shutdown() stops the worker via a queue sentinel" {
     import queue;
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_q = ipd._work_q;
     orig_worker = ipd._worker;
     orig_shutting = ipd._shutting_down;
@@ -664,9 +644,7 @@ test "shutdown() drains queued items without replying" {
     import queue;
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     _REPLIES.clear();
     _CAP.clear();
     orig_q = ipd._work_q;
@@ -707,9 +685,7 @@ test "handle() makes no reply when _shutting_down is True (NATIVE_DISPATCH_SHUTD
     import ctypes;
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     _REPLIES.clear();
     _CAP.clear();
     orig_shutting = ipd._shutting_down;
@@ -745,9 +721,7 @@ test "handle() replies NATIVE_DISPATCH_ERROR inline for a malformed request" {
     import ctypes;
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     _REPLIES.clear();
     _CAP.clear();
     orig_shutting = ipd._shutting_down;
@@ -781,9 +755,7 @@ test "handle() replies NOT_BOOTED inline when _work_q is None" {
     import ctypes;
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     _REPLIES.clear();
     _CAP.clear();
     orig_shutting = ipd._shutting_down;
@@ -827,9 +799,7 @@ test "dispatch() routes a walker to /walker/{name}/{node_id} when node is set" {
     import from importlib { import_module }
     import from unittest.mock { MagicMock }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_tc = ipd._tc;
     orig_err = ipd._BOOT_ERROR;
     try {
@@ -868,9 +838,7 @@ test "dispatch() sends Authorization: Bearer header when token is set" {
     import from importlib { import_module }
     import from unittest.mock { MagicMock }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_tc = ipd._tc;
     orig_err = ipd._BOOT_ERROR;
     try {
@@ -911,9 +879,7 @@ test "dispatch() wraps a non-JSON backend response in an error envelope" {
     import from importlib { import_module }
     import from unittest.mock { MagicMock }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_tc = ipd._tc;
     orig_err = ipd._BOOT_ERROR;
     try {
@@ -952,9 +918,7 @@ test "_worker_loop replies NATIVE_DISPATCH_ERROR when dispatch() raises" {
     import queue;
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     _REPLIES.clear();
     _CAP.clear();
     _CAP_DONE = threading.Event();
@@ -1015,9 +979,7 @@ test "_worker_loop replies NATIVE_DISPATCH_ERROR when dispatch() raises" {
 test "handle() is a no-op for null pointers" {
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     _REPLIES.clear();
     orig_wv = ipd._wv_return;
     try {
@@ -1039,9 +1001,7 @@ test "_reply swallows webview_return failures without raising" {
     import from importlib { import_module }
     import from unittest.mock { MagicMock }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_wv = ipd._wv_return;
     orig_shutting = ipd._shutting_down;
     try {
@@ -1071,9 +1031,7 @@ test "_reply swallows webview_return failures without raising" {
 test "shutdown() is idempotent" {
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_q = ipd._work_q;
     orig_tc = ipd._tc;
     orig_runtime = ipd._runtime;
@@ -1109,9 +1067,7 @@ test "shutdown() is idempotent" {
 test "_on_timeout is a no-op when _shutting_down is True" {
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     _REPLIES.clear();
     orig_shutting = ipd._shutting_down;
     orig_wv = ipd._wv_return;
@@ -1138,9 +1094,7 @@ test "_boot_impl closes a prior runtime before re-booting" {
     import from unittest.mock { MagicMock }
     import tempfile;
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_runtime = ipd._runtime;
     orig_tc = ipd._tc;
     orig_err = ipd._BOOT_ERROR;
@@ -1168,9 +1122,7 @@ test "dispatch_sync() returns the result for a fast call" {
     import from importlib { import_module }
     import from unittest.mock { MagicMock }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_tc = ipd._tc;
     orig_err = ipd._BOOT_ERROR;
     try {
@@ -1206,9 +1158,7 @@ test "dispatch_sync() times out a slow call with NATIVE_DISPATCH_TIMEOUT" {
     import time;
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_tc = ipd._tc;
     orig_err = ipd._BOOT_ERROR;
     orig_dispatch = ipd.dispatch;
@@ -1250,9 +1200,7 @@ test "dispatch_sync() times out a slow call with NATIVE_DISPATCH_TIMEOUT" {
 test "dispatch_sync() falls back to _timeout_s when timeout_s <= 0" {
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_tc = ipd._tc;
     orig_err = ipd._BOOT_ERROR;
     orig_dispatch = ipd.dispatch;
@@ -1285,9 +1233,7 @@ test "dispatch_sync() falls back to _timeout_s when timeout_s <= 0" {
 test "dispatch_sync() returns NATIVE_DISPATCH_ERROR when dispatch() raises" {
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_tc = ipd._tc;
     orig_err = ipd._BOOT_ERROR;
     orig_dispatch = ipd.dispatch;
@@ -1317,9 +1263,7 @@ test "dispatch_sync() returns NATIVE_DISPATCH_ERROR when dispatch() raises" {
 test "dispatch_sync() replies NOT_BOOTED when boot() never ran" {
     import from importlib { import_module }
 
-    ipd = import_module(
-        "jaclang.client.targets.desktop.native.inprocess_dispatch"
-    );
+    ipd = import_module("jaclang.client.targets.desktop.native.inprocess_dispatch");
     orig_tc = ipd._tc;
     orig_err = ipd._BOOT_ERROR;
     try {

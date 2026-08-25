@@ -273,7 +273,11 @@ test "the container carries its module path and string table" {
 
 
 test "diagnostics cross the container with text severity and span" {
-    import from jaclang.compiler.backends.py.codegen_ir { CirDiag, CodegenIrWriter, DIAG_WARNING }
+    import from jaclang.compiler.backends.py.codegen_ir {
+        CirDiag,
+        CodegenIrWriter,
+        DIAG_WARNING
+    }
 
     w = CodegenIrWriter();
     w.begin_module("diag_probe.jac");

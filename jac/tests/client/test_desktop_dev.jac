@@ -107,9 +107,7 @@ test "vite config omits reload plugin + broker proxy by default" {
 """The host reads _ctx.dev_port and, when > 0, navigates to the Vite dev server;
 otherwise it falls back to the loopback port (unchanged prod behaviour)."""
 test "generated host source branches on dev_port" {
-    import from jaclang.client.targets.desktop._host_bootstrap {
-        _generate_host_source
-    }
+    import from jaclang.client.targets.desktop._host_bootstrap { _generate_host_source }
 
     src = _generate_host_source("T", 800, 600, "test-app");
     assert "_ctx.dev_port" in src , "host must read _ctx.dev_port";
@@ -146,9 +144,7 @@ obj _FakeCompiler {
 }
 
 test "hmr handler recompiles on in-tree .jac change" {
-    import from jaclang.client.targets.client_dev_common {
-        _ClientHmrHandler
-    }
+    import from jaclang.client.targets.client_dev_common { _ClientHmrHandler }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         project_dir = Path(temp_dir);
@@ -170,9 +166,7 @@ test "hmr handler recompiles on in-tree .jac change" {
 }
 
 test "hmr handler ignores non-.jac and out-of-tree files" {
-    import from jaclang.client.targets.client_dev_common {
-        _ClientHmrHandler
-    }
+    import from jaclang.client.targets.client_dev_common { _ClientHmrHandler }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         project_dir = Path(temp_dir);

@@ -106,9 +106,7 @@ test "orchestrator start_service argv is accepted by the real CLI" {
 }
 
 test "client dev backend spawn argv is accepted by the real CLI" {
-    import from jaclang.client.targets.client_dev_common {
-        start_backend_server_common
-    }
+    import from jaclang.client.targets.client_dev_common { start_backend_server_common }
     captured: list = [];
     with unittest.mock.patch("subprocess.Popen", _capture_popen(captured)) {
         start_backend_server_common(Path("app.jac"), Path("."), 8321);

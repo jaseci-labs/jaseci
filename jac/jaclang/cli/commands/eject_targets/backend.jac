@@ -513,10 +513,7 @@ def _emit_main_py(
         ];
     }
 
-    lines += [
-        '',
-        'from jaclang.server.server import UserManager, ExecutionManager'
-    ];
+    lines += ['', 'from jaclang.server.server import UserManager, ExecutionManager'];
 
     if entry_module {
         lines += [

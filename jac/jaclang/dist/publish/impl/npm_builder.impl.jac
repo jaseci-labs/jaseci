@@ -6,7 +6,10 @@ import from jaclang.dist.publish.npm_sources {
     resolve_npm_entry,
     runtime_pkg_name
 }
-import from jaclang.dist.publish.package_json { generate_package_json, npm_tarball_filename }
+import from jaclang.dist.publish.package_json {
+    generate_package_json,
+    npm_tarball_filename
+}
 
 def _resolve_externals(
     config: any, files: list[any]

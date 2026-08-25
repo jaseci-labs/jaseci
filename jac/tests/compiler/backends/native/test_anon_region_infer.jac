@@ -17,7 +17,9 @@ import from tests.support { TESTS_DIR }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 
-glob FIXDIR = os.path.join(TESTS_DIR, "compiler", "backends", "native", "fixtures"),
+glob FIXDIR = os.path.join(
+         TESTS_DIR, "compiler", "backends", "native", "fixtures"
+     ),
      MODE_FLAGS = {
          "none": ["--gc", "none"],
          "rc": ["--gc", "rc"],

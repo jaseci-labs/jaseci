@@ -116,9 +116,7 @@ impl NaIRGenTypes._enum_name_of(expr: (uni.UniNode | None)) -> (str | None) {
         return None;
     }
     try {
-        import from jaclang.compiler.types.types {
-            EnumMemberType as _EnumMemberType
-        }
+        import from jaclang.compiler.types.types { EnumMemberType as _EnumMemberType }
     } except ImportError {
         return None;
     }
@@ -965,9 +963,7 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
     _ptb = var?.type;
     if _ptb is not None {
         try {
-            import from jaclang.compiler.types.types {
-                FunctionType as _FieldFnType
-            }
+            import from jaclang.compiler.types.types { FunctionType as _FieldFnType }
             if isinstance(_ptb, _FieldFnType) {
                 return self._lower_function_type_raw(_ptb);
             }
@@ -986,9 +982,7 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
             return ir.IntType(8).as_pointer();
         }
         try {
-            import from jaclang.compiler.types.types {
-                TypeVarType as _RfTypeVarType
-            }
+            import from jaclang.compiler.types.types { TypeVarType as _RfTypeVarType }
             if isinstance(_ptb, _RfTypeVarType) {
                 return ir.IntType(8).as_pointer();
             }
@@ -1071,9 +1065,7 @@ impl NaIRGenTypes._foreign_optional_field(tb: any) -> bool {
         return False;
     }
     try {
-        import from jaclang.compiler.types.types {
-            TypeVarType as _FofTypeVarType
-        }
+        import from jaclang.compiler.types.types { TypeVarType as _FofTypeVarType }
     } except ImportError {
         return False;
     }
@@ -1094,9 +1086,7 @@ impl NaIRGenTypes._foreign_optional_field(tb: any) -> bool {
 
 impl NaIRGenTypes._erased_typevar_names(tb: any) -> list[str] {
     try {
-        import from jaclang.compiler.types.types {
-            TypeVarType as _EtvTypeVarType
-        }
+        import from jaclang.compiler.types.types { TypeVarType as _EtvTypeVarType }
     } except ImportError {
         return [];
     }
@@ -1234,9 +1224,7 @@ impl NaIRGenTypes._resolve_clib_type(type_expr: (uni.UniNode | None)) -> ir.Type
     }
 
     try {
-        import from jaclang.compiler.types.types {
-            FunctionType as _ClibSigFnType
-        }
+        import from jaclang.compiler.types.types { FunctionType as _ClibSigFnType }
         if isinstance(type_expr?.type, _ClibSigFnType) {
             return self._lower_function_type_raw(type_expr.type);
         }

@@ -1,11 +1,3 @@
-"""Compiler-source failure forensics.
-
-Split out of compiler/driver/compiler.jac (#8681). When the compiler's own source
-fails to compile, these helpers keep the evidence (note_compiler_source_
-failure), recognize the condition inside import errors (fail_loud_on_
-compiler_source, compiler_source_failure_origin), and distinguish genuine
-re-entrant imports from missing modules.
-"""
 import os;
 import sys;
 import from jaclang.compiler.driver.program { JacProgram }

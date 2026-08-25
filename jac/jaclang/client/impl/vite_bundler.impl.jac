@@ -15,9 +15,7 @@ def _require_bun -> str {
 
 
 def _build_vite_command(build_dir: Path, args: list[str]) -> list[str] {
-    import from jaclang.client.targets.node_tooling_common {
-        resolve_node_tool_entry
-    }
+    import from jaclang.client.targets.node_tooling_common { resolve_node_tool_entry }
 
     bun = _require_bun();
     `entry = resolve_node_tool_entry(build_dir, 'vite');

@@ -652,9 +652,7 @@ test "bug_tvar6_glob_typevar_in_free_function" {
 # methods keep normal Python scoping (bare-name assignments stay local).
 # =========================================================================
 test "bug_impl1_has_var_shadow_in_impl_body" {
-    fixture_dir = os.path.join(
-        JAC_ROOT, "tests", "compiler", "passes", "fixtures"
-    );
+    fixture_dir = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures");
     program = JacProgram();
     program.compile(os.path.join(fixture_dir, "impl_has_var_reassign.jac"));
 

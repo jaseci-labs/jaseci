@@ -1462,7 +1462,10 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     i64 = ir.IntType(64);
     import re;
 
-    import from jaclang.compiler.frontend.codeinfo { native_glob_init_name, native_safe_sym }
+    import from jaclang.compiler.frontend.codeinfo {
+        native_glob_init_name,
+        native_safe_sym
+    }
 
     fnty = ir.FunctionType(ir.VoidType(), []);
     func = self._define_function("jac_entry", fnty);

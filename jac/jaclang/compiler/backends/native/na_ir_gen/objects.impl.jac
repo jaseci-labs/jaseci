@@ -146,9 +146,7 @@ impl NaIRGenObjects._register_archetypes(module: uni.Module) -> None {
         }
     }
 
-    import from jaclang.compiler.passes.layout_pass {
-        get_layout_registry as _no_glr
-    }
+    import from jaclang.compiler.passes.layout_pass { get_layout_registry as _no_glr }
     _no_reg = _no_glr(self.ir_in, self.prog);
     for (base_name, layout) in self.vtable_layouts.items() {
         if not self._devirt_closed_world(base_name) {
@@ -3320,9 +3318,7 @@ impl NaIRGenObjects._emit_dispatched_field_ptr(
     ftype: (ir.Type | None),
     parts: (list[str] | None) = None
 ) -> (ir.Value | None) {
-    import from jaclang.compiler.passes.layout_pass {
-        get_layout_registry as _df_glr
-    }
+    import from jaclang.compiler.passes.layout_pass { get_layout_registry as _df_glr }
     reg = _df_glr(self.ir_in, self.prog);
     _base_lay = reg.get_layout(type_name);
     if _base_lay is None or not _base_lay.has_vtable {

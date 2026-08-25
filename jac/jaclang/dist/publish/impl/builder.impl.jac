@@ -228,7 +228,9 @@ impl WheelBuilder._assemble_src_data -> dict[str, bytes] {
                 raise ValueError(f"Cannot transpile '{wp}': source path is not set.");
             }
             if program is None {
-                import from jaclang.compiler.driver.program { JacProgram as JacProgramRt }
+                import from jaclang.compiler.driver.program {
+                    JacProgram as JacProgramRt
+                }
                 program = JacProgramRt();
             }
             target = wp[:-len(".jac")] + ".py";

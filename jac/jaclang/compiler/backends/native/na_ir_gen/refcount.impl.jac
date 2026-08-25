@@ -559,10 +559,7 @@ impl NaIRGenRefcount._opt_result_owned(val: ir.Value, expr: object) -> bool {
     if self._opt_ptr_payload_of(val.type) is None {
         return False;
     }
-    import from jaclang.compiler.passes.rc_facts_pass {
-        Ownership,
-        result_ownership
-    }
+    import from jaclang.compiler.passes.rc_facts_pass { Ownership, result_ownership }
     return isinstance(expr, uni.Expr) and result_ownership(expr) == Ownership.OWNED;
 }
 

@@ -466,7 +466,10 @@ def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
         push_native_target_env,
         pop_native_target_env
     }
-    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage {
+        na_coverage_begin,
+        na_coverage_end
+    }
     (gc_mode, enf_mods, enf_grand) = _project_gc_settings();
     prev = push_native_target_env("wasm32-unknown-unknown");
     auto_promote = True;

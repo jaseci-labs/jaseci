@@ -1,10 +1,3 @@
-"""Pass schedules: which passes run, in what order, for which product.
-
-Split out of compiler/driver/compiler.jac (#8681). The get_*_sched builders defer
-their imports of the full compiler (jaclang.compiler.*) into function
-bodies and guard re-entry with ContextVars so bootstrap cannot deadlock;
-validate_schedule enforces declared REQUIRES/PROVIDES edges.
-"""
 import os;
 import from contextvars { ContextVar }
 import from jaclang.compiler.passes {
@@ -201,18 +194,14 @@ def get_analysis_sched -> list[type[Transform]] {
         import jaclang.project.tomlio;
         import jaclang.project.client_kind;
         import jaclang.project.config;
-        import from jaclang.compiler.passes.static_analysis_pass {
-            StaticAnalysisPass
-        }
+        import from jaclang.compiler.passes.static_analysis_pass { StaticAnalysisPass }
         import from jaclang.compiler.passes.access_check_pass { AccessCheckPass }
         import from jaclang.compiler.passes.capability_check_pass {
             ClientCapabilityCheckPass,
             NativeCapabilityCheckPass,
             PortabilityWarnPass
         }
-        import from jaclang.compiler.passes.ownership_check_pass {
-            OwnershipCheckPass
-        }
+        import from jaclang.compiler.passes.ownership_check_pass { OwnershipCheckPass }
         import from jaclang.compiler.tools.jac_auto_lint_pass { JacLintCheckPass }
         return validate_schedule(
             [

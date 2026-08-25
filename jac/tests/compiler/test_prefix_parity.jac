@@ -140,7 +140,10 @@ Both are the same class of correction as the dependency warnings scoped out of
 the fields it corrupts. Every comparator, code objects included, still runs
 over the full schedule."""
 def _compile_route(path: str, route: any) -> tuple[any] {
-    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage {
+        na_coverage_begin,
+        na_coverage_end
+    }
     _reset();
     na_coverage_begin();
     if route is not None {

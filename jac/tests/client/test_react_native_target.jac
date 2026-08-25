@@ -317,9 +317,7 @@ test "react native scaffold writes Expo project files" {
     # run write_expo_scaffold, assert the canonical files exist and that the
     # generated metro.config.js points @jac/runtime at the staged native runtime.
     import tempfile;
-    import from jaclang.client.targets.react_native.scaffold {
-        write_expo_scaffold
-    }
+    import from jaclang.client.targets.react_native.scaffold { write_expo_scaffold }
 
     with tempfile.TemporaryDirectory() as tmp {
         project_root = Path(tmp);
@@ -367,9 +365,7 @@ test "react native scaffold writes Expo project files" {
 
 test "scaffold merges [dependencies.npm.native] into package.json" {
     import tempfile;
-    import from jaclang.client.targets.react_native.scaffold {
-        write_expo_scaffold
-    }
+    import from jaclang.client.targets.react_native.scaffold { write_expo_scaffold }
 
     with tempfile.TemporaryDirectory() as tmp {
         project_root = Path(tmp);
@@ -396,9 +392,7 @@ test "scaffold merges [dependencies.npm.native] into package.json" {
 
 test "scaffold tolerates a project with no jac.toml" {
     import tempfile;
-    import from jaclang.client.targets.react_native.scaffold {
-        write_expo_scaffold
-    }
+    import from jaclang.client.targets.react_native.scaffold { write_expo_scaffold }
 
     with tempfile.TemporaryDirectory() as tmp {
         project_root = Path(tmp);
@@ -501,9 +495,7 @@ test "entry outside the project dir stages relative to its own folder" {
 
 test "entry_module_for matches the path the compiler actually writes" {
     import tempfile;
-    import from jaclang.client.targets.react_native.build {
-        entry_module_for
-    }
+    import from jaclang.client.targets.react_native.build { entry_module_for }
     import from jaclang.client.vite_client_bundle { ViteClientBundleBuilder }
 
     with tempfile.TemporaryDirectory() as tmp {
@@ -536,9 +528,7 @@ test "scaffold preserves user-edited files on re-run" {
     # Re-running setup must not stomp on user customizations. The scaffold
     # marker line opts a file into auto-refresh; removing it pins the file.
     import tempfile;
-    import from jaclang.client.targets.react_native.scaffold {
-        write_expo_scaffold
-    }
+    import from jaclang.client.targets.react_native.scaffold { write_expo_scaffold }
 
     with tempfile.TemporaryDirectory() as tmp {
         project_root = Path(tmp);
@@ -561,9 +551,7 @@ test "scaffold preserves user-edited files on re-run" {
 
 test "scaffold refreshes auto-generated index.ts on re-run" {
     import tempfile;
-    import from jaclang.client.targets.react_native.scaffold {
-        write_expo_scaffold
-    }
+    import from jaclang.client.targets.react_native.scaffold { write_expo_scaffold }
 
     with tempfile.TemporaryDirectory() as tmp {
         project_root = Path(tmp);
@@ -599,9 +587,7 @@ test "lint_unmapped_tags flags HTML tags outside the documented map" {
     # compiled dir with both supported and unsupported tags and assert
     # the lint result.
     import tempfile;
-    import from jaclang.client.targets.react_native.build {
-        lint_unmapped_tags
-    }
+    import from jaclang.client.targets.react_native.build { lint_unmapped_tags }
 
     with tempfile.TemporaryDirectory() as tmp {
         compiled = Path(tmp);
@@ -682,9 +668,7 @@ test "lint_native_incompatible_usage flags css imports and web globals" {
 
 test "stage_native_image_assets rewrites relative img src to Metro token map" {
     import tempfile;
-    import from jaclang.client.targets.react_native.build {
-        stage_native_image_assets
-    }
+    import from jaclang.client.targets.react_native.build { stage_native_image_assets }
 
     with tempfile.TemporaryDirectory() as tmp {
         tmp_path = Path(tmp);
@@ -862,9 +846,7 @@ test "build_expo_start_argv emits expected metro flags" {
     # if someone tweaks the dev loop without rerunning the smoke test.
     import tempfile;
     import unittest.mock;
-    import from jaclang.client.targets.react_native.dev {
-        build_expo_start_argv
-    }
+    import from jaclang.client.targets.react_native.dev { build_expo_start_argv }
 
     def _fake_get_bun -> str {
         return "/opt/jac/_bun/bun";
@@ -1135,9 +1117,7 @@ test "node tooling runs installs and tools on the bundled bun only" {
 test "node tooling refuses to run a tool that is not installed locally" {
     import tempfile;
     import unittest.mock;
-    import from jaclang.client.targets.node_tooling_common {
-        resolve_node_tool
-    }
+    import from jaclang.client.targets.node_tooling_common { resolve_node_tool }
 
     def _fake_get_bun -> str {
         return "/opt/jac/_bun/bun";
@@ -1164,9 +1144,7 @@ test "node tooling refuses to run a tool that is not installed locally" {
 test "node tooling raises actionably when the bundled bun is missing" {
     import tempfile;
     import unittest.mock;
-    import from jaclang.client.targets.node_tooling_common {
-        resolve_node_tool
-    }
+    import from jaclang.client.targets.node_tooling_common { resolve_node_tool }
 
     def _no_bun -> None {
         return None;
@@ -1174,8 +1152,7 @@ test "node tooling raises actionably when the bundled bun is missing" {
 
     with tempfile.TemporaryDirectory() as tmp {
         with unittest.mock.patch(
-            "jaclang.client.targets.node_tooling_common.get_bun",
-            side_effect=_no_bun
+            "jaclang.client.targets.node_tooling_common.get_bun", side_effect=_no_bun
         ) {
             try {
                 resolve_node_tool(Path(tmp), "expo");
@@ -1195,9 +1172,7 @@ test "expo prebuild runs even when native tree and prebuild state exist" {
     import json;
     import tempfile;
     import unittest.mock;
-    import from jaclang.client.targets.react_native.build {
-        run_expo_prebuild
-    }
+    import from jaclang.client.targets.react_native.build { run_expo_prebuild }
 
     calls: list[list[str]] = [];
 
@@ -1307,9 +1282,7 @@ test "dual-target gate can run e2e builds when explicitly enabled" {
 
 test "strip_css_imports removes CSS import lines and deletes CSS files" {
     import tempfile;
-    import from jaclang.client.targets.react_native.build {
-        strip_css_imports
-    }
+    import from jaclang.client.targets.react_native.build { strip_css_imports }
 
     with tempfile.TemporaryDirectory() as tmp {
         compiled = Path(tmp);
@@ -1483,9 +1456,7 @@ test "react native build pipeline calls lint, strip, and stage in correct order"
 # ---------------------------------------------------------------------------
 test "react native scaffold writes eas.json with build and update profiles" {
     import tempfile;
-    import from jaclang.client.targets.react_native.scaffold {
-        write_expo_scaffold
-    }
+    import from jaclang.client.targets.react_native.scaffold { write_expo_scaffold }
     import from jaclang.client.targets.react_native.common {
         EAS_CLI_VERSION,
         EXPO_SDK_VERSION
@@ -1540,9 +1511,7 @@ test "react native scaffold writes eas.json with build and update profiles" {
 
 test "eas.json is scaffold-managed and refreshed on re-run" {
     import tempfile;
-    import from jaclang.client.targets.react_native.scaffold {
-        write_expo_scaffold
-    }
+    import from jaclang.client.targets.react_native.scaffold { write_expo_scaffold }
 
     with tempfile.TemporaryDirectory() as tmp {
         project_root = Path(tmp);
@@ -1568,9 +1537,7 @@ test "eas.json is scaffold-managed and refreshed on re-run" {
 
 test "resolve_rn_project_dir honors project_dir config override" {
     import tempfile;
-    import from jaclang.client.targets.react_native.common {
-        resolve_rn_project_dir
-    }
+    import from jaclang.client.targets.react_native.common { resolve_rn_project_dir }
 
     with tempfile.TemporaryDirectory() as tmp {
         project_dir = Path(tmp);
@@ -1606,9 +1573,7 @@ test "resolve_rn_project_dir honors project_dir config override" {
 }
 
 test "normalize_rn_platform validates platform strings" {
-    import from jaclang.client.targets.react_native.common {
-        normalize_rn_platform
-    }
+    import from jaclang.client.targets.react_native.common { normalize_rn_platform }
 
     assert normalize_rn_platform(None) == "android";
     assert normalize_rn_platform("") == "android";

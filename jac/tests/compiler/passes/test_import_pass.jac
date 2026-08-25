@@ -10,9 +10,7 @@ import from jaclang.compiler.driver.bccache { discover_annex_files, discover_bas
 import from jaclang.compiler.tools.treeprinter { node_to_dict }
 import from jaclang.cli.commands { execution }
 
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
-     );
+glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures");
 
 test "pygen jac cli" {
     out = JacProgram();

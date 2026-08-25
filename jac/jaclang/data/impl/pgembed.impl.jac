@@ -750,10 +750,7 @@ impl PgRuntime._reap_scratch(conn: any) -> int {
 
 
 impl PgRuntime.drop_database(database: str, force: bool = False) -> bool {
-    import from jaclang.data.dbcatalog {
-        connect_admin,
-        drop_database as catalog_drop
-    }
+    import from jaclang.data.dbcatalog { connect_admin, drop_database as catalog_drop }
     conn: any = connect_admin(self.conninfo());
     try {
         return catalog_drop(conn, database, force=force);

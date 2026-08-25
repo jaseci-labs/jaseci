@@ -14,9 +14,7 @@ import from jaclang.compiler.tools.unparse_pass { unparse_module }
 import from jaclang.cli.commands { analysis }
 
 glob EXAMPLES = os.path.join(JAC_ROOT, "examples"),
-     FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
-     ),
+     FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures"),
      COMPILER_FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "fixtures"),
      LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
 

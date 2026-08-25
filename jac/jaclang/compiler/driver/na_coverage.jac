@@ -1,10 +1,3 @@
-"""Native-coverage telemetry and demotion notes.
-
-Split out of compiler/driver/compiler.jac (#8681). Records, per module, whether
-the native lowering succeeded, demoted, or hit a seam, and renders the
-user-facing demotion notes; _drop_demoted_native_bindings scrubs interop
-bindings a demotion invalidated.
-"""
 import os;
 import sys;
 import jaclang.compiler.frontend.unitree as uni;

@@ -11,13 +11,7 @@ glob CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "fixtures", "checker"
      ),
      TYPEVAR_FIXTURES = os.path.join(
-         JAC_ROOT,
-         "tests",
-         "compiler",
-         "passes",
-         "fixtures",
-         "checker",
-         "typevar"
+         JAC_ROOT, "tests", "compiler", "passes", "fixtures", "checker", "typevar"
      );
 
 """Test TypeVar validation errors (Pyright: createTypeVarType, assignTypeToExpression)."""

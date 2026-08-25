@@ -1,6 +1,4 @@
-import type from jaclang.compiler.backends.es.framework_backend {
-    FrameworkBackend
-}
+import type from jaclang.compiler.backends.es.framework_backend { FrameworkBackend }
 
 obj RuntimeSymbol {
     has name: str,

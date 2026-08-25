@@ -13,13 +13,7 @@ import from jaclang.data.dbcatalog {
 }
 import from jaclang.data.pgembed { PgRuntime }
 import from jaclang.runtime.exceptions { WriteConflict }
-import from jaclang.data.store {
-    AnchorRow,
-    ConnInfo,
-    PgStore,
-    Store,
-    TxnIsolation
-}
+import from jaclang.data.store { AnchorRow, ConnInfo, PgStore, Store, TxnIsolation }
 
 glob logger = logging.getLogger(__name__),
      MAX_RETRIES = 5,

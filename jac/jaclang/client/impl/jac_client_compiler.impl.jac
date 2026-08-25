@@ -586,9 +586,7 @@ impl JacClientCompiler._scan_and_compile_pages(
 impl JacClientCompiler._warn_pages_without_routes(
     self: JacClientCompiler, scanner: RouteScanner
 ) -> None {
-    import from jaclang.client.route_scanner {
-        describe_pages_without_routes
-    }
+    import from jaclang.client.route_scanner { describe_pages_without_routes }
     for line in describe_pages_without_routes(scanner.pages_dir) {
         console.error(line);
     }

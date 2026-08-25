@@ -18,12 +18,7 @@ import tempfile;
 import from tests.support { TESTS_DIR }
 
 glob FIXTURE = os.path.join(
-         TESTS_DIR,
-         "compiler",
-         "passes",
-         "fixtures",
-         "nogc_ownfield",
-         "ref_loop.jac"
+         TESTS_DIR, "compiler", "passes", "fixtures", "nogc_ownfield", "ref_loop.jac"
      ),
      MODE_FLAGS = {
          "none": ["--enforce-nogc", "--gc", "none", "--assert-no-rc"],

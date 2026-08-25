@@ -285,9 +285,7 @@ impl NaIRGenVtable._codegen_virtual_call(
 
     _vd_variants: list[tuple] = [];
     _vd_uniform = True;
-    import from jaclang.compiler.passes.layout_pass {
-        get_layout_registry as _vd_glr
-    }
+    import from jaclang.compiler.passes.layout_pass { get_layout_registry as _vd_glr }
     _vd_reg = _vd_glr(self.ir_in, self.prog);
     for _vd_cls in _vd_reg.mro_order {
         if obj_type_name not in self._mro_of(_vd_cls) {

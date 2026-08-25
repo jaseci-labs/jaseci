@@ -11,9 +11,7 @@ import os;
 import from tests.support { JAC_ROOT }
 import from jaclang.compiler.driver.program { JacProgram }
 
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
-     );
+glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures");
 
 test "render-phase state writes are rejected, deferred writes are legal" {
     prog = JacProgram();

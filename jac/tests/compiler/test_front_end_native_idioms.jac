@@ -171,7 +171,10 @@ test "helpers module scope binds os and nothing else" {
 # genuinely cannot lower become seams instead of a whole-module refusal.
 test "helpers.jac lowers when a native unit reaches it" {
     import jaclang;
-    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage {
+        na_coverage_begin,
+        na_coverage_end
+    }
     helpers_path = os.path.join(
         os.path.dirname(jaclang.__file__), "jac0core", "helpers.jac"
     );

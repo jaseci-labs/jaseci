@@ -1138,7 +1138,9 @@ def _compile_osp_kernel_ir(
         store_unit_artifact
     }
     import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.compiler.driver.compile_options { CompileOptions as _KernelOpts }
+    import from jaclang.compiler.driver.compile_options {
+        CompileOptions as _KernelOpts
+    }
 
     kernel_opts = _KernelOpts(
         aot_mode=True,
@@ -1245,7 +1247,9 @@ def _compile_fmt_kernel_ir -> (str | None) {
         store_unit_artifact
     }
     import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.compiler.driver.compile_options { CompileOptions as _KernelOpts }
+    import from jaclang.compiler.driver.compile_options {
+        CompileOptions as _KernelOpts
+    }
 
     kernel_opts = _KernelOpts(
         aot_mode=True, default_codespace='native', na_gc_mode='cycles'

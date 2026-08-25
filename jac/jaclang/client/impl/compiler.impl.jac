@@ -234,7 +234,9 @@ impl ViteCompiler.compile_desktop_sdk(self: ViteCompiler) {
     all_names = sorted(set(desktop_exports + list(desktop_globals.keys())));
 
     if not all_names {
-        import from jaclang.compiler.driver.modresolver { resolve_jac_virtual_module_exports }
+        import from jaclang.compiler.driver.modresolver {
+            resolve_jac_virtual_module_exports
+        }
         all_names = sorted(resolve_jac_virtual_module_exports('@jac/desktop'));
     }
     if all_names {

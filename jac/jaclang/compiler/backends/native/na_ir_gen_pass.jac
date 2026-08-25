@@ -1,6 +1,8 @@
 import from jaclang.compiler.backends.native.na_ir_gen.arena { NaIRGenArena }
 import from jaclang.compiler.backends.native.na_ir_gen.builtins { NaIRGenBuiltins }
-import from jaclang.compiler.backends.native.na_ir_gen.bytearray_na { NaIRGenBytearrayNa }
+import from jaclang.compiler.backends.native.na_ir_gen.bytearray_na {
+    NaIRGenBytearrayNa
+}
 import from jaclang.compiler.backends.native.na_ir_gen.bytes { NaIRGenBytes }
 import from jaclang.compiler.backends.native.na_ir_gen.calls { NaIRGenCalls }
 import from jaclang.compiler.backends.native.na_ir_gen.clib_abi { NaIRGenClibAbi }

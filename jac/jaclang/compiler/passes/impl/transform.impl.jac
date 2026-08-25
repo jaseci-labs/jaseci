@@ -51,7 +51,10 @@ impl Alert.as_log(*, colors: bool = False) -> str {
 }
 
 impl Alert.pretty_print(*, colors: bool = False) -> str {
-    import from jaclang.compiler.frontend.helpers { pretty_print_span, format_related_spans }
+    import from jaclang.compiler.frontend.helpers {
+        pretty_print_span,
+        format_related_spans
+    }
     pretty_dump = pretty_print_span(self.loc, colors=colors);
     if (pretty_dump != '') {
         pretty_dump = '\n' + pretty_dump;

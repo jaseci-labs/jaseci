@@ -417,7 +417,9 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: Module) -> None {
 }
 
 impl StaticAnalysisPass._check_client_imports(mod: Module) -> None {
-    import from jaclang.compiler.driver.boundary_classify { is_client_native_edge_import }
+    import from jaclang.compiler.driver.boundary_classify {
+        is_client_native_edge_import
+    }
     import from jaclang.compiler.frontend.constant { CodeContext }
     import from jaclang.compiler.symbol_utils {
         ClientImportVerdict,

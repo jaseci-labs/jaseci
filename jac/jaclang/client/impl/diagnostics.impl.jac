@@ -1,9 +1,6 @@
 import os;
 import from pathlib { Path }
-import from jaclang.client.source_mapping {
-    read_source_snippet,
-    _scan_source_comments
-}
+import from jaclang.client.source_mapping { read_source_snippet, _scan_source_comments }
 
 glob HINT_JAC_SYNTAX = "Check your Jac syntax:\n  - Missing semicolons\n  - Unclosed braces or parentheses\n  - Invalid syntax in cl {{ }} blocks",
      HINT_JS_SYNTAX = "Check for:\n  - Missing or extra braces { }\n  - Unclosed JSX tags\n  - Missing semicolons",

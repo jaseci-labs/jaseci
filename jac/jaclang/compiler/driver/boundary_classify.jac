@@ -1,10 +1,3 @@
-"""Client/native boundary classification of modules and imports.
-
-Split out of compiler/driver/compiler.jac (#8681). Decides which side of the
-client/server/native seams a module or an imported symbol lands on:
-codespace coercion for parse prefixes, server-anchor detection, native
-import targets, and the client import verdicts symbol_utils consumes.
-"""
 import os;
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.frontend.constant { CodeContext, Tokens as Tok }

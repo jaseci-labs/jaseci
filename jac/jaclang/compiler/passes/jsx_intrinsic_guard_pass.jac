@@ -1,4 +1,10 @@
-import from jaclang.compiler.frontend.unitree { JsxElement, Module, Name, Token, UniNode }
+import from jaclang.compiler.frontend.unitree {
+    JsxElement,
+    Module,
+    Name,
+    Token,
+    UniNode
+}
 import from jaclang.compiler.frontend.diagnostics { E1105 }
 import from jaclang.compiler.passes.uni_pass { UniPass }
 import from jaclang.project.client_kind_paths { mobui_module_exempt }

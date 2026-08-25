@@ -222,7 +222,9 @@ test "a hub lookup finds the module however the path is spelled" {
 }
 
 test "a verdict query's dep units do not outlive the compile that asked" {
-    import from jaclang.compiler.backends.native.na_compile_pass { native_unit_demotions }
+    import from jaclang.compiler.backends.native.na_compile_pass {
+        native_unit_demotions
+    }
     tmp = write_mods(
         {
             "jac.toml": "[project]\nname = \"retention_na\"\n",
@@ -291,7 +293,9 @@ can trip the verdict blast guard. Releasing has to evict the entry, so the
 next query recompiles instead of reading a hollowed one.
 """
 test "a released dep unit still answers its real verdict" {
-    import from jaclang.compiler.backends.native.na_compile_pass { native_unit_demotions }
+    import from jaclang.compiler.backends.native.na_compile_pass {
+        native_unit_demotions
+    }
     tmp = write_mods(
         {
             "jac.toml": "[project]\nname = \"retention_na2\"\n",

@@ -441,7 +441,10 @@ test "transitive import chain infers native under native default" {
 }
 
 test "coverage records demotion with first error code" {
-    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage {
+        na_coverage_begin,
+        na_coverage_end
+    }
     na_coverage_begin();
     try {
         compile_with_default("nadefault_nolower.jac", "native", cgen=True);
@@ -457,7 +460,10 @@ test "coverage records demotion with first error code" {
 }
 
 test "coverage records native and server outcomes" {
-    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage {
+        na_coverage_begin,
+        na_coverage_end
+    }
     na_coverage_begin();
     try {
         compile_with_default("nadefault_pure.jac", "native", cgen=True);
@@ -639,10 +645,7 @@ test "codespace stamps invalidate stale module codegen" {
 }
 
 test "a client-pulled module that will not lower fails loudly (#8375)" {
-    import from jaclang.client.client_bundle {
-        ClientBundleError,
-        _ensure_js_generated
-    }
+    import from jaclang.client.client_bundle { ClientBundleError, _ensure_js_generated }
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURE_DIR, "infer_unlowerable_app.jac"), no_cgen=False);
     util = hub_module(prog, "infer_unlowerable_util.jac");

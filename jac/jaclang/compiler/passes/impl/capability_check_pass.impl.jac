@@ -259,7 +259,11 @@ impl call_has_kwargs_sink(call: FuncCall) -> bool {
 impl native_capability_violations(
     mod: Module
 ) -> list[tuple[(UniNode, str, str, (str | None))]] {
-    import from jaclang.compiler.frontend.constant { CodeContext, ExprCtx, Tokens as Tok }
+    import from jaclang.compiler.frontend.constant {
+        CodeContext,
+        ExprCtx,
+        Tokens as Tok
+    }
     out: list[tuple[(UniNode, str, str, (str | None))]] = [];
     _stdlib_help: (str | None) = None;
 

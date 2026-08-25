@@ -25,13 +25,7 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob SLOT_EXT = os.path.join(
-         JAC_ROOT,
-         "tests",
-         "compiler",
-         "backends",
-         "es",
-         "fixtures",
-         "slot_extensions"
+         JAC_ROOT, "tests", "compiler", "backends", "es", "fixtures", "slot_extensions"
      );
 
 """Compile a fixture to JS, asserting no compilation errors were emitted."""

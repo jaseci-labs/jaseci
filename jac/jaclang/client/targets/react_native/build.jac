@@ -10,9 +10,7 @@ import from jaclang.client.targets.react_native.common {
     SUBPROCESS_TIMEOUT_BUILD,
     resolve_node_tool
 }
-import from jaclang.client.targets.react_native.html_tag_map {
-    supported_rn_html_tags
-}
+import from jaclang.client.targets.react_native.html_tag_map { supported_rn_html_tags }
 import from jaclang.client.jac_client_compiler { JacClientCompiler }
 
 glob _RUNTIME_JS_FILES = {"client_runtime.js", "pwa_runtime.js"},

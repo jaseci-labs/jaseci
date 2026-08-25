@@ -551,9 +551,7 @@ def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
 
 def class_form_enum_member(t: any) -> (tuple[(str, (str | int), str)] | None) {
     try {
-        import from jaclang.compiler.types.types {
-            EnumMemberType as _EnumMemberType
-        }
+        import from jaclang.compiler.types.types { EnumMemberType as _EnumMemberType }
     } except ImportError {
         return None;
     }

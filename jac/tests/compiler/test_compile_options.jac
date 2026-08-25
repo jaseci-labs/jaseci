@@ -237,7 +237,7 @@ test "no positional intrinsic name matching inside _codegen_call" {
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
         "backends",
-         "native",
+        "native",
         "na_ir_gen",
         "calls.impl.jac"
     );
@@ -324,7 +324,7 @@ test "native type identity never reads walk-time registration maps" {
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
         "backends",
-         "native"
+        "native"
     );
     assert os.path.isdir(native_dir) , f"native dir missing: {native_dir}";
     impl_dir = os.path.join(native_dir, "na_ir_gen");
@@ -432,7 +432,7 @@ test "container lifecycle emission lives only in the shared emitters" {
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
         "backends",
-         "native",
+        "native",
         "na_ir_gen"
     );
     per_container = [
@@ -481,7 +481,7 @@ test "no numeric header offsets outside the HDR_* constants" {
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
         "backends",
-         "native"
+        "native"
     );
     hdr_pat = re.compile(r"Constant\([^,()]*i64[^,()]*,\s*-(8|16|24|32)\)\s*\]");
     offenders: list[str] = [];
@@ -515,7 +515,7 @@ test "one static-string constructor" {
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
         "backends",
-         "native"
+        "native"
     );
     marker = "LiteralStructType([i64,i64,arr_type])";
     hits: list[str] = [];
@@ -553,7 +553,7 @@ test "set shares the dict hash core with no linear-scan sibling" {
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
         "backends",
-         "native"
+        "native"
     );
     impl_dir = os.path.join(native_dir, "na_ir_gen");
     core_callers: list[str] = [];
@@ -630,7 +630,9 @@ test "hetero container band-aids are deleted; one element-storage authority" {
     );
     assert authority_defs
         == [
-            os.path.join("compiler", "backends", "native", "na_ir_gen", "types.impl.jac")
+            os.path.join(
+                "compiler", "backends", "native", "na_ir_gen", "types.impl.jac"
+            )
         ] , (
         "container element storage must be decided by exactly one authority "
         f"(_elem_storage_llvm in types.impl.jac); found: {authority_defs}"
@@ -643,7 +645,7 @@ test "no consumer-site NULL guards on string operands" {
         os.path.dirname(os.path.abspath(jaclang.__file__)),
         "compiler",
         "backends",
-         "native"
+        "native"
     );
     assert os.path.isdir(native_dir) , f"native dir missing: {native_dir}";
     banned = [

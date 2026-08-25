@@ -8,12 +8,7 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(
-         JAC_ROOT,
-         "tests",
-         "compiler",
-         "passes",
-         "fixtures",
-         "symtab_build_tests"
+         JAC_ROOT, "tests", "compiler", "passes", "fixtures", "symtab_build_tests"
      );
 
 test "no dupl symbols" {

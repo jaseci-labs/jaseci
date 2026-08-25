@@ -20,12 +20,7 @@ import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from tests.support { JAC_ROOT }
 
 glob FIXTURES = os.path.join(
-         JAC_ROOT,
-         "tests",
-         "compiler",
-         "passes",
-         "fixtures",
-         "ownership_regress"
+         JAC_ROOT, "tests", "compiler", "passes", "fixtures", "ownership_regress"
      );
 
 """Compile a fixture as a headerless nogc-enforced module; return the program."""

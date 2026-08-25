@@ -61,9 +61,7 @@ import from jaclang.client.targets.client_dev_common {
 }
 
 impl ReactNativeTarget.setup(project_dir: Path) -> None {
-    import from jaclang.client.targets.react_native.common {
-        normalize_rn_platform
-    }
+    import from jaclang.client.targets.react_native.common { normalize_rn_platform }
 
     rn_dir = resolve_rn_project_dir(project_dir);
     console.print(
@@ -375,9 +373,7 @@ impl ReactNativeTarget._compile_native_jac_modules(
 impl ReactNativeTarget.start(
     entry_file: Path, project_dir: Path, api_port: int = 8000
 ) -> None {
-    import from jaclang.client.targets.react_native.common {
-        normalize_rn_platform
-    }
+    import from jaclang.client.targets.react_native.common { normalize_rn_platform }
 
     rn_cfg = JacClientConfig(project_dir).get_react_native_config();
     default_plat = str(rn_cfg.get("default_platform", "") or "android").strip().lower();

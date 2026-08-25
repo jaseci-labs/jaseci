@@ -128,7 +128,10 @@ impl JacLangServer.type_check_file(
         import from jaclang.compiler.driver.compile_options { CompileOptions }
         main_doc = self.workspace.get_text_document(_uri_of(main_path));
 
-        import from jaclang.compiler.frontend.parser.frontend { parse_diags, _replay_diags }
+        import from jaclang.compiler.frontend.parser.frontend {
+            parse_diags,
+            _replay_diags
+        }
         import from jaclang.compiler.frontend.parser.lexer { Lexer as _Lexer }
         import from jaclang.compiler.frontend.parser.parser { Parser as _SyntaxParser }
         import from jaclang.compiler.frontend.unitree { Source as _Src }

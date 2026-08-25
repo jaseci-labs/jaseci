@@ -13,7 +13,10 @@ import from jaclang.compiler.tools.doc_ir_gen_pass { DocIRGenPass }
 import from jaclang.compiler.frontend.unitree { UniScopeNode }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
-import from jaclang.compiler.frontend.helpers { pascal_to_snake, read_file_with_encoding }
+import from jaclang.compiler.frontend.helpers {
+    pascal_to_snake,
+    read_file_with_encoding
+}
 
 obj AstKidInfo {
     has name: str,

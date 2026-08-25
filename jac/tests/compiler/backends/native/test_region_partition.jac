@@ -19,10 +19,20 @@ glob FIXTURE = os.path.join(
          TESTS_DIR, "compiler", "backends", "native", "fixtures", "region_partition.jac"
      ),
      SUGAR_FIXTURE = os.path.join(
-         TESTS_DIR, "compiler", "backends", "native", "fixtures", "region_partition_n.jac"
+         TESTS_DIR,
+         "compiler",
+         "backends",
+         "native",
+         "fixtures",
+         "region_partition_n.jac"
      ),
      SHARE_FIXTURE = os.path.join(
-         TESTS_DIR, "compiler", "backends", "native", "fixtures", "region_page_share.jac"
+         TESTS_DIR,
+         "compiler",
+         "backends",
+         "native",
+         "fixtures",
+         "region_page_share.jac"
      ),
      MODE_FLAGS = {
          "none": ["--gc", "none"],

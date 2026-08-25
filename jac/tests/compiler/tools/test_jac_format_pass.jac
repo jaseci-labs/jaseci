@@ -12,9 +12,7 @@ import jaclang;
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.frontend.helpers { add_line_numbers }
 import from jaclang.compiler.driver.program { JacProgram }
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "tools", "fixtures"
-     );
+glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "tools", "fixtures");
 
 def compare_files(
     original_file: str, formatted_file: str | None = None, auto_lint: bool = False

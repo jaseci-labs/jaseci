@@ -101,11 +101,7 @@ def _apply_extra_deps {
 def _bootstrap_plugin_host(plugin_configs: dict) -> any {
     import jaclang;
     pdir = os.path.join(
-        os.path.dirname(str(jaclang.__file__)),
-        "client",
-        "targets",
-        "desktop",
-        "plugin"
+        os.path.dirname(str(jaclang.__file__)), "client", "targets", "desktop", "plugin"
     );
     if pdir not in sys.path {
         sys.path.insert(0, pdir);

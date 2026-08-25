@@ -112,12 +112,7 @@ def _load_template(template_name: str) -> dict[str, any] | None {
         import from importlib.resources { files }
         try {
             package_root = str(files("jaclang"));
-            template_dir = (
-                Path(package_root)
-                / "client"
-                / "templates"
-                / template_name
-            );
+            template_dir = Path(package_root) / "client" / "templates" / template_name;
         } except (TypeError, ModuleNotFoundError) as e {
             console.warning(
                 f"Failed to locate template directory for '{template_name}': {e}"

@@ -7,7 +7,11 @@ import from jaclang.compiler.backends.native.na_ir_gen.constants {
     LIVE_NODE_USER_OFF
 }
 import from jaclang.compiler.backends.native.na_ir_gen.state { NaIRGenState }
-import from jaclang.compiler.frontend.codeinfo { HDR_ALLOC_ID_OFF, HDR_RC_OFF, HDR_TAG_OFF }
+import from jaclang.compiler.frontend.codeinfo {
+    HDR_ALLOC_ID_OFF,
+    HDR_RC_OFF,
+    HDR_TAG_OFF
+}
 
 obj NaIRGenGcDebug(NaIRGenState) {
     def _set_rc_ctx(op: str, loc: str) -> None;

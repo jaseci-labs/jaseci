@@ -1,10 +1,7 @@
 import json;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
-import from jaclang.client.targets.mobile.common {
-    _run_cap_cmd,
-    _run_install_cmd
-}
+import from jaclang.client.targets.mobile.common { _run_cap_cmd, _run_install_cmd }
 import from jaclang.client.targets.mobile.config { _write_capacitor_config }
 
 def _ensure_capacitor_deps(project_dir: Path) -> None {

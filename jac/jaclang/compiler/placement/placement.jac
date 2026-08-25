@@ -20,7 +20,11 @@ glob PLACEMENT_SCHEMA: int = 1,
              "is what B4 (#8323) actually needed"
          )
      },
-     PLACEMENT_HOLD_EXEMPT_ROOTS: tuple = ("/jaclang/compiler/", "/jaclang/runtime/", "/jaclang/lib/");
+     PLACEMENT_HOLD_EXEMPT_ROOTS: tuple = (
+         "/jaclang/compiler/",
+         "/jaclang/runtime/",
+         "/jaclang/lib/"
+     );
 
 obj ElementSummary {
     has index: int = -1,

@@ -1,27 +1,3 @@
-"""The organs of a JacProgram, split by lifetime.
-
-`JacProgram` composes these and stays the stable facade; each organ owns one
-lifetime class so eviction and release are structural rather than a method
-someone must remember to call:
-
-* `ModuleHub` -- durable compile artifacts: the unitree hub, freshness
-  stamps, and loaded native artifacts.
-* `DepGraph` -- incremental bookkeeping: who imports whom, and what a
-  change invalidates.
-* `DiagLedger` -- the diagnostics ledger. Alerts are value-typed (`Span`
-  locations, no token or Source references), each stamped with the realpath
-  of its owning module at construction, so dropping a module's diagnostics
-  is a filter over precomputed keys instead of a realpath scan.
-* `BuildScratch` -- per-build transient state: native dependency-unit
-  memos, reentrancy guards, and parse memos. A fresh one is swapped in at
-  the top of each outermost compile and torn down at its end.
-* `AnalysisCaches` -- host-side derived data (placement summaries, MTIR
-  registry, analysis markers). Never consulted by the sealed compile path.
-
-The `obj` organs keep fully typed fields so they stay layoutable for the
-sealed lane; `AnalysisCaches` is a `class` because it holds host-only types.
-"""
-
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes.transform { Alert }
 import type from jaclang.compiler.driver.mtp { Info }

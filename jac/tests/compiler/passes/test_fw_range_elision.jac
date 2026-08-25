@@ -62,12 +62,7 @@ test "an operation at the operand width is never marked, whatever it flows into"
     prog = JacProgram();
     ir = prog.compile(
         file_path=os.path.join(
-            TESTS_DIR,
-            "compiler",
-            "passes",
-            "fixtures",
-            "checker",
-            "_elide_probe.jac"
+            TESTS_DIR, "compiler", "passes", "fixtures", "checker", "_elide_probe.jac"
         ),
         use_str=src,
         options=CompileOptions(

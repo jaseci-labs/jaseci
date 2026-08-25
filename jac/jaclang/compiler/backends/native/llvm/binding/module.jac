@@ -233,7 +233,6 @@ class _Iterator(ffi.ObjectRef) {
     }
 
     def _next(self: _Iterator) -> object abst;
-
     def __next__(self: _Iterator) -> object {
         vp = self._next();
         if vp {

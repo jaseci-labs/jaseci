@@ -1,10 +1,3 @@
-"""The pass driver: diagnostic policy, alert delivery, and run_pass.
-
-Split out of compiler/driver/compiler.jac (#8681). run_pass constructs a pass with
-the effective DiagnosticPolicy and delivers its alerts into the program's
-ledger; _SetupProgress is the first-run banner the driver ticks while the
-compiler compiles itself.
-"""
 import atexit;
 import os;
 import sys;

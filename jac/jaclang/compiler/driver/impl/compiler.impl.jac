@@ -362,7 +362,10 @@ impl JacCompiler._load_native_from_bitcode(
     target_machine = target.create_target_machine();
     engine = llvm.create_mcjit_compiler(llvm_mod, target_machine);
     assert isinstance(engine, llvm.ExecutionEngine);
-    import from jaclang.compiler.frontend.codeinfo { CodeGenTarget, install_native_static_init }
+    import from jaclang.compiler.frontend.codeinfo {
+        CodeGenTarget,
+        install_native_static_init
+    }
     gen = CodeGenTarget();
     gen.native_engine = engine;
     py_func_table: dict = {};
@@ -398,7 +401,10 @@ impl JacCompiler._restore_sections(
     placement_bytes = secs.get(SEC_PLACEMENT);
     if placement_bytes is not None {
         try {
-            import from jaclang.compiler.placement.placement { summary_from_bytes, summary_store }
+            import from jaclang.compiler.placement.placement {
+                summary_from_bytes,
+                summary_store
+            }
             restored = summary_from_bytes(placement_bytes);
             if restored is not None {
                 summary_store(actual_program)[os.path.abspath(full_target)] = restored;
@@ -724,7 +730,9 @@ impl JacCompiler.parse_str(
             and _default_codespace_for(target_program) == 'native'
         );
         if _native_eligible {
-            import from jaclang.compiler.placement.placement_solver { native_default_verdict }
+            import from jaclang.compiler.placement.placement_solver {
+                native_default_verdict
+            }
             (_na_ok, _na_why) = native_default_verdict(mod);
             if _na_ok {
                 _coerce_native_module(mod);
@@ -1205,7 +1213,9 @@ impl JacCompiler.compile(
             ;
         }
         try {
-            import from jaclang.compiler.placement.placement_solver { invalidate_importers_es }
+            import from jaclang.compiler.placement.placement_solver {
+                invalidate_importers_es
+            }
             for _stale_mod in invalidate_importers_es(_wrap_prog, _resolved) {
                 _drop_demoted_native_bindings(_stale_mod, _resolved);
             }
@@ -1295,7 +1305,9 @@ impl JacCompiler._compile_once(
     }
     actual_program.options = options;
     if options.default_codespace {
-        import from jaclang.compiler.frontend.codeinfo { set_effective_default_codespace }
+        import from jaclang.compiler.frontend.codeinfo {
+            set_effective_default_codespace
+        }
         set_effective_default_codespace(options.default_codespace);
     }
     keep_str = use_str or read_file_with_encoding(file_path);
@@ -1352,7 +1364,9 @@ impl JacCompiler._compile_once(
     had_blocking_errors = blocking_errs_post_ir > blocking_errs_pre_ir;
 
     if not options.symtab_ir_only and not had_blocking_errors {
-        import from jaclang.compiler.placement.placement_solver { solve_program_placement }
+        import from jaclang.compiler.placement.placement_solver {
+            solve_program_placement
+        }
         try {
             solve_program_placement(mod_targ, actual_program);
         } except Exception {
@@ -1518,7 +1532,9 @@ impl JacCompiler._compile_once(
     ) {
         actual_program.options = options;
 
-        import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+        import from jaclang.compiler.backends.py.module_codegen_pass {
+            ModuleCodegenPass
+        }
         needs_native = is_native_mod
             or ModuleCodegenPass.has_native_context_stmts(mod_targ);
 

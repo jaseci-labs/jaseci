@@ -1,6 +1,9 @@
 import os;
 
-glob OSP_CORE_PARTS: list[str] = ["runtime/osp_kernel.jac", "runtime/osp_graph.jac"],
+glob OSP_CORE_PARTS: list[str] = [
+         "runtime/osp_kernel.jac",
+         "runtime/osp_graph.jac"
+     ],
      FMT_KERNEL_PARTS: list[str] = ["compiler/backends/fmt_kernel.jac"];
 
 def _jaclang_dir -> str {
@@ -121,9 +124,7 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
 def es_pass_fingerprint -> str {
     import glob as _g;
     import hashlib;
-    es_dir = os.path.join(
-        _jaclang_dir(), *"compiler/backends/es".split("/")
-    );
+    es_dir = os.path.join(_jaclang_dir(), *"compiler/backends/es".split("/"));
     h = hashlib.sha256();
     for pat in ["*.jac", os.path.join("impl", "*.jac")] {
         for p in sorted(_g.`glob(os.path.join(es_dir, pat))) {

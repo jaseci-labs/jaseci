@@ -1253,9 +1253,7 @@ impl JacArchetype.set_trigger(
 }
 
 impl JacServe.get_client_bundle_builder -> ClientBundleBuilder {
-    import from jaclang.client.vite_client_bundle {
-        make_client_bundle_builder
-    }
+    import from jaclang.client.vite_client_bundle { make_client_bundle_builder }
     return make_client_bundle_builder();
 }
 
@@ -1920,8 +1918,7 @@ impl JacRuntime.get_program(cls: any) -> JacProgram {
     if (cls.program is None) {
         import from jaclang.compiler.driver.program { JacProgram }
         prog = JacProgram();
-        # The runtime is the composition root: the process program and the
-        # process compiler are linked here, not discovered ad hoc.
+
         prog._compiler = cls.get_compiler();
         cls.program = prog;
     }

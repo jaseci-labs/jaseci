@@ -270,13 +270,10 @@ test "resolution refuses names that are not archetype classes" {
         # `jaclang.*` (except `jaclang.scale.*`) and resolution honors the same
         # line: a runtime-internal class resolves only if it was registered
         # explicitly, exactly as before this fallback existed.
-        assert not Serializer.is_auto_registered_module(
-            "jaclang.data.serializer"
-        );
+        assert not Serializer.is_auto_registered_module("jaclang.data.serializer");
         assert Serializer.is_auto_registered_module("jaclang.scale.something");
         assert Serializer.is_auto_registered_module("myapp.nodes");
-        assert Serializer._get_class("jaclang.data.serializer", "Serializer")
-            is None , "runtime-internal archetypes must not resolve implicitly";
+        assert Serializer._get_class("jaclang.data.serializer", "Serializer") is None , "runtime-internal archetypes must not resolve implicitly";
         assert Serializer._get_class("os", "does_not_exist") is None;
         assert Serializer._get_class("definitely.not", "Present") is None;
     } finally {

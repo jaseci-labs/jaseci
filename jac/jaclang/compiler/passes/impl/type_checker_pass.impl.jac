@@ -1168,9 +1168,7 @@ impl TypeCheckPass._client_state_field_owner(
 }
 
 impl TypeCheckPass._install_client_state_setters(self: TypeCheckPass) -> None {
-    import from jaclang.compiler.backends.es.framework_backend {
-        state_setter_name
-    }
+    import from jaclang.compiler.backends.es.framework_backend { state_setter_name }
     import from jaclang.compiler.types.types { create_callable_type }
     mod = self.ir_in;
     if mod is None {
@@ -1708,10 +1706,7 @@ impl TypeCheckPass._stamp_fixed_width(self: TypeCheckPass) -> None {
 impl TypeCheckPass._provably_in_range(
     self: TypeCheckPass, nd: Expr, name: str
 ) -> bool {
-    import from jaclang.compiler.types.fixed_width {
-        interval_of_expr,
-        interval_of_op
-    }
+    import from jaclang.compiler.types.fixed_width { interval_of_expr, interval_of_op }
     if isinstance(nd, BinaryExpr) and isinstance(nd.op, Token) {
         op = FW_INTERVAL_OPS.get(nd.op.name);
         if op is None {

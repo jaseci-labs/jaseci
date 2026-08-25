@@ -125,7 +125,9 @@ test "a wrong-platform artifact refuses to load rather than dlopen-failing later
     pdir = _write_image(
         native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
         artifacts={
-            "jaclang.compiler.frontend.unitree": _root_entry("unitree", triple=WRONG_TRIPLE)
+            "jaclang.compiler.frontend.unitree": _root_entry(
+                "unitree", triple=WRONG_TRIPLE
+            )
         }
     );
     with testraises(RuntimeError, `match="targets") {

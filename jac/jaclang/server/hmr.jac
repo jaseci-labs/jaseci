@@ -1,11 +1,7 @@
 import threading;
 import from enum { StrEnum }
 import from pathlib { Path }
-import type from jaclang.server.watcher {
-    JacFileWatcher,
-    FileChangeEvent,
-    ChangeType
-}
+import type from jaclang.server.watcher { JacFileWatcher, FileChangeEvent, ChangeType }
 
 enum BuildStatus(StrEnum) {
     OK = "ok",

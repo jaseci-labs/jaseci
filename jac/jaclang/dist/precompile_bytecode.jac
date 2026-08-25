@@ -142,7 +142,9 @@ def sealable_sources(package_dir: str) -> list[str] {
             and not any(p.startswith(n) for n in nested)
     ];
     if Path(package_dir).name == "jaclang" {
-        import from jaclang.compiler.placement.placement_facts { toolchain_native_by_policy }
+        import from jaclang.compiler.placement.placement_facts {
+            toolchain_native_by_policy
+        }
         result = [
             p
             for p in candidates
@@ -206,7 +208,9 @@ def placement_facts_map(package_dir: str) -> dict[str, list[str]] {
 }
 
 def _emit_unit_diagnostics(jac_path: str, programs: list) {
-    import from jaclang.compiler.driver.source_failures { compiler_source_failure_details }
+    import from jaclang.compiler.driver.source_failures {
+        compiler_source_failure_details
+    }
     stashed = compiler_source_failure_details(jac_path);
     if stashed {
         stash_lines = stashed.splitlines();
@@ -293,7 +297,11 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     }
     import from jaclang.bootstrap_manifest { seed_abs_entries }
     (seed_dirs, seed_files) = seed_abs_entries(str(pkg_dir));
-    seed_sources: list[Path] = [Path(p) for p in seed_files if str(p).endswith(".jac")];
+    seed_sources: list[Path] = [
+        Path(p)
+        for p in seed_files
+        if str(p).endswith(".jac")
+    ];
     for d in seed_dirs {
         seed_sources.extend(Path(d).rglob("*.jac"));
     }
@@ -484,10 +492,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          + _CODEINFO_SEAM_WAIVERS
      ),
      _CAPABILITY_SEAM_WAIVERS: tuple[str, ...] = (
-         (
-             "compiler/passes/capability_check_pass.jac::"
-             "native_capability_violations"
-         ),
+         ("compiler/passes/capability_check_pass.jac::" "native_capability_violations"),
 
      ),
      _CFG_BUILD_SEAM_WAIVERS: tuple[str, ...] = (
@@ -1374,7 +1379,9 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
     import from jaclang.compiler.passes.prefix_drive {
         PREFIX_NATIVE_FRONTIER as _pfx_frontier
     }
-    import from jaclang.compiler.placement.prefix_flip { PREFIX_IR_GEN_NO_CGEN as _pfx_pin }
+    import from jaclang.compiler.placement.prefix_flip {
+        PREFIX_IR_GEN_NO_CGEN as _pfx_pin
+    }
     _pfx_claim = len(_pfx_pin);
     for (canary_src, canary_path, min_rows) in corpora {
         try {
@@ -2097,7 +2104,10 @@ def seal_native_roots(
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.driver.compile_options { CompileOptions }
     import from jaclang.compiler.frontend.codeinfo { native_layout_to_dict }
-    import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage {
+        na_coverage_begin,
+        na_coverage_end
+    }
     import from jaclang.compiler.backends.native.shared_emit { emit_shared_library }
     import jaclang.compiler.backends.native.llvm.binding as llvm;
 
@@ -2146,11 +2156,7 @@ def seal_native_roots(
                 );
             }
             _gen_root_src = src;
-            # The generated root is transient: the seal unlinks it as soon as
-            # its artifact is built or reused, and this process-exit hook
-            # covers every failed-seal early return so the source tree never
-            # retains a generated file (missing_ok makes it a no-op when the
-            # eager unlink already ran).
+
             import atexit;
             atexit.register(src.unlink, missing_ok=True);
         }
@@ -3438,9 +3444,7 @@ def main {
     console.print(f"  Compiler identity: {compiler_identity()}");
 
     jac_files = (
-        sealable_sources(package_dir)
-            if exclude_seed
-            else find_jac_files(package_dir)
+        sealable_sources(package_dir) if exclude_seed else find_jac_files(package_dir)
     );
     console.print(f"  Found {len(jac_files)} .jac files");
 

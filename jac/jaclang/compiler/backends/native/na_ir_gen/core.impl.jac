@@ -1235,7 +1235,9 @@ impl NaIRGenCore._imported_function_demotions(
     } elif imported_mod.gen.llvm_ir is not None {
         `entry = imported_mod;
     } else {
-        import from jaclang.compiler.driver.compile_options { CompileOptions as _FdOpts }
+        import from jaclang.compiler.driver.compile_options {
+            CompileOptions as _FdOpts
+        }
         _opts_src = self.prog?.options or _FdOpts();
         if not bool(getattr(_opts_src, "no_ir_cache", False)) {
             try {

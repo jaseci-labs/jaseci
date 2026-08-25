@@ -6,7 +6,10 @@ import type from jaclang.compiler.backends.native.llvm.binding {
 }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes { Transform }
-import from jaclang.compiler.frontend.codeinfo { CodeGenTarget, install_native_static_init }
+import from jaclang.compiler.frontend.codeinfo {
+    CodeGenTarget,
+    install_native_static_init
+}
 import from jaclang.compiler.frontend.diagnostics {
     E5020,
     W5021,

@@ -19,12 +19,8 @@ import sys;
 import unittest.mock;
 import from contextlib { redirect_stdout, redirect_stderr }
 
-import from jaclang.client.targets.mobile.deps {
-    _check_android_dependencies
-}
-import from jaclang.client.targets.mobile.dev {
-    _mobile_setup_android_port_reverse
-}
+import from jaclang.client.targets.mobile.deps { _check_android_dependencies }
+import from jaclang.client.targets.mobile.dev { _mobile_setup_android_port_reverse }
 
 
 # =============================================================================
@@ -75,9 +71,7 @@ test "android dep check flags missing javac when java is present" {
 # be printed when `cap run` returned nonzero.
 # =============================================================================
 test "cap run completion message reflects nonzero return code" {
-    import from jaclang.client.targets.mobile.dev {
-        _describe_cap_run_completion
-    }
+    import from jaclang.client.targets.mobile.dev { _describe_cap_run_completion }
     ok_info = _describe_cap_run_completion(0, "http://10.0.2.2:8000");
     fail_info = _describe_cap_run_completion(1, "http://10.0.2.2:8000");
 
@@ -151,9 +145,7 @@ test "adb reverse is skipped silently when adb is missing" {
 # what the API server actually binds.
 # =============================================================================
 test "port availability check raises when port is already bound" {
-    import from jaclang.client.targets.mobile.dev {
-        _assert_mobile_port_available
-    }
+    import from jaclang.client.targets.mobile.dev { _assert_mobile_port_available }
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0);
@@ -177,9 +169,7 @@ test "port availability check raises when port is already bound" {
 }
 
 test "port availability check passes for an unbound port" {
-    import from jaclang.client.targets.mobile.dev {
-        _assert_mobile_port_available
-    }
+    import from jaclang.client.targets.mobile.dev { _assert_mobile_port_available }
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
     s.bind(("127.0.0.1", 0));

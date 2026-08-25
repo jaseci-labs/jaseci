@@ -36,7 +36,11 @@ import from jaclang.compiler.frontend.unitree {
     UniNode,
     ability_of_symbol
 }
-import from jaclang.compiler.frontend.constant { CodeContext, SymbolType, Tokens as Tok }
+import from jaclang.compiler.frontend.constant {
+    CodeContext,
+    SymbolType,
+    Tokens as Tok
+}
 import from jaclang.compiler.frontend.codeinfo {
     BoundaryTypeInfo,
     InteropBinding,

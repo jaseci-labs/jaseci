@@ -1411,8 +1411,7 @@ test "build pipeline wires the runtime-imported bootstrap" {
     # No transpiled-plugin staging: everything imports from the runtime.
     assert "spec_from_file_location" not in host_src , "must not load staged .py via spec_from_file_location";
     # The one generated Python statement: host_boot.boot(<config json>).
-    assert "from jaclang.client.targets.desktop.native import host_boot"
-        in host_src;
+    assert "from jaclang.client.targets.desktop.native import host_boot" in host_src;
     assert "host_boot.boot(" in host_src;
     # Plugin bootstrap / broker / dispatch wiring live in host_boot, not here.
     assert "bootstrap_plugins" not in host_src;

@@ -122,9 +122,7 @@ test "desktop dispatch config loads from jac.toml" {
 build-machine state. All boot behavior lives in the host_boot runtime module; the generated
 source only carries configuration plus the native bridge."""
 test "host source boots the fused runtime and bakes no build-machine state" {
-    import from jaclang.client.targets.desktop._host_bootstrap {
-        _generate_host_source
-    }
+    import from jaclang.client.targets.desktop._host_bootstrap { _generate_host_source }
 
     src = _generate_host_source("T", 800, 600, "test-app");
     # Fused-runtime bring-up: the fused runtime library, not libpython-by-soname.
@@ -249,9 +247,7 @@ test "host_boot routes runtime payloads and passes plugin requests through" {
 """Generated host source must call inprocess_dispatch.shutdown() after run_main_loop()
 and before Py_Finalize() so the dispatch worker and transport tear down cleanly."""
 test "generated host calls shutdown after run_main_loop()" {
-    import from jaclang.client.targets.desktop._host_bootstrap {
-        _generate_host_source
-    }
+    import from jaclang.client.targets.desktop._host_bootstrap { _generate_host_source }
 
     src = _generate_host_source("T", 800, 600, "test-app");
     assert "inprocess_dispatch.shutdown()" in src , "host must tear down dispatch on exit";
@@ -328,9 +324,7 @@ test "host bootstrap modules import + run from the fused runtime" {
 test "dev launch detects editable worktree roots" {
     import os;
     import from pathlib { Path }
-    import from jaclang.client.targets.desktop._dev_launch {
-        _editable_roots_from_site
-    }
+    import from jaclang.client.targets.desktop._dev_launch { _editable_roots_from_site }
 
     roots = _editable_roots_from_site();
     if (Path(os.environ.get("JAC_DESKTOP_JAC_SRC", "")) / "jaclang").exists() {

@@ -24,9 +24,7 @@ def _jac_root -> str {
 }
 
 glob JAC_ROOT = _jac_root(),
-     FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
-     ),
+     FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures"),
      LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
 
 """Helper to import a jac module and capture its stdout."""

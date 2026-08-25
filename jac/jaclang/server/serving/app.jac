@@ -20,10 +20,7 @@ import from jaclang.server.serving.datatypes {
     parse_query_string
 }
 import from jaclang.server.serving.endpoint { JEndPoint, WSEndPoint }
-import from jaclang.server.serving.multipart {
-    parse_multipart,
-    parse_urlencoded_form
-}
+import from jaclang.server.serving.multipart { parse_multipart, parse_urlencoded_form }
 import from jaclang.server.serving.router { Router }
 import from jaclang.server.serving.sse { sse_frame_stream }
 import from jaclang.server.transport { TransportResponse }

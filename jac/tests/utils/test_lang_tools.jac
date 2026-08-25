@@ -85,7 +85,11 @@ test "uninode doc" {
 }
 
 test "uni dispatch annexes in sync and unduplicated" {
-    import from jaclang.compiler.frontend.gen_uni_dispatch { verify_all, abs_path, UNI_PASS_SRC }
+    import from jaclang.compiler.frontend.gen_uni_dispatch {
+        verify_all,
+        abs_path,
+        UNI_PASS_SRC
+    }
     stale = verify_all();
     assert stale == [] , f"stale dispatch artifacts: {stale}";
     src = open(abs_path(UNI_PASS_SRC), encoding="utf-8").read();

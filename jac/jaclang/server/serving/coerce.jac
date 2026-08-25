@@ -5,11 +5,7 @@ import from enum { EnumMeta }
 import from types { UnionType }
 import from typing { Union, get_args, get_origin, get_type_hints }
 import from jaclang.server.serving.datatypes { Request, UploadFile }
-import from jaclang.server.serving.endpoint {
-    APIParameter,
-    JEndPoint,
-    ParameterType
-}
+import from jaclang.server.serving.endpoint { APIParameter, JEndPoint, ParameterType }
 
 
 obj RequestValidationError(Exception) {

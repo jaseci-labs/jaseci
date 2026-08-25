@@ -26,7 +26,11 @@ import from jaclang.compiler.frontend.unitree {
     UniNode,
     UniScopeNode
 }
-import from jaclang.compiler.frontend.constant { CodeContext, Tokens as Tok, SymbolType }
+import from jaclang.compiler.frontend.constant {
+    CodeContext,
+    Tokens as Tok,
+    SymbolType
+}
 import from jaclang.compiler.frontend.diagnostics { E5082, E5084, W6006, W6007 }
 import from jaclang.compiler.driver.boundary_classify {
     ClientImportVerdict,
@@ -331,7 +335,9 @@ def import_target_pinned_server(nd: Import) -> bool {
     try {
         target = nd.from_loc.resolve_relative_path();
         if isinstance(target, str) and target.endswith('.jac') {
-            import from jaclang.compiler.placement.placement_facts { pinned_module_space }
+            import from jaclang.compiler.placement.placement_facts {
+                pinned_module_space
+            }
             return pinned_module_space(target) == 'server';
         }
     } except Exception {
@@ -722,7 +728,10 @@ def _import_used_as_value(mod: Module, imp: Import) -> bool {
 def serverless_server_evidence(
     mod: Module, prog: any
 ) -> list[tuple[str, str, UniNode]] {
-    import from jaclang.compiler.placement.placement { get_module_summary, project_has_server }
+    import from jaclang.compiler.placement.placement {
+        get_module_summary,
+        project_has_server
+    }
     if project_has_server(mod.loc.mod_path or '') {
         return [];
     }

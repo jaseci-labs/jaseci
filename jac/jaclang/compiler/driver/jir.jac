@@ -108,7 +108,10 @@ def compute_content_sha256(file_path: str) -> str {
 }
 
 def _related_files(source_path: str) -> list[tuple[str, str]] {
-    import from jaclang.compiler.driver.bccache { discover_annex_files, discover_style_annex }
+    import from jaclang.compiler.driver.bccache {
+        discover_annex_files,
+        discover_style_annex
+    }
     src = Path(source_path).resolve();
     base_dir = src.parent;
     paths: set = set();
@@ -266,12 +269,17 @@ def _project_env_fingerprint(source_path: str) -> str {
     h = hashlib.sha256();
     h.update(_module_client_kind(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
-    import from jaclang.compiler.placement.placement_pins { pins_digest, config_kind_space }
+    import from jaclang.compiler.placement.placement_pins {
+        pins_digest,
+        config_kind_space
+    }
     h.update(pins_digest(source_path).encode());
     h.update(config_kind_space(source_path).encode());
     import from jaclang.compiler.placement.service_cut { cut_digest }
     h.update(cut_digest(source_path).encode());
-    import from jaclang.compiler.driver.compile_options { effective_codegen_fingerprint }
+    import from jaclang.compiler.driver.compile_options {
+        effective_codegen_fingerprint
+    }
     h.update(effective_codegen_fingerprint().encode());
     return h.hexdigest();
 }
@@ -395,7 +403,9 @@ def cache_mode -> tuple[bool, bool] {
     return (rebuild, no_precompile);
 }
 
-glob _jaclang_pkg_dir: str = str(Path(str(__file__)).resolve().parent.parent.parent);
+glob _jaclang_pkg_dir: str = str(
+         Path(str(__file__)).resolve().parent.parent.parent
+     );
 
 def _get_module_cache_dir(source_path: str) -> Path {
     resolved = Path(source_path).resolve();
@@ -563,7 +573,10 @@ def read_debug_source(data: bytes) -> (str | None) {
 }
 
 def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
-    import from jaclang.compiler.driver.bccache { discover_annex_files, discover_style_annex }
+    import from jaclang.compiler.driver.bccache {
+        discover_annex_files,
+        discover_style_annex
+    }
     if not cache_path.exists() {
         return False;
     }
@@ -642,9 +655,6 @@ def write_module_cache(
     }
 }
 
-"""Rewrite co_filename across a marshalled code object tree (moved from
-compiler/driver/compiler.jac in #8681; the sealer and the sealed loader both patch
-JIR bytecode paths with it)."""
 def patch_co_filenames_bytes(raw_bc: bytes, find: str, replace: str) -> bytes {
     try {
         import marshal;

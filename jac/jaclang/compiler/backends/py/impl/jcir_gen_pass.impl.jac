@@ -5022,7 +5022,10 @@ impl JcirGenPass._top_level_bound_names(items: any) -> list {
 }
 
 impl JcirGenPass._native_test_shim_stmts(nd: Test) -> list {
-    import from jaclang.compiler.frontend.codeinfo { native_test_symbol, native_glob_init_name }
+    import from jaclang.compiler.frontend.codeinfo {
+        native_test_symbol,
+        native_glob_init_name
+    }
     test_name = nd.name.sym_name;
     line = nd.loc.first_line if nd.loc else 0;
     symbol = native_test_symbol(test_name, line);

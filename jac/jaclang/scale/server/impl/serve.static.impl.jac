@@ -1,10 +1,6 @@
 import mimetypes;
 import from pathlib { Path }
-import from jaclang.server.serving.datatypes {
-    HTMLResponse,
-    JSONResponse,
-    Response
-}
+import from jaclang.server.serving.datatypes { HTMLResponse, JSONResponse, Response }
 import from jaclang.server.serving.endpoint {
     APIParameter,
     HTTPMethod,

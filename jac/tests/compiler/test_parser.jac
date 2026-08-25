@@ -248,13 +248,7 @@ test "connect_disconnect_missing_rhs" {
 
 test "jsx comprehensive fixture" {
     fixture_path = os.path.join(
-        JAC_ROOT,
-        "tests",
-        "compiler",
-        "backends",
-         "es",
-        "fixtures",
-        "client_jsx.jac"
+        JAC_ROOT, "tests", "compiler", "backends", "es", "fixtures", "client_jsx.jac"
     );
     source_text = Path(fixture_path).read_text(encoding="utf-8");
     (module, had_error) = rd_parse(source_text, str(fixture_path));

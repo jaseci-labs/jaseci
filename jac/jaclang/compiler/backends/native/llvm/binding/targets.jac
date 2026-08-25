@@ -15,7 +15,9 @@ import from jaclang.compiler.backends.native.llvm.binding.common {
     _encode_string
 }
 import from collections { namedtuple }
-import from jaclang.compiler.backends.native.llvm.binding.config { _has_svml as has_svml }
+import from jaclang.compiler.backends.native.llvm.binding.config {
+    _has_svml as has_svml
+}
 
 with entry {
     Triple = namedtuple(

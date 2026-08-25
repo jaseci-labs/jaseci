@@ -6,10 +6,7 @@ import from jaclang.client.client_bundle { ClientBundleError }
 import from jaclang.client.asset_processor { AssetProcessor }
 import from jaclang.client.import_processor { ImportProcessor }
 import from jaclang.client.jac_to_js { JacToJSCompiler }
-import from jaclang.client.route_scanner {
-    RouteScanner,
-    resolve_route_exports
-}
+import from jaclang.client.route_scanner { RouteScanner, resolve_route_exports }
 import from jaclang.jac0core.ext_registry { ANNEX_SUFFIXES }
 
 with entry {

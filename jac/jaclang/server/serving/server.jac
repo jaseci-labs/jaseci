@@ -17,9 +17,7 @@ import from jaclang.server.serving.ws { WebSocket, compute_accept_key }
 
 glob ACCESS_LOGGER_NAME: str = "jaclang.serving.access";
 
-glob _logger: logging.Logger = logging.getLogger(
-         "jaclang.server.serving.server"
-     ),
+glob _logger: logging.Logger = logging.getLogger("jaclang.server.serving.server"),
      _access_logger: logging.Logger = logging.getLogger(ACCESS_LOGGER_NAME),
      MAX_HEADER_COUNT: int = 100,
      MAX_BODY_BYTES: int = 104857600,

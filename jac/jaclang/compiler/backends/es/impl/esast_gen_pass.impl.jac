@@ -17,9 +17,7 @@ impl EsastGenPass._ensure_backend -> None {
         } except ValueError {
             import from jaclang.project.config { get_config }
             import from jaclang.compiler.frontend.diagnostics { E5081 }
-            import from jaclang.compiler.backends.es.backends.react {
-                ReactBackend
-            }
+            import from jaclang.compiler.backends.es.backends.react { ReactBackend }
             cfg = get_config();
             fw = cfg.client.framework if (cfg and cfg.client) else "unknown";
             self.emit(E5081, framework=fw);
@@ -7413,9 +7411,7 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
         self.needs_jac_runtime = True;
     }
     if self.needs_jac_runtime {
-        import from jaclang.compiler.backends.es.jac_runtime_js {
-            build_jac_runtime_js
-        }
+        import from jaclang.compiler.backends.es.jac_runtime_js { build_jac_runtime_js }
         jac_rt_decl = es.VariableDeclaration(
             declarations=[
                 es.VariableDeclarator(

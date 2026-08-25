@@ -20,12 +20,7 @@ import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob FW_CODES: tuple = ("E1126", "E1127", "E1128", "E1129", "E1130"),
      VIRTUAL_PATH: str = os.path.join(
-         TESTS_DIR,
-         "compiler",
-         "passes",
-         "fixtures",
-         "checker",
-         "_fw_inline.jac"
+         TESTS_DIR, "compiler", "passes", "fixtures", "checker", "_fw_inline.jac"
      );
 
 """Type-check `source` on one lane; return (code, line, col) per diagnostic."""

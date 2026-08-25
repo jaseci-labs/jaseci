@@ -213,10 +213,7 @@ def _candidate_for(item: object, here_anchor: (Anchor | None)) -> tuple {
     edge_arch = None;
     direction = "out";
     if isinstance(here_anchor, NodeAnchor) {
-        import from jaclang.runtime.osp_graph_sv {
-            sv_live_edges,
-            sv_register_hydrated
-        }
+        import from jaclang.runtime.osp_graph_sv { sv_live_edges, sv_register_hydrated }
         here_arch = here_anchor.archetype;
         sv_register_hydrated(here_anchor, fetch_stubs=True);
         for ea in sv_live_edges(here_anchor, 3, None, True) {

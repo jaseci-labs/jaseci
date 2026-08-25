@@ -1359,9 +1359,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                     self.emit_diag(E1031, expr, attr=attr_name, type=base_type.name);
                     return UnknownType();
                 } elif isinstance(base_type, (FunctionType, OverloadedType)) {
-                    import from jaclang.compiler.types.type_utils {
-                        PropertyWriteKind
-                    }
+                    import from jaclang.compiler.types.type_utils { PropertyWriteKind }
                     if expr.right.value in ("setter", "getter", "deleter")
                         and isinstance(expr.target, Name)
                         and (expr.target.sym is not None)
@@ -3824,7 +3822,9 @@ impl TypeEvaluator._is_sv_async_call(expr: FuncCall) -> bool {
     syms = self._sv_async_syms_cache.get(mod_key);
     if syms is None {
         syms = set();
-        import from jaclang.compiler.driver.boundary_classify { is_client_native_edge_import }
+        import from jaclang.compiler.driver.boundary_classify {
+            is_client_native_edge_import
+        }
         import from jaclang.compiler.symbol_utils {
             ClientImportVerdict,
             classify_client_import_item,
@@ -4534,9 +4534,7 @@ impl TypeEvaluator._get_type_from_flow_node(
                         )
                             is not None
                     );
-                    import from jaclang.compiler.types.fixed_width {
-                        numeric_name_of
-                    }
+                    import from jaclang.compiler.types.fixed_width { numeric_name_of }
                     _decl_num = numeric_name_of(declared_type);
                     _assigned_num = numeric_name_of(assigned_type);
                     if _decl_extern {
@@ -4821,10 +4819,7 @@ impl TypeEvaluator._find_symbol_by_key(key: str, condition: Expr) -> Symbol | No
 
 impl TypeEvaluator.classify_condition(condition: Expr) -> ConditionInfo | None {
     import from jaclang.compiler.frontend.constant { Tokens as Tok }
-    import from jaclang.compiler.types.type_evaluator {
-        ConditionInfo,
-        NarrowingKind
-    }
+    import from jaclang.compiler.types.type_evaluator { ConditionInfo, NarrowingKind }
 
     if isinstance_info := self._extract_isinstance_info(condition) {
         (key, narrow_type) = isinstance_info;
