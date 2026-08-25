@@ -14876,14 +14876,55 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_UNPACK_SEQUENCE {
             seq = stack.pop();
+            # CPython honors a __len__ hint BEFORE iterating: exact-length
+            # mismatches raise immediately with the got-count in the message,
+            # and old-style __getitem__ iterables whose len disagrees with
+            # their IndexError termination never hang the drain loop.
+            hint = py_len(seq);
+            if not is_error(hint) and isinstance(hint, PyInt) {
+                lv = (hint as PyInt).val;
+                if lv < arg {
+                    unpack_hint_err = py_error(
+                        "ValueError",
+                        "not enough values to unpack (expected "
+                            + str(arg) + ", got " + str(lv) + ")",
+                    );
+                    target = recover_exception(co, unpack_hint_err, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        continue;
+                    }
+                    return unpack_hint_err;
+                }
+                if lv > arg {
+                    unpack_hint_err2 = py_error(
+                        "ValueError",
+                        "too many values to unpack (expected "
+                            + str(arg) + ", got " + str(lv) + ")",
+                    );
+                    target = recover_exception(co, unpack_hint_err2, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        continue;
+                    }
+                    return unpack_hint_err2;
+                }
+            }
             it = py_iter(seq);
             if is_error(it) {
-                target = recover_exception(co, it, offset, stack);
+                # CPython's dedicated unpack wording for non-iterables
+                # ("cannot unpack non-iterable int object"), not the generic
+                # iteration TypeError.
+                noniter = py_error(
+                    "TypeError",
+                    "cannot unpack non-iterable " + seq.t + " object"
+                );
+                target = recover_exception(co, noniter, offset, stack);
                 if target >= 0 {
                     ip = target;
                     continue;
                 }
-                return it;
+                return noniter;
             }
             # Uniform drain across every iterator shape send_into serves
             # (materialized iters, generators/coroutines, calliter/seqiter/

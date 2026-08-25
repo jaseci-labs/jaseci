@@ -56,6 +56,13 @@ def PyIter_Check(value: PyObj) -> bool {
 }
 
 def PyObject_GetIter(o: PyObj) -> PyObj {
+    # CPython: iter() over an ITERATOR returns it unchanged (no tp_iter
+    # required). Without this, already-created iterators (rangeiter, seqiter,
+    # calliter, generators) fail with "'X' object is not iterable" at every
+    # consumer that calls iter() defensively.
+    if PyIter_Check(o) {
+        return o;
+    }
     res = o.tp_iter();
     if is_error(res) {
         # Host-exact wording: CPython quotes the operand's type name in the
