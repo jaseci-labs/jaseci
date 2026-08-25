@@ -7,3 +7,14 @@
 # schema_fingerprint stamp protocol from impl/store.impl.jac so bun and
 # cpython hosts can share one database without invalidating each other's
 # migrations. Keep behavioral changes on both sides in lockstep.
+
+
+# Jac-side declaration only: the executable BunStore lives in bun_store.js and
+# is instantiated there by __jacInitBunStore. This obj exists so the postinit
+# below binds to a checked declaration instead of an unknown symbol.
+obj BunStore {
+    has _ready: bool = False,
+        _sql: (any | None) = None;
+
+    def postinit -> None;
+}
