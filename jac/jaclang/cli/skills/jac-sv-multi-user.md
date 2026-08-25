@@ -79,15 +79,20 @@ object and joining or leaving rewrites all of them. Name a **group** instead:
 the grant is one entry, and membership is an edge.
 
 ```jac
+node Doc { has body: str; }
 node Team { has name: str; }
 edge MemberOf {}
 
 import from jaclang { JacRuntime as Jac }
+import from uuid { UUID }
 
-team = root ++> Team(name="eng");
-Jac.allow_group(doc, jid(team), AccessLevel.READ);   # sharing: one entry
+def share_with_team(doc: Doc, team: Team) {
+    Jac.allow_group(doc, UUID(jid(team)), AccessLevel.READ);  # jac:ignore[E1053]
+}
 
-user_root ++>:MemberOf():++> team;   # joining: one edge, zero content writes
+def join_team(team: Team) {
+    root +>:MemberOf:+> team;   # joining: one edge, zero content writes
+}
 ```
 
 - Membership is resolved through the edge at check time, so a join or a leave
