@@ -279,7 +279,7 @@ def precompile_unit(
     );
     extra: dict[int, bytes] | None = None;
     if embed_src {
-        extra = {SEC_DEBUG_SRC: zlib.compress(Path(jac_path).read_bytes(), 9)};
+        extra = {int(SEC_DEBUG_SRC): zlib.compress(Path(jac_path).read_bytes(), 9)};
     }
     return write_precompiled_jir(
         patched, compute_precompile_module_key(jac_path), FLAG_PRECOMPILED, extra
@@ -334,7 +334,7 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
             );
             extra: dict[int, bytes] | None = None;
             if embed_src {
-                extra = {SEC_DEBUG_SRC: zlib.compress(jac_file.read_bytes(), 9)};
+                extra = {int(SEC_DEBUG_SRC): zlib.compress(jac_file.read_bytes(), 9)};
             }
             jir_rel = jac_file.relative_to(pkg_dir).with_suffix(".jir");
             jir_path = out_dir / jir_rel;
