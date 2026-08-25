@@ -22,25 +22,22 @@ import sys;
 import types;
 import importlib.machinery as machinery;
 import jaclang;
-import jaclang.jac0core.program as program_mod;
+import jaclang.compiler.driver.program as program_mod;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler {
-    CompilerSourceError,
-    get_ir_gen_sched,
-    get_symtab_ir_sched
-}
-import from jaclang.jac0core.codeinfo {
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.source_failures { CompilerSourceError }
+import from jaclang.compiler.driver.schedules { get_ir_gen_sched, get_symtab_ir_sched }
+import from jaclang.compiler.frontend.codeinfo {
     get_effective_default_codespace_override,
     set_effective_default_codespace
 }
-import from jaclang.jac0core.jir {
+import from jaclang.compiler.driver.jir {
     get_module_cache_path,
     module_cache_key,
     module_env_fingerprint
 }
-import from jaclang.runtimelib.cl_test_runner { _COLOR_CACHE, module_is_client }
+import from jaclang.testing.cl_test_runner { _COLOR_CACHE, module_is_client }
 
 glob SYMBOL_UTILS: str = os.path.join(
          os.path.dirname(str(jaclang.__file__)), "compiler", "symbol_utils.jac"
@@ -170,7 +167,7 @@ test "a compile that re-enters the module being imported says so" {
         try {
             compiler.compile(
                 file_path=EXPR_KEYS,
-                target_program=compiler.internal_program,
+                target_program=compiler.selfhost.program,
                 options=CompileOptions(no_cgen=True)
             );
         } except CompilerSourceError as loud {

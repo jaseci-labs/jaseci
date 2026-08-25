@@ -131,7 +131,7 @@ test "unreachable branch" {
 `parametrize()` registers one test per input, in a `with entry` block:
 
 ```jac
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 
 def _test_square(pair: tuple) {
     assert pair[0] ** 2 == pair[1];
@@ -150,7 +150,7 @@ For testing served endpoints (`walker:pub` / `def:pub`) without starting a real 
 
 ```jac
 import tempfile;
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.testing.testing { JacTestClient }
 
 test "task crud" {
     client = JacTestClient.from_file(
@@ -176,7 +176,7 @@ Give each test its own `base_path` to keep persisted graphs isolated. Also avail
 
 ## See also
 
-- `jac-debugging` - the check/fix loop, stale-cache triage (`jac clean` vs `jac purge`)
+- `jac-debugging` - the check/fix loop, stale-cache triage (`jac clean` scopes vs the global `~/.cache/jac`)
 - `jac-config` - `[test]` defaults, `[scripts]` (`test = "jac test -v"`)
 - `jac-walker-patterns` - report/reports semantics being asserted here
 

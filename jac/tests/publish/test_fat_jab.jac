@@ -208,7 +208,7 @@ def _pip_scripted(calls: list, args: list[str]) -> tuple[int, str] {
 
 test "native vendoring builds sdist-only deps instead of refusing the closure" {
     import functools;
-    import jaclang.runtimelib.jab_vendor as jab_vendor;
+    import jaclang.dist.jab_vendor as jab_vendor;
     calls: list = [];
     saved = jab_vendor._pip;
     jab_vendor._pip = _as_any(functools.partial(_pip_scripted, calls));
@@ -229,7 +229,7 @@ test "native vendoring builds sdist-only deps instead of refusing the closure" {
 
 test "cross-target vendoring still refuses when wheels are missing" {
     import functools;
-    import jaclang.runtimelib.jab_vendor as jab_vendor;
+    import jaclang.dist.jab_vendor as jab_vendor;
     calls: list = [];
     saved = jab_vendor._pip;
     jab_vendor._pip = _as_any(functools.partial(_pip_scripted, calls));

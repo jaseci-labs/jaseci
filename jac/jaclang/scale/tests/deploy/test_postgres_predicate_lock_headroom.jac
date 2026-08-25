@@ -16,7 +16,7 @@ stock defaults, which is the configuration the incident ran on.
 import from jaclang.scale.deploy.database.kubernetes_postgres {
     KubernetesPostgresProvider
 }
-import from jaclang.runtimelib.pgembed {
+import from jaclang.data.pgembed {
     PG_MAX_CONNECTIONS,
     PG_MAX_PRED_LOCKS_PER_TXN,
     pg_tuning_settings
@@ -53,8 +53,8 @@ test "provisioning: one tuning source of truth feeds every Postgres jac starts" 
     settings = pg_tuning_settings();
     assert settings['max_pred_locks_per_transaction'] == str(PG_MAX_PRED_LOCKS_PER_TXN);
     assert settings['max_connections'] == str(PG_MAX_CONNECTIONS);
-    import from jaclang.runtimelib.pgembed { PgRuntime }
-    import from jaclang.runtimelib.session { shared_pg_data_dir }
+    import from jaclang.data.pgembed { PgRuntime }
+    import from jaclang.server.session { shared_pg_data_dir }
     opts = PgRuntime(data_dir=shared_pg_data_dir(), database='postgres')._server_opts();
     for (key, value) in settings.items() {
         assert f"-c {key}={value}" in opts , (

@@ -71,15 +71,16 @@ about heap objects:
   value with no ownership state.
 - Flow-sensitivity is per-function CFG dataflow over those symbol ids (the
   `in_consumed` / live-borrow sets), solved on the compiler's shared worklist
-  framework (`passes/main/dataflow.jac`). Branches merge conservatively:
+  framework (`passes/dataflow.jac`). Branches merge conservatively:
   consumed on *some* path means consumed at the join.
 
 **3. Facts once, consumed everywhere.** The analysis is computed exactly once
 per module by the core pass; diagnostics emission and backend policy are both
 thin consumers of the same facts. Whether diagnostics are *displayed* is a
-property of the compile request (`CompileOptions.emit_diagnostics` /
-`type_check`), and can never change what is generated -- display-neutrality is
-enforced by construction, not by prohibition.
+property of the compile request (`CompileOptions.emit_diagnostics`), and can
+never change what is generated -- display-neutrality is enforced by
+construction, not by prohibition. The analysis itself always runs: the
+analysis schedule is unconditional on every compile.
 
 ## Per-code guarantees (the fact schema's soundness contracts)
 
@@ -176,9 +177,9 @@ backend.
 
 ## Scheduling
 
-The pass runs in the required check schedule (it needs symbols resolved),
-after symbol resolution, inference, and CFG construction, on every
-`type_check` compile *and* on every native-module compile. `RcFactsPass` runs
+The pass runs in the unconditional analysis schedule (it needs symbols
+resolved), after symbol resolution, inference, and CFG construction, on
+every compile -- native-module compiles included. `RcFactsPass` runs
 in the native codegen schedule immediately before IR generation, so its
 stamps are always freshly computed in-process for the module being lowered.
 The checker's cost is proportional to the number of *annotated* symbols;

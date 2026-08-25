@@ -24,8 +24,8 @@ collision is the thing that has to be undone and neither half of it is
 recoverable from the code alone.
 """
 
-import jaclang.jac0core.diagnostics as diagmod;
-import from jaclang.jac0core.diagnostics { Category, DIAGNOSTICS, Severity }
+import jaclang.compiler.frontend.diagnostics as diagmod;
+import from jaclang.compiler.frontend.diagnostics { Category, DIAGNOSTICS, Severity }
 
 test "the registry holds one entry per code, bound under its own name" {
     assert DIAGNOSTICS , "the diagnostic registry is empty";
