@@ -746,9 +746,12 @@ impl run_file(
     }
     import_error = "";
     dep_gap = "";
+    skip_gap = "";
     capture = _capture_begin();
     try {
         importlib.import_module(qualified);
+    } except unittest.SkipTest as exc {
+        skip_gap = str(exc) or "skipped at import";
     } except BaseException as exc {
         import from traceback { format_exception }
         import_error = "".join(format_exception(exc)).rstrip();
@@ -756,6 +759,16 @@ impl run_file(
     }
     import_output = _capture_end(capture);
     try {
+        if skip_gap {
+            return [
+                TestOutcome(
+                    file=abs_path,
+                    name=os.path.basename(abs_path),
+                    status=SKIPPED,
+                    message=skip_gap
+                )
+            ];
+        }
         if import_error {
             if dep_gap and not strict_mode() {
                 return [

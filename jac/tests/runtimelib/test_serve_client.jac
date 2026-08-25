@@ -29,12 +29,8 @@ run only when JAC_CLIENT_INTEGRATION is set (and are covered by jac-client's own
 suite); core CI skips them.
 """
 def _require_client_integration {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            "client render requires the Vite/Bun toolchain; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 def fixture_abs_path(filename: str) -> str {

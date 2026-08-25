@@ -20,12 +20,8 @@ def _as_any(v: any) -> any {
 
 """Skip unless the Vite/Bun client toolchain is available."""
 def _require_client_integration {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            "Preact E2E requires the Vite/Bun toolchain; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 def _get_free_port -> int {

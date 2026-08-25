@@ -35,12 +35,8 @@ glob _BROKEN_APP: str = 'import from "@jac/runtime" { renderJsxTree, }\n'
 """The bundle build runs the real Vite/Bun pipeline, so this is an integration
 test, gated the way the other client tests in this repo are."""
 def _require_client_integration {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            "client bundle build requires the Vite/Bun toolchain; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 

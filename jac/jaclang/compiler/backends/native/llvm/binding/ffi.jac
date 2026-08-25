@@ -18,6 +18,13 @@ def _shim_name -> str {
 def _find_shim -> str {
     import from jaclang.compiler.driver.compile_options { env_llvm_shim_override }
     `override = env_llvm_shim_override();
+    if `override and (`override.strip().lower() in ("none", "off", "disabled")) {
+        raise OSError(
+            "LLVM shim disabled by JAC_LLVM_SHIM="
+                + `override
+                + "; the native pipeline is unavailable in this process."
+        );
+    }
     if `override and os.path.isfile(`override) {
         return `override;
     }
