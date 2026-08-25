@@ -1,6 +1,7 @@
 import from typing { Any }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     GATEWAY_NAME,
+    is_scale_to_zero_eligible,
     ScalingMode
 }
 import from jaclang.scale.runtime.cli._narrow {
@@ -76,9 +77,10 @@ def _mem_to_bytes(val: Any) -> int | None {
 
 
 obj PlanValidator {
-    has bundle: Any,
-        ms_cfg: Any,
-        svc_configs: Any;
+    has bundle: any,
+        ms_cfg: any,
+        svc_configs: any,
+        autoscaler_engine: str = "hpa";
 
     def run -> list[Diagnostic] {
         out: list[Diagnostic] = [];
@@ -116,7 +118,8 @@ obj PlanValidator {
                 self._check_image(svc_name, deployment, out);
                 continue;
             }
-            self._check_hpa(svc_name, svc_cfg, deployment, out);
+            autoscaler_cfg = dget(scaling, svc_name).get("autoscaler", {});
+            self._check_hpa(svc_name, svc_cfg, autoscaler_cfg, deployment, out);
             self._check_pdb(svc_name, svc_cfg, deployment, out);
             self._check_resources(svc_name, deployment, out);
             self._check_image(svc_name, deployment, out);
@@ -158,7 +161,11 @@ obj PlanValidator {
     }
 
     def _check_hpa(
-        svc_name: str, svc_cfg: Any, deployment: Any, out: list[Diagnostic]
+        svc_name: str,
+        svc_cfg: any,
+        autoscaler_cfg: any,
+        deployment: any,
+        out: list[Diagnostic]
     ) {
         hpa = dget(svc_cfg, "hpa");
         if not bget(hpa, "enabled", True) {
@@ -167,12 +174,25 @@ obj PlanValidator {
         hpa_min = iget(hpa, "min", 1);
         hpa_max = iget(hpa, "max", 3);
         hpa_cpu = iget(hpa, "cpu_target", 70);
-        if hpa_min < 1 {
+        if hpa_min < 1
+            and not is_scale_to_zero_eligible(autoscaler_cfg, self.autoscaler_engine) {
+            reason = (
+                "KEDA scale-to-zero requires a configured trigger "
+                "(CPU/memory targets alone can't reach zero); add "
+                f"[[scale.microservices.services.{svc_name}.triggers]] or "
+                "set hpa.min >= 1"
+            )
+                if self.autoscaler_engine == "keda"
+                else (
+                    "the plain Kubernetes HPA engine cannot scale below 1 "
+                    "replica; set autoscaler_engine = \"keda\" with a trigger to "
+                    "scale to zero, or set hpa.min >= 1"
+                );
             out.append(
                 Diagnostic(
                     severity="error",
                     service=svc_name,
-                    message=f"HPA min={hpa_min}; must be >= 1"
+                    message=f"HPA min={hpa_min}; {reason}"
                 )
             );
         }

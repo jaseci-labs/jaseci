@@ -179,6 +179,36 @@ def k8s_safe_name(svc_name: str) -> str {
 }
 
 
+def pdb_spec(
+    replica_floor: int, max_unavailable: int, min_available: (int | None) = None
+) -> dict[str, any] | None {
+    if min_available is not None {
+        return {"minAvailable": min_available};
+    }
+    if max_unavailable >= replica_floor {
+        return None;
+    }
+    return {"maxUnavailable": max_unavailable};
+}
+
+
+def is_scale_to_zero_eligible(
+    autoscaler_cfg: dict[str, any] | None, engine: str
+) -> bool {
+    if not isinstance(autoscaler_cfg, dict) {
+        return False;
+    }
+    if int(autoscaler_cfg.get("min", 1)) > 0 {
+        return False;
+    }
+    if str(engine or "hpa") != "keda" {
+        return False;
+    }
+    triggers = autoscaler_cfg.get("triggers", []);
+    return isinstance(triggers, list) and len(triggers) > 0;
+}
+
+
 def _is_named_list(items: list) -> bool {
     if not items {
         return False;

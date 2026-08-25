@@ -81,6 +81,31 @@ def _dep(ready: int) -> object {
 }
 
 
+# A deployment that has genuinely settled at zero replicas by design (KEDA
+# scaled it down, no pods exist), as opposed to `_dep(0)` which still has
+# `spec.replicas=1` and represents a starting/crash-looping single replica.
+def _dep_zero -> object {
+    return SimpleNamespace(
+        metadata=SimpleNamespace(generation=1),
+        spec=SimpleNamespace(replicas=0),
+        status=SimpleNamespace(
+            observed_generation=1,
+            replicas=0,
+            updated_replicas=0,
+            available_replicas=0,
+            ready_replicas=0
+        )
+    );
+}
+
+
+def _bundle_with_autoscaler(deploy_name: str, app: str, autoscaler_cfg: dict) -> dict {
+    bundle = _bundle(deploy_name, app);
+    bundle["autoscalers"] = {app: autoscaler_cfg};
+    return bundle;
+}
+
+
 def _apis(ready: int, pods: list) -> tuple {
     apps = unittest.mock.MagicMock();
     apps.read_namespaced_deployment.return_value = _dep(ready);
@@ -397,5 +422,81 @@ test "a terminating pod is invisible to the scanner (no false re-abort)" {
     );
     assert err is not None and "timed out" in str(err) , (
         f"only the plain timeout may fire: {err}"
+    );
+}
+
+
+test "a KEDA min=0 deployment settled at zero completes without timing out" {
+    target = KubernetesTarget(
+        config=KubernetesConfig(
+            app_name="jac-shop", namespace="ns", autoscaler_engine="keda"
+        )
+    );
+    (apps, core) = _apis(0, []);
+    apps.read_namespaced_deployment.return_value = _dep_zero();
+    bundle = _bundle_with_autoscaler(
+        "order-service-deployment",
+        "order-service",
+        {"min": 0, "max": 3, "triggers": [{"type": "cron", "metadata": {}}]}
+    );
+
+    err = _run(target, bundle, apps, core, 60);
+
+    assert err is None , (
+        f"a scale-to-zero-eligible deployment settled at zero should not "
+        f"time out: {err}"
+    );
+}
+
+
+test "a KEDA min=0 deployment that is actually crash-looping still fails" {
+    target = KubernetesTarget(
+        config=KubernetesConfig(
+            app_name="jac-shop", namespace="ns", autoscaler_engine="keda"
+        )
+    );
+    boot = _cs(
+        "jac-bootstrap",
+        restarts=3,
+        waiting_reason="CrashLoopBackOff",
+        last_term_reason="StartError",
+        last_term_message="boom",
+        last_term_exit=1
+    );
+    pod = _pod("order-service-xyz", "order-service", "Pending", [boot], []);
+    (apps, core) = _apis(0, [pod]);
+    bundle = _bundle_with_autoscaler(
+        "order-service-deployment",
+        "order-service",
+        {"min": 0, "max": 3, "triggers": [{"type": "cron", "metadata": {}}]}
+    );
+
+    err = _run(target, bundle, apps, core, 60);
+
+    assert err is not None , (
+        "a genuinely crash-looping deployment must still fail even though "
+        "it is eligible for scale-to-zero"
+    );
+    assert "crash-looping" in str(err) , f"crashloop not reported: {err}";
+}
+
+
+test "a non-KEDA min=0 autoscaler entry is not treated as scale-to-zero" {
+    target = KubernetesTarget(
+        config=KubernetesConfig(app_name="jac-shop", namespace="ns")
+    );
+    (apps, core) = _apis(0, []);
+    apps.read_namespaced_deployment.return_value = _dep_zero();
+    bundle = _bundle_with_autoscaler(
+        "order-service-deployment",
+        "order-service",
+        {"min": 0, "max": 3, "triggers": [{"type": "cron", "metadata": {}}]}
+    );
+
+    err = _run(target, bundle, apps, core, 15);
+
+    assert err is not None and "timed out" in str(err) , (
+        f"a min=0 entry under the plain HPA engine must not be exempted "
+        f"from the readiness requirement: {err}"
     );
 }

@@ -1,7 +1,8 @@
 import io;
 import unittest.mock as mock;
 import from contextlib { redirect_stdout }
-import from typing { Any }
+import from typing { Any, cast }
+import from pathlib { Path }
 import from jaclang.scale.runtime.cli.plan { print_plan }
 import from jaclang.scale.runtime.cli.diagnostics {
     Diagnostic,
@@ -13,8 +14,15 @@ import from jaclang.scale.runtime.cli.diagnostics {
 import jaclang.scale.runtime.cli.plan as plan_mod;
 
 
-def _validate(bundle: dict, ms_cfg: dict, svc_configs: dict) -> list {
-    return PlanValidator(bundle=bundle, ms_cfg=ms_cfg, svc_configs=svc_configs).run();
+def _validate(
+    bundle: dict, ms_cfg: dict, svc_configs: dict, autoscaler_engine: str = "hpa"
+) -> list {
+    return PlanValidator(
+        bundle=bundle,
+        ms_cfg=ms_cfg,
+        svc_configs=svc_configs,
+        autoscaler_engine=autoscaler_engine
+    ).run();
 }
 
 
@@ -102,7 +110,7 @@ test "mem parser: Mi/Gi binary, M decimal, bare int; rejects 'MB' and garbage" {
 
 
 test "dry-run contract: print_plan must NOT call deploy / apply_manifests" {
-    target = _StubTarget(_bundle={"deployments": {"x": {}}, "services": {}});
+    target = cast(any, _StubTarget(_bundle={"deployments": {"x": {}}, "services": {}}));
     target.deploy = mock.MagicMock(
         side_effect=AssertionError("deploy must NOT be called")
     );
@@ -294,6 +302,51 @@ test "validate: HPA bounds (min < 1, min > max, cpu_target out of 1-100)" {
     ];
     assert any("min (5) > max (2)" in m for m in msgs);
     assert any("cpu_target=150" in m for m in msgs);
+}
+
+
+test "validate: KEDA min=0 with a real trigger is not an error" {
+    diags = _validate(
+        {
+            "deployments": {"a": _dep(requests={"cpu": "100m"})},
+            "autoscalers": {
+                "a": {
+                    "min": 0,
+                    "max": 5,
+                    "triggers": [{"type": "cron", "metadata": {}}]
+                }
+            }
+        },
+        {"routes": {"a": "/a"}},
+        {"a": {"hpa": {"min": 0, "max": 5}}},
+        autoscaler_engine="keda"
+    );
+    assert not any(d.severity == "error" and "HPA min=0" in d.message for d in diags);
+}
+
+
+test "validate: plain HPA engine with min=0 still errors" {
+    diags = _validate(
+        {"deployments": {"a": _dep(requests={"cpu": "100m"})}, "autoscalers": {}},
+        {"routes": {"a": "/a"}},
+        {"a": {"hpa": {"min": 0, "max": 5}}},
+        autoscaler_engine="hpa"
+    );
+    assert any(d.severity == "error" and "HPA min=0" in d.message for d in diags);
+}
+
+
+test "validate: KEDA min=0 with no triggers still errors" {
+    diags = _validate(
+        {
+            "deployments": {"a": _dep(requests={"cpu": "100m"})},
+            "autoscalers": {"a": {"min": 0, "max": 5, "triggers": []}}
+        },
+        {"routes": {"a": "/a"}},
+        {"a": {"hpa": {"min": 0, "max": 5}}},
+        autoscaler_engine="keda"
+    );
+    assert any(d.severity == "error" and "HPA min=0" in d.message for d in diags);
 }
 
 

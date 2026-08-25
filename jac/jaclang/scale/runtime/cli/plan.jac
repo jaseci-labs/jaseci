@@ -395,7 +395,8 @@ obj Plan {
         cluster_type: str,
         namespace: str,
         services: list[ServiceView],
-        ingress: IngressView | None;
+        ingress: IngressView | None,
+        autoscaler_engine: str = "hpa";
 
     static def from_target(target: Any, app_config: AppConfig) -> Plan {
         bundle_raw = target.generate_manifests(app_config);
@@ -459,6 +460,10 @@ obj Plan {
             );
         }
 
+        autoscaler_engine = str(
+            getattr(target.k8s_config, "autoscaler_engine", "hpa") or "hpa"
+        );
+
         return Plan(
             bundle=bundle,
             ms_cfg=ms_cfg,
@@ -466,7 +471,8 @@ obj Plan {
             cluster_type="(active kubectl context)",
             namespace=str(target.k8s_config.namespace),
             services=services,
-            ingress=IngressView.from_manifest(bundle.get("ingress"), routes)
+            ingress=IngressView.from_manifest(bundle.get("ingress"), routes),
+            autoscaler_engine=autoscaler_engine
         );
     }
 
@@ -492,7 +498,10 @@ obj Plan {
 
     def validate -> list[Diagnostic] {
         return PlanValidator(
-            bundle=self.bundle, ms_cfg=self.ms_cfg, svc_configs=self.svc_configs
+            bundle=self.bundle,
+            ms_cfg=self.ms_cfg,
+            svc_configs=self.svc_configs,
+            autoscaler_engine=self.autoscaler_engine
         ).run();
     }
 
