@@ -573,12 +573,39 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+      # This lane kept the death #8676 removed the crutches for: at auto on
+      # this swapless box the reroute-native chunk still spikes past the
+      # runner agent, which dies with "lost communication" and no step log
+      # (observed on every PR whose merge ref carries #8676). The lane runs
+      # only on PRs with core-but-not-native changes, so the removal's own
+      # PR never exercised it. Floor and cap restored for this one lane;
+      # JAC_TEST_RSS_LOG's per-file trail from a completed run is the path
+      # to retiring them again.
+      - name: Swap headroom for checked fixture compiles
+        run: |
+          set -euo pipefail
+          SWAP_DIR="$RUNNER_TEMP"
+          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
+          SIZE_GB=$(( AVAIL_GB - 25 ))
+          if [ "$SIZE_GB" -gt 16 ]; then
+            SIZE_GB=16
+          fi
+          if [ "$SIZE_GB" -lt 4 ]; then
+            echo "::warning::only ${AVAIL_GB}G free in $SWAP_DIR; running without extra swap"
+            exit 0
+          fi
+          SWAP_FILE="$SWAP_DIR/jac-test-swap"
+          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
+            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
+          sudo chmod 600 "$SWAP_FILE"
+          sudo mkswap "$SWAP_FILE"
+          sudo swapon "$SWAP_FILE"
       - name: Run ${{ matrix.chunk }} chunk
         working-directory: jac
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=2 jac test ${{ matrix.paths }}
 
   test-native-sealed:
     needs: [changes, build-kit]
