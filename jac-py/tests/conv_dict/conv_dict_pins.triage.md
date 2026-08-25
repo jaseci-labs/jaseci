@@ -2,7 +2,7 @@
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_dict.py
 - guest leg: 0/75 marks
-- pins: **49 passed** / 75 run (+17 quarantined of 92 extracted)
+- pins: **50 passed** / 75 run (+17 quarantined of 92 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -36,7 +36,7 @@
 | DictTest.test_mutating_iteration_delete | PASS | |
 | DictTest.test_mutating_iteration_delete_over_values | PASS | |
 | DictTest.test_mutating_iteration_delete_over_items | PASS | |
-| DictTest.test_mutating_lookup | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {}, {<**main**.NastyKey object at 0x7fd5cb7478d0>: 2})"'> |
+| DictTest.test_mutating_lookup | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {}, {<**main**.NastyKey object at 0x7f36528d07d0>: 2})"'> |
 | DictTest.test_repr | PASS | |
 | DictTest.test_eq | PASS | |
 | DictTest.test_keys_contained | PASS | |
@@ -49,12 +49,12 @@
 | DictTest.test_resize1 | PASS | |
 | DictTest.test_resize2 | PASS | |
 | DictTest.test_empty_presized_dict_in_freelist | PASS | |
-| DictTest.test_container_iterator | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <**main**.C object at 0x7fd5cb7a4150>, None)"'> |
-| DictTest.test_iterator_pickling | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5cb84b110>"'> |
-| DictTest.test_itemiterator_pickling | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5ccccbab0>"'> |
-| DictTest.test_valuesiterator_pickling | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5ccccb110>"'> |
+| DictTest.test_container_iterator | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <**main**.C object at 0x7f3652ed1a50>, None)"'> |
+| DictTest.test_iterator_pickling | GUEST-WRONG-OUTPUT | RUN<"AttributeError: module 'builtins' has no attribute 'PicklingError'"> |
+| DictTest.test_itemiterator_pickling | GUEST-WRONG-OUTPUT | RUN<"AttributeError: module 'builtins' has no attribute 'PicklingError'"> |
+| DictTest.test_valuesiterator_pickling | GUEST-WRONG-OUTPUT | RUN<"AttributeError: module 'builtins' has no attribute 'PicklingError'"> |
 | DictTest.test_reverseiterator_pickling | PASS | |
-| DictTest.test_reverseitemiterator_pickling | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'abc'"> |
+| DictTest.test_reverseitemiterator_pickling | PASS | |
 | DictTest.test_reversevaluesiterator_pickling | PASS | |
 | DictTest.test_instance_dict_getattr_str_subclass | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError ''"> |
 | DictTest.test_object_set_item_single_instance_non_str_key | PASS | |
@@ -114,7 +114,7 @@
 ### DictTest.test_container_iterator (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <**main**.C object at 0x7fd5cb7a4150>, None)"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <**main**.C object at 0x7f3652ed1a50>, None)"'>
 
 ### DictTest.test_copy_fuzz (GUEST-WRONG-OUTPUT)
 
@@ -149,7 +149,7 @@
 ### DictTest.test_itemiterator_pickling (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5ccccbab0>"'>
+- got: RUN<"AttributeError: module 'builtins' has no attribute 'PicklingError'">
 
 ### DictTest.test_items_symmetric_difference (GUEST-WRONG-OUTPUT)
 
@@ -159,7 +159,7 @@
 ### DictTest.test_iterator_pickling (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5cb84b110>"'>
+- got: RUN<"AttributeError: module 'builtins' has no attribute 'PicklingError'">
 
 ### DictTest.test_literal_constructor (GUEST-WRONG-OUTPUT)
 
@@ -174,7 +174,7 @@
 ### DictTest.test_mutating_lookup (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {}, {<**main**.NastyKey object at 0x7fd5cb7478d0>: 2})"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {}, {<**main**.NastyKey object at 0x7f36528d07d0>: 2})"'>
 
 ### DictTest.test_overwrite_managed_dict (GUEST-WRONG-OUTPUT)
 
@@ -185,11 +185,6 @@
 
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC KeyError '<unhashable>'">
-
-### DictTest.test_reverseitemiterator_pickling (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: GOT<"ORACLE_EXC AttributeError 'abc'">
 
 ### DictTest.test_setdefault (GUEST-WRONG-OUTPUT)
 
@@ -229,7 +224,7 @@
 ### DictTest.test_valuesiterator_pickling (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5ccccb110>"'>
+- got: RUN<"AttributeError: module 'builtins' has no attribute 'PicklingError'">
 
 ### DictTest.test_views_mapping (GUEST-WRONG-OUTPUT)
 

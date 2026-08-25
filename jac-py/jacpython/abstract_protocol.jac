@@ -56,6 +56,12 @@ def PyIter_Check(value: PyObj) -> bool {
 }
 
 def PyObject_GetIter(o: PyObj) -> PyObj {
+    # tp_iter self-return: iterator objects are their own iterator
+    # (CPython PyObject_GetIter). Covers the tags PyIter_Check knows plus
+    # the two-arg-iter callable wrapper.
+    if PyIter_Check(o) or o.t == "calliter" {
+        return o;
+    }
     res = o.tp_iter();
     if is_error(res) {
         # Host-exact wording: CPython quotes the operand's type name in the

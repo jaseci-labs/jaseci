@@ -42,7 +42,7 @@
 | TestBasic.test_roundtrip_iter_init | PASS | |
 | TestBasic.test_pickle | PASS | |
 | TestBasic.test_pickle_recursive | PASS | |
-| TestBasic.test_iterator_pickle | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f8553846820>"'> |
+| TestBasic.test_iterator_pickle | GUEST-WRONG-OUTPUT | RUN<"AttributeError: module 'builtins' has no attribute 'PicklingError'"> |
 | TestBasic.test_deepcopy | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertNotEqual\', [[10]], [[10]])"'> |
 | TestBasic.test_copy | GUEST-WRONG-OUTPUT | RUN<"AttributeError: 'super' object has no attribute 'seed'"> |
 | TestBasic.test_copy_method | PASS | |
@@ -120,7 +120,7 @@
 ### TestBasic.test_iterator_pickle (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f8553846820>"'>
+- got: RUN<"AttributeError: module 'builtins' has no attribute 'PicklingError'">
 
 ### TestBasic.test_repr (GUEST-WRONG-OUTPUT)
 

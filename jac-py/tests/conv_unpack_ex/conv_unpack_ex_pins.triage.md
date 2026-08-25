@@ -6,7 +6,7 @@
 
 | pin | result | got |
 |---|---|---|
-| unpack_ex.doctests:doctests | GUEST-WRONG-OUTPUT | RUN<"TypeError: 'CrazyDict' object is not a mapping"> |
+| unpack_ex.doctests:doctests | GUEST-WRONG-OUTPUT | RUN<'AssertionError: '> |
 
 ## Quarantined at conversion
 
@@ -26,4 +26,4 @@
 ### unpack_ex.doctests:doctests (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: RUN<"TypeError: 'CrazyDict' object is not a mapping">
+- got: RUN<'AssertionError: '>
