@@ -32,6 +32,7 @@ import from jaclang.compiler.frontend.constant {
     SymbolType
 }
 import from jaclang.compiler.frontend.diagnostics { E5082, E5084, W6006, W6007 }
+import from jaclang.compiler.types.types { TypeCategory }
 import from jaclang.compiler.driver.boundary_classify {
     ClientImportVerdict,
     classify_client_import_item,
@@ -293,6 +294,20 @@ def collect_method_names(arch: Archetype) -> set[str] {
     return names;
 }
 
+def _is_host_stub_symbol(sym: Symbol) -> bool {
+    scope: (UniScopeNode | None) = sym.parent_tab;
+    while scope is not None {
+        if isinstance(scope, Module) {
+            if scope.stub_only {
+                return True;
+            }
+            return scope.source.file_path.endswith(".pyi");
+        }
+        scope = scope.parent_scope;
+    }
+    return False;
+}
+
 def _client_bare_call_target_kind(nd: FuncCall) -> (str | None) {
     if not nd.in_client_context() {
         return None;
@@ -309,6 +324,17 @@ def _client_bare_call_target_kind(nd: FuncCall) -> (str | None) {
     target_type = nd.target.type;
     if target_type is not None and target_type.is_instantiable_class() {
         return "constructible";
+    }
+    if (
+        nd.target.sym is not None
+        and _is_host_stub_symbol(nd.target.sym)
+        and target_type is not None
+        and target_type.category in (TypeCategory.Function, TypeCategory.Overload)
+    ) {
+        # Host builtins declared in stubs (typeshed builtins like `sorted`, or
+        # js_globals.pyi functions) are callable; the JS lowering already
+        # carries their keyword arguments, so they are not kwarg-rejected.
+        return None;
     }
     if nd.target.sym is None {
         return "unresolved";
