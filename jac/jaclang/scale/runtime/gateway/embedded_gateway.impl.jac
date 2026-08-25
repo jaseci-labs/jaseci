@@ -145,7 +145,7 @@ impl EmbeddedGateway.serve(on_ready: any = None) -> None {
         self.setup();
     }
     import from functools { partial }
-    import from jaclang.runtimelib.serving.server { ServingServer, PORT_RETRY_LIMIT }
+    import from jaclang.server.serving.server { ServingServer, PORT_RETRY_LIMIT }
     import from jaclang.scale.config.config_loader { get_scale_config }
     pinned = bool(
         get_scale_config().get_microservices_config().get("gateway_port_pinned", False)

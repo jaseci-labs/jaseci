@@ -10,7 +10,7 @@ import time;
 import uuid;
 import shutil;
 import requests;
-import from jaclang.runtimelib.serving.authcrypt {
+import from jaclang.server.serving.authcrypt {
     jwt_decode as _jwt_decode,
     jwt_encode as _jwt_encode
 }
@@ -1198,7 +1198,7 @@ test "user management operations" {
 }
 
 test "websocket functionality" {
-    import from jaclang.runtimelib.serving.client { aws_connect }
+    import from jaclang.server.serving.client { aws_connect }
     sp = setup_serve_server();
     try {
         async def test_echo {
@@ -1844,7 +1844,7 @@ test "dev mode named endpoints and HMR refresh" {
 }
 
 import from jaclang.scale.server.serve { _get_network_ips }
-import from jaclang.runtimelib.net {
+import from jaclang.server.net {
     find_available_port as _find_available_port,
     PortInUseError,
     PORT_RETRY_LIMIT,
@@ -2128,7 +2128,7 @@ test "health check filter is disabled by default" {
 test "health check filter suppresses health endpoint log records" {
     import logging;
     import from jaclang.scale.server.native_server { HealthCheckFilter }
-    import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME }
+    import from jaclang.server.serving.server { ACCESS_LOGGER_NAME }
 
     def make_record(msg: str) -> logging.LogRecord {
         return logging.LogRecord(
@@ -2174,7 +2174,7 @@ test "health check filter suppresses health endpoint log records" {
 test "health check filter blocks records when attached to a handler" {
     import logging;
     import from jaclang.scale.server.native_server { HealthCheckFilter }
-    import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME }
+    import from jaclang.server.serving.server { ACCESS_LOGGER_NAME }
 
     class _CapturingHandler(logging.Handler) {
         has captured: list = [];

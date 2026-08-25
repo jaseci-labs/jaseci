@@ -24,11 +24,11 @@ import subprocess;
 import sys;
 import from pathlib { Path }
 import jaclang;
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
-import from jaclang.jac0core.codeinfo { native_safe_sym }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.estree { Node as EsNode }
+import from jaclang.compiler.frontend.codeinfo { native_safe_sym }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = str(
          Path(jaclang.__file__).parent / "compiler" / "tests" / "fixtures"
@@ -85,7 +85,7 @@ def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
 """The server lane's API encoder, which is what a walker response travels
 through: Serializer in api_mode applies the wire rule, json.dumps writes it."""
 def encode_py_wire(value: any) -> str {
-    import from jaclang.runtimelib.serializer { Serializer }
+    import from jaclang.data.serializer { Serializer }
     return json.dumps(Serializer.serialize(value, api_mode=True), sort_keys=True);
 }
 
@@ -93,7 +93,7 @@ def encode_py_wire(value: any) -> str {
 # ES (ECMAScript / JavaScript) helpers
 # -----------------------------------------------------------------------
 def compile_fixture_to_js(fixture_name: str) -> str {
-    import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+    import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
     fixture_path = os.path.join(FIXTURES, fixture_name);
     prog = JacProgram();
     # EsastGenPass consumes core call facts (call_kind/

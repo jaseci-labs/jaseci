@@ -1,4 +1,4 @@
-import from jaclang.runtimelib.utils { release_arch, host_arch, triple_arch }
+import from jaclang.runtime.graph_utils { release_arch, host_arch, triple_arch }
 
 
 test "release_arch normalizes GOARCH aliases to release names" {

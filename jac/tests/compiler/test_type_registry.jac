@@ -259,14 +259,14 @@ test "the sized names, widths and signedness are defined in one table only" {
     # runtime's `__all__` is an export manifest, not a type list: the parity
     # test pins it to the checker stub and the emitter registry.
     owners = {
-        "jac0core/scalars.jac",
-        "runtimelib/builtin.jac",
-        "jac0core/constant.jac",
-        "jac0core/parser/tokens.jac",
-        "jac0core/parser/parser.jac",
-        "jac0core/parser/impl/parser.impl.jac",
-        "jac0core/parser/seed_lexer.jac",
-        "jac0core/parser/jac_lexer.jac"
+        "runtime/scalars.jac",
+        "runtime/builtin.jac",
+        "compiler/frontend/constant.jac",
+        "compiler/frontend/parser/tokens.jac",
+        "compiler/frontend/parser/parser.jac",
+        "compiler/frontend/parser/impl/parser.impl.jac",
+        "compiler/frontend/parser/seed_lexer.jac",
+        "compiler/frontend/parser/jac_lexer.jac"
     };
     # The unsigned spellings above eight bits can only ever be a language-type
     # name: LLVM spells widths as iN, `list_types["u8"]` is the native

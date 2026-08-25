@@ -49,7 +49,6 @@ test "cfg_build_pass opens file with utf-8" {
         / "jaclang"
         / "compiler"
         / "passes"
-        / "main"
         / "impl"
         / "cfg_build_pass.impl.jac";
     if source_file.exists() {

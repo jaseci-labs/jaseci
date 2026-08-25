@@ -24,7 +24,7 @@ import from jaclang.scale.injector.binary {
     download_release_binary,
     stage_admin_dist
 }
-import from jaclang.runtimelib.utils { host_arch }
+import from jaclang.runtime.graph_utils { host_arch }
 import from jaclang.scale.injector.binary_injector { BinaryInjector }
 import from jaclang.scale.injector.bundle { TOOLCHAIN_SUBDIR }
 import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {

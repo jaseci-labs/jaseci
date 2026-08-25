@@ -9,7 +9,7 @@ import from jaclang.scale._optdeps.apscheduler {
     HAS_APSCHEDULER
 }
 import from jaclang.scale.config.config_loader { get_scale_config }
-import from jaclang.runtimelib.scheduler { Scheduler, ScheduleTrigger }
+import from jaclang.server.task_scheduler { Scheduler, ScheduleTrigger }
 import from jaclang.scale.persistence.pg { open_docs_store }
 
 glob _jaclang_scale_scheduler: (JacScaleScheduler | None) = None,

@@ -1777,8 +1777,8 @@ To test cross-service behavior without real network I/O, wire each provider up a
 `JacTestClient.from_file` (see [Testing -> JacTestClient](../testing.md#jactestclient)) builds a whole service in-process from its `.jac` file:
 
 ```jac
-import from jaclang.runtimelib { sv_client }
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.server { sv_client }
+import from jaclang.testing.testing { JacTestClient }
 
 test "consumer reaches provider" {
     sv_client.clear_test_clients();
@@ -1802,7 +1802,7 @@ Always call `sv_client.clear_test_clients()` between tests to avoid bleed-over f
 
 ### sv_client API Reference
 
-`jaclang.runtimelib.sv_client` exposes a small control surface for telling the runtime where to find providers. You rarely need it under normal use -- `JAC_SV_<MODULE>_URL` covers most production wiring, and automatic startup covers single-host setups. Reach for these functions when you are writing tests or a custom orchestrator.
+`jaclang.server.sv_client` exposes a small control surface for telling the runtime where to find providers. You rarely need it under normal use -- `JAC_SV_<MODULE>_URL` covers most production wiring, and automatic startup covers single-host setups. Reach for these functions when you are writing tests or a custom orchestrator.
 
 | Function | Purpose |
 |---|---|

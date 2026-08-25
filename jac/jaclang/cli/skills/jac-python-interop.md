@@ -105,7 +105,7 @@ Library-mode basics: archetypes subclass `Node` / `Edge` / `Walker` / `Obj`, abi
 - **Entry scripts can't use `..` relative imports.** A file run directly with `jac run` is a top-level script, so `import from ..lib { helper }` inside it fails with `attempted relative import with no known parent package`. Use relative imports *between* package modules; from the entry script, import by absolute path.
 - **`import:py` does not exist** - plain `import numpy as np;` is the Python-import syntax. See `jac-core-cheatsheet`.
 - Brace imports take no trailing `;` (`import from x { y }`); module imports do (`import x;`).
-- Don't reach into `jaclang.jac0core.jaclib` (what generated code uses internally) - the public, stable surface is `jaclang.lib`.
+- Don't reach into `jaclang.lib.jaclib` (what generated code uses internally) - the public, stable surface is `jaclang.lib`.
 - In native code the rules differ - only a Python-congruent stdlib subset is available and unsupported imports fail at compile time; see `jac-native`.
 
 ## See also
