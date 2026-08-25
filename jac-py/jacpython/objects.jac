@@ -2939,7 +2939,7 @@ obj ExcSetStateFn(PyObj) {
         state = args[0] as PyDict;
         rest: list[tuple[str, PyObj]] = [];
         for skey in state.items {
-            sval = state.items[skey];
+            sval = state.items[skey].value;
             if isinstance(skey, PyStr) {
                 if (skey as PyStr).val == "args" {
                     set = self.exc.tp_setattro("args", sval);
