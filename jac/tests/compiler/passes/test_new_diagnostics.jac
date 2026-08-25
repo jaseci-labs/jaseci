@@ -209,7 +209,7 @@ test "E0001: bare tuple target in for loop names the parenthesized form" {
     assert has_diagnostic_code(prog, "E0001");
     assert count_diagnostic_code(prog, "E0001") == 1;
 
-    def paren_help() -> (str | None) {
+    def paren_help -> (str | None) {
         for a in prog.errors_had {
             if "parenthesized" in a.msg {
                 return a.help_text;
@@ -227,7 +227,7 @@ test "E0001: bare tuple target in comprehension names the parenthesized form" {
     );
     assert has_diagnostic_code(prog, "E0001");
 
-    def paren_help() -> (str | None) {
+    def paren_help -> (str | None) {
         for a in prog.errors_had {
             if "parenthesized" in a.msg {
                 return a.help_text;
