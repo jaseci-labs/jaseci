@@ -8,10 +8,9 @@ import from jaclang.jac0core.constant {
     TYPE_PARAM_CONSTRUCTORS
 }
 import from jaclang.jac0core.srcloc { CodeLocInfo }
-import type from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
 import type from jaclang.compiler.passes.ecmascript.estree { IndexInfo, SliceInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
-import type from jaclang.jac0core.unitree { Ability, CommentToken, UniNode }
+import type from jaclang.jac0core.unitree { CommentToken }
 import type from jaclang.compiler.passes.tool.doc_ir { Doc }
 import type from jaclang.jac0core.unitree { Source, Token }
 import type from jaclang.jac0core.osp_model { OspModel }
@@ -601,15 +600,6 @@ obj NodeComments {
         indent_trailing_own: bool = False;
 }
 
-obj GraphMendFacts {
-    has breaks: dict[(UniNode, GraphBreakKind)] = field(default_factory=`dict),
-        boundary: dict[(Ability, Ability)] = field(default_factory=`dict),
-        helpers: set[GraphMendHelper] = field(default_factory=`set),
-        noop: bool = False,
-        wrapped_keys: set[str] = field(default_factory=`set),
-        covered_by: dict[(str, str)] = field(default_factory=`dict);
-}
-
 obj CodeGenTarget {
     has py: str = '',
         jac: str = '',
@@ -637,7 +627,7 @@ obj CodeGenTarget {
         _clib_symbol_lib: dict[(str, str)] = field(default_factory=`dict),
         _exported_symbols: list[str] = field(default_factory=`list),
         doc_comments: (NodeComments | None) = None,
-        graphmend_facts: (GraphMendFacts | None) = None;
+        graphmend_facts: any = None;
 
     has doc_ir: Doc { getter; setter(value: Doc); }
     has client_manifest: ClientManifest { getter; setter(value: ClientManifest); }

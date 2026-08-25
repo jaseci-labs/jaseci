@@ -1,6 +1,15 @@
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.codeinfo { GraphMendFacts }
-import from jaclang.jac0core.constant { GraphMendHelper }
+import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
+import type from jaclang.jac0core.unitree { Ability, UniNode }
+
+obj GraphMendFacts {
+    has breaks: dict[(UniNode, GraphBreakKind)] = {},
+        boundary: dict[(Ability, Ability)] = {},
+        helpers: set[GraphMendHelper] = set(),
+        noop: bool = False,
+        wrapped_keys: set[str] = set(),
+        covered_by: dict[(str, str)] = {};
+}
 
 def facts_for(nd: uni.UniNode) -> GraphMendFacts {
     mod: (uni.Module | None) = None;
