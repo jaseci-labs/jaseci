@@ -7,7 +7,7 @@ This tutorial walks you through shipping an existing Jac full-stack app as a nat
 
 > **Prerequisites**
 >
-> - Completed: [Project Setup](setup.md) -- you have a working `jac start` web app
+> - Completed: [Project Setup](setup.md) -- you have a working `jac run` web app
 > - Node.js is **not** required -- all JS tooling runs on the Bun runtime bundled with `jac`
 > - **Android**: Java/JDK 21+, Android SDK (via [Android Studio](https://developer.android.com/studio))
 > - **iOS** (macOS only): Xcode, Xcode Command Line Tools, [CocoaPods](https://cocoapods.org/)
@@ -75,7 +75,7 @@ app_id = "com.example.myapp"
 | `app_id` | Reverse-DNS identifier (used by both app stores) | `com.jac.app` |
 | `release` | Build release variant instead of debug | `false` |
 | `bundle` | Produce AAB (Android App Bundle) instead of APK | `false` |
-| `default_platform` | Default platform for `jac start --client mobile` | `android` |
+| `default_platform` | Default platform for `jac run --client mobile` | `android` |
 | `ios_sdk` | Xcode SDK for iOS builds | `iphonesimulator` |
 | `ios_destination` | Xcode destination string | `platform=iOS Simulator,name=iPhone 16,OS=latest` |
 
@@ -90,7 +90,7 @@ These values feed into `capacitor.config.json` and the native build commands aut
 Build the web bundle, sync it into the Android project, and launch on a connected device or emulator:
 
 ```bash
-jac start main.jac --client mobile
+jac run --client mobile main.jac
 ```
 
 This runs `cap sync android` followed by `cap run android`.
@@ -98,7 +98,7 @@ This runs `cap sync android` followed by `cap run android`.
 If you need to force a specific host/IP for live reload, use:
 
 ```bash
-jac start main.jac --client mobile --dev --host 192.168.1.25
+jac run --client mobile --dev --host 192.168.1.25 main.jac
 ```
 
 jac-client auto-attempts `adb reverse` for the Vite and API ports before launching Capacitor on Android, so manual `adb reverse` is usually not required.
@@ -138,7 +138,7 @@ android/app/build/outputs/apk/release/app-release.apk
 ### Dev Loop
 
 ```bash
-jac start main.jac --client mobile --platform ios
+jac run --client mobile --platform ios main.jac
 ```
 
 This syncs the web bundle and opens the project on the iOS Simulator via `cap run ios`.
@@ -193,23 +193,23 @@ npx cap sync
 
 ### Mobile Dev Networking
 
-When using `jac start ... --client mobile --dev`, jac-client auto-selects a reachable host by default:
+When using `jac run --client mobile --dev ...`, jac-client auto-selects a reachable host by default:
 
 ```bash
 # Auto host selection (recommended)
-jac start main.jac --client mobile --dev
+jac run --client mobile --dev main.jac
 ```
 
 Override host selection only when needed:
 
 ```bash
-jac start main.jac --client mobile --dev --host 192.168.1.25
+jac run --client mobile --dev --host 192.168.1.25 main.jac
 ```
 
 You can still force iOS or Android in dev with:
 
 ```bash
-jac start main.jac --client mobile --dev --platform ios
+jac run --client mobile --dev --platform ios main.jac
 ```
 
 ### Debugging
@@ -221,7 +221,7 @@ jac start main.jac --client mobile --dev --platform ios
 
 If mobile dev starts but the app does not load correctly:
 
-1. Check `jac start` output for selected host and Vite port.
+1. Check `jac run` output for selected host and Vite port.
 2. If needed, set an explicit host with `--host <ip>`.
 3. Confirm `adb devices` shows your Android target as authorized.
 4. If port forwarding fails, run manual fallback:
@@ -313,7 +313,7 @@ The same source builds for web (`jac build`) and native (`jac build --client rea
 ### Development
 
 ```bash
-jac start main.jac --client react-native --dev
+jac run --client react-native --dev main.jac
 ```
 
 This launches the Jac backend, compiles `.jac` to JS, and runs `expo start` on the bundled Bun. Metro serves both platforms -- pick the device in the Expo CLI (press `a` for Android, `i` for the iOS simulator) or scan the QR code in Expo Go. Editing a `.jac` file recompiles and Metro Fast Refreshes the device. Dev networking is auto-resolved (LAN IPv4 > `127.0.0.1`, override with `JAC_RN_DEV_HOST`); Metro defaults to port `8081` (`JAC_RN_METRO_PORT`); `adb reverse` is auto-attempted for Android.

@@ -31,7 +31,7 @@ A simple Jac-based Streamlit application for AI-powered code generation with tas
    cd <repo>/jac-byllm
 
    # Start the backend API server
-   jac start genius_lite.jac
+   jac run genius_lite.jac
    ```
 
 3. **Open your browser** to `http://localhost:8501`

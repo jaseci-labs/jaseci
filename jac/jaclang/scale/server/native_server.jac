@@ -1,7 +1,7 @@
 import logging;
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.endpoint { JEndPoint, WSEndPoint }
-import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME, ServingServer }
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.endpoint { JEndPoint, WSEndPoint }
+import from jaclang.server.serving.server { ACCESS_LOGGER_NAME, ServingServer }
 
 
 glob logger: logging.Logger = logging.getLogger(__name__),
@@ -57,7 +57,7 @@ obj NativeJServer {
         _prebound_listen_socket: any = None;
 
     def postinit {
-        import from jaclang.jac0core.runtime { JacRuntime }
+        import from jaclang.runtime.runtime { JacRuntime }
         import from jaclang.scale.runtime.lifecycle.drain { build_drain_middleware }
         server = self;
 

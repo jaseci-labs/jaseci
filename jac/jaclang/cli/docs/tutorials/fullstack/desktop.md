@@ -12,12 +12,12 @@ macOS, WebView2 on Windows) or Chromium Embedded Framework (CEF).
     `jac build --client desktop` produces a working, self-contained desktop
     binary that renders your `cl` UI and runs `sv` walkers/functions
     **in-process** on the embedded interpreter, with full HMR dev mode via
-    `jac start --client desktop --dev`. Only per-OS installers/code-signing
+    `jac run --client desktop --dev`. Only per-OS installers/code-signing
     remain open - see [issue #6436](https://github.com/jaseci-labs/jaseci/issues/6436).
 
 > **Prerequisites**
 >
-> - Completed: [Project Setup](setup.md) - you have a working `jac start` web app
+> - Completed: [Project Setup](setup.md) - you have a working `jac run` web app
 > - The full-stack client and desktop framework ships with `jaclang` core -- nothing extra to install
 > - On Linux, the WebKitGTK system libraries: a bundled helper script offers to
 >   install them on first build. To install them manually on Debian/Ubuntu:
@@ -93,13 +93,13 @@ runtime and staged bundle.
 ## 3. Run it
 
 ```bash
-jac start --client desktop      # builds (if needed) and launches the window
+jac run --client desktop        # builds (if needed) and launches the window
 ```
 
 For the CEF renderer:
 
 ```bash
-jac start --client cef
+jac run --client cef
 ```
 
 Or run the built binary directly:

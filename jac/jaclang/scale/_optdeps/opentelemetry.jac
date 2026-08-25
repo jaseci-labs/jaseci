@@ -31,7 +31,7 @@ with entry {
         TraceIdRatioBased = None;
         OTLPSpanExporter = None;
 
-        IdGenerator = object;
+        class IdGenerator {}
         HAS_OTEL = False;
     }
 }

@@ -10,7 +10,7 @@ import from jaclang.cli.manifest {
 glob FEATURE_MODULES: list[str] = [
          "jaclang.byllm.cli",
          "jaclang.cli.shadcn.cli",
-         "jaclang.runtimelib.client.cli",
+         "jaclang.client.cli",
          "jaclang.scale.plugin",
 
      ],
@@ -339,9 +339,16 @@ def _handwritten_tail(src: str) -> str {
 }
 
 def generate -> str {
+    banner = (
+        "# Auto-generated CLI command routes.\n"
+        + "# DO NOT EDIT MANUALLY - regenerate with `jac gen-cli-manifest`.\n"
+        + "# Only the routes are generated; the section from the _COMMANDS"
+        + " declaration\n"
+        + "# down is hand-written and preserved by the generator.\n"
+    );
     body = generate_body();
     routes = "def _command_routes -> list[CommandMeta] {\n" + body + "\n}\n\n";
-    return routes + _handwritten_tail(_read_current());
+    return banner + routes + _handwritten_tail(_read_current());
 }
 
 def _dataclass_field_names(typ: type) -> list[str] {

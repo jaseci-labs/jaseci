@@ -21,20 +21,18 @@ Two uses:
 
 The entry contract, verbatim:
 
-    entry(source_str, file_path, prog, claimed, facts)
+    entry(source_str, file_path, prog, claimed, facts, annexes)
         -> (module, had_error, executed, clause, detail)
 
 `executed` is a prefix of `claimed`, possibly empty; short means declined and
 `clause`/`detail` name why.
 """
 
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compiler {
-    get_ir_gen_sched,
-    get_symtab_ir_sched,
-    run_pass
-}
-import from jaclang.jac0core.parser { parse as rd_parse }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.schedules { get_ir_gen_sched, get_symtab_ir_sched }
+import from jaclang.compiler.driver.pass_driver { run_pass }
+import from jaclang.compiler.frontend.parser { parse as rd_parse }
+import from jaclang.compiler.passes.annex_weave { merge_annex_into }
 
 glob PERTURBED_LITERAL: str = "__prefix_divergence_marker__";
 
@@ -72,11 +70,20 @@ def apply_prefix_facts(mod: any, facts: any) {
 }
 
 def reference_prefix_entry(
-    source_str: str, file_path: str, prog: any, claimed: tuple[str], facts: any
+    source_str: str,
+    file_path: str,
+    prog: any,
+    claimed: tuple[str],
+    facts: any,
+    annexes: list[tuple[str, str]] = []
 ) -> tuple[any] {
     (mod, had_error) = rd_parse(source_str, file_path, prog=prog);
     if had_error {
         return (mod, had_error, (), "prefix-declined", "the source did not parse");
+    }
+    for (a_src, a_path) in annexes {
+        (a_mod, _a_err) = rd_parse(a_src, a_path, prog=prog);
+        merge_annex_into(mod, a_mod);
     }
     apply_prefix_facts(mod, facts);
     comp = prog._get_compiler();
@@ -113,7 +120,12 @@ staged schedule -- so the only difference between the two routes is the one
 perturbed literal. That isolates the harness's detector: a green run here
 means the harness is blind."""
 def diverging_prefix_entry(
-    source_str: str, file_path: str, prog: any, claimed: tuple[str], facts: any
+    source_str: str,
+    file_path: str,
+    prog: any,
+    claimed: tuple[str],
+    facts: any,
+    annexes: list[tuple[str, str]] = []
 ) -> tuple[any] {
     (mod, had_error) = rd_parse(source_str, file_path, prog=prog);
     apply_prefix_facts(mod, facts);
@@ -129,7 +141,12 @@ def diverging_prefix_entry(
 must refuse this loudly: it means the crossing ran something the driver never
 scheduled."""
 def lying_prefix_entry(
-    source_str: str, file_path: str, prog: any, claimed: tuple[str], facts: any
+    source_str: str,
+    file_path: str,
+    prog: any,
+    claimed: tuple[str],
+    facts: any,
+    annexes: list[tuple[str, str]] = []
 ) -> tuple[any] {
     (mod, had_error) = rd_parse(source_str, file_path, prog=prog);
     return (mod, had_error, ("NoSuchPass", ), "", "");
@@ -138,7 +155,12 @@ def lying_prefix_entry(
 """A prefix that raises. The driver must count it as crossing-error and still
 return a usable module from the staged route."""
 def exploding_prefix_entry(
-    source_str: str, file_path: str, prog: any, claimed: tuple[str], facts: any
+    source_str: str,
+    file_path: str,
+    prog: any,
+    claimed: tuple[str],
+    facts: any,
+    annexes: list[tuple[str, str]] = []
 ) -> tuple[any] {
     raise RuntimeError("the crossing exploded");
 }

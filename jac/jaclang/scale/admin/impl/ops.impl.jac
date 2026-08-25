@@ -2,9 +2,9 @@ import os;
 import asyncio;
 import logging;
 import time;
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { JSONResponse }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -221,7 +221,7 @@ def _mask_uri(uri: str) -> str {
 
 
 async def _http_ready(base: str, path: str) -> bool {
-    import from jaclang.runtimelib.serving.client { arequest }
+    import from jaclang.server.serving.client { arequest }
     url = base.rstrip("/") + path;
     try {
         resp = await arequest("GET", url, timeout=_PROBE_TIMEOUT_S);
@@ -234,7 +234,7 @@ async def _http_ready(base: str, path: str) -> bool {
 
 
 async def _tempo_recent_count -> int {
-    import from jaclang.runtimelib.serving.client { arequest }
+    import from jaclang.server.serving.client { arequest }
     base = _tempo_base_url();
     now_s = int(time.time());
     params = {"q": "{ }", "limit": "1", "start": str(now_s - 300), "end": str(now_s)};
@@ -257,7 +257,7 @@ async def _tempo_recent_count -> int {
 
 
 async def _loki_recent_count -> int {
-    import from jaclang.runtimelib.serving.client { arequest }
+    import from jaclang.server.serving.client { arequest }
     base = _loki_base_url();
     ns = _app_namespace();
     selector = f'{{namespace="{ns}"}}' if ns else '{namespace=~".+"}';

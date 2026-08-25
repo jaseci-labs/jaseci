@@ -1,6 +1,6 @@
 """Focused tests for V-03 endpoints/ingress/PVC pure reshape helpers."""
 
-import from jaclang.runtimelib.serving.endpoint { HTTPMethod }
+import from jaclang.server.serving.endpoint { HTTPMethod }
 import from jaclang.scale.server.native_server { NativeJServer }
 import from jaclang.scale.admin.network { JacAPIServerNetwork }
 import from jaclang.scale.admin.network {

@@ -8,8 +8,8 @@ import from dataclasses { dataclass }
 import from types { TracebackType }
 import unittest.mock;
 
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse, RedirectResponse }
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { JSONResponse, RedirectResponse }
 
 import from jaclang.scale.config.config_loader { reset_scale_config }
 import from jaclang.scale.shared.utils { is_safe_loopback_redirect }
@@ -19,7 +19,7 @@ import from jaclang.scale.sso.github { GithubSSOProvider }
 import from jaclang.scale.server.serve { JacAPIServer }
 import from jaclang.scale.shared.enums { Platforms, Operations }
 import from jaclang.scale.identity.user_manager { JacScaleUserManager }
-import from jaclang.runtimelib.transport { TransportResponse }
+import from jaclang.server.transport { TransportResponse }
 
 def _as_any(v: any) -> any {
     return v;
@@ -85,7 +85,7 @@ obj MockUserInfo {
 
 """Build a Request carrying an OAuth callback code, as the provider sees it."""
 def _callback_request(code: str = "auth-code-123") -> Request {
-    import from jaclang.runtimelib.serving.datatypes { QueryParams, URL }
+    import from jaclang.server.serving.datatypes { QueryParams, URL }
     return Request(
         method="GET",
         url=URL(path="/sso/callback", query=f"code={code}"),
@@ -866,7 +866,7 @@ test "register sso endpoints" {
         "jaclang.scale.server.serve.get_scale_config", return_value=mock_config
     ) {
         with unittest.mock.patch(
-            "jaclang.jac0core.runtime.JacRuntimeInterface.get_user_manager",
+            "jaclang.runtime.runtime.JacRuntimeInterface.get_user_manager",
             return_value=mock_user_manager
         ) {
             server = JacAPIServer(module_name="test_module", port=8000);
@@ -896,7 +896,7 @@ def _setup_callback_wrapper_server(sso_config: dict) -> tuple {
         "jaclang.scale.server.serve.get_scale_config", return_value=mock_config
     ) {
         with unittest.mock.patch(
-            "jaclang.jac0core.runtime.JacRuntimeInterface.get_user_manager",
+            "jaclang.runtime.runtime.JacRuntimeInterface.get_user_manager",
             return_value=mock_user_manager
         ) {
             server = JacAPIServer(module_name="test_module", port=8000);
@@ -1190,7 +1190,7 @@ test "apple sso provider initiate auth" {
 }
 
 test "apple sso provider handle callback" {
-    import from jaclang.runtimelib.serving.authcrypt { jwt_encode }
+    import from jaclang.server.serving.authcrypt { jwt_encode }
     provider = AppleSSOProvider(
         client_id="id", client_secret="secret", redirect_uri="https://app/cb"
     );

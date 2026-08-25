@@ -1,6 +1,6 @@
 import from pathlib { Path }
 import from jaclang.project.config { JacConfig, find_project_root }
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.runtime { JacRuntime }
 
 impl deep_merge(base: dict[str, any], override_dict: dict[str, any]) -> dict[str, any] {
     result = base.copy();
