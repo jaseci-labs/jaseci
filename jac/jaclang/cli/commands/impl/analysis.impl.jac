@@ -1398,13 +1398,19 @@ def _iter_jac_files(
                 explicit.add(os.path.realpath(path));
             }
         } elif path_obj.is_dir() {
+            walked: list[str] = [];
             for jac_file in path_obj.`glob('**/*.jac') {
                 if not jac_file.is_file() {
                     continue;
                 }
                 if not _should_ignore(str(jac_file), ignore_list) {
-                    result.append(str(jac_file));
+                    walked.append(str(jac_file));
                 }
+            }
+            if _drop_git_ignored([str(path_obj)]) {
+                result.extend(_drop_git_ignored(walked));
+            } else {
+                result.extend(walked);
             }
         } else {
             console.error(f"'{path}' is not a .jac file or directory.");
@@ -1443,6 +1449,42 @@ def _normalize_ignore_patterns(ignore: list) -> list {
     import from jaclang.compiler.frontend.helpers { normalize_exclude_patterns }
     return normalize_exclude_patterns(ignore);
 }
+
+def _drop_git_ignored(paths: list[str]) -> list[str] {
+    import subprocess;
+    if not paths {
+        return paths;
+    }
+    try {
+        proc = subprocess.run(
+            ['git', 'check-ignore', '--stdin'],
+            input="\n".join(paths),
+            capture_output=True,
+            text=True,
+            check=False
+        );
+    } except (OSError, ValueError) {
+        return paths;
+    }
+
+    if proc.returncode not in (0, 1) {
+        return paths;
+    }
+    ignored = {
+        line
+        for line in proc.stdout.splitlines()
+        if line
+    };
+    if not ignored {
+        return paths;
+    }
+    return [
+        p
+        for p in paths
+        if p not in ignored
+    ];
+}
+
 
 def _should_ignore(file_path: str, ignore_patterns: list) -> bool {
     import from jaclang.compiler.frontend.helpers { path_matches_exclude }
