@@ -3,7 +3,7 @@ import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.codeinfo { HDR_TAG_OFF }
 import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E5092, E5095, E9001 }
+import from jaclang.jac0core.diagnostics { E5092, E9001 }
 import jaclang.jac0core.unitree as uni;
 import os;
 import from jaclang.compiler.type_system.types { ClassType, EnumMemberType, UnionType }
@@ -33,7 +33,6 @@ obj NaIRGenCalls(NaIRGenState) {
     def _callee_function(nd: uni.FuncCall, func_name: str) -> (ir.Function | None);
     def _nogc_owned_release_args(nd: uni.FuncCall, release_args: list) -> list;
     def _codegen_intrinsic(nd: uni.FuncCall, intr: object) -> (ir.Value | None);
-    def _emit_intrinsic_misuse(nd: uni.FuncCall, intr: object, reason: str) -> None;
     def _intrinsic_operand(
         nd: uni.FuncCall, intr: object, arg: uni.Expr, spec: str
     ) -> (ir.Value | None);

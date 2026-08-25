@@ -1436,32 +1436,6 @@ impl NaIRGenObjects._slot_function(arch_name: str, names: list[str]) -> tuple {
     return (None, slot, False, );
 }
 
-impl NaIRGenObjects._union_layout_conflict(members: list[str]) -> (str | None) {
-    if len(members) <= 1 {
-        return None;
-    }
-    base_lay = self._arch_layout(members[0]);
-    if base_lay is None {
-        return None;
-    }
-    base_types = self.struct_field_types.get(members[0], {});
-    for finfo in base_lay.fields {
-        fname = finfo.name;
-        for other in members[1:] {
-            other_lay = self._arch_layout(other);
-            if other_lay is None or fname not in other_lay.field_index {
-                continue;
-            }
-            other_types = self.struct_field_types.get(other, {});
-            if other_lay.field_index[fname] != finfo.index
-                or base_types.get(fname) != other_types.get(fname) {
-                return fname;
-            }
-        }
-    }
-    return None;
-}
-
 impl NaIRGenObjects._forward_declare_event_method(
     arch_name: str, method: uni.Ability
 ) -> None {
@@ -1543,18 +1517,6 @@ impl NaIRGenObjects._codegen_event_method(arch_name: str, method: uni.Ability) -
     self.builder.store(loc_arg, loc_alloca);
     self.local_vars[loc_name] = loc_alloca;
     self.param_vars.add(loc_name);
-    if sig.arch_tag_info is not None {
-        _members = self._trigger_struct_names(method);
-        _conflict = self._union_layout_conflict(_members);
-        if _conflict is not None {
-            self.emit(
-                E5091,
-                node_override=sig.arch_tag_info,
-                members=", ".join(_members),
-                field=_conflict
-            );
-        }
-    }
     body = ModuleCodegenPass.unwrap_body(method);
     if body is not None {
         self._codegen_body(body);

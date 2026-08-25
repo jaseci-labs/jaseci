@@ -261,6 +261,22 @@ impl TypeCheckPass._check_intrinsic_call(self: TypeCheckPass, nd: FuncCall) -> N
             name=intr.name,
             reason=f"expected {intr.arity()} argument(s), got {len(positional)}"
         );
+    } else {
+        for (_idx, _spec) in enumerate(intr.param_specs) {
+            _arg = positional[_idx];
+            if isinstance(_arg, Expr) and _arg.type is None {
+                self.evaluator.get_type_of_expression(_arg);
+            }
+            if not self._intrinsic_operand_fits(_arg) {
+                self.emit(
+                    E5095,
+                    node_override=nd,
+                    name=intr.name,
+                    reason=f"operand of type {_arg.narrowed_type
+                        or _arg.type} does not fit registered parameter type {_spec}"
+                );
+            }
+        }
     }
     if intr.result_spec in ("i64", "f64") {
         if self.evaluator.na_builtins_module is not None {
@@ -274,6 +290,20 @@ impl TypeCheckPass._check_intrinsic_call(self: TypeCheckPass, nd: FuncCall) -> N
     } else {
         nd.type = self.evaluator._convert_to_instance(self.evaluator.get_none_type());
     }
+}
+
+impl TypeCheckPass._intrinsic_operand_fits(self: TypeCheckPass, arg: Expr) -> bool {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+
+    ty = arg.narrowed_type or arg.type;
+    if ty is None or isinstance(ty, TypeVarType) {
+        return True;
+    }
+    if not isinstance(ty, ClassType) or ty._shared is None or not ty.is_instance() {
+        return False;
+    }
+    name = ty.shared.class_name;
+    return name == "bool" or JAC_TYPE_REGISTRY.numeric_kind_of(name) is not None;
 }
 
 impl TypeCheckPass._check_intrinsic_collision(

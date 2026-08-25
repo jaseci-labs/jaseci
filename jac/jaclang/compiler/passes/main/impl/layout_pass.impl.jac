@@ -50,6 +50,7 @@ impl LayoutPass.transform(ir_in: Module) -> Module {
     for name in self.registry.local_names {
         self._validate_obj_fields(arch_map[name]);
     }
+    self._validate_union_triggers(module);
 
     self.registry.complete = True;
     return ir_in;
@@ -918,6 +919,80 @@ impl LayoutPass._validate_obj_fields(arch: Archetype) -> None {
             );
         }
     }
+}
+
+impl LayoutPass._validate_union_triggers(module: Module) -> None {
+    """Report an event trigger union whose members disagree on a shared field.
+
+    A `with entry {A | B}` ability reads its visitor through one layout, so a
+    field the members place at different slots or hold at different types has
+    no single reachable offset. The backend used to notice this from the two
+    lowered struct types; the field indexes and their checker types are both
+    here, so the verdict is a layout fact.
+    """;
+    for ability in module.get_all_sub_nodes(Ability) {
+        sig = ability.signature;
+        if not isinstance(sig, EventSignature) or sig.arch_tag_info is None {
+            continue;
+        }
+        names = ability.event_trigger_type_names();
+        members: list[str] = [
+            nm
+            for nm in (names or [])
+            if self.registry.get_layout(nm) is not None
+        ];
+        conflict = self._union_field_conflict(members);
+        if conflict is not None {
+            self.emit(
+                E5091,
+                node_override=sig.arch_tag_info,
+                members=", ".join(members),
+                field=conflict
+            );
+        }
+    }
+}
+
+impl LayoutPass._union_field_conflict(members: list[str]) -> (str | None) {
+    if len(members) <= 1 {
+        return None;
+    }
+    base_lay = self.registry.get_layout(members[0]);
+    if base_lay is None {
+        return None;
+    }
+    for finfo in base_lay.fields {
+        fname = finfo.name;
+        for other in members[1:] {
+            other_lay = self.registry.get_layout(other);
+            if other_lay is None or fname not in other_lay.field_index {
+                continue;
+            }
+            other_field = self._field_named(other_lay, fname);
+            if other_lay.field_index[fname] != finfo.index
+                or other_field is None
+                or not self._same_field_type(finfo.type, other_field.type) {
+                return fname;
+            }
+        }
+    }
+    return None;
+}
+
+impl LayoutPass._field_named(lay: ArchetypeLayout, name: str) -> (FieldInfo | None) {
+    for finfo in lay.fields {
+        if finfo.name == name {
+            return finfo;
+        }
+    }
+    return None;
+}
+
+impl LayoutPass._same_field_type(a: any, b: any) -> bool {
+    if a is None or b is None {
+        return a is b;
+    }
+    return a.mangle() == b.mangle();
 }
 
 impl LayoutPass._is_layout_compatible_type(t: any) -> bool {

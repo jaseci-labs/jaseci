@@ -5,6 +5,7 @@ import from jaclang.jac0core.unitree {
     Archetype,
     Assignment,
     Enum,
+    EventSignature,
     FuncCall,
     HasVar,
     Import,
@@ -17,7 +18,7 @@ import from jaclang.jac0core.unitree {
     UniScopeNode
 }
 import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.diagnostics { E5030, W5031, W5032 }
+import from jaclang.jac0core.diagnostics { E5030, E5091, W5031, W5032 }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 glob VTABLE_HEADER_SLOTS: int = 1,
@@ -419,5 +420,9 @@ obj LayoutPass(Transform) {
     def _build_dispatch_facts -> None;
     def _validate_obj_fields(arch: Archetype) -> None;
     def _is_layout_compatible_type(t: any) -> bool;
+    def _validate_union_triggers(module: Module) -> None;
+    def _union_field_conflict(members: list[str]) -> (str | None);
+    def _field_named(lay: ArchetypeLayout, name: str) -> (FieldInfo | None);
+    def _same_field_type(a: any, b: any) -> bool;
     def _is_pod_type(t: any) -> bool;
 }

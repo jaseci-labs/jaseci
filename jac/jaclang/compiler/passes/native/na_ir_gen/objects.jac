@@ -24,7 +24,7 @@ import from jaclang.jac0core.codeinfo {
 }
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
 import from jaclang.jac0core.constant { OwnershipKind }
-import from jaclang.jac0core.diagnostics { E5091, E5092 }
+import from jaclang.jac0core.diagnostics { E5092 }
 import from jaclang.jac0core.osp_model { stable_osp_tag }
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 import jaclang.jac0core.unitree as uni;
@@ -166,7 +166,6 @@ obj NaIRGenObjects(NaIRGenState) {
     def _forward_declare_event_method(arch_name: str, method: uni.Ability) -> None;
     def _codegen_event_method(arch_name: str, method: uni.Ability) -> None;
     def _trigger_struct_names(method: uni.Ability) -> list[str];
-    def _union_layout_conflict(members: list[str]) -> (str | None);
     def _codegen_instantiation(
         nd: (uni.FuncCall | uni.Name),
         type_name_override: (str | None) = None,

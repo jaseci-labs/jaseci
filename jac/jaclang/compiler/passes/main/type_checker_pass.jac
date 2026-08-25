@@ -162,6 +162,7 @@ class TypeCheckPass(UniPass) {
 
     def exit_func_call(self: TypeCheckPass, nd: FuncCall) -> None;
     def _check_intrinsic_call(self: TypeCheckPass, nd: FuncCall) -> None;
+    def _intrinsic_operand_fits(self: TypeCheckPass, arg: Expr) -> bool;
     def _check_intrinsic_collision(self: TypeCheckPass, nd: Ability) -> None;
     def exit_jsx_element(self: TypeCheckPass, nd: JsxElement) -> None;
     def exit_filter_compr(self: TypeCheckPass, nd: FilterCompr) -> None;

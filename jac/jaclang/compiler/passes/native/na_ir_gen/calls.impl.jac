@@ -1121,12 +1121,18 @@ impl NaIRGenCalls._intrinsic_operand(
 ) -> (ir.Value | None) {
     _kind = self._tb_kind(self._flow_narrowed_type_of(arg));
     if _kind not in ("int", "bool", "float") {
-        self._emit_intrinsic_misuse(
-            nd,
-            intr,
-            f"operand of type {self._flow_narrowed_type_of(
-                arg
-            )} does not fit registered parameter type {spec}"
+        # The checker owns the E5095 misuse verdict for every operand whose
+        # type it can see; what reaches here is a type variable that
+        # monomorphised onto a non-scalar, which has no lowering.
+        self.emit(
+            E5092,
+            node_override=arg,
+            kind="operand",
+            name=f"{intr.name} argument",
+            help_text=(
+                f"'{intr.name}' takes {spec}, and this operand lowers as "
+                f"{_kind}. Give the call a scalar argument."
+            )
         );
         return None;
     }
@@ -1139,22 +1145,6 @@ impl NaIRGenCalls._intrinsic_operand(
         return self._coerce_type(arg_val, ir.DoubleType(), _arg_t);
     }
     return self._coerce_type(arg_val, ir.IntType(64), _arg_t);
-}
-
-impl NaIRGenCalls._emit_intrinsic_misuse(
-    nd: uni.FuncCall, intr: object, reason: str
-) -> None {
-    for e in self.errors_had {
-        if (
-            e.code is E5095
-            and e.loc.mod_path == nd.loc.mod_path
-            and e.loc.first_line == nd.loc.first_line
-            and e.loc.col_start == nd.loc.col_start
-        ) {
-            return;
-        }
-    }
-    self.emit(E5095, node_override=nd, name=intr.name, reason=reason);
 }
 
 impl NaIRGenCalls._emit_intrinsic_rc_runtime(
