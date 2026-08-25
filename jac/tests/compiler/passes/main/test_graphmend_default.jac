@@ -229,7 +229,10 @@ test "the loader hook transforms a claimed py loaded from a file location" {
             prog.graphmend_claimed.add(real);
             install_graphmend_loader_hook();
             spec = importlib.util.spec_from_file_location("claimed_net", path);
-            code = spec.loader.get_code("claimed_net");
+            assert spec is not None;
+            spec_loader: any = spec.loader;
+            assert spec_loader is not None;
+            code = spec_loader.get_code("claimed_net");
             assert code is not None;
             assert _mentions_symbol(code, "__jac_se_emit__") , (
                 "a claimed .py loaded by file location was not transformed"
@@ -444,7 +447,8 @@ test "concurrent compiles under different settings keep their own cache key" {
             _RACE_DONE[os.path.realpath(main_path)] = engaged_done;
             engaged = flow _race_worker(main_path) ;
             assert engaged_in.`wait(60) , "the engaged compile never started";
-            plain = flow _race_worker(str(plain_path)) ;
+            plain_arg = str(plain_path);
+            plain = flow _race_worker(plain_arg) ;
             code_on = wait engaged ;
             code_plain = wait plain ;
             left_behind = _ambient_variant();

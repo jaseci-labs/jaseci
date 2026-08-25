@@ -42,7 +42,7 @@ test "an interleaved compile does not clobber the in-flight break table" {
     # compile on the same program, the shape of concurrent language-server
     # compiles; the outer compile's guard must still lower.
     prog = JacProgram();
-    orig = JacCompiler.run_schedule;
+    orig: any = JacCompiler.run_schedule;
     state = {"interleaved": False};
     def _spy(
         self: any, mod: any, target_program: any, passes: any, cancel_token: any = None
@@ -78,7 +78,7 @@ test "an interleaved compile does not clobber the in-flight break table" {
 
 test "an interleaved compile records its facts on its own module" {
     prog = JacProgram();
-    orig = JacCompiler.run_schedule;
+    orig: any = JacCompiler.run_schedule;
     state = {"interleaved": False};
     def _spy(
         self: any, mod: any, target_program: any, passes: any, cancel_token: any = None

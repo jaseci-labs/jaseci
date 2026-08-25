@@ -1054,7 +1054,8 @@ impl JacBuiltin.log_flush_hook(module: any, inputs: any, output: any) -> any {
 impl JacBuiltin.tensor_eq_assert(a: any, b: any, msg: str) -> None {
     import torch;
     meta_ok = (a.shape == b.shape) and (a.dtype == b.dtype);
-    cond = (a == b).all() if meta_ok else torch.tensor(False, device=a.device);
+    eq: any = a == b;
+    cond = eq.all() if meta_ok else torch.tensor(False, device=a.device);
     torch._assert_async(cond, msg);
 }
 
@@ -1085,7 +1086,7 @@ impl JacBuiltin.trap_guard(fn: any) -> any {
                 raise err;
             }
             msg = rest.split("[[/GM-TRAP]]", 1)[0];
-            exc_cls = getattr(builtins, type_name, RuntimeError);
+            exc_cls = getattr(builtins, type_name, None);
             if not (isinstance(exc_cls, type) and issubclass(exc_cls, BaseException)) {
                 exc_cls = RuntimeError;
             }

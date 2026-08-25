@@ -371,7 +371,7 @@ test "a guard two hops down the claim chain lowers under the entry's wrap" {
         covering = [
             `entry
             for (guard, `entry) in facts.covered_by.items()
-            if guard.endswith("::verify")
+            if str(guard).endswith("::verify")
         ];
         assert covering , "no covering entry was recorded for the guard";
         assert covering[0].endswith("::Net.forward") , (
@@ -426,8 +426,8 @@ test "a torch-free import is answered without touching the filesystem" {
         path = _write(tmp, "thirdparty.py", "x = 1\n");
         real = REAL_REALPATH(path);
         FS_CALLS.clear();
-        os.path.isfile = _counting_isfile;
-        os.path.realpath = _counting_realpath;
+        setattr(os.path, 'isfile', _counting_isfile);
+        setattr(os.path, 'realpath', _counting_realpath);
         try {
             config_mod._config = JacConfig.from_toml_str(
                 "[run]\ngraphmend_claim_imports = true\n"

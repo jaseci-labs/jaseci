@@ -1,12 +1,7 @@
 """Pass-schedule tags and the schedule-time gate."""
 import os;
 import from tests.support { GRAPHMEND_FIXTURES as FIXTURES }
-import from jaclang.jac0core.compiler {
-    get_py_code_gen,
-    providers_for,
-    resolve_schedule,
-    validate_schedule
-}
+import from jaclang.jac0core.compiler { get_py_code_gen, validate_schedule }
 import from jaclang.compiler.passes.main.graphmend.graph_break_detect_pass {
     GraphBreakDetectPass
 }
@@ -38,23 +33,29 @@ test "the transform ordering constraints are declared as tags" {
 }
 
 test "the graphmend schedule order derives from tags, not goal position" {
-    sched = resolve_schedule(
-        [DeferSideEffectPass, PredicateCtrlFlowPass, TrapLoweringPass],
-        providers=providers_for(
-            [GraphBreakDetectPass, TrapLoweringPass, PredicateCtrlFlowPass]
-        ),
-        origin='graphmend tag-derivation test'
-    );
-    assert sched
-        == [
-            GraphBreakDetectPass,
-            TrapLoweringPass,
-            PredicateCtrlFlowPass,
-            DeferSideEffectPass
-        ];
+    ordered: list[type] = [
+        GraphBreakDetectPass,
+        TrapLoweringPass,
+        PredicateCtrlFlowPass,
+        DeferSideEffectPass
+    ];
+    assert validate_schedule(ordered, origin='graphmend tag-derivation test')
+        == ordered;
+    scrambled: list[type] = [
+        DeferSideEffectPass,
+        PredicateCtrlFlowPass,
+        TrapLoweringPass
+    ];
+    refused = False;
+    try {
+        validate_schedule(scrambled, origin='graphmend tag-derivation test');
+    } except RuntimeError {
+        refused = True;
+    }
+    assert refused , "an order that ignores the tags must be refused";
 }
 
-glob GM_PASSES = [
+glob GM_PASSES: list[type] = [
          GraphBreakDetectPass,
          TrapLoweringPass,
          PredicateCtrlFlowPass,
@@ -84,7 +85,7 @@ def _scheduled_passes(name: str, gm: bool) -> list {
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.program { JacProgram }
     seen: list = [];
-    orig = JacCompiler.run_schedule;
+    orig: any = JacCompiler.run_schedule;
     def _spy(
         self: any, mod: any, target_program: any, passes: any, cancel_token: any = None
     ) {

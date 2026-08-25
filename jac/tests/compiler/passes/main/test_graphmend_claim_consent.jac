@@ -106,7 +106,9 @@ test "an imported package under a registered claim stays stock by default" {
             sys.modules.pop("consentpkg", None);
             sys.modules.pop("consentpkg.dep", None);
             mod = importlib.import_module("consentpkg.dep");
-            assert not isinstance(mod.__spec__.loader, JacMetaImporter) , (
+            dep_spec = mod.__spec__;
+            assert dep_spec is not None;
+            assert not isinstance(dep_spec.loader, JacMetaImporter) , (
                 "an imported claimed .py must stay with the stock loader "
                 "unless claim imports is opted in"
             );

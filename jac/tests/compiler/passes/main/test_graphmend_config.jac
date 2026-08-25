@@ -51,6 +51,7 @@ test "the run command bridges the graphmend flags that remain to jac.toml" {
     import from jaclang.cli.manifest { get_command_meta }
     meta = get_command_meta("run");
     assert meta is not None;
+    assert meta is not None;
     by_name = {a.name: a for a in meta.args};
     assert "graphmend" not in by_name;
     assert "graphmend_scope" not in by_name;
@@ -91,6 +92,7 @@ test "explicit cli flags beat jac.toml which beats built-in defaults" {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.project.config { JacConfig }
     meta = get_command_meta("run");
+    assert meta is not None;
     cfg = JacConfig.from_toml_str("[run]\ngraphmend_disable = \"trap\"\n");
     at_defaults = {"graphmend_disable": ""};
     _apply_config_defaults(cfg, meta, at_defaults);
