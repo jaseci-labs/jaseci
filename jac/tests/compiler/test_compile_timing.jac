@@ -69,10 +69,10 @@ probe to read its list is not an option -- importing a `.jac` module runs its
 entry block, which is the whole measurement.
 """
 glob CORPUS: list[str] = [
-         "jaclang/jac0core/srcloc.jac",
-         "jaclang/jac0core/parser/tokens.jac",
-         "jaclang/jac0core/passes/uni_pass.jac",
-         "jaclang/jac0core/constant.jac",
+         "jaclang/compiler/frontend/srcloc.jac",
+         "jaclang/compiler/frontend/parser/tokens.jac",
+         "jaclang/compiler/passes/uni_pass.jac",
+         "jaclang/compiler/frontend/constant.jac",
          "examples/chess/chess.jac"
      ];
 
@@ -98,7 +98,7 @@ timing.
 """
 glob SNAPSHOT_LINKS: list[str] = [
          "jaclang/vendor/typeshed/stdlib",
-         "jaclang/compiler/passes/native/llvm/libjacllvm.so",
+         "jaclang/compiler/backends/native/llvm/libjacllvm.so",
          ".pbs-build",
          ".llvm-build"
      ];

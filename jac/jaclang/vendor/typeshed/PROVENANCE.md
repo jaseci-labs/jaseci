@@ -2,9 +2,9 @@
 
 The Python standard-library type stubs from typeshed. They are NOT committed:
 `stdlib/` is gitignored and rebuilt at the pinned commit by the `fetch-typeshed`
-subcommand of the payload tool (`jaclang.payload`, which `build.zig` runs so the
-`jac` binary bundles the stubs). Only this file, `PIN`, `TARBALL_SHA256`, and
-`LICENSE` are tracked.
+subcommand of the payload tool (`jaclang/dist/payload/`), which `build.zig`
+runs as its `fetch-typeshed` step so the `jac` binary bundles the stubs. Only
+this file, `PIN`, `TARBALL_SHA256`, and `LICENSE` are tracked.
 
 Integrity: the payload tool downloads the GitHub tarball for the pinned commit
 and verifies the **decompressed tar's** sha256 against `TARBALL_SHA256` (git's
@@ -21,8 +21,8 @@ from the project venv.
 
 To bump:
 1. Put the new commit SHA in `PIN`.
-2. Run `zig build fetch-typeshed`. On a PIN/`TARBALL_SHA256` mismatch it dies
-   printing both digests (`expected ... actual ...`) -- copy the printed
-   **actual** digest into `TARBALL_SHA256`.
-3. Re-run `zig build fetch-typeshed` to materialize the stubs, update the Commit
-   line above, and commit `PIN`, `TARBALL_SHA256`, `PROVENANCE.md`.
+2. Get the new hash with the payload tool's `typeshed-sha` subcommand (run
+   `jaclang.dist.payload.cli` with `typeshed-sha <commit>`; `build.zig` drives
+   the same tool for its fetch steps) and write the printed value into
+   `TARBALL_SHA256`.
+3. Update the Commit line above and commit `PIN`, `TARBALL_SHA256`, `PROVENANCE.md`.

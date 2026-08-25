@@ -1,5 +1,5 @@
 import asyncio;
-import from jaclang.runtimelib.serving.sse { sse_frame_stream }
+import from jaclang.server.serving.sse { sse_frame_stream }
 
 
 def _run(coro: any) -> any {

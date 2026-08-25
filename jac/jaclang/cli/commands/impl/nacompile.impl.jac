@@ -1,4 +1,4 @@
-import from jaclang.compiler.passes.native.linker_common {
+import from jaclang.compiler.backends.native.linker_common {
     collect_floor_archives,
     floor_lib_dir,
     resolve_floor_dir,
@@ -280,7 +280,7 @@ impl nacompile(
     }
 
     if scrub {
-        import from jaclang.jac0core.jir { scrub_cache_dirs }
+        import from jaclang.compiler.driver.jir { scrub_cache_dirs }
         src_root = os.path.dirname(os.path.abspath(filename)) or ".";
         _scrubbed = scrub_cache_dirs(src_root);
         if _scrubbed {
@@ -314,8 +314,8 @@ impl nacompile(
 
     console.print(f"Compiling {filename} to native binary");
 
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
 
     try {
         prog = JacProgram();
@@ -378,7 +378,7 @@ impl nacompile(
     }
 
     if is_wasm {
-        import from jaclang.compiler.passes.native.wasm_build {
+        import from jaclang.compiler.backends.native.wasm_build {
             emit_wasm_from_ir,
             app_declared_imports
         }
@@ -417,7 +417,7 @@ impl nacompile(
 
     llvm_ir_str = str(ir_module.gen.llvm_ir);
     if strict {
-        import from jaclang.compiler.passes.native.na_compile_pass {
+        import from jaclang.compiler.backends.native.na_compile_pass {
             native_demoted_ir_symbols as _demoted_syms
         }
         _demoted = _demoted_syms(llvm_ir_str);
@@ -466,7 +466,7 @@ impl nacompile(
 
     console.print("  LLVM IR generated successfully.");
 
-    import jaclang.compiler.passes.native.llvm.binding as llvm;
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
     llvm.initialize_all_targets();
     llvm.initialize_all_asmprinters();
 
@@ -524,7 +524,7 @@ impl nacompile(
 
     if shared {
         _mf = ir_module.gen.interop_manifest;
-        import from jaclang.compiler.passes.native.shared_emit {
+        import from jaclang.compiler.backends.native.shared_emit {
             inject_shared_init as _inject_shared_init
         }
         (llvm_ir_str, _extra_exports) = _inject_shared_init(llvm_ir_str, _mf);
@@ -629,7 +629,7 @@ impl nacompile(
     console.print(f"  Object code emitted ({len(obj_bytes)} bytes).");
 
     if is_windows {
-        import from jaclang.compiler.passes.native.pe_linker { PeLinker }
+        import from jaclang.compiler.backends.native.pe_linker { PeLinker }
 
         try {
             success = PeLinker.link(
@@ -654,7 +654,7 @@ impl nacompile(
             return 1;
         }
     } elif is_macos {
-        import from jaclang.compiler.passes.native.macho_linker { MachOLinker }
+        import from jaclang.compiler.backends.native.macho_linker { MachOLinker }
         try {
             success = MachOLinker.link(
                 obj_bytes=obj_bytes,
@@ -678,7 +678,7 @@ impl nacompile(
             return 1;
         }
     } else {
-        import from jaclang.compiler.passes.native.elf_linker { ElfLinker }
+        import from jaclang.compiler.backends.native.elf_linker { ElfLinker }
         _crt_objects: list[bytes] = [];
         if _static_musl {
             _musl = _collect_musl_static(obj_bytes, triple);
@@ -782,7 +782,7 @@ def _floor_ca_bundle -> (str | None) {
 
 def _musl_lib_dir(triple: str) -> (str | None) {
     import os;
-    import from jaclang.runtimelib.utils { triple_arch }
+    import from jaclang.runtime.graph_utils { triple_arch }
     env = os.environ.get("JAC_NATIVE_MUSL_DIR", "");
     if env and os.path.isdir(env) {
         return env;
@@ -802,7 +802,7 @@ def _musl_lib_dir(triple: str) -> (str | None) {
         }
     }
 
-    import from jaclang.runtimelib.fused_binary { bundled_floor_roots }
+    import from jaclang.dist.fused_binary { bundled_floor_roots }
     for floor in bundled_floor_roots(pkg_root) {
         if not os.path.isdir(floor) {
             continue;
@@ -822,7 +822,7 @@ def _musl_lib_dir(triple: str) -> (str | None) {
 
 def _collect_musl_static(obj_bytes: bytes, triple: str) -> (tuple | None) {
     import os;
-    import from jaclang.compiler.passes.native.linker_common {
+    import from jaclang.compiler.backends.native.linker_common {
         select_ar_members,
         _ar_member_undefs
     }

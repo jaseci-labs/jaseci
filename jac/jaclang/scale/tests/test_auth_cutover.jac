@@ -10,7 +10,7 @@ bulk/per-user flow that flags pre-scrypt accounts for password reset.
 import logging;
 import from unittest.mock { patch }
 import from logging.handlers { MemoryHandler }
-import from jaclang.runtimelib.serving.authcrypt {
+import from jaclang.server.serving.authcrypt {
     SCRYPT_MAX_N,
     SCRYPT_MAXMEM,
     hash_password,
@@ -24,7 +24,7 @@ glob BCRYPT_VECTOR = "$2b$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWM
 
 def _capture_warnings(fn: any) -> list[str] {
     capture = MemoryHandler(1000);
-    logger = logging.getLogger("jaclang.runtimelib.serving.authcrypt");
+    logger = logging.getLogger("jaclang.server.serving.authcrypt");
     logger.addHandler(capture);
     try {
         fn();
@@ -40,7 +40,7 @@ def _capture_warnings(fn: any) -> list[str] {
 
 
 test "bcrypt-format hash fails with one distinguishable warning" {
-    import jaclang.runtimelib.serving.authcrypt as ac;
+    import jaclang.server.serving.authcrypt as ac;
     ac._legacy_warned.clear();
     seen: list[str] = [];
 
@@ -77,7 +77,7 @@ test "effective scrypt n is capped and maxmem bounds every attempt" {
 
 
 test "stored hash with oversized parameters refuses to verify, with a warning" {
-    import jaclang.runtimelib.serving.authcrypt as ac;
+    import jaclang.server.serving.authcrypt as ac;
     ac._legacy_warned.clear();
     # Forge a stored hash claiming n=2**20 (needs ~1 GB): must refuse cleanly.
     good = hash_password("pw");
@@ -109,8 +109,8 @@ test "resolve_password_hash_cost clamps to the capped range" {
 test "expire_legacy_credentials flags pre-scrypt accounts (bulk and per-user)" {
     import json;
     import from tempfile { mkdtemp }
-    import from jaclang.runtimelib.pgembed { PgRuntime }
-    import from jaclang.runtimelib.store { PgStore }
+    import from jaclang.data.pgembed { PgRuntime }
+    import from jaclang.data.store { PgStore }
     import from jaclang.scale.identity.identity_storage { PgIdentityStorage }
 
     store = None;
