@@ -6631,6 +6631,36 @@ def dict_mapping_pairs(source: PyObj, kwargs_call: bool) -> PyObj {
             }
             return out;
         }
+        # Mapping-subclass fallback: user classes inheriting from host-ABC
+        # stand-ins (collections.abc Mapping/MutableMapping) have no visible
+        # inherited keys() -- class_mro-based dunder lookup skips host-proxy
+        # bases -- but CPython still merges such objects because instances
+        # are an iterable of their keys. Drive __iter__ LAZILY so a mapping
+        # mutating storage mid-iteration raises RuntimeError during the
+        # drain exactly like CPython (test_dict doctests exc62/65); an
+        # eager members_of() snapshot would hide that.
+        if user_has_dunder(u, "__iter__") and user_has_dunder(u, "__getitem__") {
+            it = call_user_dunder(u, "__iter__", []);
+            if is_error(it) {
+                return it;
+            }
+            iter_out = PyDict(t="dict", items={});
+            while True {
+                step = send_into(it, py_none());
+                if step.t == "genstop" {
+                    break;
+                }
+                if is_error(step) {
+                    return step;
+                }
+                v = call_user_dunder(u, "__getitem__", [step]);
+                if is_error(v) {
+                    return v;
+                }
+                iter_out.dict_set(step, v);
+            }
+            return iter_out;
+        }
     }
     tname = _compare_type_name(source);
     if kwargs_call {
