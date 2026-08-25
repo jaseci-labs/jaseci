@@ -11,7 +11,7 @@ import os;
 import subprocess;
 import tempfile;
 import from unittest.mock { patch }
-import from jaclang.runtimelib.pgembed { PgRuntime }
+import from jaclang.data.pgembed { PgRuntime }
 
 
 test "initdb timeout wipes partial cluster and retries successfully" {
@@ -27,7 +27,7 @@ test "initdb timeout wipes partial cluster and retries successfully" {
         return type("R", (), {"returncode": 0, "stderr": ""})();
     }
 
-    with patch("jaclang.runtimelib.pgembed.subprocess.run", side_effect=fake_run) {
+    with patch("jaclang.data.pgembed.subprocess.run", side_effect=fake_run) {
         rt._initdb_if_needed(bin_dir="/nonexistent/bin");
     }
     assert len(calls) == 2 , f"expected one retry, got {len(calls)} attempts";
@@ -45,7 +45,7 @@ test "initdb failure exhausts retries and leaves a clean slate" {
 
     failed = False;
     try {
-        with patch("jaclang.runtimelib.pgembed.subprocess.run", side_effect=fake_run) {
+        with patch("jaclang.data.pgembed.subprocess.run", side_effect=fake_run) {
             rt._initdb_if_needed(bin_dir="/nonexistent/bin");
         }
     } except Exception {
