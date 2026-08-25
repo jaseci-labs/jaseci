@@ -107,3 +107,23 @@ NiceStorm's libtest-driver run on the same tip. Same snippets, same VM --
 different import/facade routing path by invocation context. Real finding per
 orchestrator adjudication; owner: converter/test-support family
 (SlatePetrel canary reconciliation).
+
+## GENERALIZED (post-repro-matrix): while-in-except-handler is broken on native compile
+
+The tb-walk repro was an instance of a broader bug. Matrix on clean tip
+49e9728a2, native compile:
+
+| Shape | Result |
+|---|---|
+| while loop inside BOUND except handler | IndexError "pop from empty list" at OP_RERAISE |
+| while loop inside UNBOUND except handler | wrong-error: TypeError "exceptions must derive from BaseException" surfaced from unrelated attr call |
+| while loop inside TRY BODY (not handler) | correct |
+| straight-line statements in handler | correct |
+
+So ANY `while` in an except handler body miscompiles natively; no traceback
+objects required. The tb-walk pins were simply the first probes to hit it.
+Repro probes: probe_min4.jac (feat/tb-surface-pins, Q1/Q2/Q3).
+
+Fix locus hypothesis unchanged: handler-body visitation emits epilogue blocks
+into the linear stream ahead of the loop head (allocation/use-order
+interleave between visit_try bound/unbound paths and compiler_loops).
