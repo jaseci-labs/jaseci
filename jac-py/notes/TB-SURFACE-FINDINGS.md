@@ -58,3 +58,42 @@ crash (the fallthrough is code-layout, not dispatch selection).
 
 Repro scratch: jac-py/jacpython/probe_tb_bisect.jac +
 probe_tb_scratch.jac (feat/tb-surface-pins).
+
+## Codegen bug: full disassembly evidence (for the fix lane)
+
+Minimal repro (native crashes, marshal correct): handled exception + tb walk +
+trailing module-level raise (see repro above).
+
+NATIVE layout around the failure:
+
+    52 STORE_NAME e          # bind store (match tail)
+    54..76 t = e.__traceback__      \
+    78..80 p = []                    |  handler body stmts
+    82 LC None; 84 STORE e; 86 DELETE e   \  as-cleanup + RERAISE 1 + RERAISE 0
+    88 RERAISE 1; 90 RERAISE 0       /  (bound-handler epilogue) -- INLINED MID-BODY
+    92 LOAD t; 94 PJIF none         /   loop head
+    100..176 loop body (append; t = t.tb_next)
+    178 JUMP_BACKWARD -> lands at 82  => executes as-cleanup+RERAISE on the
+                                         NORMAL path with 1-entry value stack
+    182 LC None; 184 RETURN_VALUE
+    186 COPY 3; 188 POP_EXCEPT; 190 RERAISE 1
+
+The bound-handler epilogue blocks are EMITTED INLINE between the second body
+statement and the loop head, and the backedge targets them. Host-marshal
+layout places POP_EXCEPT + partial cleanup inside the loop range (172..180)
+and the reraise chain after 182..196, with the backedge landing safely.
+
+Working hypothesis: block allocation/use ordering in visit_try's
+bound-handler path interleaves with while-loop block allocation
+(compiler_loops allocates its head during handler-body visitation), and the
+as-cleanup/unwind blocks are emitted into the linear stream ahead of the loop
+head instead of behind the body. Same deferred/allocation-order placement
+class as prior etbl layout bugs.
+
+Fix direction: audit visit_try bound-handler block use() ordering vs
+compiler_loops allocations; likely need deferred blocks for the as-cleanup/
+reraise chain (placed at their semantic position AFTER body completion), or
+allocation-order restoration for loop heads inside handler bodies.
+
+ceval note: find_handler first-match-wins vs CPython last-match-wins remains
+open separately (innermost-wins patch drafted, does not affect this crash).
