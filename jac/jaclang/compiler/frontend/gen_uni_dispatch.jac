@@ -22,7 +22,7 @@ glob DISPATCH_PASSES: list = [
      SURFACE_END: str = "    # <<< generated visitor surface <<<";
 
 def node_snake_map -> dict[str, str] {
-    import from jaclang.jac0core { unitree as ut_mod }
+    import jaclang.compiler.frontend.unitree as ut_mod;
     import from jaclang.compiler.frontend.unitree { UniNode }
     import from jaclang.compiler.frontend.helpers { pascal_to_snake }
     out: dict[str, str] = {};

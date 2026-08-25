@@ -25,7 +25,16 @@ import from tempfile { TemporaryDirectory }
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.runtime.context { ExecutionContext }
 
-glob SCAN_ROOTS: list[str] = ["jac0core", "runtimelib", "scale", "byllm"],
+glob SCAN_ROOTS: list[str] = [
+         "runtime",
+         "data",
+         "server",
+         "client",
+         "testing",
+         "dist",
+         "scale",
+         "byllm"
+     ],
      SANCTIONED: dict[str, tuple] = {
          "runtime/impl/archetype.impl.jac": (
              4,

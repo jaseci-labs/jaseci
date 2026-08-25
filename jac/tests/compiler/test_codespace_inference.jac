@@ -563,7 +563,8 @@ test "client import pulls a pure markerless module cross-module" {
 
 test "cross-module pulled elements dual-emit for the server side" {
     import from jaclang.client.client_bundle { _ensure_js_generated }
-    import from jaclang.compiler.passes { JcirBytecodeGenPass, JcirGenPass }
+    import from jaclang.compiler.backends.py.jcir_bc_gen_pass { JcirBytecodeGenPass }
+    import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"), no_cgen=False);
     util = hub_module(prog, "infer_xmod_util.jac");

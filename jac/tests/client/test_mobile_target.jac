@@ -73,9 +73,7 @@ test "mobile_dev_host helper module exists" {
 test "start exposes mobile dev flags and cli wires cap live-reload" {
     # The mobile dev flags (host/platform) now live on the core `run` command;
     # the client module consumes them natively in run_client_start.
-    exec_jac = (
-        _client_dir.parent.parent / "cli" / "commands" / "execution.jac"
-    ).read_text();
+    exec_jac = (_client_dir.parent / "cli" / "commands" / "execution.jac").read_text();
     assert '"host"' in exec_jac;
     assert "Mobile serving: android or ios" in exec_jac;
     c = (_client_dir / "cli.jac").read_text();

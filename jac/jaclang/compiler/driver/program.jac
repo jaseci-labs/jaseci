@@ -3,7 +3,7 @@ import types;
 import from threading { Event }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.driver.compile_options { CompileOptions }
-import from jaclang.compiler.passes { Alert }
+import from jaclang.compiler.passes.transform { Alert }
 import from jaclang.compiler.driver.progstate {
     AnalysisCaches,
     BuildScratch,
@@ -14,7 +14,7 @@ import from jaclang.compiler.driver.progstate {
 import type from jaclang.compiler.types.type_evaluator { TypeEvaluator }
 import type from jaclang.compiler.driver.compiler { JacCompiler }
 import type from jaclang.compiler.driver.mtp { Info }
-import type from jaclang.compiler.passes { Transform }
+import type from jaclang.compiler.passes.transform { Transform }
 
 with entry {
     if sys.getrecursionlimit() < 12000 {

@@ -708,7 +708,7 @@ test "WheelBuilder vendors the jac runtime when transpiled code needs it" {
         with zipfile.ZipFile(io.BytesIO(data)) as zf {
             names = zf.namelist();
             assert "vendemo/_jac_vendor/jaclang/__init__.py" in names;
-            assert "vendemo/_jac_vendor/jaclang/jac0core/jaclib.py" in names;
+            assert "vendemo/_jac_vendor/jaclang/lib/jaclib.py" in names;
             init_py = zf.read("vendemo/__init__.py").decode("utf-8");
             top_level = zf.read("vendemo-0.1.0.dist-info/top_level.txt").decode(
                 "utf-8"
@@ -739,7 +739,7 @@ test "WheelBuilder vendors the fixed-width runtime a sized-typed program needs" 
         with zipfile.ZipFile(io.BytesIO(data)) as zf {
             names = zf.namelist();
             assert "sizeddemo/_jac_vendor/jaclang/runtime/sized.py" in names;
-            assert "sizeddemo/_jac_vendor/jaclang/jac0core/scalars.py" in names;
+            assert "sizeddemo/_jac_vendor/jaclang/runtime/scalars.py" in names;
             main_py = zf.read("sizeddemo/main.py").decode("utf-8");
         }
         assert "jaclang.runtime.sized" in main_py , main_py;

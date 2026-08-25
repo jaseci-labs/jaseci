@@ -35,12 +35,12 @@ glob _RT = Path(jaclang.__file__).parent / "client",
      _ROUTER_RUNTIMES: dict[str, Path] = {
          "react": _RT / "client_runtime.jac",
          "solid": _RT / "solid_runtime.jac",
-         "react-native": _RT / "client" / "client_runtime_native.jac"
+         "react-native": _RT / "client_runtime_native.jac"
      },
      # The two cores underneath them (auth, walker calls, form plumbing).
      _RUNTIME_CORES: dict[str, Path] = {
          "web": _RT / "client_runtime_core.jac",
-         "native": _RT / "client" / "client_react_core.jac"
+         "native": _RT / "client_react_core.jac"
      },
      # `target -> (backend, no-children fallback)` for the compiled-body test.
      # react-native rides the React backend. Solid's fallback is None: its entry

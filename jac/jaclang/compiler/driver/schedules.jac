@@ -1,17 +1,15 @@
 import os;
 import from contextvars { ContextVar }
-import from jaclang.compiler.passes {
-    ASTValidationPass,
-    BoundaryAnalysisPass,
-    DeclImplMatchPass,
-    EndpointEffectPass,
-    JcirBytecodeGenPass,
-    JcirGenPass,
-    PlacementApplyPass,
-    SemanticAnalysisPass,
-    SymTabBuildPass,
-    Transform
-}
+import from jaclang.compiler.backends.py.jcir_bc_gen_pass { JcirBytecodeGenPass }
+import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
+import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
+import from jaclang.compiler.passes.boundary_analysis_pass { BoundaryAnalysisPass }
+import from jaclang.compiler.passes.decl_impl_match_pass { DeclImplMatchPass }
+import from jaclang.compiler.passes.endpoint_effect_pass { EndpointEffectPass }
+import from jaclang.compiler.passes.semantic_analysis_pass { SemanticAnalysisPass }
+import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
+import from jaclang.compiler.passes.transform { Transform }
+import from jaclang.compiler.placement.placement_solver { PlacementApplyPass }
 import from jaclang.compiler.driver.source_failures { fail_loud_on_compiler_source }
 
 def get_symtab_ir_sched -> list[type[Transform]] {

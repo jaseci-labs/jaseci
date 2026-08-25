@@ -1899,6 +1899,7 @@ impl JacRuntime.reset_process_state(cls: any, clear_modules: bool = True) -> Non
     }
     cls.program = None;
     cls.compiler = None;
+    cls.selfhost = None;
     import from jaclang.project.config { set_config }
     set_config(None);
 }

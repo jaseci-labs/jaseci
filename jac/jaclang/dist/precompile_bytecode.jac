@@ -1810,11 +1810,15 @@ def _sym_table_fingerprint(mod: any) -> list[str] {
             reb = ",".join(sorted((nd.implicit_rebinds or {}).keys()));
             kids = len(nd.kid_scope or []);
             has_parent = "y" if nd.parent_scope is not None else "n";
-            sems = ",".join(
-                f"{nm}={sym.semstr}"
-                for (nm, sym) in sorted((nd.names_in_scope or {}).items())
-                if sym.semstr
-            );
+            scope_names = nd.names_in_scope or {};
+            sem_parts: list[str] = [];
+            for nm in sorted(scope_names.keys()) {
+                scope_sym = scope_names[nm];
+                if isinstance(scope_sym, uni.Symbol) and scope_sym.semstr {
+                    sem_parts.append(f"{nm}={scope_sym.semstr}");
+                }
+            }
+            sems = ",".join(sem_parts);
             out.append(
                 f"scope {type(nd).__name__}:{nd.scope_name} names=[{names}] "
                 f"over=[{over}] rebind=[{reb}] kids={kids} parent={has_parent} "

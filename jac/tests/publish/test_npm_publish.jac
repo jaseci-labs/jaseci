@@ -338,7 +338,7 @@ test "build_runtime_tarball packages the runtime with exports" {
         # The split-out shared core must travel inside the package, or it fails to
         # load at runtime (ERR_MODULE_NOT_FOUND on `./jaclang/.../client_runtime_core.js`).
         assert "package/index.js" in names;
-        assert "package/jaclang/client_runtime_core.js" in names;
+        assert "package/jaclang/client/client_runtime_core.js" in names;
         js = _tar_text(tf, "package/index.js");
         assert "export {" in js;
         # The public API is exported exactly once — no duplicate export (invalid ESM).
@@ -349,7 +349,7 @@ test "build_runtime_tarball packages the runtime with exports" {
             f"duplicate export in runtime index.js: {sorted(exported)}"
         );
         # The entry imports the core's symbols from the bundled sibling module.
-        assert "./jaclang/client_runtime_core.js" in js;
+        assert "./jaclang/client/client_runtime_core.js" in js;
         # The runtime is built on @tanstack/react-form, so NO `.js` in the package
         # pulls in the legacy react-hook-form library (checked across the entry
         # AND the bundled core).
@@ -402,7 +402,7 @@ test "build_runtime_tarball packages the Solid runtime with no React ecosystem" 
         assert pj["version"] == "1.2.3";
         # The shared core travels in the package at its relative import path.
         assert "package/index.js" in names;
-        assert "package/jaclang/client_runtime_core.js" in names;
+        assert "package/jaclang/client/client_runtime_core.js" in names;
         js = _tar_text(tf, "package/index.js");
         # Branch 5: solid-js/h hyperscript import removed; user component code
         # uses the JSX compiler path (vite-plugin-solid). Core symbols are present.

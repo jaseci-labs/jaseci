@@ -226,12 +226,11 @@ test "field mutation lands in the dirty set without a full-session sweep" {
 
 
 test "read barrier hashes only dirty anchors, not the whole session" {
-    import jaclang.server.session;
+    import jaclang.server.session as smod;
     with TemporaryDirectory() as td {
         old = JacRuntime.exec_ctx;
         ctx = _make_ctx(td);
         JacRuntime.exec_ctx = ctx;
-        smod = jaclang.server.session;
         orig = smod._persist_hash;
         calls: list = [];
         def counting_hash(anchor: Anchor) -> int {

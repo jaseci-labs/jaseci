@@ -27,14 +27,11 @@ import from jaclang.compiler.driver.jir {
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
 import from jaclang.compiler.frontend.constant { CodeContext, Tokens as Tok }
-import from jaclang.compiler.passes {
-    BoundaryAnalysisPass,
-    JcirGenPass,
-    SemanticAnalysisPass,
-    SymTabBuildPass,
-    Transform
-}
-import from jaclang.compiler.passes.transform { DiagnosticPolicy }
+import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
+import from jaclang.compiler.passes.boundary_analysis_pass { BoundaryAnalysisPass }
+import from jaclang.compiler.passes.semantic_analysis_pass { SemanticAnalysisPass }
+import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
+import from jaclang.compiler.passes.transform { DiagnosticPolicy, Transform }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.selfhost { SelfHostCache }
 import from jaclang.compiler.driver.pass_driver {
