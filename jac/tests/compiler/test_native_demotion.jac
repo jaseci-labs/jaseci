@@ -13,13 +13,15 @@ import from tests.support { JAC_ROOT }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.codeinfo { InteropBinding, InteropContext }
-import from jaclang.jac0core.compiler {
+import from jaclang.jac0core.na_coverage {
     _drop_demoted_native_bindings,
-    import_declares_native_target,
     na_coverage_begin,
     na_coverage_end,
     na_coverage_record,
-    na_demotion_note,
+    na_demotion_note
+}
+import from jaclang.jac0core.boundary_classify {
+    import_declares_native_target,
     plain_native_import_target
 }
 import from jaclang.jac0core.placement_pins {

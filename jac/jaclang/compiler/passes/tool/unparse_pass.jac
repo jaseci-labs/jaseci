@@ -161,7 +161,7 @@ def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
         mod.set_kids(nodes=head_kid or [uni.EmptyToken()]);
     }
     try {
-        import from jaclang.jac0core.compiler { run_pass }
+        import from jaclang.jac0core.pass_driver { run_pass }
         run_pass(NormalizePass, mod, JacProgram());
         if requires_format {
             return format_module(mod);

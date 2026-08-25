@@ -1206,7 +1206,7 @@ impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
     }
     _provided.add('inference');
     try {
-        import from jaclang.jac0core.compiler { run_pass }
+        import from jaclang.jac0core.pass_driver { run_pass }
         import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
         import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
         if 'cfg' not in _provided {

@@ -124,9 +124,10 @@ test "placement_pins imports stay within the documented allowlist" {
     import from pathlib { Path }
     allow = {
         "jaclang/cli/commands/impl/fix.impl.jac",
-        "jaclang/jac0core/compiler.jac",
+        "jaclang/jac0core/boundary_classify.jac",
         "jaclang/jac0core/impl/compiler.impl.jac",
         "jaclang/jac0core/jir.jac",
+        "jaclang/jac0core/na_coverage.jac",
         "jaclang/jac0core/modresolver.jac",
         "jaclang/jac0core/passes/impl/boundary_analysis_pass.impl.jac",
         "jaclang/jac0core/placement.jac",

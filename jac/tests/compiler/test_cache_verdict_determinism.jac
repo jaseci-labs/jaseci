@@ -23,7 +23,7 @@ import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.passes { Transform }
-import from jaclang.jac0core.compiler { _native_env_memo, native_pipeline_available }
+import from jaclang.jac0core.schedules { _native_env_memo, native_pipeline_available }
 
 glob BRAND_SRC: str = """
 type Branded := int;

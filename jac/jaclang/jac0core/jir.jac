@@ -635,3 +635,24 @@ def write_module_cache(
         return False;
     }
 }
+
+"""Rewrite co_filename across a marshalled code object tree (moved from
+jac0core/compiler.jac in #8681; the sealer and the sealed loader both patch
+JIR bytecode paths with it)."""
+def patch_co_filenames_bytes(raw_bc: bytes, find: str, replace: str) -> bytes {
+    try {
+        import marshal;
+        import types as _types;
+        code = marshal.loads(raw_bc);
+        def _patch(c: _types.CodeType) -> _types.CodeType {
+            new_filename = c.co_filename.replace(find, replace);
+            new_consts = tuple(
+                _patch(x) if isinstance(x, _types.CodeType) else x for x in c.co_consts
+            );
+            return c.replace(co_filename=new_filename, co_consts=new_consts);
+        }
+        return marshal.dumps(_patch(code));
+    } except Exception {
+        return raw_bc;
+    }
+}

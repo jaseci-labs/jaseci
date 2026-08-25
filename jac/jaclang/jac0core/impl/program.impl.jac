@@ -84,7 +84,7 @@ impl JacProgram.load_dependency_module(
         if resolved_path.endswith('.pyi') {
             import ast as py_ast;
             import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-            import from jaclang.jac0core.compiler { run_pass }
+            import from jaclang.jac0core.pass_driver { run_pass }
             import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
             import from jaclang.jac0core.helpers { read_file_with_encoding }
             src = use_str or read_file_with_encoding(source_path);

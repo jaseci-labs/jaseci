@@ -26,7 +26,7 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.modresolver { convert_to_js_import_path }
 import from jaclang.jac0core.passes.transform { Alert }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"

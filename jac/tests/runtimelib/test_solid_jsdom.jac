@@ -35,7 +35,7 @@ import from jaclang.runtimelib.client_surface { with_runtime_globals }
 import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
 import from jaclang.runtimelib.client.bun_installer { get_bun }
 import from jaclang.runtimelib.solid_entry { build_pages_solid_entry_script }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures"),
      # Real npm deps. The solid-* / zod versions mirror the canonical Solid set in

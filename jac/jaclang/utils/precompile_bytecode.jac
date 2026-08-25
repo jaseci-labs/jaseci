@@ -9,7 +9,7 @@ import zlib;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
 import from jaclang.jac0core { ext_registry }
-import from jaclang.jac0core.compiler { patch_co_filenames_bytes }
+import from jaclang.jac0core.jir { patch_co_filenames_bytes }
 import from jaclang.jac0core.jir {
     write_precompiled_jir,
     FLAG_PRECOMPILED,
@@ -204,7 +204,7 @@ def placement_facts_map(package_dir: str) -> dict[str, list[str]] {
 }
 
 def _emit_unit_diagnostics(jac_path: str, programs: list) {
-    import from jaclang.jac0core.compiler { compiler_source_failure_details }
+    import from jaclang.jac0core.source_failures { compiler_source_failure_details }
     stashed = compiler_source_failure_details(jac_path);
     if stashed {
         stash_lines = stashed.splitlines();
@@ -2090,7 +2090,7 @@ def seal_native_roots(
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.codeinfo { native_layout_to_dict }
-    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+    import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
     import from jaclang.compiler.passes.native.shared_emit { emit_shared_library }
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 

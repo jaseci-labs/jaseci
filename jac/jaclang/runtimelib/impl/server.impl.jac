@@ -760,7 +760,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
             }
         }
     }
-    import from jaclang.jac0core.compiler { get_boundary_analysis_sched }
+    import from jaclang.jac0core.schedules { get_boundary_analysis_sched }
     for src_mod in sources {
         if not (src_mod and src_mod.gen and src_mod.gen.interop_manifest) {
             continue;

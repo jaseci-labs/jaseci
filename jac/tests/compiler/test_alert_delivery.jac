@@ -15,7 +15,7 @@ though the constructor never returns.
 """
 
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compiler { deliver_alerts, run_pass }
+import from jaclang.jac0core.pass_driver { deliver_alerts, run_pass }
 import from jaclang.jac0core.diagnostics { Category, DiagnosticInfo, E1030, Severity }
 import from jaclang.jac0core.passes { Transform }
 import from jaclang.jac0core.passes.transform { DiagnosticPolicy }

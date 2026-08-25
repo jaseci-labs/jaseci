@@ -19,7 +19,7 @@ import sys;
 import tempfile;
 import from tests.support { JAC_ROOT, TESTS_DIR }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler {
+import from jaclang.jac0core.schedules {
     get_analysis_sched,
     get_boundary_analysis_sched,
     get_ir_gen_sched,

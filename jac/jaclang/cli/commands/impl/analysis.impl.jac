@@ -52,7 +52,7 @@ impl check(
         );
     }
     if native_coverage {
-        import from jaclang.jac0core.compiler { na_coverage_begin }
+        import from jaclang.jac0core.na_coverage { na_coverage_begin }
         na_coverage_begin();
     }
     if compile_stats {
@@ -200,7 +200,7 @@ impl check(
     }
 
     if native_coverage {
-        import from jaclang.jac0core.compiler { na_coverage_end }
+        import from jaclang.jac0core.na_coverage { na_coverage_end }
         print_native_coverage(na_coverage_end());
     }
     if compile_stats {
@@ -1328,7 +1328,7 @@ impl grammar(output: str = "", strict: bool = False) -> int {
         }
         return 1;
     }
-    import from jaclang.jac0core.compiler { run_pass }
+    import from jaclang.jac0core.pass_driver { run_pass }
     pass_ = run_pass(GrammarExtractPass, mod, prog);
     if len(pass_.rules) == 0 {
         console.error("No grammar rules extracted.");

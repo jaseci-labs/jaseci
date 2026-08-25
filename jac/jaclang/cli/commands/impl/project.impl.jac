@@ -1529,7 +1529,7 @@ def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
     import os;
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.jac0core.constant { Tokens as Tok }
-    import from jaclang.jac0core.compiler { get_boundary_analysis_sched }
+    import from jaclang.jac0core.schedules { get_boundary_analysis_sched }
     import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
     import from jaclang.utils.precompile_bytecode {
         find_jac_files,

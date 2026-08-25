@@ -556,7 +556,7 @@ impl module_is_client(filepath: str) -> bool {
         result = mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
     } except Exception as probe_exc {
-        import from jaclang.jac0core.compiler {
+        import from jaclang.jac0core.source_failures {
             CompilerSourceError,
             compiler_source_failure_origin
         }

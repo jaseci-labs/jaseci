@@ -39,7 +39,7 @@ obj JacFormatPass(Transform) {
 
 def format_module(mod: uni.Module) -> str {
     import from jaclang.compiler.passes.tool.doc_ir_gen_pass { DocIRGenPass }
-    import from jaclang.jac0core.compiler { run_pass }
+    import from jaclang.jac0core.pass_driver { run_pass }
     import from jaclang.jac0core.program { JacProgram }
     return run_pass(
         JacFormatPass, run_pass(DocIRGenPass, mod, JacProgram()).ir_out, JacProgram()

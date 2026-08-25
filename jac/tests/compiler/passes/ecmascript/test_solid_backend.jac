@@ -37,7 +37,7 @@ import from jaclang.runtimelib.runtime_source {
     client_runtime_cl_basename,
     resolve_client_runtime_cl_path
 }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"

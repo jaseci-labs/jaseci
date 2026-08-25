@@ -22,7 +22,7 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 
 glob CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "checker"

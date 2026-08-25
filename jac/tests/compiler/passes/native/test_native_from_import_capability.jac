@@ -37,7 +37,7 @@ import from jaclang.compiler.passes.main.capability_check_pass {
     native_capability_violations
 }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.parser { parse as rd_parse }
 import from jaclang.jac0core.placement { scan_native_blockers }
 import from jaclang.jac0core.program { JacProgram }

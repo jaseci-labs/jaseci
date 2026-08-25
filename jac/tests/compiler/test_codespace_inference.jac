@@ -12,7 +12,7 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 
 glob FIXTURE_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "codespace"
@@ -441,7 +441,7 @@ test "transitive import chain infers native under native default" {
 }
 
 test "coverage records demotion with first error code" {
-    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+    import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
     na_coverage_begin();
     try {
         compile_with_default("nadefault_nolower.jac", "native", cgen=True);
@@ -457,7 +457,7 @@ test "coverage records demotion with first error code" {
 }
 
 test "coverage records native and server outcomes" {
-    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+    import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
     na_coverage_begin();
     try {
         compile_with_default("nadefault_pure.jac", "native", cgen=True);

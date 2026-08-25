@@ -88,7 +88,7 @@ def _errors_for_path(prog: any, ap: str) -> int {
 
 def discover_spaces(paths: list[str], prog: any = None) -> dict[str, set[str]] {
     import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.compiler { hub_module_for_path }
+    import from jaclang.jac0core.boundary_classify { hub_module_for_path }
     target = prog if prog is not None else JacProgram();
     out: dict[str, set[str]] = {};
     for p in paths {

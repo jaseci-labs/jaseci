@@ -25,7 +25,7 @@ import os;
 import sys;
 import from tests.support { TESTS_DIR, native_force_opts }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = os.path.join(

@@ -1142,7 +1142,7 @@ impl NaIRGenObjects._demote_method_if_unlowerable(
     }
     if stub_body {
         try {
-            import from jaclang.jac0core.compiler { na_coverage_seam }
+            import from jaclang.jac0core.na_coverage { na_coverage_seam }
             _first_code = _own[0].code.code if _own[0].code is not None else "";
             _code_tag = f"[{_first_code}] " if _first_code else "";
             na_coverage_seam(
@@ -1220,7 +1220,7 @@ impl NaIRGenObjects._opaque_field_if_unlowerable(
         );
     }
     try {
-        import from jaclang.jac0core.compiler { na_coverage_seam }
+        import from jaclang.jac0core.na_coverage { na_coverage_seam }
         na_coverage_seam(
             self.ir_in.loc.mod_path,
             f"{arch_name}.{fname}: " + (f"[{_code}] " if _code else "") + _why

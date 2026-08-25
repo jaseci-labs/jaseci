@@ -28,13 +28,13 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok, SymbolType }
 import from jaclang.jac0core.diagnostics { E5082, E5084, W6006, W6007 }
-import from jaclang.jac0core.compiler {
+import from jaclang.jac0core.boundary_classify {
     ClientImportVerdict,
-    ability_of_symbol,
     classify_client_import_item,
     is_client_boundary_import,
     symbol_linked_source_module
 }
+import from jaclang.jac0core.unitree { ability_of_symbol }
 import from jaclang.compiler.expr_keys {
     classify_condition_key,
     collect_assigned_symbols,

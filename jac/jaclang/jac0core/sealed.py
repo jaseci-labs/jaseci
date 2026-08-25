@@ -178,7 +178,7 @@ def _patch_code_filenames(
     code: types.CodeType, find: str, replace: str
 ) -> types.CodeType:
     """Recursively rewrite ``co_filename`` (pure-Python twin of
-    ``jac0core.compiler.patch_co_filenames_bytes``, which is itself a .jac
+    ``jac0core.jir.patch_co_filenames_bytes``, which is itself a .jac
     module and therefore unavailable while bootstrapping)."""
     consts = tuple(
         _patch_code_filenames(c, find, replace) if isinstance(c, types.CodeType) else c

@@ -126,7 +126,7 @@ def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
         return reg;
     }
 
-    import from jaclang.jac0core.compiler { run_pass }
+    import from jaclang.jac0core.pass_driver { run_pass }
     run_pass(LayoutPass, module, prog);
     return module.gen.layout_registry or LayoutRegistry();
 }

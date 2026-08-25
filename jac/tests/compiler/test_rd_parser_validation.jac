@@ -8,7 +8,7 @@ import from jaclang.runtimelib.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
 import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 
 glob GAP_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "rd_parser_gaps"

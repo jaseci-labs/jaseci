@@ -494,7 +494,7 @@ def drop_executed_prefix(passes: list[any], executed: tuple[str]) -> list[any] {
             "the native prefix reported passes the schedule does not lead "
             f"with: crossing ran {list(executed)}, schedule head is {head}. "
             "The prefix pin in prefix_flip.sealed_prefix_names and the "
-            "schedule in jac0core.compiler have drifted apart."
+            "schedule in jac0core.schedules have drifted apart."
         );
     }
     return passes[n:];

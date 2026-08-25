@@ -132,7 +132,7 @@ def _compile_module(program: any, path: Path) -> any {
         raise ValueError(f"Failed to compile '{path}' for npm bundle:\n{formatted}");
     }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
-    import from jaclang.jac0core.compiler { run_pass }
+    import from jaclang.jac0core.pass_driver { run_pass }
     if mod and mod.gen and not mod.gen.js {
         run_pass(EsastGenPass, mod, program);
     }

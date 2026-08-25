@@ -164,11 +164,8 @@ def _finish_parse(
 }
 
 def _replay_prefix_rows(rows: any, claimed: tuple, prog: JacProgram, diag_src: Source) {
-    import from jaclang.jac0core.compiler {
-        deliver_alerts,
-        get_ir_gen_sched,
-        get_symtab_ir_sched
-    }
+    import from jaclang.jac0core.pass_driver { deliver_alerts }
+    import from jaclang.jac0core.schedules { get_ir_gen_sched, get_symtab_ir_sched }
 
     pool: dict[str, any] = {};
     for sched in [

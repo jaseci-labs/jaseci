@@ -28,7 +28,7 @@ import os;
 import time;
 
 import from pathlib { Path }
-import from jaclang.jac0core.compiler {
+import from jaclang.jac0core.schedules {
     get_boundary_analysis_sched,
     get_ir_gen_sched,
     get_py_code_gen

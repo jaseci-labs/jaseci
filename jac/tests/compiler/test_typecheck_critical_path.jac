@@ -70,7 +70,7 @@ test "a clean module still reaches code generation" {
 
 
 test "type inference is a hard requirement of the environment" {
-    import from jaclang.jac0core.compiler {
+    import from jaclang.jac0core.schedules {
         TypeshedUnavailableError,
         require_typeshed_stubs,
         typeshed_stubs_available

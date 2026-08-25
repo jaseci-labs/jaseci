@@ -1245,7 +1245,7 @@ impl JcirGenPass.exit_py_inline_code(nd: PyInlineCode) -> None {
 }
 
 impl JcirGenPass.exit_import(nd: Import) -> None {
-    import from jaclang.jac0core.compiler { import_binds_client_native }
+    import from jaclang.jac0core.boundary_classify { import_binds_client_native }
     if (
         import_binds_client_native(nd, self.ir_in.gen.interop_manifest)
         or nd.native_only_drop

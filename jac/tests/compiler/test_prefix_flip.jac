@@ -38,7 +38,7 @@ import from tests.compiler.fixtures.prefix_reference {
     reference_prefix_entry
 }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { get_ir_gen_sched, get_symtab_ir_sched }
+import from jaclang.jac0core.schedules { get_ir_gen_sched, get_symtab_ir_sched }
 import from jaclang.jac0core.native_brands {
     DRIVER_ORIGIN,
     ensure_native_brands_bound,

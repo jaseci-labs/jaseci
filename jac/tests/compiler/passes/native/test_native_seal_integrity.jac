@@ -42,7 +42,7 @@ import tempfile;
 import from pathlib { Path }
 import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.jir { get_native_cache_dir }
 import from jaclang.jac0core.program { JacProgram }
 import jaclang.utils.precompile_bytecode as pb;

@@ -122,7 +122,7 @@ class JacSourceCompileError(ImportError):
 def _retained_failure_details(file_path: str) -> str:
     """Recover diagnostics the internal compile closure already evicted."""
     try:
-        from jaclang.jac0core.compiler import compiler_source_failure_details
+        from jaclang.jac0core.source_failures import compiler_source_failure_details
 
         return compiler_source_failure_details(file_path) or ""
     except Exception:

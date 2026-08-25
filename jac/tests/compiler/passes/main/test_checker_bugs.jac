@@ -125,7 +125,7 @@ import from jaclang.compiler.type_system.types {
     TypeFlags,
     UnknownType
 }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 
 glob CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "checker"

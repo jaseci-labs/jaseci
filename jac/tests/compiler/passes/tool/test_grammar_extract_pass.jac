@@ -25,7 +25,7 @@ import from jaclang.compiler.passes.tool.grammar_extract_pass {
     SPECIAL_LOOKAHEAD_TOKENS
 }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 
 glob PARSER_PATH = str(
          Path(jaclang.__file__).parent / "jac0core" / "parser" / "parser.jac"

@@ -8,7 +8,7 @@ import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 
 """Signals-style test backend: wraps a reactive read as `name()` so the
 value-read seam (contract §4.1.1) can be audited without a real Solid backend.

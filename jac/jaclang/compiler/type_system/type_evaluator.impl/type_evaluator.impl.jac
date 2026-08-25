@@ -3824,7 +3824,7 @@ impl TypeEvaluator._is_sv_async_call(expr: FuncCall) -> bool {
     syms = self._sv_async_syms_cache.get(mod_key);
     if syms is None {
         syms = set();
-        import from jaclang.jac0core.compiler { is_client_native_edge_import }
+        import from jaclang.jac0core.boundary_classify { is_client_native_edge_import }
         import from jaclang.compiler.symbol_utils {
             ClientImportVerdict,
             classify_client_import_item,

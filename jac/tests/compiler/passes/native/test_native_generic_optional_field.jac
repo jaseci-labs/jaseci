@@ -25,7 +25,7 @@ same fixture, since a dropped store is still well typed and still compiles.
 import ctypes;
 import os;
 import from tests.support { TESTS_DIR, native_force_opts }
-import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.runtime { JacRuntime }
 import from jaclang.jac0core.codeinfo {

@@ -13,7 +13,7 @@ missing is a construction error rather than a silently omitted analysis.
 """
 
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compiler {
+import from jaclang.jac0core.schedules {
     get_analysis_sched,
     get_compile_sched,
     providers_of,

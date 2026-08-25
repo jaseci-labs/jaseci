@@ -6598,7 +6598,7 @@ impl EsastGenPass._generate_sv_import_stubs(
 }
 
 impl EsastGenPass._is_client_native_import(nd: uni.Import) -> bool {
-    import from jaclang.jac0core.compiler { import_binds_client_native }
+    import from jaclang.jac0core.boundary_classify { import_binds_client_native }
     return import_binds_client_native(nd, self.ir_in.gen.interop_manifest);
 }
 

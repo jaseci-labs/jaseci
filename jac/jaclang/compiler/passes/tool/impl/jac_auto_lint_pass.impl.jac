@@ -1,7 +1,7 @@
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
 impl JacAutoLintPass.postinit -> None {
-    import from jaclang.jac0core.compiler { diagnostic_policy_for }
+    import from jaclang.jac0core.pass_driver { diagnostic_policy_for }
     import from jaclang.project.config {
         JacConfig,
         get_config_for_path,

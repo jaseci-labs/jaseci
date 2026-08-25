@@ -18,7 +18,7 @@ import subprocess;
 import from pathlib { Path }
 
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }

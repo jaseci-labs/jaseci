@@ -29,11 +29,8 @@ The entry contract, verbatim:
 """
 
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compiler {
-    get_ir_gen_sched,
-    get_symtab_ir_sched,
-    run_pass
-}
+import from jaclang.jac0core.schedules { get_ir_gen_sched, get_symtab_ir_sched }
+import from jaclang.jac0core.pass_driver { run_pass }
 import from jaclang.jac0core.parser { parse as rd_parse }
 import from jaclang.jac0core.passes.annex_weave { merge_annex_into }
 

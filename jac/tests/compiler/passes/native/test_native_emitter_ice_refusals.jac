@@ -16,7 +16,7 @@ behaviour a stale waiver should have.
 
 import os;
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+import from jaclang.jac0core.na_coverage { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from tests.support { JAC_ROOT }
 

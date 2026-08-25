@@ -17,7 +17,7 @@ import jaclang;
 import from jaclang.jac0core.parser.frontend { parse }
 import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.jac0core.pass_driver { run_pass }
 
 glob _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_new_builtin_"),
      _client_tmp_dir: str = os.path.join(_test_tmp_dir, "client");

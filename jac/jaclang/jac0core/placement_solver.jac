@@ -89,7 +89,7 @@ def _native_deps_ok(
     root_path: str, root_deps: list[str], hold_exempt: bool = False
 ) -> bool {
     import from jaclang.jac0core.codeinfo { effective_native_closure_cap }
-    import from jaclang.jac0core.compiler { _note_native_closure_cap }
+    import from jaclang.jac0core.na_coverage { _note_native_closure_cap }
     cap = effective_native_closure_cap();
     edges: dict[str, list[str]] = {root_path: list(root_deps)};
     queue: list[str] = list(root_deps);
@@ -137,7 +137,7 @@ def native_default_path_ok(path: str) -> bool {
 }
 
 def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
-    import from jaclang.jac0core.compiler { native_pipeline_available }
+    import from jaclang.jac0core.schedules { native_pipeline_available }
     import from jaclang.jac0core.placement_pins { _is_demoted_native }
 
     try {
@@ -215,7 +215,7 @@ def _py_import_client_portable(elem: uni.Import) -> bool {
 def _pullable_by_client_reference(
     elem: uni.UniNode, module: uni.Module, body_refs: dict[int, set[int]]
 ) -> bool {
-    import from jaclang.jac0core.compiler { is_server_anchored_module }
+    import from jaclang.jac0core.boundary_classify { is_server_anchored_module }
     if isinstance(elem, uni.Archetype) and elem.arch_kind is not None {
         import from jaclang.jac0core.placement { module_has_root_access }
         if module_has_root_access(elem) {
@@ -296,7 +296,7 @@ def _named_top_element(target: uni.Module, name: str) -> (uni.UniNode | None) {
 }
 
 def _materialize_module(path: str, prog: any) -> (uni.Module | None) {
-    import from jaclang.jac0core.compiler { hub_module_for_path }
+    import from jaclang.jac0core.boundary_classify { hub_module_for_path }
     found = hub_module_for_path(path, prog);
     if found is not None {
         return found;
@@ -362,7 +362,7 @@ def _closure_pullable(
         }
         return True;
     }
-    import from jaclang.jac0core.compiler { is_server_anchored_module }
+    import from jaclang.jac0core.boundary_classify { is_server_anchored_module }
     if isinstance(top, uni.Archetype) and top.arch_kind is not None {
         import from jaclang.jac0core.placement { module_has_root_access }
         if module_has_root_access(top) {
@@ -397,7 +397,7 @@ def _module_externally_pinned(mod_path: str) -> bool {
 }
 
 def _seed_from_summary(module: uni.Module, prog: any) -> int {
-    import from jaclang.jac0core.compiler { _stamp_context_element }
+    import from jaclang.jac0core.boundary_classify { _stamp_context_element }
     mod_path = module.loc.mod_path or '';
     ps = get_module_summary(module, prog);
     seeded = 0;
@@ -475,7 +475,7 @@ def solve_module_placement(
     dual: bool = False,
     pull_dependents: bool = True
 ) -> int {
-    import from jaclang.jac0core.compiler { _stamp_context_element }
+    import from jaclang.jac0core.boundary_classify { _stamp_context_element }
     mod_path = module.loc.mod_path or '';
     index_by_id: dict[int, int] = {};
     for (bidx, bstmt) in enumerate(module.body) {
