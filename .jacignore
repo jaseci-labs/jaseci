@@ -53,16 +53,12 @@ jac/jaclang/compiler/backends/native/na_ir_gen/exceptions.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/exceptions.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/expr.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/expr.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/file_io.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/file_io.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/func.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/func.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/gc_debug.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/gc_debug.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/generics.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/generics.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/hash_core.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/hash_core.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/iterators.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/iterators.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/lists.impl.jac
