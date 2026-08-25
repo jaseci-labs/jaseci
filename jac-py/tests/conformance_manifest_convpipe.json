@@ -2360,6 +2360,17 @@
       "libtest_snippets": [],
       "notes": "105 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
       "conversion_meta": "jac-py/tests/conv_functools/functools.conv.json"
+    },
+    {
+      "stem": "hashlib",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "jac-py/tests/conv_hashlib/conv_hashlib_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "11 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_hashlib/hashlib.conv.json"
     }
   ]
 }
