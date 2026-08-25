@@ -6,7 +6,7 @@ The live protocol (trust auth over unix sockets) is exercised end to end
 by the pg-session parity suite; SCRAM-over-TCP is covered by the k8s path.
 """
 
-import from jaclang.runtimelib.pgwire {
+import from jaclang.data.pgwire {
     _array_literal,
     _named_to_positional,
     _parse_error_fields,

@@ -11,7 +11,7 @@ bundle, where the internal import is a ReferenceError at call time."""
 import os;
 import shutil;
 import tempfile;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 def _proj(files: dict, pins: str = "") -> str {
     d = tempfile.mkdtemp(prefix="jacplace_");
@@ -151,7 +151,7 @@ test "unpinned rootless archetypes pull into client closures" {
 # so it no longer blocks native placement; inline ::py:: remains the
 # statically-known native-incompatible construct.
 test "solver does not propose native for capability-violating modules" {
-    import from jaclang.jac0core.placement_solver { native_default_verdict }
+    import from jaclang.compiler.placement.placement_solver { native_default_verdict }
     d = _proj(
         {
             "pymod.jac": (

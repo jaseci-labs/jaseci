@@ -46,7 +46,7 @@ greet = "greet.cli:main"
 rich = ">=13.0.0"
 
 [optional-dependencies.data]
-pymongo = ">=4.0,<5.0"
+pandas = ">=2.0,<3.0"
 ```
 
 - **`[project]`** -> wheel `METADATA`. The TOML key is **`requires-python`** (hyphen), not `requires_python` - the underscore form is silently ignored and never reaches `METADATA`.

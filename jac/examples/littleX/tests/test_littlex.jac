@@ -9,7 +9,7 @@ Run with:  jac test test_littlex.jac
 
 import os;
 import from tempfile { mkdtemp }
-import from jaclang.runtimelib.testing { JacTestClient, TestResponse }
+import from jaclang.testing.testing { JacTestClient, TestResponse }
 
 glob SERVER = os.path.join(os.path.dirname(__file__), "..", "social_graph.jac");
 
