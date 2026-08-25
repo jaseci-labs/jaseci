@@ -767,7 +767,7 @@ curl -L http://localhost:8000/sso/github/login
 
 User records live in the Postgres identity store in the identity + credential format from the start -- there is no automatic startup migration. Passwords are **scrypt**-hashed; a stored hash in the older bcrypt format can never verify, and a login attempt against one logs a warning telling the operator what to do.
 
-The recovery path is an admin action: `POST /admin/users/expire-legacy-credentials` (admin-token-gated; pass `username` to target one user, omit it to sweep everyone) flags every user whose password hash predates the scrypt scheme with `requires_password_reset`. Affected users then go through the normal [password reset](#identity-management-password-reset) flow; `root_id`, `role`, and all other fields are preserved.
+The recovery path is an admin action: `POST /admin/users/expire-legacy-credentials` (admin-token-gated; pass `username` to target one user, omit it to sweep everyone) flags every user whose password hash predates the scrypt scheme with `requires_password_reset`. Affected users then go through the normal [password reset](#identity-management--password-reset) flow; `root_id`, `role`, and all other fields are preserved.
 
 ### Get Current User
 
