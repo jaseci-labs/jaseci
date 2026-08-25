@@ -7,6 +7,7 @@ import from jaclang.jac0core.unitree {
     BinaryExpr,
     BoolExpr,
     CompareExpr,
+    ConcurrentExpr,
     ConnectOp,
     CtrlStmt,
     DictCompr,
@@ -18,6 +19,7 @@ import from jaclang.jac0core.unitree {
     FuncSignature,
     IfElseExpr,
     IfStmt,
+    ImplDef,
     InForStmt,
     IterForStmt,
     KWPair,
@@ -124,6 +126,13 @@ obj RcFactsPass(Transform) {
     def transform(ir_in: Module) -> Module;
     def _stamp_param_rebound(ir_in: Module) -> None;
     def _stamp_escapes(ir_in: Module) -> None;
+    def _stamp_cell_vars(ir_in: Module) -> None;
+    def _stamp_single_wait_flows(ir_in: Module) -> None;
+    def _single_wait_handle(nd: ConcurrentExpr) -> (Name | None);
+    def _enclosing_loop(nd: UniNode) -> (UniNode | None);
+    def _stamp_cell_vars_in(scope: UniNode) -> None;
+    def _nearest_capture_scope(nd: UniNode) -> (UniNode | None);
+    def _name_escapes_call_position(direct_names: list[Name], sname: str) -> bool;
     def _call_use_stack_safe(nm: NameAtom, sym: Symbol) -> bool;
     def _borrow_arg_callee_ok(bx: UnaryExpr) -> bool;
     def _scalar_attr_read(nm: NameAtom) -> bool;

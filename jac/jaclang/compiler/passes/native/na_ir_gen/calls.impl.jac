@@ -2355,59 +2355,6 @@ impl NaIRGenCalls._emit_isinstance_user(
     return result;
 }
 
-impl NaIRGenCalls._flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | None) {
-    import from jaclang.jac0core.constant { Tokens as Tok }
-    asgn = nd.parent;
-    if not (
-        isinstance(asgn, uni.Assignment)
-        and asgn.value is nd
-        and asgn.aug_op is None
-        and len(asgn.target) == 1
-        and isinstance(asgn.target[0], uni.Name)
-    ) {
-        return None;
-    }
-    h = asgn.target[0];
-    if h.sym is None {
-        return None;
-    }
-    _fn = asgn.find_parent_of_type(uni.Ability);
-    _scope = _fn if _fn is not None else asgn.find_parent_of_type(uni.ModuleCode);
-    if _scope is None {
-        return None;
-    }
-    _spawn_loop = (
-        asgn.find_parent_of_type(uni.InForStmt)
-        or asgn.find_parent_of_type(uni.WhileStmt)
-        or asgn.find_parent_of_type(uni.IterForStmt)
-    );
-    _waits = 0;
-    for use in _scope.get_all_sub_nodes(uni.Name) {
-        if use.sym is not h.sym or use is h {
-            continue;
-        }
-        _p = use.parent;
-        _use_loop = (
-            use.find_parent_of_type(uni.InForStmt)
-            or use.find_parent_of_type(uni.WhileStmt)
-            or use.find_parent_of_type(uni.IterForStmt)
-        );
-        if isinstance(_p, uni.ConcurrentExpr)
-            and _p.target is use
-            and _p.tok is not None
-            and _p.tok.name == Tok.KW_WAIT
-            and _use_loop is _spawn_loop {
-            _waits += 1;
-            continue;
-        }
-        return None;
-    }
-    if _waits != 1 {
-        return None;
-    }
-    return h;
-}
-
 impl NaIRGenCalls._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) {
     import from jaclang.jac0core.constant { Tokens as Tok }
     if nd.tok is None {
@@ -2504,7 +2451,7 @@ impl NaIRGenCalls._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) 
     if not _res_ok {
         return None;
     }
-    h = self._flow_future_licensed(nd);
+    h = nd.single_wait_handle;
     if h is None {
         return None;
     }

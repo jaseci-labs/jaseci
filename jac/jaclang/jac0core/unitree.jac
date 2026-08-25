@@ -112,7 +112,8 @@ obj Symbol {
         param_rebound: bool = False,
         na_escapes: bool = False,
         na_region_handle: bool = False,
-        na_stack_ok: bool = False;
+        na_stack_ok: bool = False,
+        na_cell_var: bool = False;
 
     def init(
         defn: NameAtom,
@@ -965,7 +966,8 @@ obj ConcurrentExpr(Expr) {
     def accept_enter(v: UniPass) -> None;
 
     has tok: (Token | None),
-        target: Expr;
+        target: Expr,
+        single_wait_handle: (Name | None) = None;
 
     def postinit -> None;
 }

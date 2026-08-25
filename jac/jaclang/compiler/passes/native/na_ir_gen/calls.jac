@@ -141,5 +141,4 @@ obj NaIRGenCalls(NaIRGenState) {
     ) -> dict;
 
     def _try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None);
-    def _flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | None);
 }

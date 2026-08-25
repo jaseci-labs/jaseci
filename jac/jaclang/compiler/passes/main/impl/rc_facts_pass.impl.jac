@@ -6,11 +6,138 @@ impl RcFactsPass.transform(ir_in: Module) -> Module {
     self._stamp_param_rebound(ir_in);
     self._stamp_move_lowerable(ir_in);
     self._stamp_escapes(ir_in);
+    self._stamp_cell_vars(ir_in);
+    self._stamp_single_wait_flows(ir_in);
     self._stamp_region_handles(ir_in);
     self._stamp_last_use(ir_in);
     self._stamp_move_in(ir_in);
     self._stamp_anon_regions(ir_in);
     return ir_in;
+}
+
+impl RcFactsPass._stamp_cell_vars(ir_in: Module) -> None {
+    scopes: list[UniNode] = [ir_in];
+    scopes.extend(ir_in.get_all_sub_nodes(typ=Ability));
+    scopes.extend(ir_in.get_all_sub_nodes(typ=ImplDef));
+    scopes.extend(ir_in.get_all_sub_nodes(typ=LambdaExpr));
+    scopes.extend(ir_in.get_all_sub_nodes(typ=Test));
+    scopes.extend(ir_in.get_all_sub_nodes(typ=ModuleCode));
+    for scope in scopes {
+        self._stamp_cell_vars_in(scope);
+    }
+}
+
+impl RcFactsPass._stamp_cell_vars_in(scope: UniNode) -> None {
+    direct_names: list[Name] = [];
+    for nm in scope.get_all_sub_nodes(typ=Name) {
+        if self._nearest_capture_scope(nm) is scope {
+            direct_names.append(nm);
+        }
+    }
+    for sub in scope.get_all_sub_nodes(typ=Ability) {
+        if self._nearest_capture_scope(sub) is not scope or sub.is_generator {
+            continue;
+        }
+        sname = sub.name_ref.sym_name if sub.name_ref else None;
+        if sname is None or not self._name_escapes_call_position(direct_names, sname) {
+            continue;
+        }
+        for cap_sym in sub.get_enclosing_captures() {
+            if cap_sym.parent_tab is scope {
+                cap_sym.na_cell_var = True;
+            }
+        }
+    }
+    for lam in scope.get_all_sub_nodes(typ=LambdaExpr) {
+        if self._nearest_capture_scope(lam) is not scope {
+            continue;
+        }
+        for cap_sym in lam.captures {
+            if cap_sym.parent_tab is scope {
+                cap_sym.na_cell_var = True;
+            }
+        }
+    }
+}
+
+impl RcFactsPass._nearest_capture_scope(nd: UniNode) -> (UniNode | None) {
+    p = nd.parent;
+    while p is not None {
+        if isinstance(p, (Ability, ImplDef, LambdaExpr, Test, ModuleCode, Module)) {
+            return p;
+        }
+        p = p.parent;
+    }
+    return None;
+}
+
+impl RcFactsPass._name_escapes_call_position(
+    direct_names: list[Name], sname: str
+) -> bool {
+    for nm in direct_names {
+        if nm.value != sname {
+            continue;
+        }
+        _np = nm.parent;
+        if not (isinstance(_np, FuncCall) and _np.target is nm) {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl RcFactsPass._stamp_single_wait_flows(ir_in: Module) -> None {
+    for nd in ir_in.get_all_sub_nodes(typ=ConcurrentExpr) {
+        nd.single_wait_handle = self._single_wait_handle(nd);
+    }
+}
+
+impl RcFactsPass._single_wait_handle(nd: ConcurrentExpr) -> (Name | None) {
+    asgn = nd.parent;
+    if not (
+        isinstance(asgn, Assignment)
+        and asgn.value is nd
+        and asgn.aug_op is None
+        and len(asgn.target) == 1
+        and isinstance(asgn.target[0], Name)
+    ) {
+        return None;
+    }
+    h = asgn.target[0];
+    if h.sym is None {
+        return None;
+    }
+    _fn = asgn.find_parent_of_type(Ability);
+    _scope = _fn if _fn is not None else asgn.find_parent_of_type(ModuleCode);
+    if _scope is None {
+        return None;
+    }
+    _spawn_loop = self._enclosing_loop(asgn);
+    _waits = 0;
+    for use in _scope.get_all_sub_nodes(Name) {
+        if use.sym is not h.sym or use is h {
+            continue;
+        }
+        _p = use.parent;
+        if isinstance(_p, ConcurrentExpr)
+            and _p.target is use
+            and _p.tok is not None
+            and _p.tok.name == Tok.KW_WAIT
+            and self._enclosing_loop(use) is _spawn_loop {
+            _waits += 1;
+            continue;
+        }
+        return None;
+    }
+    return h if _waits == 1 else None;
+}
+
+impl RcFactsPass._enclosing_loop(nd: UniNode) -> (UniNode | None) {
+    return (
+        nd.find_parent_of_type(InForStmt)
+        or nd.find_parent_of_type(WhileStmt)
+        or nd.find_parent_of_type(IterForStmt)
+    );
 }
 
 impl RcFactsPass._enclosing_fn_scope(nd: UniNode) -> (UniNode | None) {

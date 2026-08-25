@@ -1,71 +1,12 @@
 impl NaIRGenClosures._scan_closure_escapes(
     nd: uni.UniNode, body: (list | tuple)
 ) -> None {
-    def nearest_scope(n: uni.UniNode) -> (uni.UniNode | None) {
-        p = n.parent;
-        while p is not None {
-            if isinstance(
-                p,
-                (
-                    uni.Ability,
-                    uni.ImplDef,
-                    uni.LambdaExpr,
-                    uni.Test,
-                    uni.ModuleCode,
-                    uni.Module
-                )
-            ) {
-                return p;
-            }
-            p = p.parent;
-        }
-        return None;
-    }
-    if not body {
+    if not body or not isinstance(nd, uni.UniScopeNode) {
         return;
     }
-    direct_names: list = [];
-    for nm in nd.get_all_sub_nodes(typ=uni.Name) {
-        if nearest_scope(nm) is nd {
-            direct_names.append(nm);
-        }
-    }
-    for sub in nd.get_all_sub_nodes(typ=uni.Ability) {
-        if nearest_scope(sub) is not nd or sub.is_generator {
-            continue;
-        }
-        sname = sub.name_ref.sym_name if sub.name_ref else None;
-        if sname is None {
-            continue;
-        }
-        escapes = False;
-        for nm in direct_names {
-            if nm.value != sname {
-                continue;
-            }
-            _np = nm.parent;
-            if not (isinstance(_np, uni.FuncCall) and _np.target is nm) {
-                escapes = True;
-                break;
-            }
-        }
-        if not escapes {
-            continue;
-        }
-        for cap_sym in sub.get_enclosing_captures() {
-            if cap_sym.parent_tab is nd {
-                self.closure_cell_vars.add(cap_sym.sym_name);
-            }
-        }
-    }
-    for lam in nd.get_all_sub_nodes(typ=uni.LambdaExpr) {
-        if nearest_scope(lam) is not nd {
-            continue;
-        }
-        for cap_sym in lam.captures {
-            if cap_sym.parent_tab is nd {
-                self.closure_cell_vars.add(cap_sym.sym_name);
-            }
+    for (_name, _sym) in nd.names_in_scope.items() {
+        if _sym.na_cell_var {
+            self.closure_cell_vars.add(_name);
         }
     }
 }
