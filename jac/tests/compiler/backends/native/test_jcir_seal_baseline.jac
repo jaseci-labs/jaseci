@@ -4,10 +4,10 @@ The emitter used to be its own seal root with its own closure table; under
 the fused seal (#8707) it is one served module of the one native unit, and
 the two-way seam-vs-waiver discipline for the whole closure lives in
 `test_sealed_demotion_audit.jac` (the closure census itself in
-`test_pass_seal_baselines.jac`). Its waived residue families
-(`_JCIR_INTEROP`, `_JCIR_LOWERING`, `_JCIR_ENTITY`,
-`_JCIR_EMITTER_ICE`) are documented with their clearing mechanisms in
-`NATIVE_SEAL_WAIVER_FAMILIES`.
+`test_pass_seal_baselines.jac`). The emitter's four waived residue
+families all cleared when the whole compiler fused into one unit -- the
+larger closure gave their blocking reads in-unit layouts -- so it now
+carries no waiver of its own.
 
 What this file still pins is the emitter-specific claim no shared census
 states: the JCIR container format and the baked facts must carry no seam

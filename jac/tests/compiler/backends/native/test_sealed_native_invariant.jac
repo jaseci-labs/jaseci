@@ -87,9 +87,7 @@ def _artifact_entry(triple: (str | None) = None) -> dict {
     };
 }
 
-def _native_record(
-    triple: (str | None) = None, modules: (list | None) = None
-) -> dict {
+def _native_record(triple: (str | None) = None, modules: (list | None) = None) -> dict {
     return {
         "artifact": _artifact_entry(triple),
         "modules": [SERVED] if modules is None else modules,

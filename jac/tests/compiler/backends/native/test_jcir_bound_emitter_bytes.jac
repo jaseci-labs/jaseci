@@ -128,8 +128,7 @@ def _built -> tuple {
         "that should have caught it"
     );
     assert JCIR_MODULE in record["modules"] , (
-        f"the fused seal does not serve {JCIR_MODULE}: "
-        f"{sorted(record['modules'])}"
+        f"the fused seal does not serve {JCIR_MODULE}: " f"{sorted(record['modules'])}"
     );
     result = (tmp, record, );
     _BUILD_MEMO.append(result);

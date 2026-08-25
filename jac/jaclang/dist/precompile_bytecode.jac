@@ -369,6 +369,23 @@ glob NATIVE_SEAL_SERVED_MODULES: tuple[str, ...] = (
          "compiler/native_materialize.jac",
 
      ),
+     NATIVE_SEAL_SERVED_IMPORTS: dict[str, str] = {
+         "compiler/frontend/unitree.jac": "UniNode",
+         "compiler/passes/ast_validation_pass.jac": "ASTValidationPass",
+         "compiler/backends/py/module_codegen_pass.jac": "ModuleCodegenPass",
+         "compiler/passes/semantic_analysis_pass.jac": "SemanticAnalysisPass",
+         "compiler/passes/sym_tab_build_pass.jac": "SymTabBuildPass",
+         "compiler/passes/decl_impl_match_pass.jac": "DeclImplMatchPass",
+         "compiler/passes/uni_pass.jac": "UniPass",
+         "compiler/passes/endpoint_effect_pass.jac": "EndpointEffectPass",
+         "compiler/passes/sem_def_match_pass.jac": "SemDefMatchPass",
+         "compiler/passes/access_check_pass.jac": "AccessCheckPass",
+         "compiler/passes/jsx_intrinsic_guard_pass.jac": "JsxIntrinsicGuardPass",
+         "compiler/passes/cfg_build_pass.jac": "CFGBuildPass",
+         "compiler/passes/rc_facts_pass.jac": "RcFactsPass",
+         "compiler/backends/py/jcir_gen_pass.jac": "JcirGenPass",
+         "compiler/native_materialize.jac": "mat_parse"
+     },
      NATIVE_SEAL_REFUSED_MODULES: dict[str, str] = {
          "compiler/passes/capability_check_pass.jac": (
              "one own seam left (native_capability_violations, the "
@@ -513,45 +530,9 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/passes/cfg_build_pass.jac::CoalesceBBPass._node_label",
 
      ),
-     _JCIR_INTEROP_SEAM_WAIVERS: tuple[str, ...] = (
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass._gen_native_interop_stubs",
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass._generate_sv_to_sv_stubs",
-         (
-             "compiler/backends/py/jcir_gen_pass.jac::"
-             "JcirGenPass._native_import_registration_map"
-         ),
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_test",
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_import",
-
-     ),
-     _JCIR_LOWERING_SEAM_WAIVERS: tuple[str, ...] = (
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass._get_sem_decorator",
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_ability",
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_archetype",
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_enum",
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_ctrl_stmt",
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_module",
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_multi_string",
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_jsx_element",
-
-     ),
-     _JCIR_ENTITY_SEAM_WAIVERS: tuple[str, ...] = (
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_jsx_normal_attribute",
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_jsx_text",
-
-     ),
-     _JCIR_EMITTER_ICE_SEAM_WAIVERS: tuple[str, ...] = (
-         "compiler/backends/py/jcir_gen_pass.jac::JcirGenPass.exit_atom_trailer",
-
-     ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple[str, ...]] = {
          "compiler/fused_seal_root.jac": (
-             _CLOSURE_SEAM_WAIVERS
-             + _CFG_BUILD_SEAM_WAIVERS
-             + _JCIR_INTEROP_SEAM_WAIVERS
-             + _JCIR_LOWERING_SEAM_WAIVERS
-             + _JCIR_ENTITY_SEAM_WAIVERS
-             + _JCIR_EMITTER_ICE_SEAM_WAIVERS
+             _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
          ),
          "compiler/passes/capability_check_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _CAPABILITY_SEAM_WAIVERS
@@ -678,59 +659,7 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "read the body through the classes that own one; it lowers "
              "now and its waiver is gone."
          ),
-         (
-             "jcir interop manifest and driver reads",
-             _JCIR_INTEROP_SEAM_WAIVERS,
-             "The native-export and sv-to-sv stub surface reads "
-             "`gen.interop_manifest` and the `InteropBinding` / "
-             "`BoundaryTypeInfo` codeinfo objects, which are Python "
-             "codegen state. The driver read that used to sit beside "
-             "them is gone: `exit_import` consumes "
-             "`Import.native_only_drop` instead of asking the driver for "
-             "`native_only_import_target`, so this root names no driver "
-             "entry point at all. Four entries cleared when `codeinfo` "
-             "joined the closure -- the py-sv stub builders and "
-             "`_native_test_shim_stmts` read manifest state whose types "
-             "now have in-unit layouts. Clears the rest of the way when "
-             "the manifest crosses as a native-clean record instead of a "
-             "Python object."
-         ),
-         (
-             "jcir named backend gaps",
-             _JCIR_LOWERING_SEAM_WAIVERS,
-             "Named constructs the backend does not yet lower: reads and "
-             "assignments of element-erased list elements, comprehensions "
-             "over element-erased collections, and `_merge_module_bodies` "
-             "on the generic base pass. `exit_archetype`, `exit_enum` and "
-             "`exit_ability` are cascades of `_get_sem_decorator`. Each "
-             "clears when the named construct lowers; the generic-base one "
-             "also clears by the monomorphic-override route that already "
-             "cleared `_flatten_ast_list` on this pass."
-         ),
-         (
-             "jcir html entity decoding",
-             _JCIR_ENTITY_SEAM_WAIVERS,
-             "Jsx text and string attributes decode html entities through "
-             "the Python `html` module. Clears with an na_stdlib `html` "
-             "shim carrying the full html5 entity table, pinned against "
-             "`html.unescape` the way `test_jcir_facts_sync.jac` pins the "
-             "other baked facts. A reduced table is not acceptable: the "
-             "two lanes must agree byte for byte, so a missing entity is "
-             "a silent divergence rather than a missing feature."
-         ),
-         (
-             "jcir emitter-internal refusal",
-             _JCIR_EMITTER_ICE_SEAM_WAIVERS,
-             "`_query_filter_kws` refuses with an emitter-internal error "
-             "rather than a named gap, and takes its two callers with it. "
-             "Restructuring away union locals, `any` locals, conditional "
-             "expressions and continue-guards does not move it, which "
-             "places the fault in the native emitter rather than in the "
-             "shape of the source. Its sibling `exit_delete_stmt` was in "
-             "the same state and cleared when its nested function became "
-             "a method, so nested-function lowering is the first place to "
-             "look. Clears when that emitter fault is fixed."
-         )
+
      );
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
@@ -1889,12 +1818,6 @@ def prune_stale_precompiled_dirs(precompiled_dir: Path, pyver: str) -> int {
     return removed;
 }
 
-"""Remove every file under native/ the fresh seal did not emit.
-
-This is also the migration path for caches sealed before the fused
-artifact existed: stale per-root libraries, layouts, and the retired
-SEAL_INDEX.json all fall out here.
-"""
 def prune_native_outputs(precompiled_dir: Path, keep: set[str]) -> int {
     native_root = precompiled_dir / "native";
     if not native_root.is_dir() {
@@ -1930,12 +1853,6 @@ def _seal_module_fullname(pkg_name: str, rel: str) -> str {
     return ".".join([pkg_name] + parts + [stem]);
 }
 
-"""Write the fused seal root: one generated module importing every
-served module, so the whole compiler closure compiles as ONE native
-unit and the seal emits ONE shared library (#8707). Generated at seal
-time, never checked in; the materializer root must already exist on
-disk because it is one of the imports.
-"""
 def generate_fused_seal_root(pkg_path: Path) -> Path {
     src = pkg_path / NATIVE_SEAL_FUSED_ROOT;
     lines: list[str] = [
@@ -1947,19 +1864,14 @@ def generate_fused_seal_root(pkg_path: Path) -> Path {
         "'''"
     ];
     for rel in NATIVE_SEAL_SERVED_MODULES {
-        lines.append("import " + _seal_module_fullname(pkg_path.name, rel) + ";");
+        fullname = _seal_module_fullname(pkg_path.name, rel);
+        symbol = NATIVE_SEAL_SERVED_IMPORTS[rel];
+        lines.append("import from " + fullname + " { " + symbol + " }");
     }
     src.write_text("\n".join(lines) + "\n", encoding="utf-8");
     return src;
 }
 
-"""Stage 1 of the seal: compile the unitree root natively for its layout.
-
-The materializer root is generated from this layout before the fused
-root (which imports it) can parse. Nothing is linked or kept: the
-layout crosses in memory and the program is dropped, so the stage costs
-one front-end + codegen pass over unitree's closure.
-"""
 def derive_unitree_layout(pkg_path: Path) -> (dict[str, any] | None) {
     import gc;
     import from jaclang.compiler.driver.program { JacProgram }
@@ -1989,9 +1901,7 @@ def derive_unitree_layout(pkg_path: Path) -> (dict[str, any] | None) {
         return None;
     }
     if ir is None or ir.gen.native_layout is None {
-        console.error(
-            f"NATIVE SEAL: no native layout for {NATIVE_SEAL_UNITREE_ROOT}"
-        );
+        console.error(f"NATIVE SEAL: no native layout for {NATIVE_SEAL_UNITREE_ROOT}");
         return None;
     }
     layout = native_layout_to_dict(ir.gen.native_layout);
@@ -2001,13 +1911,6 @@ def derive_unitree_layout(pkg_path: Path) -> (dict[str, any] | None) {
     return layout;
 }
 
-"""Compile one root and its whole closure into one shared library.
-
-Returns the manifest artifact entry (lib / layout / triple / per-file
-sha256) or None on refusal. The load canary always runs against the
-emitted library; `full_canaries` additionally runs the JCIR container
-and parse/prefix parity canaries the fused compiler artifact must pass.
-"""
 def seal_one_root(
     pkg_path: Path,
     precompiled_dir: Path,
@@ -2086,8 +1989,17 @@ def seal_one_root(
             rel, coverage, waivers, pkg_path
         );
         if demotion_error {
-            console.error(demotion_error);
             purge_native_ir_cache(str(src), closure_deps);
+            if _seal_attempt == 0 {
+                console.warning(
+                    f"NATIVE SEAL: {rel} reported un-waived demotions that may "
+                    "be verdicts served from dependency IR cached outside the "
+                    "seal; the cached IR for this closure has been purged and "
+                    "the closure recompiles fresh."
+                );
+                continue;
+            }
+            console.error(demotion_error);
             return None;
         }
         for name in waived {
@@ -2262,7 +2174,7 @@ def seal_one_root(
             return None;
         }
     }
-    entry: dict[str, any] = {
+    artifact_entry: dict[str, any] = {
         "lib": lib_path.relative_to(precompiled_dir).as_posix(),
         "layout": layout_path.relative_to(precompiled_dir).as_posix(),
         "triple": triple,
@@ -2273,17 +2185,9 @@ def seal_one_root(
         f"  Native artifact: {fullname} -> {lib_path.name} "
         f"({lib_path.stat().st_size:,} bytes, {len(exports)} exports)"
     );
-    return entry;
+    return artifact_entry;
 }
 
-"""Seal the compiler's ONE fused native artifact (#8707).
-
-Returns the manifest `native` payload, `{"artifact": entry, "modules":
-[fullname, ...]}`, or `{}` where no native backend exists (Windows), or
-None on refusal. Two compiles, one process: the unitree layout stage the
-materializer root is generated from, then the fused root carrying the
-whole closure.
-"""
 def seal_native_artifacts(
     pkg_path: Path,
     precompiled_dir: Path,
@@ -2320,7 +2224,7 @@ def seal_native_artifacts(
     fused_src = generate_fused_seal_root(pkg_path);
     atexit.register(fused_src.unlink, missing_ok=True);
     try {
-        entry = seal_one_root(
+        artifact_entry = seal_one_root(
             pkg_path,
             precompiled_dir,
             NATIVE_SEAL_FUSED_ROOT,
@@ -2333,17 +2237,17 @@ def seal_native_artifacts(
         fused_src.unlink(missing_ok=True);
         mat_src.unlink(missing_ok=True);
     }
-    if entry is None {
+    if artifact_entry is None {
         return None;
     }
     prune_native_outputs(
-        precompiled_dir, {str(entry["lib"]), str(entry["layout"])}
+        precompiled_dir, {str(artifact_entry["lib"]), str(artifact_entry["layout"])}
     );
     modules = sorted(
         _seal_module_fullname(pkg_path.name, served_rel)
         for served_rel in NATIVE_SEAL_SERVED_MODULES
     );
-    return {"artifact": entry, "modules": modules};
+    return {"artifact": artifact_entry, "modules": modules};
 }
 
 def jir_to_module(pkg_name: str, rel_jir: str) -> tuple[str, str, bool] {
@@ -2450,11 +2354,7 @@ def collect_payloads(pkg_path: Path) -> dict[str, str] {
 }
 
 def seal_finalize(
-    pkg_path: Path,
-    precompiled_dir: Path,
-    pkg_name: str,
-    pyver: str,
-    embed_src: bool
+    pkg_path: Path, precompiled_dir: Path, pkg_name: str, pyver: str, embed_src: bool
 ) -> int {
     writes = (
         FORMAT_VERSION,

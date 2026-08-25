@@ -183,8 +183,7 @@ test "the fused closure's demotion report is exactly its waiver list" {
         }
         if not has_ir {
             failures.append(
-                f"{waiver_key}: no LLVM IR, so a zero-seam coverage would be "
-                "vacuous"
+                f"{waiver_key}: no LLVM IR, so a zero-seam coverage would be " "vacuous"
             );
             continue;
         }
