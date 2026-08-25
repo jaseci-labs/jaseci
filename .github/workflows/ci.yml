@@ -691,6 +691,9 @@ jobs:
       - name: Attribute protocol pins
         run: jac test jac-py/jacpython/test_attr_protocol.jac
 
+      - name: Heapq native shim pins
+        run: jac test jac-py/jacpython/test_heapq_shim.jac
+
   # Compiler suite, one chunk per runner. Chunking is load-bearing: the
   # materializer crossing leaks its native parse tree per compile, so one long
   # run OOMs; fresh runners bound the accumulation and parallelize the suite.
