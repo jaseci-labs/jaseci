@@ -1,6 +1,6 @@
 import from pathlib { Path }
 import from jaclang.cli.console { console }
-import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+import from jaclang.project.tomlio { read_toml_with_encoding }
 import from jaclang.project.config { JacConfig }
 
 glob CONFIG_GROUPS = [

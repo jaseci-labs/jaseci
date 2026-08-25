@@ -239,7 +239,7 @@ radius = "default"    # default | none | small | medium | large
 menuAccent = "subtle" # subtle | bold
 ```
 
-`jac retheme --font <name>` patches `[dependencies.npm]` automatically - no manual font package edit, and `jac install` runs before `jac start --dev`.
+`jac retheme --font <name>` patches `[dependencies.npm]` automatically - no manual font package edit, and `jac install` runs before `jac run --dev`.
 
 ### baseColor vs theme
 

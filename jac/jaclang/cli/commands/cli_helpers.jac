@@ -4,7 +4,7 @@ import from jaclang.jac0core.ext_registry { base_stem, is_jac, is_python }
 
 
 def proc_file(filename: str) -> tuple {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     (base, mod) = os.path.split(filename);
     base = base or './';
     if not (is_jac(filename) or is_python(filename)) {

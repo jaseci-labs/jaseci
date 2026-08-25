@@ -4,7 +4,7 @@ import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 
 impl tool(tool: str, args: list = []) -> int {
     import importlib;
-    import from jaclang.utils.lang_tools { AstTool }
+    import from jaclang.compiler.tools.lang_tools { AstTool }
     if tool in ("jac2py", "py2jac", "jac2js") {
         _transform = importlib.import_module("jaclang.cli.commands.transform");
         if not args {
@@ -75,8 +75,8 @@ impl dot(
     to_screen: bool = False,
     format: str = "dot"
 ) -> int {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
-    import from jaclang.runtimelib.builtin { printgraph }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.builtin { printgraph }
     (base, mod, jac_machine) = _proc_file(filename);
     if filename.endswith('.jac') {
         Jac.jac_import(target=mod, base_path=base, override_name='__main__');
@@ -119,7 +119,7 @@ impl dot(
 }
 
 impl lsp -> int {
-    import from jaclang.langserve.server { run_lang_server }
+    import from jaclang.lsp.server.server { run_lang_server }
     try {
         run_lang_server();
         return 0;
@@ -263,7 +263,7 @@ def _install_completion(shell: str, code: str) -> int {
 }
 
 impl gen_uni_dispatch(verify: bool = False) -> int {
-    import from jaclang.jac0core.gen_uni_dispatch { write_all, verify_all }
+    import from jaclang.compiler.frontend.gen_uni_dispatch { write_all, verify_all }
     if verify {
         stale = verify_all();
         for rel in stale {
