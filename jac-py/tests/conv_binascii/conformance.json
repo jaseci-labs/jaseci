@@ -1,0 +1,363 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "4c2c55eb0ba5fff3b134e97f06691fb24c18dd6c",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "/home/jac/repos/jac-python/jac-py/tests/conv_binascii/conv_binascii_pins.jac"
+  ],
+  "generated_at": "2026-08-25T13:53:38",
+  "hashes": {
+    "pins_jac": "154d3baec0932f22ab35167d0ad366ec761005e3a594403d46dcef9b2d027cf3",
+    "conversion_json": "f9dceb4e940d62c7e09d41e43f8cd3c84e5dd35b8271c010c895f3c9c08f8c56",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "binascii",
+  "counts": {
+    "converted": 70,
+    "runnable": 15,
+    "green": 15,
+    "quarantined": 55
+  },
+  "pins": [
+    {
+      "id": "ArrayBinASCIITest.test_exceptions",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_functions",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_returned_value",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_base64valid",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_base64invalid",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_base64_strict_mode",
+      "status": "quarantined",
+      "reason": "harness-error:AssertionError: SRE module mismatch"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_base64_excess_data",
+      "status": "quarantined",
+      "reason": "harness-error:AssertionError: SRE module mismatch"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_base64errors",
+      "status": "quarantined",
+      "reason": "harness-error:AssertionError: SRE module mismatch"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_uu",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_crc_hqx",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_crc32",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_hex",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_hex_separator",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_qp",
+      "status": "quarantined",
+      "reason": "host-raised:UnboundLocalError: cannot access local variable 'type2test' where it is not associated with a value"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_empty_string",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_unicode_b2a",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_unicode_a2b",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_b2a_base64_newline",
+      "status": "pass"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_c_contiguity",
+      "status": "pass"
+    },
+    {
+      "id": "ChecksumBigBufferTestCase.test_big_buffer",
+      "status": "quarantined",
+      "reason": "harness-error:SyntaxError: invalid syntax"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_exceptions",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_exceptions",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_functions",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_functions",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_returned_value",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_returned_value",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_base64valid",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_base64valid",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_base64invalid",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_base64invalid",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_base64_strict_mode",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_base64_strict_mode",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_base64_excess_data",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_base64_excess_data",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_base64errors",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_base64errors",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_uu",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_uu",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_b2a_roundtrip",
+      "status": "quarantined",
+      "reason": "unresolved-name:backtick"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_b2a_roundtrip",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_b2a_roundtrip",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_crc_hqx",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_crc_hqx",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_crc32",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_crc32",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_hex",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_hex",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_hex_roundtrip",
+      "status": "quarantined",
+      "reason": "unresolved-name:binary"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_hex_roundtrip",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_hex_roundtrip",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_hex_separator",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_hex_separator",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_qp",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_qp",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_b2a_qp_a2b_qp_round_trip",
+      "status": "quarantined",
+      "reason": "unresolved-name:binary"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_b2a_qp_a2b_qp_round_trip",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_b2a_qp_a2b_qp_round_trip",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_empty_string",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_empty_string",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_unicode_b2a",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_unicode_b2a",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_unicode_a2b",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_unicode_a2b",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_b2a_base64_newline",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_b2a_base64_newline",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "ArrayBinASCIITest.test_base64_roundtrip",
+      "status": "quarantined",
+      "reason": "unresolved-name:binary"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_base64_roundtrip",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_base64_roundtrip",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "BytearrayBinASCIITest.test_c_contiguity",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    },
+    {
+      "id": "MemoryviewBinASCIITest.test_c_contiguity",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.type2test)"
+    }
+  ]
+}
