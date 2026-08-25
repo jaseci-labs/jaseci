@@ -34,8 +34,8 @@ import from .react_jsdom_harness {
 glob FIXTURES = str(
          Path(__file__).parent.parent
              / "compiler"
-             / "passes"
-             / "ecmascript"
+             / "backends"
+             / "es"
              / "fixtures"
      ),
      # The react backend emits plain JS (`__jacJsx(...)` calls, no JSX syntax),

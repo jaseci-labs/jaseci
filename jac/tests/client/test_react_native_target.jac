@@ -12,9 +12,7 @@ import from pathlib { Path }
 
 # Client target modules ship with core under jaclang/client/.
 glob _client_dir = (
-         Path(os.path.dirname(__file__)).parent.parent.parent
-         / "jaclang"
-         / "client"
+         Path(os.path.dirname(__file__)).parent.parent.parent / "jaclang" / "client"
      ),
      _targets_dir = _client_dir / "targets";
 

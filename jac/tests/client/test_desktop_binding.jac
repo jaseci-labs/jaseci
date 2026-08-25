@@ -42,12 +42,7 @@ def _native_dir -> Path {
     here = Path(os.path.abspath(__file__)).parent;
     probe = here;
     for _ in range(8) {
-        cand = probe
-            / "jaclang"
-            / "client"
-            / "targets"
-            / "desktop"
-            / "native";
+        cand = probe / "jaclang" / "client" / "targets" / "desktop" / "native";
         if (cand / "plugin_bridge.jac").exists() {
             return cand;
         }
