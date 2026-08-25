@@ -2,7 +2,7 @@
   "version": 1,
   "wave": "conv_pipeline",
   "description": "D2 mechanical test-conversion pipeline (convert_suite/diff_runner)",
-  "module_count": 122,
+  "module_count": 126,
   "modules": [
     {
       "stem": "array",
@@ -2172,6 +2172,50 @@
           "notes": "0/30 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
         }
       }
+    },
+    {
+      "stem": "compile",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "conv_compile_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "124 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "compile.conv.json"
+    },
+    {
+      "stem": "builtin",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "conv_builtin_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "76 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "builtin.conv.json"
+    },
+    {
+      "stem": "buffer",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "conv_buffer_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "14 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "buffer.conv.json"
+    },
+    {
+      "stem": "call",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "conv_call_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "5 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "call.conv.json"
     }
   ]
 }
