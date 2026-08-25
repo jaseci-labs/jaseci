@@ -835,16 +835,65 @@ def _helper_class_deps(
     return ordered
 
 
+def _class_attr_seeds(
+    cls_name: str | None, cmap: dict[str, _ClassInfo],
+    mod_classes: dict[str, ast.ClassDef],
+) -> list[tuple[str, ast.expr]]:
+    """Class-level attribute assignments along the MRO, base-first.
+
+    ``module = py_operator``-style attributes resolve via class attribute
+    lookup in CPython; with a namespace ``self`` they must be seeded onto it.
+    Later (sub)class assignments override earlier ones. Method names are not
+    attributes here -- the helper vocabulary handles those separately.
+    """
+    if cls_name is None:
+        return []
+    chain: list[str] = []
+    seen: set[str] = set()
+    stack = [cls_name]
+    while stack:
+        name = stack.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        chain.append(name)
+        info = cmap.get(name)
+        if info is not None:
+            stack.extend(reversed(info.bases))
+    seeds: dict[str, ast.expr] = {}
+    for name in chain:
+        cd = mod_classes.get(name)
+        if cd is None:
+            continue
+        for stmt in cd.body:
+            if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 \
+                    and isinstance(stmt.targets[0], ast.Name):
+                seeds[stmt.targets[0].id] = stmt.value
+            elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) \
+                    and stmt.value is not None:
+                seeds[stmt.target.id] = stmt.value
+    # Drop names that are methods on any class in the chain (a method always
+    # wins over a same-named data attribute in the lookup that matters here,
+    # and calling conventions differ).
+    for name in chain:
+        info = cmap.get(name)
+        if info is not None:
+            for meth in info.methods:
+                seeds.pop(meth, None)
+    return sorted(seeds.items())
+
+
 def _apply_fixture_vocab(
     body: list[ast.stmt],
     cls_name: str,
     cmap: dict[str, _ClassInfo],
     mod_classes: dict[str, ast.ClassDef],
     available_names: set[str],
-) -> tuple[list[ast.stmt], list[ast.stmt], bool]:
+) -> tuple[list[ast.stmt], list[ast.stmt], list[ast.stmt], bool]:
     """Lift custom helper vocabulary for one test candidate.
 
-    Returns (rewritten body, extra prelude statements, needs_re).
+    Returns (rewritten body, extra prelude statements, namespace seed
+    assignments, needs_re).
     """
     session = _FixtureVocab(cls_name, cmap, available_names)
     prefix: list[ast.stmt] = []
@@ -864,7 +913,18 @@ def _apply_fixture_vocab(
         *session.lifted,
         *_helper_class_deps(session.lifted, mod_classes),
     ]
-    return rewritten, extra_prelude, bool(ns_attrs) or session.needs_ns, needs_re or session.needs_re
+    ns_block: list[ast.stmt] = []
+    if bool(ns_attrs) or session.needs_ns:
+        ns_block = _namespace_prelude()
+        for attr, value in _class_attr_seeds(cls_name, cmap, mod_classes):
+            assign = ast.Assign(
+                targets=[ast.Attribute(value=ast.Name(id="self", ctx=ast.Load()),
+                                       attr=attr, ctx=ast.Store())],
+                value=copy.deepcopy(value),
+            )
+            ast.fix_missing_locations(assign)
+            ns_block.append(assign)
+    return rewritten, extra_prelude, ns_block, needs_re or session.needs_re
 
 
 # ---------------------------------------------------------------------------
@@ -877,11 +937,13 @@ def _src(node: ast.AST, source: str) -> str:
 
 
 def collect_prelude(tree: ast.Module, source: str, include_classes: bool = False) -> tuple[list[ast.stmt], set[str]]:
-    """Module-level imports/assigns/function defs usable as snippet prelude.
+    """Module-level imports/assigns/function defs/classes usable as prelude.
 
-    Classes are included only when requested (doctest path): referencing a
-    class from a unittest method snippet would drag its whole source text
-    (incl. skip machinery) into every pin.
+    Everything enters the same prunable pool: ``_prune_prelude`` keeps only
+    items whose bindings the test body (transitively) references, so a
+    module-level helper class lands in a snippet only when the body actually
+    names it -- previously such references quarantined as
+    ``unresolved-name:<Class>``.
     """
     stmts: list[ast.stmt] = []
     names: set[str] = set()
@@ -930,7 +992,7 @@ def _prune_prelude(
 
 def extract_tests(tree: ast.Module, source: str) -> Extraction:
     result = Extraction()
-    prelude, prelude_names = collect_prelude(tree, source)
+    prelude, prelude_names = collect_prelude(tree, source, include_classes=True)
     cmap = _module_class_map(tree)
     mod_classes = {
         node.name: node for node in tree.body if isinstance(node, ast.ClassDef)
@@ -970,12 +1032,42 @@ def extract_tests(tree: ast.Module, source: str) -> Extraction:
             else:
                 candidates.append((None, node.name, list(node.body)))
 
+    # Concrete-subclass variant expansion: a test-bearing base class whose
+    # subclasses carry distinct class attributes (``module = py_operator`` vs
+    # ``c_operator``) runs once per concrete leaf in CPython, each seeing its
+    # own attribute values through the MRO. Expand such candidates per leaf;
+    # classes without in-module descendants keep their single candidate.
+    children: dict[str, list[str]] = {}
+    for cname, info in cmap.items():
+        for b in info.bases:
+            children.setdefault(b, []).append(cname)
+
+    def _leaves(name: str) -> list[str]:
+        kids = children.get(name, [])
+        if not kids:
+            return [name]
+        out: list[str] = []
+        for k in kids:
+            out.extend(_leaves(k))
+        return out
+
+    expanded: list[tuple[str | None, str, list[ast.stmt]]] = []
+    for cls_name, ident, body_stmts in candidates:
+        if cls_name is not None and children.get(cls_name):
+            for leaf in _leaves(cls_name):
+                expanded.append(
+                    (leaf, f"{leaf}.{ident.split('.', 1)[1]}", body_stmts)
+                )
+        else:
+            expanded.append((cls_name, ident, body_stmts))
+    candidates = expanded
+
     for cls_name, ident, body_stmts in candidates:
         try:
             extra_prelude: list[ast.stmt] = []
-            needs_ns = False
+            ns_block: list[ast.stmt] = []
             if cls_name is not None:
-                rewritten, extra_prelude, needs_ns, needs_re = _apply_fixture_vocab(
+                rewritten, extra_prelude, ns_block, needs_re = _apply_fixture_vocab(
                     body_stmts, cls_name, cmap, mod_classes, vocab_available
                 )
             else:
@@ -983,8 +1075,8 @@ def extract_tests(tree: ast.Module, source: str) -> Extraction:
                 # Module-level test functions have no self binding; keep the
                 # strict sweep there (any self.* reference is unsupported).
                 _check_self_usage(rewritten)
-            if needs_ns:
-                rewritten = _namespace_prelude() + rewritten
+            if ns_block:
+                rewritten = ns_block + rewritten
             pool = prelude + extra_prelude
             pool_names = prelude_names | {
                 binding
