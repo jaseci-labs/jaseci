@@ -1,14 +1,14 @@
-# Jac Cube Shooter - full-stack (native wasm + client WebGL) via `jac start`
+# Jac Cube Shooter - full-stack (native wasm + client WebGL) via `jac run`
 
 The same rlgl cube shooter as the parent example, as a **full-stack Jac app**: the
 game code infers the native codespace from its extern raylib import and is
 compiled to WebAssembly, the page is a React component that infers client from
-its JSX, and `jac start` builds + serves both. One markerless app module, no
+its JSX, and `jac run` builds + serves both. One markerless app module, no
 hand-run build steps, no `.mjs`.
 
 ```bash
-jac start          # build the cl bundle + na->wasm, serve on http://localhost:8000
-jac start --dev    # same with hot reload
+jac run            # build the cl bundle + na->wasm, serve on http://localhost:8000
+jac run --dev      # same with hot reload
 # open http://localhost:8000, click the canvas: WASD move, mouse/arrows aim,
 # Space fire, Tab release the cursor
 ```

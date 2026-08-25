@@ -11,8 +11,8 @@ import from unittest.mock { MagicMock, patch }
 import from http.server { ThreadingHTTPServer }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
-import from jaclang.runtimelib.server { JacAPIServer }
-import from jaclang.runtimelib.server { UserManager as CoreUserManager }
+import from jaclang.server.server { JacAPIServer }
+import from jaclang.server.server { UserManager as CoreUserManager }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -100,7 +100,7 @@ test "faux flag prints endpoint docs" {
         captured_output = io.StringIO();
         with suppress(SystemExit) {
             with redirect_stdout(captured_output) {
-                execution.start(
+                execution.serve(
                     filename=fixture_abs_path("serve_api.jac"),
                     port=port,
                     main=True,
@@ -152,7 +152,7 @@ test "faux flag with littlex example" {
         captured_output = io.StringIO();
         with suppress(SystemExit) {
             with redirect_stdout(captured_output) {
-                execution.start(filename=littlex_path, port=port, main=True, faux=True);
+                execution.serve(filename=littlex_path, port=port, main=True, faux=True);
             }
         }
         output = captured_output.getvalue();
@@ -180,7 +180,7 @@ test "start with default main jac" {
             captured_output = io.StringIO();
 
             with redirect_stderr(captured_output) {
-                execution.start(filename="main.jac", port=port, main=True, faux=True);
+                execution.serve(filename="main.jac", port=port, main=True, faux=True);
             }
 
             output = captured_output.getvalue();
@@ -206,7 +206,7 @@ test "start without main jac error" {
             captured_output = io.StringIO();
 
             with redirect_stderr(captured_output) {
-                result = execution.start(
+                result = execution.serve(
                     filename="main.jac", port=port, main=True, faux=True
                 );
             }
@@ -229,7 +229,7 @@ test "start with explicit file" {
         captured_output = io.StringIO();
         with suppress(SystemExit) {
             with redirect_stdout(captured_output) {
-                execution.start(
+                execution.serve(
                     filename=fixture_abs_path("serve_api.jac"),
                     port=port,
                     main=True,
@@ -254,7 +254,7 @@ test "start with nonexistent file error" {
             captured_output = io.StringIO();
 
             with redirect_stderr(captured_output) {
-                result = execution.start(
+                result = execution.serve(
                     filename="nonexistent.jac", port=port, main=True, faux=True
                 );
             }
@@ -270,7 +270,7 @@ test "start with nonexistent file error" {
 }
 
 # --- Dev Mode Tests ---
-test "jac start dev auto-installs watchdog even when not in jac.toml" {
+test "jac run --dev auto-installs watchdog even when not in jac.toml" {
     mock_provider = MagicMock();
     mock_provider.install_specs.return_value = True;
     mock_config = MagicMock();
@@ -325,7 +325,7 @@ test "dev banner headlines vite port not api port" {
 lazily at start() so test-mode servers (port=0) stay socket-free and the app
 can be built and dispatched fully in-process."""
 test "api server construction is socket-free and builds a serving app" {
-    import from jaclang.runtimelib.serving.app { ServingApp }
+    import from jaclang.server.serving.app { ServingApp }
     with TemporaryDirectory() as tmpdir {
         port = get_free_port();
         Jac.set_base_path(tmpdir);
