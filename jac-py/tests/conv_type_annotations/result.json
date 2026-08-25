@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "653a5d4ae9ad7cf4d1681cef03bbe2bae85cd7c4",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_type_annotations/conv_type_annotations_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:34:13",
+  "hashes": {
+    "pins_jac": "23561fdc93381ec6be03c74eae952ba9636cd5e4f7d05c2f6582a5d0f360170e",
+    "conversion_json": "fd8870b5aed1636c8de5ec954e7e723097a31646fc6cfd03ea054332105adb58",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "type_annotations",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 48,
+    "runnable": 46,
+    "green": 7,
+    "quarantined": 2,
+    "failed": 39,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TypeAnnotationTests.test_annotations_are_created_correctly",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC SystemError 'unsupported opcode 36'\">"
+    },
+    {
+      "id": "TypeAnnotationTests.test_pep563_annotations",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.test_inspect'\">"
+    },
+    {
+      "id": "TypeAnnotationTests.test_explicitly_set_annotate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TypeAnnotationTests.test_del_annotations_and_annotate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__annotations__'\">"
+    },
+    {
+      "id": "TypeAnnotationTests.test_partially_executed_module",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "TestSetupAnnotations.test_top_level",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "TestSetupAnnotations.test_blocks",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "TestSetupAnnotations.test_try",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "TestSetupAnnotations.test_try_star",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "TestSetupAnnotations.test_match",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "AnnotateTests.test_manual_annotate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "AnnotateTests.test_user_defined_annotate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_function",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__annotations__'\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_async_function",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__annotations__'\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_class",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC SystemError 'unsupported opcode 36'\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_module",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_class_scoping",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC SystemError 'unsupported opcode 36'\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_ignore_non_simple_annotations",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_generated_annotate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_comprehension_in_annotation",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_class_annotation_dunder_classdict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_future_annotations",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_set_annotations",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "DeferredEvaluationTests.test_name_clash_with_format",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_with",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_simple_if",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_if_elif",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_try",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_try_star",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_while",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_for",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_match",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_nesting_override",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_nesting_outer",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_nesting_inner",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "ConditionalAnnotationTests.test_non_name_annotations",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "RegressionTests.test_complex_comprehension_inlining_exec",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "RegressionTests.test_annotate_qualname",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    },
+    {
+      "id": "RegressionTests.test_module_level_annotation_plus_listcomp",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'run_code' from '<unknown>'\">"
+    }
+  ]
+}

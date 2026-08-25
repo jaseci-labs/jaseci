@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "653a5d4ae9ad7cf4d1681cef03bbe2bae85cd7c4",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_strtod/conv_strtod_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:34:17",
+  "hashes": {
+    "pins_jac": "58d94a0ca0101695e7d8d0696dd563ca8c31a069a8fadb5c89f7d97cbe79be8c",
+    "conversion_json": "7c3cf2c69da4e01700056f5877f9f6438b27d2f02a0785fa9aeaba5150a62877",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "strtod",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 9,
+    "runnable": 8,
+    "green": 2,
+    "quarantined": 1,
+    "failed": 6,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "StrtodTests.test_short_halfway_cases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "StrtodTests.test_halfway_cases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "StrtodTests.test_boundaries",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "StrtodTests.test_underflow_boundary",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "StrtodTests.test_bigcomp",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "StrtodTests.test_parsing",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    }
+  ]
+}

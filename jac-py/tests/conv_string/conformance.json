@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "653a5d4ae9ad7cf4d1681cef03bbe2bae85cd7c4",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_string/conv_string_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:35:10",
+  "hashes": {
+    "pins_jac": "09dac40c18611840e18c8e97118217a98d28de7c61358ce1b1665dde68e5bc4e",
+    "conversion_json": "c95cc9a7ffa78c18c0d7b8decc456028261bbe987466f57f08d3140d5c74a0c1",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "string",
+  "counts": {
+    "converted": 41,
+    "runnable": 25,
+    "green": 13,
+    "quarantined": 16
+  },
+  "pins": [
+    {
+      "id": "LazyImportTest.test_lazy_import",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.import_helper'\">"
+    },
+    {
+      "id": "ModuleTest.test_attrs",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_capwords",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_basic_formatter",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_format_keyword_arguments",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "ModuleTest.test_auto_numbering",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_conversion_specifiers",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_name_lookup",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_index_lookup",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_auto_numbering_lookup",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_override_get_value",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_override_format_field",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_override_convert_field",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_override_parse",
+      "status": "pass"
+    },
+    {
+      "id": "ModuleTest.test_check_unused_args",
+      "status": "pass"
+    },
+    {
+      "id": "TestTemplate.test_regular_templates",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'sub'\">"
+    },
+    {
+      "id": "TestTemplate.test_regular_templates_with_braces",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'sub'\">"
+    },
+    {
+      "id": "TestTemplate.test_regular_templates_with_upper_case",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'sub'\">"
+    },
+    {
+      "id": "TestTemplate.test_regular_templates_with_non_letters",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'sub'\">"
+    },
+    {
+      "id": "TestTemplate.test_escapes",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "id": "TestTemplate.test_percents",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "id": "TestTemplate.test_stringification",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "id": "TestTemplate.test_tupleargs",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "id": "TestTemplate.test_SafeTemplate",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "id": "TestTemplate.test_invalid_placeholders",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertRaises'"
+    },
+    {
+      "id": "TestTemplate.test_flags_override",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "TestTemplate.test_idpattern_override_inside_outside",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "TestTemplate.test_idpattern_override_inside_outside_invalid_unbraced",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "TestTemplate.test_braced_override",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "TestTemplate.test_braced_override_safe",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "TestTemplate.test_unicode_values",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'sub'\">"
+    },
+    {
+      "id": "TestTemplate.test_keyword_arguments",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "id": "TestTemplate.test_keyword_arguments_safe",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "id": "TestTemplate.test_delimiter_override",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "id": "TestTemplate.test_is_valid",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "id": "TestTemplate.test_get_identifiers",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
+    },
+    {
+      "id": "ModuleTest.test_auto_numbering_reenterability",
+      "status": "quarantined",
+      "reason": "uses-self.format"
+    },
+    {
+      "id": "ModuleTest.test_vformat_recursion_limit",
+      "status": "quarantined",
+      "reason": "unresolved-name:err"
+    },
+    {
+      "id": "TestTemplate.test_idpattern_override",
+      "status": "quarantined",
+      "reason": "unresolved-name:Bag"
+    },
+    {
+      "id": "TestTemplate.test_pattern_override",
+      "status": "quarantined",
+      "reason": "unresolved-name:Bag"
+    },
+    {
+      "id": "TestTemplate.test_invalid_with_no_lines",
+      "status": "quarantined",
+      "reason": "unresolved-name:err"
+    }
+  ]
+}

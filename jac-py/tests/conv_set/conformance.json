@@ -1,0 +1,996 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "653a5d4ae9ad7cf4d1681cef03bbe2bae85cd7c4",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_set/conv_set_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:33:57",
+  "hashes": {
+    "pins_jac": "edfa38a48076b823d68fb530f27606b51efd0283a1d9bbb66e0cc7fc3133242b",
+    "conversion_json": "0341aa02f4c5993287d71dc67ba3a7710be5dde7d93c5b19cc54214578cb0e43",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "set",
+  "counts": {
+    "converted": 206,
+    "runnable": 68,
+    "green": 65,
+    "quarantined": 138
+  },
+  "pins": [
+    {
+      "id": "TestBasicOps.test_repr",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'repr'"
+    },
+    {
+      "id": "TestBasicOps.test_length",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_self_equality",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_equivalent_equality",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_copy",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_self_union",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_empty_union",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_union_empty",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_self_intersection",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_empty_intersection",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_intersection_empty",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_self_isdisjoint",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_empty_isdisjoint",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_isdisjoint_empty",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_self_symmetric_difference",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_empty_symmetric_difference",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_self_difference",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_empty_difference",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_empty_difference_rev",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_iteration",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_pickling",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestBasicOps.test_issue_37219",
+      "status": "pass"
+    },
+    {
+      "id": "TestBasicOpsSingleton.test_in",
+      "status": "pass"
+    },
+    {
+      "id": "TestBasicOpsSingleton.test_not_in",
+      "status": "pass"
+    },
+    {
+      "id": "TestBasicOpsTuple.test_in",
+      "status": "pass"
+    },
+    {
+      "id": "TestBasicOpsTuple.test_not_in",
+      "status": "pass"
+    },
+    {
+      "id": "TestExceptionPropagation.test_instanceWithException",
+      "status": "pass"
+    },
+    {
+      "id": "TestExceptionPropagation.test_instancesWithoutException",
+      "status": "pass"
+    },
+    {
+      "id": "TestExceptionPropagation.test_changingSizeWhileIterating",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'no exception when changing size during iteration'\">"
+    },
+    {
+      "id": "TestSetOfSets.test_constructor",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_eq",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_union_subset",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_union_superset",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_union_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_union_non_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_intersection_subset",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_intersection_superset",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_intersection_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_intersection_non_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_isdisjoint_subset",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_isdisjoint_superset",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_isdisjoint_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_isdisjoint_non_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_sym_difference_subset",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_sym_difference_superset",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_sym_difference_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestBinaryOps.test_sym_difference_non_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_union_subset",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_union_superset",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_union_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_union_non_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_union_method_call",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_intersection_subset",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_intersection_superset",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_intersection_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_intersection_non_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_intersection_method_call",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_sym_difference_subset",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_sym_difference_superset",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_sym_difference_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_sym_difference_non_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_sym_difference_method_call",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_difference_subset",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_difference_superset",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_difference_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_difference_non_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestUpdateOps.test_difference_method_call",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_add_present",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_add_absent",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_add_until_full",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_remove_present",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_remove_absent",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_remove_until_empty",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_discard_present",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_discard_absent",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_clear",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_pop",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_update_empty_tuple",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_update_unit_tuple_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestMutate.test_update_unit_tuple_non_overlap",
+      "status": "pass"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_eq_ne",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'other'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_ge_gt_le_lt",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_update_operator",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_update",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'otherIsIterable'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_union",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_intersection_update_operator",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_intersection_update",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'otherIsIterable'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_intersection",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_sym_difference_update_operator",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_sym_difference_update",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'otherIsIterable'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_sym_difference",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_difference_update_operator",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_difference_update",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'otherIsIterable'"
+    },
+    {
+      "id": "TestOnlySetsInBinaryOps.test_difference",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestCopying.test_copy",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestCopying.test_deep_copy",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'set'"
+    },
+    {
+      "id": "TestIdentities.test_binopsVsSubsets",
+      "status": "pass"
+    },
+    {
+      "id": "TestIdentities.test_commutativity",
+      "status": "pass"
+    },
+    {
+      "id": "TestIdentities.test_summations",
+      "status": "pass"
+    },
+    {
+      "id": "TestIdentities.test_exclusion",
+      "status": "pass"
+    },
+    {
+      "id": "TestWeirdBugs.test_iter_and_mutate",
+      "status": "pass"
+    },
+    {
+      "id": "TestWeirdBugs.test_merge_and_mutate",
+      "status": "pass"
+    },
+    {
+      "id": "TestWeirdBugs.test_hash_collision_concurrent_add",
+      "status": "pass"
+    },
+    {
+      "id": "TestGraphs.test_cube",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not iterable'\">"
+    },
+    {
+      "id": "TestGraphs.test_cuboctahedron",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not iterable'\">"
+    },
+    {
+      "id": "TestJointOps.test_new_or_init",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_uniquification",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_len",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_contains",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_union",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_or",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_intersection",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_isdisjoint",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_and",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_difference",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_sub",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_symmetric_difference",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_xor",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_equality",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_setOfFrozensets",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_sub_and_super",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_pickling",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_iterator_pickling",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_deepcopy",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_gc",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_subclass_with_custom_hash",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_badcmp",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_cyclical_repr",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_do_not_rehash_dict_keys",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_container_iterator",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestJointOps.test_free_after_iterating",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_init",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_constructor_identity",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_set_literal",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_set_literal_insertion_order",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_set_literal_evaluation_order",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_hash",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_clear",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_copy",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_add",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_remove",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_remove_keyerror_unpacking",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_remove_keyerror_set",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_discard",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_pop",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_update",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_ior",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_intersection_update",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_iand",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_difference_update",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_isub",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_symmetric_difference_update",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_ixor",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_inplace_on_self",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_weakref",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_rich_compare",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_set_membership",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_unhashable_element",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSet.test_hash_collision_remove_add",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestSetSubclass.test_keywords_in_subclass",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSet.test_init",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSet.test_constructor_identity",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSet.test_hash",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSet.test_copy",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSet.test_frozen_as_dictkey",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSet.test_hash_caching",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSet.test_hash_effectiveness",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSetSubclass.test_keywords_in_subclass",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSetSubclass.test_constructor_identity",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSetSubclass.test_copy",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSetSubclass.test_nested_empty_constructor",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestFrozenSetSubclass.test_singleton_empty_frozenset",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.thetype)"
+    },
+    {
+      "id": "TestBasicOpsString.test_repr",
+      "status": "quarantined",
+      "reason": "helper:check_repr_against_values(self.assertStartsWith)"
+    },
+    {
+      "id": "TestBasicOpsBytes.test_repr",
+      "status": "quarantined",
+      "reason": "helper:check_repr_against_values(self.assertStartsWith)"
+    },
+    {
+      "id": "TestBasicOpsMixedStringBytes.test_repr",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "TestSubsets.test_issubset",
+      "status": "quarantined",
+      "reason": "unresolved-name:TestSubsets"
+    },
+    {
+      "id": "TestVariousIteratorArgs.test_constructor",
+      "status": "quarantined",
+      "reason": "unresolved-name:E"
+    },
+    {
+      "id": "TestVariousIteratorArgs.test_inline_methods",
+      "status": "quarantined",
+      "reason": "unresolved-name:E"
+    },
+    {
+      "id": "TestVariousIteratorArgs.test_inplace_methods",
+      "status": "quarantined",
+      "reason": "unresolved-name:E"
+    },
+    {
+      "id": "TestWeirdBugs.test_8420_set_merge",
+      "status": "quarantined",
+      "reason": "unresolved-name:bad_dict_clear"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_eq_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_ne_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_lt_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_le_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_gt_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_ge_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_and_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_or_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_sub_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_xor_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_iadd_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_ior_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_isub_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_ixor_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestBinaryOpsMutating.test_iteration_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_issubset_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_issuperset_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_intersection_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_union_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_difference_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_symmetric_difference_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_isdisjoint_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_difference_update_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_intersection_update_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_symmetric_difference_update_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    },
+    {
+      "id": "TestMethodsMutating.test_update_with_mutation",
+      "status": "quarantined",
+      "reason": "helper:check_set_op_does_not_crash(helper:make_sets_of_bad_objects(uses-self.constructor1))"
+    }
+  ]
+}
