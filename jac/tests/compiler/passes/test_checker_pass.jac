@@ -5037,10 +5037,7 @@ test "web_project_lowercase_component_no_w1050" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_lowercase_component_web.jac");
     program = JacProgram();
     program.compile(
-        path,
-        options=CompileOptions(
-            type_check=True, project_kind="web", project_root=CHECKER_FIXTURES
-        )
+        path, options=CompileOptions(project_kind="web", project_root=CHECKER_FIXTURES)
     );
     w1050 = [
         w
