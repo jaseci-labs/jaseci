@@ -93,38 +93,24 @@ jobs:
               - 'jac/sitecustomize.py'
               - 'jac/jaclang/dist/precompile_bytecode.jac'
               - '.github/actions/**'
-            # NARROWING filter, same shape as `native`: test-graphmend-torch
-            # installs a ~250 MB CPU torch and drives TorchDynamo, which is
-            # wasted on a PR that cannot move a graph break. Everything listed
-            # outside graphmend/** can change the graph count with every
-            # source-text test still green, which is the whole failure mode this
-            # lane exists to catch, so a miss here is worse than an extra run.
+            # NARROWING filter, same shape as `native`. Everything outside
+            # graphmend/** can move the graph count with every source-text test
+            # still green, so a miss here is worse than an extra run.
             graphmend:
               # The transforms themselves.
               - 'jac/jaclang/compiler/passes/graphmend/**'
-              # The helpers that EXECUTE INSIDE THE TRACED REGION: se_emit /
-              # log_emit / se_flush / se_region_enter / se_region_exit /
-              # se_guard / trap_guard / tensor_eq_assert. The buffer-drain and
-              # logging-passthrough edits that motivated this lane touched
-              # runtime.impl.jac and nothing else.
+              # The helpers that run inside the traced region.
               - 'jac/jaclang/runtime/impl/runtime.impl.jac'
               - 'jac/jaclang/runtime/runtime.jac'
               - 'jac/jaclang/lib/jaclib.jac'
               - 'jac/jaclang/compiler/frontend/constant.jac'
-              # Whether a module is transformed at all, and which artifact is
-              # served: the claim set and enable flag (compiler.impl.jac,
-              # compile_options.jac), the graphmend cache-variant key that
-              # decides when a stored artifact may be reused (jir.jac), and the
-              # import hook that claims model packages (meta_importer.py). A
-              # bug in any of them feeds untransformed bytecode to a run whose
-              # source-text assertions still pass.
+              # Whether a module is transformed and which artifact is served; a
+              # bug here feeds untransformed bytecode to a still-green run.
               - 'jac/jaclang/compiler/driver/impl/compiler.impl.jac'
               - 'jac/jaclang/compiler/driver/compile_options.jac'
               - 'jac/jaclang/compiler/driver/jir.jac'
               - 'jac/jaclang/meta_importer.py'
-              # Emits the graphmend helper imports into the generated module.
-              # Dropping one is a NameError at exec time, and exec time is
-              # exactly what no other lane reaches.
+              # Emits the helper imports; dropping one is a NameError at exec time.
               - 'jac/jaclang/compiler/backends/py/impl/jcir_gen_pass.impl.jac'
               # The suites and their fixtures, and the lane's own definition.
               - 'jac/tests/compiler/passes/test_graphmend_*.jac'
@@ -757,35 +743,22 @@ jobs:
           JAC_TEST_JOBS: "0"
         run: jac test jac/jaclang/scale/tests/server/test_serve.jac -f hmr
 
-  # GraphMend's claim is a RUNTIME metric: a compiled region that hands
-  # TorchDynamo 2+ FX graphs unpatched hands it exactly 1 patched. Only the four
-  # *_integration suites assert it, by driving a counting Dynamo backend, and
-  # each of their tests opens with a helper that calls pytest.skip when torch is
-  # missing. No other job installs torch, so those 18 assertions have been
-  # reporting green while executing nothing; everything else in CI checks only
-  # that the transforms emit certain source text. This lane installs CPU-only
-  # torch and FAILS if any of them skips.
+  # The graph-count claim is a runtime metric only the four *_integration
+  # suites assert, and each of their tests skips when torch is missing. This
+  # lane installs CPU-only torch and fails if any of them skips.
   test-graphmend-torch:
     name: GraphMend Graph Counts
-    # Gated on host-kit only because the dev lane now IS the host kit through
-    # the reroute (#8469 retired setup-jac-dev), the same gate jac-check and
-    # contribution-checks take. host-kit downloads a prebuilt main binary
-    # rather than building one, so it does not reintroduce the failure mode
-    # that kept this lane off build-jac: run 31918166404, where an unrelated
-    # seal failure skipped every job that needed it.
+    # host-kit downloads a prebuilt main binary rather than building one, so an
+    # unrelated seal failure cannot skip this lane.
     needs: [changes, host-kit]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.graphmend == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
-      # PINNED, not floored. The assertion is an exact graph count, so a Dynamo
-      # change upstream would redden PRs that never touched GraphMend, and a
-      # gate that reddens for unrelated reasons gets switched off. The nightly
-      # graphmend-torch-latest canary runs the same suites unpinned, so drift
-      # surfaces there instead of in someone's merge queue.
+      # PINNED, not floored: the assertion is an exact graph count. The nightly
+      # canary runs the same suites unpinned, so drift surfaces there.
       TORCH_VERSION: "2.13.0"
-      # Not a torch requirement, but torch warns on import without it and the
-      # suites run under `filterwarnings = error`. Pinned for the same reason
-      # torch is.
+      # torch warns on import without it, and the suites run under
+      # `filterwarnings = error`.
       NUMPY_VERSION: "2.5.1"
     steps:
       - uses: actions/checkout@v5

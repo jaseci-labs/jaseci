@@ -1,42 +1,29 @@
 name: GraphMend graph-count suites
 description: >
-  Install CPU-only torch into the jac binary's global site and run the four
-  torch-gated GraphMend integration suites, which assert the runtime claim: a
-  compiled region that hands TorchDynamo 2+ FX graphs unpatched hands it exactly
-  1 patched.
-
-  Every test in those suites opens with a helper that calls `pytest.skip` when
-  torch is missing, and pytest exits 0 for an all-skipped session. So the ONLY
-  thing standing between "these assertions ran" and "these assertions reported
-  green having executed nothing" is the post-run check here, which fails the
-  step on any skip and on a pass count below `expected-tests`.
-
-  Expects `jac` already on PATH (setup-jac, or the ci.yml binary artifact).
+  Install CPU-only torch and run the four torch-gated GraphMend integration
+  suites, which assert that a region handing TorchDynamo 2+ FX graphs unpatched
+  hands it exactly 1 patched. Their tests skip when torch is missing and pytest
+  exits 0 for an all-skipped session, so this action fails the step on any skip
+  and on a pass count below `expected-tests`. Expects `jac` on PATH.
 inputs:
   specs:
     description: >
-      Space-separated pip specs. ci.yml pins exact versions so the gate cannot
-      redden for reasons outside the PR; the nightly canary passes bare names to
-      catch Dynamo drift. numpy belongs here even though torch does not require
-      it: without it torch's C extension warns on import, and pytest.ini runs
-      with `filterwarnings = error`, so the warning aborts the import and every
-      later test sees a half-built torch module.
+      Space-separated pip specs; ci.yml pins exact versions, the nightly canary
+      passes bare names to catch Dynamo drift. numpy is needed because torch
+      warns on import without it, under `filterwarnings = error`.
     required: false
     default: torch numpy
   expected-tests:
     description: >
-      Floor on the number of tests that must PASS. Deliberately a hard floor,
-      not a soft one: a suite that shrinks silently is the same failure this
-      whole action exists to catch.
+      Hard floor on the number of tests that must PASS: a suite that shrinks
+      silently is the same failure this action exists to catch.
     required: false
     default: "18"
 runs:
   using: composite
   steps:
-    # The PyPI torch bundles the CUDA stack (multi-GB); this index serves the
-    # CPU build and its dependencies. pip reads PIP_INDEX_URL exactly as
-    # --index-url. PIP_CACHE_DIR sits in the workspace so a caller can wrap
-    # this action in actions/cache.
+    # PyPI torch bundles the multi-GB CUDA stack; this index serves the CPU
+    # build. PIP_CACHE_DIR sits in the workspace so a caller can cache it.
     - name: Install CPU-only torch into the global site
       shell: bash
       env:
@@ -52,10 +39,8 @@ runs:
       working-directory: jac
       run: |
         set -uo pipefail
-        # Preflight under the suites' own warning policy (pytest.ini sets
-        # `filterwarnings = error`), so an import that only warns here fails
-        # with one legible message instead of 18 stack traces. cuda must be
-        # None: a CUDA build means the index pin stopped taking effect.
+        # Preflight under the suites' warning policy, so a warning-only import
+        # fails once here instead of 18 times. cuda None proves the index pin held.
         jac -c 'import warnings; warnings.simplefilter("error"); import torch; print("torch", torch.__version__, "cuda:", torch.version.cuda)'
         rc=0
         JAC_TEST_JOBS=auto jac test \
