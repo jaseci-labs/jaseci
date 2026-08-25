@@ -771,10 +771,11 @@ class JacScalePlugin {
                 _sv_sibling_procs[module_name] = spawn_result.proc;
                 atexit.register(_cleanup_bun);
             }
+            port: int = pick_free_port(module_name);
             url = dispatch_sv_service(
                 module_name,
                 str(base_dir),
-                port=pick_free_port(module_name),
+                port=port,
                 scale_mode=True,
                 progress=_log_size,
                 on_spawn=_register_bun_spawn
@@ -782,7 +783,6 @@ class JacScalePlugin {
             if url is not None {
                 return;
             }
-            port: int = pick_free_port(module_name);
             base_url: str = f"http://127.0.0.1:{port}";
             child_env = dict(os.environ);
             child_env["JAC_SV_SIBLING"] = "1";
