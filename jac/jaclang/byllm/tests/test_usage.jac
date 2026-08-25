@@ -399,6 +399,22 @@ test "_stream_chunk_builder_accepts_logging_obj degrades to False and logs when 
 }
 
 
+test "_stream_chunk_builder_accepts_logging_obj survives litellm not being installed" {
+    # _optdeps/litellm.jac's fallback stub has no stream_chunk_builder
+    # attribute at all - the attribute access itself must stay inside the
+    # try, not just the signature inspection.
+    with unittest.mock.patch.object(
+        _byllm_llm_mod, "litellm", types.SimpleNamespace()
+    ) {
+        result = _byllm_llm_mod._stream_chunk_builder_accepts_logging_obj();
+        assert not result , (
+            "a missing stream_chunk_builder attribute must degrade to False, "
+            "not raise AttributeError"
+        );
+    }
+}
+
+
 test "_usage_to_dict logs rather than silently swallowing a serialization failure" {
     class _Unserializable {
         def model_dump(self: _Unserializable) -> dict {
