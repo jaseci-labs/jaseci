@@ -344,12 +344,20 @@ obj ManifestBuilder {
         import from jaclang.scale.runtime.context.util { jac_executable }
         client_entry = self._client_entry();
         if not client_entry {
-            console.print(
-                "[scale.microservices.client] entry is unset or false and the "
-                "project has no client source (no pages/ or components/ "
-                "directory, no [client] table in jac.toml); skipping the "
-                "client build."
-            );
+            disabled = self._client_entry_setting()[2];
+            if disabled {
+                console.print(
+                    "[scale.microservices.client] entry = false is set; "
+                    "skipping the client build."
+                );
+            } else {
+                console.print(
+                    "[scale.microservices.client] entry is unset and the "
+                    "project has no client source (no pages/ or components/ "
+                    "directory, no [client] table in jac.toml); skipping the "
+                    "client build."
+                );
+            }
             return;
         }
         base = Path(project_dir);
@@ -689,7 +697,7 @@ obj ManifestBuilder {
         }
     }
 
-    def _client_entry_setting -> tuple[str, str] {
+    def _client_entry_setting -> tuple[str, str, bool] {
         import from jaclang.scale.config.config_loader {
             get_scale_config,
             normalize_microservices_config
@@ -705,7 +713,8 @@ obj ManifestBuilder {
         ]["entry"];
         return (
             str(resolved or "").strip(),
-            declared.strip() if isinstance(declared, str) else ""
+            declared.strip() if isinstance(declared, str) else "",
+            declared is False
         );
     }
 
@@ -714,7 +723,10 @@ obj ManifestBuilder {
     }
 
     def _client_entry -> str {
-        (resolved, _) = self._client_entry_setting();
+        (resolved, _, disabled) = self._client_entry_setting();
+        if disabled {
+            return "";
+        }
         if resolved {
             return resolved;
         }

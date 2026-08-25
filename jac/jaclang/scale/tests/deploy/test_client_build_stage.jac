@@ -514,6 +514,35 @@ test "entry = false with no client source skips the build and says so" {
         f"a deploy with no client must say it is skipping the build: "
         f"{out.getvalue()!r}"
     );
+    assert "entry = false" in out.getvalue() , (
+        f"the skip must name the explicit opt-out: {out.getvalue()!r}"
+    );
+}
+
+
+test "entry = false with client source still skips the build" {
+    project_dir = _app(_PARKED);
+    os.mkdir(os.path.join(project_dir, "pages"));
+    mb = _builder(project_dir, client={"entry": False});
+    out = io.StringIO();
+    try {
+        assert mb._client_entry() == "" , (
+            "an explicit entry = false must win over the client-source guess"
+        );
+        with redirect_stdout(out) {
+            mb._build_client_bundle(project_dir);
+        }
+        built = os.path.isdir(os.path.join(project_dir, ".jac"));
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+    assert not built , "the skip must happen before anything is built";
+    assert "entry = false" in out.getvalue() , (
+        f"the skip must name the explicit opt-out: {out.getvalue()!r}"
+    );
+    assert "skipping the client build" in out.getvalue() , (
+        f"the skip must be said out loud: {out.getvalue()!r}"
+    );
 }
 
 
