@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "87412999bc7112d340c86f51f2b2fde1e0f7279c",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,7 +10,7 @@
     "diff_runner.py",
     "jac-py/tests/conv_unpack_ex/conv_unpack_ex_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:07:38",
+  "generated_at": "2026-08-24T21:27:29",
   "hashes": {
     "pins_jac": "59ffa41d352ef7dce260bd34e5719852ab60eb6b000dece45960dc347a18f7bf",
     "conversion_json": "b1b62cde848131f61c299790655960c80fd357a5cc6bc058de91d45bec16b490",
@@ -27,8 +27,8 @@
     {
       "id": "unpack_ex.doctests:doctests",
       "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'ValueError: not enough values to unpack (expected at least 6, got 0)'>"
+      "classification": "VM-CRASH",
+      "detail": "\ud83d\udee0  jac dev mode \u2014 using compiler source at /var/tmp/lane8/jac\n\u2716 Error: 'int' object is not iterable\n14178 |                 return hiter_r[1] as PyObj;\n14179 |             }\n14180 |             for hostel in hiter {\n      |                      ^^^^^\n14181 |                 target_set.set_add(from_h"
     },
     {
       "id": "unpack_ex.doctests:doctests.ex66",

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "653a5d4ae9ad7cf4d1681cef03bbe2bae85cd7c4",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_set/conv_set_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:33:57",
+  "hashes": {
+    "pins_jac": "edfa38a48076b823d68fb530f27606b51efd0283a1d9bbb66e0cc7fc3133242b",
+    "conversion_json": "0341aa02f4c5993287d71dc67ba3a7710be5dde7d93c5b19cc54214578cb0e43",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "set",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 206,
+    "runnable": 68,
+    "green": 65,
+    "quarantined": 138,
+    "failed": 3,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestExceptionPropagation.test_changingSizeWhileIterating",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'no exception when changing size during iteration'\">"
+    },
+    {
+      "id": "TestGraphs.test_cube",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not iterable'\">"
+    },
+    {
+      "id": "TestGraphs.test_cuboctahedron",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not iterable'\">"
+    }
+  ]
+}

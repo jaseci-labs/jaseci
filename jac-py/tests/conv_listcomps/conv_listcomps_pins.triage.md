@@ -2,7 +2,7 @@
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_listcomps.py
 - guest leg: 0/62 marks
-- pins: **7 passed** / 62 run (+6 quarantined of 68 extracted)
+- pins: **8 passed** / 62 run (+6 quarantined of 68 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -67,7 +67,7 @@
 | ListComprehensionTest.test_frame_locals | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'val\'"'> |
 | ListComprehensionTest.test_multiple_comprehension_name_reuse | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC KeyError "\'y\'"'> |
 | ListComprehensionTest.test_only_calls_dunder_iter_once | PASS | |
-| listcomps.doctests:doctests | GUEST-WRONG-OUTPUT | RUN<'AssertionError: '> |
+| listcomps.doctests:doctests | PASS | |
 
 ## Quarantined at conversion
 
@@ -351,8 +351,3 @@
 
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC AssertionError 'assertRaises: did not raise'">
-
-### listcomps.doctests:doctests (GUEST-WRONG-OUTPUT)
-
-- expected: host oracle = `ok`
-- got: RUN<'AssertionError: '>

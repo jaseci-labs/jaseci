@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "4e27b6c6bce510c5490cc3e90b0fe5c36165f1f0",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_pstats/conv_pstats_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:38:56",
+  "hashes": {
+    "pins_jac": "cd545f15809d2c11d19e94a4ca45d87e802208aa5264022c969f40427d63c0a4",
+    "conversion_json": "aa9b7aa38f5a9ac35cdf958b407f3f30fbe74f3ff8ecf374136810db347b2b45",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "pstats",
+  "counts": {
+    "converted": 13,
+    "runnable": 12,
+    "green": 0,
+    "quarantined": 1
+  },
+  "pins": [
+    {
+      "id": "AddCallersTestCase.test_combine_results",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_add",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_dump_and_load_works_correctly",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_load_equivalent_to_init",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_loading_wrong_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_sort_stats_int",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_sort_stats_string",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_sort_stats_partial",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_sort_stats_enum",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_sort_starts_mix",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_get_stats_profile",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "StatsTestCase.test_SortKey_enum",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "LazyImportTest.test_lazy_import",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    }
+  ]
+}

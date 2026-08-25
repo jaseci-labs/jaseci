@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "653a5d4ae9ad7cf4d1681cef03bbe2bae85cd7c4",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_string/conv_string_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:35:10",
+  "hashes": {
+    "pins_jac": "09dac40c18611840e18c8e97118217a98d28de7c61358ce1b1665dde68e5bc4e",
+    "conversion_json": "c95cc9a7ffa78c18c0d7b8decc456028261bbe987466f57f08d3140d5c74a0c1",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "string",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 41,
+    "runnable": 25,
+    "green": 13,
+    "quarantined": 16,
+    "failed": 12,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "LazyImportTest.test_lazy_import",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.import_helper'\">"
+    },
+    {
+      "id": "ModuleTest.test_format_keyword_arguments",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "TestTemplate.test_regular_templates",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'sub'\">"
+    },
+    {
+      "id": "TestTemplate.test_regular_templates_with_braces",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'sub'\">"
+    },
+    {
+      "id": "TestTemplate.test_regular_templates_with_upper_case",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'sub'\">"
+    },
+    {
+      "id": "TestTemplate.test_regular_templates_with_non_letters",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'sub'\">"
+    },
+    {
+      "id": "TestTemplate.test_flags_override",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "TestTemplate.test_idpattern_override_inside_outside",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "TestTemplate.test_idpattern_override_inside_outside_invalid_unbraced",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "TestTemplate.test_braced_override",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "TestTemplate.test_braced_override_safe",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'super\\' object has no attribute \\'__init_subclass__\\'\"'>"
+    },
+    {
+      "id": "TestTemplate.test_unicode_values",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'sub'\">"
+    }
+  ]
+}

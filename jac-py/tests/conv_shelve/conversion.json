@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "4e27b6c6bce510c5490cc3e90b0fe5c36165f1f0",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_shelve.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_shelve",
+    "--name",
+    "conv_shelve"
+  ],
+  "generated_at": "2026-08-24T21:39:01",
+  "hashes": {
+    "pins_jac": "4da41b312b8f54c3e833cff2b587d2d9f18ed215073df5f404f20e28722dfa4b"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_shelve.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "shelve",
+  "pins_file": "conv_shelve_pins.jac",
+  "pins": [
+    {
+      "ident": "TestCase.test_close",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import shelve\n\ndef L1(s):\n    return s.decode('latin-1')\n\ndef _t():\n    d1 = {}\n    s = shelve.Shelf(d1, protocol=2, writeback=False)\n    s['key1'] = [1, 2, 3, 4]\n    assert s['key1'] == [1, 2, 3, 4], ('assertEqual', s['key1'], [1, 2, 3, 4])\n    assert len(s) == 1, ('assertEqual', len(s), 1)\n    s.close()\n    try:\n        len(*(s,))\n    except ValueError:\n        pass\n    try:\n        s['key1']\n    except ValueError:\n        pass\n    else:\n        raise AssertionError('Closed shelf should not find a key')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_keyencoding",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import shelve\n\ndef L1(s):\n    return s.decode('latin-1')\n\ndef _t():\n    d = {}\n    key = 'P\u00c3\u00b6p'\n    shelve.Shelf(d)[key] = [1]\n    assert key.encode('utf-8') in d, ('assertIn', key.encode('utf-8'), d)\n    shelve.Shelf(d, keyencoding='latin-1')[key] = [1]\n    assert key.encode('latin-1') in d, ('assertIn', key.encode('latin-1'), d)\n    s = shelve.Shelf(d, keyencoding='ascii')\n    try:\n        s.__setitem__(*(key, [1]))\n    except UnicodeEncodeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_writeback_also_writes_immediately",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import shelve\n\ndef L1(s):\n    return s.decode('latin-1')\n\ndef _t():\n    d = {}\n    key = 'key'\n    encodedkey = key.encode('utf-8')\n    with shelve.Shelf(d, writeback=True) as s:\n        s[key] = [1]\n        p1 = d[encodedkey]\n        s['key'].append(2)\n    p2 = d[encodedkey]\n    assert p1 != p2, ('assertNotEqual', p1, p2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_with",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import shelve\n\ndef L1(s):\n    return s.decode('latin-1')\n\ndef _t():\n    d1 = {}\n    with shelve.Shelf(d1, protocol=2, writeback=False) as s:\n        s['key1'] = [1, 2, 3, 4]\n        assert s['key1'] == [1, 2, 3, 4], ('assertEqual', s['key1'], [1, 2, 3, 4])\n        assert len(s) == 1, ('assertEqual', len(s), 1)\n    try:\n        len(*(s,))\n    except ValueError:\n        pass\n    try:\n        s['key1']\n    except ValueError:\n        pass\n    else:\n        raise AssertionError('Closed shelf should not find a key')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_default_protocol",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import shelve\nimport pickle\n\ndef L1(s):\n    return s.decode('latin-1')\n\ndef _t():\n    with shelve.Shelf({}) as s:\n        assert s._protocol == pickle.DEFAULT_PROTOCOL, ('assertEqual', s._protocol, pickle.DEFAULT_PROTOCOL)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestCase.test_open_template",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "TestCase.test_ascii_file_shelf",
+      "reason": "self.test_open_template"
+    },
+    {
+      "ident": "TestCase.test_binary_file_shelf",
+      "reason": "self.test_open_template"
+    },
+    {
+      "ident": "TestCase.test_proto2_file_shelf",
+      "reason": "self.test_open_template"
+    },
+    {
+      "ident": "TestCase.test_pathlib_path_file_shelf",
+      "reason": "self.test_open_template"
+    },
+    {
+      "ident": "TestCase.test_bytes_path_file_shelf",
+      "reason": "self.test_open_template"
+    },
+    {
+      "ident": "TestCase.test_pathlib_bytes_path_file_shelf",
+      "reason": "self.test_open_template"
+    },
+    {
+      "ident": "TestCase.test_in_memory_shelf",
+      "reason": "unresolved-name:byteskeydict"
+    },
+    {
+      "ident": "TestCase.test_mutable_entry",
+      "reason": "unresolved-name:byteskeydict"
+    }
+  ],
+  "counts": {
+    "extracted": 14,
+    "pinned": 5,
+    "quarantined": 9
+  }
+}

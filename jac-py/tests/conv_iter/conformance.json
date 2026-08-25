@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "f5e921e06eb9d933596b6431443728caa01d1afd",
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "87412999bc7112d340c86f51f2b2fde1e0f7279c",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,7 +10,7 @@
     "diff_runner.py",
     "jac-py/tests/conv_iter/conv_iter_pins.jac"
   ],
-  "generated_at": "2026-08-24T15:12:19",
+  "generated_at": "2026-08-24T21:27:32",
   "hashes": {
     "pins_jac": "395ba76ea5bb2e4b271565222909b9654bc610d4182a4e5434b87e2e8e7aa812",
     "conversion_json": "1a189364dd3fb5fdd7f1af64d28be9566e6ef069435eb24311618324a9d815eb",
@@ -20,7 +20,7 @@
   "counts": {
     "converted": 57,
     "runnable": 32,
-    "green": 16,
+    "green": 17,
     "quarantined": 25
   },
   "pins": [
@@ -28,7 +28,7 @@
       "id": "TestCase.test_iter_basic",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f1833133e20>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f8fa80ed430>\"'>"
     },
     {
       "id": "TestCase.test_iter_idempotency",
@@ -88,13 +88,13 @@
       "id": "TestCase.test_iter_empty",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f1833130d50>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f8fa91daf00>\"'>"
     },
     {
       "id": "TestCase.test_iter_tuple",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f1834915fe0>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f8fa890c510>\"'>"
     },
     {
       "id": "TestCase.test_iter_range",
@@ -106,13 +106,13 @@
       "id": "TestCase.test_iter_string",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f1834915900>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f8fa890e770>\"'>"
     },
     {
       "id": "TestCase.test_iter_dict",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f1834917480>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f8fa9a37270>\"'>"
     },
     {
       "id": "TestCase.test_iter_file",
@@ -174,15 +174,13 @@
     },
     {
       "id": "TestCase.test_3720",
-      "status": "fail",
-      "classification": "VM-CRASH",
-      "detail": "\ud83d\udee0  jac dev mode \u2014 using compiler source at /var/tmp/lane8/jac\n\u2716 Error: 'PyUserObj' object has no attribute 'index'\n14665 |             }\n14666 |             iterator = top as PyIter;\n14667 |             if iterator.index < len(iterator.items) {\n      |           ^^^^^^^^^^^^^^\n14668 |               "
+      "status": "pass"
     },
     {
       "id": "TestCase.test_extending_list_with_iterator_does_not_segfault",
       "status": "fail",
-      "classification": "VM-CRASH",
-      "detail": "\ud83d\udee0  jac dev mode \u2014 using compiler source at /var/tmp/lane8/jac\n\u2716 Error: 'PyUserObj' object has no attribute 'index'\n14665 |             }\n14666 |             iterator = top as PyIter;\n14667 |             if iterator.index < len(iterator.items) {\n      |           ^^^^^^^^^^^^^^\n14668 |               "
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 260, 760)\"'>"
     },
     {
       "id": "TestCase.test_exception_locations",

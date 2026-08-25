@@ -25,6 +25,15 @@ For every ``test_*`` method in a CPython ``Lib/test`` file this tool:
 Usage:
     .venv/bin/python jac-py/tools/convert_suite.py \\
         reference/cpython/Lib/test/test_copy.py [-o OUTDIR] [--name conv_copy]
+
+Package-style suites (``Lib/test/test_string/``, ``test_doctest/``, ...)
+are directories: pass the INNER ``test_*.py`` file path explicitly and
+disambiguate the output with ``--name`` (an inner file's stem can match
+other suites), e.g.::
+
+    .venv/bin/python jac-py/tools/convert_suite.py \\
+        reference/cpython/Lib/test/test_string/test_string.py \\
+        --name conv_string
 """
 from __future__ import annotations
 

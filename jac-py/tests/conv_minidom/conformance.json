@@ -1,0 +1,583 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "4e27b6c6bce510c5490cc3e90b0fe5c36165f1f0",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_minidom/conv_minidom_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:38:46",
+  "hashes": {
+    "pins_jac": "544c855e18ac6e3f5910e73301938edb4b360c5bd35662217b56ba2c7897c8ec",
+    "conversion_json": "99cf41e7be09d391b604f64df45eff2670f54380b121cacf33cedb970ba27cc0",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "minidom",
+  "counts": {
+    "converted": 131,
+    "runnable": 126,
+    "green": 113,
+    "quarantined": 5
+  },
+  "pins": [
+    {
+      "id": "MinidomTest.testDocumentAsyncAttr",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testParseFromBinaryFile",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testParseFromTextFile",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testAttrModeSetsParamsAsAttrs",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttrModeSetsNonOptionalAttrs",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testGetElementsByTagName",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testInsertBefore",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testInsertBeforeFragment",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAppendChild",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testSetAttributeNodeWithoutOwnerDocument",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAppendChildFragment",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testReplaceChildFragment",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testLegalChildren",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testNamedNodeMapSetItem",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testNonZero",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testUnlink",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testContext",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testElement",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAAA",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAAB",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAddAttr",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testDeleteAttr",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testRemoveAttr",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testRemoveAttrNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testRemoveAttributeNode",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testHasAttribute",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testChangeAttr",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testGetAttribute",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testGetAttributeNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testGetAttributeNode",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testGetElementsByTagNameNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testGetEmptyNodeListFromElementsByTagNameNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testElementReprAndStr",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testElementReprAndStrUnicode",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testElementReprAndStrUnicodeNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttributeRepr",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testWriteXML",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.test_toxml_quote_text",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.test_toxml_quote_attrib",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAltNewline",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.test_toprettyxml_with_text_nodes",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.test_toprettyxml_with_adjacent_text_nodes",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.test_toprettyxml_preserves_content_of_text_node",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testProcessingInstruction",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testProcessingInstructionRepr",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testWriteText",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testDocumentElement",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testTooManyDocumentElements",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCreateElementNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCreateAttributeNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testParse",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testParseString",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testComment",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttrListItem",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttrListItems",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttrListItemNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttrListKeys",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttrListKeysNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testRemoveNamedItem",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testRemoveNamedItemNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttrListValues",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttrListLength",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttrList__getitem__",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAttrList__setitem__",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testSetAttrValueandNodeValue",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testParseElement",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testParseAttributes",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testParseElementNamespaces",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testParseAttributeNamespaces",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testParseProcessingInstructions",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testChildNodes",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testFirstChild",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testHasChildNodes",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneElementShallow",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneElementDeep",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneDocumentShallow",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneDocumentDeep",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneDocumentTypeDeepOk",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneDocumentTypeDeepNotOk",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneDocumentTypeShallowOk",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneDocumentTypeShallowNotOk",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testImportDocumentShallow",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testImportDocumentDeep",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testImportDocumentTypeShallow",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testImportDocumentTypeDeep",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneAttributeShallow",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneAttributeDeep",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testClonePIShallow",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testClonePIDeep",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testCloneNodeEntity",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'swap_attr'\">"
+    },
+    {
+      "id": "MinidomTest.testNormalize",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testNormalizeCombineAndNextSibling",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testNormalizeDeleteWithPrevSibling",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testNormalizeDeleteWithNextSibling",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testNormalizeDeleteWithTwoNonTextSiblings",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testNormalizeDeleteAndCombine",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testNormalizeRecursion",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testBug0777884",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testBug1433694",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testSiblings",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testParents",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testNodeListItem",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testEncodings",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16'\">"
+    },
+    {
+      "id": "MinidomTest.testStandalone",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testRenameAttribute",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testRenameElement",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testRenameOther",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testWholeText",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testPatch1094164",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testReplaceWholeText",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testSchemaType",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testSetIdAttribute",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testSetIdAttributeNS",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testSetIdAttributeNode",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testPickledDocument",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle <class \\'ceval.Document\\'>: it\\'s not found as ceval.Document\"'>"
+    },
+    {
+      "id": "MinidomTest.testDeepcopiedDocument",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC Error 'un(deep)copyable object of type <object>'\">"
+    },
+    {
+      "id": "MinidomTest.testSerializeCommentNodeWithDoubleHyphen",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testEmptyXMLNSValue",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testExceptionOnSpacesInXMLNSValue",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testDocRemoveChild",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.testProcessingInstructionNameError",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: findfile'>"
+    },
+    {
+      "id": "MinidomTest.test_minidom_attribute_order",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.test_toxml_with_attributes_ordered",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.test_toprettyxml_with_attributes_ordered",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.test_toprettyxml_with_cdata",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.test_cdata_parsing",
+      "status": "pass"
+    },
+    {
+      "id": "MinidomTest.testAppendChildNoQuadraticComplexity",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "id": "MinidomTest.testGetAttrList",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "MinidomTest.testGetAttrValues",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "MinidomTest.testTextRepr",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "MinidomTest.testUserData",
+      "status": "quarantined",
+      "reason": "uses-self.UserDataHandler"
+    }
+  ]
+}

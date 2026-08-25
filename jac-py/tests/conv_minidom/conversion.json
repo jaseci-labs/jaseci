@@ -1,0 +1,1062 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "4e27b6c6bce510c5490cc3e90b0fe5c36165f1f0",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_minidom.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_minidom",
+    "--name",
+    "conv_minidom"
+  ],
+  "generated_at": "2026-08-24T21:38:33",
+  "hashes": {
+    "pins_jac": "544c855e18ac6e3f5910e73301938edb4b360c5bd35662217b56ba2c7897c8ec"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_minidom.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "minidom",
+  "pins_file": "conv_minidom_pins.jac",
+  "pins": [
+    {
+      "ident": "MinidomTest.testDocumentAsyncAttr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = Document()\n    assert not doc.async_, ('assertFalse', doc.async_)\n    assert not Document.async_, ('assertFalse', Document.async_)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testParseFromBinaryFile",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\ntstfile = support.findfile('test.xml', subdir='xmltestdata')\n\ndef _t():\n    with open(tstfile, 'rb') as file:\n        dom = parse(file)\n        dom.unlink()\n        assert isinstance(dom, Document), ('assertIsInstance', dom, Document)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testParseFromTextFile",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\ntstfile = support.findfile('test.xml', subdir='xmltestdata')\n\ndef _t():\n    with open(tstfile, 'r', encoding='iso-8859-1') as file:\n        dom = parse(file)\n        dom.unlink()\n        assert isinstance(dom, Document), ('assertIsInstance', dom, Document)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrModeSetsParamsAsAttrs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    attr = Attr('qName', 'namespaceURI', 'localName', 'prefix')\n    assert attr.name == 'qName', ('assertEqual', attr.name, 'qName')\n    assert attr.namespaceURI == 'namespaceURI', ('assertEqual', attr.namespaceURI, 'namespaceURI')\n    assert attr.prefix == 'prefix', ('assertEqual', attr.prefix, 'prefix')\n    assert attr.localName == 'localName', ('assertEqual', attr.localName, 'localName')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrModeSetsNonOptionalAttrs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    attr = Attr('qName', 'namespaceURI', None, 'prefix')\n    assert attr.name == 'qName', ('assertEqual', attr.name, 'qName')\n    assert attr.namespaceURI == 'namespaceURI', ('assertEqual', attr.namespaceURI, 'namespaceURI')\n    assert attr.prefix == 'prefix', ('assertEqual', attr.prefix, 'prefix')\n    assert attr.localName == attr.name, ('assertEqual', attr.localName, attr.name)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testGetElementsByTagName",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\ntstfile = support.findfile('test.xml', subdir='xmltestdata')\n\ndef _t():\n    dom = parse(tstfile)\n    assert dom.getElementsByTagName('LI') == dom.documentElement.getElementsByTagName('LI'), ('assertEqual', dom.getElementsByTagName('LI'), dom.documentElement.getElementsByTagName('LI'))\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testInsertBefore",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = parseString('<doc><foo/></doc>')\n    root = dom.documentElement\n    elem = root.childNodes[0]\n    nelem = dom.createElement('element')\n    root.insertBefore(nelem, elem)\n    assert len(root.childNodes) == 2, ('assertEqual', len(root.childNodes), 2)\n    assert root.childNodes.length == 2, ('assertEqual', root.childNodes.length, 2)\n    assert root.childNodes[0] is nelem, ('assertIs', root.childNodes[0], nelem)\n    assert root.childNodes.item(0) is nelem, ('assertIs', root.childNodes.item(0), nelem)\n    assert root.childNodes[1] is elem, ('assertIs', root.childNodes[1], elem)\n    assert root.childNodes.item(1) is elem, ('assertIs', root.childNodes.item(1), elem)\n    assert root.firstChild is nelem, ('assertIs', root.firstChild, nelem)\n    assert root.lastChild is elem, ('assertIs', root.lastChild, elem)\n    assert root.toxml() == '<doc><element/><foo/></doc>', ('assertEqual', root.toxml(), '<doc><element/><foo/></doc>')\n    nelem = dom.createElement('element')\n    root.insertBefore(nelem, None)\n    assert len(root.childNodes) == 3, ('assertEqual', len(root.childNodes), 3)\n    assert root.childNodes.length == 3, ('assertEqual', root.childNodes.length, 3)\n    assert root.childNodes[1] is elem, ('assertIs', root.childNodes[1], elem)\n    assert root.childNodes.item(1) is elem, ('assertIs', root.childNodes.item(1), elem)\n    assert root.childNodes[2] is nelem, ('assertIs', root.childNodes[2], nelem)\n    assert root.childNodes.item(2) is nelem, ('assertIs', root.childNodes.item(2), nelem)\n    assert root.lastChild is nelem, ('assertIs', root.lastChild, nelem)\n    assert nelem.previousSibling is elem, ('assertIs', nelem.previousSibling, elem)\n    assert root.toxml() == '<doc><element/><foo/><element/></doc>', ('assertEqual', root.toxml(), '<doc><element/><foo/><element/></doc>')\n    nelem2 = dom.createElement('bar')\n    root.insertBefore(nelem2, nelem)\n    assert len(root.childNodes) == 4, ('assertEqual', len(root.childNodes), 4)\n    assert root.childNodes.length == 4, ('assertEqual', root.childNodes.length, 4)\n    assert root.childNodes[2] is nelem2, ('assertIs', root.childNodes[2], nelem2)\n    assert root.childNodes.item(2) is nelem2, ('assertIs', root.childNodes.item(2), nelem2)\n    assert root.childNodes[3] is nelem, ('assertIs', root.childNodes[3], nelem)\n    assert root.childNodes.item(3) is nelem, ('assertIs', root.childNodes.item(3), nelem)\n    assert nelem2.nextSibling is nelem, ('assertIs', nelem2.nextSibling, nelem)\n    assert nelem.previousSibling is nelem2, ('assertIs', nelem.previousSibling, nelem2)\n    assert root.toxml() == '<doc><element/><foo/><bar/><element/></doc>', ('assertEqual', root.toxml(), '<doc><element/><foo/><bar/><element/></doc>')\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testInsertBeforeFragment",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _create_fragment_test_nodes():\n    dom = parseString('<doc/>')\n    orig = dom.createTextNode('original')\n    c1 = dom.createTextNode('foo')\n    c2 = dom.createTextNode('bar')\n    c3 = dom.createTextNode('bat')\n    dom.documentElement.appendChild(orig)\n    frag = dom.createDocumentFragment()\n    frag.appendChild(c1)\n    frag.appendChild(c2)\n    frag.appendChild(c3)\n    return (dom, orig, c1, c2, c3, frag)\n\ndef _t():\n    dom, orig, c1, c2, c3, frag = _create_fragment_test_nodes()\n    dom.documentElement.insertBefore(frag, None)\n    assert tuple(dom.documentElement.childNodes) == (orig, c1, c2, c3), ('assertTupleEqual', tuple(dom.documentElement.childNodes), (orig, c1, c2, c3))\n    frag.unlink()\n    dom.unlink()\n    dom, orig, c1, c2, c3, frag = _create_fragment_test_nodes()\n    dom.documentElement.insertBefore(frag, orig)\n    assert tuple(dom.documentElement.childNodes) == (c1, c2, c3, orig), ('assertTupleEqual', tuple(dom.documentElement.childNodes), (c1, c2, c3, orig))\n    frag.unlink()\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAppendChild",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\ntstfile = support.findfile('test.xml', subdir='xmltestdata')\n\ndef _t():\n    dom = parse(tstfile)\n    dom.documentElement.appendChild(dom.createComment('Hello'))\n    assert dom.documentElement.childNodes[-1].nodeName == '#comment', ('assertEqual', dom.documentElement.childNodes[-1].nodeName, '#comment')\n    assert dom.documentElement.childNodes[-1].data == 'Hello', ('assertEqual', dom.documentElement.childNodes[-1].data, 'Hello')\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testSetAttributeNodeWithoutOwnerDocument",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    elem = Element('test')\n    attr = Attr('id')\n    attr.value = 'test-id'\n    elem.setAttributeNode(attr)\n    assert elem.getAttribute('id') == 'test-id', ('assertEqual', elem.getAttribute('id'), 'test-id')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAppendChildFragment",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _create_fragment_test_nodes():\n    dom = parseString('<doc/>')\n    orig = dom.createTextNode('original')\n    c1 = dom.createTextNode('foo')\n    c2 = dom.createTextNode('bar')\n    c3 = dom.createTextNode('bat')\n    dom.documentElement.appendChild(orig)\n    frag = dom.createDocumentFragment()\n    frag.appendChild(c1)\n    frag.appendChild(c2)\n    frag.appendChild(c3)\n    return (dom, orig, c1, c2, c3, frag)\n\ndef _t():\n    dom, orig, c1, c2, c3, frag = _create_fragment_test_nodes()\n    dom.documentElement.appendChild(frag)\n    assert tuple(dom.documentElement.childNodes) == (orig, c1, c2, c3), ('assertTupleEqual', tuple(dom.documentElement.childNodes), (orig, c1, c2, c3))\n    frag.unlink()\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testReplaceChildFragment",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _create_fragment_test_nodes():\n    dom = parseString('<doc/>')\n    orig = dom.createTextNode('original')\n    c1 = dom.createTextNode('foo')\n    c2 = dom.createTextNode('bar')\n    c3 = dom.createTextNode('bat')\n    dom.documentElement.appendChild(orig)\n    frag = dom.createDocumentFragment()\n    frag.appendChild(c1)\n    frag.appendChild(c2)\n    frag.appendChild(c3)\n    return (dom, orig, c1, c2, c3, frag)\n\ndef _t():\n    dom, orig, c1, c2, c3, frag = _create_fragment_test_nodes()\n    dom.documentElement.replaceChild(frag, orig)\n    orig.unlink()\n    assert tuple(dom.documentElement.childNodes) == (c1, c2, c3), ('assertTupleEqual', tuple(dom.documentElement.childNodes), (c1, c2, c3))\n    frag.unlink()\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testLegalChildren",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    elem = dom.createElement('element')\n    text = dom.createTextNode('text')\n    try:\n        dom.appendChild(*(text,))\n    except xml.dom.HierarchyRequestErr:\n        pass\n    dom.appendChild(elem)\n    try:\n        dom.insertBefore(*(text, elem))\n    except xml.dom.HierarchyRequestErr:\n        pass\n    try:\n        dom.replaceChild(*(text, elem))\n    except xml.dom.HierarchyRequestErr:\n        pass\n    nodemap = elem.attributes\n    try:\n        nodemap.setNamedItem(*(text,))\n    except xml.dom.HierarchyRequestErr:\n        pass\n    try:\n        nodemap.setNamedItemNS(*(text,))\n    except xml.dom.HierarchyRequestErr:\n        pass\n    elem.appendChild(text)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testNamedNodeMapSetItem",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    elem = dom.createElement('element')\n    attrs = elem.attributes\n    attrs['foo'] = 'bar'\n    a = attrs.item(0)\n    assert a.ownerDocument is dom, ('assertIs', a.ownerDocument, dom)\n    assert a.ownerElement is elem, ('assertIs', a.ownerElement, elem)\n    assert a.value == 'bar', ('assertEqual', a.value, 'bar')\n    assert a.nodeValue == 'bar', ('assertEqual', a.nodeValue, 'bar')\n    elem.unlink()\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testNonZero",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\ntstfile = support.findfile('test.xml', subdir='xmltestdata')\n\ndef _t():\n    dom = parse(tstfile)\n    assert dom, ('assertTrue', dom)\n    dom.appendChild(dom.createComment('foo'))\n    assert not dom.childNodes[-1].childNodes, ('assertFalse', dom.childNodes[-1].childNodes)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testUnlink",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\ntstfile = support.findfile('test.xml', subdir='xmltestdata')\n\ndef _t():\n    dom = parse(tstfile)\n    assert dom.childNodes, ('assertTrue', dom.childNodes)\n    dom.unlink()\n    assert not dom.childNodes, ('assertFalse', dom.childNodes)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testContext",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\ntstfile = support.findfile('test.xml', subdir='xmltestdata')\n\ndef _t():\n    with parse(tstfile) as dom:\n        assert dom.childNodes, ('assertTrue', dom.childNodes)\n    assert not dom.childNodes, ('assertFalse', dom.childNodes)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testElement",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    dom.appendChild(dom.createElement('abc'))\n    assert dom.documentElement, ('assertTrue', dom.documentElement)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAAA",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = parseString('<abc/>')\n    el = dom.documentElement\n    el.setAttribute('spam', 'jam2')\n    assert el.toxml() == '<abc spam=\"jam2\"/>', ('assertEqual', el.toxml(), '<abc spam=\"jam2\"/>')\n    a = el.getAttributeNode('spam')\n    assert a.ownerDocument is dom, ('assertIs', a.ownerDocument, dom)\n    assert a.ownerElement is dom.documentElement, ('assertIs', a.ownerElement, dom.documentElement)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAAB",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = parseString('<abc/>')\n    el = dom.documentElement\n    el.setAttribute('spam', 'jam')\n    el.setAttribute('spam', 'jam2')\n    assert el.toxml() == '<abc spam=\"jam2\"/>', ('assertEqual', el.toxml(), '<abc spam=\"jam2\"/>')\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAddAttr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    child = dom.appendChild(dom.createElement('abc'))\n    child.setAttribute('def', 'ghi')\n    assert child.getAttribute('def') == 'ghi', ('assertEqual', child.getAttribute('def'), 'ghi')\n    assert child.attributes['def'].value == 'ghi', ('assertEqual', child.attributes['def'].value, 'ghi')\n    child.setAttribute('jkl', 'mno')\n    assert child.getAttribute('jkl') == 'mno', ('assertEqual', child.getAttribute('jkl'), 'mno')\n    assert child.attributes['jkl'].value == 'mno', ('assertEqual', child.attributes['jkl'].value, 'mno')\n    assert len(child.attributes) == 2, ('assertEqual', len(child.attributes), 2)\n    child.setAttribute('def', 'newval')\n    assert child.getAttribute('def') == 'newval', ('assertEqual', child.getAttribute('def'), 'newval')\n    assert child.attributes['def'].value == 'newval', ('assertEqual', child.attributes['def'].value, 'newval')\n    assert len(child.attributes) == 2, ('assertEqual', len(child.attributes), 2)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testDeleteAttr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    child = dom.appendChild(dom.createElement('abc'))\n    assert len(child.attributes) == 0, ('assertEqual', len(child.attributes), 0)\n    child.setAttribute('def', 'ghi')\n    assert len(child.attributes) == 1, ('assertEqual', len(child.attributes), 1)\n    del child.attributes['def']\n    assert len(child.attributes) == 0, ('assertEqual', len(child.attributes), 0)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testRemoveAttr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    child = dom.appendChild(dom.createElement('abc'))\n    child.setAttribute('def', 'ghi')\n    assert len(child.attributes) == 1, ('assertEqual', len(child.attributes), 1)\n    try:\n        child.removeAttribute(*('foo',))\n    except xml.dom.NotFoundErr:\n        pass\n    child.removeAttribute('def')\n    assert len(child.attributes) == 0, ('assertEqual', len(child.attributes), 0)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testRemoveAttrNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    child = dom.appendChild(dom.createElementNS('http://www.python.org', 'python:abc'))\n    child.setAttributeNS('http://www.w3.org', 'xmlns:python', 'http://www.python.org')\n    child.setAttributeNS('http://www.python.org', 'python:abcattr', 'foo')\n    try:\n        child.removeAttributeNS(*('foo', 'http://www.python.org'))\n    except xml.dom.NotFoundErr:\n        pass\n    assert len(child.attributes) == 2, ('assertEqual', len(child.attributes), 2)\n    child.removeAttributeNS('http://www.python.org', 'abcattr')\n    assert len(child.attributes) == 1, ('assertEqual', len(child.attributes), 1)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testRemoveAttributeNode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    child = dom.appendChild(dom.createElement('foo'))\n    child.setAttribute('spam', 'jam')\n    assert len(child.attributes) == 1, ('assertEqual', len(child.attributes), 1)\n    node = child.getAttributeNode('spam')\n    try:\n        child.removeAttributeNode(*(None,))\n    except xml.dom.NotFoundErr:\n        pass\n    assert node is child.removeAttributeNode(node), ('assertIs', node, child.removeAttributeNode(node))\n    assert len(child.attributes) == 0, ('assertEqual', len(child.attributes), 0)\n    assert child.getAttributeNode('spam') is None, ('assertIsNone', child.getAttributeNode('spam'))\n    dom2 = Document()\n    child2 = dom2.appendChild(dom2.createElement('foo'))\n    node2 = child2.getAttributeNode('spam')\n    try:\n        child2.removeAttributeNode(*(node2,))\n    except xml.dom.NotFoundErr:\n        pass\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testHasAttribute",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    child = dom.appendChild(dom.createElement('foo'))\n    child.setAttribute('spam', 'jam')\n    assert child.hasAttribute('spam'), ('assertTrue', child.hasAttribute('spam'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testChangeAttr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = parseString('<abc/>')\n    el = dom.documentElement\n    el.setAttribute('spam', 'jam')\n    assert len(el.attributes) == 1, ('assertEqual', len(el.attributes), 1)\n    el.setAttribute('spam', 'bam')\n    el.setIdAttribute('spam')\n    assert len(el.attributes) == 1, ('assertEqual', len(el.attributes), 1)\n    assert el.attributes['spam'].value == 'bam', ('assertEqual', el.attributes['spam'].value, 'bam')\n    assert el.attributes['spam'].nodeValue == 'bam', ('assertEqual', el.attributes['spam'].nodeValue, 'bam')\n    assert el.getAttribute('spam') == 'bam', ('assertEqual', el.getAttribute('spam'), 'bam')\n    assert el.getAttributeNode('spam').isId, ('assertTrue', el.getAttributeNode('spam').isId)\n    el.attributes['spam'] = 'ham'\n    assert len(el.attributes) == 1, ('assertEqual', len(el.attributes), 1)\n    assert el.attributes['spam'].value == 'ham', ('assertEqual', el.attributes['spam'].value, 'ham')\n    assert el.attributes['spam'].nodeValue == 'ham', ('assertEqual', el.attributes['spam'].nodeValue, 'ham')\n    assert el.getAttribute('spam') == 'ham', ('assertEqual', el.getAttribute('spam'), 'ham')\n    assert el.attributes['spam'].isId, ('assertTrue', el.attributes['spam'].isId)\n    el.setAttribute('spam2', 'bam')\n    assert len(el.attributes) == 2, ('assertEqual', len(el.attributes), 2)\n    assert el.attributes['spam'].value == 'ham', ('assertEqual', el.attributes['spam'].value, 'ham')\n    assert el.attributes['spam'].nodeValue == 'ham', ('assertEqual', el.attributes['spam'].nodeValue, 'ham')\n    assert el.getAttribute('spam') == 'ham', ('assertEqual', el.getAttribute('spam'), 'ham')\n    assert el.attributes['spam2'].value == 'bam', ('assertEqual', el.attributes['spam2'].value, 'bam')\n    assert el.attributes['spam2'].nodeValue == 'bam', ('assertEqual', el.attributes['spam2'].nodeValue, 'bam')\n    assert el.getAttribute('spam2') == 'bam', ('assertEqual', el.getAttribute('spam2'), 'bam')\n    el.attributes['spam2'] = 'bam2'\n    assert len(el.attributes) == 2, ('assertEqual', len(el.attributes), 2)\n    assert el.attributes['spam'].value == 'ham', ('assertEqual', el.attributes['spam'].value, 'ham')\n    assert el.attributes['spam'].nodeValue == 'ham', ('assertEqual', el.attributes['spam'].nodeValue, 'ham')\n    assert el.getAttribute('spam') == 'ham', ('assertEqual', el.getAttribute('spam'), 'ham')\n    assert el.attributes['spam2'].value == 'bam2', ('assertEqual', el.attributes['spam2'].value, 'bam2')\n    assert el.attributes['spam2'].nodeValue == 'bam2', ('assertEqual', el.attributes['spam2'].nodeValue, 'bam2')\n    assert el.getAttribute('spam2') == 'bam2', ('assertEqual', el.getAttribute('spam2'), 'bam2')\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testGetAttribute",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    child = dom.appendChild(dom.createElementNS('http://www.python.org', 'python:abc'))\n    assert child.getAttribute('missing') == '', ('assertEqual', child.getAttribute('missing'), '')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testGetAttributeNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    child = dom.appendChild(dom.createElementNS('http://www.python.org', 'python:abc'))\n    child.setAttributeNS('http://www.w3.org', 'xmlns:python', 'http://www.python.org')\n    assert child.getAttributeNS('http://www.w3.org', 'python') == 'http://www.python.org', ('assertEqual', child.getAttributeNS('http://www.w3.org', 'python'), 'http://www.python.org')\n    assert child.getAttributeNS('http://www.w3.org', 'other') == '', ('assertEqual', child.getAttributeNS('http://www.w3.org', 'other'), '')\n    child2 = child.appendChild(dom.createElement('abc'))\n    assert child2.getAttributeNS('http://www.python.org', 'missing') == '', ('assertEqual', child2.getAttributeNS('http://www.python.org', 'missing'), '')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testGetAttributeNode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testGetElementsByTagNameNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    d = \"<foo xmlns:minidom='http://pyxml.sf.net/minidom'>\\n        <minidom:myelem/>\\n        </foo>\"\n    dom = parseString(d)\n    elems = dom.getElementsByTagNameNS('http://pyxml.sf.net/minidom', 'myelem')\n    assert len(elems) == 1, ('assertEqual', len(elems), 1)\n    assert elems[0].namespaceURI == 'http://pyxml.sf.net/minidom', ('assertEqual', elems[0].namespaceURI, 'http://pyxml.sf.net/minidom')\n    assert elems[0].localName == 'myelem', ('assertEqual', elems[0].localName, 'myelem')\n    assert elems[0].prefix == 'minidom', ('assertEqual', elems[0].prefix, 'minidom')\n    assert elems[0].tagName == 'minidom:myelem', ('assertEqual', elems[0].tagName, 'minidom:myelem')\n    assert elems[0].nodeName == 'minidom:myelem', ('assertEqual', elems[0].nodeName, 'minidom:myelem')\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testGetEmptyNodeListFromElementsByTagNameNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef get_empty_nodelist_from_elements_by_tagName_ns_helper(doc, nsuri, lname):\n    nodelist = doc.getElementsByTagNameNS(nsuri, lname)\n    assert len(nodelist) == 0, ('assertEqual', len(nodelist), 0)\n\ndef _t():\n    doc = parseString('<doc/>')\n    get_empty_nodelist_from_elements_by_tagName_ns_helper(doc, 'http://xml.python.org/namespaces/a', 'localname')\n    get_empty_nodelist_from_elements_by_tagName_ns_helper(doc, '*', 'splat')\n    get_empty_nodelist_from_elements_by_tagName_ns_helper(doc, 'http://xml.python.org/namespaces/a', '*')\n    doc = parseString('<doc xmlns=\"http://xml.python.org/splat\"><e/></doc>')\n    get_empty_nodelist_from_elements_by_tagName_ns_helper(doc, 'http://xml.python.org/splat', 'not-there')\n    get_empty_nodelist_from_elements_by_tagName_ns_helper(doc, '*', 'not-there')\n    get_empty_nodelist_from_elements_by_tagName_ns_helper(doc, 'http://somewhere.else.net/not-there', 'e')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testElementReprAndStr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    el = dom.appendChild(dom.createElement('abc'))\n    string1 = repr(el)\n    string2 = str(el)\n    assert string1 == string2, ('assertEqual', string1, string2)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testElementReprAndStrUnicode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    el = dom.appendChild(dom.createElement('abc'))\n    string1 = repr(el)\n    string2 = str(el)\n    assert string1 == string2, ('assertEqual', string1, string2)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testElementReprAndStrUnicodeNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    el = dom.appendChild(dom.createElementNS('http://www.slashdot.org', 'slash:abc'))\n    string1 = repr(el)\n    string2 = str(el)\n    assert string1 == string2, ('assertEqual', string1, string2)\n    assert 'slash:abc' in string1, ('assertIn', 'slash:abc', string1)\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttributeRepr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    el = dom.appendChild(dom.createElement('abc'))\n    node = el.setAttribute('abc', 'def')\n    assert str(node) == repr(node), ('assertEqual', str(node), repr(node))\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testWriteXML",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    str = '<?xml version=\"1.0\" ?><a b=\"c\"/>'\n    dom = parseString(str)\n    domstr = dom.toxml()\n    dom.unlink()\n    assert str == domstr, ('assertEqual', str, domstr)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.test_toxml_quote_text",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    elem = dom.appendChild(dom.createElement('elem'))\n    elem.appendChild(dom.createTextNode('&<>\"'))\n    cr = elem.appendChild(dom.createElement('cr'))\n    cr.appendChild(dom.createTextNode('\\r'))\n    crlf = elem.appendChild(dom.createElement('crlf'))\n    crlf.appendChild(dom.createTextNode('\\r\\n'))\n    lflf = elem.appendChild(dom.createElement('lflf'))\n    lflf.appendChild(dom.createTextNode('\\n\\n'))\n    ws = elem.appendChild(dom.createElement('ws'))\n    ws.appendChild(dom.createTextNode('\\t\\n\\r '))\n    domstr = dom.toxml()\n    dom.unlink()\n    assert domstr == '<?xml version=\"1.0\" ?><elem>&amp;&lt;&gt;\"<cr>\\r</cr><crlf>\\r\\n</crlf><lflf>\\n\\n</lflf><ws>\\t\\n\\r </ws></elem>', ('assertEqual', domstr, '<?xml version=\"1.0\" ?><elem>&amp;&lt;&gt;\"<cr>\\r</cr><crlf>\\r\\n</crlf><lflf>\\n\\n</lflf><ws>\\t\\n\\r </ws></elem>')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.test_toxml_quote_attrib",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    elem = dom.appendChild(dom.createElement('elem'))\n    elem.setAttribute('a', '&<>\"')\n    elem.setAttribute('cr', '\\r')\n    elem.setAttribute('lf', '\\n')\n    elem.setAttribute('crlf', '\\r\\n')\n    elem.setAttribute('lflf', '\\n\\n')\n    elem.setAttribute('ws', '\\t\\n\\r ')\n    domstr = dom.toxml()\n    dom.unlink()\n    assert domstr == '<?xml version=\"1.0\" ?><elem a=\"&amp;&lt;&gt;&quot;\" cr=\"&#13;\" lf=\"&#10;\" crlf=\"&#13;&#10;\" lflf=\"&#10;&#10;\" ws=\"&#9;&#10;&#13; \"/>', ('assertEqual', domstr, '<?xml version=\"1.0\" ?><elem a=\"&amp;&lt;&gt;&quot;\" cr=\"&#13;\" lf=\"&#10;\" crlf=\"&#13;&#10;\" lflf=\"&#10;&#10;\" ws=\"&#9;&#10;&#13; \"/>')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAltNewline",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    str = '<?xml version=\"1.0\" ?>\\n<a b=\"c\"/>\\n'\n    dom = parseString(str)\n    domstr = dom.toprettyxml(newl='\\r\\n')\n    dom.unlink()\n    assert domstr == str.replace('\\n', '\\r\\n'), ('assertEqual', domstr, str.replace('\\n', '\\r\\n'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.test_toprettyxml_with_text_nodes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    decl = '<?xml version=\"1.0\" ?>\\n'\n    assert parseString('<B>A</B>').toprettyxml() == decl + '<B>A</B>\\n', ('assertEqual', parseString('<B>A</B>').toprettyxml(), decl + '<B>A</B>\\n')\n    assert parseString('<C>A<B>A</B></C>').toprettyxml() == decl + '<C>\\n\\tA\\n\\t<B>A</B>\\n</C>\\n', ('assertEqual', parseString('<C>A<B>A</B></C>').toprettyxml(), decl + '<C>\\n\\tA\\n\\t<B>A</B>\\n</C>\\n')\n    assert parseString('<C><B>A</B>A</C>').toprettyxml() == decl + '<C>\\n\\t<B>A</B>\\n\\tA\\n</C>\\n', ('assertEqual', parseString('<C><B>A</B>A</C>').toprettyxml(), decl + '<C>\\n\\t<B>A</B>\\n\\tA\\n</C>\\n')\n    assert parseString('<C><B>A</B><B>A</B></C>').toprettyxml() == decl + '<C>\\n\\t<B>A</B>\\n\\t<B>A</B>\\n</C>\\n', ('assertEqual', parseString('<C><B>A</B><B>A</B></C>').toprettyxml(), decl + '<C>\\n\\t<B>A</B>\\n\\t<B>A</B>\\n</C>\\n')\n    assert parseString('<C><B>A</B>A<B>A</B></C>').toprettyxml() == decl + '<C>\\n\\t<B>A</B>\\n\\tA\\n\\t<B>A</B>\\n</C>\\n', ('assertEqual', parseString('<C><B>A</B>A<B>A</B></C>').toprettyxml(), decl + '<C>\\n\\t<B>A</B>\\n\\tA\\n\\t<B>A</B>\\n</C>\\n')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.test_toprettyxml_with_adjacent_text_nodes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = Document()\n    elem = dom.createElement('elem')\n    elem.appendChild(dom.createTextNode('TEXT'))\n    elem.appendChild(dom.createTextNode('TEXT'))\n    dom.appendChild(elem)\n    decl = '<?xml version=\"1.0\" ?>\\n'\n    assert dom.toprettyxml() == decl + '<elem>\\n\\tTEXT\\n\\tTEXT\\n</elem>\\n', ('assertEqual', dom.toprettyxml(), decl + '<elem>\\n\\tTEXT\\n\\tTEXT\\n</elem>\\n')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.test_toprettyxml_preserves_content_of_text_node",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    for str in ('<B>A</B>', '<A><B>C</B></A>'):\n        dom = parseString(str)\n        dom2 = parseString(dom.toprettyxml())\n        assert dom.getElementsByTagName('B')[0].childNodes[0].toxml() == dom2.getElementsByTagName('B')[0].childNodes[0].toxml(), ('assertEqual', dom.getElementsByTagName('B')[0].childNodes[0].toxml(), dom2.getElementsByTagName('B')[0].childNodes[0].toxml())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testProcessingInstruction",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = parseString('<e><?mypi \\t\\n data \\t\\n ?></e>')\n    pi = dom.documentElement.firstChild\n    assert pi.target == 'mypi', ('assertEqual', pi.target, 'mypi')\n    assert pi.data == 'data \\t\\n ', ('assertEqual', pi.data, 'data \\t\\n ')\n    assert pi.nodeName == 'mypi', ('assertEqual', pi.nodeName, 'mypi')\n    assert pi.nodeType == Node.PROCESSING_INSTRUCTION_NODE, ('assertEqual', pi.nodeType, Node.PROCESSING_INSTRUCTION_NODE)\n    assert pi.attributes is None, ('assertIsNone', pi.attributes)\n    assert not pi.hasChildNodes(), ('assertFalse', pi.hasChildNodes())\n    assert len(pi.childNodes) == 0, ('assertEqual', len(pi.childNodes), 0)\n    assert pi.firstChild is None, ('assertIsNone', pi.firstChild)\n    assert pi.lastChild is None, ('assertIsNone', pi.lastChild)\n    assert pi.localName is None, ('assertIsNone', pi.localName)\n    assert pi.namespaceURI == xml.dom.EMPTY_NAMESPACE, ('assertEqual', pi.namespaceURI, xml.dom.EMPTY_NAMESPACE)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testProcessingInstructionRepr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _t():\n    dom = parseString('<e><?mypi \\t\\n data \\t\\n ?></e>')\n    pi = dom.documentElement.firstChild\n    assert str(pi.nodeType) == repr(pi.nodeType), ('assertEqual', str(pi.nodeType), repr(pi.nodeType))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testWriteText",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testDocumentElement",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testTooManyDocumentElements",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString('<doc/>')\n    elem = doc.createElement('extra')\n    try:\n        doc.appendChild(*(elem,))\n    except xml.dom.HierarchyRequestErr:\n        pass\n    elem.unlink()\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCreateElementNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCreateAttributeNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testParse",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testParseString",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testComment",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrListItem",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrListItems",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrListItemNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrListKeys",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrListKeysNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testRemoveNamedItem",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString(\"<doc a=''/>\")\n    e = doc.documentElement\n    attrs = e.attributes\n    a1 = e.getAttributeNode('a')\n    a2 = attrs.removeNamedItem('a')\n    assert a1.isSameNode(a2), ('assertTrue', a1.isSameNode(a2))\n    try:\n        attrs.removeNamedItem(*('a',))\n    except xml.dom.NotFoundErr:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testRemoveNamedItemNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString(\"<doc xmlns:a='http://xml.python.org/' a:b=''/>\")\n    e = doc.documentElement\n    attrs = e.attributes\n    a1 = e.getAttributeNodeNS('http://xml.python.org/', 'b')\n    a2 = attrs.removeNamedItemNS('http://xml.python.org/', 'b')\n    assert a1.isSameNode(a2), ('assertTrue', a1.isSameNode(a2))\n    try:\n        attrs.removeNamedItemNS(*('http://xml.python.org/', 'b'))\n    except xml.dom.NotFoundErr:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrListValues",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrListLength",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrList__getitem__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testAttrList__setitem__",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testSetAttrValueandNodeValue",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testParseElement",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testParseAttributes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testParseElementNamespaces",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testParseAttributeNamespaces",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testParseProcessingInstructions",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testChildNodes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testFirstChild",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testHasChildNodes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    dom = parseString('<doc><foo/></doc>')\n    doc = dom.documentElement\n    assert doc.hasChildNodes(), ('assertTrue', doc.hasChildNodes())\n    dom2 = parseString('<doc/>')\n    doc2 = dom2.documentElement\n    assert not doc2.hasChildNodes(), ('assertFalse', doc2.hasChildNodes())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneElementShallow",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _testCloneElementCopiesAttributes(e1, e2, test):\n    attrs1 = e1.attributes\n    attrs2 = e2.attributes\n    keys1 = list(attrs1.keys())\n    keys2 = list(attrs2.keys())\n    keys1.sort()\n    keys2.sort()\n    assert keys1 == keys2, ('assertEqual', keys1, keys2)\n    for i in range(len(keys1)):\n        a1 = attrs1.item(i)\n        a2 = attrs2.item(i)\n        assert a1 is not a2, ('assertIsNot', a1, a2)\n        assert a1.value == a2.value, ('assertEqual', a1.value, a2.value)\n        assert a1.nodeValue == a2.nodeValue, ('assertEqual', a1.nodeValue, a2.nodeValue)\n        assert a1.namespaceURI == a2.namespaceURI, ('assertEqual', a1.namespaceURI, a2.namespaceURI)\n        assert a1.localName == a2.localName, ('assertEqual', a1.localName, a2.localName)\n        assert a2.ownerElement is e2, ('assertIs', a2.ownerElement, e2)\n\ndef _setupCloneElement(deep):\n    dom = parseString(\"<doc attr='value'><foo/></doc>\")\n    root = dom.documentElement\n    clone = root.cloneNode(deep)\n    _testCloneElementCopiesAttributes(root, clone, 'testCloneElement' + (deep and 'Deep' or 'Shallow'))\n    root.tagName = root.nodeName = 'MODIFIED'\n    root.setAttribute('attr', 'NEW VALUE')\n    root.setAttribute('added', 'VALUE')\n    return (dom, clone)\n\ndef _t():\n    dom, clone = _setupCloneElement(0)\n    assert len(clone.childNodes) == 0, ('assertEqual', len(clone.childNodes), 0)\n    assert clone.childNodes.length == 0, ('assertEqual', clone.childNodes.length, 0)\n    assert clone.parentNode is None, ('assertIsNone', clone.parentNode)\n    assert clone.toxml() == '<doc attr=\"value\"/>', ('assertEqual', clone.toxml(), '<doc attr=\"value\"/>')\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneElementDeep",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef _testCloneElementCopiesAttributes(e1, e2, test):\n    attrs1 = e1.attributes\n    attrs2 = e2.attributes\n    keys1 = list(attrs1.keys())\n    keys2 = list(attrs2.keys())\n    keys1.sort()\n    keys2.sort()\n    assert keys1 == keys2, ('assertEqual', keys1, keys2)\n    for i in range(len(keys1)):\n        a1 = attrs1.item(i)\n        a2 = attrs2.item(i)\n        assert a1 is not a2, ('assertIsNot', a1, a2)\n        assert a1.value == a2.value, ('assertEqual', a1.value, a2.value)\n        assert a1.nodeValue == a2.nodeValue, ('assertEqual', a1.nodeValue, a2.nodeValue)\n        assert a1.namespaceURI == a2.namespaceURI, ('assertEqual', a1.namespaceURI, a2.namespaceURI)\n        assert a1.localName == a2.localName, ('assertEqual', a1.localName, a2.localName)\n        assert a2.ownerElement is e2, ('assertIs', a2.ownerElement, e2)\n\ndef _setupCloneElement(deep):\n    dom = parseString(\"<doc attr='value'><foo/></doc>\")\n    root = dom.documentElement\n    clone = root.cloneNode(deep)\n    _testCloneElementCopiesAttributes(root, clone, 'testCloneElement' + (deep and 'Deep' or 'Shallow'))\n    root.tagName = root.nodeName = 'MODIFIED'\n    root.setAttribute('attr', 'NEW VALUE')\n    root.setAttribute('added', 'VALUE')\n    return (dom, clone)\n\ndef _t():\n    dom, clone = _setupCloneElement(1)\n    assert len(clone.childNodes) == 1, ('assertEqual', len(clone.childNodes), 1)\n    assert clone.childNodes.length == 1, ('assertEqual', clone.childNodes.length, 1)\n    assert clone.parentNode is None, ('assertIsNone', clone.parentNode)\n    assert clone.toxml(), ('assertTrue', clone.toxml())\n    dom.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneDocumentShallow",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString(\"<?xml version='1.0'?>\\n<!-- comment --><!DOCTYPE doc [\\n<!NOTATION notation SYSTEM 'http://xml.python.org/'>\\n]>\\n<doc attr='value'/>\")\n    doc2 = doc.cloneNode(0)\n    assert doc2 is None, ('assertIsNone', doc2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneDocumentDeep",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString(\"<?xml version='1.0'?>\\n<!-- comment --><!DOCTYPE doc [\\n<!NOTATION notation SYSTEM 'http://xml.python.org/'>\\n]>\\n<doc attr='value'/>\")\n    doc2 = doc.cloneNode(1)\n    assert not (doc.isSameNode(doc2) or doc2.isSameNode(doc)), ('assertFalse', (doc.isSameNode(doc2) or doc2.isSameNode(doc)))\n    assert len(doc.childNodes) == len(doc2.childNodes), ('assertEqual', len(doc.childNodes), len(doc2.childNodes))\n    assert doc2.documentElement.nodeType == Node.ELEMENT_NODE, ('assertEqual', doc2.documentElement.nodeType, Node.ELEMENT_NODE)\n    assert doc2.documentElement.ownerDocument.isSameNode(doc2), ('assertTrue', doc2.documentElement.ownerDocument.isSameNode(doc2))\n    assert not doc.documentElement.isSameNode(doc2.documentElement), ('assertFalse', doc.documentElement.isSameNode(doc2.documentElement))\n    if doc.doctype is not None:\n        assert doc2.doctype.nodeType == Node.DOCUMENT_TYPE_NODE, ('assertEqual', doc2.doctype.nodeType, Node.DOCUMENT_TYPE_NODE)\n        assert doc2.doctype.ownerDocument.isSameNode(doc2), ('assertTrue', doc2.doctype.ownerDocument.isSameNode(doc2))\n        assert not doc.doctype.isSameNode(doc2.doctype), ('assertFalse', doc.doctype.isSameNode(doc2.doctype))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneDocumentTypeDeepOk",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doctype = create_nonempty_doctype()\n    clone = doctype.cloneNode(1)\n    confirm(clone is not None and clone.nodeName == doctype.nodeName and (clone.name == doctype.name) and (clone.publicId == doctype.publicId) and (clone.systemId == doctype.systemId) and (len(clone.entities) == len(doctype.entities)) and (clone.entities.item(len(clone.entities)) is None) and (len(clone.notations) == len(doctype.notations)) and (clone.notations.item(len(clone.notations)) is None) and (len(clone.childNodes) == 0))\n    for i in range(len(doctype.entities)):\n        se = doctype.entities.item(i)\n        ce = clone.entities.item(i)\n        confirm(not se.isSameNode(ce) and (not ce.isSameNode(se)) and (ce.nodeName == se.nodeName) and (ce.notationName == se.notationName) and (ce.publicId == se.publicId) and (ce.systemId == se.systemId) and (ce.encoding == se.encoding) and (ce.actualEncoding == se.actualEncoding) and (ce.version == se.version))\n    for i in range(len(doctype.notations)):\n        sn = doctype.notations.item(i)\n        cn = clone.notations.item(i)\n        confirm(not sn.isSameNode(cn) and (not cn.isSameNode(sn)) and (cn.nodeName == sn.nodeName) and (cn.publicId == sn.publicId) and (cn.systemId == sn.systemId))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneDocumentTypeDeepNotOk",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = create_doc_with_doctype()\n    clone = doc.doctype.cloneNode(1)\n    assert clone is None, ('assertIsNone', clone)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneDocumentTypeShallowOk",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doctype = create_nonempty_doctype()\n    clone = doctype.cloneNode(0)\n    confirm(clone is not None and clone.nodeName == doctype.nodeName and (clone.name == doctype.name) and (clone.publicId == doctype.publicId) and (clone.systemId == doctype.systemId) and (len(clone.entities) == 0) and (clone.entities.item(0) is None) and (len(clone.notations) == 0) and (clone.notations.item(0) is None) and (len(clone.childNodes) == 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneDocumentTypeShallowNotOk",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = create_doc_with_doctype()\n    clone = doc.doctype.cloneNode(0)\n    assert clone is None, ('assertIsNone', clone)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testImportDocumentShallow",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef check_import_document(deep, testName):\n    doc1 = parseString('<doc/>')\n    doc2 = parseString('<doc/>')\n    try:\n        doc1.importNode(*(doc2, deep))\n    except xml.dom.NotSupportedErr:\n        pass\n\ndef _t():\n    check_import_document(0, 'testImportDocumentShallow')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testImportDocumentDeep",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef check_import_document(deep, testName):\n    doc1 = parseString('<doc/>')\n    doc2 = parseString('<doc/>')\n    try:\n        doc1.importNode(*(doc2, deep))\n    except xml.dom.NotSupportedErr:\n        pass\n\ndef _t():\n    check_import_document(1, 'testImportDocumentDeep')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testImportDocumentTypeShallow",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    src = create_doc_with_doctype()\n    target = create_doc_without_doctype()\n    try:\n        target.importNode(*(src.doctype, 0))\n    except xml.dom.NotSupportedErr:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testImportDocumentTypeDeep",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    src = create_doc_with_doctype()\n    target = create_doc_without_doctype()\n    try:\n        target.importNode(*(src.doctype, 1))\n    except xml.dom.NotSupportedErr:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneAttributeShallow",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef check_clone_attribute(deep, testName):\n    doc = parseString(\"<doc attr='value'/>\")\n    attr = doc.documentElement.getAttributeNode('attr')\n    assert attr is not None, ('assertIsNotNone', attr)\n    clone = attr.cloneNode(deep)\n    assert not clone.isSameNode(attr), ('assertFalse', clone.isSameNode(attr))\n    assert not attr.isSameNode(clone), ('assertFalse', attr.isSameNode(clone))\n    assert clone.ownerElement is None, ('assertIsNone', clone.ownerElement)\n    confirm(clone.ownerDocument.isSameNode(attr.ownerDocument), testName + ': ownerDocument does not match')\n    confirm(clone.specified, testName + ': cloned attribute must have specified == True')\n\ndef _t():\n    check_clone_attribute(0, 'testCloneAttributeShallow')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneAttributeDeep",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef check_clone_attribute(deep, testName):\n    doc = parseString(\"<doc attr='value'/>\")\n    attr = doc.documentElement.getAttributeNode('attr')\n    assert attr is not None, ('assertIsNotNone', attr)\n    clone = attr.cloneNode(deep)\n    assert not clone.isSameNode(attr), ('assertFalse', clone.isSameNode(attr))\n    assert not attr.isSameNode(clone), ('assertFalse', attr.isSameNode(clone))\n    assert clone.ownerElement is None, ('assertIsNone', clone.ownerElement)\n    confirm(clone.ownerDocument.isSameNode(attr.ownerDocument), testName + ': ownerDocument does not match')\n    confirm(clone.specified, testName + ': cloned attribute must have specified == True')\n\ndef _t():\n    check_clone_attribute(1, 'testCloneAttributeDeep')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testClonePIShallow",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef check_clone_pi(deep, testName):\n    doc = parseString('<?target data?><doc/>')\n    pi = doc.firstChild\n    assert pi.nodeType == Node.PROCESSING_INSTRUCTION_NODE, ('assertEqual', pi.nodeType, Node.PROCESSING_INSTRUCTION_NODE)\n    clone = pi.cloneNode(deep)\n    confirm(clone.target == pi.target and clone.data == pi.data)\n\ndef _t():\n    check_clone_pi(0, 'testClonePIShallow')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testClonePIDeep",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef check_clone_pi(deep, testName):\n    doc = parseString('<?target data?><doc/>')\n    pi = doc.firstChild\n    assert pi.nodeType == Node.PROCESSING_INSTRUCTION_NODE, ('assertEqual', pi.nodeType, Node.PROCESSING_INSTRUCTION_NODE)\n    clone = pi.cloneNode(deep)\n    confirm(clone.target == pi.target and clone.data == pi.data)\n\ndef _t():\n    check_clone_pi(1, 'testClonePIDeep')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testCloneNodeEntity",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nimport xml.dom.minidom\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef check_clone_node_entity(clone_document):\n    document = xml.dom.minidom.parseString('\\n            <?xml version=\"1.0\" ?>\\n            <!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\"\\n                \"http://www.w3.org/TR/html4/strict.dtd\"\\n                [ <!ENTITY smile \"\u263a\"> ]\\n            >\\n            <doc>Don\\'t let entities make you frown &smile;</doc>\\n        '.strip())\n\n    class Handler:\n\n        def handle(self, operation, key, data, src, dst):\n            self.operation = operation\n            self.key = key\n            self.data = data\n            self.src = src\n            self.dst = dst\n    handler = Handler()\n    doctype = document.doctype\n    entity = doctype.entities['smile']\n    entity.setUserData('key', 'data', handler)\n    if clone_document:\n        clone = document.cloneNode(deep=True)\n        assert clone.documentElement.firstChild.wholeText == \"Don't let entities make you frown \u263a\", ('assertEqual', clone.documentElement.firstChild.wholeText, \"Don't let entities make you frown \u263a\")\n        operation = xml.dom.UserDataHandler.NODE_IMPORTED\n        dst = clone.doctype.entities['smile']\n    else:\n        with support.swap_attr(doctype, 'ownerDocument', None):\n            clone = doctype.cloneNode(deep=True)\n        operation = xml.dom.UserDataHandler.NODE_CLONED\n        dst = clone.entities['smile']\n    assert handler.operation == operation, ('assertEqual', handler.operation, operation)\n    assert handler.key == 'key', ('assertEqual', handler.key, 'key')\n    assert handler.data == 'data', ('assertEqual', handler.data, 'data')\n    assert handler.src is entity, ('assertIs', handler.src, entity)\n    assert handler.dst is dst, ('assertIs', handler.dst, dst)\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    check_clone_node_entity(False)\n    check_clone_node_entity(True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testNormalize",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString('<doc/>')\n    root = doc.documentElement\n    root.appendChild(doc.createTextNode('first'))\n    root.appendChild(doc.createTextNode('second'))\n    confirm(len(root.childNodes) == 2 and root.childNodes.length == 2, 'testNormalize -- preparation')\n    doc.normalize()\n    confirm(len(root.childNodes) == 1 and root.childNodes.length == 1 and (root.firstChild is root.lastChild) and (root.firstChild.data == 'firstsecond'), 'testNormalize -- result')\n    doc.unlink()\n    doc = parseString('<doc/>')\n    root = doc.documentElement\n    root.appendChild(doc.createTextNode(''))\n    doc.normalize()\n    confirm(len(root.childNodes) == 0 and root.childNodes.length == 0, 'testNormalize -- single empty node removed')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testNormalizeCombineAndNextSibling",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString('<doc/>')\n    root = doc.documentElement\n    root.appendChild(doc.createTextNode('first'))\n    root.appendChild(doc.createTextNode('second'))\n    root.appendChild(doc.createElement('i'))\n    confirm(len(root.childNodes) == 3 and root.childNodes.length == 3, 'testNormalizeCombineAndNextSibling -- preparation')\n    doc.normalize()\n    confirm(len(root.childNodes) == 2 and root.childNodes.length == 2 and (root.firstChild.data == 'firstsecond') and (root.firstChild is not root.lastChild) and (root.firstChild.nextSibling is root.lastChild) and (root.firstChild.previousSibling is None) and (root.lastChild.previousSibling is root.firstChild) and (root.lastChild.nextSibling is None), 'testNormalizeCombinedAndNextSibling -- result')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testNormalizeDeleteWithPrevSibling",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString('<doc/>')\n    root = doc.documentElement\n    root.appendChild(doc.createTextNode('first'))\n    root.appendChild(doc.createTextNode(''))\n    confirm(len(root.childNodes) == 2 and root.childNodes.length == 2, 'testNormalizeDeleteWithPrevSibling -- preparation')\n    doc.normalize()\n    confirm(len(root.childNodes) == 1 and root.childNodes.length == 1 and (root.firstChild.data == 'first') and (root.firstChild is root.lastChild) and (root.firstChild.nextSibling is None) and (root.firstChild.previousSibling is None), 'testNormalizeDeleteWithPrevSibling -- result')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testNormalizeDeleteWithNextSibling",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString('<doc/>')\n    root = doc.documentElement\n    root.appendChild(doc.createTextNode(''))\n    root.appendChild(doc.createTextNode('second'))\n    confirm(len(root.childNodes) == 2 and root.childNodes.length == 2, 'testNormalizeDeleteWithNextSibling -- preparation')\n    doc.normalize()\n    confirm(len(root.childNodes) == 1 and root.childNodes.length == 1 and (root.firstChild.data == 'second') and (root.firstChild is root.lastChild) and (root.firstChild.nextSibling is None) and (root.firstChild.previousSibling is None), 'testNormalizeDeleteWithNextSibling -- result')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testNormalizeDeleteWithTwoNonTextSiblings",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString('<doc/>')\n    root = doc.documentElement\n    root.appendChild(doc.createElement('i'))\n    root.appendChild(doc.createTextNode(''))\n    root.appendChild(doc.createElement('i'))\n    confirm(len(root.childNodes) == 3 and root.childNodes.length == 3, 'testNormalizeDeleteWithTwoSiblings -- preparation')\n    doc.normalize()\n    confirm(len(root.childNodes) == 2 and root.childNodes.length == 2 and (root.firstChild is not root.lastChild) and (root.firstChild.nextSibling is root.lastChild) and (root.firstChild.previousSibling is None) and (root.lastChild.previousSibling is root.firstChild) and (root.lastChild.nextSibling is None), 'testNormalizeDeleteWithTwoSiblings -- result')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testNormalizeDeleteAndCombine",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString('<doc/>')\n    root = doc.documentElement\n    root.appendChild(doc.createTextNode(''))\n    root.appendChild(doc.createTextNode('second'))\n    root.appendChild(doc.createTextNode(''))\n    root.appendChild(doc.createTextNode('fourth'))\n    root.appendChild(doc.createTextNode(''))\n    confirm(len(root.childNodes) == 5 and root.childNodes.length == 5, 'testNormalizeDeleteAndCombine -- preparation')\n    doc.normalize()\n    confirm(len(root.childNodes) == 1 and root.childNodes.length == 1 and (root.firstChild is root.lastChild) and (root.firstChild.data == 'secondfourth') and (root.firstChild.previousSibling is None) and (root.firstChild.nextSibling is None), 'testNormalizeDeleteAndCombine -- result')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testNormalizeRecursion",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString('<doc><o><i/>t</o><o><o>t2</o>t3</o></doc>')\n    root = doc.documentElement\n    root.childNodes[0].appendChild(doc.createTextNode(''))\n    root.childNodes[0].appendChild(doc.createTextNode('x'))\n    root.childNodes[1].childNodes[0].appendChild(doc.createTextNode('x2'))\n    root.childNodes[1].appendChild(doc.createTextNode('x3'))\n    root.appendChild(doc.createTextNode(''))\n    confirm(len(root.childNodes) == 3 and root.childNodes.length == 3 and (len(root.childNodes[0].childNodes) == 4) and (root.childNodes[0].childNodes.length == 4) and (len(root.childNodes[1].childNodes) == 3) and (root.childNodes[1].childNodes.length == 3) and (len(root.childNodes[1].childNodes[0].childNodes) == 2) and (root.childNodes[1].childNodes[0].childNodes.length == 2), 'testNormalize2 -- preparation')\n    doc.normalize()\n    confirm(len(root.childNodes) == 2 and root.childNodes.length == 2 and (len(root.childNodes[0].childNodes) == 2) and (root.childNodes[0].childNodes.length == 2) and (len(root.childNodes[1].childNodes) == 2) and (root.childNodes[1].childNodes.length == 2) and (len(root.childNodes[1].childNodes[0].childNodes) == 1) and (root.childNodes[1].childNodes[0].childNodes.length == 1), 'testNormalize2 -- childNodes lengths')\n    confirm(root.childNodes[0].childNodes[1].data == 'tx' and root.childNodes[1].childNodes[0].childNodes[0].data == 't2x2' and (root.childNodes[1].childNodes[1].data == 't3x3'), 'testNormalize2 -- joined text fields')\n    confirm(root.childNodes[0].childNodes[1].nextSibling is None and root.childNodes[0].childNodes[1].previousSibling is root.childNodes[0].childNodes[0] and (root.childNodes[0].childNodes[0].previousSibling is None) and (root.childNodes[0].childNodes[0].nextSibling is root.childNodes[0].childNodes[1]) and (root.childNodes[1].childNodes[1].nextSibling is None) and (root.childNodes[1].childNodes[1].previousSibling is root.childNodes[1].childNodes[0]) and (root.childNodes[1].childNodes[0].previousSibling is None) and (root.childNodes[1].childNodes[0].nextSibling is root.childNodes[1].childNodes[1]), 'testNormalize2 -- sibling pointers')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testBug0777884",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString('<o>text</o>')\n    text = doc.documentElement.childNodes[0]\n    assert text.nodeType == Node.TEXT_NODE, ('assertEqual', text.nodeType, Node.TEXT_NODE)\n    text.normalize()\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testBug1433694",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString('<o><i/>t</o>')\n    node = doc.documentElement\n    node.childNodes[1].nodeValue = ''\n    node.normalize()\n    assert node.childNodes[-1].nextSibling is None, ('assertIsNone', node.childNodes[-1].nextSibling)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testSiblings",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString('<doc><?pi?>text?<elm/></doc>')\n    root = doc.documentElement\n    pi, text, elm = root.childNodes\n    confirm(pi.nextSibling is text and pi.previousSibling is None and (text.nextSibling is elm) and (text.previousSibling is pi) and (elm.nextSibling is None) and (elm.previousSibling is text), 'testSiblings')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testParents",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString('<doc><elm1><elm2/><elm2><elm3/></elm2></elm1></doc>')\n    root = doc.documentElement\n    elm1 = root.childNodes[0]\n    elm2a, elm2b = elm1.childNodes\n    elm3 = elm2b.childNodes[0]\n    confirm(root.parentNode is doc and elm1.parentNode is root and (elm2a.parentNode is elm1) and (elm2b.parentNode is elm1) and (elm3.parentNode is elm2b), 'testParents')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testNodeListItem",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString('<doc><e/><e/></doc>')\n    children = doc.childNodes\n    docelem = children[0]\n    confirm(children[0] is children.item(0) and children.item(1) is None and (docelem.childNodes.item(0) is docelem.childNodes[0]) and (docelem.childNodes.item(1) is docelem.childNodes[1]) and (docelem.childNodes.item(0).childNodes.item(0) is None), 'test NodeList.item()')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testEncodings",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\nfrom xml.parsers.expat import ExpatError\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString('<foo>&#x20ac;</foo>')\n    assert doc.toxml() == '<?xml version=\"1.0\" ?><foo>\u20ac</foo>', ('assertEqual', doc.toxml(), '<?xml version=\"1.0\" ?><foo>\u20ac</foo>')\n    assert doc.toxml('utf-8') == b'<?xml version=\"1.0\" encoding=\"utf-8\"?><foo>\\xe2\\x82\\xac</foo>', ('assertEqual', doc.toxml('utf-8'), b'<?xml version=\"1.0\" encoding=\"utf-8\"?><foo>\\xe2\\x82\\xac</foo>')\n    assert doc.toxml('iso-8859-15') == b'<?xml version=\"1.0\" encoding=\"iso-8859-15\"?><foo>\\xa4</foo>', ('assertEqual', doc.toxml('iso-8859-15'), b'<?xml version=\"1.0\" encoding=\"iso-8859-15\"?><foo>\\xa4</foo>')\n    assert doc.toxml('us-ascii') == b'<?xml version=\"1.0\" encoding=\"us-ascii\"?><foo>&#8364;</foo>', ('assertEqual', doc.toxml('us-ascii'), b'<?xml version=\"1.0\" encoding=\"us-ascii\"?><foo>&#8364;</foo>')\n    assert doc.toxml('utf-16') == '<?xml version=\"1.0\" encoding=\"utf-16\"?><foo>\u20ac</foo>'.encode('utf-16'), ('assertEqual', doc.toxml('utf-16'), '<?xml version=\"1.0\" encoding=\"utf-16\"?><foo>\u20ac</foo>'.encode('utf-16'))\n    try:\n        parseString(b'<fran\\xe7ais>Comment \\xe7a va ? Tr\\xe8s bien ?</fran\\xe7ais>')\n    except (UnicodeDecodeError, ExpatError) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testStandalone",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString('<foo>&#x20ac;</foo>')\n    assert doc.toxml() == '<?xml version=\"1.0\" ?><foo>\u20ac</foo>', ('assertEqual', doc.toxml(), '<?xml version=\"1.0\" ?><foo>\u20ac</foo>')\n    assert doc.toxml(standalone=None) == '<?xml version=\"1.0\" ?><foo>\u20ac</foo>', ('assertEqual', doc.toxml(standalone=None), '<?xml version=\"1.0\" ?><foo>\u20ac</foo>')\n    assert doc.toxml(standalone=True) == '<?xml version=\"1.0\" standalone=\"yes\"?><foo>\u20ac</foo>', ('assertEqual', doc.toxml(standalone=True), '<?xml version=\"1.0\" standalone=\"yes\"?><foo>\u20ac</foo>')\n    assert doc.toxml(standalone=False) == '<?xml version=\"1.0\" standalone=\"no\"?><foo>\u20ac</foo>', ('assertEqual', doc.toxml(standalone=False), '<?xml version=\"1.0\" standalone=\"no\"?><foo>\u20ac</foo>')\n    assert doc.toxml('utf-8', True) == b'<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?><foo>\\xe2\\x82\\xac</foo>', ('assertEqual', doc.toxml('utf-8', True), b'<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?><foo>\\xe2\\x82\\xac</foo>')\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testRenameAttribute",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef checkRenameNodeSharedConstraints(doc, node):\n    try:\n        doc.renameNode(*(node, 'http://xml.python.org/ns', 'xmlns:foo'))\n    except xml.dom.NamespaceErr:\n        pass\n    doc2 = parseString('<doc/>')\n    try:\n        doc2.renameNode(*(node, xml.dom.EMPTY_NAMESPACE, 'foo'))\n    except xml.dom.WrongDocumentErr:\n        pass\n\ndef _t():\n    doc = parseString(\"<doc a='v'/>\")\n    elem = doc.documentElement\n    attrmap = elem.attributes\n    attr = elem.attributes['a']\n    attr = doc.renameNode(attr, xml.dom.EMPTY_NAMESPACE, 'b')\n    confirm(attr.name == 'b' and attr.nodeName == 'b' and (attr.localName is None) and (attr.namespaceURI == xml.dom.EMPTY_NAMESPACE) and (attr.prefix is None) and (attr.value == 'v') and (elem.getAttributeNode('a') is None) and elem.getAttributeNode('b').isSameNode(attr) and attrmap['b'].isSameNode(attr) and attr.ownerDocument.isSameNode(doc) and attr.ownerElement.isSameNode(elem))\n    attr = doc.renameNode(attr, 'http://xml.python.org/ns', 'c')\n    confirm(attr.name == 'c' and attr.nodeName == 'c' and (attr.localName == 'c') and (attr.namespaceURI == 'http://xml.python.org/ns') and (attr.prefix is None) and (attr.value == 'v') and (elem.getAttributeNode('a') is None) and (elem.getAttributeNode('b') is None) and elem.getAttributeNode('c').isSameNode(attr) and elem.getAttributeNodeNS('http://xml.python.org/ns', 'c').isSameNode(attr) and attrmap['c'].isSameNode(attr) and attrmap['http://xml.python.org/ns', 'c'].isSameNode(attr))\n    attr = doc.renameNode(attr, 'http://xml.python.org/ns2', 'p:d')\n    confirm(attr.name == 'p:d' and attr.nodeName == 'p:d' and (attr.localName == 'd') and (attr.namespaceURI == 'http://xml.python.org/ns2') and (attr.prefix == 'p') and (attr.value == 'v') and (elem.getAttributeNode('a') is None) and (elem.getAttributeNode('b') is None) and (elem.getAttributeNode('c') is None) and (elem.getAttributeNodeNS('http://xml.python.org/ns', 'c') is None) and elem.getAttributeNode('p:d').isSameNode(attr) and elem.getAttributeNodeNS('http://xml.python.org/ns2', 'd').isSameNode(attr) and attrmap['p:d'].isSameNode(attr) and attrmap['http://xml.python.org/ns2', 'd'].isSameNode(attr))\n    attr = doc.renameNode(attr, xml.dom.EMPTY_NAMESPACE, 'e')\n    confirm(attr.name == 'e' and attr.nodeName == 'e' and (attr.localName is None) and (attr.namespaceURI == xml.dom.EMPTY_NAMESPACE) and (attr.prefix is None) and (attr.value == 'v') and (elem.getAttributeNode('a') is None) and (elem.getAttributeNode('b') is None) and (elem.getAttributeNode('c') is None) and (elem.getAttributeNode('p:d') is None) and (elem.getAttributeNodeNS('http://xml.python.org/ns', 'c') is None) and elem.getAttributeNode('e').isSameNode(attr) and attrmap['e'].isSameNode(attr))\n    try:\n        doc.renameNode(*(attr, 'http://xml.python.org/ns', 'xmlns'))\n    except xml.dom.NamespaceErr:\n        pass\n    checkRenameNodeSharedConstraints(doc, attr)\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testRenameElement",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef checkRenameNodeSharedConstraints(doc, node):\n    try:\n        doc.renameNode(*(node, 'http://xml.python.org/ns', 'xmlns:foo'))\n    except xml.dom.NamespaceErr:\n        pass\n    doc2 = parseString('<doc/>')\n    try:\n        doc2.renameNode(*(node, xml.dom.EMPTY_NAMESPACE, 'foo'))\n    except xml.dom.WrongDocumentErr:\n        pass\n\ndef _t():\n    doc = parseString('<doc/>')\n    elem = doc.documentElement\n    elem = doc.renameNode(elem, xml.dom.EMPTY_NAMESPACE, 'a')\n    confirm(elem.tagName == 'a' and elem.nodeName == 'a' and (elem.localName is None) and (elem.namespaceURI == xml.dom.EMPTY_NAMESPACE) and (elem.prefix is None) and elem.ownerDocument.isSameNode(doc))\n    elem = doc.renameNode(elem, 'http://xml.python.org/ns', 'b')\n    confirm(elem.tagName == 'b' and elem.nodeName == 'b' and (elem.localName == 'b') and (elem.namespaceURI == 'http://xml.python.org/ns') and (elem.prefix is None) and elem.ownerDocument.isSameNode(doc))\n    elem = doc.renameNode(elem, 'http://xml.python.org/ns2', 'p:c')\n    confirm(elem.tagName == 'p:c' and elem.nodeName == 'p:c' and (elem.localName == 'c') and (elem.namespaceURI == 'http://xml.python.org/ns2') and (elem.prefix == 'p') and elem.ownerDocument.isSameNode(doc))\n    elem = doc.renameNode(elem, xml.dom.EMPTY_NAMESPACE, 'd')\n    confirm(elem.tagName == 'd' and elem.nodeName == 'd' and (elem.localName is None) and (elem.namespaceURI == xml.dom.EMPTY_NAMESPACE) and (elem.prefix is None) and elem.ownerDocument.isSameNode(doc))\n    checkRenameNodeSharedConstraints(doc, elem)\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testRenameOther",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = xml.dom.minidom.getDOMImplementation().createDocument(xml.dom.EMPTY_NAMESPACE, 'e', None)\n    node = doc.createComment('comment')\n    try:\n        doc.renameNode(*(node, xml.dom.EMPTY_NAMESPACE, 'foo'))\n    except xml.dom.NotSupportedErr:\n        pass\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testWholeText",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef checkWholeText(node, s):\n    t = node.wholeText\n    assert t == s, ('assertEqual', t, s)\n\ndef _t():\n    doc = parseString('<doc>a</doc>')\n    elem = doc.documentElement\n    text = elem.childNodes[0]\n    assert text.nodeType == Node.TEXT_NODE, ('assertEqual', text.nodeType, Node.TEXT_NODE)\n    checkWholeText(text, 'a')\n    elem.appendChild(doc.createTextNode('b'))\n    checkWholeText(text, 'ab')\n    elem.insertBefore(doc.createCDATASection('c'), text)\n    checkWholeText(text, 'cab')\n    splitter = doc.createComment('comment')\n    elem.appendChild(splitter)\n    text2 = doc.createTextNode('d')\n    elem.appendChild(text2)\n    checkWholeText(text, 'cab')\n    checkWholeText(text2, 'd')\n    x = doc.createElement('x')\n    elem.replaceChild(x, splitter)\n    splitter = x\n    checkWholeText(text, 'cab')\n    checkWholeText(text2, 'd')\n    x = doc.createProcessingInstruction('y', 'z')\n    elem.replaceChild(x, splitter)\n    splitter = x\n    checkWholeText(text, 'cab')\n    checkWholeText(text2, 'd')\n    elem.removeChild(splitter)\n    checkWholeText(text, 'cabd')\n    checkWholeText(text2, 'cabd')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testPatch1094164",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString('<doc><e/></doc>')\n    elem = doc.documentElement\n    e = elem.firstChild\n    assert e.parentNode is elem, ('assertIs', e.parentNode, elem)\n    elem.replaceChild(e, e)\n    assert e.parentNode is elem, ('assertIs', e.parentNode, elem)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testReplaceWholeText",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef checkWholeText(node, s):\n    t = node.wholeText\n    assert t == s, ('assertEqual', t, s)\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n\n    def setup():\n        doc = parseString('<doc>a<e/>d</doc>')\n        elem = doc.documentElement\n        text1 = elem.firstChild\n        text2 = elem.lastChild\n        splitter = text1.nextSibling\n        elem.insertBefore(doc.createTextNode('b'), splitter)\n        elem.insertBefore(doc.createCDATASection('c'), text1)\n        return (doc, elem, text1, splitter, text2)\n    doc, elem, text1, splitter, text2 = setup()\n    text = text1.replaceWholeText('new content')\n    checkWholeText(text, 'new content')\n    checkWholeText(text2, 'd')\n    assert len(elem.childNodes) == 3, ('assertEqual', len(elem.childNodes), 3)\n    doc, elem, text1, splitter, text2 = setup()\n    text = text2.replaceWholeText('new content')\n    checkWholeText(text, 'new content')\n    checkWholeText(text1, 'cab')\n    assert len(elem.childNodes) == 5, ('assertEqual', len(elem.childNodes), 5)\n    doc, elem, text1, splitter, text2 = setup()\n    text = text1.replaceWholeText('')\n    checkWholeText(text2, 'd')\n    confirm(text is None and len(elem.childNodes) == 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testSchemaType",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString(\"<!DOCTYPE doc [\\n  <!ENTITY e1 SYSTEM 'http://xml.python.org/e1'>\\n  <!ENTITY e2 SYSTEM 'http://xml.python.org/e2'>\\n  <!ATTLIST doc id   ID       #IMPLIED \\n                ref  IDREF    #IMPLIED \\n                refs IDREFS   #IMPLIED \\n                enum (a|b)    #IMPLIED \\n                ent  ENTITY   #IMPLIED \\n                ents ENTITIES #IMPLIED \\n                nm   NMTOKEN  #IMPLIED \\n                nms  NMTOKENS #IMPLIED \\n                text CDATA    #IMPLIED \\n    >\\n]><doc id='name' notid='name' text='splat!' enum='b'       ref='name' refs='name name' ent='e1' ents='e1 e2'       nm='123' nms='123 abc' />\")\n    elem = doc.documentElement\n    t = elem.schemaType\n    confirm(t.name is None and t.namespace == xml.dom.EMPTY_NAMESPACE)\n    names = 'id notid text enum ref refs ent ents nm nms'.split()\n    for name in names:\n        a = elem.getAttributeNode(name)\n        t = a.schemaType\n        confirm(hasattr(t, 'name') and t.namespace == xml.dom.EMPTY_NAMESPACE)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testSetIdAttribute",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    doc = parseString(\"<doc a1='v' a2='w'/>\")\n    e = doc.documentElement\n    a1 = e.getAttributeNode('a1')\n    a2 = e.getAttributeNode('a2')\n    confirm(doc.getElementById('v') is None and (not a1.isId) and (not a2.isId))\n    e.setIdAttribute('a1')\n    confirm(e.isSameNode(doc.getElementById('v')) and a1.isId and (not a2.isId))\n    e.setIdAttribute('a2')\n    confirm(e.isSameNode(doc.getElementById('v')) and e.isSameNode(doc.getElementById('w')) and a1.isId and a2.isId)\n    a3 = doc.createAttribute('a1')\n    a3.value = 'v'\n    e.setAttributeNode(a3)\n    confirm(doc.getElementById('v') is None and e.isSameNode(doc.getElementById('w')) and (not a1.isId) and a2.isId and (not a3.isId))\n    doc.renameNode(a2, xml.dom.EMPTY_NAMESPACE, 'an')\n    confirm(e.isSameNode(doc.getElementById('w')) and a2.isId)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testSetIdAttributeNS",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    NS1 = 'http://xml.python.org/ns1'\n    NS2 = 'http://xml.python.org/ns2'\n    doc = parseString(\"<doc xmlns:ns1='\" + NS1 + \"' xmlns:ns2='\" + NS2 + \"' ns1:a1='v' ns2:a2='w'/>\")\n    e = doc.documentElement\n    a1 = e.getAttributeNodeNS(NS1, 'a1')\n    a2 = e.getAttributeNodeNS(NS2, 'a2')\n    confirm(doc.getElementById('v') is None and (not a1.isId) and (not a2.isId))\n    e.setIdAttributeNS(NS1, 'a1')\n    confirm(e.isSameNode(doc.getElementById('v')) and a1.isId and (not a2.isId))\n    e.setIdAttributeNS(NS2, 'a2')\n    confirm(e.isSameNode(doc.getElementById('v')) and e.isSameNode(doc.getElementById('w')) and a1.isId and a2.isId)\n    a3 = doc.createAttributeNS(NS1, 'a1')\n    a3.value = 'v'\n    e.setAttributeNode(a3)\n    assert e.isSameNode(doc.getElementById('w')), ('assertTrue', e.isSameNode(doc.getElementById('w')))\n    assert not a1.isId, ('assertFalse', a1.isId)\n    assert a2.isId, ('assertTrue', a2.isId)\n    assert not a3.isId, ('assertFalse', a3.isId)\n    assert doc.getElementById('v') is None, ('assertIsNone', doc.getElementById('v'))\n    doc.renameNode(a2, xml.dom.EMPTY_NAMESPACE, 'an')\n    confirm(e.isSameNode(doc.getElementById('w')) and a2.isId)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testSetIdAttributeNode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef confirm(test, testname='Test'):\n    assert test, ('assertTrue', test)\n\ndef _t():\n    NS1 = 'http://xml.python.org/ns1'\n    NS2 = 'http://xml.python.org/ns2'\n    doc = parseString(\"<doc xmlns:ns1='\" + NS1 + \"' xmlns:ns2='\" + NS2 + \"' ns1:a1='v' ns2:a2='w'/>\")\n    e = doc.documentElement\n    a1 = e.getAttributeNodeNS(NS1, 'a1')\n    a2 = e.getAttributeNodeNS(NS2, 'a2')\n    confirm(doc.getElementById('v') is None and (not a1.isId) and (not a2.isId))\n    e.setIdAttributeNode(a1)\n    confirm(e.isSameNode(doc.getElementById('v')) and a1.isId and (not a2.isId))\n    e.setIdAttributeNode(a2)\n    confirm(e.isSameNode(doc.getElementById('v')) and e.isSameNode(doc.getElementById('w')) and a1.isId and a2.isId)\n    a3 = doc.createAttributeNS(NS1, 'a1')\n    a3.value = 'v'\n    e.setAttributeNode(a3)\n    assert e.isSameNode(doc.getElementById('w')), ('assertTrue', e.isSameNode(doc.getElementById('w')))\n    assert not a1.isId, ('assertFalse', a1.isId)\n    assert a2.isId, ('assertTrue', a2.isId)\n    assert not a3.isId, ('assertFalse', a3.isId)\n    assert doc.getElementById('v') is None, ('assertIsNone', doc.getElementById('v'))\n    doc.renameNode(a2, xml.dom.EMPTY_NAMESPACE, 'an')\n    confirm(e.isSameNode(doc.getElementById('w')) and a2.isId)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testPickledDocument",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\nimport xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\nsample = \"<?xml version='1.0' encoding='us-ascii'?>\\n<!DOCTYPE doc PUBLIC 'http://xml.python.org/public' 'http://xml.python.org/system' [\\n  <!ELEMENT e EMPTY>\\n  <!ENTITY ent SYSTEM 'http://xml.python.org/entity'>\\n]><doc attr='value'> text\\n<?pi sample?> <!-- comment --> <e/> </doc>\"\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef assert_recursive_equal(doc, doc2):\n    stack = [(doc, doc2)]\n    while stack:\n        n1, n2 = stack.pop()\n        assert n1.nodeType == n2.nodeType, ('assertEqual', n1.nodeType, n2.nodeType)\n        assert len(n1.childNodes) == len(n2.childNodes), ('assertEqual', len(n1.childNodes), len(n2.childNodes))\n        assert n1.nodeName == n2.nodeName, ('assertEqual', n1.nodeName, n2.nodeName)\n        assert not n1.isSameNode(n2), ('assertFalse', n1.isSameNode(n2))\n        assert not n2.isSameNode(n1), ('assertFalse', n2.isSameNode(n1))\n        if n1.nodeType == Node.DOCUMENT_TYPE_NODE:\n            len(n1.entities)\n            len(n2.entities)\n            len(n1.notations)\n            len(n2.notations)\n            assert len(n1.entities) == len(n2.entities), ('assertEqual', len(n1.entities), len(n2.entities))\n            assert len(n1.notations) == len(n2.notations), ('assertEqual', len(n1.notations), len(n2.notations))\n            for i in range(len(n1.notations)):\n                no1 = n1.notations.item(i)\n                no2 = n1.notations.item(i)\n                assert no1.name == no2.name, ('assertEqual', no1.name, no2.name)\n                assert no1.publicId == no2.publicId, ('assertEqual', no1.publicId, no2.publicId)\n                assert no1.systemId == no2.systemId, ('assertEqual', no1.systemId, no2.systemId)\n                stack.append((no1, no2))\n            for i in range(len(n1.entities)):\n                e1 = n1.entities.item(i)\n                e2 = n2.entities.item(i)\n                assert e1.notationName == e2.notationName, ('assertEqual', e1.notationName, e2.notationName)\n                assert e1.publicId == e2.publicId, ('assertEqual', e1.publicId, e2.publicId)\n                assert e1.systemId == e2.systemId, ('assertEqual', e1.systemId, e2.systemId)\n                stack.append((e1, e2))\n        if n1.nodeType != Node.DOCUMENT_NODE:\n            assert n1.ownerDocument.isSameNode(doc), ('assertTrue', n1.ownerDocument.isSameNode(doc))\n            assert n2.ownerDocument.isSameNode(doc2), ('assertTrue', n2.ownerDocument.isSameNode(doc2))\n        for i in range(len(n1.childNodes)):\n            stack.append((n1.childNodes[i], n2.childNodes[i]))\n\ndef _t():\n    doc = parseString(sample)\n    for proto in range(2, pickle.HIGHEST_PROTOCOL + 1):\n        s = pickle.dumps(doc, proto)\n        doc2 = pickle.loads(s)\n        assert_recursive_equal(doc, doc2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testDeepcopiedDocument",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import copy\nimport xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\nsample = \"<?xml version='1.0' encoding='us-ascii'?>\\n<!DOCTYPE doc PUBLIC 'http://xml.python.org/public' 'http://xml.python.org/system' [\\n  <!ELEMENT e EMPTY>\\n  <!ENTITY ent SYSTEM 'http://xml.python.org/entity'>\\n]><doc attr='value'> text\\n<?pi sample?> <!-- comment --> <e/> </doc>\"\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef assert_recursive_equal(doc, doc2):\n    stack = [(doc, doc2)]\n    while stack:\n        n1, n2 = stack.pop()\n        assert n1.nodeType == n2.nodeType, ('assertEqual', n1.nodeType, n2.nodeType)\n        assert len(n1.childNodes) == len(n2.childNodes), ('assertEqual', len(n1.childNodes), len(n2.childNodes))\n        assert n1.nodeName == n2.nodeName, ('assertEqual', n1.nodeName, n2.nodeName)\n        assert not n1.isSameNode(n2), ('assertFalse', n1.isSameNode(n2))\n        assert not n2.isSameNode(n1), ('assertFalse', n2.isSameNode(n1))\n        if n1.nodeType == Node.DOCUMENT_TYPE_NODE:\n            len(n1.entities)\n            len(n2.entities)\n            len(n1.notations)\n            len(n2.notations)\n            assert len(n1.entities) == len(n2.entities), ('assertEqual', len(n1.entities), len(n2.entities))\n            assert len(n1.notations) == len(n2.notations), ('assertEqual', len(n1.notations), len(n2.notations))\n            for i in range(len(n1.notations)):\n                no1 = n1.notations.item(i)\n                no2 = n1.notations.item(i)\n                assert no1.name == no2.name, ('assertEqual', no1.name, no2.name)\n                assert no1.publicId == no2.publicId, ('assertEqual', no1.publicId, no2.publicId)\n                assert no1.systemId == no2.systemId, ('assertEqual', no1.systemId, no2.systemId)\n                stack.append((no1, no2))\n            for i in range(len(n1.entities)):\n                e1 = n1.entities.item(i)\n                e2 = n2.entities.item(i)\n                assert e1.notationName == e2.notationName, ('assertEqual', e1.notationName, e2.notationName)\n                assert e1.publicId == e2.publicId, ('assertEqual', e1.publicId, e2.publicId)\n                assert e1.systemId == e2.systemId, ('assertEqual', e1.systemId, e2.systemId)\n                stack.append((e1, e2))\n        if n1.nodeType != Node.DOCUMENT_NODE:\n            assert n1.ownerDocument.isSameNode(doc), ('assertTrue', n1.ownerDocument.isSameNode(doc))\n            assert n2.ownerDocument.isSameNode(doc2), ('assertTrue', n2.ownerDocument.isSameNode(doc2))\n        for i in range(len(n1.childNodes)):\n            stack.append((n1.childNodes[i], n2.childNodes[i]))\n\ndef _t():\n    doc = parseString(sample)\n    doc2 = copy.deepcopy(doc)\n    assert_recursive_equal(doc, doc2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testSerializeCommentNodeWithDoubleHyphen",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = create_doc_without_doctype()\n    doc.appendChild(doc.createComment('foo--bar'))\n    try:\n        doc.toxml()\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testEmptyXMLNSValue",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parseString(\"<element xmlns=''>\\n<foo/>\\n</element>\")\n    doc2 = parseString(doc.toxml())\n    assert doc2.namespaceURI == xml.dom.EMPTY_NAMESPACE, ('assertEqual', doc2.namespaceURI, xml.dom.EMPTY_NAMESPACE)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testExceptionOnSpacesInXMLNSValue",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.parsers.expat import ExpatError\n\ndef _t():\n    try:\n        parseString('<element xmlns:abc=\"http:abc.com/de f g/hi/j k\">' + '<abc:foo /></element>')\n    except (ValueError, ExpatError) as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testDocRemoveChild",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nimport xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\ntstfile = support.findfile('test.xml', subdir='xmltestdata')\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parse(tstfile)\n    title_tag = doc.documentElement.getElementsByTagName('TITLE')[0]\n    try:\n        doc.removeChild(*(title_tag,))\n    except xml.dom.NotFoundErr:\n        pass\n    num_children_before = len(doc.childNodes)\n    doc.removeChild(doc.childNodes[0])\n    num_children_after = len(doc.childNodes)\n    assert num_children_after == num_children_before - 1, ('assertEqual', num_children_after, num_children_before - 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.testProcessingInstructionNameError",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\nimport xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\ntstfile = support.findfile('test.xml', subdir='xmltestdata')\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    doc = parse(tstfile)\n    pi = doc.createProcessingInstruction('y', 'z')\n    pi.nodeValue = 'crash'\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.test_minidom_attribute_order",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import io\nimport xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    xml_str = '<?xml version=\"1.0\" ?><curriculum status=\"public\" company=\"example\"/>'\n    doc = parseString(xml_str)\n    output = io.StringIO()\n    doc.writexml(output)\n    assert output.getvalue() == xml_str, ('assertEqual', output.getvalue(), xml_str)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.test_toxml_with_attributes_ordered",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    xml_str = '<?xml version=\"1.0\" ?><curriculum status=\"public\" company=\"example\"/>'\n    doc = parseString(xml_str)\n    assert doc.toxml() == xml_str, ('assertEqual', doc.toxml(), xml_str)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.test_toprettyxml_with_attributes_ordered",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    xml_str = '<?xml version=\"1.0\" ?><curriculum status=\"public\" company=\"example\"/>'\n    doc = parseString(xml_str)\n    assert doc.toprettyxml() == '<?xml version=\"1.0\" ?>\\n<curriculum status=\"public\" company=\"example\"/>\\n', ('assertEqual', doc.toprettyxml(), '<?xml version=\"1.0\" ?>\\n<curriculum status=\"public\" company=\"example\"/>\\n')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.test_toprettyxml_with_cdata",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import xml.dom.minidom\nfrom xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\nfrom xml.dom.minidom import getDOMImplementation\n\ndef create_doc_without_doctype(doctype=None):\n    return getDOMImplementation().createDocument(None, 'doc', doctype)\n\ndef create_nonempty_doctype():\n    doctype = getDOMImplementation().createDocumentType('doc', None, None)\n    doctype.entities._seq = []\n    doctype.notations._seq = []\n    notation = xml.dom.minidom.Notation('my-notation', None, 'http://xml.python.org/notations/my')\n    doctype.notations._seq.append(notation)\n    entity = xml.dom.minidom.Entity('my-entity', None, 'http://xml.python.org/entities/my', 'my-notation')\n    entity.version = '1.0'\n    entity.encoding = 'utf-8'\n    entity.actualEncoding = 'us-ascii'\n    doctype.entities._seq.append(entity)\n    return doctype\n\ndef create_doc_with_doctype():\n    doctype = create_nonempty_doctype()\n    doc = create_doc_without_doctype(doctype)\n    doctype.entities.item(0).ownerDocument = doc\n    doctype.notations.item(0).ownerDocument = doc\n    return doc\n\ndef _t():\n    xml_str = '<?xml version=\"1.0\" ?><root><node><![CDATA[</data>]]></node></root>'\n    doc = parseString(xml_str)\n    assert doc.toprettyxml() == '<?xml version=\"1.0\" ?>\\n<root>\\n\\t<node><![CDATA[</data>]]></node>\\n</root>\\n', ('assertEqual', doc.toprettyxml(), '<?xml version=\"1.0\" ?>\\n<root>\\n\\t<node><![CDATA[</data>]]></node>\\n</root>\\n')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MinidomTest.test_cdata_parsing",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom.minidom import parse, Attr, Node, Document, Element, parseString\n\ndef checkWholeText(node, s):\n    t = node.wholeText\n    assert t == s, ('assertEqual', t, s)\n\ndef _t():\n    xml_str = '<?xml version=\"1.0\" ?><root><node><![CDATA[</data>]]></node></root>'\n    dom1 = parseString(xml_str)\n    checkWholeText(dom1.getElementsByTagName('node')[0].firstChild, '</data>')\n    dom2 = parseString(dom1.toprettyxml())\n    checkWholeText(dom2.getElementsByTagName('node')[0].firstChild, '</data>')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "MinidomTest.testAppendChildNoQuadraticComplexity",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "ident": "MinidomTest.testGetAttrList",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "MinidomTest.testGetAttrValues",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "MinidomTest.testTextRepr",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "MinidomTest.testUserData",
+      "reason": "uses-self.UserDataHandler"
+    }
+  ],
+  "counts": {
+    "extracted": 131,
+    "pinned": 126,
+    "quarantined": 5
+  }
+}

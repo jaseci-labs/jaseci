@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "4e27b6c6bce510c5490cc3e90b0fe5c36165f1f0",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_pulldom/conv_pulldom_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:38:58",
+  "hashes": {
+    "pins_jac": "1c34bfc936e0f58bdf1696c734600e25cc34e17c11287334943018e20b416394",
+    "conversion_json": "24df17b65a6d1703b7e0bdb36dd68e2bc46a928d713977cfe708a7ccbf0ea7e6",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "pulldom",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 11,
+    "runnable": 3,
+    "green": 2,
+    "quarantined": 8,
+    "failed": 1,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "PullDOMTestCase.test_expandItem",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AttributeError \"\\'PullDOM\\' object has no attribute \\'processingInstruction\\'\"'>"
+    }
+  ]
+}

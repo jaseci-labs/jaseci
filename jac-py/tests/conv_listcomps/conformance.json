@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.1",
-  "jac_sha": "5542c0d7bed70fe5a119f442e06395e8f0cbb3d5",
+  "jac_sha": "87412999bc7112d340c86f51f2b2fde1e0f7279c",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,7 +10,7 @@
     "diff_runner.py",
     "jac-py/tests/conv_listcomps/conv_listcomps_pins.jac"
   ],
-  "generated_at": "2026-08-24T21:02:36",
+  "generated_at": "2026-08-24T21:27:25",
   "hashes": {
     "pins_jac": "10afd9cd2de7438fbef819a36018b850c0e9728f884e6c8e306547eb61beba15",
     "conversion_json": "3e01f11b2f55bf250185aa83575992be6f95aa5dcb45a5002006b77cdbf91003",
@@ -20,7 +20,7 @@
   "counts": {
     "converted": 68,
     "runnable": 62,
-    "green": 7,
+    "green": 8,
     "quarantined": 6
   },
   "pins": [
@@ -393,9 +393,7 @@
     },
     {
       "id": "listcomps.doctests:doctests",
-      "status": "fail",
-      "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "RUN<'AssertionError: '>"
+      "status": "pass"
     },
     {
       "id": "ListComprehensionTest.test_references___classdict___nested",

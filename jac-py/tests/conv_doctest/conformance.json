@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.1",
+  "jac_sha": "653a5d4ae9ad7cf4d1681cef03bbe2bae85cd7c4",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_doctest/conv_doctest_pins.jac"
+  ],
+  "generated_at": "2026-08-24T21:35:25",
+  "hashes": {
+    "pins_jac": "ca684d36875709c5da7f58c1efa6f091b1ebe103f6bfb8afd6972e776c33e20c",
+    "conversion_json": "05d9bcbbf877e6e08390905041d22b7332ef314e3e10015c586060ba50cf433e",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "doctest",
+  "counts": {
+    "converted": 30,
+    "runnable": 25,
+    "green": 22,
+    "quarantined": 5
+  },
+  "pins": [
+    {
+      "id": "test_Example",
+      "status": "pass"
+    },
+    {
+      "id": "test_DocTest",
+      "status": "pass"
+    },
+    {
+      "id": "TestDocTest.test_run",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDocTestFinder.test_issue35753",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDocTestFinder.test_empty_namespace_package",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'import_helper' from '<unknown>'\">"
+    },
+    {
+      "id": "test_DocTestParser",
+      "status": "pass"
+    },
+    {
+      "id": "test_testsource",
+      "status": "pass"
+    },
+    {
+      "id": "test_debug",
+      "status": "pass"
+    },
+    {
+      "id": "test_DocTestSuite",
+      "status": "pass"
+    },
+    {
+      "id": "test_DocTestSuite_errors",
+      "status": "pass"
+    },
+    {
+      "id": "test_DocFileSuite",
+      "status": "pass"
+    },
+    {
+      "id": "test_DocFileSuite_errors",
+      "status": "pass"
+    },
+    {
+      "id": "test_trailing_space_in_test",
+      "status": "pass"
+    },
+    {
+      "id": "test_look_in_unwrapped",
+      "status": "pass"
+    },
+    {
+      "id": "test_wrapped_c_func",
+      "status": "pass"
+    },
+    {
+      "id": "test_unittest_reportflags",
+      "status": "pass"
+    },
+    {
+      "id": "test_testfile",
+      "status": "pass"
+    },
+    {
+      "id": "test_testfile_errors",
+      "status": "pass"
+    },
+    {
+      "id": "test_lineendings",
+      "status": "pass"
+    },
+    {
+      "id": "test_testmod",
+      "status": "pass"
+    },
+    {
+      "id": "test_testmod_errors",
+      "status": "pass"
+    },
+    {
+      "id": "test_CLI",
+      "status": "pass"
+    },
+    {
+      "id": "test_no_trailing_whitespace_stripping",
+      "status": "pass"
+    },
+    {
+      "id": "test_run_doctestsuite_multiple_times",
+      "status": "pass"
+    },
+    {
+      "id": "test_exception_with_note",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'note' is not defined"
+    },
+    {
+      "id": "test_exception_with_multiple_notes",
+      "status": "quarantined",
+      "reason": "host-raised:ValueError: Text"
+    },
+    {
+      "id": "test_syntax_error_with_note",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'cls' is not defined"
+    },
+    {
+      "id": "test_syntax_error_subclass_from_stdlib",
+      "status": "quarantined",
+      "reason": "host-raised:ParseError: error\nerror"
+    },
+    {
+      "id": "test_syntax_error_with_incorrect_expected_note",
+      "status": "pass"
+    },
+    {
+      "id": "test_hook",
+      "status": "quarantined",
+      "reason": "unresolved-name:TestHook"
+    }
+  ]
+}

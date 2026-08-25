@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "4e27b6c6bce510c5490cc3e90b0fe5c36165f1f0",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_pulldom.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_pulldom",
+    "--name",
+    "conv_pulldom"
+  ],
+  "generated_at": "2026-08-24T21:38:56",
+  "hashes": {
+    "pins_jac": "1c34bfc936e0f58bdf1696c734600e25cc34e17c11287334943018e20b416394"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_pulldom.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "pulldom",
+  "pins_file": "conv_pulldom_pins.jac",
+  "pins": [
+    {
+      "ident": "PullDOMTestCase.test_expandItem",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom import pulldom\nSMALL_SAMPLE = '<?xml version=\"1.0\"?>\\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:xdc=\"http://www.xml.com/books\">\\n<!-- A comment -->\\n<title>Introduction to XSL</title>\\n<hr/>\\n<p><xdc:author xdc:attrib=\"prefixed attribute\" attrib=\"other attrib\">A. Namespace</xdc:author></p>\\n</html>'\n\ndef _t():\n    \"\"\"Ensure expandItem works as expected.\"\"\"\n    items = pulldom.parseString(SMALL_SAMPLE)\n    for evt, item in items:\n        if evt == pulldom.START_ELEMENT and item.tagName == 'title':\n            items.expandNode(item)\n            assert 1 == len(item.childNodes), ('assertEqual', 1, len(item.childNodes))\n            break\n    else:\n        raise AssertionError('No \"title\" element detected in SMALL_SAMPLE!')\n    for evt, node in items:\n        if evt == pulldom.START_ELEMENT:\n            break\n    assert 'hr' == node.tagName, ('assertEqual', 'hr', node.tagName)\n    items.expandNode(node)\n    assert next(items)[0] == pulldom.CHARACTERS, ('assertEqual', next(items)[0], pulldom.CHARACTERS)\n    evt, node = next(items)\n    assert node.tagName == 'p', ('assertEqual', node.tagName, 'p')\n    items.expandNode(node)\n    next(items)\n    evt, node = next(items)\n    assert node.tagName == 'html', ('assertEqual', node.tagName, 'html')\n    try:\n        next(items)\n    except StopIteration as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    items.clear()\n    assert items.parser is None, ('assertIsNone', items.parser)\n    assert items.stream is None, ('assertIsNone', items.stream)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PullDOMTestCase.test_external_ges_default",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.sax.handler import feature_external_ges\nfrom xml.dom import pulldom\nSMALL_SAMPLE = '<?xml version=\"1.0\"?>\\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:xdc=\"http://www.xml.com/books\">\\n<!-- A comment -->\\n<title>Introduction to XSL</title>\\n<hr/>\\n<p><xdc:author xdc:attrib=\"prefixed attribute\" attrib=\"other attrib\">A. Namespace</xdc:author></p>\\n</html>'\n\ndef _t():\n    parser = pulldom.parseString(SMALL_SAMPLE)\n    saxparser = parser.parser\n    ges = saxparser.getFeature(feature_external_ges)\n    assert ges == False, ('assertEqual', ges, False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "SAX2DOMTestCase.testSAX2DOM",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from xml.dom import pulldom\n\ndef _t():\n    \"\"\"Ensure SAX2DOM expands nodes as expected.\"\"\"\n    sax2dom = pulldom.SAX2DOM()\n    sax2dom.startDocument()\n    sax2dom.startElement('doc', {})\n    sax2dom.characters('text')\n    sax2dom.startElement('subelm', {})\n    sax2dom.characters('text')\n    sax2dom.endElement('subelm')\n    sax2dom.characters('text')\n    sax2dom.endElement('doc')\n    sax2dom.endDocument()\n    doc = sax2dom.document\n    root = doc.documentElement\n    text1, elm1, text2 = root.childNodes\n    text3 = elm1.childNodes[0]\n    assert text1.previousSibling is None, ('assertIsNone', text1.previousSibling)\n    assert text1.nextSibling is elm1, ('assertIs', text1.nextSibling, elm1)\n    assert elm1.previousSibling is text1, ('assertIs', elm1.previousSibling, text1)\n    assert elm1.nextSibling is text2, ('assertIs', elm1.nextSibling, text2)\n    assert text2.previousSibling is elm1, ('assertIs', text2.previousSibling, elm1)\n    assert text2.nextSibling is None, ('assertIsNone', text2.nextSibling)\n    assert text3.previousSibling is None, ('assertIsNone', text3.previousSibling)\n    assert text3.nextSibling is None, ('assertIsNone', text3.nextSibling)\n    assert root.parentNode is doc, ('assertIs', root.parentNode, doc)\n    assert text1.parentNode is root, ('assertIs', text1.parentNode, root)\n    assert elm1.parentNode is root, ('assertIs', elm1.parentNode, root)\n    assert text2.parentNode is root, ('assertIs', text2.parentNode, root)\n    assert text3.parentNode is elm1, ('assertIs', text3.parentNode, elm1)\n    doc.unlink()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "PullDOMTestCase.test_comment",
+      "reason": "decorator:unittest.expectedFailure"
+    },
+    {
+      "ident": "PullDOMTestCase.test_end_document",
+      "reason": "decorator:unittest.expectedFailure"
+    },
+    {
+      "ident": "ThoroughTestCase.test_sax2dom_fail",
+      "reason": "decorator:unittest.expectedFailure"
+    },
+    {
+      "ident": "PullDOMTestCase.test_parse",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "PullDOMTestCase.test_parse_semantics",
+      "reason": "self.assertHasAttr"
+    },
+    {
+      "ident": "ThoroughTestCase.test_thorough_parse",
+      "reason": "helper:_test_thorough(self.assertHasAttr)"
+    },
+    {
+      "ident": "ThoroughTestCase.test_thorough_sax2dom",
+      "reason": "helper:_test_thorough(self.assertHasAttr)"
+    },
+    {
+      "ident": "SAX2DOMTestCase.test_basic",
+      "reason": "unresolved-name:SAX2DOMTestHelper"
+    }
+  ],
+  "counts": {
+    "extracted": 11,
+    "pinned": 3,
+    "quarantined": 8
+  }
+}
