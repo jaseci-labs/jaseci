@@ -31,14 +31,7 @@ glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "backends", "native", "fixtures"
      ),
      FIXTURE = "tuple_compare.jac",
-     CASES = [
-         "bool_gt",
-         "bool_lt",
-         "bool_eq",
-         "int_lt",
-         "str_lt",
-         "float_gt"
-     ],
+     CASES = ["bool_gt", "bool_lt", "bool_eq", "int_lt", "str_lt", "float_gt"],
      _MEMO: list = [];
 
 """The fixture compiled once through the native lane."""
