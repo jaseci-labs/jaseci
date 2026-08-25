@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "f5e921e06eb9d933596b6431443728caa01d1afd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_enumerate/conv_enumerate_pins.jac"
+  ],
+  "generated_at": "2026-08-24T15:27:33",
+  "hashes": {
+    "pins_jac": "3f4779caa1dc6a04185135e1c9c033edfd0229fc3d67c8423776ab41da818257",
+    "conversion_json": "ee82b6d791dfa4f688132275a2146af624b79901c62c397715761333fa51ab19",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "enumerate",
+  "counts": {
+    "converted": 21,
+    "runnable": 7,
+    "green": 3,
+    "quarantined": 14
+  },
+  "pins": [
+    {
+      "id": "TestReversed.test_simple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC StopIteration ''\">"
+    },
+    {
+      "id": "TestReversed.test_range_optimization",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <class \\'range_iterator\\'>, <class \\'callable_iterator\\'>)\"'>"
+    },
+    {
+      "id": "TestReversed.test_len",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'SeqWithWeirdLen\\' object is not reversible\"'>"
+    },
+    {
+      "id": "TestReversed.test_gc",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Seq\\' object is not reversible\"'>"
+    },
+    {
+      "id": "TestReversed.test_args",
+      "status": "pass"
+    },
+    {
+      "id": "TestReversed.test_objmethods",
+      "status": "pass"
+    },
+    {
+      "id": "TestReversed.test_pickle",
+      "status": "pass"
+    },
+    {
+      "id": "EnumerateTestCase.test_tuple_reuse",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "EnumerateTestCase.test_enumerate_result_gc",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TestReversed.test_bug1229429",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "EnumerateTestCase.test_basicfunction",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    },
+    {
+      "id": "EnumerateTestCase.test_pickle",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    },
+    {
+      "id": "EnumerateTestCase.test_getitemseqn",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    },
+    {
+      "id": "EnumerateTestCase.test_iteratorseqn",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    },
+    {
+      "id": "EnumerateTestCase.test_iteratorgenerator",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    },
+    {
+      "id": "EnumerateTestCase.test_noniterable",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    },
+    {
+      "id": "EnumerateTestCase.test_illformediterable",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    },
+    {
+      "id": "EnumerateTestCase.test_exception_propagation",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    },
+    {
+      "id": "EnumerateTestCase.test_argumentcheck",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    },
+    {
+      "id": "EnumerateTestCase.test_kwargs",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    },
+    {
+      "id": "EnumerateStartTestCase.test_basicfunction",
+      "status": "quarantined",
+      "reason": "uses-self.enum"
+    }
+  ]
+}

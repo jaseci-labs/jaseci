@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "f5e921e06eb9d933596b6431443728caa01d1afd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_enumerate/conv_enumerate_pins.jac"
+  ],
+  "generated_at": "2026-08-24T15:27:33",
+  "hashes": {
+    "pins_jac": "3f4779caa1dc6a04185135e1c9c033edfd0229fc3d67c8423776ab41da818257",
+    "conversion_json": "ee82b6d791dfa4f688132275a2146af624b79901c62c397715761333fa51ab19",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "enumerate",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 21,
+    "runnable": 7,
+    "green": 3,
+    "quarantined": 14,
+    "failed": 4,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestReversed.test_simple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC StopIteration ''\">"
+    },
+    {
+      "id": "TestReversed.test_range_optimization",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <class \\'range_iterator\\'>, <class \\'callable_iterator\\'>)\"'>"
+    },
+    {
+      "id": "TestReversed.test_len",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'SeqWithWeirdLen\\' object is not reversible\"'>"
+    },
+    {
+      "id": "TestReversed.test_gc",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Seq\\' object is not reversible\"'>"
+    }
+  ]
+}

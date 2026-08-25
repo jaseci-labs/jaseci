@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "f5e921e06eb9d933596b6431443728caa01d1afd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_enumerate.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_enumerate",
+    "--name",
+    "conv_enumerate"
+  ],
+  "generated_at": "2026-08-24T15:26:21",
+  "hashes": {
+    "pins_jac": "3f4779caa1dc6a04185135e1c9c033edfd0229fc3d67c8423776ab41da818257"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_enumerate.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "enumerate",
+  "pins_file": "conv_enumerate_pins.jac",
+  "pins": [
+    {
+      "ident": "TestReversed.test_simple",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class A:\n\n        def __getitem__(self, i):\n            if i < 5:\n                return str(i)\n            raise StopIteration\n\n        def __len__(self):\n            return 5\n    for data in ('abc', range(5), tuple(enumerate('abc')), A(), range(1, 17, 5), dict.fromkeys('abcde')):\n        assert list(data)[::-1] == list(reversed(data)), ('assertEqual', list(data)[::-1], list(reversed(data)))\n    try:\n        reversed(*([],), a=1)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestReversed.test_range_optimization",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    x = range(1)\n    assert type(reversed(x)) == type(iter(x)), ('assertEqual', type(reversed(x)), type(iter(x)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestReversed.test_len",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    for s in ('hello', tuple('hello'), list('hello'), range(5)):\n        assert operator.length_hint(reversed(s)) == len(s), ('assertEqual', operator.length_hint(reversed(s)), len(s))\n        r = reversed(s)\n        list(r)\n        assert operator.length_hint(r) == 0, ('assertEqual', operator.length_hint(r), 0)\n\n    class SeqWithWeirdLen:\n        called = False\n\n        def __len__(self):\n            if not self.called:\n                self.called = True\n                return 10\n            raise ZeroDivisionError\n\n        def __getitem__(self, index):\n            return index\n    r = reversed(SeqWithWeirdLen())\n    try:\n        operator.length_hint(*(r,))\n    except ZeroDivisionError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestReversed.test_gc",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class Seq:\n\n        def __len__(self):\n            return 10\n\n        def __getitem__(self, index):\n            return index\n    s = Seq()\n    r = reversed(s)\n    s.r = r\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestReversed.test_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        reversed()\n    except TypeError:\n        pass\n    try:\n        reversed(*([], 'extra'))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestReversed.test_objmethods",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class NoLen(object):\n\n        def __getitem__(self, i):\n            return 1\n    nl = NoLen()\n    try:\n        reversed(*(nl,))\n    except TypeError:\n        pass\n\n    class NoGetItem(object):\n\n        def __len__(self):\n            return 2\n    ngi = NoGetItem()\n    try:\n        reversed(*(ngi,))\n    except TypeError:\n        pass\n\n    class Blocked(object):\n\n        def __getitem__(self, i):\n            return 1\n\n        def __len__(self):\n            return 2\n        __reversed__ = None\n    b = Blocked()\n    try:\n        reversed(*(b,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestReversed.test_pickle",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\n\ndef check_pickle(itorg, seq):\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        d = pickle.dumps(itorg, proto)\n        it = pickle.loads(d)\n        assert type(itorg) == type(it), ('assertEqual', type(itorg), type(it))\n        assert list(it) == seq, ('assertEqual', list(it), seq)\n        it = pickle.loads(d)\n        try:\n            next(it)\n        except StopIteration:\n            assert not seq[1:], ('assertFalse', seq[1:])\n            continue\n        d = pickle.dumps(it, proto)\n        it = pickle.loads(d)\n        assert list(it) == seq[1:], ('assertEqual', list(it), seq[1:])\n\ndef _t():\n    for data in ('abc', range(5), tuple(enumerate('abc')), range(1, 17, 5)):\n        check_pickle(reversed(data), list(data)[::-1])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "EnumerateTestCase.test_tuple_reuse",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "EnumerateTestCase.test_enumerate_result_gc",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "TestReversed.test_bug1229429",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "EnumerateTestCase.test_basicfunction",
+      "reason": "uses-self.enum"
+    },
+    {
+      "ident": "EnumerateTestCase.test_pickle",
+      "reason": "uses-self.enum"
+    },
+    {
+      "ident": "EnumerateTestCase.test_getitemseqn",
+      "reason": "uses-self.enum"
+    },
+    {
+      "ident": "EnumerateTestCase.test_iteratorseqn",
+      "reason": "uses-self.enum"
+    },
+    {
+      "ident": "EnumerateTestCase.test_iteratorgenerator",
+      "reason": "uses-self.enum"
+    },
+    {
+      "ident": "EnumerateTestCase.test_noniterable",
+      "reason": "uses-self.enum"
+    },
+    {
+      "ident": "EnumerateTestCase.test_illformediterable",
+      "reason": "uses-self.enum"
+    },
+    {
+      "ident": "EnumerateTestCase.test_exception_propagation",
+      "reason": "uses-self.enum"
+    },
+    {
+      "ident": "EnumerateTestCase.test_argumentcheck",
+      "reason": "uses-self.enum"
+    },
+    {
+      "ident": "EnumerateTestCase.test_kwargs",
+      "reason": "uses-self.enum"
+    },
+    {
+      "ident": "EnumerateStartTestCase.test_basicfunction",
+      "reason": "uses-self.enum"
+    }
+  ],
+  "counts": {
+    "extracted": 21,
+    "pinned": 7,
+    "quarantined": 14
+  }
+}
