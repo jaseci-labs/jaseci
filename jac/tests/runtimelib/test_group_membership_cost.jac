@@ -13,10 +13,10 @@ import from json { dumps }
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { AccessLevel, EdgeAnchor, GenericEdge, Root }
-import from jaclang.jac0core.runtime { JacRuntime, JacRuntimeInterface }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.serializer { Serializer }
+import from jaclang.runtime.archetype { AccessLevel, EdgeAnchor, GenericEdge, Root }
+import from jaclang.runtime.runtime { JacRuntime, JacRuntimeInterface }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.data.serializer { Serializer }
 
 node Item {
     has label: str = "";
