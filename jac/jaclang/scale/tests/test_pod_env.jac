@@ -25,7 +25,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry
 }
-import from jaclang.runtimelib.sv_client { peer_url_env_key }
+import from jaclang.server.sv_client { peer_url_env_key }
 
 
 glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e",
