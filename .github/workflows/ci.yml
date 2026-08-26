@@ -548,13 +548,15 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
       JAC_NO_DEV_SOURCE: "1"
+    steps:
+      - uses: actions/checkout@v5
       # The deps installed below with --global land in the binary's runtime
       # site under the cache dir; the test step re-homes itself, so the cache
       # must sit outside $HOME for them to stay visible (the host kit gets
-      # the same pin from the jac-kit action).
-      XDG_CACHE_HOME: ${{ runner.temp }}/.cache
-    steps:
-      - uses: actions/checkout@v5
+      # the same pin from the jac-kit action). Before jac-kit, so its warm-up
+      # lands in the same place.
+      - name: Pin the runtime cache outside $HOME
+        run: echo "XDG_CACHE_HOME=$RUNNER_TEMP/.cache" >> "$GITHUB_ENV"
       - uses: ./.github/actions/jac-kit
       - name: Set up Node.js
         uses: actions/setup-node@v4
