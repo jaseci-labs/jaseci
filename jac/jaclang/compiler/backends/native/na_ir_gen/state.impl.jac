@@ -80,7 +80,7 @@ impl NaIRGenState._emit_loop_else(
     if else_bb is not None {
         self.builder.position_at_end(else_bb);
         loop_else = nd.else_body;
-        if loop_else is not None {
+        if loop_else is not None and isinstance(loop_else.body, (list, tuple)) {
             self._codegen_body(loop_else.body);
         }
         if not self.builder.block.is_terminated {
