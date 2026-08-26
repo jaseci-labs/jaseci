@@ -14,9 +14,9 @@ import from jaclang.jac0core.sv_service_host {
     bun_service_artifact_path,
     bun_service_inputs_digest,
     is_bun_sv_service,
-    resolve_sv_service_host,
-    sv_host_env_key
+    resolve_sv_service_host
 }
+import from jaclang.server.sv_client { sv_host_env_key }
 import from jaclang.bun_service_builder { build_bun_service_artifact }
 
 

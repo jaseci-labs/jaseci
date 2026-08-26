@@ -6,10 +6,8 @@ import from jaclang.jac0core.host {
     framework_for_host_kind,
     host_provides_kind
 }
-import from jaclang.jac0core.sv_service_host {
-    resolve_sv_service_host,
-    sv_host_env_key
-}
+import from jaclang.jac0core.sv_service_host { resolve_sv_service_host }
+import from jaclang.server.sv_client { sv_host_env_key }
 import from jaclang.compiler.backends.es.backends.registry { resolve_framework_backend }
 
 

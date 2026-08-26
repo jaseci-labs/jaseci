@@ -1,5 +1,6 @@
 import os;
 import from pathlib { Path }
+import from jaclang.server.sv_client { sv_host_env_key }
 import from jaclang.jac0core.host {
     HOST_BUN,
     HOST_CPYTHON,
