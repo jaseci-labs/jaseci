@@ -443,6 +443,34 @@ def get_module_cache_path(source_path: str) -> Path {
     return cache_dir / f"{source.stem}.{path_hash}.cpython-{major}{minor}.jir";
 }
 
+glob _na_ir_cache_region: dict[str, bool] = {"suspended": False};
+
+
+"""Whether the dependency IR cache may be read right now.
+
+`no_ir_cache` is a per-call intent, but a compile does not stay on one program:
+a dependency the self-hosted compiler owns is resolved onto the long-lived
+selfhost `JacProgram` and compiled there under *that* program's default
+options, where the flag is false. The intent therefore has to be ambient to the
+compile region rather than carried on an object the compile can hop away from,
+or it reaches some of the closure and not the rest -- which is worse than not
+having it at all, because the verdict then depends on which entries happened to
+be on disk.
+"""
+def native_ir_cache_suspended -> bool {
+    return _na_ir_cache_region["suspended"];
+}
+
+
+"""Suspend or resume dependency IR cache reads; returns the previous state so
+the caller can restore it in a `finally`."""
+def native_ir_cache_set_suspended(value: bool) -> bool {
+    prev = _na_ir_cache_region["suspended"];
+    _na_ir_cache_region["suspended"] = value;
+    return prev;
+}
+
+
 def get_native_cache_dir(source_path: str) -> Path {
     return _get_module_cache_dir(source_path) / "native";
 }

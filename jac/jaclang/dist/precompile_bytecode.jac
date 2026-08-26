@@ -2018,6 +2018,69 @@ def derive_unitree_layout(pkg_path: Path) -> (dict[str, any] | None) {
     return layout;
 }
 
+"""Whether a refusal is the signature of a lowering-order miss rather than a
+real demotion.
+
+A genuine demotion states its own cause somewhere in the closure: an E5090
+saying the native pathway does not support some construct, or an E5092 naming a
+callee that is itself reported demoted. A refusal where *every* entry cascades
+from a callee nothing reported as demoted is a different animal -- the callee
+lowered fine, this compile just could not see it yet. That happens when a
+cross-module function is needed before its module has been lowered, and a
+second pass over the same sources settles it.
+
+This is the whole remaining justification for recompiling a refused closure.
+Before the cache-region fix it was impossible to tell that case apart from a
+verdict served off disk, so the seal recompiled after every refusal; now the
+suspicious shape is narrow enough to name, and an ordinary refusal costs one
+compile instead of two.
+"""
+def seal_refusal_looks_like_order_miss(
+    coverage: dict[str, dict[str, any]],
+    rel: str,
+    waivers: (dict[str, tuple[str, ...]] | None) = None,
+    pkg_path: (Path | None) = None
+) -> bool {
+    import re;
+    (allowed, _bare_allowed) = seal_waiver_names(rel, waivers);
+    found = _seal_demotions(coverage, pkg_path);
+    offending = [
+        (q, b, why)
+        for (q, b, why) in found
+        if q not in allowed
+    ];
+    if not offending {
+        return False;
+    }
+    reported = {b for (_q, b, _w) in found};
+    callee_re = re.compile(r"Native lowering failed for function '([^']+)'");
+    for (_q, _b, why) in offending {
+        callees = set(callee_re.findall(why or ""));
+        if not callees {
+            return False;
+        }
+        if callees & reported {
+            return False;
+        }
+    }
+    return True;
+}
+
+
+"""Lower one root and its native closure into a shared library, or refuse.
+
+The closure is compiled with `no_ir_cache`, and that now means what it says.
+The flag used to ride on a per-call options object, which a compile can hop
+away from -- anything the self-hosted compiler owns is resolved onto the
+selfhost program and compiled under *its* default options -- so part of the
+closure was answered from disk while the rest was answered from source. That
+mixture is what made a refusal non-reproducible and forced the seal to compile
+everything twice. `jaclang.compiler.driver.jir` now holds the intent for the
+whole compile region, so every hop sees it and one compile settles the verdict.
+
+The abort-stub scan below backstops the gate independently: it reads the LLVM
+IR that actually ships, so a demotion cannot reach the artifact by any route.
+"""
 def seal_one_root(
     pkg_path: Path,
     precompiled_dir: Path,
@@ -2052,7 +2115,7 @@ def seal_one_root(
     lib_path = out_dir / _native_lib_filename(stem);
     layout_path = out_dir / f"{stem}.layout.json";
     say = progress or SealProgress();
-    for _seal_attempt in range(2) {
+    for _seal_pass in range(2) {
         say.start("compile", f"lowering {rel} and its native closure");
         prog = JacProgram();
         na_coverage_begin();
@@ -2079,12 +2142,10 @@ def seal_one_root(
             for _err in prog.errors_had {
                 console.error(f"NATIVE SEAL: {_err.pretty_print()}");
             }
-            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         if ir is None or ir.gen.llvm_ir is None or ir.gen.native_layout is None {
             say.refuse(f"NATIVE SEAL: no native IR/layout for {rel}");
-            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         say.ok(f"{len(closure_deps) + 1} source(s) in the closure");
@@ -2094,7 +2155,6 @@ def seal_one_root(
                 f"NATIVE SEAL: {rel} has Python-side imports; artifact would "
                 "need in-process callbacks and cannot be sealed AOT."
             );
-            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         say.start("gate", "demotion report -- nothing may fall back to Python");
@@ -2102,88 +2162,79 @@ def seal_one_root(
             rel, coverage, waivers, pkg_path
         );
         if demotion_error {
-            purge_native_ir_cache(str(src), closure_deps);
-            if _seal_attempt == 0 {
+            if _seal_pass == 0
+                and seal_refusal_looks_like_order_miss(
+                    coverage, rel, waivers, pkg_path
+                ) {
+                purge_native_ir_cache(str(src), closure_deps);
                 say.again(
-                    f"NATIVE SEAL: {rel} reported un-waived demotions that may "
-                    "be verdicts served from dependency IR cached outside the "
-                    "seal; the cached IR for this closure has been purged and "
-                    "the closure recompiles fresh."
+                    f"NATIVE SEAL: every demotion {rel} reported cascades from a "
+                    "callee nothing in the closure reported as demoted, which is "
+                    "the shape of a lowering-order miss rather than a real gap; "
+                    "recompiling the closure once to settle it."
                 );
                 continue;
             }
             say.refuse(demotion_error);
             return None;
         }
-        say.ok(f"{len(waived)} demotion(s) waived" if waived else "no demotions");
-        for name in waived {
-            console.warning(
-                f"NATIVE SEAL: {rel} ships {name} as an abort stub -- waived by "
-                "NATIVE_SEAL_DEMOTION_WAIVERS. Calling it in a sealed build "
-                "aborts the process."
-            );
-        }
-        for name in stale_waivers {
-            console.warning(
-                f"NATIVE SEAL: {rel} waives {name}, which did not demote; drop "
-                "the stale entry from NATIVE_SEAL_DEMOTION_WAIVERS."
-            );
-        }
-        say.start("gate", "abort-stub scan over the IR that actually ships");
-        llvm_ir_text = str(ir.gen.llvm_ir);
+        break;
+    }
+    say.ok(f"{len(waived)} demotion(s) waived" if waived else "no demotions");
+    for name in waived {
+        console.warning(
+            f"NATIVE SEAL: {rel} ships {name} as an abort stub -- waived by "
+            "NATIVE_SEAL_DEMOTION_WAIVERS. Calling it in a sealed build "
+            "aborts the process."
+        );
+    }
+    for name in stale_waivers {
+        console.warning(
+            f"NATIVE SEAL: {rel} waives {name}, which did not demote; drop "
+            "the stale entry from NATIVE_SEAL_DEMOTION_WAIVERS."
+        );
+    }
+    say.start("gate", "abort-stub scan over the IR that actually ships");
+    llvm_ir_text = str(ir.gen.llvm_ir);
 
-        (_qualified, allowed_bare) = seal_waiver_names(rel, waivers);
+    (_qualified, allowed_bare) = seal_waiver_names(rel, waivers);
 
-        allowed_stub_names: set[str] = set(allowed_bare);
-        reg = ir.gen.layout_registry;
-        if reg is not None {
-            for bare in allowed_bare {
-                (owner, dot, meth) = bare.partition(".");
-                if not dot {
-                    continue;
-                }
-                for (cls, mro) in reg.mro_order.items() {
-                    if owner in mro {
-                        allowed_stub_names.add(f"{cls}.{meth}");
-                    }
+    allowed_stub_names: set[str] = set(allowed_bare);
+    reg = ir.gen.layout_registry;
+    if reg is not None {
+        for bare in allowed_bare {
+            (owner, dot, meth) = bare.partition(".");
+            if not dot {
+                continue;
+            }
+            for (cls, mro) in reg.mro_order.items() {
+                if owner in mro {
+                    allowed_stub_names.add(f"{cls}.{meth}");
                 }
             }
         }
-        shipped_stubs = [
-            s
-            for s in seal_abort_stubs(llvm_ir_text)
-            if s not in allowed_stub_names
-        ];
-        if not shipped_stubs {
-            say.ok("no abort stubs");
-            break;
-        }
-        purge_native_ir_cache(str(src), closure_deps);
-        if _seal_attempt == 0 {
-            say.again(
-                f"NATIVE SEAL: {rel} would link abort stub(s) "
-                f"({', '.join(shipped_stubs)}) served from cached "
-                "dependency IR compiled outside the seal; the cached IR "
-                "for this closure has been purged and the closure "
-                "recompiles fresh."
-            );
-            continue;
-        }
+    }
+    _stub_syms = set(seal_abort_stubs(llvm_ir_text));
+    shipped_stubs = [
+        s
+        for s in sorted(_stub_syms)
+        if s not in allowed_stub_names
+    ];
+    if shipped_stubs {
         say.refuse(
             f"NATIVE SEAL: {rel} would link {len(shipped_stubs)} abort "
             f"stub(s) into its artifact: {', '.join(shipped_stubs)}. This "
-            "is read off the IR that actually ships, and it held even "
-            "after the closure's cached IR was purged and recompiled "
-            "fresh, so the demotion is deterministic; fix the backend "
-            "gap or waive it in NATIVE_SEAL_DEMOTION_WAIVERS."
+            "is read off the IR that actually ships, so it holds for every "
+            "route into the artifact; fix the backend gap or waive it in "
+            "NATIVE_SEAL_DEMOTION_WAIVERS."
         );
         return None;
     }
+    say.ok("no abort stubs");
     say.start("layout", "reading the artifact's exported surface");
     layout = ir.gen.native_layout;
     if layout is None {
         say.refuse(f"NATIVE SEAL: no native layout for {rel}");
-        purge_native_ir_cache(str(src), closure_deps);
         return None;
     }
 
@@ -2195,7 +2246,6 @@ def seal_one_root(
     );
     if not exports {
         say.refuse(f"NATIVE SEAL: {rel} exports no module functions");
-        purge_native_ir_cache(str(src), closure_deps);
         return None;
     }
 
@@ -2203,7 +2253,6 @@ def seal_one_root(
     for (extra_key, extra_val) in (extra_layout_entries or {}).items() {
         layout_dict[extra_key] = extra_val;
     }
-    _stub_syms = set(seal_abort_stubs(llvm_ir_text));
     _layout_structs: dict[str, dict[str, any]] = layout_dict["structs"];
     for _sd in _layout_structs.values() {
         _sd_accessors: dict[str, dict[str, str]] = _sd.get("accessors") or {};
@@ -2232,7 +2281,7 @@ def seal_one_root(
     lib_path.unlink(missing_ok=True);
     layout_path.unlink(missing_ok=True);
     (ok, err) = emit_shared_library(
-        str(ir.gen.llvm_ir),
+        llvm_ir_text,
         manifest,
         exports,
         str(lib_path),
@@ -2241,7 +2290,6 @@ def seal_one_root(
     );
     if not ok {
         say.refuse(f"NATIVE SEAL: {rel}: {err}");
-        purge_native_ir_cache(str(src), closure_deps);
         return None;
     }
     say.ok(f"{lib_path.stat().st_size:,} bytes");
@@ -2255,7 +2303,6 @@ def seal_one_root(
             "for the traceback."
         );
         lib_path.unlink(missing_ok=True);
-        purge_native_ir_cache(str(src), closure_deps);
         return None;
     }
     say.ok("dlopen, exports, shared init");
@@ -2277,7 +2324,6 @@ def seal_one_root(
             );
             lib_path.unlink(missing_ok=True);
             layout_path.unlink(missing_ok=True);
-            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         parity = seal_parse_parity_canary(str(lib_path), layout_dict);
@@ -2300,7 +2346,6 @@ def seal_one_root(
             }
             lib_path.unlink(missing_ok=True);
             layout_path.unlink(missing_ok=True);
-            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         say.ok("byte-stable container, parse and prefix match");
