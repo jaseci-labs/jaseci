@@ -95,9 +95,7 @@ glob FORBIDDEN: dict[str, str] = {
              "for a locally declared name before emitting a @jac/runtime "
              "import - the declared NAME is the consumed fact, not a "
              "resolved type"
-(test(compiler): ratchet backend-purity sanction for runtime self-import guard)
              "declared NAME is the consumed fact, not a resolved type"
-(fix(jac2js): resolve @jac/runtime self-import in cl runtime core test harness)
          ),
          ("native/foreign.jac", "type_tag.tag"): (
              4,

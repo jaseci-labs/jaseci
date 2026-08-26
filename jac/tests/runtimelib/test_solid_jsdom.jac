@@ -26,14 +26,14 @@ import subprocess;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.backends.solid { SolidBackend }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
-import from jaclang.runtimelib.client.bun_installer { get_bun }
-import from jaclang.runtimelib.solid_entry { build_pages_solid_entry_script }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.backends.solid { SolidBackend }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
+import from jaclang.client.runtime_source { resolve_client_runtime_cl_path }
+import from jaclang.client.bun_installer { get_bun }
+import from jaclang.client.solid_entry { build_pages_solid_entry_script }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures"),
      # Real npm deps. The solid-* / zod versions mirror the canonical Solid set in

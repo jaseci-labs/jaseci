@@ -9,17 +9,17 @@ import re;
 import tempfile;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.backends.preact { PreactBackend }
-import from jaclang.compiler.passes.ecmascript.backends.solid { SolidBackend }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.runtimelib.client_surface { with_runtime_globals }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.backends.preact { PreactBackend }
+import from jaclang.compiler.backends.es.backends.solid { SolidBackend }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
+import from jaclang.client.client_surface { with_runtime_globals }
 
 glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
+         JAC_ROOT, "tests", "compiler", "backends", "es", "fixtures"
      ),
      _MINIMAL_JSX = 'cl def:pub render(items: list) -> any {\n    return <div>{items}</div>;\n}\n';
 
@@ -51,14 +51,14 @@ def _compile_with_backend(path: str, backend: any) -> str {
     assert not fatal , f"compile errors in {path}: {[str(e) for e in fatal]}";
     es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=backend);
     ast = es_pass.ir_out.gen.es_ast;
-    import jaclang.compiler.passes.ecmascript.estree as es;
+    import jaclang.compiler.backends.es.estree as es;
     assert isinstance(ast, es.Node) , (f"expected a single ES AST root for {path}");
     return es_to_js(ast);
 }
 
 """Write inline Jac to a temp file and return its path."""
 def _write_temp_jac(code: str) -> str {
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".cl.jac", delete=False) as tmp {
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jac", delete=False) as tmp {
         tmp.write(code);
         return tmp.name;
     }
@@ -120,7 +120,7 @@ test "raw Solid JSX does not reference or import __jacJsx" {
 
 test "Solid compiler-created fragments stay backend-native" {
     js = _compile_with_backend(
-        os.path.join(FIXTURES, "view_basic.cl.jac"), SolidBackend()
+        os.path.join(FIXTURES, "view_basic.jac"), SolidBackend()
     );
     assert "__jacJsx" not in js , (
         "Solid slot fragments must not import the React JSX factory"
@@ -143,12 +143,12 @@ test "remote spawn imports __jacSpawn from @jac/runtime" {
 
 test "runtime source does not self-import @jac/runtime" {
     import importlib;
-    plugin = importlib.import_module("jaclang.runtimelib.client");
+    plugin = importlib.import_module("jaclang.client");
     paths = list(getattr(plugin, "__path__", []) or []);
-    assert paths , "jaclang.runtimelib.client must be importable";
-    core_src = os.path.join(paths[0], "client_runtime_core.cl.jac");
+    assert paths , "jaclang.client must be importable";
+    core_src = os.path.join(paths[0], "client_runtime_core.jac");
     assert os.path.isfile(core_src) , (
-        "client_runtime_core.cl.jac is part of jaclang and must be present"
+        "client_runtime_core.jac is part of jaclang and must be present"
     );
     js = _compile_raw_js(core_src);
     assert "function __jacJsx" in js , "runtime core must define __jacJsx";
@@ -222,13 +222,13 @@ test "build_runtime_tarball Solid runtime does not self-import @jac/runtime" {
 
 test "published npm JS remaps the runtime import exactly once" {
     import from jaclang.project.config { JacConfig }
-    import from jaclang.publish.npm_sources { collect_npm_sources }
-    import from jaclang.publish.runtime_npm { RUNTIME_PKG_NAME }
+    import from jaclang.dist.publish.npm_sources { collect_npm_sources }
+    import from jaclang.dist.publish.runtime_npm { RUNTIME_PKG_NAME }
     tmpdir = tempfile.mkdtemp();
     try {
         pkg = Path(tmpdir) / "ui";
         pkg.mkdir(parents=True, exist_ok=True);
-        (pkg / "index.cl.jac").write_text(
+        (pkg / "index.jac").write_text(
             'def:pub Button(label: str) -> any {\n'
             '    return <button class="btn">{label}</button>;\n'
             '}\n'

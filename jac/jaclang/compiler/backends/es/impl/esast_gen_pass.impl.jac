@@ -2167,7 +2167,7 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         );
     } else {
         if isinstance(nd.target, uni.Name) {
-            import from jaclang.runtimelib.client_surface {
+            import from jaclang.client.client_surface {
                 runtime_import_source,
                 runtime_symbol
             }
@@ -4564,7 +4564,7 @@ impl EsastGenPass._view_push_stmt(
 impl EsastGenPass._jsx_fragment(
     children: list[es.Expression], anchor: uni.UniNode
 ) -> es.Expression {
-    import from jaclang.compiler.passes.ecmascript.view_ir {
+    import from jaclang.compiler.backends.es.view_ir {
         ViewElement,
         FragmentTag,
         DynamicChild
@@ -4597,7 +4597,7 @@ impl EsastGenPass._view_fragment_return(
     acc_id = self.sync_loc(es.Identifier(name=acc_name), jac_node=anchor);
     argument: es.Expression = acc_id
         if acc_name in self._view_dynamic_accs
-        else self._jsx_fragment(acc_id, anchor);
+        else self._jsx_fragment([acc_id], anchor);
     return self.sync_loc(es.ReturnStatement(argument=argument), jac_node=anchor);
 }
 

@@ -445,18 +445,35 @@ impl _run_harness(
 
     work_dir = Path(tempfile.mkdtemp(prefix="jac_cl_test_"));
     try {
-        if "@jac/runtime" in imports {
+        dep_files: dict[str, str] = {};
+        dep_imports: dict[str, str] = {};
+        if source_path is not None {
+            `entry = Path(source_path).resolve();
+            (dep_files, dep_imports) = _collect_local_imports(
+                module_js, str(`entry.parent), str(`entry)
+            );
+        }
+
+        staged: dict[str, str] = {};
+
+        if ("@jac/runtime" in imports) or ("@jac/runtime" in dep_imports) {
+            # Codegen injects @jac/runtime imports; remap them to the staged
+            # runtime instead of prepending consumer-side globals.
+            module_js = _point_at_staged_runtime(module_js);
+            for dep_name in list(dep_files.keys()) {
+                dep_files[dep_name] = _point_at_staged_runtime(dep_files[dep_name]);
+            }
+
             runtime_js = _compile_runtime_js();
-
-            module_js = module_js.replace('"@jac/runtime"', '"./jac_runtime.js"');
-            module_js = module_js.replace("'@jac/runtime'", "'./jac_runtime.js'");
-
-            core_specifier = "./jaclang/runtimelib/client_runtime_core.js";
-            if core_specifier in runtime_js {
+            core_match = re.search(
+                r'from\s+[\'\"]([^\'\"]*client_runtime_core\.js)[\'\"]', runtime_js
+            );
+            if core_match {
                 runtime_js = runtime_js.replace(
                     core_match.group(1), "./client_runtime_core.js"
                 );
-
+                # The injected imports reach client_runtime_core too, so the
+                # staged core must point at the staged runtime as well.
                 staged["client_runtime_core.js"] = _point_at_staged_runtime(
                     _compile_runtime_core_js()
                 );
