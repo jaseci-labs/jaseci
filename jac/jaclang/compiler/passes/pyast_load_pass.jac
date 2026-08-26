@@ -133,13 +133,13 @@ obj PyastBuildPass(Transform) {
     def _strip_string_continuations(seg: str) -> str;
     def _fstring_constant_content(nd: py_ast.Constant, is_raw: bool) -> str;
     def _make_number_literal(
-        nd: py_ast.AST, token: str, value: str, col_end: int | None = None
+        nd: PyPositioned, token: str, value: str, col_end: int | None = None
     ) -> Expr;
 
-    def _numeric_literal(nd: py_ast.AST, n: float) -> Expr;
-    def _emit_float_call(nd: py_ast.AST, arg: str) -> FuncCall;
-    def _emit_complex_call(nd: py_ast.AST, re: float, im: float) -> FuncCall;
-    def _builtin_attr_ref(nd: py_ast.AST, attr: str) -> AtomTrailer;
+    def _numeric_literal(nd: PyPositioned, n: float) -> Expr;
+    def _emit_float_call(nd: PyPositioned, arg: str) -> FuncCall;
+    def _emit_complex_call(nd: PyPositioned, re: float, im: float) -> FuncCall;
+    def _builtin_attr_ref(nd: PyPositioned, attr: str) -> AtomTrailer;
     def _make_builtins_import -> Import;
     def _collect_used_identifiers(ast_root: py_ast.AST) -> set[str];
     def _choose_builtins_alias(ast_root: py_ast.AST) -> str;

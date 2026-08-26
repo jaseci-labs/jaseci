@@ -1264,7 +1264,7 @@ impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> Expr {
         return self._emit_complex_call(nd, cval.real, cval.imag);
     } elif (value_type is int) {
         return self._make_number_literal(nd, 'INT', str(nd.value));
-    } elif (value_type is float) {
+    } elif isinstance(nd.value, float) {
         if not math.isfinite(nd.value) {
             return self._numeric_literal(nd, nd.value);
         }
@@ -2198,7 +2198,7 @@ impl PyastBuildPass.postinit -> None {
     super.postinit();
 }
 
-impl PyastBuildPass._get_source_segment(nd: py_ast.AST) -> (str | None) {
+impl PyastBuildPass._get_source_segment(nd: py_ast.expr) -> (str | None) {
     try {
         if (nd.end_lineno is None or nd.end_col_offset is None) {
             return None;
@@ -2227,23 +2227,39 @@ impl PyastBuildPass._get_source_segment(nd: py_ast.AST) -> (str | None) {
 impl PyastBuildPass._fstring_constant_content(
     nd: py_ast.Constant, is_raw: bool
 ) -> str {
+    val = nd.value;
+    if not isinstance(val, str) {
+        return repr(val)[1:-1];
+    }
     if is_raw {
-        return nd.value;
+        return val;
     }
     segment = self._get_source_segment(nd);
 
-    if segment is not None and _decode_str_escapes(segment) == nd.value {
+    if segment is not None and _decode_str_escapes(segment) == val {
         return segment;
     }
-    return repr(nd.value)[1:-1];
+    return repr(val)[1:-1];
 }
 
 impl PyastBuildPass._make_number_literal(
-    nd: py_ast.AST, token: str, value: str, col_end: int | None = None
+    nd: PyPositioned, token: str, value: str, col_end: int | None = None
 ) -> Expr {
-    node_type = Int if token == 'INT' else Float;
     end_col = col_end if col_end is not None else (nd.col_offset + len(value));
-    return node_type(
+    if token == 'INT' {
+        return Int(
+            orig_src=self.orig_src,
+            name=token,
+            value=value,
+            line=nd.lineno,
+            end_line=nd.end_lineno or nd.lineno,
+            col_start=nd.col_offset,
+            col_end=end_col,
+            pos_start=0,
+            pos_end=0
+        );
+    }
+    return Float(
         orig_src=self.orig_src,
         name=token,
         value=value,
@@ -2256,7 +2272,7 @@ impl PyastBuildPass._make_number_literal(
     );
 }
 
-impl PyastBuildPass._emit_float_call(nd: py_ast.AST, arg: str) -> FuncCall {
+impl PyastBuildPass._emit_float_call(nd: PyPositioned, arg: str) -> FuncCall {
     func = self._builtin_attr_ref(nd, 'float');
     arg_lit = String(
         orig_src=self.orig_src,
@@ -2274,7 +2290,7 @@ impl PyastBuildPass._emit_float_call(nd: py_ast.AST, arg: str) -> FuncCall {
     );
 }
 
-impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> Expr {
+impl PyastBuildPass._numeric_literal(nd: PyPositioned, n: float) -> Expr {
     if not math.isfinite(n) {
         if math.isnan(n) {
             return self._emit_float_call(nd, 'nan');
@@ -2288,7 +2304,7 @@ impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> Expr {
 }
 
 impl PyastBuildPass._emit_complex_call(
-    nd: py_ast.AST, re: float, im: float
+    nd: PyPositioned, re: float, im: float
 ) -> FuncCall {
     func = self._builtin_attr_ref(nd, 'complex');
     real_lit = self._numeric_literal(nd, re);
@@ -2301,7 +2317,7 @@ impl PyastBuildPass._emit_complex_call(
     );
 }
 
-impl PyastBuildPass._builtin_attr_ref(nd: py_ast.AST, attr: str) -> AtomTrailer {
+impl PyastBuildPass._builtin_attr_ref(nd: PyPositioned, attr: str) -> AtomTrailer {
     self._needs_builtins_import = True;
     mod = self.name_node(nd, self._builtins_alias);
     name = self.name_node(
@@ -2419,10 +2435,10 @@ impl PyastBuildPass._eval_complex_literal_ast(
             return None;
         }
         if isinstance(nd.op, py_ast.Add) {
-            return left + right;
+            return complex(left) + complex(right);
         }
         if isinstance(nd.op, py_ast.Sub) {
-            return left - right;
+            return complex(left) - complex(right);
         }
     }
     return None;
