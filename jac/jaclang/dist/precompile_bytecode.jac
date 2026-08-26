@@ -1918,7 +1918,8 @@ def seal_one_root(
     waivers: (dict[str, tuple[str, ...]] | None) = None,
     lib_stem: (str | None) = None,
     extra_layout_entries: (dict[str, any] | None) = None,
-    full_canaries: bool = False
+    full_canaries: bool = False,
+    ir_out: (str | None) = None
 ) -> (dict[str, any] | None) {
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.driver.compile_options { CompileOptions }
@@ -2105,6 +2106,10 @@ def seal_one_root(
     }
     exports = seal_export_symbols(layout_dict, _clib_syms);
     out_dir.mkdir(parents=True, exist_ok=True);
+    if ir_out {
+        Path(ir_out).parent.mkdir(parents=True, exist_ok=True);
+        Path(ir_out).write_text(llvm_ir_text, encoding="utf-8");
+    }
     lib_path.unlink(missing_ok=True);
     layout_path.unlink(missing_ok=True);
     (ok, err) = emit_shared_library(
@@ -2191,7 +2196,8 @@ def seal_one_root(
 def seal_native_artifacts(
     pkg_path: Path,
     precompiled_dir: Path,
-    waivers: (dict[str, tuple[str, ...]] | None) = None
+    waivers: (dict[str, tuple[str, ...]] | None) = None,
+    ir_out: (str | None) = None
 ) -> (dict[str, any] | None) {
     if sys.platform.startswith("win") {
         stale_native = precompiled_dir / "native";
@@ -2231,7 +2237,8 @@ def seal_native_artifacts(
             waivers=waivers,
             lib_stem=NATIVE_SEAL_LIB_STEM,
             extra_layout_entries={"materialize_manifest": mat_result},
-            full_canaries=True
+            full_canaries=True,
+            ir_out=ir_out
         );
     } finally {
         fused_src.unlink(missing_ok=True);
