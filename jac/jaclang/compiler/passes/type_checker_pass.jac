@@ -42,6 +42,7 @@ import from jaclang.compiler.frontend.unitree {
     ReturnStmt,
     Slice,
     SpecialVarRef,
+    Symbol,
     SubTag,
     Token,
     UnaryExpr,

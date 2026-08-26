@@ -81,6 +81,7 @@ glob CODEINFO_CLOSURE: tuple = (
          "compiler/passes/transform.jac",
          "compiler/passes/uni_pass.jac",
          "compiler/type_registry.jac",
+         "compiler/types/ct_value.jac",
          "compiler/types/type_utils.jac",
          "compiler/types/types.jac",
          "runtime/na_stdlib/_hashlib_native.jac",

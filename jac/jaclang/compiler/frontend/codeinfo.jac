@@ -144,14 +144,11 @@ def native_safe_sym(src: str) -> str {
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
 }
 
-def module_dotted_name(mod: any) -> str {
+def module_dotted_name(mod_path: str, mod_name: str = "") -> str {
     import os;
-    if mod is None {
-        return "";
-    }
-    path = str(mod.loc.mod_path if mod.loc else "").replace("\\", "/");
+    path = mod_path.replace("\\", "/");
     if not path {
-        return str(mod.name);
+        return mod_name;
     }
     idx = path.rfind("/jaclang/");
     stem = path[idx + 1:] if idx >= 0 else os.path.basename(path);

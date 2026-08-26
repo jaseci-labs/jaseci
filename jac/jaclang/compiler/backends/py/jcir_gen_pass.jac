@@ -335,6 +335,7 @@ def module_container_bytes(mod_path: str, root_node: CgNode) -> bytes {
 
 obj JcirGenPass(BaseAstGenPass[CgItem]) {
     has already_added: list[str] = [],
+        _ct_only_names: (set[str] | None) = None,
         jaclib_imports: set[str] postinit,
         builtin_imports: set[str] postinit,
         sized_imports: set[str] postinit,
@@ -387,6 +388,7 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def _ct_materializable(v: any) -> bool;
     def _ct_concrete(nd: Expr) -> bool;
     def _is_comptime_only_name(nd: Name) -> bool;
+    def _comptime_only_names -> set[str];
     def _import_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
     def _class_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
     def _materialize(v: any, jac_node: UniNode) -> (CgNode | None);

@@ -1589,7 +1589,12 @@ impl TypeCheckPass._check_comptime_only_use(self: TypeCheckPass, nd: Name) -> No
     if isinstance(nd.parent, FuncCall) and nd.parent.target is nd {
         return;
     }
-    local = nd.sym_tab.lookup(nd.sym_name, deep=True) if nd.sym_tab else None;
+    local: (Symbol | None) = None;
+    try {
+        local = nd.sym_tab.lookup(nd.sym_name, deep=True);
+    } except ValueError {
+        local = None;
+    }
     is_ct_import = False;
     is_ct_def = False;
     for cand in (local, sym) {

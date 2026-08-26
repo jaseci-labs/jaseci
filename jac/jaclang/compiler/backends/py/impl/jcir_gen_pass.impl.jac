@@ -537,9 +537,46 @@ impl JcirGenPass._ct_concrete(nd: Expr) -> bool {
     return cv is not None and not cv.is_deferred and self._ct_materializable(cv.v);
 }
 
+impl JcirGenPass._comptime_only_names -> set[str] {
+    cached = self._ct_only_names;
+    if cached is not None {
+        return cached;
+    }
+    names: set[str] = set();
+    for imp in self.ir_in.get_all_sub_nodes(Import) {
+        if not imp.is_comptime {
+            continue;
+        }
+        for item in imp.items {
+            bound: (Name | None) = item.alias;
+            if bound is None
+                and isinstance(item, ModuleItem)
+                and isinstance(item.name, Name) {
+                bound = item.name;
+            }
+            if bound is None and isinstance(item, ModulePath) and item.path {
+                last = item.path[-1];
+                bound = last if isinstance(last, Name) else None;
+            }
+            if bound is not None {
+                names.add(bound.sym_name);
+            }
+        }
+    }
+    for ab in self.ir_in.get_all_sub_nodes(Ability) {
+        if ab.is_comptime and ab.name_ref is not None {
+            names.add(ab.name_ref.sym_name);
+        }
+    }
+    self._ct_only_names = names;
+    return names;
+}
+
 impl JcirGenPass._is_comptime_only_name(nd: Name) -> bool {
-    local = nd.sym_tab.lookup(nd.sym_name, deep=True) if nd.sym_tab else None;
-    for sym in (local, nd.sym) {
+    if nd.sym_name in self._comptime_only_names() {
+        return True;
+    }
+    for sym in (nd.sym, ) {
         if sym is None {
             continue;
         }
@@ -603,7 +640,10 @@ impl JcirGenPass._class_ref(module: str, name: str, jac_node: UniNode) -> CgNode
     if module == "builtins" or not module {
         return self.name_load(name, jac_node);
     }
-    if module == module_dotted_name(self.ir_in) {
+    if module
+        == module_dotted_name(
+            self.ir_in.loc.mod_path if self.ir_in.loc else "", self.ir_in.name
+        ) {
         return self.name_load(name, jac_node);
     }
     local_sym = self.ir_in.sym_tab.lookup(name, deep=False);
@@ -682,7 +722,10 @@ impl JcirGenPass._materialize(v: any, jac_node: UniNode) -> (CgNode | None) {
         return self._class_ref(v.module, v.name, jac_node);
     }
     if kind == "CtFunc" {
-        same_module = v.module == module_dotted_name(self.ir_in);
+        same_module = v.module
+            == module_dotted_name(
+                self.ir_in.loc.mod_path if self.ir_in.loc else "", self.ir_in.name
+            );
         ct_only = v.ability is not None and v.ability.is_comptime;
         if same_module and not ct_only {
             parts = v.qualname.split(".");

@@ -8409,23 +8409,56 @@ impl EsastGenPass._ct_es_value(v: any) -> (es.Expression | None) {
     return None;
 }
 
-impl EsastGenPass._ct_only_name(nd: uni.Name) -> bool {
-    local = nd.sym_tab.lookup(nd.sym_name, deep=True) if nd.sym_tab else None;
-    for sym in (local, nd.sym) {
-        if sym is None {
+impl EsastGenPass._comptime_only_names -> set[str] {
+    cached = self._ct_only_names;
+    if cached is not None {
+        return cached;
+    }
+    names: set[str] = set();
+    for imp in self.ir_in.get_all_sub_nodes(uni.Import) {
+        if not imp.is_comptime {
             continue;
         }
-        decl = sym.decl;
-        imp = decl.find_parent_of_type(uni.Import)
-            if isinstance(decl, uni.Name)
-            else None;
-        if imp is not None and imp.is_comptime {
-            return True;
-        }
-        owner = decl.name_of;
-        if isinstance(owner, uni.Ability) and owner.is_comptime {
-            return True;
+        for item in imp.items {
+            bound: (uni.Name | None) = item.alias;
+            if (
+                bound is None
+                and isinstance(item, uni.ModuleItem)
+                and isinstance(item.name, uni.Name)
+            ) {
+                bound = item.name;
+            }
+            if bound is None and isinstance(item, uni.ModulePath) and item.path {
+                last = item.path[-1];
+                bound = last if isinstance(last, uni.Name) else None;
+            }
+            if bound is not None {
+                names.add(bound.sym_name);
+            }
         }
     }
-    return False;
+    for ab in self.ir_in.get_all_sub_nodes(uni.Ability) {
+        if ab.is_comptime and ab.name_ref is not None {
+            names.add(ab.name_ref.sym_name);
+        }
+    }
+    self._ct_only_names = names;
+    return names;
+}
+
+impl EsastGenPass._ct_only_name(nd: uni.Name) -> bool {
+    if nd.sym_name in self._comptime_only_names() {
+        return True;
+    }
+    sym = nd.sym;
+    if sym is None {
+        return False;
+    }
+    decl = sym.decl;
+    imp = decl.find_parent_of_type(uni.Import) if isinstance(decl, uni.Name) else None;
+    if imp is not None and imp.is_comptime {
+        return True;
+    }
+    owner = decl.name_of;
+    return isinstance(owner, uni.Ability) and owner.is_comptime;
 }

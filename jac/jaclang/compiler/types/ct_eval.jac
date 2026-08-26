@@ -172,6 +172,21 @@ def _is_comptime_module(mod: (Module | None)) -> bool {
     return _norm_path(mod.loc.mod_path if mod.loc else "").endswith(CT_MODULE_SUFFIX);
 }
 
+def _mod_dotted(mod: (Module | None)) -> str {
+    if mod is None {
+        return "";
+    }
+    return module_dotted_name(mod.loc.mod_path if mod.loc else "", str(mod.name));
+}
+
+def _scope_of(nd: UniNode) -> any {
+    try {
+        return nd.sym_tab;
+    } except ValueError {
+        return None;
+    }
+}
+
 def _impl_body(nd: UniNode) -> list {
     body = nd?.body;
     if isinstance(body, ImplDef) {
@@ -822,7 +837,7 @@ obj CtEvaluator {
         }
         sym: (Symbol | None) = nd.sym;
         if sym is None {
-            scope = nd.sym_tab;
+            scope = _scope_of(nd);
             bmod = self.evaluator.builtins_module;
             if scope is not None and bmod is not None {
                 sym = lookup_symtab(scope, name, bmod);
@@ -1051,14 +1066,14 @@ obj CtEvaluator {
 
     def _stamp_home(v: any, asn: Assignment) {
         if isinstance(v, CtRecord) and not v.home {
-            v.home = module_dotted_name(asn.find_parent_of_type(Module));
+            v.home = _mod_dotted(asn.find_parent_of_type(Module));
         }
     }
 
     def _type_of_arch(nd: Archetype) -> CtType {
         return CtType(
             name=nd.name.value,
-            module=module_dotted_name(nd.find_parent_of_type(Module)),
+            module=_mod_dotted(nd.find_parent_of_type(Module)),
             typ=self.evaluator.get_type_of_class(nd)
         );
     }
@@ -1066,7 +1081,7 @@ obj CtEvaluator {
     def _type_of_enum(nd: Enum) -> CtType {
         return CtType(
             name=nd.name.value,
-            module=module_dotted_name(nd.find_parent_of_type(Module)),
+            module=_mod_dotted(nd.find_parent_of_type(Module)),
             typ=self.evaluator.get_type_of_enum(nd)
         );
     }
@@ -1079,7 +1094,7 @@ obj CtEvaluator {
         }
         return CtFunc(
             qualname=qual,
-            module=module_dotted_name(nd.find_parent_of_type(Module)),
+            module=_mod_dotted(nd.find_parent_of_type(Module)),
             ability=nd
         );
     }
@@ -1090,7 +1105,7 @@ obj CtEvaluator {
             return self._enum_cache[key];
         }
         out: list[CtEnumMember] = [];
-        mod = module_dotted_name(nd.find_parent_of_type(Module));
+        mod = _mod_dotted(nd.find_parent_of_type(Module));
         enum_type = self.evaluator.get_type_of_enum(nd);
         running: any = None;
         for stmt in _impl_body(nd) {
@@ -1180,7 +1195,7 @@ obj CtEvaluator {
             node_ = self._arch_node_of(t);
             mod = "builtins";
             if node_ is not None {
-                mod = module_dotted_name(node_.find_parent_of_type(Module));
+                mod = _mod_dotted(node_.find_parent_of_type(Module));
             } elif not t.is_builtin() {
                 mod = "";
             }
@@ -1510,7 +1525,7 @@ obj CtEvaluator {
         }
         sym: (Symbol | None) = tgt.sym;
         if sym is None {
-            scope = tgt.sym_tab;
+            scope = _scope_of(tgt);
             bmod = self.evaluator.builtins_module;
             if scope is not None and bmod is not None {
                 sym = lookup_symtab(scope, tgt.value, bmod);
@@ -1538,7 +1553,7 @@ obj CtEvaluator {
         }
         sym: (Symbol | None) = nd.sym;
         if sym is None {
-            scope = nd.sym_tab;
+            scope = _scope_of(nd);
             bmod = self.evaluator.builtins_module;
             if scope is not None and bmod is not None {
                 sym = lookup_symtab(scope, nd.value, bmod);
@@ -1548,7 +1563,7 @@ obj CtEvaluator {
             return None;
         }
         sym = self._resolve_symbol_deep(sym);
-        return module_dotted_name(sym.decl.find_parent_of_type(Module));
+        return _mod_dotted(sym.decl.find_parent_of_type(Module));
     }
 
     def _call_args(nd: FuncCall) -> tuple {
