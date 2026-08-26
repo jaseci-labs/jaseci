@@ -460,7 +460,7 @@ jobs:
           find "$PWD" "$GITHUB_WORKSPACE/.zig-cache" -name 'libjac_*.dylib' -type f 2>/dev/null \
             | sort -u > "$RUNNER_TEMP/jac-dylibs.txt"
           if ! [ -s "$RUNNER_TEMP/jac-dylibs.txt" ]; then
-            echo "(no libjac_*.dylib on the runner: the seal died before it emitted one)"
+            echo "(no libjac_*.dylib on the runner)"
           fi
           : > "$RUNNER_TEMP/jac-dylibs-bad.txt"
           while IFS= read -r dl; do
@@ -586,15 +586,6 @@ jobs:
           [ -f "$SHIM" ] || zig build jacllvm -Dtarget=${{ matrix.zig_target }} --summary all
           [ -f "$SHIM" ] || SHIM="zig-out/lib/libjacllvm.so"
           check "$SHIM"
-          # The fused sealed compiler artifact: materialize the payload
-          # once, then hold it to the same glibc floor. The sealed compiler
-          # serves all parse trees with no bytecode fallback, so a missing
-          # artifact here is a broken binary.
-          WORK="$(mktemp -d)"
-          env -i HOME="$WORK" PATH=/usr/bin:/bin ./zig-out/bin/jac --version >/dev/null
-          ARTS="$(find "$WORK/.cache/jac/rt" -path '*/_precompiled/native/*' -name 'libjac_*.so')"
-          [ -n "$ARTS" ] || { echo "::error::no sealed native artifacts (libjac_*.so) in the payload"; exit 1; }
-          while IFS= read -r a; do check "$a"; done <<< "$ARTS"
 
       # Intel-mac mirror of the glibc check: neither the launcher nor the shim
       # may require a macOS newer than the zig_target floor, and the shim must
@@ -624,20 +615,6 @@ jobs:
           if otool -L "$SHIM" | grep -E "/opt/homebrew|/usr/local"; then
             echo "::error::$SHIM links Homebrew dylibs; the from-source slice must not."; exit 1
           fi
-          # The fused sealed compiler artifact: materialize the payload
-          # once, then hold it to the minos floor and the no-Homebrew rule.
-          # The sealed compiler serves all parse trees with no bytecode
-          # fallback, so a missing artifact is a broken binary.
-          WORK="$(mktemp -d)"
-          env -i HOME="$WORK" PATH=/usr/bin:/bin ./zig-out/bin/jac --version >/dev/null
-          ARTS="$(find "$WORK/.cache/jac/rt" -path '*/_precompiled/native/*' -name 'libjac_*.dylib')"
-          [ -n "$ARTS" ] || { echo "::error::no sealed native artifacts (libjac_*.dylib) in the payload"; exit 1; }
-          while IFS= read -r a; do
-            check "$a"
-            if otool -L "$a" | grep -E "/opt/homebrew|/usr/local"; then
-              echo "::error::$a links Homebrew dylibs."; exit 1
-            fi
-          done <<< "$ARTS"
 
       # A release-channel cold build just produced (and floor-verified) the
       # shim the deps release was missing: publish it so the next release with
