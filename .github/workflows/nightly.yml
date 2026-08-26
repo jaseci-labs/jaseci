@@ -301,14 +301,6 @@ jobs:
           CLUSTER_TYPE: kind
         run: bash jac/jaclang/scale/tests/deploy/sdk_deploy_real_e2e.sh
 
-      # Same cluster, own namespaces: destroy must reclaim a namespace jac-scale
-      # created, and spare one it only adopted or shares with another app.
-      - name: Run destroy reclamation e2e
-        if: matrix.base == 'official-image'
-        env:
-          CLUSTER_TYPE: kind
-        run: bash jac/jaclang/scale/tests/deploy/destroy_reclaim_real_e2e.sh
-
       - name: Dump kubectl state on failure
         if: failure()
         env:

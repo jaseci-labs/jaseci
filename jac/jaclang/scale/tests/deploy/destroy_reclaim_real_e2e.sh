@@ -164,6 +164,32 @@ wait_ns_gone() {
     return 1
 }
 
+# Ops RBAC for one app. The sweep must delete only the rows carrying this
+# app's label, so a co-tenant's Role and RoleBinding survive.
+seed_ops_rbac() {
+    ns="$1"; app="$2"
+    kubectl apply -n "${ns}" -f - >/dev/null <<YAML
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ${app}-ops
+  labels: { managed: jac-scale, app: ${app} }
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${app}-ops
+  labels: { managed: jac-scale, app: ${app} }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: ${app}-ops }
+subjects:
+  - { kind: ServiceAccount, name: default, namespace: ${ns} }
+YAML
+}
+
 # A shared volume is named straight from user config, with no app prefix. It is
 # the resource a startswith(app_name) sweep cannot see.
 seed_shared_volume_pvc() {
@@ -246,7 +272,9 @@ spec:
   accessModes: ["ReadWriteOnce"]
   resources: { requests: { storage: 64Mi } }
 YAML
-echo "  seeded shared volume '${SHARED_VOL}' and sibling PVC for '${SIBLING}'"
+seed_ops_rbac "${ADOPTED_NS}" "${APP}"
+seed_ops_rbac "${ADOPTED_NS}" "${SIBLING}"
+echo "  seeded shared volume '${SHARED_VOL}', sibling PVC and ops RBAC for both apps"
 
 _t "B deployed"
 destroy_app "${APP}" "${ADOPTED_NS}"
@@ -267,6 +295,13 @@ echo "  shared-volume PVC '${SHARED_VOL}' reclaimed"
 # E: the sibling's PVC must survive. A prefix sweep would have deleted it.
 require_present "${ADOPTED_NS}" pvc "${SIBLING}-postgres-data-${SIBLING}-postgres-0"
 echo "  sibling app PVC for '${SIBLING}' untouched"
+
+# The ops RBAC sweep must be scoped to the app, not to managed=jac-scale.
+require_absent "${ADOPTED_NS}" role "${APP}-ops"
+require_absent "${ADOPTED_NS}" rolebinding "${APP}-ops"
+require_present "${ADOPTED_NS}" role "${SIBLING}-ops"
+require_present "${ADOPTED_NS}" rolebinding "${SIBLING}-ops"
+echo "  ops RBAC reclaimed for '${APP}', left alone for '${SIBLING}'"
 _t "B+D+E PASSED"
 
 ########################## scenario C: co-tenant apps ##########################
