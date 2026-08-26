@@ -260,3 +260,16 @@ test "_build_startup_probe floors failureThreshold at 1 for a period longer than
     assert probe["periodSeconds"] == 1000;
     assert probe["failureThreshold"] == 1;
 }
+
+test "_build_startup_probe defaults to a period that actually shaves the measured wake cost" {
+    # The issue measured ~5.3s of Kubernetes-side polling lag directly from
+    # periodSeconds: 10. Making the field configurable is not the fix by
+    # itself -- a default that still resolves to the original hardcoded
+    # pair (10, 90) ships zero improvement out of the box, and every
+    # scale-to-zero deployment pays the full original cost unless an
+    # operator manually overrides startup_probe_period in jac.toml.
+    b = _builder({});
+    probe = b._build_startup_probe();
+    assert probe["periodSeconds"] <= 2;
+    assert probe["periodSeconds"] * probe["failureThreshold"] == 900;
+}
