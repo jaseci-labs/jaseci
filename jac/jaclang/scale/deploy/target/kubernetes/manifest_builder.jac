@@ -1107,12 +1107,12 @@ obj ManifestBuilder {
 
     def _build_startup_probe -> dict[str, any] {
         cfg = self.k8s_config;
-        period = cfg.startup_probe_period;
+        period = max(1, cfg.startup_probe_period);
         return {
             "httpGet": {"path": "/healthz/live", "port": cfg.container_port},
             "periodSeconds": period,
             "timeoutSeconds": 3,
-            "failureThreshold": 900 // period
+            "failureThreshold": max(1, 900 // period)
         };
     }
 
