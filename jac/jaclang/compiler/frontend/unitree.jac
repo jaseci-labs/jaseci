@@ -21,7 +21,6 @@ import from jaclang.compiler.frontend.constant { JacSemTokenType as SemTokType }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.frontend.constant { ParamKind }
 import type from jaclang.compiler.types.types { TypeBase }
-import type from jaclang.compiler.types.ct_value { CtValue }
 
 
 obj UniNode {
@@ -266,7 +265,7 @@ obj Expr(UniNode) {
     has _type_sym_tab: (UniScopeNode | None) postinit,
         type: (TypeBase | None) postinit,
         narrowed_type: (TypeBase | None) postinit,
-        ct_value: (CtValue | None) postinit,
+        ct_value: any postinit,
         coerce_to: (str | None) postinit,
         fw: (str | None) postinit,
         fw_safe: bool postinit,
