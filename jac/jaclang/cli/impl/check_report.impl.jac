@@ -79,7 +79,7 @@ def _coverage_relpath(path: str) -> str {
 
 impl print_native_coverage(coverage: dict[str, dict[str, any]]) -> None {
     import from jaclang.cli.console { console }
-    import from jaclang.jac0core.codeinfo { effective_default_codespace }
+    import from jaclang.compiler.frontend.codeinfo { effective_default_codespace }
     console.print("");
     console.print(separator("native coverage"));
     console.print(f"default codespace: {effective_default_codespace()}");
@@ -232,7 +232,7 @@ impl print_placement_report(rows_by_module: dict[str, dict[str, any]]) -> None {
 
 impl print_compile_stats -> None {
     import from jaclang.cli.console { console }
-    import from jaclang.jac0core.prefix_flip {
+    import from jaclang.compiler.placement.prefix_flip {
         prefix_clause_help,
         prefix_fallbacks_by_clause,
         prefix_report_lines,

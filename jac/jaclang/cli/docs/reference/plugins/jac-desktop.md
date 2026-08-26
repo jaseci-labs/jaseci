@@ -14,8 +14,8 @@ backend runs in-process.
 
 The `desktop` and `cef` targets register automatically as part of
 `jaclang` core, so `jac build --client desktop`,
-`jac start --client desktop`, `jac build --client cef`, and
-`jac start --client cef` work out of the box.
+`jac run --client desktop`, `jac build --client cef`, and
+`jac run --client cef` work out of the box.
 
 ---
 
@@ -36,7 +36,7 @@ sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.
 ```
 
 (`jaclang` ships a helper,
-`jaclang/runtimelib/client/targets/desktop/native/webview/install_webkit_deps.sh`,
+`jaclang/client/targets/desktop/native/webview/install_webkit_deps.sh`,
 that installs these.)
 
 ---
@@ -47,10 +47,10 @@ There is **no setup step** - the native host is generated at build time.
 
 ```bash
 jac build --client desktop      # -> .jac/client/desktop/<app>  (single binary + dist/)
-jac start --client desktop      # build, then launch the native window
+jac run --client desktop        # build, then launch the native window
 
 jac build --client cef  # -> .jac/client/cef/  (Chromium/CEF)
-jac start --client cef  # build, then launch the CEF window
+jac run --client cef    # build, then launch the CEF window
 ```
 
 The output directory `.jac/client/desktop/` contains the self-contained binary,
@@ -98,7 +98,7 @@ Then build or launch the matching target:
 
 ```bash
 jac build --client cef
-jac start --client cef
+jac run --client cef
 ```
 
 The example app at `jac/examples/notes-app/` is a small notes editor that uses
@@ -212,9 +212,9 @@ notification = true
    (no `cc`/`ld`), recording the renderer libraries with an `$ORIGIN` runpath.
 
 The native webview binding, build tooling, and a dependency-free test suite live
-inside `jaclang` core under `jaclang/runtimelib/client/targets/desktop/native/webview/`.
+inside `jaclang` core under `jaclang/client/targets/desktop/native/webview/`.
 The CEF binding, pinned CEF fetch tooling, and QA checklist live under
-`jaclang/runtimelib/client/targets/desktop/native/cef/`.
+`jaclang/client/targets/desktop/native/cef/`.
 
 ---
 
@@ -223,5 +223,5 @@ The CEF binding, pinned CEF fetch tooling, and QA checklist live under
 Beta 🧪. `jac build --client desktop` produces a working, self-contained native
 desktop binary that renders your `cl` UI and runs `sv` walkers/functions
 in-process on the embedded interpreter, with HMR dev mode via
-`jac start --client desktop --dev`. Per-OS packaging/signing remains open. See
+`jac run --client desktop --dev`. Per-OS packaging/signing remains open. See
 [issue #6436](https://github.com/jaseci-labs/jaseci/issues/6436).

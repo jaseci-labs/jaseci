@@ -15,7 +15,7 @@ _planning/
 play/
 build/
 develop-eggs/
-dist/
+/dist/
 downloads/
 eggs/
 .eggs/
@@ -93,5 +93,5 @@ jactastic/**
 # Zig 0.16 project-local package cache (fetched, hash-pinned deps)
 zig-pkg/
 
-# Seal-time generated materializer root (see jaclang/utils/gen_native_materialize.jac)
+# Seal-time generated materializer root (see jaclang/dist/gen_native_materialize.jac)
 jac/jaclang/compiler/native_materialize.jac

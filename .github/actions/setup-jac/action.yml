@@ -11,7 +11,7 @@ description: >
   of rebuilding (PR branches cross-restore main's entry, and build their own on
   a miss). Exact-key match only (no restore-keys), so a stale binary can never
   be served -- which is why this is safe even though zig's own incremental cache
-  stays disabled (it doesn't reliably invalidate on a jaclang/payload change).
+  stays disabled (it doesn't reliably invalidate on a jaclang/dist/payload change).
 inputs:
   skip-precompile:
     description: >
@@ -92,7 +92,7 @@ runs:
       if: steps.cache.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v4
       with:
-        path: jac/jaclang/compiler/passes/native/llvm/libjacllvm.*
+        path: jac/jaclang/compiler/backends/native/llvm/libjacllvm.*
         key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
 
     # The native (na) backend statically links a pinned LLVM into the LLVMPY_*
@@ -120,10 +120,10 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: jac/.bun-build
-        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
+        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/client/bun_installer.jac') }}
 
     # Identity of the compiler this build runs, as git blob ids over the same
-    # file set jir.jac hashes for its module keys (jaclang.jac0core.jir:
+    # file set jir.jac hashes for its module keys (jaclang.compiler.driver.jir:
     # COMPILER_DIGEST_ROOTS, .jac/.py only, test material excluded). Keep the
     # two rules in lockstep. Git ids rather than hashFiles: git enumerates the
     # roots exhaustively, and the listing is immune to step ordering and to
@@ -136,16 +136,22 @@ runs:
       run: |
         list="$(git ls-tree -r HEAD -- \
           jac/jaclang/jac0.py \
+          jac/jaclang/bootstrap_manifest.py \
+          jac/jaclang/meta_importer.py \
           jac/jaclang/jac0core \
           jac/jaclang/compiler \
-          jac/jaclang/utils/precompile_bytecode.jac \
+          jac/jaclang/runtime \
+          jac/jaclang/lib \
+          jac/jaclang/cli/cli_boot.jac \
+          jac/jaclang/project/tomlio.jac \
+          jac/jaclang/dist/precompile_bytecode.jac \
           | grep -E '\.(jac|py)$' \
           | grep -vE '(^|/)(tests|test)/|\.test\.jac$' || true)"
         n="$(printf '%s\n' "$list" | grep -c . || true)"
         # A moved root would silently fingerprint nothing, which is the
         # unsoundness this scoping exists to remove. ~289 files today.
         if [ "$n" -lt 100 ]; then
-          echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/jac0core/jir.jac together."
+          echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/compiler/driver/jir.jac together."
           exit 1
         fi
         fp="$(printf '%s\n' "$list" | git hash-object --stdin)"
@@ -190,7 +196,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: jac/.payload-layers
-        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/backends/native/wasm_rt/**') }}
         restore-keys: |
           payload-layers-${{ runner.os }}-${{ runner.arch }}-
 
@@ -241,68 +247,10 @@ runs:
       # the stubs otherwise.
       run: zig build fetch-typeshed --summary all
 
-    # Same capacity floor build-binaries.yml gained in #8279, for the workflows
-    # that build the binary through this action -- now a backstop rather than
-    # the fix. Each materializer crossing strands that crossing's native tree,
-    # and while the seal compiled every NATIVE_SEAL_ROOTS entry in ONE process
-    # the peak grew with the root count: 19.3 GiB at eleven roots, 22.4 GiB at
-    # thirteen (both /usr/bin/time -v, one process). A 16 GiB runner with a
-    # 4 GiB stock swapfile dies in between -- which is exactly how the
-    # thirteen-root seal first showed up here, as "the runner lost
-    # communication" 30 minutes into this step with no diagnostic. The seal now
-    # runs a worker process per root, so each worker's stranded trees die with
-    # it and the peak is JAC_SEAL_JOBS times one root's high-water mark. The
-    # headroom stays for the JAC_SEAL_JOBS=1 fallback and because the stranded
-    # pages are cold (written once, never read again), so swap holds them for
-    # the price of disk. Retire this step when the crossing reclaims its tree
-    # in process (#8139).
-    - name: Swap headroom for the sealed precompile (Linux)
-      if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
-      shell: bash
-      run: |
-        set -euo pipefail
-        echo "--- before"
-        free -h
-        swapon --show || true
-        df -h
-        WORK_DEV="$(df -P "$RUNNER_TEMP" | awk 'NR==2 {print $1}')"
-        MNT_DEV="$(df -P /mnt 2>/dev/null | awk 'NR==2 {print $1}' || true)"
-        if [ -n "$MNT_DEV" ] && [ "$MNT_DEV" != "$WORK_DEV" ]; then
-          SWAP_DIR=/mnt
-          RESERVE_GB=2
-        else
-          SWAP_DIR="$RUNNER_TEMP"
-          RESERVE_GB=25
-        fi
-        AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
-        SIZE_GB=$(( AVAIL_GB - RESERVE_GB ))
-        if [ "$SIZE_GB" -gt 24 ]; then
-          SIZE_GB=24
-        fi
-        if [ "$SIZE_GB" -lt 4 ]; then
-          echo "::error::$SWAP_DIR has ${AVAIL_GB}G free, too little to spare;" \
-               "the seal needs swap headroom at this root count and would exhaust the runner"
-          exit 1
-        fi
-        SWAP_FILE="$SWAP_DIR/jac-seal-swap"
-        sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
-          || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
-        sudo chmod 600 "$SWAP_FILE"
-        sudo mkswap "$SWAP_FILE"
-        sudo swapon "$SWAP_FILE"
-        echo "--- after"
-        free -h
-        swapon --show
-
     - name: Build the jac binary
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       working-directory: jac
-      env:
-        # Size the seal's worker pool for a hosted runner; see the same env on
-        # build-binaries.yml's build step. Empty selects the auto-size, which is
-        # what the macOS legs want.
-        JAC_SEAL_JOBS: ${{ runner.os == 'Linux' && '3' || '' }}
       # On a shim-cache hit, stage the restored shim OUTSIDE its in-tree place
       # path before passing it via -Dshim-bin: the build's place step copies
       # -Dshim-bin back to that path, and a self-copy would read the file it is
@@ -312,7 +260,7 @@ runs:
         SHIM_ARG=()
         if [ "${{ steps.shim-cache.outputs.cache-hit }}" = "true" ]; then
           mkdir -p .shim-build
-          cp jaclang/compiler/passes/native/llvm/libjacllvm.* .shim-build/
+          cp jaclang/compiler/backends/native/llvm/libjacllvm.* .shim-build/
           SHIM_ARG=(-Dshim-bin=".shim-build/$(ls .shim-build | head -1)")
         fi
         PRE_ARG=()
@@ -373,7 +321,7 @@ runs:
         steps.shim-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
-        path: jac/jaclang/compiler/passes/native/llvm/libjacllvm.*
+        path: jac/jaclang/compiler/backends/native/llvm/libjacllvm.*
         key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
 
     - name: Save LLVM cache (main only)
@@ -395,7 +343,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: jac/.bun-build
-        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
+        key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/client/bun_installer.jac') }}
 
     # cache-hit is only 'true' on an exact-key match, so a restore-keys prefix
     # hit still saves here -- that is what keeps main's entry tracking HEAD
@@ -419,7 +367,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: jac/.payload-layers
-        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/backends/native/wasm_rt/**') }}
 
     # Seed the Zig package store from main only (see the restore note). Like the
     # precompile cache, a restore-keys prefix hit still leaves cache-hit != true,

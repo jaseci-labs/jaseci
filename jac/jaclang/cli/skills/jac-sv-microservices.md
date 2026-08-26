@@ -36,7 +36,7 @@ def:pub sum_list(numbers: list[int]) -> int {
 
 ```bash
 jac scale split math_service                    # writes the routes entry
-jac start calculator_service.jac --port 8002    # consumer auto-starts math_service
+jac run --port 8002 calculator_service.jac      # consumer auto-starts math_service
 curl -X POST http://localhost:8002/function/sum_list \
   -H "Content-Type: application/json" -d '{"numbers":[1,2,3,4,5]}'
 ```
@@ -49,12 +49,12 @@ curl -X POST http://localhost:8002/function/sum_list \
 
 ## Discovery chain (first match wins)
 
-1. **Test client** - `sv_client.register_test_client(module, client)` routes calls in-process for tests (`import from jaclang.runtimelib { sv_client }`; call `clear_test_clients()` between tests).
+1. **Test client** - `sv_client.register_test_client(module, client)` routes calls in-process for tests (`import from jaclang.server { sv_client }`; call `clear_test_clients()` between tests).
 2. **Registered URL** - `sv_client.register(module, url)` programmatically.
 3. **`JAC_SV_<UPPERCASED_MODULE>_URL` env var** - the production knob. Module name = exactly the routes-table key, upper-cased (hyphens→underscores): `JAC_SV_MATH_SERVICE_URL=http://localhost:8001`.
-4. **Auto-spawn** - the built-in scale subsystem starts the provider as a sibling at `jac start` time.
+4. **Auto-spawn** - the built-in scale subsystem starts the provider as a sibling at `jac run` time.
 
-Auto-spawn rules: siblings bind **127.0.0.1 only** (single-host mode - unreachable from other machines); ports **18000-18999 are reserved** for them (pick your own `--port` outside that range); the provider `.jac` must sit in the directory you ran `jac start` from (default file `<routes-key>.jac`; override with `[scale.microservices.services.<name>] file = "other.jac"`); a `jac.toml` must exist in the cwd; transitive deps come up too (A→B→C). Startup is **fail-fast**: any provider that can't come up (missing file, syntax error, slow health check) crashes the consumer at startup, not at first request.
+Auto-spawn rules: siblings bind **127.0.0.1 only** (single-host mode - unreachable from other machines); ports **18000-18999 are reserved** for them (pick your own `--port` outside that range); the provider `.jac` must sit in the directory you ran `jac run` from (default file `<routes-key>.jac`; override with `[scale.microservices.services.<name>] file = "other.jac"`); a `jac.toml` must exist in the cwd; transitive deps come up too (A→B→C). Startup is **fail-fast**: any provider that can't come up (missing file, syntax error, slow health check) crashes the consumer at startup, not at first request.
 
 ## Walker imports = spawn-and-execute
 
@@ -85,16 +85,16 @@ Failures surface at the call site as `RuntimeError`: `sv-to-sv RPC '<module>.<fu
 
 ## Gateway mode (many services)
 
-`jac scale split <module>` (per service; `jac setup microservice --add <file>` also works) fills `[scale.microservices.routes]` in `jac.toml`; `jac start` on the project root then brings the whole stack up behind one API gateway - one public port, one unified `/docs`, one `/metrics`. `X-Trace-Id` is minted at the edge and threaded through every RPC hop. Key knob: per-service `rpc_timeout` (`[scale.microservices.services.NAME] rpc_timeout = 120.0`) defaults to **10s - bump to 120-300 for LLM-backed workers** or the gateway times out long generations. With `jac start --scale` in this mode, every pod gets its peers' `JAC_SV_<MOD>_URL` auto-injected (in-cluster service DNS) - don't set them by hand; `--dry-run` previews the plan.
+`jac scale split <module>` (per service; `jac setup microservice --add <file>` also works) fills `[scale.microservices.routes]` in `jac.toml`; `jac run` on the project root then brings the whole stack up behind one API gateway - one public port, one unified `/docs`, one `/metrics`. `X-Trace-Id` is minted at the edge and threaded through every RPC hop. Key knob: per-service `rpc_timeout` (`[scale.microservices.services.NAME] rpc_timeout = 120.0`) defaults to **10s - bump to 120-300 for LLM-backed workers** or the gateway times out long generations. With `jac scale deploy` in this mode, every pod gets its peers' `JAC_SV_<MOD>_URL` auto-injected (in-cluster service DNS) - don't set them by hand; `--dry-run` previews the plan.
 
 ## Pitfalls
 
 - **404/`Unauthorized` on a cross-service call** = the provider symbol isn't `:pub`. First thing to check.
 - **Calls run in-process when you expected RPC** = the provider module isn't in `[scale.microservices.routes]`. The cut is declared there and only there - run `jac scale split <module>` and rebuild.
 - **`ModuleNotFoundError: No module named '<provider>'` at consumer startup** = auto-spawn couldn't find the provider source in the cwd. Co-locate the services (or set `[scale.microservices.services.<name>].file`), or set `JAC_SV_<MOD>_URL` to a provider running elsewhere.
-- **`Error: No jac.toml found`** - `jac start <relative-path>` needs a `jac.toml` in the cwd.
+- **`Error: No jac.toml found`** - `jac run <relative-path>` needs a `jac.toml` in the cwd.
 - **`{"detail": "Invalid anchor id ..."}` 500s** = stale persisted anchors after a schema change - stop, `rm -rf .jac/data/`, restart (not service-specific; full story in `jac-sv-persistence`).
 - Auto-spawn waits ~15s for the sibling's health check - on slow machines or cold caches it can fail-fast spuriously. Start the provider yourself and use `JAC_SV_<MOD>_URL` (this also gives you separate logs per service).
-- Auto-spawn port collisions (something else squatting in 18000-18999) break discovery the same way - pin the provider URL explicitly (`JAC_SV_ANALYTICS_URL=http://127.0.0.1:18999 jac start ...`) instead of fighting the spawner.
+- Auto-spawn port collisions (something else squatting in 18000-18999) break discovery the same way - pin the provider URL explicitly (`JAC_SV_ANALYTICS_URL=http://127.0.0.1:18999 jac run ...`) instead of fighting the spawner.
 - Multi-host = env-var wiring, always. Auto-spawned siblings can never serve another machine.
 - Service module names must not collide with builtin gateway segments (`api`, `walker`, `function`, `health`, ...) - `jac scale split` rejects them with a rename suggestion.

@@ -9,7 +9,7 @@ producer side, which is the seat the sealed native emitter sits in.
 
 import ast as pyast;
 import from builtins { exec as pyexec }
-import from jaclang.jac0core.codegen_ir {
+import from jaclang.compiler.backends.py.codegen_ir {
     CIR_FORMAT_VERSION,
     CirDiag,
     CodegenIrFormatError,
@@ -18,7 +18,7 @@ import from jaclang.jac0core.codegen_ir {
     DIAG_WARNING,
     read_container
 }
-import from jaclang.jac0core.codegen_shim { compile_ir, transcribe }
+import from jaclang.compiler.backends.py.codegen_shim { compile_ir, transcribe }
 
 glob FIXTURE_SRC: str = """'''Round trip fixture.'''
 def greet(name, excited=False):

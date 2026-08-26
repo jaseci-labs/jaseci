@@ -4,11 +4,11 @@
 //! Both halves are produced by Jac:
 //!
 //!   * the launcher stub is `launcher/launcher.jac` over the fused-runtime
-//!     library (`jaclang/runtimelib/fused`), compiled by the in-checkout
+//!     library (`jaclang/dist/fused`), compiled by the in-checkout
 //!     compiler with `jac build --as native` (the Jac-native linkers; no
 //!     external toolchain) -- it links only libc/libdl and dlopens the bundled
 //!     CPython at runtime;
-//!   * the payload tool is `jaclang.payload`, Python-tier Jac that fetches the
+//!   * the payload tool is `jaclang.dist.payload`, Python-tier Jac that fetches the
 //!     vendored inputs, stages the runtime tree, packs it, and appends it to the
 //!     stub with the trailer.
 //!
@@ -59,9 +59,9 @@ const Shim = struct { bin: std.Build.LazyPath, place: *std.Build.Step };
 /// build` fetches python-build-standalone first (bootstrap/fetch_pbs.zig, the
 /// one step that runs before any Python exists) and then drives every other
 /// build step through this program, so the build tooling is Jac
-/// (`jaclang.payload`) and needs no prior jac binary:
+/// (`jaclang.dist.payload`) and needs no prior jac binary:
 ///
-///     <pbs-python> -I -c JACBOOT <root> payload <subcommand> [args...]   # jaclang.payload.cli
+///     <pbs-python> -I -c JACBOOT <root> payload <subcommand> [args...]   # jaclang.dist.payload.cli
 ///     <pbs-python> -I -c JACBOOT <root> jac <jac-cli-args...>             # the jac CLI itself
 ///
 /// `-I` keeps the interpreter isolated from the ambient environment; the
@@ -78,10 +78,10 @@ const JACBOOT_SRC =
     "import _jac_finder\n" ++
     "_jac_finder.install()\n" ++
     "if mode == 'payload':\n" ++
-    "    from jaclang.payload.cli import main\n" ++
+    "    from jaclang.dist.payload.cli import main\n" ++
     "    sys.exit(int(main(argv) or 0))\n" ++
     "sys.argv = ['jac'] + argv\n" ++
-    "from jaclang.jac0core.cli_boot import start_cli\n" ++
+    "from jaclang.cli.cli_boot import start_cli\n" ++
     "start_cli()\n";
 
 /// The Jac build tooling, as a runnable. Every run depends on the host pbs
@@ -172,12 +172,12 @@ pub fn build(b: *std.Build) void {
     }
 
     // Standalone: place the pinned, contained bun runtime into the source tree at
-    // jaclang/runtimelib/client/_bun/ for the HOST. Editable/source checkouts,
+    // jaclang/client/_bun/ for the HOST. Editable/source checkouts,
     // the test suite, and -Ddev linked binaries resolve it there via get_bun()'s
     // __file__-relative lookup. (Normal/release builds instead bundle a
     // target-matched bun into the payload; see the payload block below.)
     {
-        const fetch_bun = tool.run("payload", &.{ "fetch-bun", host_osarch, b.pathFromRoot("jaclang/runtimelib/client/_bun") });
+        const fetch_bun = tool.run("payload", &.{ "fetch-bun", host_osarch, b.pathFromRoot("jaclang/client/_bun") });
         fetch_bun.has_side_effects = true;
         b.step("fetch-bun", "Place the pinned bun into the source tree (editable/dev + tests)")
             .dependOn(&fetch_bun.step);
@@ -211,7 +211,7 @@ pub fn build(b: *std.Build) void {
     {
         const vendor_wasm_libc = tool.run("payload", &.{
             "build-wasm-libc",
-            b.pathFromRoot("jaclang/compiler/passes/native/wasm_rt"),
+            b.pathFromRoot("jaclang/compiler/backends/native/wasm_rt"),
             b.pathFromRoot(".pbs-build/wasm32/libc"),
             b.graph.zig_exe,
         });
@@ -340,7 +340,7 @@ pub fn build(b: *std.Build) void {
             mk.step.dependOn(&fetch_bun.step);
             mk.addArg(b.fmt("--bun={s}/bun", .{bun_dir}));
         } else {
-            const fetch_bun = tool.run("payload", &.{ "fetch-bun", host_osarch, b.fmt("{s}/jaclang/runtimelib/client/_bun", .{link_dir.?}) });
+            const fetch_bun = tool.run("payload", &.{ "fetch-bun", host_osarch, b.fmt("{s}/jaclang/client/_bun", .{link_dir.?}) });
             fetch_bun.has_side_effects = true;
             mk.step.dependOn(&fetch_bun.step);
         }
@@ -363,7 +363,7 @@ pub fn build(b: *std.Build) void {
             const wasm_libc = b.pathFromRoot(".pbs-build/wasm32/libc");
             const vendor_wasm = tool.run("payload", &.{
                 "build-wasm-libc",
-                b.pathFromRoot("jaclang/compiler/passes/native/wasm_rt"),
+                b.pathFromRoot("jaclang/compiler/backends/native/wasm_rt"),
                 wasm_libc,
                 b.graph.zig_exe,
             });
@@ -371,7 +371,7 @@ pub fn build(b: *std.Build) void {
             // must run even when inputs are unchanged (a deleted .pbs-build has
             // to repopulate). The tool itself skips up-to-date per-file work.
             vendor_wasm.has_side_effects = true;
-            addTreeInputs(b, vendor_wasm, "jaclang/compiler/passes/native/wasm_rt");
+            addTreeInputs(b, vendor_wasm, "jaclang/compiler/backends/native/wasm_rt");
             mk.step.dependOn(&vendor_wasm.step);
             if (link_dir == null) {
                 mk.addArg(b.fmt("--wasm-libc={s}", .{wasm_libc}));
@@ -476,7 +476,7 @@ fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
     if (b.option([]const u8, "shim-bin", "Prebuilt LLVMPY_* shim to bundle (skips the LLVM fetch + link)")) |p| {
         const bin: std.Build.LazyPath = .{ .cwd_relative = p };
         const place = b.addUpdateSourceFiles();
-        place.addCopyFileToSource(bin, b.fmt("jaclang/compiler/passes/native/llvm/{s}", .{shim_file}));
+        place.addCopyFileToSource(bin, b.fmt("jaclang/compiler/backends/native/llvm/{s}", .{shim_file}));
         const jacllvm_step = b.step("jacllvm", "Build the LLVMPY_* shim (jac/native), static-link LLVM, place it in-tree");
         jacllvm_step.dependOn(&b.addInstallLibFile(bin, shim_file).step);
         jacllvm_step.dependOn(&place.step);
@@ -527,7 +527,7 @@ fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
     // fetch-typeshed materializes gitignored stubs into the tree. mkpayload's
     // jaclang copy skips this file (it ships the shim via --shim instead).
     const place = b.addUpdateSourceFiles();
-    place.addCopyFileToSource(bin, b.fmt("jaclang/compiler/passes/native/llvm/{s}", .{shim_file}));
+    place.addCopyFileToSource(bin, b.fmt("jaclang/compiler/backends/native/llvm/{s}", .{shim_file}));
 
     const jacllvm_step = b.step("jacllvm", "Build the LLVMPY_* shim (jac/native), static-link LLVM, place it in-tree");
     jacllvm_step.dependOn(&b.addInstallLibFile(bin, shim_file).step);

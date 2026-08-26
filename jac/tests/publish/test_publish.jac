@@ -1,4 +1,4 @@
-"""Tests for the jaclang.publish pipeline.
+"""Tests for the jaclang.dist.publish pipeline.
 
 Covers the four new modules added in this branch:
   metadata  — METADATA 2.4 string generation
@@ -21,26 +21,26 @@ import tempfile;
 import shutil;
 import from pathlib { Path }
 import from jaclang.project.config { JacConfig }
-import from jaclang.publish.metadata {
+import from jaclang.dist.publish.metadata {
     normalize_package_name,
     normalize_constraint,
     generate_metadata,
     generate_pyproject_toml
 }
-import from jaclang.publish.record { record_entry_from_bytes, generate_record }
-import from jaclang.publish.wheel_meta {
+import from jaclang.dist.publish.record { record_entry_from_bytes, generate_record }
+import from jaclang.dist.publish.wheel_meta {
     generate_wheel_file,
     generate_entry_points,
     wheel_filename,
     dist_info_dirname,
     sdist_filename
 }
-import from jaclang.publish.sources {
+import from jaclang.dist.publish.sources {
     SourceFile,
     read_source_file,
     collect_source_files
 }
-import from jaclang.publish.builder { WheelBuilder }
+import from jaclang.dist.publish.builder { WheelBuilder }
 
 
 # Helpers --------------------------------------------------------------------------
@@ -587,7 +587,7 @@ test "WheelBuilder.build_sdist_to writes file with correct name" {
 
 # py_imports — wheel-layout import rewriting -----------------------------------------------------
 test "wheel_module_name maps wheel paths to dotted module names" {
-    import from jaclang.publish.py_imports { wheel_module_name }
+    import from jaclang.dist.publish.py_imports { wheel_module_name }
     assert wheel_module_name("pkg/mod.py") == "pkg.mod";
     assert wheel_module_name("pkg/sub/mod.py") == "pkg.sub.mod";
     assert wheel_module_name("pkg/__init__.py") == "pkg";
@@ -595,7 +595,7 @@ test "wheel_module_name maps wheel paths to dotted module names" {
 
 test "rewrite_imports repoints project imports and leaves stdlib alone" {
     import os;
-    import from jaclang.publish.py_imports { rewrite_imports }
+    import from jaclang.dist.publish.py_imports { rewrite_imports }
     tmpdir = tempfile.mkdtemp();
     try {
         proj = Path(tmpdir);
@@ -708,7 +708,7 @@ test "WheelBuilder vendors the jac runtime when transpiled code needs it" {
         with zipfile.ZipFile(io.BytesIO(data)) as zf {
             names = zf.namelist();
             assert "vendemo/_jac_vendor/jaclang/__init__.py" in names;
-            assert "vendemo/_jac_vendor/jaclang/jac0core/jaclib.py" in names;
+            assert "vendemo/_jac_vendor/jaclang/lib/jaclib.py" in names;
             init_py = zf.read("vendemo/__init__.py").decode("utf-8");
             top_level = zf.read("vendemo-0.1.0.dist-info/top_level.txt").decode(
                 "utf-8"
@@ -717,6 +717,33 @@ test "WheelBuilder vendors the jac runtime when transpiled code needs it" {
         assert "_jac_use_vendored_runtime()" in init_py;
         assert top_level.strip() == "vendemo";
         assert builder.vendored_runtime_modules > 0;
+    } finally {
+        shutil.rmtree(tmpdir, ignore_errors=True);
+    }
+}
+
+test "WheelBuilder vendors the fixed-width runtime a sized-typed program needs" {
+    tmpdir = tempfile.mkdtemp();
+    try {
+        proj = Path(tmpdir);
+        (proj / "main.jac").write_text(
+            "obj Pixel {\n    has r: u8 = 200;\n}\n\n"
+                + "def bump(p: Pixel) -> u8 {\n    return wrapping_add(p.r, 100);\n}\n"
+        );
+        cfg = JacConfig.from_toml_str(
+            '[project]\nname = "sizeddemo"\nversion = "0.1.0"\n'
+        );
+        cfg.project_root = proj;
+        builder = WheelBuilder(config=cfg, project_root=proj);
+        data = builder.build();
+        with zipfile.ZipFile(io.BytesIO(data)) as zf {
+            names = zf.namelist();
+            assert "sizeddemo/_jac_vendor/jaclang/runtime/sized.py" in names;
+            assert "sizeddemo/_jac_vendor/jaclang/runtime/scalars.py" in names;
+            main_py = zf.read("sizeddemo/main.py").decode("utf-8");
+        }
+        assert "jaclang.runtime.sized" in main_py , main_py;
+        assert "_fw_wrapping" in main_py , main_py;
     } finally {
         shutil.rmtree(tmpdir, ignore_errors=True);
     }
