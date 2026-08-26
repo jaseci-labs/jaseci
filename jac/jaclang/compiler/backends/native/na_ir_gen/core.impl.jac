@@ -1093,11 +1093,11 @@ impl NaIRGenCore._register_imported_archetype(arch: uni.Archetype) -> None {
     _arch_src = _arch_mod.loc.mod_path if _arch_mod?.loc else "";
     _seen_src = self._struct_source_mod.get(aname);
     if _seen_src is not None and _arch_src and _seen_src != _arch_src {
-        import from jaclang.cli.console { console }
-        console.warning(
-            f"native struct name collision -- '{aname}' from "
+        import sys as _rc_sys;
+        _rc_sys.stderr.write(
+            f"warning: native struct name collision -- '{aname}' from "
             f"{_arch_src} shadows the one from {_seen_src}; skipping "
-            f"re-registration"
+            f"re-registration\n"
         );
         return;
     }

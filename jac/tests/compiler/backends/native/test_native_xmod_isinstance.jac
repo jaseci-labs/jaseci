@@ -79,7 +79,7 @@ test "a sealed artifact resolves the cross-module vtable symbol" {
     tmp = tempfile.mkdtemp(prefix="jac_xmod_isinstance_seal_");
     buf = io.StringIO();
     try {
-        with contextlib.redirect_stderr(buf), contextlib.redirect_stdout(buf) {
+        with contextlib.redirect_stderr(buf) {
             arts = seal_one_root(Path(FIXTURES), Path(tmp), "xmod_isinstance_main.jac");
         }
         assert arts , f"the seal produced no artifact:\n{buf.getvalue()}";
