@@ -443,6 +443,21 @@ def get_module_cache_path(source_path: str) -> Path {
     return cache_dir / f"{source.stem}.{path_hash}.cpython-{major}{minor}.jir";
 }
 
+glob _na_ir_cache_region: dict[str, bool] = {"suspended": False};
+
+
+def native_ir_cache_suspended -> bool {
+    return _na_ir_cache_region["suspended"];
+}
+
+
+def native_ir_cache_set_suspended(value: bool) -> bool {
+    prev = _na_ir_cache_region["suspended"];
+    _na_ir_cache_region["suspended"] = value;
+    return prev;
+}
+
+
 def get_native_cache_dir(source_path: str) -> Path {
     return _get_module_cache_dir(source_path) / "native";
 }

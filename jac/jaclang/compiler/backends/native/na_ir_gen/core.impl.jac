@@ -1093,11 +1093,11 @@ impl NaIRGenCore._register_imported_archetype(arch: uni.Archetype) -> None {
     _arch_src = _arch_mod.loc.mod_path if _arch_mod?.loc else "";
     _seen_src = self._struct_source_mod.get(aname);
     if _seen_src is not None and _arch_src and _seen_src != _arch_src {
-        import sys as _rc_sys;
-        _rc_sys.stderr.write(
-            f"warning: native struct name collision -- '{aname}' from "
+        import from jaclang.cli.console { console }
+        console.warning(
+            f"native struct name collision -- '{aname}' from "
             f"{_arch_src} shadows the one from {_seen_src}; skipping "
-            f"re-registration\n"
+            f"re-registration"
         );
         return;
     }
@@ -1239,7 +1239,10 @@ impl NaIRGenCore._imported_function_demotions(
             CompileOptions as _FdOpts
         }
         _opts_src = self.prog?.options or _FdOpts();
-        if not bool(getattr(_opts_src, "no_ir_cache", False)) {
+        import from jaclang.compiler.driver.jir {
+            native_ir_cache_suspended as _fd_suspended
+        }
+        if not (bool(getattr(_opts_src, "no_ir_cache", False)) or _fd_suspended()) {
             try {
                 import from jaclang.compiler.backends.native.na_compile_pass {
                     native_dep_cache_paths
