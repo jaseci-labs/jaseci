@@ -223,8 +223,10 @@ glob NATIVE_ERASED_BASES: frozenset = (
 
 glob NATIVE_ERASED_IDENTITY_CALLS: frozenset = frozenset({"cast"});
 
-glob _bun_host_decision_cache: dict[str, bool] = {};
-     _bun_host_guard_warned: bool = False;
+glob _bun_host_decision_cache: dict[str, bool] = {},
+     # Container, not a bool: the guard mutates it from function scope and
+     # Jac compiles bare name assignment as a local.
+     _bun_host_guard_warned: list[bool] = [False];
 
 glob PASS_RIM_MODULE: str = "jaclang.compiler.passes.pass_rim";
 
@@ -345,7 +347,7 @@ def project_uses_bun_host(base_path: str = '') -> bool {
         import from jaclang.jac0core.host { resolve_project_host_kind, HOST_BUN }
         uses_bun = resolve_project_host_kind(base_path) == HOST_BUN;
     } except ImportError {
-        if not _bun_host_guard_warned {
+        if not _bun_host_guard_warned[0] {
             import sys;
             print(
                 'warning: bun-host decision deferred: jaclang.jac0core.host '
@@ -353,7 +355,7 @@ def project_uses_bun_host(base_path: str = '') -> bool {
                     'module as non-bun for now',
                 file=sys.stderr
             );
-            _bun_host_guard_warned = True;
+            _bun_host_guard_warned[0] = True;
         }
         return False;
     }
