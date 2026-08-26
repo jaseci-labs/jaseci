@@ -37,14 +37,10 @@ jac/jaclang/compiler/backends/native/na_ir_gen/generics.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/generics.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/iterators.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/iterators.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/lists.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/lists.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/objects.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/objects.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/osp.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/osp.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/pyb_interop.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/pyb_interop.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/refcount.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/refcount.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/sized.impl.jac

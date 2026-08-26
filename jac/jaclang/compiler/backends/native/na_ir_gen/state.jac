@@ -220,7 +220,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _di_current_sp: object = None,
         _func_loc: dict[str, int] = {},
         _func_def_mod: dict[str, str] = {},
-        _pyb_base_memo: dict[str, object] = {},
+        _pyb_base_memo: dict[str, tuple | None] = {},
         _pyb_helper_fns: dict[str, ir.Function] = {},
         lambda_captures: dict[str, list[tuple]] = {},
         _pending_lambda_captures: (list[tuple] | None) = None,
@@ -893,7 +893,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         nd: (uni.FuncCall | uni.Name),
         type_name: str,
         obj_ptr: ir.Value,
-        params: list,
+        params: Sequence[uni.Expr | uni.KWPair],
         native_fields: dict
     ) -> bool abst;
 
