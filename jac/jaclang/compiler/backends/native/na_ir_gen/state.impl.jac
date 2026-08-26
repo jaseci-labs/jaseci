@@ -59,7 +59,9 @@ impl NaIRGenState.jacval_type.getter -> ir.Type {
 }
 
 impl NaIRGenState._loop_exit_blocks(
-    func: object, nd: uni.UniNode, prefix: str
+    func: ir.Function,
+    nd: (uni.WhileStmt | uni.InForStmt | uni.IterForStmt),
+    prefix: str
 ) -> tuple {
     else_bb = (
         func.append_basic_block(name=f"{prefix}.else")
@@ -71,11 +73,16 @@ impl NaIRGenState._loop_exit_blocks(
 }
 
 impl NaIRGenState._emit_loop_else(
-    nd: uni.UniNode, else_bb: (object | None), end_bb: object
+    nd: (uni.WhileStmt | uni.InForStmt | uni.IterForStmt),
+    else_bb: (ir.Block | None),
+    end_bb: ir.Block
 ) -> None {
     if else_bb is not None {
         self.builder.position_at_end(else_bb);
-        self._codegen_body(nd.else_body.body);
+        loop_else = nd.else_body;
+        if loop_else is not None {
+            self._codegen_body(loop_else.body);
+        }
         if not self.builder.block.is_terminated {
             self.builder.branch(end_bb);
         }
