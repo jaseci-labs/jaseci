@@ -331,15 +331,17 @@ memory_limit = "2Gi"
 
 ### Health Probes
 
-Kubernetes uses readiness and liveness probes to decide when a pod is ready to serve traffic and when to restart it. Both probes hit `GET <health_check_path>` on the container.
+Kubernetes uses startup, readiness, and liveness probes to decide when a pod has finished its first boot, when it is ready to serve traffic, and when to restart it. All three hit `GET <health_check_path>` on the container.
 
 **Defaults:**
 
 | TOML Key | Default | Description |
 |----------|---------|-------------|
-| `health_check_path` | `"/docs"` | Endpoint probed by both readiness and liveness checks |
+| `health_check_path` | `"/docs"` | Endpoint probed by all three checks |
+| `startup_probe_period` | `2` | Seconds between startup checks. Startup polling gates readiness/liveness: neither runs until the app first answers, so this controls how quickly a fresh boot is noticed. `failureThreshold` scales with the period to keep a fixed ~900s total budget for a slow first boot (compiling and installing dependencies), so tightening the period doesn't shrink that budget. |
 | `readiness_initial_delay` | `10` | Seconds to wait before first readiness check |
 | `readiness_period` | `20` | Seconds between readiness checks |
+| `readiness_period_scale_to_zero` | `2` | Overrides `readiness_period` for services with a replica floor of 0 (an HPA/KEDA `min` of `0`, i.e. scale-to-zero). A woken scale-to-zero pod otherwise waits out up to one full `readiness_period` of detection lag on top of the startup probe's own lag; this only tightens that for services actually configured to idle at zero, so a normally-scaled service's steady-state probe traffic is unaffected. `failureThreshold` scales with the period the same way the startup probe's does. |
 | `liveness_initial_delay`  | `10` | Seconds to wait before first liveness check |
 | `liveness_period`  | `20` | Seconds between liveness checks |
 | `liveness_failure_threshold` | `80` | Consecutive failures before the pod is restarted |
@@ -348,15 +350,19 @@ Kubernetes uses readiness and liveness probes to decide when a pod is ready to s
 
 ```toml
 [scale.kubernetes]
-health_check_path = "/health"
+health_check_path = "/healthz/ready"
+startup_probe_period = 5
 readiness_initial_delay = 15
 readiness_period = 10
+readiness_period_scale_to_zero = 3
 liveness_initial_delay = 30
 liveness_period = 30
 liveness_failure_threshold = 5
 ```
 
 > **Tip:** Set `health_check_path = "/health"` to use the built-in liveness and readiness endpoints - see [Health Checks](#health-checks).
+
+> **Tip: KEDA scale-to-zero wake latency.** A woken scale-to-zero pod's biggest cost is usually reinstalling dependencies from scratch (see [Dependency Install Caching](#dependency-install-caching)); `startup_probe_period` and `readiness_period_scale_to_zero` address the smaller, Kubernetes-side cost on top of that, the polling lag between the app actually answering and Kubernetes noticing.
 
 ---
 
@@ -675,6 +681,9 @@ additional_packages = ["xz-utils", "zstd"]
 
 When using `--experimental` mode, the Jaseci plugin packages (byllm and friends) are installed from the GitHub repository instead of PyPI. Pin a specific branch or commit for reproducible builds. (The jaclang runtime itself -- which includes the `scale` subsystem -- always comes from the pod's `jac` binary base image, so it is never installed from PyPI in either mode.)
 
+- **Runtime**: pin `[project] jac-version` in `jac.toml` (stable channel), use the `[dev]` / `[experimental]` stanzas, or ship an exact binary via `JAC_SCALE_BINARY_PATH`. See [Runtime Binary](#runtime-binary).
+- **Project dependencies** (PyPI/npm): pinned in `jac.toml` as usual; the bootstrap init container runs `jac install` against the shipped, sanitized `jac.toml`, so the pod resolves exactly what you pinned. See [Dependency Install Caching](#dependency-install-caching) for how this stays cheap across repeated boots.
+
 **Defaults:**
 
 | TOML Key  | Default | Description |
@@ -713,6 +722,16 @@ another_plugin        = "none"    # Skip installation entirely
 ```
 
 > Scale, the frontend/client framework, byLLM, and the MCP server are all part of `jaclang` core and arrive with the `jac` binary in the pod image, so there is no `jac_scale`, `jac_byllm`, or `jac_mcp` package to pin here -- those subsystems are built into the binary. Use `plugin_versions` only for genuine third-party plugins that are still distributed as separate PyPI packages.
+
+---
+
+### Dependency Install Caching
+
+The bootstrap init container's `jac install` pass is skipped when nothing has changed: a marker file inside the venv records a hash of the resolved dependency specs, and a matching marker on the next boot means the venv is already correct, so no `pip install` runs at all.
+
+On a scale-to-zero wake this pass would otherwise reinstall every dependency from scratch on every boot, since the venv lives under `/app`, an `emptyDir` wiped on every pod restart. To survive that wipe, the venv is also restored from a dependency-hash-keyed cache on the bundle PVC before `jac install` runs, and saved back to it afterward. The cache key hashes the resolved base image alongside the dependency specs, so a `python_image` change can never restore a venv built for an incompatible interpreter. It is capped at 2GB per app (wiped and rewarmed past that) and lives alongside the pip cache already on the same PVC.
+
+This applies to every deploy automatically; there is nothing to enable. See the [Health Probes](#health-probes) tip on scale-to-zero wake latency for the other half of that fix.
 
 ---
 
