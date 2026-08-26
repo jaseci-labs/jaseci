@@ -43,8 +43,6 @@ jac/jaclang/compiler/backends/native/na_ir_gen/osp.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/osp.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/refcount.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/refcount.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/sized.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/sized.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/stmt.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/stmt.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/types.impl.jac
