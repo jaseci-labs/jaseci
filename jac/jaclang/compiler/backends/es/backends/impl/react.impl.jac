@@ -299,9 +299,7 @@ impl ReactBackend.lower_view(view: ViewElement, sync_loc: any) -> es.Expression 
             children_elements.append(child.expr);
         }
     }
-    # A lone dynamic fragment child is passed unwrapped, matching the JSX
-    # single-child convention: `<>{acc}</>` must hand the runtime the child
-    # expression itself so slot accumulators stay positional children (#7859).
+
     if (
         isinstance(tag, FragmentTag)
         and len(view.children) == 1
