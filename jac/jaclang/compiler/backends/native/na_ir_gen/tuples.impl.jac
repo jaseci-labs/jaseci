@@ -537,12 +537,16 @@ impl NaIRGenTuples._tuple_iter_seq(
     );
     self._mark_owned(seq);
 
-    if val is None {
-        return None;
-    }
-    is_value = struct_type is not None and isinstance(val.type, ir.LiteralStructType);
+    is_value = (
+        struct_type is not None
+        and val is not None
+        and isinstance(val.type, ir.LiteralStructType)
+    );
     owned_flags = val?.na_tuple_owned if val is not None else None;
     for i in range(len(elem_types)) {
+        if val is None {
+            return None;
+        }
         if is_value {
             elem = self.builder.extract_value(val, i, name=f"tseq.{i}");
         } else {
