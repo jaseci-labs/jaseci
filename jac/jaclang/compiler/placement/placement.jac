@@ -477,10 +477,11 @@ def _element_glob_write_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
 
 def _module_native_capability_blocker(module: uni.Module) -> str {
     import from jaclang.jac0core.host { native_unmet_capability }
-    for stmt in module.body {
-        if isinstance(stmt, uni.TypedCtxBlock) {
-            return "contains TypedCtxBlock";
-        }
+    if module.get_all_sub_nodes(uni.TypedCtxBlock) {
+        return "contains TypedCtxBlock";
+    }
+    if module.get_all_sub_nodes(uni.PyInlineCode) {
+        return "contains PyInlineCode";
     }
     for stmt in module.body {
         if not isinstance(stmt, uni.UniNode) {
