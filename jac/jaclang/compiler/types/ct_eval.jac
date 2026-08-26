@@ -40,6 +40,7 @@ import from jaclang.compiler.frontend.unitree {
     IndexSlice,
     InnerCompr,
     Int,
+    KVPair,
     KWPair,
     ListCompr,
     ListVal,
@@ -191,7 +192,7 @@ obj CtEvaluator {
         last_error: (str | None) = None,
         demand: bool = False,
         _failed: set[int] = set(),
-        _active: set[int] = set(),
+        _active: set[any] = set(),
         _enum_cache: dict[int, list] = {},
         _ret: any = None,
         _builtins: dict = {};
@@ -567,11 +568,19 @@ obj CtEvaluator {
     }
 
     def _compr_items(
-        comprs: list, depth: int, out_expr: (Expr | None), kv_pair: (KWPair | None)
+        comprs: list, depth: int, out_expr: (Expr | None), kv_pair: (KVPair | None)
     ) -> list {
         if depth >= len(comprs) {
             if kv_pair is not None {
-                return [(self.eval(kv_pair.key), self.eval(kv_pair.value), )];
+                key_expr = kv_pair.key;
+                val_expr = kv_pair.value;
+                if key_expr is None or val_expr is None {
+                    raise CtNotComptime();
+                }
+                return [(self.eval(key_expr), self.eval(val_expr), )];
+            }
+            if out_expr is None {
+                raise CtNotComptime();
             }
             return [self.eval(out_expr)];
         }
@@ -814,8 +823,9 @@ obj CtEvaluator {
         sym: (Symbol | None) = nd.sym;
         if sym is None {
             scope = nd.sym_tab;
-            if scope is not None {
-                sym = lookup_symtab(scope, name, self.evaluator.builtins_module);
+            bmod = self.evaluator.builtins_module;
+            if scope is not None and bmod is not None {
+                sym = lookup_symtab(scope, name, bmod);
             }
         }
         if sym is None {
@@ -852,12 +862,11 @@ obj CtEvaluator {
         decl = sym.decl;
         node_ = decl.name_of;
         home = node_.find_parent_of_type(Module);
-        if self._is_stub_module(home) {
+        if isinstance(home, Module) and self._is_stub_module(home) {
             nm = decl.sym_name;
+            home_path = _norm_path(home.loc.mod_path if home.loc else "");
             if home is self.evaluator.builtins_module
-                or _norm_path(home.loc.mod_path if home.loc else "").endswith(
-                    "/builtins.pyi"
-                ) {
+                or home_path.endswith("/builtins.pyi") {
                 if nm in CT_PY_TYPES or nm in CT_PY_EXCEPTIONS {
                     return self._builtin_type(nm);
                 }
@@ -1318,10 +1327,11 @@ obj CtEvaluator {
             }
         }
         dflt: any = None;
-        has_dflt = hv.value is not None;
-        if has_dflt {
+        hval = hv.value;
+        has_dflt = hval is not None;
+        if hval is not None {
             try {
-                dflt = self.eval(hv.value);
+                dflt = self.eval(hval);
             } except Exception {
                 dflt = None;
             }
@@ -1501,8 +1511,9 @@ obj CtEvaluator {
         sym: (Symbol | None) = tgt.sym;
         if sym is None {
             scope = tgt.sym_tab;
-            if scope is not None {
-                sym = lookup_symtab(scope, tgt.value, self.evaluator.builtins_module);
+            bmod = self.evaluator.builtins_module;
+            if scope is not None and bmod is not None {
+                sym = lookup_symtab(scope, tgt.value, bmod);
             }
         }
         if sym is None {
@@ -1528,8 +1539,9 @@ obj CtEvaluator {
         sym: (Symbol | None) = nd.sym;
         if sym is None {
             scope = nd.sym_tab;
-            if scope is not None {
-                sym = lookup_symtab(scope, nd.value, self.evaluator.builtins_module);
+            bmod = self.evaluator.builtins_module;
+            if scope is not None and bmod is not None {
+                sym = lookup_symtab(scope, nd.value, bmod);
             }
         }
         if sym is None {
@@ -2117,12 +2129,12 @@ obj CtEvaluator {
                 }
                 raise CtError(f"{base.name} has no member '{name}'");
             }
-            m = self._find_method(self._class_type_of(base), name);
-            if m is not None {
-                if m.is_static {
-                    return self._func_of(m);
+            meth = self._find_method(self._class_type_of(base), name);
+            if meth is not None {
+                if meth.is_static {
+                    return self._func_of(meth);
                 }
-                return CtBound(self_val=base, ability=m);
+                return CtBound(self_val=base, ability=meth);
             }
             if base.module == "builtins"
                 and base.name in CT_PY_TYPES

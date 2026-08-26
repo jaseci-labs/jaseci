@@ -77,14 +77,14 @@ class ComptimeResolvePass(TypeCheckPass) {
     def init(self: ComptimeResolvePass, prog: JacProgram, **kwargs: any) {
         self._keep = set();
         self._armed = False;
-        TypeCheckPass.__init__(self, prog, **kwargs);
+        super.init(prog, **kwargs);
     }
 
     override def before_pass(self: ComptimeResolvePass) {
         self._keep = comptime_reach(self.ir_in);
         self._armed = bool(self._keep) and not self.ir_in.ct_resolved;
         if self._armed {
-            TypeCheckPass.before_pass(self);
+            super.before_pass();
         }
     }
 
@@ -104,13 +104,13 @@ class ComptimeResolvePass(TypeCheckPass) {
             self.prune();
             return;
         }
-        TypeCheckPass.enter_node(self, nd);
+        super.enter_node(nd);
     }
 
     override def exit_node(self: ComptimeResolvePass, nd: UniNode) -> None {
         if not self._armed or id(nd) not in self._keep {
             return;
         }
-        TypeCheckPass.exit_node(self, nd);
+        super.exit_node(nd);
     }
 }

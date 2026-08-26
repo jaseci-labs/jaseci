@@ -256,11 +256,42 @@ impl NaIRGenGenerics._ct_fold(nd: (uni.UniNode | None)) -> (ir.Value | None) {
     if isinstance(par, uni.AtomTrailer) and (par.target is nd or par.right is nd) {
         return None;
     }
+    if not self._ct_origin(nd) {
+        return None;
+    }
     (ok, v) = self._ct_value_with_bindings(nd);
     if not ok {
         return None;
     }
     return self._ct_native_const(v, nd);
+}
+
+impl NaIRGenGenerics._ct_origin(nd: uni.Expr) -> bool {
+    if isinstance(nd, uni.FuncCall) {
+        return nd.callee_decl is not None and nd.callee_decl.is_comptime;
+    }
+    if not isinstance(nd, uni.Name) {
+        return False;
+    }
+    if nd.sym_name in self._ct_bindings {
+        return True;
+    }
+    sym = nd.sym;
+    if sym is None {
+        return False;
+    }
+    decl = sym.decl;
+    owner = decl.parent if isinstance(decl, uni.Name) else None;
+    if isinstance(owner, uni.ParamVar) {
+        return owner.is_comptime;
+    }
+    if isinstance(owner, uni.Assignment) {
+        return owner.is_comptime;
+    }
+    if isinstance(owner, uni.InForStmt) {
+        return owner.is_comptime;
+    }
+    return False;
 }
 
 impl NaIRGenGenerics._ability_has_ct_params(ability: uni.Ability) -> bool {

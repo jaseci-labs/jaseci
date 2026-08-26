@@ -2891,8 +2891,12 @@ impl JcirGenPass.exit_cast_expr(nd: CastExpr) -> None {
 
 impl JcirGenPass.exit_assignment(nd: Assignment) -> None {
     value: (CgNode | None) = None;
-    if nd.value and nd.is_comptime and self._ct_concrete(nd.value) {
-        value = self._materialize(nd.value.ct_value.v, nd.value);
+    init_cv = nd.value.ct_value if nd.value else None;
+    if nd.value
+        and nd.is_comptime
+        and init_cv is not None
+        and self._ct_concrete(nd.value) {
+        value = self._materialize(init_cv.v, nd.value);
         if value is None {
             value = self.val(nd.value);
         }
@@ -4017,12 +4021,14 @@ impl JcirGenPass._final_hop_types(nd: EdgeRefTrailer) -> tuple[str, str] {
 
 
 impl JcirGenPass.exit_func_call(nd: FuncCall) -> None {
+    call_cv = nd.ct_value;
     if (
         nd.callee_decl is not None
         and nd.callee_decl.is_comptime
+        and call_cv is not None
         and self._ct_concrete(nd)
     ) {
-        folded = self._materialize(nd.ct_value.v, nd);
+        folded = self._materialize(call_cv.v, nd);
         if folded is not None {
             self.set_out(nd, [folded]);
             return;
@@ -4909,8 +4915,9 @@ impl JcirGenPass.exit_name(nd: Name) -> None {
             return;
         }
     }
-    if self._ct_concrete(nd) and nd.expr_ctx == ExprCtx.LOAD {
-        cv = nd.ct_value.v;
+    name_cv = nd.ct_value;
+    if name_cv is not None and self._ct_concrete(nd) and nd.expr_ctx == ExprCtx.LOAD {
+        cv = name_cv.v;
         if self._is_comptime_only_name(nd)
             or self._ct_kind(cv) in ("scalar", "CtEnumMember") {
             folded = self._materialize(cv, nd);

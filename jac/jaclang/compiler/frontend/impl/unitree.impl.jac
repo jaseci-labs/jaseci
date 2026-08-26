@@ -4,6 +4,7 @@ impl UniNode.postinit -> None {
     self.__sub_node_tab = None;
     self._in_mod_nodes = [];
     self._gen = None;
+    self.ct_pruned = False;
     (first_tok, last_tok) = self.resolve_tok_range();
     self.loc = CodeLocInfo(first_tok, last_tok);
 }

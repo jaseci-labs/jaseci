@@ -31,7 +31,7 @@ obj UniNode {
         _in_mod_nodes: list[UniNode] postinit,
         _gen: (CodeGenTarget | None) postinit,
         loc: CodeLocInfo postinit,
-        ct_pruned: bool = False;
+        ct_pruned: bool postinit;
 
     def postinit -> None;
     def accept_enter(v: UniPass) -> None;

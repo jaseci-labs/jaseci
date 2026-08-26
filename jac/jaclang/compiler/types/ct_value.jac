@@ -86,7 +86,7 @@ obj CtRecord {
         home: str = "";
 
     def __getattr__(name: str) -> any {
-        flds = object.__getattribute__(self, "fields");
+        flds: dict[str, any] = object.__getattribute__(self, "fields");
         if name in flds {
             return flds[name];
         }
