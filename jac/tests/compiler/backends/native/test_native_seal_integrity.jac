@@ -26,8 +26,8 @@ These tests pin the build-time gate that closes that hole:
 6. `JAC_NA_DEBUG=1` explains the demotion behind the refusal.
 
 Assertions on the seal's own diagnostic go through `_seal_diag`, which slices
-stderr from the first `NATIVE SEAL:` marker. The pre-existing
-`warning: native seam -- demoting ...` line is printed by the codegen pass
+the captured output from the first `NATIVE SEAL:` marker. The pre-existing
+`native seam -- demoting ...` warning is printed by the codegen pass
 before the seal ever runs and already names the method and `eval`, so asserting
 against the raw stderr buffer would pass without this gate existing at all.
 """
@@ -57,7 +57,10 @@ glob FIXTURES = Path(TESTS_DIR) / "compiler" / "backends" / "native" / "fixtures
 
 """Seal one fixture into a fresh temp tree.
 
-Returns (artifact_entry, captured_stderr, tmpdir).
+Returns (artifact_entry, everything the seal said, tmpdir). Both streams are
+captured into one buffer: the seal's phase reporting is progress and goes to
+stdout, while its refusals and warnings are diagnostics and go to stderr, and
+a test that asks "what did the seal say" wants both in the order they landed.
 """
 def _seal(rel: str, waivers: (dict | None) = None, na_debug: bool = False) -> tuple {
     tmp = tempfile.mkdtemp(prefix="jac_seal_integrity_");
@@ -67,7 +70,7 @@ def _seal(rel: str, waivers: (dict | None) = None, na_debug: bool = False) -> tu
     }
     buf = io.StringIO();
     try {
-        with contextlib.redirect_stderr(buf) {
+        with contextlib.redirect_stderr(buf), contextlib.redirect_stdout(buf) {
             arts = seal_one_root(FIXTURES, Path(tmp), rel, waivers=waivers);
         }
     } finally {
@@ -80,8 +83,9 @@ def _seal(rel: str, waivers: (dict | None) = None, na_debug: bool = False) -> tu
 }
 
 
-"""stderr from the first `NATIVE SEAL:` marker on: the seal's own diagnostics,
-with the codegen pass's pre-existing seam warning excluded."""
+"""The captured output from the first `NATIVE SEAL:` marker on: the seal's own
+diagnostics, with the codegen pass's pre-existing seam warning and the phase
+reporting that precedes it excluded."""
 def _seal_diag(err: str) -> str {
     idx = err.find("NATIVE SEAL:");
     return err[idx:] if idx >= 0 else "";
