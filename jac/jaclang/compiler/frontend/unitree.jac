@@ -21,6 +21,7 @@ import from jaclang.compiler.frontend.constant { JacSemTokenType as SemTokType }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.frontend.constant { ParamKind }
 import type from jaclang.compiler.types.types { TypeBase }
+import type from jaclang.compiler.types.ct_value { CtValue }
 
 
 obj UniNode {
@@ -29,7 +30,8 @@ obj UniNode {
         __sub_node_tab: (dict[(type, list[UniNode])] | None) postinit,
         _in_mod_nodes: list[UniNode] postinit,
         _gen: (CodeGenTarget | None) postinit,
-        loc: CodeLocInfo postinit;
+        loc: CodeLocInfo postinit,
+        ct_pruned: bool = False;
 
     def postinit -> None;
     def accept_enter(v: UniPass) -> None;
@@ -264,6 +266,7 @@ obj Expr(UniNode) {
     has _type_sym_tab: (UniScopeNode | None) postinit,
         type: (TypeBase | None) postinit,
         narrowed_type: (TypeBase | None) postinit,
+        ct_value: (CtValue | None) postinit,
         coerce_to: (str | None) postinit,
         fw: (str | None) postinit,
         fw_safe: bool postinit,
@@ -410,7 +413,8 @@ obj TypeParam(AstSymbolNode, UniNode) {
 
     has name: Name,
         bound: (Expr | None),
-        default_val: (Expr | None);
+        default_val: (Expr | None),
+        is_comptime: bool = False;
 
     def postinit -> None;
 }
@@ -492,6 +496,7 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
         is_absorb: bool,
         is_typed: bool = False,
         clib_decls: (Sequence[UniNode] | None) = None,
+        is_comptime: bool = False,
         hint: (SubTag[Token] | None) postinit,
         absorbed_mod: (Module | None) postinit,
         jac_detected: (bool | None) postinit,
@@ -618,7 +623,8 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
         decorators: (Sequence[Expr] | None) = None,
         type_params: (Sequence[TypeParam] | None) = None,
         accessor_kind: str = "",
-        event_triggers: (list[TypeBase] | None) = None;
+        event_triggers: (list[TypeBase] | None) = None,
+        is_comptime: bool = False;
 
     def postinit -> None;
 
@@ -667,7 +673,8 @@ obj ParamVar(AstSymbolNode, AstTypedVarNode) {
     has name: Name,
         unpack: (Token | None),
         value: (Expr | None),
-        param_kind: ParamKind postinit;
+        param_kind: ParamKind postinit,
+        is_comptime: bool = False;
 
     def postinit -> None;
 
@@ -723,7 +730,9 @@ obj IfStmt(CodeBlockStmt, AstElseBodyNode, UniScopeNode) {
     def accept_enter(v: UniPass) -> None;
 
     has condition: Expr,
-        body: Sequence[CodeBlockStmt];
+        body: Sequence[CodeBlockStmt],
+        is_comptime: bool = False,
+        ct_taken: (bool | None) = None;
 
     def postinit -> None;
 }
@@ -812,7 +821,8 @@ obj InForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
 
     has target: Expr,
         collection: Expr,
-        body: Sequence[CodeBlockStmt];
+        body: Sequence[CodeBlockStmt],
+        is_comptime: bool = False;
 
     def postinit -> None;
 }
@@ -871,7 +881,8 @@ obj AssertStmt(CodeBlockStmt) {
     def accept_enter(v: UniPass) -> None;
 
     has condition: Expr,
-        error_msg: (Expr | None);
+        error_msg: (Expr | None),
+        is_comptime: bool = False;
 
     def postinit -> None;
 }
@@ -958,7 +969,8 @@ obj Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt) {
         aug_op: (Token | None) = None,
         na_move_lowerable: bool = False,
         na_overwrite_consumed: bool = False,
-        na_flow_reduce: str = "";
+        na_flow_reduce: str = "",
+        is_comptime: bool = False;
 
     def postinit -> None;
 }
