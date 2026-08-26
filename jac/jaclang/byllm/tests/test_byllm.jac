@@ -768,7 +768,7 @@ test "builtin llm compiles without glob" {
 
 import from pathlib { Path }
 import from jaclang.byllm.config_loader { get_byllm_config, reset_byllm_config }
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.runtime { JacRuntime }
 
 glob GEMINI_FIXTURE = os.path.join(FIXTURE_DIR, "jac_toml_gemini");
 
@@ -2012,7 +2012,7 @@ test "model_call_http_async returns json response" {
 }
 
 import ast as ast3;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 test "async by llm() codegen emits await Jac.acall_llm not call_llm" {
     # Compile the fixture that has both an async and a sync by llm() function.
@@ -2095,9 +2095,9 @@ test "async by llm() end-to-end with mocked acall_llm" {
         async def _fake_acall_llm(**kwargs: object) -> any {
             return "summary";
         }
-        # acall_llm is imported directly from jaclang.jac0core.jaclib into the
+        # acall_llm is imported directly from jaclang.lib.jaclib into the
         # compiled module's namespace, so we patch it there.
-        import jaclang.jac0core.jaclib as _jaclib;
+        import jaclang.lib.jaclib as _jaclib;
         with unittest.mock.patch.object(_jaclib, "acall_llm", _fake_acall_llm) {
             exec(compiled, module.__dict__);
             result = await module.__dict__["get_summary"](text="hello world");

@@ -37,17 +37,17 @@ import from tests.compiler.fixtures.prefix_reference {
     lying_prefix_entry,
     reference_prefix_entry
 }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { get_ir_gen_sched, get_symtab_ir_sched }
-import from jaclang.jac0core.native_brands {
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.schedules { get_ir_gen_sched, get_symtab_ir_sched }
+import from jaclang.compiler.driver.native_brands {
     DRIVER_ORIGIN,
     ensure_native_brands_bound,
     native_brand_origin,
     native_brand_origins,
     native_brands_bound
 }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.prefix_flip {
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.placement.prefix_flip {
     PREFIX_CLAUSES,
     PREFIX_IR_GEN,
     PREFIX_IR_GEN_NO_CGEN,
@@ -133,8 +133,8 @@ test "the claimed prefix is exactly the schedule's head" {
 }
 
 test "the claimed prefix stops at the first unsealed pass" {
-    import from jaclang.utils.precompile_bytecode { NATIVE_SEAL_ROOTS }
-    sealed_mods = set(NATIVE_SEAL_ROOTS);
+    import from jaclang.dist.precompile_bytecode { NATIVE_SEAL_SERVED_MODULES }
+    sealed_mods = set(NATIVE_SEAL_SERVED_MODULES);
     cgen = get_ir_gen_sched(gen_mtir=True);
     nxt = cgen[len(PREFIX_IR_GEN)];
     assert nxt.__name__ == "MTIRGenPass" , (
@@ -219,7 +219,7 @@ test "a late consumer cannot become the brand-binding origin" {
         "overwrote the origin. The origin records who got there FIRST, and so "
         "who would do the binding, never who asked last."
     );
-    import jaclang.jac0core.parser.frontend as _fe;
+    import jaclang.compiler.frontend.parser.frontend as _fe;
     assert len(_fe._NATIVE_PARSE_MEMO) <= 1 , (
         f"the raw binder cached {len(_fe._NATIVE_PARSE_MEMO)} results; brands "
         "register at most once per process"
@@ -263,7 +263,7 @@ the binder at all. This test pins that ordering: the flip's central claim is
 that a declining compile is indistinguishable from one with no flip in the
 tree, and a binder called at a new time breaks it."""
 test "declining the prefix does not force the native parser binding" {
-    import jaclang.jac0core.parser.frontend as _fe;
+    import jaclang.compiler.frontend.parser.frontend as _fe;
     _reset();
     if _fe?.parse_and_run_prefix is not None {
         testskip("the crossing exists; this pins the entry-absent path");
@@ -583,8 +583,8 @@ test "a codespace-pinned module declines instead of crossing" {
             str(JAC_ROOT),
             "tests",
             "compiler",
-            "passes",
-            "ecmascript",
+            "backends",
+            "es",
             "fixtures",
             "advanced_language_features.jac"
         );
@@ -752,10 +752,10 @@ This is the cheap check that names it up front. `SemDefMatchPass` and
 converting them is what admitting seats five and six costs.
 """
 test "every seat the frontier executes is a class archetype" {
-    import from jaclang.jac0core.parser.lexer { tokenize_full }
-    import from jaclang.jac0core.parser.parser { Parser }
-    import from jaclang.jac0core.passes.prefix_drive { PREFIX_NATIVE_FRONTIER }
-    import jaclang.jac0core.unitree as uni;
+    import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+    import from jaclang.compiler.frontend.parser.parser { Parser }
+    import from jaclang.compiler.passes.prefix_drive { PREFIX_NATIVE_FRONTIER }
+    import jaclang.compiler.frontend.unitree as uni;
     import sys;
 
     pool: dict[str, any] = {};

@@ -120,7 +120,7 @@ test "middleware passes through when not draining and tracks inflight=0 after" {
     called: dict[str, int] = {"n": 0};
 
     async def next_handler(req: object) -> object {
-        import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+        import from jaclang.server.serving.datatypes { JSONResponse }
         called["n"] += 1;
         return JSONResponse(status_code=200, content={"ok": True});
     }
@@ -165,7 +165,7 @@ test "middleware accounts inflight across concurrent in-flight requests" {
     observed: list[int] = [];
 
     async def next_handler(req: object) -> object {
-        import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+        import from jaclang.server.serving.datatypes { JSONResponse }
         observed.append(inflight());
         return JSONResponse(status_code=200, content={"ok": True});
     }
