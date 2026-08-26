@@ -457,8 +457,6 @@ impl _run_harness(
         staged: dict[str, str] = {};
 
         if ("@jac/runtime" in imports) or ("@jac/runtime" in dep_imports) {
-            # Codegen injects @jac/runtime imports; remap them to the staged
-            # runtime instead of prepending consumer-side globals.
             module_js = _point_at_staged_runtime(module_js);
             for dep_name in list(dep_files.keys()) {
                 dep_files[dep_name] = _point_at_staged_runtime(dep_files[dep_name]);
@@ -472,8 +470,7 @@ impl _run_harness(
                 runtime_js = runtime_js.replace(
                     core_match.group(1), "./client_runtime_core.js"
                 );
-                # The injected imports reach client_runtime_core too, so the
-                # staged core must point at the staged runtime as well.
+
                 staged["client_runtime_core.js"] = _point_at_staged_runtime(
                     _compile_runtime_core_js()
                 );
