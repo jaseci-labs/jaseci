@@ -1249,6 +1249,8 @@ class ArgumentAttributes(AttributeSet) {
         );
     }
 
+    has type: types.Type | None = None;
+
     def init(self: ArgumentAttributes, args: any = ()) -> object {
         self._align = 0;
         self._dereferenceable = 0;
