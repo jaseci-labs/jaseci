@@ -25,12 +25,16 @@ impl seal(
     out.mkdir(parents=True, exist_ok=True);
     ir_out = str(out / "unit.ll") if ir else None;
 
+    import from jaclang.dist.precompile_bytecode { SealProgress }
+    say = SealProgress();
+
     if compiler {
         import jaclang;
         import from jaclang.dist.precompile_bytecode { seal_native_artifacts }
         pkg = Path(str(jaclang.__file__)).parent;
-        console.print(f"Sealing the served compiler surface from {pkg}");
-        record = seal_native_artifacts(pkg, out, ir_out=ir_out);
+        console.print_header("jac seal -- the served compiler surface");
+        say.facts([("source", str(pkg)), ("output", str(out))]);
+        record = seal_native_artifacts(pkg, out, ir_out=ir_out, progress=say);
         if record is None {
             console.error("seal: refused; the gate's diagnostics are above.");
             return 1;
@@ -40,14 +44,19 @@ impl seal(
             json.dumps(record, indent=1, sort_keys=True) + "\n", encoding="utf-8"
         );
         artifact = record.get("artifact") or {};
-        console.print(
-            f"Sealed {len(record.get('modules') or [])} served module(s) -> "
-            f"{out / str(artifact.get('lib') or '')}"
+        modules = record.get("modules") or [];
+        lib_path = out / str(artifact.get("lib") or "");
+        console.success(f"Sealed {len(modules)} served module(s) in {say.elapsed()}");
+        say.facts(
+            [
+                ("artifact", f"{lib_path}"),
+                ("layout", f"{out / str(artifact.get('layout') or '')}"),
+                ("triple", str(artifact.get("triple") or "")),
+                ("record", f"{record_path}")
+            ]
+                + ([("ir", str(ir_out))] if ir_out else [])
         );
-        console.print(f"Record: {record_path}");
-        if ir_out {
-            console.print(f"IR: {ir_out}");
-        }
+        console.print_list(modules, style="muted", symbol="·");
         return 0;
     }
 
@@ -57,7 +66,11 @@ impl seal(
         return 1;
     }
     import from jaclang.dist.precompile_bytecode { seal_one_root }
-    artifact_entry = seal_one_root(src.parent, out, src.name, ir_out=ir_out);
+    console.print_header(f"jac seal -- {src.name}");
+    say.facts([("source", str(src)), ("output", str(out))]);
+    artifact_entry = seal_one_root(
+        src.parent, out, src.name, ir_out=ir_out, progress=say
+    );
     if artifact_entry is None {
         console.error(
             "seal: refused; the gate's diagnostics are above. Every demotion "
@@ -66,10 +79,14 @@ impl seal(
         );
         return 1;
     }
-    console.print(f"Sealed -> {out / str(artifact_entry['lib'])}");
-    console.print(f"Layout -> {out / str(artifact_entry['layout'])}");
-    if ir_out {
-        console.print(f"IR: {ir_out}");
-    }
+    console.success(f"Sealed {src.name} in {say.elapsed()}");
+    say.facts(
+        [
+            ("artifact", f"{out / str(artifact_entry['lib'])}"),
+            ("layout", f"{out / str(artifact_entry['layout'])}"),
+            ("triple", str(artifact_entry["triple"]))
+        ]
+            + ([("ir", str(ir_out))] if ir_out else [])
+    );
     return 0;
 }
