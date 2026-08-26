@@ -76,6 +76,42 @@ impl JacCompiler._resolve_program(
     return target_program;
 }
 
+impl JacCompiler._sealed_native_engine_for(full_target: str) -> (object | None) {
+    """Bind (and keep alive) the DylibEngine for a sealed per-module native
+    artifact. Returns None when no image carries an artifact for the module
+    or binding fails -- the caller then keeps the bytecode tier.""";
+    if (self._sealed_native_engines is None) {
+        self._sealed_native_engines = {};
+    }
+    cached = self._sealed_native_engines.get(full_target);
+    if (cached is not None) {
+        return cached;
+    }
+    import from jaclang.jac0core.sealed { native_artifact_for_path }
+    try {
+        found = native_artifact_for_path(full_target);
+    } except Exception {
+        found = None;
+    }
+    if (found is None) {
+        return None;
+    }
+    (lib_path, _layout_dict) = found;
+    import from jaclang.jac0core.native_dylib { DylibEngine }
+    try {
+        engine = DylibEngine(lib_path);
+        engine.initialize();
+    } except Exception {
+        return None;
+    }
+    self._sealed_native_engines[full_target] = engine;
+    if os.environ.get("JAC_SEAL_NATIVE_TRACE") {
+        sys.stderr.write(f"[jac-native-tier] {full_target} bound from {lib_path}\n");
+        sys.stderr.flush();
+    }
+    return engine;
+}
+
 impl JacCompiler.get_native_interop_setup(
     full_target: str, target_program: JacProgram
 ) -> tuple[((object | None), (dict[(str, object)] | None))] {
@@ -84,13 +120,22 @@ impl JacCompiler.get_native_interop_setup(
         gen = actual_program._native_cache[full_target];
         return (gen.native_engine, gen.interop_py_funcs);
     }
+    hub_funcs: (dict[(str, object)] | None) = None;
     if (full_target in actual_program.mod.hub) {
         mod = actual_program.mod.hub[full_target];
-        native_engine = mod.gen.native_engine;
-        interop_py_funcs = mod.gen.interop_py_funcs;
-        return (native_engine, interop_py_funcs);
+        if (mod.gen.native_engine is not None) {
+            return (mod.gen.native_engine, mod.gen.interop_py_funcs);
+        }
+        # A freshly compiled/restored entry often carries an empty-but-live
+        # interop dict and no engine; keep the dict but still try the sealed
+        # per-module native tier below.
+        hub_funcs = mod.gen.interop_py_funcs;
     }
-    return (None, None);
+    sealed_engine = self._sealed_native_engine_for(full_target);
+    if (sealed_engine is not None) {
+        return (sealed_engine, hub_funcs);
+    }
+    return (None, hub_funcs);
 }
 
 impl JacCompiler.get_native_layout(
