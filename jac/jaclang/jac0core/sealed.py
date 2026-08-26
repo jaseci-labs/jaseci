@@ -596,6 +596,31 @@ def native_artifact_for(fullname: str) -> tuple[str, dict] | None:
     return None
 
 
+def native_artifact_for_path(file_path: str) -> tuple[str, dict] | None:
+    """Sealed AOT native artifact for the module whose virtual origin is path.
+
+    Maps a spec origin (``<image>/<src_rel>``) back to its manifest entry and
+    resolves that module's artifact, so import-time callers that only know a
+    file path can still find the native tier. Returns None when no loaded
+    image carries an artifact for it; integrity problems raise (see
+    ``SealedImage.native_artifact``).
+    """
+    _jaclang_image()
+    norm = os.path.normpath(file_path)
+    for img in _images:
+        try:
+            rel = os.path.relpath(norm, img.pkg_dir).replace(os.sep, "/")
+        except ValueError:
+            continue
+        entry = (img.manifest.get("modules") or {}).get(rel)
+        if not entry:
+            continue
+        found = img.native_artifact(str(entry.get("module") or ""))
+        if found is not None:
+            return found
+    return None
+
+
 def native_artifact_names() -> list[str]:
     """Every module fullname any loaded image carries a native artifact for.
 

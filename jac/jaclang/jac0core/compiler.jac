@@ -1160,7 +1160,8 @@ obj JacCompiler {
     has _internal_program: (JacProgram | None) = None,
         _internal_bytecode_depth: int = 0,
         _reentrant_depth: int = 0,
-        _jaclang_root: (str | None) = None;
+        _jaclang_root: (str | None) = None,
+        _sealed_native_engines: (dict | None) = None;
 
     has internal_program: JacProgram { getter; }
 
@@ -1174,6 +1175,7 @@ obj JacCompiler {
 
     def _get_jaclang_root -> str;
     def _resolve_program(file_path: str, target_program: JacProgram) -> JacProgram;
+    def _sealed_native_engine_for(full_target: str) -> (object | None);
     def get_native_interop_setup(
         full_target: str, target_program: JacProgram
     ) -> tuple[((object | None), (dict[(str, object)] | None))];

@@ -3107,6 +3107,78 @@ def collect_payloads(pkg_path: Path) -> dict[str, str] {
     return payloads;
 }
 
+glob APP_NATIVE_SEAL_ENV: str = "JAC_SEAL_APP_NATIVE";
+
+def app_native_module_rels(pkg_path: Path) -> list[str] {
+    """Pkg-relative sources whose placement map decided them native.""";
+    placement = placement_facts_map(str(pkg_path));
+    return sorted(
+        rel
+        for (rel, spaces) in placement.items()
+        if spaces == ["native"]
+    );
+}
+
+def seal_app_native_modules(
+    pkg_path: Path, precompiled_dir: Path
+) -> (dict[str, any] | None) {
+    """Per-module AOT seal for an app image: Layer-3 native tiers.
+
+    For every module the placement map records as decided-native, build its
+    dylib through the same machinery jaclang's own image uses and embed the
+    artifacts in the manifest. Best-effort per module: one that does not
+    lower natively falls back to its bytecode tier instead of failing the
+    seal. Opt-in via JAC_SEAL_APP_NATIVE=1.
+    """;
+    if not os.environ.get(APP_NATIVE_SEAL_ENV) {
+        return None;
+    }
+    if sys.platform.startswith("win") {
+        return None;
+    }
+    native_rels = app_native_module_rels(pkg_path);
+    if not native_rels {
+        console.print("  App native seal: no placement-native modules");
+        return None;
+    }
+    console.print(f"  App native seal: {len(native_rels)} placement-native module(s)");
+    artifacts: dict[str, dict[str, any]] = {};
+    fallback: list[str] = [];
+    for rel in native_rels {
+        try {
+            arts = seal_native_roots(pkg_path, precompiled_dir, modules=(rel, ));
+        } except Exception as exc {
+            console.warning(
+                f"  App native seal: {rel} raised {type(exc).__name__}: {exc}; "
+                "its bytecode tier stays the execution tier."
+            );
+            arts = None;
+        }
+        if arts {
+            artifacts.update(arts);
+        } else {
+            fallback.append(rel);
+        }
+    }
+    if not artifacts and not fallback {
+        return None;
+    }
+    skip_reason = None;
+    if fallback {
+        skip_reason = "bytecode fallback: " + ", ".join(fallback);
+        console.warning(
+            f"  App native seal: {len(fallback)} module(s) did not lower "
+            f"({', '.join(fallback[:5])}); they keep their bytecode tier."
+        );
+    }
+    console.print(f"  App native seal: embedded {len(artifacts)} artifact(s)");
+    return {
+        "artifacts": artifacts,
+        "roots": sorted(artifacts.keys()),
+        "skip_reason": skip_reason
+    };
+}
+
 def seal_finalize(
     pkg_path: Path,
     precompiled_dir: Path,
@@ -3208,6 +3280,8 @@ def seal_finalize(
                 "skip_reason": None
             };
         }
+    } else {
+        native_seal = seal_app_native_modules(pkg_path, precompiled_dir);
     }
 
     manifest_modules: dict[str, dict[str, any]] = {};
