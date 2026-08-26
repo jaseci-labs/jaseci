@@ -578,24 +578,22 @@ assumed away.
   sha-incremental reuse a warm seal of an unchanged tree costs about
   2.2s in a fresh process, nearly all of it (about 2.08s) re-deriving
   the materializer root through `generate_materialize_root`, which is
-  the next thing worth caching. `seal_native_artifacts` builds
-  `libjac_jcir_gen_pass.so` with an eight-module closure
-  (`codegen_ir`, `constant`, `diagnostics`, `jcir_facts`, `srcloc`,
-  `unitree`, the `textwrap` shim, and the emitter), and the artifact
-  passes a load canary and a container crossing canary before it is
-  accepted. `test_jcir_seal_baseline.jac` pins the closure and the seam
-  set; the residual seams are waived by family in
+  the next thing worth caching. `seal_native_artifacts` builds the one
+  fused `libjac_compiler` library whose closure carries the emitter
+  (`codegen_ir`, `jcir_facts`, and the rest of the compiler closure),
+  and the artifact passes a load canary and a container crossing canary
+  before it is accepted. `test_jcir_seal_baseline.jac` pins the
+  emitter's clean members; the residual seams are waived by family in
   `NATIVE_SEAL_WAIVER_FAMILIES`, each naming what clears it, and
   `test_sealed_demotion_audit.jac` holds the whole seal to that,
-  refused roots included: withholding the artifact does not withhold
-  the accounting. `NATIVE_SEAL_REFUSED_ROOTS` is empty again, and the
-  mechanism stays for the next root that needs it.
+  refused modules included: withholding a module from the fused root
+  does not withhold the accounting (`NATIVE_SEAL_REFUSED_MODULES`).
 
   The sealed-versus-source byte comparison C2 could not run still
   cannot. This paragraph once said the pass-serving binder is the
   crossing, so that `JcirGenPass.ir_bytes()` executes inside the
   artifact once `native_artifact_for` reports it. The #8288 M1 crossing
-  measurement said otherwise: `_bind_one` opens, verifies and probes the
+  measurement said otherwise: the binder opens, verifies and probes the
   artifact and then retains the engine and **no function pointer**, and
   `_require_native_pass_tier` falls through to the pass's bytecode body.
   Both sides of that comparison are the source lane.

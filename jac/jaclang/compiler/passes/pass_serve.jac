@@ -14,17 +14,10 @@ def _serve_error(fullname: str, reason: str) -> RuntimeError {
     );
 }
 
-def _bind_one(fullname: str) {
-    import from jaclang.jac0core.sealed { native_artifact_for }
-    found = native_artifact_for(fullname);
-    if found is None {
-        raise _serve_error(fullname, "the manifest names it but no image resolves it");
-    }
-    (lib_path, layout_dict) = found;
-    import from jaclang.runtime.native_dylib { DylibEngine }
+def _bind_artifact(fullname: str, lib_path: str, layout_dict: dict) {
+    import from jaclang.runtime.native_dylib { shared_dylib_engine }
     try {
-        eng = DylibEngine(lib_path);
-        eng.initialize();
+        eng = shared_dylib_engine(lib_path);
     } except Exception as open_exc {
         raise _serve_error(
             fullname, f"dlopen/init failed ({type(open_exc).__name__}: {open_exc})"
@@ -65,18 +58,32 @@ def _bind_one(fullname: str) {
         );
     }
     _BIND_KEEP.append(eng);
-    _NATIVE_SERVED_PASSES.add(fullname);
 }
 
 def bind_sealed_pass_artifacts {
-    import from jaclang.jac0core.sealed { native_artifact_names }
-    for fullname in sorted(native_artifact_names()) {
-        if fullname in _NATIVE_SERVED_PASSES {
-            continue;
+    import from jaclang.jac0core.sealed { native_artifact_for, native_served_modules }
+    pending = [
+        fullname
+        for fullname in native_served_modules()
+        if fullname not in _NATIVE_SERVED_PASSES
+            and any(fullname.startswith(p) for p in _PASS_ARTIFACT_PREFIXES)
+    ];
+    if not pending {
+        return;
+    }
+    bound: set[str] = set();
+    for fullname in pending {
+        found = native_artifact_for(fullname);
+        if found is None {
+            raise _serve_error(
+                fullname, "the manifest names it but no image resolves it"
+            );
         }
-        if not any(fullname.startswith(p) for p in _PASS_ARTIFACT_PREFIXES) {
-            continue;
+        (lib_path, layout_dict) = found;
+        if lib_path not in bound {
+            _bind_artifact(fullname, lib_path, layout_dict);
+            bound.add(lib_path);
         }
-        _bind_one(fullname);
+        _NATIVE_SERVED_PASSES.add(fullname);
     }
 }

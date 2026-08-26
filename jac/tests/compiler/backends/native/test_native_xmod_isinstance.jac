@@ -20,7 +20,7 @@ import from tests.support { TESTS_DIR, compile_native, get_func, native_force_op
 
 import from jaclang.compiler.driver.program { JacProgram }
 
-import from jaclang.dist.precompile_bytecode { seal_native_artifacts }
+import from jaclang.dist.precompile_bytecode { seal_one_root }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "backends", "native", "fixtures"
@@ -72,21 +72,18 @@ test "objects built by the defining module carry the same vtable" {
 }
 
 test "a sealed artifact resolves the cross-module vtable symbol" {
-    # The vtable global is no longer `private`, so `seal_native_artifacts`'
-    # in-house linker now sees it in the symbol table. The seal's load canary
+    # The vtable global is no longer `private`, so the seal's in-house
+    # linker now sees it in the symbol table. The seal's load canary
     # dlopens the emitted library and calls into it, which is what proves the
     # reference resolved rather than merely assembling.
     tmp = tempfile.mkdtemp(prefix="jac_xmod_isinstance_seal_");
     buf = io.StringIO();
     try {
         with contextlib.redirect_stderr(buf) {
-            arts = seal_native_artifacts(
-                Path(FIXTURES), Path(tmp), modules=("xmod_isinstance_main.jac", )
-            );
+            arts = seal_one_root(Path(FIXTURES), Path(tmp), "xmod_isinstance_main.jac");
         }
         assert arts , f"the seal produced no artifact:\n{buf.getvalue()}";
-        rec = arts["fixtures.xmod_isinstance_main"];
-        lib = Path(tmp) / rec["lib"];
+        lib = Path(tmp) / arts["lib"];
         assert lib.is_file() , f"no shared library at {lib}";
         assert "canary" in buf.getvalue().lower() , (
             f"the seal accepted an artifact without running the canary:\n{buf.getvalue()}"
