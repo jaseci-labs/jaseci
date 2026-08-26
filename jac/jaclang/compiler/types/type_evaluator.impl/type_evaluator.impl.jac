@@ -3295,9 +3295,6 @@ impl TypeEvaluator._in_native_context -> bool {
 }
 
 impl TypeEvaluator.host_provides(node_: UniNode, cap: str) -> bool {
-    # host_provides_node walks to the parent Module and re-reads the project
-    # config on every call; memoize per (module, context, capability) since
-    # the answer is constant for a given node context within a compile.
     import from jaclang.jac0core.host { host_provides_node }
     mod = node_.find_parent_of_type(Module);
     key = (
@@ -4018,9 +4015,7 @@ impl TypeEvaluator._prefetch_types{
     self.prefetch.walker_class = get_jac_builtin_class("Walker");
     self.prefetch.path_class = get_jac_builtin_class("GraphQuery");
     self.prefetch.jsx_element_class = get_jac_builtin_class("JsxElement");
-    # Intrinsic-element prop classes live in dom_types.pyi; they are host-gated
-    # at name resolution, but the JSX checker needs them regardless of the
-    # compiling module's host.
+
     self.prefetch.html_common_props_class = as_class_type(
         self._get_type_from_module(self.dom_types_module, "_HtmlCommonProps")
     );

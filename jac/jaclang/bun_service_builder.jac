@@ -97,9 +97,6 @@ def _string_bundle_bun_artifact(out_dir: Path, module_name: str) -> str {
         return True;
     }
 
-    # jac_runtime.js defines `const _jac`; inline it FIRST so no later chunk
-    # can reference `_jac` before its definition. seen_jac keeps any other
-    # copy (cl stdlib deps) out of the bundle.
     seen_jac: dict[str, bool] = {'seen': False};
     jac_rt_path = out_dir / 'jac_runtime.js';
     if jac_rt_path.exists() {

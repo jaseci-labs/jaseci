@@ -3,9 +3,6 @@ import socket;
 import shutil;
 
 def pick_free_port(name: str, base: int = 18000, retries: int = 100) -> int {
-    # Spread ports with a stable sha1 digest, not Python's per-process-salted
-    # hash(): two processes must derive the same start port for the same
-    # service name.
     import hashlib;
     digest = int.from_bytes(hashlib.sha1(name.encode()).digest()[:4], 'big');
     start: int = base + (digest % 1000);

@@ -11,9 +11,6 @@ glob _registry: dict[str, str] = {},
      _registered_env_keys: set[str] = set();
 
 def sv_host_env_key(module_name: str) -> str {
-    # Lives here, not in jac0core.sv_service_host: ejected/vendored apps ship
-    # this module but strip jaclang.jac0core, so the env-var contract must not
-    # cross the deny boundary.
     return f"JAC_SV_{module_name.upper()}_HOST";
 }
 
