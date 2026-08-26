@@ -1,5 +1,5 @@
 # The jac single-binary launcher stub: a native Jac project over the fused
-# runtime library (jaclang/runtimelib/fused). Built by `zig build stub` via the
+# runtime library (jaclang/dist/fused). Built by `zig build stub` via the
 # in-checkout compiler (`jac build --as native`), then packed with the runtime
 # payload into the shipped `jac` binary.
 [project]

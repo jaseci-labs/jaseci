@@ -17,9 +17,9 @@ pattern in the pass tests -- becomes garbage-collectable.
 import gc;
 import os;
 import tempfile;
-import jaclang.compiler.type_system.type_evaluator as te;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.types.type_evaluator as te;
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURE_SRC: str = (
          "with entry {\n"

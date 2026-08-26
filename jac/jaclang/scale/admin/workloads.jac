@@ -1,4 +1,4 @@
-import from jaclang.runtimelib.transport { TransportResponse }
+import from jaclang.server.transport { TransportResponse }
 import from jaclang.scale.server.native_server { NativeJServer }
 
 obj JacAPIServerWorkloads {

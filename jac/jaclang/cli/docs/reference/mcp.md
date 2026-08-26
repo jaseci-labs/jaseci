@@ -555,7 +555,7 @@ Transpile Jac code to Python. Returns the generated Python source that the Jac c
 
 ```json
 {
-  "python_code": "from __future__ import annotations\nfrom jaclang.jac0core.jaclib import Obj\n\nclass Foo(Obj):\n    x: int = 5\n\ndef greet(name: str) -> str:\n    return f'Hello, {name}!'",
+  "python_code": "from __future__ import annotations\nfrom jaclang.lib.jaclib import Obj\n\nclass Foo(Obj):\n    x: int = 5\n\ndef greet(name: str) -> str:\n    return f'Hello, {name}!'",
   "warnings": []
 }
 ```
