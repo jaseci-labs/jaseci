@@ -1953,13 +1953,6 @@ def _decode_bytes_escapes(text: str, is_raw: bool) -> bytes {
     return bytes(out);
 }
 
-"""Whether a string literal's prefix marks it as a bytes literal.
-
-The `b` in the prefix is what `decode_string_literal` branches on, and it is
-a fact about the token text rather than about the decoded value. Reading it
-here lets a caller pick the concrete decoder instead of decoding first and
-asking the result what it turned out to be.
-"""
 def is_bytes_literal(text: str) -> bool {
     start = _lit_prefix_len(text);
     if (start < 0) {
@@ -1968,7 +1961,6 @@ def is_bytes_literal(text: str) -> bool {
     return 'b' in text[:start].lower();
 }
 
-"""Decode a bytes literal's body. Callers gate on `is_bytes_literal` first."""
 def decode_bytes_literal(text: str) -> bytes {
     start = _lit_prefix_len(text);
     if (start < 0) {
@@ -1979,7 +1971,6 @@ def decode_bytes_literal(text: str) -> bytes {
     return _decode_bytes_escapes(body, 'r' in text[:start].lower());
 }
 
-"""Decode a text literal's body. Callers gate on `is_bytes_literal` first."""
 def decode_text_literal(text: str) -> str {
     start = _lit_prefix_len(text);
     if (start < 0) {

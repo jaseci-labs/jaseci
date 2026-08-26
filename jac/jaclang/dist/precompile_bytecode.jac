@@ -460,7 +460,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/frontend/unitree.jac::Import.__jac_detected.__get__",
          "compiler/frontend/unitree.jac::Import.is_service_import.__get__",
          "compiler/frontend/unitree.jac::Ellipsis.lit_value.__get__",
-         "compiler/frontend/unitree.jac::MultiString.lit_value.__get__",
 
      ),
      _TYPE_UTILS_SEAM_WAIVERS: tuple[str, ...] = (
@@ -549,10 +548,13 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "and a native value for `Ellipsis`. `UniNode.gen.__get__` sat "
              "here until `codeinfo` joined the closure; with the module in "
              "the unit the lazy `CodeGenTarget` construction lowers and the "
-             "waiver is gone. `MultiString.lit_value` asks `isinstance(part, "
-             "bytes)` of a `str | bytes` value: the two share the string tag, "
-             "so no native discriminator exists yet (the old lowering answered "
-             "False for every bytes); it clears when bytes gets its own tag."
+             "waiver is gone. `MultiString.lit_value` asked `isinstance(part, "
+             "bytes)` of a `str | bytes` value, which the two sharing the "
+             "string tag cannot answer (the old lowering said False for every "
+             "bytes). Whether a literal is bytes is a fact about its prefix "
+             "rather than about the decoded value, so the getter reads the "
+             "prefix through `is_bytes_literal` and each arm decodes to a "
+             "concrete type; that waiver is gone too."
          ),
          (
              "type utils erased operands and unreachable layouts",

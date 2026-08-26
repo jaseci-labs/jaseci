@@ -328,44 +328,83 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _clib_alloc_vtable(name: str) -> ir.Value abst;
     def _ability_fn_type(nd: uni.Ability) -> FunctionType abst;
     def _annotation_type_of(type_expr: (uni.UniNode | None)) -> (any | None) abst;
-    def _binop_typed(op: str, left: ir.Value, right: ir.Value, lty: any, rty: any, resolved: any = None) -> (ir.Value | None) abst;
+    def _binop_typed(
+        op: str,
+        left: ir.Value,
+        right: ir.Value,
+        lty: any,
+        rty: any,
+        resolved: any = None
+    ) -> (ir.Value | None) abst;
+
     def _builtin_call_is(call: (uni.UniNode | None), name: str) -> bool abst;
     def _callee_name_of(call: (uni.UniNode | None)) -> (str | None) abst;
-    def _cmp_typed(op: str, left: ir.Value, right: ir.Value, is_float: bool, lty: any, rty: any) -> (ir.Value | None) abst;
-    def _coerce_typed(val: ir.Value, target_type: ir.Type, src_ty: any) -> ir.Value abst;
+    def _cmp_typed(
+        op: str, left: ir.Value, right: ir.Value, is_float: bool, lty: any, rty: any
+    ) -> (ir.Value | None) abst;
+
+    def _coerce_typed(
+        val: ir.Value, target_type: ir.Type, src_ty: any
+    ) -> ir.Value abst;
+
     def _dict_spec_for_expr(expr: (uni.UniNode | None)) -> (str | None) abst;
     def _dict_spec_for_type(t: any) -> (str | None) abst;
     def _elem_slot_llvm(t: any) -> (ir.Type | None) abst;
     def _emit_binary_file_helpers -> None abst;
     def _emit_bytes_repr(bv: ir.Value) -> ir.Value abst;
     def _emit_str_concat(left: ir.Value, right: ir.Value) -> ir.Value abst;
-    def _emit_unlowerable_type(type_expr: uni.UniNode, tb: any, declaration: bool = False) -> ir.Type abst;
+    def _emit_unlowerable_type(
+        type_expr: uni.UniNode, tb: any, declaration: bool = False
+    ) -> ir.Type abst;
+
     def _enum_ctor_layout(enum_name: str) -> (any | None) abst;
     def _enum_member_const(t: any) -> (ir.Constant | None) abst;
     def _enum_value_is_text(t: any) -> bool abst;
     def _enum_value_kind(ty: any) -> str abst;
     def _expr_struct_parts(expr: (uni.UniNode | None)) -> (list[str] | None) abst;
     def _expr_type_of(expr: (uni.UniNode | None)) -> any abst;
-    def _for_target_slot_llvm(target: (uni.UniNode | None), storage: ir.Type) -> ir.Type abst;
+    def _for_target_slot_llvm(
+        target: (uni.UniNode | None), storage: ir.Type
+    ) -> ir.Type abst;
+
     def _generator_elem_type(nd: uni.Ability) -> (ir.Type | None) abst;
     def _is_jacval_ty(t: ir.Type) -> bool abst;
     def _jacval_none -> ir.Value abst;
-    def _list_elem_ready(val: ir.Value, expr: (uni.UniNode | None), spec: str, elem_llvm: ir.Type, loc: str) -> tuple abst;
+    def _list_elem_ready(
+        val: ir.Value,
+        expr: (uni.UniNode | None),
+        spec: str,
+        elem_llvm: ir.Type,
+        loc: str
+    ) -> tuple abst;
+
     def _list_spec_for_elem_llvm(elem_llvm: ir.Type) -> str abst;
     def _list_spec_for_expr(expr: (uni.UniNode | None)) -> (str | None) abst;
     def _list_spec_for_type(t: any) -> (str | None) abst;
     def _lower_function_type_raw(t: any) -> ir.Type abst;
     def _lower_list_for_elem(elem_llvm: ir.Type) -> ir.Type abst;
-    def _lower_sig_param(nd: uni.Ability, p: any, pv: (uni.ParamVar | None)) -> ir.Type abst;
+    def _lower_sig_param(
+        nd: uni.Ability, p: any, pv: (uni.ParamVar | None)
+    ) -> ir.Type abst;
+
     def _lower_sig_return(nd: uni.Ability, fn_t: FunctionType) -> ir.Type abst;
     def _make_dict_iter(dict_val: ir.Value, dict_key: str) -> ir.Value abst;
     def _member_return_type(owner_ty: any, name: str) -> any abst;
-    def _method_call_is(call: (uni.UniNode | None), name: str, owner_kinds: tuple) -> bool abst;
-    def _module_member_is(expr: (uni.UniNode | None), module: str, member: str) -> bool abst;
+    def _method_call_is(
+        call: (uni.UniNode | None), name: str, owner_kinds: tuple
+    ) -> bool abst;
+
+    def _module_member_is(
+        expr: (uni.UniNode | None), module: str, member: str
+    ) -> bool abst;
+
     def _own_method_slots(lay: ArchetypeLayout) -> list abst;
     def _own_path -> str abst;
     def _receiver_arch_name(expr: (uni.UniNode | None)) -> (str | None) abst;
-    def _register_dep_module_layouts(imported_mod: uni.Module, _ordered: list) -> None abst;
+    def _register_dep_module_layouts(
+        imported_mod: uni.Module, _ordered: list
+    ) -> None abst;
+
     def _register_dep_module_struct_names(imported_mod: uni.Module) -> list abst;
     def _registry -> any abst;
     def _repr_obj_fn(arch_name: str) -> ir.Function abst;
