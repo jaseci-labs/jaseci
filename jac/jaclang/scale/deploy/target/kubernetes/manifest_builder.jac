@@ -1107,11 +1107,12 @@ obj ManifestBuilder {
 
     def _build_startup_probe -> dict[str, any] {
         cfg = self.k8s_config;
+        period = cfg.startup_probe_period;
         return {
             "httpGet": {"path": "/healthz/live", "port": cfg.container_port},
-            "periodSeconds": 10,
+            "periodSeconds": period,
             "timeoutSeconds": 3,
-            "failureThreshold": 90
+            "failureThreshold": 900 // period
         };
     }
 
@@ -1626,10 +1627,32 @@ obj ManifestBuilder {
         }
         spec["initContainers"].append(
             build_bootstrap_init_container(
-                self.k8s_config, self.k8s_config.python_image
+                self.k8s_config,
+                self.k8s_config.python_image,
+                resolved_specs=self._resolved_python_specs()
             )
         );
         return spec;
+    }
+
+    def _resolved_python_specs -> list[str] | None {
+        if not self.project_dir {
+            return None;
+        }
+        import from pathlib { Path }
+        import from jaclang.project.config { JacConfig }
+        import from jaclang.project.providers { get_python_provider, resolve_plan }
+        jac_toml = Path(self.project_dir) / "jac.toml";
+        if not jac_toml.exists() {
+            return None;
+        }
+        try {
+            app_config = JacConfig.load(jac_toml);
+            python_deps = resolve_plan(app_config).for_ecosystem("python");
+            return get_python_provider().specs_for(python_deps);
+        } except Exception {
+            return None;
+        }
     }
 
     def _build_service_pod_spec(svc_name: str, image: str) -> dict[str, any] {
