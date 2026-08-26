@@ -154,7 +154,7 @@ class Module(object) {
         An iterable of global values in this module.
         """
     @property
-    def global_values(self: Module) -> object {
+    def global_values(self: Module) -> Iterable[values.GlobalValue] {
         return self.globals.values();
     }
 

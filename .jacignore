@@ -19,8 +19,6 @@
 # py2jac translation under passes/native/llvm/, whose ctypes-derived
 # values the checker sees as Unknown. Not annotatable without typing that
 # vendored surface.
-jac/jaclang/compiler/backends/native/na_ir_gen/builtins.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/builtins.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/calls.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/calls.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/core.impl.jac

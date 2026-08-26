@@ -166,7 +166,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         str_wrap_fn: (ir.Function | None) = None,
         str_wrap_raw_fn: (ir.Function | None) = None,
         str_unwrap_fn: (ir.Function | None) = None,
-        _str_desc_ty: object = None,
+        _str_desc_ty: (ir.Type | None) = None,
         rc_roots_buf_gv: object = None,
         rc_roots_cap_gv: object = None,
         rc_roots_count_gv: object = None,
