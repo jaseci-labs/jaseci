@@ -3778,6 +3778,20 @@ impl EsastGenPass.exit_ctrl_stmt(nd: uni.CtrlStmt) -> None {
     stmt: (es.BreakStatement | es.ContinueStatement | es.ReturnStatement);
     if (nd.ctrl.name == Tok.KW_BREAK) {
         stmt = self.sync_loc(es.BreakStatement(), jac_node=nd);
+        if (self._loop_label_stack) {
+            label = self._loop_label_stack[-1];
+            if label != '' {
+                stmt = self.sync_loc(
+                    es.BreakStatement(
+                        label=self.sync_loc(
+                            es.Identifier(name=label), jac_node=nd
+                        )
+                    ),
+                    jac_node=nd
+                );
+                self._used_loop_labels.add(label);
+            }
+        }
     } elif (nd.ctrl.name == Tok.KW_SKIP) {
         stmt = self.sync_loc(es.ReturnStatement(argument=None), jac_node=nd);
     } else {
@@ -4187,6 +4201,57 @@ impl EsastGenPass._view_loop_stmt(
     return self.sync_loc(es.ExpressionStatement(expression=iife), jac_node=nd);
 }
 
+"""Register the enclosing-loop break target for a loop entering scope.
+
+A label is allocated exactly when the loop carries an else body -- that is
+the only case where a bare `break` must be distinguishable from normal
+exhaustion."""
+impl EsastGenPass._push_loop_label(nd: uni.UniNode) -> None {
+    if nd.else_body is not None {
+        self._loop_label_seq += 1;
+        self._loop_label_stack.append(f"__jac_loop_{self._loop_label_seq}");
+    } else {
+        self._loop_label_stack.append('');
+    }
+}
+
+"""Finish a loop statement: pop its label entry and attach the else body.
+
+JS loops have no else clause, so PEP 530/341 semantics are recovered by
+wrapping the loop and its else block in a labeled block: exhaustion falls
+through the loop end into the trailing else statements, while any `break`
+inside the loop was rewritten to `break <label>` and skips them. When no
+`break` was rewritten, plain sequencing suffices."""
+impl EsastGenPass._finish_loop(nd: uni.UniNode, loop_stmt: es.Statement) -> es.Statement {
+    label = '';
+    if self._loop_label_stack {
+        label = self._loop_label_stack.pop();
+    }
+    wrapped = self._view_loop_stmt(nd, loop_stmt);
+    if nd.else_body is None {
+        return wrapped;
+    }
+    else_stmts = self._collect_stmt_body(nd.else_body.body);
+    else_stmts = self._prepend_hoisted(nd, else_stmts);
+    else_block = self.sync_loc(
+        es.BlockStatement(body=else_stmts), jac_node=nd.else_body
+    );
+    seq_block = self.sync_loc(
+        es.BlockStatement(body=[wrapped, else_block]), jac_node=nd
+    );
+    if label == '' or label not in self._used_loop_labels {
+        return seq_block;
+    }
+    self._used_loop_labels.discard(label);
+    return self.sync_loc(
+        es.LabeledStatement(
+            label=self.sync_loc(es.Identifier(name=label), jac_node=nd),
+            body=seq_block
+        ),
+        jac_node=nd
+    );
+}
+
 impl EsastGenPass._view_chain_open(nd: uni.UniNode) -> None {
     acc = self._cur_view_acc();
     if (acc is None) or (acc in self._view_dynamic_accs) {
@@ -4232,19 +4297,22 @@ impl EsastGenPass.enter_else_stmt(nd: uni.ElseStmt) -> None {
 }
 
 impl EsastGenPass.enter_in_for_stmt(nd: uni.InForStmt) -> None {
+    self._push_loop_label(nd);
     self._view_open_loop_acc(nd);
 }
 
 impl EsastGenPass.enter_iter_for_stmt(nd: uni.IterForStmt) -> None {
+    self._push_loop_label(nd);
     self._view_open_loop_acc(nd);
 }
 
 impl EsastGenPass.enter_while_stmt(nd: uni.WhileStmt) -> None {
+    self._push_loop_label(nd);
     self._view_open_loop_acc(nd);
 }
 
 impl EsastGenPass.enter_forever_stmt(nd: uni.ForeverStmt) -> None {
-    self._view_open_loop_acc(nd);
+    self._loop_label_stack.append('');
 }
 
 impl EsastGenPass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
@@ -4310,7 +4378,7 @@ impl EsastGenPass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
         es.ForOfStatement(left=decl, right=right, body=body, await_=nd.is_async),
         jac_node=nd
     );
-    nd.gen.es_ast = self._view_loop_stmt(nd, for_stmt);
+    nd.gen.es_ast = self._finish_loop(nd, for_stmt);
 }
 
 impl EsastGenPass._target_to_pattern(target: es.Node, loc: uni.UniNode) -> es.Node {
@@ -4365,7 +4433,7 @@ impl EsastGenPass.exit_iter_for_stmt(nd: uni.IterForStmt) -> None {
         update = cast(es.AssignmentExpression, nd.count_by.gen.es_ast.expression);
     }
     body = self._build_block_statement(nd, nd.body);
-    nd.gen.es_ast = self._view_loop_stmt(
+    nd.gen.es_ast = self._finish_loop(
         nd,
         self.sync_loc(
             es.ForStatement(`init=`init, `test=`test, update=update, body=body),
@@ -4388,7 +4456,7 @@ impl EsastGenPass.exit_while_stmt(nd: uni.WhileStmt) -> None {
     );
     body = self._build_block_statement(nd, nd.body);
     while_stmt = self.sync_loc(es.WhileStatement(`test=`test, body=body), jac_node=nd);
-    nd.gen.es_ast = self._view_loop_stmt(nd, while_stmt);
+    nd.gen.es_ast = self._finish_loop(nd, while_stmt);
 }
 
 impl EsastGenPass.exit_forever_stmt(nd: uni.ForeverStmt) -> None {

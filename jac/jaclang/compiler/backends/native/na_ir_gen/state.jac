@@ -1038,6 +1038,10 @@ obj NaIRGenState(ModuleCodegenPass) {
     ) -> tuple[(ir.Value, ir.Value)] abst;
 
     def _codegen_body(stmts: (list | tuple)) -> None abst;
+    def _loop_exit_blocks(func: object, nd: uni.UniNode, prefix: str) -> tuple;
+    def _emit_loop_else(
+        nd: uni.UniNode, else_bb: (object | None), end_bb: object
+    ) -> None;
     def _codegen_if(nd: uni.IfStmt) -> None abst;
     def _apply_scalar_aug_op(
         current: ir.Value,
