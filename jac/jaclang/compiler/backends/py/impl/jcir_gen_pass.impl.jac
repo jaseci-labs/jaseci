@@ -538,25 +538,29 @@ impl JcirGenPass._ct_concrete(nd: Expr) -> bool {
 }
 
 impl JcirGenPass._is_comptime_only_name(nd: Name) -> bool {
-    sym = nd.sym;
-    if sym is None {
-        return False;
-    }
-    decl = sym.decl;
-    imp = decl.find_parent_of_type(Import) if isinstance(decl, Name) else None;
-    if imp is not None and imp.is_comptime {
-        return True;
-    }
-    owner = decl.name_of;
-    if isinstance(owner, Ability) and owner.is_comptime {
-        return True;
-    }
-    par = decl.parent if isinstance(decl, Name) else None;
-    if isinstance(par, Assignment) and isinstance(par.parent, GlobalVars) {
-        home = par.find_parent_of_type(Module);
-        if home is not None and home is not self.ir_in {
-            hp = (home.loc.mod_path if home.loc else "").replace("\\", "/");
-            return hp.endswith("jaclang/comptime.jac");
+    local = nd.sym_tab.lookup(nd.sym_name, deep=True) if nd.sym_tab else None;
+    for sym in (local, nd.sym) {
+        if sym is None {
+            continue;
+        }
+        decl = sym.decl;
+        imp = decl.find_parent_of_type(Import) if isinstance(decl, Name) else None;
+        if imp is not None and imp.is_comptime {
+            return True;
+        }
+        owner = decl.name_of;
+        if isinstance(owner, Ability) and owner.is_comptime {
+            return True;
+        }
+        par = decl.parent if isinstance(decl, Name) else None;
+        if isinstance(par, Assignment) and isinstance(par.parent, GlobalVars) {
+            home = par.find_parent_of_type(Module);
+            if home is not None and home is not self.ir_in {
+                hp = (home.loc.mod_path if home.loc else "").replace("\\", "/");
+                if hp.endswith("jaclang/comptime.jac") {
+                    return True;
+                }
+            }
         }
     }
     return False;

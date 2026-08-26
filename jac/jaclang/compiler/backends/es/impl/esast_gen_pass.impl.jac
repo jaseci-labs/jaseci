@@ -172,6 +172,13 @@ impl EsastGenPass.exit_global_vars(nd: uni.GlobalVars) -> None {
 }
 
 impl EsastGenPass.exit_name(nd: uni.Name) -> None {
+    if self._ct_only_name(nd) {
+        folded = self._ct_es_expr(nd.ct_value, nd);
+        if folded is not None {
+            nd.gen.es_ast = folded;
+            return;
+        }
+    }
     if (nd.sym_name in self.reactive_vars) and not self._in_identifier_slot(nd) {
         self._ensure_backend();
         nd.gen.es_ast = self.sync_loc(
@@ -1876,6 +1883,16 @@ impl EsastGenPass._bind_client_value_refs(nd: uni.Module) -> list[es.Statement] 
 }
 
 impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
+    if (
+        (nd.callee_decl is not None and nd.callee_decl.is_comptime)
+        or (isinstance(nd.target, uni.Name) and self._ct_only_name(nd.target))
+    ) {
+        folded = self._ct_es_expr(nd.ct_value, nd);
+        if folded is not None {
+            nd.gen.es_ast = folded;
+            return;
+        }
+    }
     args: list[(es.Expression | es.SpreadElement)] = [];
     props: list[(es.Property | es.SpreadElement)] = [];
     for param in nd.params {
@@ -2180,6 +2197,12 @@ impl EsastGenPass.exit_assignment(nd: uni.Assignment) -> None {
     if not nd.target {
         nd.gen.es_ast = None;
         return;
+    }
+    if nd.is_comptime and nd.value is not None {
+        folded = self._ct_es_expr(nd.value.ct_value, nd.value);
+        if folded is not None {
+            nd.value.gen.es_ast = folded;
+        }
     }
     value_expr = nd.value.gen.es_ast if (nd.value and nd.value.gen.es_ast) else None;
 
@@ -3801,6 +3824,10 @@ impl EsastGenPass.exit_return_stmt(nd: uni.ReturnStmt) -> None {
 }
 
 impl EsastGenPass.exit_assert_stmt(nd: uni.AssertStmt) -> None {
+    if nd.is_comptime {
+        nd.gen.es_ast = None;
+        return;
+    }
     `test: es.Expression = cast(es.Expression, nd.condition.gen.es_ast)
         if nd.condition.gen.es_ast
         else self.sync_loc(es.Literal(value=True), jac_node=nd.condition);
@@ -4248,6 +4275,12 @@ impl EsastGenPass.enter_forever_stmt(nd: uni.ForeverStmt) -> None {
 }
 
 impl EsastGenPass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
+    if nd.is_comptime {
+        folded = self._ct_es_expr(nd.collection.ct_value, nd.collection);
+        if folded is not None {
+            nd.collection.gen.es_ast = folded;
+        }
+    }
     target_ast = nd.target.gen.es_ast;
     left: es.Node = target_ast
         if isinstance(target_ast, es.Node)
@@ -4409,6 +4442,16 @@ impl EsastGenPass.exit_else_stmt(nd: uni.ElseStmt) -> None {
 
 impl EsastGenPass.exit_else_if(nd: uni.ElseIf) -> None {
     self._view_chain_close(nd);
+    if nd.is_comptime and nd.ct_taken is not None {
+        if nd.ct_taken {
+            nd.gen.es_ast = self._build_block_statement(nd, nd.body);
+        } elif nd.else_body and nd.else_body.gen.es_ast {
+            nd.gen.es_ast = cast(es.Statement, nd.else_body.gen.es_ast);
+        } else {
+            nd.gen.es_ast = None;
+        }
+        return;
+    }
     `test = self._coerce_truthy(
         nd.condition,
         cast(
@@ -4434,6 +4477,16 @@ impl EsastGenPass.exit_else_if(nd: uni.ElseIf) -> None {
 
 impl EsastGenPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     self._view_chain_close(nd);
+    if nd.is_comptime and nd.ct_taken is not None {
+        if nd.ct_taken {
+            nd.gen.es_ast = self._build_block_statement(nd, nd.body);
+        } elif nd.else_body and nd.else_body.gen.es_ast {
+            nd.gen.es_ast = cast(es.Statement, nd.else_body.gen.es_ast);
+        } else {
+            nd.gen.es_ast = None;
+        }
+        return;
+    }
     `test = self._coerce_truthy(
         nd.condition,
         cast(
@@ -4924,6 +4977,11 @@ impl EsastGenPass.exit_ability(nd: uni.Ability) -> None {
 
     if self.reactive_vars_stack {
         self.reactive_vars = self.reactive_vars_stack.pop();
+    }
+
+    if nd.is_comptime {
+        nd.gen.es_ast = None;
+        return;
     }
 
     osp_info = self._osp_ability_info(nd);
@@ -6300,7 +6358,7 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
 }
 
 impl EsastGenPass.exit_import(nd: uni.Import) -> None {
-    if nd.is_typed {
+    if nd.is_typed or nd.is_comptime {
         nd.gen.es_ast = None;
         return;
     }
@@ -7645,6 +7703,7 @@ impl EsastGenPass._collect_stmt_body(
             generated is None
             and isinstance(stmt, uni.CodeBlockStmt)
             and not isinstance(stmt, uni.Import)
+            and not getattr(stmt, "is_comptime", False)
         ) {
             cls_name = stmt.__class__.__name__;
             self.emit(
@@ -8303,4 +8362,70 @@ impl EsastGenPass.before_pass -> None {
     self.scoped_styles = load_style_annex(
         self.ir_in.annexable_by or self.ir_in.loc.mod_path
     );
+}
+
+impl EsastGenPass._ct_es_expr(
+    cv: any, jac_node: uni.UniNode
+) -> (es.Expression | None) {
+    if cv is None or getattr(cv, "is_deferred", False) {
+        return None;
+    }
+    built = self._ct_es_value(cv.v);
+    if built is None {
+        return None;
+    }
+    return self.sync_loc(built, jac_node=jac_node);
+}
+
+impl EsastGenPass._ct_es_value(v: any) -> (es.Expression | None) {
+    if v is None or isinstance(v, (bool, int, float, str)) {
+        return es.Literal(value=v);
+    }
+    if isinstance(v, (list, tuple, set, frozenset)) {
+        elements: list[(es.Expression | es.SpreadElement | None)] = [];
+        for item in v {
+            built = self._ct_es_value(item);
+            if built is None {
+                return None;
+            }
+            elements.append(built);
+        }
+        return es.ArrayExpression(elements=elements);
+    }
+    if isinstance(v, dict) {
+        props: list[(es.Property | es.SpreadElement)] = [];
+        for (k, item) in v.items() {
+            if not isinstance(k, str) {
+                return None;
+            }
+            built = self._ct_es_value(item);
+            if built is None {
+                return None;
+            }
+            props.append(es.Property(key=es.Literal(value=k), value=built));
+        }
+        return es.ObjectExpression(properties=props);
+    }
+    return None;
+}
+
+impl EsastGenPass._ct_only_name(nd: uni.Name) -> bool {
+    local = nd.sym_tab.lookup(nd.sym_name, deep=True) if nd.sym_tab else None;
+    for sym in (local, nd.sym) {
+        if sym is None {
+            continue;
+        }
+        decl = sym.decl;
+        imp = decl.find_parent_of_type(uni.Import)
+            if isinstance(decl, uni.Name)
+            else None;
+        if imp is not None and imp.is_comptime {
+            return True;
+        }
+        owner = decl.name_of;
+        if isinstance(owner, uni.Ability) and owner.is_comptime {
+            return True;
+        }
+    }
+    return False;
 }

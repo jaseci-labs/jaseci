@@ -1589,14 +1589,26 @@ impl TypeCheckPass._check_comptime_only_use(self: TypeCheckPass, nd: Name) -> No
     if isinstance(nd.parent, FuncCall) and nd.parent.target is nd {
         return;
     }
-    decl = sym.decl;
-    if isinstance(decl, Name) and decl is nd {
-        return;
+    local = nd.sym_tab.lookup(nd.sym_name, deep=True) if nd.sym_tab else None;
+    is_ct_import = False;
+    is_ct_def = False;
+    for cand in (local, sym) {
+        if cand is None {
+            continue;
+        }
+        decl = cand.decl;
+        if isinstance(decl, Name) and decl is nd {
+            return;
+        }
+        imp = decl.find_parent_of_type(Import) if isinstance(decl, Name) else None;
+        if imp is not None and imp.is_comptime {
+            is_ct_import = True;
+        }
+        owner = decl.name_of;
+        if isinstance(owner, Ability) and owner.is_comptime {
+            is_ct_def = True;
+        }
     }
-    imp = decl.find_parent_of_type(Import) if isinstance(decl, Name) else None;
-    is_ct_import = imp is not None and imp.is_comptime;
-    owner = decl.name_of;
-    is_ct_def = isinstance(owner, Ability) and owner.is_comptime;
     if not is_ct_import and not is_ct_def {
         return;
     }

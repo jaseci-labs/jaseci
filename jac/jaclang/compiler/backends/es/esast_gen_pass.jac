@@ -380,6 +380,9 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         default_factory: Callable[([(uni.UniNode | None)], _T)]
     ) -> _T;
 
+    def _ct_es_expr(cv: any, jac_node: uni.UniNode) -> (es.Expression | None);
+    def _ct_es_value(v: any) -> (es.Expression | None);
+    def _ct_only_name(nd: uni.Name) -> bool;
     def _build_block_statement(
         scope_node: uni.UniScopeNode, body_nodes: (Sequence[uni.UniNode] | None)
     ) -> es.BlockStatement;
