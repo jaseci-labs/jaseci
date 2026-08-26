@@ -1,9 +1,11 @@
 import from jaclang.compiler.backends.native.llvm { ir }
 import from jaclang.compiler.backends.native.na_ir_gen.state { NaIRGenState }
+import from jaclang.compiler.frontend.diagnostics { E5092 }
 import from jaclang.runtime.scalars { ScalarShape }
 import jaclang.compiler.frontend.unitree as uni;
 
 obj NaIRGenSized(NaIRGenState) {
+    def _int_width_of(val: ir.Value) -> int;
     def _scalar_shape(nd: (uni.UniNode | None)) -> (ScalarShape | None);
     def _scalar_shape_named(name: (str | None)) -> (ScalarShape | None);
     def _is_unsigned_node(nd: (uni.UniNode | None)) -> bool;
@@ -33,7 +35,7 @@ obj NaIRGenSized(NaIRGenState) {
     def _emit_checked_neg(val: ir.Value) -> ir.Value;
     def _emit_checked_abs(val: ir.Value) -> ir.Value;
     def _emit_shift_count_check(count: ir.Value, width: int) -> None;
-    def _shift_count_as(count: ir.Value, target: ir.Type) -> ir.Value;
+    def _shift_count_as(count: ir.Value, target: ir.IntType) -> ir.Value;
     def _emit_checked_shl(left: ir.Value, right: ir.Value, unsigned: bool) -> ir.Value;
     def _emit_shr(left: ir.Value, right: ir.Value, unsigned: bool) -> ir.Value;
     def _emit_int_divmod(

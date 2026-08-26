@@ -597,6 +597,7 @@ impl NaIRGenCycleCollector._emit_rc_root_pass(
     i8_ptr_ptr = i8_ptr.as_pointer();
     i64 = ir.IntType(64);
     collect_fn = self.rc_collect_cycles_fn;
+    assert collect_fn is not None , "the cycle collector is emitted before its blocks are built";
 
     pre = collect_fn.append_basic_block(f"{prefix}pre");
     hdr = collect_fn.append_basic_block(f"{prefix}hdr");
@@ -637,6 +638,7 @@ impl NaIRGenCycleCollector._emit_rc_collect_loop(
     i64 = ir.IntType(64);
 
     collect_fn = self.rc_collect_cycles_fn;
+    assert collect_fn is not None , "the cycle collector is emitted before its blocks are built";
 
     cc_entry = collect_fn.append_basic_block("entry");
     cc_start = collect_fn.append_basic_block("start");
