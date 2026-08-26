@@ -165,10 +165,8 @@ def _iter_template_dicts(results: any) -> list[dict[str, any]] {
 
 def _register_builtin_client_templates(registry: TemplateRegistry) -> None {
     try {
-        import from jaclang.runtimelib.client.plugin_config { JacClientPluginConfig }
-        import from jaclang.runtimelib.client.desktop_plugin_config {
-            JacDesktopPluginConfig
-        }
+        import from jaclang.client.plugin_config { JacClientPluginConfig }
+        import from jaclang.client.desktop_plugin_config { JacDesktopPluginConfig }
     } except Exception {
         return;
     }

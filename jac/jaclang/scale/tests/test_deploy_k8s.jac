@@ -30,6 +30,14 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 import from jaclang.scale.deploy.target.kubernetes.ingress { IngressDeployer }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
 import from jaclang.scale.deploy.autoscale.autoscaler { AutoscalerSpec, Trigger }
+import from jaclang.testing.requires { require_flag }
+
+with entry {
+    require_flag(
+        "JAC_TEST_K8S",
+        "deploy tests need a live Kubernetes cluster and kubectl context"
+    );
+}
 
 # A single replica Deployment as the apiserver reports it. "Not ready" is a pod
 # that exists on the current template but has not become available, which is

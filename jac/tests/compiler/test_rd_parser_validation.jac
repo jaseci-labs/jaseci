@@ -2,13 +2,13 @@ import os;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.jac0core.unitree { Module }
-import from jaclang.jac0core.helpers { read_file_with_encoding }
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.compiler.frontend.unitree { Module }
+import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+import from jaclang.testing.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
-import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob GAP_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "rd_parser_gaps"
@@ -16,7 +16,7 @@ glob GAP_DIR = os.path.join(
 
 def parse_with_rd(source: str, file_path: str) -> Module | None {
     try {
-        import from jaclang.jac0core.parser.frontend { parse }
+        import from jaclang.compiler.frontend.parser.frontend { parse }
         (module, had_error) = parse(source, file_path);
         if had_error {
             return None;
@@ -220,7 +220,7 @@ glob GAP_FILES = [
 
 def parse_and_validate(source: str, file_path: str) -> bool {
     try {
-        import from jaclang.jac0core.parser.frontend { parse }
+        import from jaclang.compiler.frontend.parser.frontend { parse }
         (module, had_error) = parse(source, file_path);
         if had_error {
             return True;

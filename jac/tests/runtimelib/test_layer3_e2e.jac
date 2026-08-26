@@ -116,9 +116,9 @@ test "rename without alias quarantines the stored anchors (control)" {
         # loads are filed in the store's quarantine table (the rows
         # themselves also survive untouched). This is the core invariant.
         import hashlib;
-        import from jaclang.runtimelib.pgembed { PgRuntime }
-        import from jaclang.runtimelib.session { shared_pg_data_dir }
-        import from jaclang.runtimelib.store { PgStore, TxnIsolation }
+        import from jaclang.data.pgembed { PgRuntime }
+        import from jaclang.server.session { shared_pg_data_dir }
+        import from jaclang.data.store { PgStore, TxnIsolation }
         digest = hashlib.sha1(os.path.realpath(tmpdir).encode('utf-8')).hexdigest()[:8];
         admin_rt = PgRuntime(data_dir=shared_pg_data_dir(), database='postgres');
         admin = PgStore(conninfo=admin_rt.ensure());
