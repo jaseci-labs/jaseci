@@ -13,6 +13,12 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 
 
+def venv_cache_key(specs: list[str]) -> str {
+    import hashlib;
+    return hashlib.sha256("\n".join(sorted(specs)).encode()).hexdigest();
+}
+
+
 def build_service_apt_prefix(k8s_config: KubernetesConfig) -> str {
     packages = k8s_config.service_dependencies;
     if not packages {
@@ -127,7 +133,9 @@ def runtime_container_env -> list[dict[str, str]] {
 
 
 def build_bootstrap_init_container(
-    k8s_config: KubernetesConfig, base_image: str
+    k8s_config: KubernetesConfig,
+    base_image: str,
+    resolved_specs: list[str] | None = None
 ) -> dict[str, any] {
     import from jaclang.scale.injector.binary { OFFICIAL_IMAGE }
     prefer_image_binary = base_image.startswith(f"{OFFICIAL_IMAGE}:experimental-");
@@ -148,7 +156,8 @@ def build_bootstrap_init_container(
         f'fi'
     );
 
-    commands.append(f'export PIP_PREFIX="{APP_MOUNT_PATH}/.jac/venv"');
+    venv_dir = f"{APP_MOUNT_PATH}/.jac/venv";
+    commands.append(f'export PIP_PREFIX="{venv_dir}"');
 
     commands.append("export JAC_CLIENT_SKIP_NPM_INSTALL=1");
 
@@ -159,7 +168,27 @@ def build_bootstrap_init_container(
         'echo "[jac-scale] vendored wheels found; python deps install '
         'offline"; fi'
     );
+
+    if resolved_specs {
+        venv_cache_dir = (
+            f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(resolved_specs)}"
+        );
+        commands.append(
+            f'if [ -d "{venv_cache_dir}" ]; then mkdir -p "{APP_MOUNT_PATH}/.jac" '
+            f'&& cp -a "{venv_cache_dir}" "{venv_dir}" 2>/dev/null || true; fi'
+        );
+    }
+
     commands.append("jac install");
+
+    if resolved_specs {
+        commands.append(
+            f'mkdir -p "{BUNDLE_MOUNT_PATH}/.cache/venv" && '
+            f'rm -rf "{venv_cache_dir}" && '
+            f'cp -a "{venv_dir}" "{venv_cache_dir}" 2>/dev/null || true'
+        );
+    }
+
     script = ' && '.join(commands);
     container: dict[str, any] = {
         "name": "jac-bootstrap",

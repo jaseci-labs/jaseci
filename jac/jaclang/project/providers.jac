@@ -1,3 +1,4 @@
+import hashlib;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
 import from jaclang.project.config { JacConfig }
@@ -8,6 +9,28 @@ import from jaclang.project.pyvenv {
     make_pip_spec,
     run_pip,
     summarize_pip_failure
+}
+
+glob VENV_DEPS_MARKER: str = ".jac-deps-hash";
+
+def _venv_deps_hash(specs: list[str]) -> str {
+    return hashlib.sha256("\n".join(sorted(specs)).encode()).hexdigest();
+}
+
+def _venv_deps_stale(venv_dir: Path, specs: list[str]) -> bool {
+    if not venv_dir.exists() {
+        return True;
+    }
+    marker = venv_dir / VENV_DEPS_MARKER;
+    if not marker.exists() {
+        return True;
+    }
+    return marker.read_text(encoding="utf-8").strip() != _venv_deps_hash(specs);
+}
+
+def _write_venv_deps_marker(venv_dir: Path, specs: list[str]) {
+    venv_dir.mkdir(parents=True, exist_ok=True);
+    (venv_dir / VENV_DEPS_MARKER).write_text(_venv_deps_hash(specs), encoding="utf-8");
 }
 
 glob EMIT_EJECT: str = "eject",
@@ -306,8 +329,11 @@ obj PythonProvider(EcosystemProvider) {
             return self._install_global(specs, ctx);
         }
         venv_dir = self._project_venv(config);
-        ensure_venv(venv_dir, ctx.verbose);
         is_dry_run = ctx.is_dry_run();
+        if not is_dry_run and not _venv_deps_stale(venv_dir, specs) {
+            return True;
+        }
+        ensure_venv(venv_dir, ctx.verbose);
         (before_snapshot_ok, before_set) = (
             self._snapshot_installed(config) if not is_dry_run else (False, set())
         );
@@ -322,7 +348,8 @@ obj PythonProvider(EcosystemProvider) {
                 }
                 return True;
             }
-            newly_installed: list[tuple] = [];
+            _write_venv_deps_marker(venv_dir, specs);
+            newly_installed: list[tuple[str, str]] = [];
             (after_ok, after_set) = self._snapshot_installed(config);
             if after_ok and before_snapshot_ok {
                 newly_installed = sorted(after_set - before_set);
