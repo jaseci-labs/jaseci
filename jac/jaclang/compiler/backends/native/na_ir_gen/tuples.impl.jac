@@ -26,6 +26,9 @@ impl NaIRGenTuples._codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) {
             return None;
         }
         v = self._str_norm(v);
+        if v is None {
+            return None;
+        }
 
         _owns = self._is_owned(v);
         if _in_return and isinstance(v.type, ir.PointerType) and not _owns {
@@ -53,7 +56,7 @@ impl NaIRGenTuples._codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) {
     }
     struct_type = self.tuple_types[tuple_key];
 
-    val = ir.Constant(struct_type, ir.Undefined);
+    val: ir.Value = ir.Constant(struct_type, ir.Undefined);
     for (i, elem) in enumerate(elem_vals) {
         val = self.builder.insert_value(val, elem, i, name=f"tuple.{i}");
     }
@@ -149,7 +152,11 @@ impl NaIRGenTuples._codegen_tuple_unpack(
             and _elem_owned[i];
         if var_name in self.local_vars {
             alloca = self.local_vars[var_name];
-            stored = self._coerce_type(elem_val, alloca.type.pointee);
+            _slot_ty = alloca.type;
+            if not isinstance(_slot_ty, ir.PointerType) {
+                continue;
+            }
+            stored = self._coerce_type(elem_val, _slot_ty.pointee);
             new_ref = self._rc_slot_ref(stored) if rc_ok else None;
             if new_ref is not None {
                 if not moved {
@@ -272,8 +279,13 @@ impl NaIRGenTuples._box_value_tuple(val: ir.Value, loc: str = "") -> ir.Value {
     size = self._sizeof_llvm(val.type);
 
     _box_loc = val?.jac_loc or loc;
+    if self.rc_alloc_fn is None {
+        self._emit_rc_helpers();
+    }
+    _alloc_fn = self.rc_alloc_fn;
+    assert _alloc_fn is not None , "rc helpers are emitted before boxing";
     raw = self._rc_call_with_ctx(
-        self.rc_alloc_fn, [size], op="box", loc=_box_loc, name="tuple.box"
+        _alloc_fn, [size], op="box", loc=_box_loc, name="tuple.box"
     );
     ptr = self.builder.bitcast(raw, val.type.as_pointer(), name="tuple.box.ptr");
     self.builder.store(val, ptr);
@@ -298,7 +310,7 @@ impl NaIRGenTuples._coerce_tuple_to_struct(
         or len(val.type.elements) != len(target_struct.elements) {
         return val;
     }
-    out = ir.Constant(target_struct, ir.Undefined);
+    out: ir.Value = ir.Constant(target_struct, ir.Undefined);
     for i in range(len(target_struct.elements)) {
         fld = self.builder.extract_value(val, i, name=f"tcoerce.{i}");
         tgt_ty = target_struct.elements[i];
@@ -525,6 +537,9 @@ impl NaIRGenTuples._tuple_iter_seq(
     );
     self._mark_owned(seq);
 
+    if val is None {
+        return None;
+    }
     is_value = struct_type is not None and isinstance(val.type, ir.LiteralStructType);
     owned_flags = val?.na_tuple_owned if val is not None else None;
     for i in range(len(elem_types)) {

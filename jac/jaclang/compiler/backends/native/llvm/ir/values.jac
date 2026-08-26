@@ -445,7 +445,8 @@ class Value(object) {
     has type: types.Type,
         jac_loc: str = "",
         jac_signed: bool = False,
-        jac_env_struct: str | None = None;
+        jac_env_struct: str | None = None,
+        na_tuple_owned: list[bool] | None = None;
 
     def get_reference(self: Value) -> str {
         raise NotImplementedError;

@@ -28,7 +28,8 @@ impl NaIRGenLists._emit_list_helpers(elem_type_name: str, elem_type: ir.Type) ->
         _rel_fn_name = f"__rc_release_list_{elem_type_name}";
         _rel_fnty = ir.FunctionType(ir.VoidType(), [list_ptr_type]);
         try {
-            _rel_fn_decl = self.llvm_module.get_global(_rel_fn_name);
+            _found = self.llvm_module.get_global(_rel_fn_name);
+            _rel_fn_decl = _found if isinstance(_found, ir.Function) else None;
         } except KeyError {
             _rel_fn_decl = ir.Function(self.llvm_module, _rel_fnty, name=_rel_fn_name);
             _rel_fn_decl.linkage = "private";
@@ -438,6 +439,9 @@ impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         );
     } else {
         first_val = self._nogc_elem_prep(nd.values[0], first_val);
+        if first_val is None {
+            return None;
+        }
         if self._reject_ptr_into_raw_slot(
             nd, first_val, helpers["elem_type"], "list element"
         ) {
