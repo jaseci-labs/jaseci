@@ -1083,14 +1083,21 @@ obj ManifestBuilder {
         return out;
     }
 
-    def _build_readiness_probe -> dict[str, any] {
+    def _build_readiness_probe(svc_name: str) -> dict[str, any] {
         cfg = self.k8s_config;
+        period = cfg.readiness_period;
+        failure_threshold = 3;
+        if self._replica_floor(svc_name) == 0 {
+            period = max(1, cfg.readiness_period_scale_to_zero);
+            budget = max(1, cfg.readiness_period) * failure_threshold;
+            failure_threshold = max(1, budget // period);
+        }
         return {
             "httpGet": {"path": "/healthz/ready", "port": cfg.container_port},
             "initialDelaySeconds": cfg.readiness_initial_delay,
-            "periodSeconds": cfg.readiness_period,
+            "periodSeconds": period,
             "timeoutSeconds": 3,
-            "failureThreshold": 3
+            "failureThreshold": failure_threshold
         };
     }
 
@@ -1564,7 +1571,7 @@ obj ManifestBuilder {
             "args": `entry["args"],
             "env": env_list,
             "ports": [{"containerPort": self.k8s_config.container_port}],
-            "readinessProbe": self._build_readiness_probe(),
+            "readinessProbe": self._build_readiness_probe(svc_name),
             "livenessProbe": self._build_liveness_probe(),
             "lifecycle": {"preStop": self._build_prestop_hook()}
         };
