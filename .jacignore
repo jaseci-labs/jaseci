@@ -19,14 +19,8 @@
 # py2jac translation under passes/native/llvm/, whose ctypes-derived
 # values the checker sees as Unknown. Not annotatable without typing that
 # vendored surface.
-jac/jaclang/compiler/backends/native/na_ir_gen/arena.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/arena.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/builtins.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/builtins.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/bytearray_na.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/bytearray_na.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/bytes.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/bytes.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/calls.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/calls.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/clib_abi.impl.jac
@@ -39,8 +33,6 @@ jac/jaclang/compiler/backends/native/na_ir_gen/context_mgr.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/context_mgr.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/core.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/core.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/cycle_collector.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/cycle_collector.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/debug.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/debug.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/dicts.impl.jac
@@ -69,8 +61,6 @@ jac/jaclang/compiler/backends/native/na_ir_gen/osp.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/osp.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/pyb_interop.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/pyb_interop.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/random.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/random.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/refcount.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/refcount.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/sets.impl.jac

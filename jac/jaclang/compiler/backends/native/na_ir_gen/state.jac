@@ -260,7 +260,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _register_region_handle_var(nd: uni.Assignment, var_name: str) -> None abst;
     def _region_alloc(size: ir.Value, name: str = "region.alloc") -> ir.Value abst;
     def _region_log_dtor_if_needed(obj_i8: ir.Value, type_name: str) -> None abst;
-    def _emit_region_handle_drop(alloca: object, var_name: str) -> None abst;
+    def _emit_region_handle_drop(alloca: ir.Value, var_name: str) -> None abst;
     def _open_anon_region(gidx: int) -> None abst;
     def _close_anon_region(gidx: int) -> None abst;
     def _get_or_declare_extern(
@@ -285,11 +285,11 @@ obj NaIRGenState(ModuleCodegenPass) {
     ) -> (ir.Value | None) abst;
 
     def _codegen_list_slice(
-        target_val: ir.Value, slice_node: object, elem_type_name: str
+        target_val: ir.Value, slice_node: uni.Slice, elem_type_name: str
     ) -> (ir.Value | None) abst;
 
     def _codegen_string_slice(
-        target_val: ir.Value, slice_node: object, base_node: object = None
+        target_val: ir.Value, slice_node: uni.Slice, base_node: object = None
     ) -> (ir.Value | None) abst;
 
     def _emit_sys_argv -> (ir.Value | None) abst;
@@ -319,7 +319,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _is_bytes_value(v: ir.Value) -> bool abst;
     def _codegen_bytes_index(bv: ir.Value, idx: ir.Value) -> (ir.Value | None) abst;
     def _codegen_bytes_slice(
-        bv: ir.Value, slice_node: object
+        bv: ir.Value, slice_node: uni.Slice
     ) -> (ir.Value | None) abst;
 
     def _emit_bytes_eq(left: ir.Value, right: ir.Value, negate: bool) -> ir.Value abst;
