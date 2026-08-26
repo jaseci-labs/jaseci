@@ -84,6 +84,30 @@ def _pyb_instantiate(
     return shadow;
 }
 
+def pyb_mirror_member(mod_path: str, name: str) -> object {
+    """Bind one member of a natively-placed module into the server codespace.
+
+    Server-side code that imports from a module pinned native cannot emit a
+    plain Python import (the native lane owns the module), so the JCIR
+    emitter splices calls to this helper instead: it loads the target
+    module's server-tier image through the ordinary Jac import machinery and
+    hands back the named member. Without it, constructing a native-placed
+    obj from server code dies with NameError because the dropped import
+    binds nothing (B7).
+
+    When real per-module AOT execution lands, this seam upgrades to
+    dylib-backed shadows without touching consumer code.
+    """
+    member = getattr(_pyb_import_module(mod_path), name, None);
+    if member is None {
+        raise AttributeError(
+            f"native-placed module '{mod_path}' exposes no '{name}' "
+                + "to mirror into the server codespace"
+        );
+    }
+    return member;
+}
+
 def _pyb_shadow_of(owner_addr: int) -> object {
     shadow = _pyb_shadows.get(owner_addr);
     if shadow is None {

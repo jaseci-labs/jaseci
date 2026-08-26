@@ -5,6 +5,7 @@ name = "native-fixtures"
 [placement.pins]
 "na_math_utils" = "native"
 "na_transformers" = "native"
+"na_mirror_target" = "native"
 "_finding2_guard" = "server"
 "mixed_contexts.native_add" = "native"
 "mixed_contexts.server_hello" = "server"

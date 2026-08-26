@@ -969,10 +969,14 @@ impl JcirGenPass.exit_py_inline_code(nd: PyInlineCode) -> None {
 
 impl JcirGenPass.exit_import(nd: Import) -> None {
     import from jaclang.jac0core.compiler { import_binds_client_native }
-    if (
-        import_binds_client_native(nd, self.ir_in.gen.interop_manifest)
-        or nd.native_only_drop
-    ) {
+    if import_binds_client_native(nd, self.ir_in.gen.interop_manifest) {
+        self.set_out(nd, []);
+        return;
+    }
+    if nd.native_only_drop {
+        if self._gen_native_import_mirrors(nd) {
+            return;
+        }
         self.set_out(nd, []);
         return;
     }
@@ -4360,6 +4364,73 @@ impl JcirGenPass._native_test_shim_stmts(nd: Test) -> list {
             + ")"
     ];
     return [CgSplice(src='\n'.join(src_lines), offset=0)];
+}
+
+impl JcirGenPass._gen_native_import_mirrors(nd: Import) -> bool {
+    """Replace a dropped cross-codespace import with server-side mirrors.
+
+    A server module importing from a natively-pinned module gets no Python
+    import at all (the native lane owns the target), which left every bound
+    name undefined at execution -- constructing one of its obj archetypes
+    raised NameError. Instead of dropping silently, bind each imported name
+    through `interop_bridge.pyb_mirror_member`, which loads the target's
+    server tier and hands back the member. Names already served by the
+    same-module ctypes interop stubs (`manifest.native_exports`) keep their
+    stubs and are not re-bound here.
+    """;
+    if (
+        nd.code_context == CodeContext.CLIENT
+        or not nd.items
+        or nd.from_loc is None
+        or nd.is_typed
+        or nd.is_service_import
+    ) {
+        return False;
+    }
+    resolved: (str | None) = None;
+    try {
+        resolved = nd.from_loc.resolve_relative_path();
+    } except Exception {
+        return False;
+    }
+    if (not isinstance(resolved, str) or not resolved.endswith('.jac')) {
+        return False;
+    }
+    manifest = self.ir_in.gen.interop_manifest if self.ir_in?.gen else None;
+    stub_names: set[str] = set();
+    if manifest is not None {
+        for b in manifest.native_exports {
+            stub_names.add(b.name);
+        }
+    }
+    mod_path = resolved;
+    lines: list[str] = [
+        "from jaclang.jac0core.interop_bridge import pyb_mirror_member"
+            + " as _jac_pyb_mirror"
+    ];
+    names: list[str] = [];
+    for item in nd.items {
+        if not isinstance(item, ModuleItem) {
+            continue;
+        }
+        if not isinstance(item.name, Name) {
+            continue;
+        }
+        target_name = item.name.value;
+        if target_name in stub_names {
+            continue;
+        }
+        local_name = item.alias.sym_name if item.alias else target_name;
+        lines.append(
+            f"{local_name} = _jac_pyb_mirror('{mod_path}', '{target_name}')"
+        );
+        names.append(local_name);
+    }
+    if not names {
+        return False;
+    }
+    self.set_out(nd, [CgSplice(src='\n'.join(lines), offset=0, bound_names=names)]);
+    return True;
 }
 
 impl JcirGenPass._generate_sv_to_sv_stubs(nd: Import) -> bool {
