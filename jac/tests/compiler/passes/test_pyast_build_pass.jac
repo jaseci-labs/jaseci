@@ -222,9 +222,15 @@ rest marker so the emitted Jac re-parses. #8641: UnparsePass emitted `*` for
 both MatchStar flavors, and the mapping rest pattern failed to re-parse with
 cascading E0045 errors."""
 test "py2jac mapping star pattern round-trips" {
-    with open(os.path.join(FIXTURES, "py2jac_match_mapping_star.py")) as f {
-        file_source = f.read();
-    }
+    file_source = (
+        "def handle(d):\n"
+        "    match d:\n"
+        "        case {\"k\": key, **rest}:\n"
+        "            return key, rest\n"
+        "        case {1: first, **others}:\n"
+        "            return first, others\n"
+        "    return None\n"
+    );
     code = unparse_module(
         PyastBuildPass(
             ir_in=PythonModuleAst(
