@@ -1,5 +1,5 @@
 """Targeted tests for the closed, typed graph-query IR."""
-import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }
+import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
 
 node QA {
     has val: int = 0;

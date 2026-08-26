@@ -75,10 +75,10 @@ test "handshake headers are case-insensitive on the filter" {
 The forwarders used to be exercised against an aiohttp server; the runtime no
 longer depends on aiohttp, so the upstream is the same server jac ships."""
 def _spawn_upstream -> tuple[object, object, str] {
-    import from jaclang.runtimelib.serving.app { ServingApp }
-    import from jaclang.runtimelib.serving.datatypes { Request, Response }
-    import from jaclang.runtimelib.serving.endpoint { HTTPMethod, JEndPoint }
-    import from jaclang.runtimelib.serving.server { ServingServer }
+    import from jaclang.server.serving.app { ServingApp }
+    import from jaclang.server.serving.datatypes { Request, Response }
+    import from jaclang.server.serving.endpoint { HTTPMethod, JEndPoint }
+    import from jaclang.server.serving.server { ServingServer }
 
     def echo(request: Request) -> Response {
         return Response(content=request.body, media_type="application/octet-stream");
@@ -90,7 +90,7 @@ def _spawn_upstream -> tuple[object, object, str] {
                 yield f"data: event{i}\n\n";
             }
         }
-        import from jaclang.runtimelib.serving.datatypes { StreamingResponse }
+        import from jaclang.server.serving.datatypes { StreamingResponse }
         return StreamingResponse(gen(), media_type="text/event-stream");
     }
 
@@ -100,7 +100,7 @@ def _spawn_upstream -> tuple[object, object, str] {
                 yield b"x" * 4096;
             }
         }
-        import from jaclang.runtimelib.serving.datatypes { StreamingResponse }
+        import from jaclang.server.serving.datatypes { StreamingResponse }
         return StreamingResponse(gen());
     }
 
@@ -231,8 +231,8 @@ test "ws route closes with 1008 when no registry prefix matches" {
     import from jaclang.scale.runtime.gateway.microservice_gateway {
         MicroserviceGateway
     }
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
-    import from jaclang.runtimelib.serving.datatypes { WebSocketDisconnect }
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
+    import from jaclang.server.serving.datatypes { WebSocketDisconnect }
 
     reg = ServiceRegistry();
     gw = MicroserviceGateway(registry=reg);
@@ -265,7 +265,7 @@ test "ws route rejects with 1012 during drain" {
         MicroserviceGateway
     }
     import from jaclang.scale.runtime.lifecycle.drain { reset_drain, start_drain }
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
 
     reset_drain();
     reg = ServiceRegistry();
@@ -327,9 +327,9 @@ obj FakeClientWS {
 
 """Upstream websocket echo, served by the native ws codec."""
 def _spawn_ws_upstream -> tuple[object, object, str] {
-    import from jaclang.runtimelib.serving.app { ServingApp }
-    import from jaclang.runtimelib.serving.endpoint { WSEndPoint }
-    import from jaclang.runtimelib.serving.server { ServingServer }
+    import from jaclang.server.serving.app { ServingApp }
+    import from jaclang.server.serving.endpoint { WSEndPoint }
+    import from jaclang.server.serving.server { ServingServer }
 
     async def ws_echo(ws: any) {
         await ws.accept();
