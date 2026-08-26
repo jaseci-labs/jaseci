@@ -17,9 +17,11 @@ obj NaIRGenCalls(NaIRGenState) {
     def _codegen_intrinsic(
         nd: uni.FuncCall, intr: IntrinsicEntry
     ) -> (ir.Value | None);
+
     def _emit_intrinsic_misuse(
         nd: uni.FuncCall, intr: IntrinsicEntry, reason: str
     ) -> None;
+
     def _intrinsic_operand(
         nd: uni.FuncCall, intr: IntrinsicEntry, arg: uni.Expr, spec: str
     ) -> (ir.Value | None);
