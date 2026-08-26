@@ -22,9 +22,9 @@ compiled.
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { AccessLevel, EdgeAnchor, GenericEdge, Root }
-import from jaclang.jac0core.runtime { JacRuntime, JacRuntimeInterface }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.archetype { AccessLevel, EdgeAnchor, GenericEdge, Root }
+import from jaclang.runtime.runtime { JacRuntime, JacRuntimeInterface }
+import from jaclang.runtime.context { ExecutionContext }
 
 node Doc {
     has label: str = "";
