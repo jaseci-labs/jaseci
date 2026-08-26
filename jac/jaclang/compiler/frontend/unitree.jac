@@ -371,6 +371,7 @@ obj Module(AstDocNode, UniScopeNode) {
         mobui_enforced_root: (str | None) = None,
         jac_project_root: (str | None) = None,
         access_enforced: bool = False,
+        ct_resolved: bool = False,
         native_viols_reported: bool = False,
         client_viols_reported: bool = False,
         rc_last_use: dict[int, list[str]] postinit,

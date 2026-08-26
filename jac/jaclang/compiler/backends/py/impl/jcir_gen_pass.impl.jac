@@ -495,6 +495,9 @@ impl JcirGenPass._ct_kind(v: any) -> str {
     if isinstance(v, (list, tuple, set, frozenset, dict)) {
         return "container";
     }
+    if isinstance(v, type) and v.__module__ == "builtins" {
+        return "pytype";
+    }
     return "";
 }
 
@@ -612,6 +615,9 @@ impl JcirGenPass._materialize(v: any, jac_node: UniNode) -> (CgNode | None) {
     kind = self._ct_kind(v);
     if kind == "scalar" {
         return self.const_of(v, jac_node);
+    }
+    if kind == "pytype" {
+        return self.name_load(v.__name__, jac_node);
     }
     if isinstance(v, (list, tuple)) {
         elts: list = [];

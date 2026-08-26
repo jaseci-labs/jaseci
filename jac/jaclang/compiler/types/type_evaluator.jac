@@ -340,6 +340,7 @@ obj TypeEvaluator {
         _ENUM_STUB_FILE_PATH: str postinit,
         symbol_resolution_stack: list[Symbol] = [],
         ct_eval: CtEvaluator postinit,
+        ct_quiet: bool = False,
         prefetch: PrefetchedTypes postinit,
         _pass_ref: object | None = None,
         builtins_module: Module | None = None,

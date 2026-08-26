@@ -107,6 +107,14 @@ def name(t: any) -> str {
     return str(t);
 }
 
+def module_of(t: any) -> str {
+    got = t?.__module__;
+    if isinstance(got, str) {
+        return got;
+    }
+    return "";
+}
+
 def is_subtype(t: type, u: type) -> bool {
     try {
         return issubclass(t, u);

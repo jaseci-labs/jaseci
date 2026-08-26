@@ -82,7 +82,8 @@ obj CtRecord {
     has class_name: str,
         module: str = "",
         fields: dict[str, any] = {},
-        class_type: (ClassType | None) = None;
+        class_type: (ClassType | None) = None,
+        home: str = "";
 
     def __getattr__(name: str) -> any {
         flds = object.__getattribute__(self, "fields");

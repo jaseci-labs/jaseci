@@ -35,6 +35,7 @@ import from jaclang.compiler.frontend.unitree {
     IfElseExpr,
     IfStmt,
     ImplDef,
+    Import,
     InForStmt,
     IndexSlice,
     InnerCompr,
@@ -66,7 +67,11 @@ import from jaclang.compiler.frontend.unitree {
     UniNode,
     WhileStmt
 }
-import from jaclang.compiler.frontend.constant { CodeContext, Tokens as Tok }
+import from jaclang.compiler.frontend.constant {
+    CodeContext,
+    OwnershipKind,
+    Tokens as Tok
+}
 import from jaclang.compiler.frontend.codeinfo { module_dotted_name }
 import from jaclang.compiler.types.ct_value {
     CT_DEFERRED,
@@ -77,7 +82,12 @@ import from jaclang.compiler.types.ct_value {
     CtType,
     CtValue
 }
-import from jaclang.compiler.types.types { ClassType, TypeBase, UnknownType }
+import from jaclang.compiler.types.types {
+    ClassType,
+    ModuleType,
+    TypeBase,
+    UnknownType
+}
 import from jaclang.compiler.types.type_utils { lookup_symtab }
 import type from jaclang.compiler.types.type_evaluator { TypeEvaluator }
 
@@ -106,6 +116,7 @@ glob CT_FUEL_DEFAULT: int = 50000000,
              "members",
              "semstr",
              "name",
+             "module_of",
              "is_subtype"
          }
      ),
@@ -781,19 +792,13 @@ obj CtEvaluator {
         if opn == Tok.PLUS.value {
             return +v;
         }
-        if opn == Tok.KW_NOT.value {
+        if opn == Tok.NOT.value {
             return not v;
         }
         if opn == Tok.BW_NOT.value {
             return ~v;
         }
-        if opn
-            in (
-                Tok.KW_OWN.value,
-                Tok.KW_IMM.value,
-                Tok.KW_MUT.value,
-                Tok.BW_AND.value
-            ) {
+        if nd.ownership != OwnershipKind.NONE or opn == Tok.BW_AND.value {
             return v;
         }
         op_text = getattr(nd.op, "value", opn);
@@ -814,6 +819,9 @@ obj CtEvaluator {
             }
         }
         if sym is None {
+            if name in CT_PY_TYPES or name in CT_PY_EXCEPTIONS {
+                return self._builtin_type(name);
+            }
             if name in self._builtins {
                 return self._builtins[name];
             }
@@ -837,8 +845,7 @@ obj CtEvaluator {
         }
         self._active.add(skey);
         try {
-            sym = self.evaluator.resolve_imported_symbols(sym);
-            sym = self.evaluator.resolve_to_definition_symbol(sym);
+            sym = self._resolve_symbol_deep(sym);
         } finally {
             self._active.discard(skey);
         }
@@ -851,11 +858,11 @@ obj CtEvaluator {
                 or _norm_path(home.loc.mod_path if home.loc else "").endswith(
                     "/builtins.pyi"
                 ) {
-                if nm in self._builtins {
-                    return self._builtins[nm];
-                }
                 if nm in CT_PY_TYPES or nm in CT_PY_EXCEPTIONS {
                     return self._builtin_type(nm);
+                }
+                if nm in self._builtins {
+                    return self._builtins[nm];
                 }
             }
             raise CtNotComptime();
@@ -887,6 +894,9 @@ obj CtEvaluator {
         }
         if isinstance(node_, Name) {
             par = node_.parent;
+            if isinstance(par, ModuleItem) {
+                return self._resolve_module_item(par, use);
+            }
             if isinstance(par, Assignment) {
                 if par.is_enum_stmt {
                     return self._enum_member_of(par);
@@ -914,6 +924,47 @@ obj CtEvaluator {
             return self._builtins[decl_name];
         }
         raise CtNotComptime();
+    }
+
+    def _symbol_via_module_item(item: ModuleItem) -> (Symbol | None) {
+        imp = item.find_parent_of_type(Import);
+        if imp is None or imp.from_loc is None {
+            return None;
+        }
+        mt = self.evaluator.get_type_of_module(imp.from_loc);
+        tab = mt.symbol_table if isinstance(mt, ModuleType) else None;
+        if tab is None {
+            return None;
+        }
+        return tab.lookup(item.name.value, deep=False);
+    }
+
+    def _resolve_symbol_deep(sym: Symbol) -> Symbol {
+        hops = 0;
+        while hops < 16 {
+            hops += 1;
+            sym = self.evaluator.resolve_imported_symbols(sym);
+            sym = self.evaluator.resolve_to_definition_symbol(sym);
+            node_ = sym.decl.name_of;
+            if isinstance(node_, Name) and isinstance(node_.parent, ModuleItem) {
+                nxt = self._symbol_via_module_item(node_.parent);
+                if nxt is None or nxt is sym {
+                    return sym;
+                }
+                sym = nxt;
+                continue;
+            }
+            return sym;
+        }
+        return sym;
+    }
+
+    def _resolve_module_item(item: ModuleItem, use: UniNode) -> any {
+        target = self._symbol_via_module_item(item);
+        if target is None {
+            raise CtNotComptime();
+        }
+        return self._eval_symbol(target, use);
     }
 
     def _is_comptime_glob(asn: Assignment, name: str) -> bool {
@@ -962,6 +1013,7 @@ obj CtEvaluator {
             if cv.is_deferred {
                 raise CtDeferredSignal();
             }
+            self._stamp_home(cv.v, asn);
             return cv.v;
         }
         key = id(asn);
@@ -983,8 +1035,15 @@ obj CtEvaluator {
             self.barriers = saved_barriers;
             self.demand = saved_demand;
         }
+        self._stamp_home(v, asn);
         asn.value.ct_value = CtValue(v=v);
         return v;
+    }
+
+    def _stamp_home(v: any, asn: Assignment) {
+        if isinstance(v, CtRecord) and not v.home {
+            v.home = module_dotted_name(asn.find_parent_of_type(Module));
+        }
     }
 
     def _type_of_arch(nd: Archetype) -> CtType {
@@ -1232,6 +1291,9 @@ obj CtEvaluator {
             if not isinstance(tab, Archetype) {
                 continue;
             }
+            if self._is_stub_module(tab.find_parent_of_type(Module)) {
+                continue;
+            }
             for m in tab.get_methods() {
                 nm = m.name_ref.sym_name if m.name_ref else "";
                 if nm in ("init", "__init__", "postinit", "__post_init__") {
@@ -1411,14 +1473,29 @@ obj CtEvaluator {
             }
             raise CtError("is_subtype() needs two types");
         }
+        if name == "module_of" {
+            v = args[0];
+            if isinstance(v, CtRecord) and v.home {
+                return v.home;
+            }
+            first = (nd.params or [None])[0];
+            bound = isinstance(first, Name) and self.frame_lookup(first.value)[0];
+            home = self._defining_module_of(first)
+                if first is not None and not bound
+                else None;
+            if home {
+                return home;
+            }
+            if isinstance(v, (CtType, CtFunc, CtRecord, CtEnumMember)) {
+                return v.module;
+            }
+            raise CtError("module_of() needs a type, function, enum member, or record");
+        }
         raise CtError(f"unknown comptime intrinsic '{name}'");
     }
 
     def _intrinsic_name_of(tgt: UniNode) -> (str | None) {
         if not isinstance(tgt, Name) or isinstance(tgt, SpecialVarRef) {
-            return None;
-        }
-        if tgt.value not in CT_INTRINSICS {
             return None;
         }
         sym: (Symbol | None) = tgt.sym;
@@ -1431,14 +1508,35 @@ obj CtEvaluator {
         if sym is None {
             return None;
         }
-        sym = self.evaluator.resolve_imported_symbols(sym);
-        sym = self.evaluator.resolve_to_definition_symbol(sym);
+        sym = self._resolve_symbol_deep(sym);
         node_ = sym.decl.name_of;
-        if isinstance(node_, Ability)
-            and _is_comptime_module(node_.find_parent_of_type(Module)) {
-            return tgt.value;
+        if (
+            isinstance(node_, Ability)
+            and node_.name_ref is not None
+            and node_.name_ref.sym_name in CT_INTRINSICS
+            and _is_comptime_module(node_.find_parent_of_type(Module))
+        ) {
+            return node_.name_ref.sym_name;
         }
         return None;
+    }
+
+    def _defining_module_of(nd: UniNode) -> (str | None) {
+        if not isinstance(nd, Name) or isinstance(nd, SpecialVarRef) {
+            return None;
+        }
+        sym: (Symbol | None) = nd.sym;
+        if sym is None {
+            scope = nd.sym_tab;
+            if scope is not None {
+                sym = lookup_symtab(scope, nd.value, self.evaluator.builtins_module);
+            }
+        }
+        if sym is None {
+            return None;
+        }
+        sym = self._resolve_symbol_deep(sym);
+        return module_dotted_name(sym.decl.find_parent_of_type(Module));
     }
 
     def _call_args(nd: FuncCall) -> tuple {

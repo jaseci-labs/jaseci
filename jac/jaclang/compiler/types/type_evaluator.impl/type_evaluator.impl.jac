@@ -3763,6 +3763,9 @@ impl TypeEvaluator.ct_demand(nd: Expr) -> (CtValue | None) {
 impl TypeEvaluator.ct_site_error(
     nd: Expr, what: str, cv: (CtValue | None), allow_deferred: bool = True
 ) -> bool {
+    if self.ct_quiet {
+        return cv is None or (cv.is_deferred and not allow_deferred);
+    }
     if cv is None {
         reason = self.ct_eval.last_error;
         if reason {

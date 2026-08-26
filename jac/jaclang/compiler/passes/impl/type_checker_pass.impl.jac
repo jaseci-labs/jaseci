@@ -1112,7 +1112,7 @@ impl TypeCheckPass.exit_type_alias(self: TypeCheckPass, nd: TypeAlias) -> None {
 impl TypeCheckPass.exit_archetype(self: TypeCheckPass, nd: Archetype) -> None {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     for tp in (nd.type_params or []) {
-        if tp.is_comptime {
+        if tp.is_comptime and not self.evaluator.ct_quiet {
             self.emit(
                 E0108,
                 node_override=tp,
@@ -1246,6 +1246,8 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
 
     self._prev_eval_pass = self.evaluator._pass;
     self.evaluator._pass = self;
+    self._prev_ct_quiet = self.evaluator.ct_quiet;
+    self.evaluator.ct_quiet = bool(self.ir_in.ct_resolved);
     self._insert_builtin_symbols();
     self._install_client_state_setters();
 }
@@ -1253,6 +1255,7 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
 impl TypeCheckPass.after_pass(self: TypeCheckPass) -> None {
     self._check_unresolved_lambda_params();
     self._stamp_fixed_width();
+    self.evaluator.ct_quiet = self._prev_ct_quiet;
     if self.evaluator._pass is self {
         self.evaluator._pass = self._prev_eval_pass;
     }
@@ -1409,6 +1412,7 @@ impl TypeCheckPass.exit_in_for_stmt(self: TypeCheckPass, nd: InForStmt) -> None 
         )
             and cv is not None
             and not cv.is_deferred
+            and not self.evaluator.ct_quiet
             and not hasattr(cv.v, "__iter__") {
             self.emit(
                 E0108,
@@ -1596,7 +1600,7 @@ impl TypeCheckPass._check_comptime_only_use(self: TypeCheckPass, nd: Name) -> No
     if not is_ct_import and not is_ct_def {
         return;
     }
-    if self._in_comptime_context(nd) {
+    if self._in_comptime_context(nd) or self.evaluator.ct_quiet {
         return;
     }
     what = (
@@ -1660,7 +1664,7 @@ impl TypeCheckPass.exit_assert_stmt(self: TypeCheckPass, nd: AssertStmt) -> None
     if self.evaluator.ct_site_error(nd.condition, "comptime assert condition", cv) {
         return;
     }
-    if cv is None or cv.is_deferred or bool(cv.v) {
+    if cv is None or cv.is_deferred or bool(cv.v) or self.evaluator.ct_quiet {
         return;
     }
     message = "";
