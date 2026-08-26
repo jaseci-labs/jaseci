@@ -4003,9 +4003,14 @@ impl TypeEvaluator._prefetch_types{
     self.prefetch.walker_class = get_jac_builtin_class("Walker");
     self.prefetch.path_class = get_jac_builtin_class("GraphQuery");
     self.prefetch.jsx_element_class = get_jac_builtin_class("JsxElement");
-    self.prefetch.html_common_props_class = get_jac_builtin_class("_HtmlCommonProps");
-    self.prefetch.jsx_intrinsic_elements_class = get_jac_builtin_class(
-        "_JsxIntrinsicElements"
+    # Intrinsic-element prop classes live in dom_types.pyi; they are host-gated
+    # at name resolution, but the JSX checker needs them regardless of the
+    # compiling module's host.
+    self.prefetch.html_common_props_class = as_class_type(
+        self._get_type_from_module(self.dom_types_module, "_HtmlCommonProps")
+    );
+    self.prefetch.jsx_intrinsic_elements_class = as_class_type(
+        self._get_type_from_module(self.dom_types_module, "_JsxIntrinsicElements")
     );
 }
 
