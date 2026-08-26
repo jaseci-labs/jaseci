@@ -304,6 +304,8 @@ def _element_reqs(stmt: uni.UniNode) -> list {
             }
             if npm_dep {
                 reqs.append(['NPM', 'npm dependency']);
+            } else {
+                reqs.append(['PY', 'python import']);
             }
         }
         return reqs;
