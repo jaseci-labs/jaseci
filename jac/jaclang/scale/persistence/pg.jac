@@ -87,7 +87,7 @@ def shared_store_failure -> (str | None) {
 
 def shared_store -> (any | None) {
     with _lock {
-        import from jaclang.jac0core.runtime { JacRuntime }
+        import from jaclang.runtime.runtime { JacRuntime }
         url = scale_db_url();
         key = url
             or (
@@ -108,13 +108,13 @@ def shared_store -> (any | None) {
         stage = 'resolve';
         source = _url_source() if url else 'the embedded server';
         try {
-            import from jaclang.runtimelib.session { conninfo_from_url, promotions_for }
-            import from jaclang.runtimelib.store { PgStore }
+            import from jaclang.server.session { conninfo_from_url, promotions_for }
+            import from jaclang.data.store { PgStore }
             promotions = promotions_for(JacRuntime.get_base_path_dir());
             if url {
                 store = PgStore(conninfo=conninfo_from_url(url), promotions=promotions);
             } else {
-                import from jaclang.runtimelib.session { runtime_for_base }
+                import from jaclang.server.session { runtime_for_base }
                 base = JacRuntime.get_base_path_dir();
                 if base {
                     stage = 'provision';

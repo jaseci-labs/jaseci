@@ -1,8 +1,8 @@
-import type from jaclang.runtimelib.http_surface { RouteSpec }
+import type from jaclang.server.http_surface { RouteSpec }
 
 impl JacAPIServerEndpoints.register_walkers_endpoints -> None {
-    import from jaclang.runtimelib.http_surface { build_surface }
-    import from jaclang.runtimelib.invocation { InvocationKind }
+    import from jaclang.server.http_surface { build_surface }
+    import from jaclang.runtime.invocation { InvocationKind }
 
     surface = build_surface(self.introspector);
     base_routes: dict = {};
@@ -122,9 +122,9 @@ impl JacAPIServerEndpoints.create_walker_parameters(
 impl JacAPIServerEndpoints.create_walker_callback(
     walker_name: str, has_node_param: bool = False
 ) -> Callable[..., (TransportResponse | StreamingResponse)] {
-    import from jaclang.runtimelib.transport { TransportResponse, Meta }
-    import from jaclang.runtimelib.invocation { InvocationKind, InvocationRequest }
-    import from jaclang.runtimelib.serving.datatypes { Request }
+    import from jaclang.server.transport { TransportResponse, Meta }
+    import from jaclang.runtime.invocation { InvocationKind, InvocationRequest }
+    import from jaclang.server.serving.datatypes { Request }
     async def callback(
         request: Request, nd: (str | None) = None, **kwargs: JsonValue
     ) -> (TransportResponse | StreamingResponse) {
@@ -145,7 +145,7 @@ impl JacAPIServerEndpoints.create_walker_callback(
             )
         );
         if result.is_stream and result.stream is not None {
-            import from jaclang.runtimelib.serving.sse { sse_frame_stream }
+            import from jaclang.server.serving.sse { sse_frame_stream }
             return StreamingResponse(
                 sse_frame_stream(result.stream),
                 media_type='text/event-stream',
@@ -162,8 +162,8 @@ impl JacAPIServerEndpoints.create_walker_callback(
 }
 
 impl JacAPIServerEndpoints.register_functions_endpoints -> None {
-    import from jaclang.runtimelib.http_surface { build_surface }
-    import from jaclang.runtimelib.invocation { InvocationKind }
+    import from jaclang.server.http_surface { build_surface }
+    import from jaclang.runtime.invocation { InvocationKind }
 
     surface = build_surface(self.introspector);
     fn_routes: dict = {};
@@ -261,9 +261,9 @@ impl JacAPIServerEndpoints.create_function_parameters(
 impl JacAPIServerEndpoints.create_function_callback(
     func_name: str
 ) -> Callable[..., (TransportResponse | StreamingResponse | Response)] {
-    import from jaclang.runtimelib.transport { TransportResponse, Meta }
-    import from jaclang.runtimelib.invocation { InvocationKind, InvocationRequest }
-    import from jaclang.runtimelib.serving.datatypes { Request }
+    import from jaclang.server.transport { TransportResponse, Meta }
+    import from jaclang.runtime.invocation { InvocationKind, InvocationRequest }
+    import from jaclang.server.serving.datatypes { Request }
 
     func_spec = self.get_functions()[func_name].restspec
         if self.get_functions()[func_name]?.restspec
@@ -292,7 +292,7 @@ impl JacAPIServerEndpoints.create_function_callback(
             )
         );
         if result.is_stream and result.stream is not None {
-            import from jaclang.runtimelib.serving.sse { sse_frame_stream }
+            import from jaclang.server.serving.sse { sse_frame_stream }
             return StreamingResponse(
                 sse_frame_stream(result.stream),
                 media_type='text/event-stream',

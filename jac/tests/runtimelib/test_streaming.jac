@@ -1,4 +1,4 @@
-"""Unit tests for `runtimelib.streaming.context_bound_stream`.
+"""Unit tests for `server.streaming.context_bound_stream`.
 
 This is the primitive behind transport-agnostic streaming context lifetime: a
 generator returned by a walker/function must be safe to drain from a *foreign*
@@ -13,7 +13,7 @@ pass only when every step and the teardown run inside the captured snapshot.
 import asyncio;
 import contextvars;
 import from collections.abc { AsyncGenerator, Generator }
-import from jaclang.runtimelib.streaming {
+import from jaclang.server.streaming {
     context_bound_stream,
     context_bound_async_stream,
     iter_sync_or_async,

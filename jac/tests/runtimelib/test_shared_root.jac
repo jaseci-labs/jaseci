@@ -12,7 +12,7 @@ to the current context's root.
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.testing.testing { JacTestClient }
 
 def _as_any(v: any) -> any {
     return v;
@@ -195,7 +195,7 @@ test "get_shared_root re-queries resolver when cached id goes stale" {
             Jac.set_context(new_ctx);
             ctx_token = Jac.push_request_context(new_ctx);
             try {
-                import from jaclang.jac0core.constructs { Root }
+                import from jaclang.runtime.constructs { Root }
                 healed_root = Root();
                 root_anchor = healed_root.__jac__;
                 Jac.save(root_anchor);

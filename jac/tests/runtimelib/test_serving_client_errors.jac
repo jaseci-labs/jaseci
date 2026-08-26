@@ -10,7 +10,7 @@ sockets so the classification is exercised end to end.
 import socket;
 import struct;
 import threading;
-import from jaclang.runtimelib.serving.client {
+import from jaclang.server.serving.client {
     ClientConnectionError,
     ClientRequestNotSent,
     ClientRequestSent,

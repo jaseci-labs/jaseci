@@ -5,7 +5,7 @@ one place in the client runtime:
 
 - __jacRoute picks the channel: native (__jac_invoke) vs web (fetch) for standard
   calls, and sidecar vs a structured capability error for file uploads.
-- __jacCapabilityError mirrors the sv-side runtimelib.http_surface.capability_error
+- __jacCapabilityError mirrors the sv-side server.http_surface.capability_error
   envelope, naming [desktop.http] + the capability.
 - jacUploadFile routes a multipart upload to the [desktop.http] sidecar when
   present (with the X-Jac-Sidecar-Token gate + the user Bearer token), and fails

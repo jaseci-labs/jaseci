@@ -152,7 +152,7 @@ impl Person.__jac_schema__ -> None {
 }
 ```
 
-`schema_was`, `schema_alias`, `schema_drop`, `schema_upgrade` are ambient builtins, only callable inside `__jac_schema__`. Rules are shape-matched (no version numbers), idempotent, validated at startup, and run identically on SQLite and Mongo. `JAC_SCHEMA_REPAIR=repair|detect|off` is the kill switch (default `repair`).
+`schema_was`, `schema_alias`, `schema_drop`, `schema_upgrade` are ambient builtins, only callable inside `__jac_schema__`. Rules are shape-matched (no version numbers), idempotent, validated at startup, and run identically against the embedded Postgres locally and a managed Postgres at scale. `JAC_SCHEMA_REPAIR=repair|detect|off` is the kill switch (default `repair`).
 
 Operator workflow when rows do quarantine:
 

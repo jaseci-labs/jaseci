@@ -163,8 +163,8 @@ Optional dependency groups that users can install on demand with `jac install --
 
 ```toml
 [optional-dependencies.data]
-pymongo = ">=4.0,<5.0"
-redis = ">=7.0,<8.0"
+pandas = ">=2.0,<3.0"
+pyarrow = ">=17.0,<19.0"
 
 [optional-dependencies.monitoring]
 prometheus-client = ">=0.21.0,<1.0.0"
@@ -894,10 +894,9 @@ A `jac scale deploy` reads the same file when it stages the app bundle, so a par
 | `JAC_CACHE_HOME` | Root of the machine-wide jac cache; the shared embedded Postgres cluster lives in `<JAC_CACHE_HOME>/pg/main` (default `~/.cache/jac`) |
 | `JAC_DB_RETENTION_DAYS` | Drop databases unused for this many days when the embedded cluster starts; overrides `[database] retention_days`, unset means never |
 | `JAC_DB_SCRATCH` | `1` makes this process open one throwaway database that is dropped when it exits, instead of a per-project one (used by the test runner and deploy staging) |
-| `FIRESTORE_PROJECT_ID` | Firestore / Firebase project ID |
-| `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO, Firestore, Storage |
+| `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO and Storage |
 
-Project ID vars (`FIREBASE_AUTH_PROJECT_ID`, `FIRESTORE_PROJECT_ID`, `JAC_STORAGE_FIREBASE_PROJECT_ID`, `JAC_STORAGE_GCS_PROJECT_ID`) override `FIREBASE_PROJECT_ID` when set.
+Project ID vars (`FIREBASE_AUTH_PROJECT_ID`, `JAC_STORAGE_FIREBASE_PROJECT_ID`, `JAC_STORAGE_GCS_PROJECT_ID`) override `FIREBASE_PROJECT_ID` when set.
 
 ### Scale: Authentication
 

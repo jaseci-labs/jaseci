@@ -5,32 +5,32 @@ import mimetypes;
 import from datetime { datetime }
 import from pathlib { Path }
 import json;
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.openapi { register_docs_endpoints }
-import from jaclang.runtimelib.serving.middleware {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.openapi { register_docs_endpoints }
+import from jaclang.server.serving.middleware {
     cors_middleware,
     custom_headers_middleware
 }
-import from jaclang.runtimelib.serving.datatypes {
+import from jaclang.server.serving.datatypes {
     HTMLResponse,
     JSONResponse,
     RedirectResponse,
     Response
 }
 import from jaclang.scale.server.native_server { NativeJServer }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.endpoint {
     APIParameter,
     HTTPMethod,
     JEndPoint,
     ParameterType,
     WSEndPoint
 }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
-import from jaclang.runtimelib.server { JacAPIServer as JServer }
-import from jaclang.runtimelib.server { UserManager as CoreUserManager }
-import from jaclang.runtimelib.server { JsonValue }
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
-import type from jaclang.runtimelib.http_surface { RouteSpec }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
+import from jaclang.server.server { JacAPIServer as JServer }
+import from jaclang.server.server { UserManager as CoreUserManager }
+import from jaclang.server.server { JsonValue }
+import from jaclang.server.transport { TransportResponse, Meta }
+import type from jaclang.server.http_surface { RouteSpec }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.webhook.webhook { ApiKeyManager, WebhookUtils }
 import from jaclang.scale.observability.metrics { MetricsCollector }
@@ -59,11 +59,11 @@ import from jaclang.scale.websocket.protocol {
 }
 import from typing { AsyncGenerator }
 import from inspect { isgenerator }
-import from jaclang.runtimelib.serving.datatypes { StreamingResponse }
+import from jaclang.server.serving.datatypes { StreamingResponse }
 import from jaclang.cli.console { console }
 import from jaclang.cli.banners { JAC_DISCORD_URL }
-import from jaclang.runtimelib.serving.ws { WebSocket }
-import from jaclang.runtimelib.serving.datatypes { WebSocketDisconnect }
+import from jaclang.server.serving.ws { WebSocket }
+import from jaclang.server.serving.datatypes { WebSocketDisconnect }
 import from jaclang.scale.admin.admin_portal { JacAPIServerAdmin }
 import from jaclang.scale.admin.llm_telemetry { JacAPIServerLLMTelemetry }
 import from jaclang.scale.admin.workloads { JacAPIServerWorkloads }
@@ -74,8 +74,8 @@ import from jaclang.scale.admin.deploy_health { JacAPIServerDeployHealth }
 import from jaclang.scale.admin.network { JacAPIServerNetwork }
 import from jaclang.scale.admin.podenv { JacAPIServerPodEnv }
 import from jaclang.scale.scheduler.scheduler { JacScaleScheduler, TriggerSpec }
-import from jaclang.runtimelib.builtin { ScheduleTrigger }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.runtime.builtin { ScheduleTrigger }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 import traceback;
 import from urllib.parse { quote }
 import from jaclang.scale.shared.utils {
@@ -119,7 +119,43 @@ def _get_network_ips -> list[str];
 
 def _resolve_sso_client_redirect(requested: str | None, configured: str) -> str;
 
-obj JacAPIServerAuth {
+obj JacAPIServerParts {
+    has _hmr_pending: bool = False,
+        _hot_reloader: any | None = None,
+        _api_key_manager: ApiKeyManager | None = None,
+        _metrics: MetricsCollector | None = None,
+        _ws_manager: WebSocketConnectionManager | None = None,
+        _broker: EventStreamBroker | None = None,
+        _emailer: Emailer | None = None;
+
+    def register_auth_endpoints -> None abst;
+    def get_api_key_manager -> ApiKeyManager abst;
+    def setup_emailer -> Emailer | None abst;
+    def get_emailer -> Emailer | None abst;
+    def register_walkers_endpoints -> None abst;
+    def register_functions_endpoints -> None abst;
+    def register_webhook_endpoints -> None abst;
+    def register_websocket_endpoints -> None abst;
+    def register_scheduler_endpoints -> None abst;
+    def register_static_file_endpoint -> None abst;
+    def register_client_js_endpoint -> None abst;
+    def register_page_endpoint -> None abst;
+    def register_root_asset_endpoint -> None abst;
+    def register_graph_endpoint -> None abst;
+    def register_admin_endpoints -> None abst;
+    def validate_admin_token(Authorization: str | None) -> (str | None) abst;
+    def register_deploy_health_endpoints -> None abst;
+    def register_llm_telemetry_endpoints -> None abst;
+    def register_logs_endpoints -> None abst;
+    def register_network_endpoints -> None abst;
+    def register_ops_endpoints -> None abst;
+    def register_podenv_endpoints -> None abst;
+    def register_traces_endpoints -> None abst;
+    def register_workloads_endpoints -> None abst;
+}
+
+
+obj JacAPIServerAuth(JacAPIServerParts) {
     def register_auth_endpoints -> None;
     def register_register_endpoint -> None;
     def register_login_endpoint -> None;
@@ -151,12 +187,15 @@ obj JacAPIServerAuth {
     def register_api_key_endpoints -> None;
 }
 
-obj JacAPIServerEmailer {
+obj JacAPIServerHost(JacAPIServerParts, JServer) {}
+
+
+obj JacAPIServerEmailer(JacAPIServerHost) {
     def setup_emailer -> Emailer | None;
     def get_emailer -> Emailer | None;
 }
 
-obj JacAPIServerCore {
+obj JacAPIServerCore(JacAPIServerHost) {
     def postinit -> None;
     def _make_user_manager -> CoreUserManager;
     def start(
@@ -180,7 +219,7 @@ obj JacAPIServerCore {
     ) -> Callable[..., any];
 }
 
-obj JacAPIServerEndpoints {
+obj JacAPIServerEndpoints(JacAPIServerHost) {
     def register_walkers_endpoints -> None;
     def create_walker_callback(
         walker_name: str, has_node_param: bool = False
@@ -218,7 +257,7 @@ obj JacAPIServerEndpoints {
     def register_websocket_endpoints -> None;
 }
 
-obj JacAPIServerScheduler {
+obj JacAPIServerScheduler(JacAPIServerHost) {
     def register_scheduler_endpoints -> None;
     def create_job_callback -> Callable[..., TransportResponse];
     def list_jobs_callback -> Callable[..., TransportResponse];
@@ -227,7 +266,7 @@ obj JacAPIServerScheduler {
     def delete_job_callback -> Callable[..., TransportResponse];
 }
 
-obj JacAPIServerStatic {
+obj JacAPIServerStatic(JacAPIServerHost) {
     def serve_static_file(file_path: str) -> Response;
     def register_static_file_endpoint -> None;
     def serve_client_js_callback -> Callable[..., Response];

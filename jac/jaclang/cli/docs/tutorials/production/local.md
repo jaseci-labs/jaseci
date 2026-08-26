@@ -68,10 +68,11 @@ jac run
 Output:
 
 ```
-INFO:     Started server process [12345]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+  jac dev server v0.16.7
+
+  ➜  Local:     http://localhost:8000/
+
+  Server ready
 ```
 
 ### 3. Call the API
@@ -230,7 +231,7 @@ docs_enabled = false
 
 ## Database Persistence
 
-By default, Jac uses SQLite for persistence (you'll see "Using SQLite for persistence" when starting).
+By default, Jac persists the graph in an embedded Postgres store: it boots lazily on first graph access, with one database per project, and requires no setup. Set `JAC_DB_URL` to point at an external Postgres instead.
 
 ### Custom Persistence
 
@@ -283,7 +284,7 @@ import os;
 walker get_config {
     can fetch with Root entry {
         report {
-            "database_url": os.getenv("DATABASE_URL", "sqlite:///default.db"),
+            "database_url": os.getenv("DATABASE_URL", "postgresql://jac@localhost:5432/jac"),
             "api_key": os.getenv("API_KEY"),
             "debug": os.getenv("DEBUG", "false") == "true"
         };
