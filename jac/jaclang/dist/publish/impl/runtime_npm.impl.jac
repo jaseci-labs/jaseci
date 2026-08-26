@@ -204,7 +204,7 @@ def _jac_runtime_import_symbols(js: str) -> set[str] {
             piece = part.strip();
             if piece {
                 tokens = re.split(r"\s+as\s+", piece);
-                names.add(tokens[-1].strip());
+                names.add(tokens[len(tokens) - 1].strip());
             }
         }
     }
