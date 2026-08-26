@@ -511,8 +511,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/host.jac::host_provides_node",
          "jac0core/host.jac::resolve_project_host_kind",
          "jac0core/host.jac::framework_for_host_kind",
-         "jac0core/host.jac::framework_for_module",
-
+         "jac0core/host.jac::framework_for_module"
      ),
      _RIM_SERVE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/passes/pass_rim.jac::PassRim.__new__",

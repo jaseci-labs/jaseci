@@ -41,10 +41,9 @@ def dispatch_sv_service(
         spawn_port = port;
         if spawn_port <= 0 {
             import from jaclang.scale.runtime.context.util { pick_free_port }
-
-            spawn_port = pick_free_port(
-                module_name, base=default_sv_base_port(module_name)
-            );
+            # pick_free_port derives its spread from a stable sha1 digest,
+            # so this lands on default_sv_base_port(module_name) when free.
+            spawn_port = pick_free_port(module_name);
         }
         spawn_result = spawn_bun_sv_service(
             module_name, base_path, spawn_port, scale_mode=scale_mode, progress=progress

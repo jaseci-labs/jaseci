@@ -144,10 +144,15 @@ export class BunStore {
 
   async _applyPromotionDdl(sql, promotions) {
     // Mirrors PgStore._apply_promotions exactly (impl/store.impl.jac): jsonb
-    // generated column plus an UNCONDITIONAL index. DDL divergence here breaks
-    // shared-database parity -- whoever migrates first wins via IF NOT EXISTS.
+    // generated column plus an UNCONDITIONAL index, rebuilding a column that
+    // exists with the wrong type (e.g. text from the pre-parity bun DDL).
     for (const [arch, fld, col] of promotionColumns(promotions)) {
       try {
+        const have = await promotedColumnType(sql, col);
+        if (have !== null && have !== "jsonb") {
+          await sql.unsafe(`DROP INDEX IF EXISTS idx_${col}`);
+          await sql.unsafe(`ALTER TABLE anchors DROP COLUMN IF EXISTS ${col}`);
+        }
         await sql.unsafe(
           `ALTER TABLE anchors ADD COLUMN IF NOT EXISTS ${col} jsonb`
             + ` GENERATED ALWAYS AS (props->'archetype'->>'${fld}') STORED`
@@ -280,6 +285,21 @@ const SCHEMA_LOCK_KEY = BigInt.asIntN(
 // Mirrors PgStore._promotion_columns / _sanitize_ident in impl/store.impl.jac.
 function sanitizeIdent(name) {
   return String(name).toLowerCase().replace(/[^a-z0-9_]/g, "_");
+}
+
+// Mirrors PgStore._promoted_column_type in impl/store.impl.jac.
+async function promotedColumnType(sql, col) {
+  const result = await sql.unsafe(
+    "SELECT data_type FROM information_schema.columns "
+      + "WHERE table_name = 'anchors' AND column_name = $1",
+    [col.toLowerCase()]
+  );
+  if (Array.isArray(result) && result.length > 0) {
+    const row = result[0];
+    const val = typeof row === "object" ? Object.values(row)[0] : row;
+    return val === undefined || val === null ? null : String(val);
+  }
+  return null;
 }
 
 function promotionColumns(promotions) {

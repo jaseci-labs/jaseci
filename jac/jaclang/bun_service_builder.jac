@@ -97,8 +97,25 @@ def _string_bundle_bun_artifact(out_dir: Path, module_name: str) -> str {
         return True;
     }
 
-    runtime_path = out_dir / 'server_runtime.js';
+    # jac_runtime.js defines `const _jac`; inline it FIRST so no later chunk
+    # can reference `_jac` before its definition. seen_jac keeps any other
+    # copy (cl stdlib deps) out of the bundle.
     seen_jac: dict[str, bool] = {'seen': False};
+    jac_rt_path = out_dir / 'jac_runtime.js';
+    if jac_rt_path.exists() {
+        kept_jac: list[str] = [];
+        for ln in jac_rt_path.read_text(encoding='utf-8').splitlines() {
+            if not _keep_line(ln) {
+                continue;
+            }
+            kept_jac.append(ln);
+            if 'const _jac' in ln {
+                seen_jac['seen'] = True;
+            }
+        }
+        chunks.append('\n'.join(kept_jac));
+    }
+    runtime_path = out_dir / 'server_runtime.js';
     if runtime_path.exists() {
         runtime_text = runtime_path.read_text(encoding='utf-8');
         kept_rt: list[str] = [];
@@ -120,20 +137,6 @@ def _string_bundle_bun_artifact(out_dir: Path, module_name: str) -> str {
     bun_store_path = out_dir / 'bun_store.js';
     if bun_store_path.exists() {
         chunks.append(bun_store_path.read_text(encoding='utf-8'));
-    }
-    jac_rt_path = out_dir / 'jac_runtime.js';
-    if jac_rt_path.exists() and not seen_jac['seen'] {
-        kept_rt: list[str] = [];
-        for ln in jac_rt_path.read_text(encoding='utf-8').splitlines() {
-            if not _keep_line(ln) {
-                continue;
-            }
-            kept_rt.append(ln);
-            if 'const _jac' in ln {
-                seen_jac['seen'] = True;
-            }
-        }
-        chunks.append('\n'.join(kept_rt));
     }
     _inline_extra_deps(out_dir, chunks, seen_jac);
     module_js = out_dir / f'{module_name}.js';

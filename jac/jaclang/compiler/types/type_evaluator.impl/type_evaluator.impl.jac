@@ -1,3 +1,5 @@
+glob _HOST_PROVIDES_CACHE: dict[tuple[str, str, str, str], bool] = {};
+
 impl TypeEvaluator._pass.getter -> (Transform | None) {
     ref = self._pass_ref;
     if ref is None {
@@ -10,11 +12,6 @@ impl TypeEvaluator._pass.getter -> (Transform | None) {
 impl TypeEvaluator._pass.setter(_pass: (Transform | None)) {
     import weakref;
     self._pass_ref = weakref.ref(_pass) if _pass is not None else None;
-}
-
-impl TypeEvaluator.host_provides(node_: UniNode, cap: str) -> bool {
-    import from jaclang.jac0core.host { host_provides_node }
-    return host_provides_node(node_, cap);
 }
 
 impl TypeEvaluator._walk_compr_clauses(comprs: list[InnerCompr]) -> None {
@@ -3298,8 +3295,24 @@ impl TypeEvaluator._in_native_context -> bool {
 }
 
 impl TypeEvaluator.host_provides(node_: UniNode, cap: str) -> bool {
+    # host_provides_node walks to the parent Module and re-reads the project
+    # config on every call; memoize per (module, context, capability) since
+    # the answer is constant for a given node context within a compile.
     import from jaclang.jac0core.host { host_provides_node }
-    return host_provides_node(node_, cap);
+    mod = node_.find_parent_of_type(Module);
+    key = (
+        (str(mod.loc.mod_path) if mod is not None and mod.loc is not None else ''),
+        str(node_.in_native_context()),
+        str(node_.in_client_context()),
+        cap
+    );
+    cached = _HOST_PROVIDES_CACHE.get(key);
+    if cached is not None {
+        return cached;
+    }
+    result = host_provides_node(node_, cap);
+    _HOST_PROVIDES_CACHE[key] = result;
+    return result;
 }
 
 impl TypeEvaluator._is_typing_special_form(ty: TypeBase, name: str) -> bool {
