@@ -235,22 +235,15 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
 
 glob NATIVE_ERASED_ABC_BASES: frozenset = frozenset({"ABC"});
 
-glob NATIVE_ERASED_RIM_BASES: frozenset = frozenset({"PassRim"});
-
-glob NATIVE_ERASED_BASES: frozenset = (
-         NATIVE_ERASED_ABC_BASES | NATIVE_ERASED_RIM_BASES
-     );
+glob NATIVE_ERASED_BASES: frozenset = NATIVE_ERASED_ABC_BASES;
 
 glob NATIVE_ERASED_IDENTITY_CALLS: frozenset = frozenset({"cast"});
 
 glob NATIVE_ERASED_FIELD_MARKERS: frozenset = frozenset({"field"});
 
-glob PASS_RIM_MODULE: str = "jaclang.compiler.passes.pass_rim";
-
 glob NATIVE_ERASED_IMPORTS: dict[str, frozenset] = {
          "abc": NATIVE_ERASED_ABC_BASES,
          "dataclasses": NATIVE_ERASED_FIELD_MARKERS,
-         PASS_RIM_MODULE: NATIVE_ERASED_RIM_BASES,
          "typing": TYPE_PARAM_CONSTRUCTORS
              | NATIVE_ERASED_IDENTITY_CALLS
              | NATIVE_ERASED_TYPE_MARKERS

@@ -73,13 +73,6 @@ comptime SPEC_CHECK: CommandSpec = CommandSpec(
                  short="",
                  help="Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision"
              ),
-             Arg.create(
-                 "compile-stats",
-                 typ=bool,
-                 `default=False,
-                 short="",
-                 help="Report how much of each module's pass schedule the binary executed natively, and name every module that fell back to the staged pass loop"
-             ),
 
          ],
          examples=[
@@ -119,8 +112,7 @@ def check(
     lint_only: bool = False,
     fix: bool = False,
     native_coverage: bool = False,
-    placements: bool = False,
-    compile_stats: bool = False
+    placements: bool = False
 ) -> int;
 
 def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;

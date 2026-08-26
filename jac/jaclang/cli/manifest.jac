@@ -25,7 +25,6 @@ comptime import from jaclang.cli.commands.project {
     SPEC_REMOVE,
     SPEC_UPDATE
 }
-comptime import from jaclang.cli.commands.seal { SPEC_SEAL }
 comptime import from jaclang.cli.commands.tools {
     SPEC_COMPLETIONS,
     SPEC_DOT,
@@ -121,7 +120,6 @@ comptime ROUTES: list[CommandSpec] = [
          _route(SPEC_RETHEME),
          _route(SPEC_RUN),
          _route(SPEC_SCALE_CMD),
-         _route(SPEC_SEAL),
          _route(SPEC_SETUP),
          _route(SPEC_TEST),
          _route(SPEC_TOOL),
