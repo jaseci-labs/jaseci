@@ -2407,7 +2407,7 @@ impl PyastBuildPass._eval_complex_literal_ast(
     } except Exception {
         lit_val = None;
     }
-    if lit_val is not None {
+    if isinstance(lit_val, (int, float, complex)) {
         return lit_val;
     }
     if isinstance(nd, py_ast.Constant) {
