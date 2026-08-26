@@ -273,3 +273,50 @@ test "_build_startup_probe defaults to a period that actually shaves the measure
     assert probe["periodSeconds"] <= 2;
     assert probe["periodSeconds"] * probe["failureThreshold"] == 900;
 }
+
+
+# ===== readiness probe on zero-scaled services =====
+# _build_readiness_probe hardcoded periodSeconds: 20 (readiness_period) for
+# every service. Readiness polling is disabled until the startup probe
+# first succeeds, so a zero-scaled service pays up to one more full
+# readiness period of pure Kubernetes-side lag on top of an already-woken,
+# already-serving pod -- the same class of cost the startup probe fix
+# addresses, just on the sibling probe. A normally-scaled service's
+# readiness probe runs for the pod's entire lifetime, so the tighter
+# period only applies when the service's replica floor is 0.
+
+test "_build_readiness_probe uses the default period for a normally-scaled service" {
+    b = _builder({"pingsvc": {"hpa": {"min": 1}}});
+    probe = b._build_readiness_probe("pingsvc");
+    assert probe["periodSeconds"] == KubernetesConfig().readiness_period;
+    assert probe["failureThreshold"] == 3;
+}
+
+test "_build_readiness_probe tightens the period for a service with replica floor 0" {
+    b = _builder({"worksvc": {"hpa": {"min": 0}}});
+    probe = b._build_readiness_probe("worksvc");
+    assert probe["periodSeconds"] == KubernetesConfig().readiness_period_scale_to_zero;
+    # The default hardcoded pair (20 x 3) was a deliberate 60s tolerance for
+    # transient unhealthiness, not an arbitrary choice -- a tighter period
+    # must scale failureThreshold to preserve that ceiling, not just poll
+    # more often within a much shorter one.
+    assert probe["periodSeconds"] * probe["failureThreshold"] == 60;
+}
+
+test "_build_readiness_probe leaves a service with hpa disabled and replicas=0 tightened too" {
+    b = _builder({"worksvc": {"hpa": {"enabled": False}, "replicas": 0}});
+    probe = b._build_readiness_probe("worksvc");
+    assert probe["periodSeconds"] == KubernetesConfig().readiness_period_scale_to_zero;
+}
+
+test "_build_readiness_probe honors a custom readiness_period_scale_to_zero" {
+    b = _builder(
+        {"worksvc": {"hpa": {"min": 0}}},
+        k8s_config=KubernetesConfig(
+            app_name="t", namespace="t-ns", readiness_period_scale_to_zero=5
+        )
+    );
+    probe = b._build_readiness_probe("worksvc");
+    assert probe["periodSeconds"] == 5;
+    assert probe["failureThreshold"] == 12;
+}

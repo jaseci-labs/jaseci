@@ -23,6 +23,7 @@ obj KubernetesConfig(BaseConfig) {
         liveness_period: int = 20,
         liveness_failure_threshold: int = 80,
         startup_probe_period: int = 2,
+        readiness_period_scale_to_zero: int = 2,
         min_replicas: int = 1,
         max_replicas: int = 3,
         revision_history_limit: int = 10,
@@ -108,6 +109,7 @@ obj KubernetesConfig(BaseConfig) {
                 'liveness_period': self.liveness_period,
                 'liveness_failure_threshold': self.liveness_failure_threshold,
                 'startup_probe_period': self.startup_probe_period,
+                'readiness_period_scale_to_zero': self.readiness_period_scale_to_zero,
                 'min_replicas': self.min_replicas,
                 'max_replicas': self.max_replicas,
                 'revision_history_limit': self.revision_history_limit,
@@ -197,6 +199,9 @@ obj KubernetesConfig(BaseConfig) {
             liveness_period=config.get('liveness_period', 20),
             liveness_failure_threshold=config.get('liveness_failure_threshold', 80),
             startup_probe_period=config.get('startup_probe_period', 2),
+            readiness_period_scale_to_zero=config.get(
+                'readiness_period_scale_to_zero', 2
+            ),
             min_replicas=config.get('min_replicas', 1),
             max_replicas=config.get('max_replicas', 3),
             revision_history_limit=config.get('revision_history_limit', 10),
