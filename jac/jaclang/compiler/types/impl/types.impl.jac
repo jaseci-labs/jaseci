@@ -56,7 +56,8 @@ impl Parameter.clone -> Parameter {
         is_self=self.is_self,
         is_cls=self.is_cls,
         param_kind=self.param_kind,
-        has_default=self.has_default
+        has_default=self.has_default,
+        is_comptime=self.is_comptime
     );
 }
 

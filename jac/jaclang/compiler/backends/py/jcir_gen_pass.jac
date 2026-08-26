@@ -383,6 +383,14 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def _fw_aug_assign(nd: Assignment, target: any, value: any) -> (CgNode | None);
     def val(nd: UniNode) -> CgNode;
     def const_of(value: any, jac_node: (UniNode | None) = None) -> CgNode;
+    def _ct_kind(v: any) -> str;
+    def _ct_materializable(v: any) -> bool;
+    def _ct_concrete(nd: Expr) -> bool;
+    def _is_comptime_only_name(nd: Name) -> bool;
+    def _import_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
+    def _class_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
+    def _materialize(v: any, jac_node: UniNode) -> (CgNode | None);
+    def _comptime_if_out(nd: IfStmt) -> bool;
     def name_load(name_id: str, jac_node: (UniNode | None) = None) -> CgNode;
     def _with_ctx(cgn: CgNode, ctx_cls: str) -> CgNode;
     def jaclib_obj(obj_name: str) -> CgNode;

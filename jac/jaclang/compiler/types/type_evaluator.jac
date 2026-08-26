@@ -1,6 +1,9 @@
 import os;
 import from pathlib { Path }
 import from typing { cast }
+import from jaclang.compiler.types.ct_eval { CtEvaluator }
+import from jaclang.compiler.types.ct_value { CtValue }
+import from jaclang.compiler.frontend.diagnostics { E0033, E0108, E0109 }
 import from jaclang.compiler.frontend.unitree {
     Ability,
     Archetype,
@@ -336,6 +339,7 @@ obj TypeEvaluator {
         ambient_typing_names_by_module: dict[str, set[str]] = {},
         _ENUM_STUB_FILE_PATH: str postinit,
         symbol_resolution_stack: list[Symbol] = [],
+        ct_eval: CtEvaluator postinit,
         prefetch: PrefetchedTypes postinit,
         _pass_ref: object | None = None,
         builtins_module: Module | None = None,
@@ -366,6 +370,11 @@ obj TypeEvaluator {
     has _pass: (Transform | None) { getter; setter(_pass: (Transform | None)); }
 
     def postinit -> None;
+    def ct_demand(nd: Expr) -> (CtValue | None);
+    def ct_site_error(
+        nd: Expr, what: str, cv: (CtValue | None), allow_deferred: bool = True
+    ) -> bool;
+
     def _read_dunder_all(path: str) -> (set[str] | None);
     def _read_ambient_imports_by_module(path: str) -> dict[str, set[str]];
     def _load_stub_module(path: str) -> Module;

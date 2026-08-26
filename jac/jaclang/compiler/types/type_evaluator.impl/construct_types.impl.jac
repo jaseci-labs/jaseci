@@ -435,6 +435,7 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
                 is_self=is_self_param,
                 is_cls=is_cls_param,
                 param_kind=_convert_param_kind(param.param_kind),
+                is_comptime=param.is_comptime,
             )
         );
     }

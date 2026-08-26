@@ -1151,6 +1151,7 @@ impl TypeEvaluator.emit_diag(
 impl TypeEvaluator._invalidate_expr_type_cache(node_: UniNode) -> None {
     if isinstance(node_, Expr) {
         node_.type = None;
+        node_.ct_value = None;
     }
     for kid in node_.kid {
         self._invalidate_expr_type_cache(kid);

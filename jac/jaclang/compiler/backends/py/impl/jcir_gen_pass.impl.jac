@@ -63,6 +63,10 @@ impl JcirGenPass.enter_node(nd: UniNode) -> None {
         self.prune();
         return;
     }
+    if isinstance(nd, (Ability, Import)) and nd.is_comptime {
+        self.prune();
+        return;
+    }
     if (
         isinstance(nd, ContextAwareNode)
         and (nd.code_context == CodeContext.NATIVE)
@@ -112,6 +116,10 @@ impl JcirGenPass.enter_node(nd: UniNode) -> None {
 
 impl JcirGenPass.exit_node(nd: UniNode) -> None {
     if (isinstance(nd, Module) and (nd is not self.ir_in)) {
+        return;
+    }
+    if isinstance(nd, (Ability, Import)) and nd.is_comptime {
+        self.set_out(nd, []);
         return;
     }
     if (
@@ -474,6 +482,239 @@ impl JcirGenPass.val(nd: UniNode) -> CgNode {
 
 impl JcirGenPass.const_of(value: any, jac_node: (UniNode | None) = None) -> CgNode {
     return self.nod('Constant', ['value'], [value], jac_node=jac_node);
+}
+
+impl JcirGenPass._ct_kind(v: any) -> str {
+    if v is None or isinstance(v, (bool, int, float, str, bytes)) {
+        return "scalar";
+    }
+    kind = type(v).__name__;
+    if kind in ("CtEnumMember", "CtType", "CtFunc", "CtRecord") {
+        return kind;
+    }
+    if isinstance(v, (list, tuple, set, frozenset, dict)) {
+        return "container";
+    }
+    return "";
+}
+
+impl JcirGenPass._ct_materializable(v: any) -> bool {
+    kind = self._ct_kind(v);
+    if not kind {
+        return False;
+    }
+    if kind == "container" {
+        items = v.values() if isinstance(v, dict) else v;
+        for item in items {
+            if not self._ct_materializable(item) {
+                return False;
+            }
+        }
+        if isinstance(v, dict) {
+            for k in v.keys() {
+                if not self._ct_materializable(k) {
+                    return False;
+                }
+            }
+        }
+        return True;
+    }
+    if kind == "CtRecord" {
+        for item in v.fields.values() {
+            if not self._ct_materializable(item) {
+                return False;
+            }
+        }
+    }
+    return True;
+}
+
+impl JcirGenPass._ct_concrete(nd: Expr) -> bool {
+    cv = nd.ct_value;
+    return cv is not None and not cv.is_deferred and self._ct_materializable(cv.v);
+}
+
+impl JcirGenPass._is_comptime_only_name(nd: Name) -> bool {
+    sym = nd.sym;
+    if sym is None {
+        return False;
+    }
+    decl = sym.decl;
+    imp = decl.find_parent_of_type(Import) if isinstance(decl, Name) else None;
+    if imp is not None and imp.is_comptime {
+        return True;
+    }
+    owner = decl.name_of;
+    if isinstance(owner, Ability) and owner.is_comptime {
+        return True;
+    }
+    par = decl.parent if isinstance(decl, Name) else None;
+    if isinstance(par, Assignment) and isinstance(par.parent, GlobalVars) {
+        home = par.find_parent_of_type(Module);
+        if home is not None and home is not self.ir_in {
+            hp = (home.loc.mod_path if home.loc else "").replace("\\", "/");
+            return hp.endswith("jaclang/comptime.jac");
+        }
+    }
+    return False;
+}
+
+impl JcirGenPass._import_ref(module: str, name: str, jac_node: UniNode) -> CgNode {
+    imported = self.nod(
+        'Call',
+        ['func', 'args', 'keywords'],
+        [
+            self.name_load('__import__', jac_node),
+            [self.const_of(module, jac_node)],
+            [
+                self.nod(
+                    'keyword',
+                    ['arg', 'value'],
+                    [
+                        'fromlist',
+                        self.nod(
+                            'List',
+                            ['elts', 'ctx'],
+                            [[self.const_of(name, jac_node)], self.nod('Load', [], [])]
+                        )
+                    ]
+                )
+            ]
+        ],
+        jac_node=jac_node
+    );
+    return self.nod(
+        'Attribute',
+        ['value', 'attr', 'ctx'],
+        [imported, name, self.nod('Load', [], [])],
+        jac_node=jac_node
+    );
+}
+
+impl JcirGenPass._class_ref(module: str, name: str, jac_node: UniNode) -> CgNode {
+    import from jaclang.compiler.frontend.codeinfo { module_dotted_name }
+    if module == "builtins" or not module {
+        return self.name_load(name, jac_node);
+    }
+    if module == module_dotted_name(self.ir_in) {
+        return self.name_load(name, jac_node);
+    }
+    local_sym = self.ir_in.sym_tab.lookup(name, deep=False);
+    if local_sym is not None {
+        return self.name_load(name, jac_node);
+    }
+    return self._import_ref(module, name, jac_node);
+}
+
+impl JcirGenPass._materialize(v: any, jac_node: UniNode) -> (CgNode | None) {
+    import from jaclang.compiler.frontend.codeinfo { module_dotted_name }
+    load = self.nod('Load', [], []);
+    kind = self._ct_kind(v);
+    if kind == "scalar" {
+        return self.const_of(v, jac_node);
+    }
+    if isinstance(v, (list, tuple)) {
+        elts: list = [];
+        for item in v {
+            m = self._materialize(item, jac_node);
+            if m is None {
+                return None;
+            }
+            elts.append(m);
+        }
+        return self.nod(
+            'List' if isinstance(v, list) else 'Tuple', ['elts', 'ctx'], [elts, load]
+        );
+    }
+    if isinstance(v, (set, frozenset)) {
+        elts2: list = [];
+        for item in v {
+            m = self._materialize(item, jac_node);
+            if m is None {
+                return None;
+            }
+            elts2.append(m);
+        }
+        ctor = 'frozenset' if isinstance(v, frozenset) else 'set';
+        return self.nod(
+            'Call',
+            ['func', 'args', 'keywords'],
+            [
+                self.name_load(ctor, jac_node),
+                [self.nod('List', ['elts', 'ctx'], [elts2, load])],
+                []
+            ]
+        );
+    }
+    if isinstance(v, dict) {
+        keys: list = [];
+        vals: list = [];
+        for (k, item) in v.items() {
+            mk = self._materialize(k, jac_node);
+            mv = self._materialize(item, jac_node);
+            if mk is None or mv is None {
+                return None;
+            }
+            keys.append(mk);
+            vals.append(mv);
+        }
+        return self.nod('Dict', ['keys', 'values'], [keys, vals]);
+    }
+    if kind == "CtEnumMember" {
+        return self.nod(
+            'Attribute',
+            ['value', 'attr', 'ctx'],
+            [self._class_ref(v.module, v.enum_name, jac_node), v.member, load],
+            jac_node=jac_node
+        );
+    }
+    if kind == "CtType" {
+        return self._class_ref(v.module, v.name, jac_node);
+    }
+    if kind == "CtFunc" {
+        same_module = v.module == module_dotted_name(self.ir_in);
+        ct_only = v.ability is not None and v.ability.is_comptime;
+        if same_module and not ct_only {
+            parts = v.qualname.split(".");
+            cur: CgNode = self.name_load(parts[0], jac_node);
+            for part in parts[1:] {
+                cur = self.nod(
+                    'Attribute', ['value', 'attr', 'ctx'], [cur, part, load]
+                );
+            }
+            return cur;
+        }
+        return self.nod(
+            'Call',
+            ['func', 'args', 'keywords'],
+            [
+                self._import_ref("jaclang.comptime", "__ct_lazy", jac_node),
+                [
+                    self.const_of(v.module, jac_node),
+                    self.const_of(v.qualname, jac_node)
+                ],
+                []
+            ],
+            jac_node=jac_node
+        );
+    }
+    if kind == "CtRecord" {
+        kws: list = [];
+        for (k, item) in v.fields.items() {
+            mv = self._materialize(item, jac_node);
+            if mv is None {
+                return None;
+            }
+            kws.append(self.nod('keyword', ['arg', 'value'], [k, mv]));
+        }
+        return self.nod(
+            'Call',
+            ['func', 'args', 'keywords'],
+            [self._class_ref(v.module, v.class_name, jac_node), [], kws],
+            jac_node=jac_node
+        );
+    }
+    return None;
 }
 
 impl JcirGenPass.name_load(name_id: str, jac_node: (UniNode | None) = None) -> CgNode {
@@ -2162,7 +2403,22 @@ impl JcirGenPass.exit_open_stmt(nd: OpenStmt) -> None {
     self.set_out(nd, [assign_stmt, open_stmt, try_stmt]);
 }
 
+impl JcirGenPass._comptime_if_out(nd: IfStmt) -> bool {
+    if nd.ct_taken is None {
+        return False;
+    }
+    if nd.ct_taken {
+        self.set_out(nd, self.resolve_stmt_block(nd.body));
+    } else {
+        self.set_out(nd, self.outs(nd.else_body) if nd.else_body else []);
+    }
+    return True;
+}
+
 impl JcirGenPass.exit_if_stmt(nd: IfStmt) -> None {
+    if self._comptime_if_out(nd) {
+        return;
+    }
     self.set_out(
         nd,
         [
@@ -2180,6 +2436,9 @@ impl JcirGenPass.exit_if_stmt(nd: IfStmt) -> None {
 }
 
 impl JcirGenPass.exit_else_if(nd: ElseIf) -> None {
+    if self._comptime_if_out(nd) {
+        return;
+    }
     self.set_out(
         nd,
         [
@@ -2410,6 +2669,10 @@ impl JcirGenPass.exit_raise_stmt(nd: RaiseStmt) -> None {
 }
 
 impl JcirGenPass.exit_assert_stmt(nd: AssertStmt) -> None {
+    if nd.is_comptime {
+        self.set_out(nd, []);
+        return;
+    }
     self.set_out(
         nd,
         [
@@ -2618,7 +2881,12 @@ impl JcirGenPass.exit_cast_expr(nd: CastExpr) -> None {
 
 impl JcirGenPass.exit_assignment(nd: Assignment) -> None {
     value: (CgNode | None) = None;
-    if nd.value {
+    if nd.value and nd.is_comptime and self._ct_concrete(nd.value) {
+        value = self._materialize(nd.value.ct_value.v, nd.value);
+        if value is None {
+            value = self.val(nd.value);
+        }
+    } elif nd.value {
         value = self.val(nd.value);
     } elif nd.is_enum_stmt {
         value = self.nod(
@@ -2637,7 +2905,7 @@ impl JcirGenPass.exit_assignment(nd: Assignment) -> None {
             [
                 targets_ast[0],
                 self.val(nd.type_tag),
-                self.val(nd.value) if nd.value else None,
+                value if nd.value else None,
                 int(isinstance(targets_ast[0], CgNode) and targets_ast[0].cls == 'Name')
             ]
         );
@@ -3739,6 +4007,17 @@ impl JcirGenPass._final_hop_types(nd: EdgeRefTrailer) -> tuple[str, str] {
 
 
 impl JcirGenPass.exit_func_call(nd: FuncCall) -> None {
+    if (
+        nd.callee_decl is not None
+        and nd.callee_decl.is_comptime
+        and self._ct_concrete(nd)
+    ) {
+        folded = self._materialize(nd.ct_value.v, nd);
+        if folded is not None {
+            self.set_out(nd, [folded]);
+            return;
+        }
+    }
     if self._fold_sorted_traversal(nd) {
         return;
     }
@@ -4618,6 +4897,17 @@ impl JcirGenPass.exit_name(nd: Name) -> None {
         if resolved is not None {
             self.set_out(nd, [resolved]);
             return;
+        }
+    }
+    if self._ct_concrete(nd) and nd.expr_ctx == ExprCtx.LOAD {
+        cv = nd.ct_value.v;
+        if self._is_comptime_only_name(nd)
+            or self._ct_kind(cv) in ("scalar", "CtEnumMember") {
+            folded = self._materialize(cv, nd);
+            if folded is not None {
+                self.set_out(nd, [folded]);
+                return;
+            }
         }
     }
     if not is_identifier_slot(nd) {

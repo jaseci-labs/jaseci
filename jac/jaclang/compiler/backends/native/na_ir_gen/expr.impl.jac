@@ -7,6 +7,10 @@ impl NaIRGenExpr._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
     _jac_loc: str = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
+    _folded = self._ct_fold(nd);
+    if _folded is not None {
+        return _folded;
+    }
     if isinstance(nd, uni.Int) {
         tok_name = nd?.name;
         if tok_name == Tok.HEX {

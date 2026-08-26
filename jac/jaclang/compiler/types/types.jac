@@ -205,7 +205,8 @@ obj Parameter {
         is_self: bool = False,
         is_cls: bool = False,
         param_kind: ParamKind = ParamKind.NORMAL,
-        has_default: bool = False;
+        has_default: bool = False,
+        is_comptime: bool = False;
 
     def clone -> Parameter;
 

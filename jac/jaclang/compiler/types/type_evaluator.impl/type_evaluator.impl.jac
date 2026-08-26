@@ -2406,6 +2406,14 @@ impl TypeEvaluator._get_type_of_symbol_decl(
             return self.get_type_of_class(node_);
 
         case TypeParam():
+            if node_.is_comptime {
+                if node_.bound is not None {
+                    return self._convert_to_instance(
+                        self.get_type_of_expression(node_.bound)
+                    );
+                }
+                return UnknownType();
+            }
             return TypeVarType(
                 name=node_.sym_name,
                 is_class_type_param=self._is_class_scoped_type_param(node_)
@@ -3725,6 +3733,9 @@ impl TypeEvaluator.get_type_of_expression(
         }
     }
     node_.type = result;
+    if node_.ct_value is None {
+        node_.ct_value = self.ct_eval.try_eval(node_);
+    }
 
     if isinstance(result, (UnionType, ClassType)) {
         if narrowed := self.get_narrowed_type_for_expr(node_, result, node_) {
@@ -3733,6 +3744,44 @@ impl TypeEvaluator.get_type_of_expression(
         }
     }
     return result;
+}
+
+impl TypeEvaluator.ct_demand(nd: Expr) -> (CtValue | None) {
+    self.get_type_of_expression(nd);
+    cv = nd.ct_value;
+    if cv is not None and not cv.is_deferred {
+        return cv;
+    }
+    got = self.ct_eval.try_eval(nd, demand=True);
+    if got is not None {
+        nd.ct_value = got;
+        return got;
+    }
+    return cv;
+}
+
+impl TypeEvaluator.ct_site_error(
+    nd: Expr, what: str, cv: (CtValue | None), allow_deferred: bool = True
+) -> bool {
+    if cv is None {
+        reason = self.ct_eval.last_error;
+        if reason {
+            self.emit_diag(E0108, nd, reason=f"{what}: {reason}");
+        } else {
+            self.emit_diag(E0033, nd, what=what, reason="");
+        }
+        return True;
+    }
+    if cv.is_deferred and not allow_deferred {
+        self.emit_diag(
+            E0033,
+            nd,
+            what=what,
+            reason=" (it depends on a comptime parameter or loop variable)"
+        );
+        return True;
+    }
+    return False;
 }
 
 impl TypeEvaluator.pop_symbol_resolution(symbol: Symbol) -> None {
@@ -4107,6 +4156,7 @@ impl TypeEvaluator._read_ambient_imports_by_module(path: str) -> dict[str, set[s
 }
 
 impl TypeEvaluator.postinit -> None {
+    self.ct_eval = CtEvaluator(evaluator=self);
     self._BUILTINS_STUB_FILE_PATH = os.path.join(
         os.path.dirname(__file__), "../../vendor/typeshed/stdlib/builtins.pyi"
     );
