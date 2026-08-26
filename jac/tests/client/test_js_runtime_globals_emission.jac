@@ -21,7 +21,7 @@ import from jaclang.client.client_surface { with_runtime_globals }
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "backends", "es", "fixtures"
      ),
-     _MINIMAL_JSX = 'cl def:pub render(items: list) -> any {\n    return <div>{items}</div>;\n}\n';
+     _MINIMAL_JSX = 'def:pub render(items: list) -> any {\n    return <div>{items}</div>;\n}\n';
 
 """Count named import bindings for a runtime symbol."""
 def _count_runtime_imports(js: str, symbol: str) -> int {
@@ -146,9 +146,9 @@ test "runtime source does not self-import @jac/runtime" {
     plugin = importlib.import_module("jaclang.client");
     paths = list(getattr(plugin, "__path__", []) or []);
     assert paths , "jaclang.client must be importable";
-    core_src = os.path.join(paths[0], "client_runtime_core.jac");
+    core_src = os.path.join(paths[0], "client_react_core.jac");
     assert os.path.isfile(core_src) , (
-        "client_runtime_core.jac is part of jaclang and must be present"
+        "client_react_core.jac is part of jaclang and must be present"
     );
     js = _compile_raw_js(core_src);
     assert "function __jacJsx" in js , "runtime core must define __jacJsx";
@@ -162,7 +162,7 @@ test "runtime source does not self-import @jac/runtime" {
 }
 
 test "runtime_peer_deps rejects @jac/runtime self-import" {
-    import from jaclang.publish.runtime_npm { runtime_peer_deps }
+    import from jaclang.dist.publish.runtime_npm { runtime_peer_deps }
     raised = False;
     try {
         runtime_peer_deps('import {__jacJsx} from "@jac/runtime";\n');
@@ -175,7 +175,7 @@ test "runtime_peer_deps rejects @jac/runtime self-import" {
 }
 
 test "build_runtime_tarball React runtime does not self-import @jac/runtime" {
-    import from jaclang.publish.runtime_npm { build_runtime_tarball }
+    import from jaclang.dist.publish.runtime_npm { build_runtime_tarball }
     data = build_runtime_tarball("1.2.3");
     assert data , "expected non-empty React runtime tarball";
     import io;
@@ -198,7 +198,7 @@ test "build_runtime_tarball React runtime does not self-import @jac/runtime" {
 }
 
 test "build_runtime_tarball Solid runtime does not self-import @jac/runtime" {
-    import from jaclang.publish.runtime_npm { build_runtime_tarball }
+    import from jaclang.dist.publish.runtime_npm { build_runtime_tarball }
     data = build_runtime_tarball("1.2.3", framework="solid");
     assert data , "expected non-empty Solid runtime tarball";
     import io;

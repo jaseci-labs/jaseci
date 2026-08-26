@@ -27,6 +27,7 @@ import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
 import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 import from jaclang.compiler.backends.es { EsastGenPass }
 import from jaclang.compiler.backends.es.es_unparse { es_to_js }
 import from jaclang.compiler.backends.es.backends.solid { SolidBackend }
@@ -822,7 +823,7 @@ test "solid counter mounts and reacts in jsdom" {
     backend = SolidBackend();
     # Compiler emits `@jac/runtime` imports for spawn and other runtime helpers.
     component_js = _wire_jac_runtime(
-        _compile_solid(os.path.join(FIXTURES, "solid_counter_app.cl.jac"))
+        _compile_solid(os.path.join(FIXTURES, "solid_counter_app.jac"))
     );
     runtime_path = resolve_client_runtime_cl_path("solid");
     runtime_js = _rewrite_core_specifier(_compile_solid(runtime_path));
@@ -894,7 +895,7 @@ test "solid native control flow (<For>/<Show>) renders + reacts in jsdom (Branch
 
     backend = SolidBackend();
     component_js = _wire_jac_runtime(
-        _compile_solid(os.path.join(FIXTURES, "solid_control_flow_app.cl.jac"))
+        _compile_solid(os.path.join(FIXTURES, "solid_control_flow_app.jac"))
     );
     runtime_path = resolve_client_runtime_cl_path("solid");
     runtime_js = _rewrite_core_specifier(_compile_solid(runtime_path));
@@ -960,6 +961,7 @@ test "solid file-based routing mounts, navigates, and guards in jsdom" {
     }
 
     rdir = os.path.join(FIXTURES, "solid_routing");
+    backend = SolidBackend();
     home_js = _compile_page(os.path.join(rdir, "home_page.jac"), backend);
     about_js = _compile_page(os.path.join(rdir, "about_page.jac"), backend);
     dash_js = _compile_page(os.path.join(rdir, "dashboard_page.jac"), backend);
@@ -1082,7 +1084,7 @@ test "solid JacForm renders and validates in jsdom (TanStack Form end-to-end)" {
 
     backend = SolidBackend();
     component_js = _wire_jac_runtime(
-        _compile_solid(os.path.join(FIXTURES, "solid_form_app.cl.jac"))
+        _compile_solid(os.path.join(FIXTURES, "solid_form_app.jac"))
     );
     runtime_path = resolve_client_runtime_cl_path("solid");
     runtime_js = _rewrite_core_specifier(_compile_solid(runtime_path));
@@ -1154,13 +1156,13 @@ test "solid P2 jsdom matrix: dynamic prop, ref e2e, and callback prop" {
     );
 
     dynprop_js = _wire_jac_runtime(
-        _compile_solid(os.path.join(FIXTURES, "solid_dynprop_app.cl.jac"))
+        _compile_solid(os.path.join(FIXTURES, "solid_dynprop_app.jac"))
     );
     ref_js = _wire_jac_runtime(
-        _compile_solid(os.path.join(FIXTURES, "solid_ref_app.cl.jac"))
+        _compile_solid(os.path.join(FIXTURES, "solid_ref_app.jac"))
     );
     callback_js = _wire_jac_runtime(
-        _compile_solid(os.path.join(FIXTURES, "solid_callback_app.cl.jac"))
+        _compile_solid(os.path.join(FIXTURES, "solid_callback_app.jac"))
     );
 
     with TemporaryDirectory() as tmp {
