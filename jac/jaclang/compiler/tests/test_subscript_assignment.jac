@@ -8,8 +8,8 @@ buffer / iterable of ints (``ident[0:4] = b"..."``), which the old
 element-assignment model rejected.
 """
 
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 
 """Type-check a Jac source string and return the emitted error messages."""

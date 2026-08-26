@@ -5,18 +5,16 @@ fixture files without errors, and test compilation-level behaviour.
 """
 
 import os;
-import from jaclang.jac0core.treeprinter { print_ast_tree }
+import from jaclang.compiler.tools.treeprinter { print_ast_tree }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.tool.jac_formatter_pass { format_module }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.tools.jac_formatter_pass { format_module }
+import from jaclang.compiler.tools.unparse_pass { unparse_module }
 import from jaclang.cli.commands { analysis }
 
 glob EXAMPLES = os.path.join(JAC_ROOT, "examples"),
-     FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
-     ),
+     FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures"),
      COMPILER_FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "fixtures"),
      LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
 

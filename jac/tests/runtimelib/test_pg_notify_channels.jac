@@ -22,8 +22,8 @@ import atexit;
 import shutil;
 import time;
 import from tempfile { mkdtemp }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.store { PgStore }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.data.store { PgStore }
 
 glob _holder: dict = {},
      _LONG_STEM = 'cache:' + ('x' * 70) + ':';
