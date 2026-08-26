@@ -4,8 +4,10 @@
 manifest is the build's own statement of what it sealed natively, and a
 jaclang image that cannot serve that statement on this host refuses to load
 with a named error instead of degrading to a tier a sealed build does not
-have. These tests drive `load_image` with crafted images, which is exactly
-how a shipped binary meets a stripped, stale, or wrong-platform install.
+have. Under the fused seal (#8707) that statement is ONE artifact plus the
+list of modules it serves. These tests drive `load_image` with crafted
+images, which is exactly how a shipped binary meets a stripped, stale, or
+wrong-platform install.
 """
 
 import json;
@@ -32,19 +34,18 @@ def _host_triple -> str {
     return f"{arch}-unknown-linux-gnu";
 }
 
-glob WRONG_TRIPLE: str = "x86_64-pc-windows-msvc";
+glob WRONG_TRIPLE: str = "x86_64-pc-windows-msvc",
+     SERVED: str = "jaclang.compiler.frontend.unitree";
 
 """Write a sealed image under a fresh temp dir and return its path.
 
-`roots` entries become both the native record and (unless `orphan` names
-them) real artifact files on disk, so each test states only the defect it
-is about.
+The `native` record's artifact entry becomes real files on disk (unless
+`make_files` is off), so each test states only the defect it is about.
 """
 def _write_image(
     package: str = "jaclang",
     fmt: int = MANIFEST_FORMAT,
     native: (dict | None) = None,
-    artifacts: (dict | None) = None,
     make_files: bool = True
 ) -> Path {
     pdir = Path(tempfile.mkdtemp(prefix="jac_seal_invariant_")) / "_precompiled";
@@ -58,18 +59,14 @@ def _write_image(
     };
     if native is not None {
         manifest["native"] = native;
-    }
-    if artifacts is not None {
-        manifest["native_artifacts"] = artifacts;
-        if make_files {
-            for `entry in artifacts.values() {
-                for key in ("lib", "layout") {
-                    rel = `entry.get(key);
-                    if rel {
-                        target = pdir / rel;
-                        target.parent.mkdir(parents=True, exist_ok=True);
-                        target.write_bytes(b"{}" if key == "layout" else b"\x7fELF");
-                    }
+        `entry = native.get("artifact");
+        if `entry and make_files {
+            for key in ("lib", "layout") {
+                rel = `entry.get(key);
+                if rel {
+                    target = pdir / rel;
+                    target.parent.mkdir(parents=True, exist_ok=True);
+                    target.write_bytes(b"{}" if key == "layout" else b"\x7fELF");
                 }
             }
         }
@@ -80,63 +77,69 @@ def _write_image(
     return pdir;
 }
 
-def _root_entry(stem: str, triple: (str | None) = None) -> dict {
+def _artifact_entry(triple: (str | None) = None) -> dict {
     return {
-        "lib": f"native/host/libjac_{stem}.so",
-        "layout": f"native/host/{stem}.layout.json",
+        "lib": "native/host/libjac_compiler.so",
+        "layout": "native/host/compiler.layout.json",
         "triple": triple if triple is not None else _host_triple(),
         "lib_sha256": "0" * 64,
         "layout_sha256": "0" * 64
     };
 }
 
-test "a jaclang image whose native roots resolve loads" {
-    pdir = _write_image(
-        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
-        artifacts={"jaclang.compiler.frontend.unitree": _root_entry("unitree")}
-    );
+def _native_record(triple: (str | None) = None, modules: (list | None) = None) -> dict {
+    return {
+        "artifact": _artifact_entry(triple),
+        "modules": [SERVED] if modules is None else modules,
+        "skip_reason": None
+    };
+}
+
+test "a jaclang image whose fused artifact resolves loads" {
+    pdir = _write_image(native=_native_record());
     image = load_image(pdir);
     assert image is not None;
     assert image.package == "jaclang";
+    assert SERVED in image.native_modules;
 }
 
-test "a declared root with no artifact entry refuses to load, by name" {
+test "declared served modules with no artifact refuse to load" {
     pdir = _write_image(
-        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
-        artifacts={}
+        native={"artifact": None, "modules": [SERVED], "skip_reason": None}
     );
-    with testraises(RuntimeError, `match="jaclang.compiler.frontend.unitree") {
+    with testraises(RuntimeError, `match="no artifact") {
+        load_image(pdir);
+    }
+}
+
+test "a native record with an artifact but no served modules refuses to load" {
+    pdir = _write_image(
+        native={"artifact": _artifact_entry(), "modules": [], "skip_reason": None}
+    );
+    with testraises(RuntimeError, `match="declares no served modules") {
         load_image(pdir);
     }
 }
 
 test "a deliberately removed artifact file fails the image at load" {
-    pdir = _write_image(
-        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
-        artifacts={"jaclang.compiler.frontend.unitree": _root_entry("unitree")}
-    );
-    (pdir / "native/host/libjac_unitree.so").unlink();
-    with testraises(RuntimeError, `match="missing its artifact file") {
+    pdir = _write_image(native=_native_record());
+    (pdir / "native/host/libjac_compiler.so").unlink();
+    with testraises(RuntimeError, `match="missing its lib file") {
         load_image(pdir);
     }
 }
 
 test "a wrong-platform artifact refuses to load rather than dlopen-failing later" {
-    pdir = _write_image(
-        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
-        artifacts={
-            "jaclang.compiler.frontend.unitree": _root_entry(
-                "unitree", triple=WRONG_TRIPLE
-            )
-        }
-    );
+    pdir = _write_image(native=_native_record(triple=WRONG_TRIPLE));
     with testraises(RuntimeError, `match="targets") {
         load_image(pdir);
     }
 }
 
 test "an image that skipped its native seal is refused on a native-capable host" {
-    pdir = _write_image(native={"roots": [], "skip_reason": "platform:win"});
+    pdir = _write_image(
+        native={"artifact": None, "modules": [], "skip_reason": "platform:win"}
+    );
     with testraises(RuntimeError, `match="without its native seal") {
         load_image(pdir);
     }
@@ -148,11 +151,17 @@ test "a skip stamped with THIS capable platform is a build defect, refused" {
     # honoring it would be silent degradation. (On Windows, where no backend
     # exists, `platform:win` is the one legitimate skip.)
     if sys.platform.startswith("win") {
-        pdir = _write_image(native={"roots": [], "skip_reason": "platform:win"});
+        pdir = _write_image(
+            native={"artifact": None, "modules": [], "skip_reason": "platform:win"}
+        );
         assert load_image(pdir) is not None;
     } else {
         pdir = _write_image(
-            native={"roots": [], "skip_reason": f"platform:{sys.platform}"}
+            native={
+                "artifact": None,
+                "modules": [],
+                "skip_reason": f"platform:{sys.platform}"
+            }
         );
         with testraises(RuntimeError, `match="native backend") {
             load_image(pdir);
@@ -182,10 +191,7 @@ test "app images keep their compatibility: older formats, no native record" {
 }
 
 test "JAC_NO_SEAL against an existing image refuses instead of degrading" {
-    pdir = _write_image(
-        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
-        artifacts={"jaclang.compiler.frontend.unitree": _root_entry("unitree")}
-    );
+    pdir = _write_image(native=_native_record());
     saved = os.environ.pop("JAC_NO_SEAL", None);
     os.environ["JAC_NO_SEAL"] = "1";
     try {
@@ -200,21 +206,18 @@ test "JAC_NO_SEAL against an existing image refuses instead of degrading" {
     }
 }
 
-test "a corrupt artifact entry raises at resolution; an absent one is None" {
-    pdir = _write_image(
-        native={"roots": ["jaclang.compiler.frontend.unitree"], "skip_reason": None},
-        artifacts={"jaclang.compiler.frontend.unitree": _root_entry("unitree")}
-    );
+test "a corrupt artifact raises at resolution; an unclaimed module is None" {
+    pdir = _write_image(native=_native_record());
     image = load_image(pdir);
     assert image is not None;
-    # Absent entry: this module was never sealed, so the bootstrap tier is
-    # the correct answer and the resolver says "no artifact" with None.
+    # Unclaimed module: it was never sealed, so the bootstrap tier is the
+    # correct answer and the resolver says "no artifact" with None.
     assert image.native_artifact("jaclang.never.sealed") is None;
-    # Present-but-corrupt entry: the sha in the manifest does not match the
-    # bytes on disk. A sealed build has no fallback tier for this module, so
-    # the resolver must raise, never quietly downgrade.
+    # Claimed module whose artifact sha does not match the bytes on disk. A
+    # sealed build has no fallback tier for it, so the resolver must raise,
+    # never quietly downgrade.
     with testraises(RuntimeError, `match="sha256") {
-        image.native_artifact("jaclang.compiler.frontend.unitree");
+        image.native_artifact(SERVED);
     }
 }
 
