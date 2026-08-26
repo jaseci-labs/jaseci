@@ -368,7 +368,6 @@ liveness_failure_threshold = 5
 ```
 
 > **Tip:** The scale server ships built-in probe endpoints at `/healthz/live` and `/healthz/ready` - see [Health Checks](#health-checks). Microservice deployments use them automatically; for single-app deployments, point `health_check_path` at one of them to probe something cheaper than the default `/docs` page.
-
 > **Tip: KEDA scale-to-zero wake latency.** A woken scale-to-zero pod's biggest cost is usually reinstalling dependencies from scratch (see [Dependency Install Caching](#dependency-install-caching)); `startup_probe_period` and `readiness_period_scale_to_zero` address the smaller, Kubernetes-side cost on top of that, the polling lag between the app actually answering and Kubernetes noticing.
 
 ---
