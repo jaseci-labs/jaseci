@@ -98,3 +98,6 @@ zig-pkg/
 # generate_fused_seal_root in jaclang/dist/precompile_bytecode.jac)
 jac/jaclang/compiler/native_materialize.jac
 jac/jaclang/compiler/fused_seal_root.jac
+
+# scratch roots written in-tree by the native seal audit while it runs
+_seal_audit_root_*.jac
