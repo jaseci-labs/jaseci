@@ -17,11 +17,6 @@ glob _DEFAULT_SV_HOST: str = HOST_CPYTHON,
      );
 
 
-def sv_host_env_key(module_name: str) -> str {
-    return f"JAC_SV_{module_name.upper()}_HOST";
-}
-
-
 def _resolve_sv_host_override(raw: str) -> (str | None) {
     if not raw.strip() {
         return None;
