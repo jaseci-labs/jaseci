@@ -291,7 +291,7 @@ impl NaIRGenFileIo._emit_open(nd: uni.FuncCall) -> (ir.Value | None) {
             E5092,
             node_override=nd,
             kind="builtin call",
-            name=f"open({', '.join(_k.key.sym_name for _k in _kw)}=...)",
+            name=f"open({', '.join(_k.key.sym_name for _k in _kw if _k.key is not None)}=...)",
             help_text=(
                 "Native open() takes only a positional path and mode; keyword "
                 "arguments such as encoding, newline or buffering have no native "

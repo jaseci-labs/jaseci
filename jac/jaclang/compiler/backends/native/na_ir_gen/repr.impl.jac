@@ -47,7 +47,7 @@ impl NaIRGenRepr._repr_cache_key(t: any) -> (str | None) {
     if not callable(_m) {
         return None;
     }
-    return "t:" + _m();
+    return "t:" + str(_m());
 }
 
 impl NaIRGenRepr._repr_fn_for_type(t: any) -> (ir.Function | None) {

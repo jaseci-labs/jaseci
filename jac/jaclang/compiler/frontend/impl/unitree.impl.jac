@@ -1960,9 +1960,8 @@ impl MultiString.lit_value.getter -> str | bytes {
     saw_bytes = False;
     for s in self.strings {
         if isinstance(s, String) {
-            part = s.lit_value;
-            if isinstance(part, `bytes) {
-                raw_bytes: bytes = part;
+            if is_bytes_literal(s.value) {
+                raw_bytes: bytes = decode_bytes_literal(s.value);
                 saw_bytes = True;
                 k = 0;
                 while (k < len(raw_bytes)) {
@@ -1970,8 +1969,7 @@ impl MultiString.lit_value.getter -> str | bytes {
                     k += 1;
                 }
             } else {
-                raw_text: str = part;
-                text_parts.append(raw_text);
+                text_parts.append(decode_text_literal(s.value));
             }
         }
     }

@@ -115,6 +115,8 @@ glob UNITREE_CLOSURE: tuple = (
          "helpers.jac",
          "logging.jac",
          "module_codegen_pass.jac",
+         "pass_rim.jac",
+         "pass_serve.jac",
          "pathlib.jac",
          "scalars.jac",
          "srcloc.jac",
@@ -173,11 +175,28 @@ glob UNITREE_CLOSURE: tuple = (
          "unitree.jac::Ellipsis.lit_value.__get__": (
              "Python-only: returns `...`, which has no native value."
          ),
-         "unitree.jac::MultiString.lit_value.__get__": (
-             "Python-only: asks `isinstance(part, (String, FString))` of each "
-             "part and joins the decoded values; the union isinstance over "
-             "unitree classes has no native lowering in this unit, and main "
-             "answered the same read False silently."
+         "pass_rim.jac::PassRim.__new__": (
+             "Host-side machinery: the tier tripwire rides every pass's MRO "
+             "since it moved onto `PassRim.__new__`, so pass_rim joins each "
+             "pass root's unit. Mirrored in `_RIM_SERVE_SEAM_WAIVERS`."
+         ),
+         "pass_rim.jac::require_native_pass_tier": (
+             "Host-side machinery: reads the sealed-image registry through "
+             "`jaclang.jac0core.sealed`, a Python module. Mirrored in "
+             "`_RIM_SERVE_SEAM_WAIVERS`."
+         ),
+         "pass_serve.jac::_serve_error": (
+             "Host-side machinery: builds a `RuntimeError` for the bytecode "
+             "lane. Mirrored in `_RIM_SERVE_SEAM_WAIVERS`."
+         ),
+         "pass_serve.jac::_bind_artifact": (
+             "Host-side machinery: binds an artifact through ctypes. "
+             "Mirrored in `_RIM_SERVE_SEAM_WAIVERS`."
+         ),
+         "pass_serve.jac::bind_sealed_pass_artifacts": (
+             "Host-side machinery: reads the sealed-image registry through "
+             "`jaclang.jac0core.sealed`, a Python module. Mirrored in "
+             "`_RIM_SERVE_SEAM_WAIVERS`."
          ),
          "type_utils.jac::class_implements_protocol": (
              "Backend gap -- imported isinstance: `isinstance` against "

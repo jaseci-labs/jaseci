@@ -244,7 +244,13 @@ impl NaIRGenClosures._emit_closure_value(
             f"nested ability '{var_name}' at {_decl_of.loc} has no FunctionType on its name (got {_fn_t})"
         );
     }
-    _declared_raw = self._lower_function_type_raw(_fn_t).pointee;
+    _declared_ptr = self._lower_function_type_raw(_fn_t);
+    if not isinstance(_declared_ptr, ir.PointerType) {
+        raise AssertionError(
+            f"nested ability '{var_name}' lowered its signature to {_declared_ptr}, not a function pointer"
+        );
+    }
+    _declared_raw: ir.FunctionType = _declared_ptr.pointee;
     if len(_declared_raw.args) != declared_count {
         raise AssertionError(
             f"nested ability '{var_name}' declares {len(

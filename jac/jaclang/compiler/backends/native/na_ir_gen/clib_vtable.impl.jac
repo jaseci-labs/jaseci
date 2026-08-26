@@ -1,5 +1,5 @@
 impl NaIRGenClibVtable._clib_struct_has_fn_ptr(name: str) -> bool {
-    lay = self._arch_layout(name);
+    lay: (ArchetypeLayout | None) = self._arch_layout(name);
     if lay is None {
         return False;
     }

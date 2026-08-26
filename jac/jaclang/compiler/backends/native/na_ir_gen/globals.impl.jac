@@ -121,9 +121,7 @@ impl NaIRGenGlobals._codegen_global_vars(nd: uni.GlobalVars) -> None {
         if ModuleCodegenPass.is_erased_type_decl(assign) {
             continue;
         }
-        targets = assign.target
-            if isinstance(assign.target, (list, tuple))
-            else [(assign.target)];
+        targets = list(assign.target);
         for target in targets {
             var_name = self._get_name(target);
             if var_name is None {

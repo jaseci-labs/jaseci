@@ -1,4 +1,5 @@
 import from jaclang.compiler.backends.native.llvm { ir }
+import from jaclang.compiler.passes.layout_pass { ArchetypeLayout }
 import from jaclang.compiler.backends.native.na_ir_gen.state { NaIRGenState }
 
 obj NaIRGenClibVtable(NaIRGenState) {

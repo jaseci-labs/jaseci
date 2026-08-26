@@ -1,6 +1,9 @@
 import from jaclang.compiler.backends.native.llvm { ir }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+import type from jaclang.compiler.passes.layout_pass { ArchetypeLayout }
+import type from jaclang.compiler.types.types { FunctionType, ResolvedOperator }
+import type from jaclang.compiler.frontend.scalars { ScalarShape }
 
 obj NaIRGenState(ModuleCodegenPass) {
     has _llvm_module: (ir.Module | None) = None,
@@ -216,7 +219,9 @@ obj NaIRGenState(ModuleCodegenPass) {
         _closure_cell_structs: dict[str, str] = {},
         closure_thunks: dict[str, ir.Function] = {},
         _closure_uid: int = 0,
-        _opt_struct_types: dict[str, ir.Type] = {};
+        _opt_struct_types: dict[str, ir.Type] = {},
+        _global_init_nodes: list = [],
+        _rc_raw_tag_gv: (ir.Value | None) = None;
 
     has builder: ir.IRBuilder { getter; }
     has llvm_module: ir.Module { getter; }
@@ -321,6 +326,75 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _clib_detect_vtable_structs -> None abst;
     def _clib_coerce_callback(val: ir.Value, c_fn_ty: ir.Type) -> ir.Value abst;
     def _clib_alloc_vtable(name: str) -> ir.Value abst;
+    def _ability_fn_type(nd: uni.Ability) -> FunctionType abst;
+    def _annotation_type_of(type_expr: (uni.UniNode | None)) -> (any | None) abst;
+    def _binop_typed(op: str, left: ir.Value, right: ir.Value, lty: any, rty: any, resolved: any = None) -> (ir.Value | None) abst;
+    def _builtin_call_is(call: (uni.UniNode | None), name: str) -> bool abst;
+    def _callee_name_of(call: (uni.UniNode | None)) -> (str | None) abst;
+    def _cmp_typed(op: str, left: ir.Value, right: ir.Value, is_float: bool, lty: any, rty: any) -> (ir.Value | None) abst;
+    def _coerce_typed(val: ir.Value, target_type: ir.Type, src_ty: any) -> ir.Value abst;
+    def _dict_spec_for_expr(expr: (uni.UniNode | None)) -> (str | None) abst;
+    def _dict_spec_for_type(t: any) -> (str | None) abst;
+    def _elem_slot_llvm(t: any) -> (ir.Type | None) abst;
+    def _emit_binary_file_helpers -> None abst;
+    def _emit_bytes_repr(bv: ir.Value) -> ir.Value abst;
+    def _emit_str_concat(left: ir.Value, right: ir.Value) -> ir.Value abst;
+    def _emit_unlowerable_type(type_expr: uni.UniNode, tb: any, declaration: bool = False) -> ir.Type abst;
+    def _enum_ctor_layout(enum_name: str) -> (any | None) abst;
+    def _enum_member_const(t: any) -> (ir.Constant | None) abst;
+    def _enum_value_is_text(t: any) -> bool abst;
+    def _enum_value_kind(ty: any) -> str abst;
+    def _expr_struct_parts(expr: (uni.UniNode | None)) -> (list[str] | None) abst;
+    def _expr_type_of(expr: (uni.UniNode | None)) -> any abst;
+    def _for_target_slot_llvm(target: (uni.UniNode | None), storage: ir.Type) -> ir.Type abst;
+    def _generator_elem_type(nd: uni.Ability) -> (ir.Type | None) abst;
+    def _is_jacval_ty(t: ir.Type) -> bool abst;
+    def _jacval_none -> ir.Value abst;
+    def _list_elem_ready(val: ir.Value, expr: (uni.UniNode | None), spec: str, elem_llvm: ir.Type, loc: str) -> tuple abst;
+    def _list_spec_for_elem_llvm(elem_llvm: ir.Type) -> str abst;
+    def _list_spec_for_expr(expr: (uni.UniNode | None)) -> (str | None) abst;
+    def _list_spec_for_type(t: any) -> (str | None) abst;
+    def _lower_function_type_raw(t: any) -> ir.Type abst;
+    def _lower_list_for_elem(elem_llvm: ir.Type) -> ir.Type abst;
+    def _lower_sig_param(nd: uni.Ability, p: any, pv: (uni.ParamVar | None)) -> ir.Type abst;
+    def _lower_sig_return(nd: uni.Ability, fn_t: FunctionType) -> ir.Type abst;
+    def _make_dict_iter(dict_val: ir.Value, dict_key: str) -> ir.Value abst;
+    def _member_return_type(owner_ty: any, name: str) -> any abst;
+    def _method_call_is(call: (uni.UniNode | None), name: str, owner_kinds: tuple) -> bool abst;
+    def _module_member_is(expr: (uni.UniNode | None), module: str, member: str) -> bool abst;
+    def _own_method_slots(lay: ArchetypeLayout) -> list abst;
+    def _own_path -> str abst;
+    def _receiver_arch_name(expr: (uni.UniNode | None)) -> (str | None) abst;
+    def _register_dep_module_layouts(imported_mod: uni.Module, _ordered: list) -> None abst;
+    def _register_dep_module_struct_names(imported_mod: uni.Module) -> list abst;
+    def _registry -> any abst;
+    def _repr_obj_fn(arch_name: str) -> ir.Function abst;
+    def _set_spec_for_expr(expr: (uni.UniNode | None)) -> (str | None) abst;
+    def _set_spec_for_type(t: any) -> (str | None) abst;
+    def _slot_function(arch_name: str, names: list[str]) -> tuple abst;
+    def _sym_type_of(nd: (uni.UniNode | None)) -> any abst;
+    def _tb_args(t: any) -> list abst;
+    def _tb_builtin(name: str) -> any abst;
+    def _tb_class_name(t: any) -> (str | None) abst;
+    def _tb_decl(t: any) -> (uni.UniNode | None) abst;
+    def _tb_elem(t: any, idx: int = 0) -> (any | None) abst;
+    def _tb_has_none(t: any) -> bool abst;
+    def _tb_is(t: any, names: tuple) -> bool abst;
+    def _tb_is_class_ref(t: any) -> bool abst;
+    def _tb_kind(t: any) -> str abst;
+    def _tb_members(t: any) -> list abst;
+    def _tb_non_none(t: any) -> list abst;
+    def _tb_opt_payload(t: any) -> (any | None) abst;
+    def _tb_payload_kind(t: any) -> str abst;
+    def _tb_shape(t: any) -> (ScalarShape | None) abst;
+    def _tb_sized(t: any) -> bool abst;
+    def _tb_solve(t: any) -> any abst;
+    def _tb_unsigned(t: any) -> bool abst;
+    def _to_bool_of(val: ir.Value, expr: (uni.UniNode | None)) -> ir.Value abst;
+    def _tuple_elem_llvms(t: any) -> (list | None) abst;
+    def _tuple_has_variadic_arg(type_args: list) -> bool abst;
+    def _tuple_struct_of(elem_types: list) -> ir.Type abst;
+    def _unpack_slot_llvm(target: uni.UniNode, elem_llvm: ir.Type) -> ir.Type abst;
     def _lower_clib_function_type(arch_name: str, fname: str, t: any) -> ir.Type abst;
     def _clib_fnptr_arg(val: ir.Value, target: ir.Type) -> ir.Value abst;
     def _clib_fnptr_ret(arch_name: str, fname: str, result: ir.Value) -> ir.Value abst;
