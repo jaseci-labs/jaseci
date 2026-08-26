@@ -26,8 +26,8 @@ These tests pin the build-time gate that closes that hole:
 6. `JAC_NA_DEBUG=1` explains the demotion behind the refusal.
 
 Assertions on the seal's own diagnostic go through `_seal_diag`, which slices
-stderr from the first `NATIVE SEAL:` marker. The pre-existing
-`warning: native seam -- demoting ...` line is printed by the codegen pass
+the captured output from the first `NATIVE SEAL:` marker. The pre-existing
+`native seam -- demoting ...` warning is printed by the codegen pass
 before the seal ever runs and already names the method and `eval`, so asserting
 against the raw stderr buffer would pass without this gate existing at all.
 """
@@ -48,8 +48,8 @@ import from jaclang.compiler.driver.program { JacProgram }
 import jaclang.dist.precompile_bytecode as pb;
 import from jaclang.dist.precompile_bytecode {
     seal_abort_stubs,
-    seal_native_artifacts,
-    seal_native_canary
+    seal_native_canary,
+    seal_one_root
 }
 
 glob FIXTURES = Path(TESTS_DIR) / "compiler" / "backends" / "native" / "fixtures";
@@ -57,7 +57,10 @@ glob FIXTURES = Path(TESTS_DIR) / "compiler" / "backends" / "native" / "fixtures
 
 """Seal one fixture into a fresh temp tree.
 
-Returns (artifacts, captured_stderr, tmpdir).
+Returns (artifact_entry, everything the seal said, tmpdir). Both streams are
+captured into one buffer: the seal's phase reporting is progress and goes to
+stdout, while its refusals and warnings are diagnostics and go to stderr, and
+a test that asks "what did the seal say" wants both in the order they landed.
 """
 def _seal(rel: str, waivers: (dict | None) = None, na_debug: bool = False) -> tuple {
     tmp = tempfile.mkdtemp(prefix="jac_seal_integrity_");
@@ -67,10 +70,8 @@ def _seal(rel: str, waivers: (dict | None) = None, na_debug: bool = False) -> tu
     }
     buf = io.StringIO();
     try {
-        with contextlib.redirect_stderr(buf) {
-            arts = seal_native_artifacts(
-                FIXTURES, Path(tmp), modules=(rel, ), waivers=waivers
-            );
+        with contextlib.redirect_stderr(buf), contextlib.redirect_stdout(buf) {
+            arts = seal_one_root(FIXTURES, Path(tmp), rel, waivers=waivers);
         }
     } finally {
         os.environ.pop("JAC_NA_DEBUG", None);
@@ -82,8 +83,9 @@ def _seal(rel: str, waivers: (dict | None) = None, na_debug: bool = False) -> tu
 }
 
 
-"""stderr from the first `NATIVE SEAL:` marker on: the seal's own diagnostics,
-with the codegen pass's pre-existing seam warning excluded."""
+"""The captured output from the first `NATIVE SEAL:` marker on: the seal's own
+diagnostics, with the codegen pass's pre-existing seam warning and the phase
+reporting that precedes it excluded."""
 def _seal_diag(err: str) -> str {
     idx = err.find("NATIVE SEAL:");
     return err[idx:] if idx >= 0 else "";
@@ -140,8 +142,8 @@ test "a fully lowerable module still seals and its artifact is live" {
     (arts, err, tmp) = _seal("seal_clean.jac");
     try {
         assert arts is not None , f"clean module failed the seal:\n{err}";
-        assert "fixtures.seal_clean" in arts , f"unexpected artifacts: {list(arts)}";
-        rec = arts["fixtures.seal_clean"];
+        rec = arts;
+        assert "seal_clean" in str(rec["lib"]) , f"unexpected artifact: {rec}";
         lib = Path(tmp) / rec["lib"];
         assert lib.is_file() , f"no shared library at {lib}";
         assert hashlib.sha256(lib.read_bytes()).hexdigest() == rec["lib_sha256"] , (
@@ -301,7 +303,7 @@ test "waiving that exact method seals and says so; waiving another does not" {
     );
     try {
         assert arts is not None , f"a waived demotion still failed the seal:\n{err}";
-        assert "fixtures.seal_demoted_method" in arts , f"artifacts: {list(arts)}";
+        assert "seal_demoted_method" in str(arts["lib"]) , f"artifact: {arts}";
         diag = _seal_diag(err);
         assert "Gauge.unlowerable" in diag , (
             f"a waived demotion must still be announced by name:\n{diag}"
@@ -417,7 +419,7 @@ test "the canary rejects a broken artifact and accepts a live one" {
     (arts, err, tmp) = _seal("seal_clean.jac");
     try {
         assert arts is not None , err;
-        rec = arts["fixtures.seal_clean"];
+        rec = arts;
         lib = Path(tmp) / rec["lib"];
         layout = json.loads((Path(tmp) / rec["layout"]).read_text(encoding="utf-8"));
         exports = sorted(layout["functions"].keys());

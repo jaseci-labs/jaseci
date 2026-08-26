@@ -222,10 +222,9 @@ obj NativeParser {
 }
 
 def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
-    import from jaclang.runtime.native_dylib { DylibEngine, layout_from_dict }
+    import from jaclang.runtime.native_dylib { layout_from_dict, shared_dylib_engine }
 
-    eng = DylibEngine(lib_path);
-    eng.initialize();
+    eng = shared_dylib_engine(lib_path);
     layout = layout_from_dict(layout_dict);
 
     str_new_addr = 0;

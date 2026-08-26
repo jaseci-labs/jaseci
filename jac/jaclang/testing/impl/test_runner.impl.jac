@@ -172,6 +172,49 @@ impl _should_ignore(path: str, ignore: list[str]) -> bool {
     return False;
 }
 
+impl strict_mode -> bool {
+    return os.environ.get(STRICT_ENV, "").strip().lower() in ("1", "true", "yes", "on");
+}
+
+impl _match_patterns(files: list[str], patterns: (list[str] | None)) -> set[str] {
+    import fnmatch;
+    matched: set[str] = set();
+    for raw in (patterns or []) {
+        if not raw {
+            continue;
+        }
+        pat = os.path.abspath(raw);
+        for path in files {
+            if path in matched {
+                continue;
+            }
+            if fnmatch.fnmatch(path, pat) or path.startswith(pat + os.sep) {
+                matched.add(path);
+            }
+        }
+    }
+    return matched;
+}
+
+impl _optional_dep_gap(exc: BaseException) -> str {
+    import sys;
+    if not isinstance(exc, ModuleNotFoundError) {
+        return "";
+    }
+    name = str(exc.name or "");
+    top = name.split(".")[0] if name else "";
+    if not top {
+        return "";
+    }
+    if (top in ("jaclang", "tests")) or top.startswith("_jac_test_pkg") {
+        return "";
+    }
+    if (top in sys.stdlib_module_names) or (top in sys.builtin_module_names) {
+        return "";
+    }
+    return top;
+}
+
 impl _under_fixtures(path: str) -> bool {
     parts = os.path.abspath(path).split(os.sep);
     return "fixtures" in parts[:-1];
@@ -225,7 +268,7 @@ impl _iter_candidate_files(start: str, ignore: (list[str] | None) = None) -> lis
 
 impl discover(
     paths: (list[str] | None) = None,
-    directory: str = "",
+    directory: (str | list[str]) = "",
     ignore: (list[str] | None) = None
 ) -> TestPlan {
     import from jaclang.jac0core.ext_registry { is_jac }
@@ -263,8 +306,12 @@ impl discover(
             _add(full);
         }
     }
-    if directory {
-        root_dir = os.path.abspath(directory);
+    roots = [directory] if isinstance(directory, str) else list(directory);
+    for rt in roots {
+        if not rt {
+            continue;
+        }
+        root_dir = os.path.abspath(rt);
         for cand in _iter_candidate_files(root_dir, ignored) {
             if _under_fixtures(cand) {
                 continue;
@@ -698,16 +745,44 @@ impl run_file(
         }
     }
     import_error = "";
+    dep_gap = "";
+    skip_gap = "";
     capture = _capture_begin();
     try {
         importlib.import_module(qualified);
+    } except unittest.SkipTest as exc {
+        skip_gap = str(exc) or "skipped at import";
     } except BaseException as exc {
         import from traceback { format_exception }
         import_error = "".join(format_exception(exc)).rstrip();
+        dep_gap = _optional_dep_gap(exc);
     }
     import_output = _capture_end(capture);
     try {
+        if skip_gap {
+            return [
+                TestOutcome(
+                    file=abs_path,
+                    name=os.path.basename(abs_path),
+                    status=SKIPPED,
+                    message=skip_gap
+                )
+            ];
+        }
         if import_error {
+            if dep_gap and not strict_mode() {
+                return [
+                    TestOutcome(
+                        file=abs_path,
+                        name=os.path.basename(abs_path),
+                        status=SKIPPED,
+                        message=(
+                            f"missing optional dependency '{dep_gap}'"
+                            f" (install it, or set {STRICT_ENV}=1 to fail instead)"
+                        )
+                    )
+                ];
+            }
             if import_output.strip() {
                 import_error += "\n--- captured output ---\n" + import_output.rstrip();
             }
@@ -1015,7 +1090,8 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
         }
         _served += 1;
         _rss = _worker_rss_mb();
-        _retire = _should_retire(_served, _recycle, _rss, _rss_cap);
+        _retire = bool(request.get("isolate"))
+            or _should_retire(_served, _recycle, _rss, _rss_cap);
         payload = json.dumps(
             {
                 "idx": request["idx"],
@@ -1051,7 +1127,8 @@ impl ForkPool._dispatch(kid: dict[(str, any)]) -> bool {
             "path": path,
             "explicit": path in self.plan.explicit,
             "seen": self.reporter.failure_count(),
-            "crashlog": kid["crashlog"]
+            "crashlog": kid["crashlog"],
+            "isolate": path in (self.isolate or set())
         }
     );
     try {
@@ -1387,7 +1464,7 @@ impl _store_run_state(plan: TestPlan, reporter: Reporter) -> None {
 
 impl run_tests(
     paths: (list[str] | None) = None,
-    directory: str = "",
+    directory: (str | list[str]) = "",
     test_name: str = "",
     filter: str = "",
     xit: bool = False,
@@ -1397,7 +1474,9 @@ impl run_tests(
     resume: bool = False,
     verbose: bool = False,
     ignore: (list[str] | None) = None,
-    jobs: (str | int | None) = None
+    jobs: (str | int | None) = None,
+    isolate: (list[str] | None) = None,
+    serial: (list[str] | None) = None
 ) -> int {
     import sys;
     import time;
@@ -1405,6 +1484,27 @@ impl run_tests(
         raise ValueError("--range and --resume cannot be combined");
     }
     plan = discover(paths, directory, ignore);
+    iso_set = _match_patterns(plan.files, isolate);
+    ser_set = _match_patterns(plan.files, serial);
+    if iso_set or ser_set {
+        plan.files = (
+            [
+                f
+                for f in plan.files
+                if (f in iso_set) and (f not in ser_set)
+            ]
+            + [
+                f
+                for f in plan.files
+                if (f not in iso_set) and (f not in ser_set)
+            ]
+            + [
+                f
+                for f in plan.files
+                if f in ser_set
+            ]
+        );
+    }
     if resume {
         last = _load_last_failed();
         if not last {
@@ -1445,18 +1545,53 @@ impl run_tests(
     selector = _build_selector(test_name, filter);
     workers = resolve_jobs(jobs);
     started = time.perf_counter();
-    if (workers <= 1) or (len(plan.files) <= 1) or not hasattr(os, "fork") {
+    raw_jobs = jobs
+        if (jobs not in (None, ""))
+        else os.environ.get("JAC_TEST_JOBS", "");
+    forced_serial = str(raw_jobs).strip() == "0";
+    use_pool = hasattr(os, "fork")
+        and not forced_serial
+        and ((workers > 1) or bool(iso_set) or bool(ser_set))
+        and (len(plan.files) > 1 or bool(iso_set) or bool(ser_set));
+    if not use_pool {
         _run_serial(plan, selector, reporter, xit, maxfail);
     } else {
-        pool = ForkPool(
-            plan=plan,
-            selector=selector,
-            reporter=reporter,
-            jobs=min(workers, len(plan.files)),
-            xit=xit,
-            maxfail=maxfail
-        );
-        pool.run();
+        par_files = [
+            f
+            for f in plan.files
+            if f not in ser_set
+        ];
+        ser_files = [
+            f
+            for f in plan.files
+            if f in ser_set
+        ];
+        if par_files {
+            pool = ForkPool(
+                plan=TestPlan(files=par_files, explicit=plan.explicit),
+                selector=selector,
+                reporter=reporter,
+                jobs=min(workers, len(par_files)),
+                xit=xit,
+                maxfail=maxfail,
+                isolate=iso_set
+            );
+            pool.run();
+        }
+        fails = reporter.failure_count();
+        blocked = (xit and (fails > 0)) or (maxfail and (fails >= maxfail));
+        if ser_files and not blocked {
+            tail = ForkPool(
+                plan=TestPlan(files=ser_files, explicit=plan.explicit),
+                selector=selector,
+                reporter=reporter,
+                jobs=1,
+                xit=xit,
+                maxfail=maxfail,
+                isolate=set(ser_files)
+            );
+            tail.run();
+        }
     }
     failures = reporter.summarize(time.perf_counter() - started);
     _store_run_state(plan, reporter);

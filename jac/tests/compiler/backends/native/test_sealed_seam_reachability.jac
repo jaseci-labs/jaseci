@@ -75,7 +75,9 @@ import from jaclang.compiler.passes.layout_pass {
 import from jaclang.jac0core.sealed { native_artifact_for }
 import from jaclang.dist.precompile_bytecode {
     _CLOSURE_SEAM_WAIVERS,
-    NATIVE_SEAL_ROOTS,
+    NATIVE_SEAL_FUSED_ROOT,
+    NATIVE_SEAL_REFUSED_MODULES,
+    NATIVE_SEAL_SERVED_MODULES,
     seal_waiver_names
 }
 
@@ -123,8 +125,8 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      # `types.jac` and `type_utils.jac` are in every sealed artifact because
      # `unitree`'s three `TypeBase`-typed fields are a layout dependency, not
      # because any sealed entry point calls them. Only a module in
-     # `NATIVE_SEAL_ROOTS` gets a native artifact, and `native_artifact_for`
-     # answers for those alone, so no importer can bind
+     # `NATIVE_SEAL_SERVED_MODULES` is served natively, and
+     # `native_artifact_for` answers for those alone, so no importer can bind
      # `jaclang.compiler.types.*` to the artifact: its Python module
      # keeps serving those calls, and the linked copies are enterable only
      # from inside the artifact.
@@ -442,12 +444,12 @@ def pass_reachable(rel: str) -> tuple {
     }
     tables = _program_tables(rel);
     (arch_of, mod_funcs, _globs, _reg, arch_mod, func_mod) = tables;
-    # The closure's own waivers hold for any root that links it, so they are
-    # unioned in rather than read off the root's table alone. For a root
-    # already in `NATIVE_SEAL_DEMOTION_WAIVERS` that is a no-op; for one being
-    # prepared for a later wave it is the difference between a real walk and
-    # one with nothing to look for.
-    (_qualified, waived) = seal_waiver_names(rel);
+    # The fused unit's waiver table is what actually ships as stubs, so
+    # every walked root reads it; names owned by modules outside this
+    # root's program simply never appear in its tables. The closure's own
+    # waivers are unioned in as well, so a root being prepared for the
+    # fused seal still has something to look for.
+    (_qualified, waived) = seal_waiver_names(NATIVE_SEAL_FUSED_ROOT);
     waived = set(waived) | _waived_names();
     root_path = os.path.realpath(str(PKG_PATH / rel));
 
@@ -842,9 +844,10 @@ test "jcir: no waived seam is native-reachable from the live surface" {
     # receiver-blind accessor rule, argued in ACCESSOR_ARGUED: the only live
     # read is `exit_string`'s `nd.lit_value` on a parser-built `String`, so
     # the only decoder a string can dispatch is the live one.
-    assert JCIR_ROOT in NATIVE_SEAL_ROOTS , (
-        f"{JCIR_ROOT} left NATIVE_SEAL_ROOTS; if it was refused again, the "
-        "refusal belongs in NATIVE_SEAL_REFUSED_ROOTS with its blocker"
+    assert JCIR_ROOT in NATIVE_SEAL_SERVED_MODULES , (
+        f"{JCIR_ROOT} left NATIVE_SEAL_SERVED_MODULES; if it was refused "
+        "again, the refusal belongs in NATIVE_SEAL_REFUSED_MODULES with "
+        "its blocker"
     );
     (hit, _stale) = _pass_findings(JCIR_ROOT);
     assert not hit , (

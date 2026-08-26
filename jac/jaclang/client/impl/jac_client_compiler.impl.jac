@@ -25,7 +25,11 @@ impl JacClientCompiler._get_client_dir(self: JacClientCompiler) -> Path {
         import from jaclang.project.config { get_config }
         config = get_config();
         if config is not None {
-            return config.get_client_dir();
+            config_root = config.project_root;
+            if config_root is not None
+                and config_root.resolve() == self.project_dir.resolve() {
+                return config.get_client_dir();
+            }
         }
     } except ImportError { }
     return self.project_dir / '.jac' / 'client';

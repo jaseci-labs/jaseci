@@ -33,6 +33,18 @@ obj DylibEngine {
     }
 }
 
+glob _shared_engines: dict[str, DylibEngine] = {};
+
+def shared_dylib_engine(lib_path: str) -> DylibEngine {
+    eng = _shared_engines.get(lib_path);
+    if eng is None {
+        eng = DylibEngine(lib_path);
+        eng.initialize();
+        _shared_engines[lib_path] = eng;
+    }
+    return eng;
+}
+
 def _tuple_layout(d: any) -> any {
     if d is None {
         return None;

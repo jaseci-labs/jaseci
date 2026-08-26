@@ -13,9 +13,9 @@ them", this wave cleared every error and counted five seams, emptying
 seal's abort-stub linkage check then read the IR that ships and found
 `NativeCapabilityCheckPass.transform`, the root's live entry point,
 linking the one remaining seam's stub directly. A waiver cannot excuse a
-stub the live surface calls, so the root sits in
-`NATIVE_SEAL_REFUSED_ROOTS` with that finding as its named blocker, and
-the accounting below keeps the refused root measured.
+stub the live surface calls, so the module sits in
+`NATIVE_SEAL_REFUSED_MODULES` with that finding as its named blocker, and
+the accounting below keeps the refused module measured.
 
 What cleared, and how:
 
@@ -72,8 +72,8 @@ import from tests.compiler.backends.native.seal_support {
     _root_coverage
 }
 import from jaclang.dist.precompile_bytecode {
-    NATIVE_SEAL_REFUSED_ROOTS,
-    NATIVE_SEAL_ROOTS
+    NATIVE_SEAL_REFUSED_MODULES,
+    NATIVE_SEAL_SERVED_MODULES
 }
 
 glob CAPABILITY: str = "compiler/passes/capability_check_pass.jac",
@@ -130,15 +130,16 @@ glob CAPABILITY_SEAMS: dict[(str, str)] = {
      };
 
 test "capability_check_pass is refused for the seal, by name" {
-    assert CAPABILITY not in NATIVE_SEAL_ROOTS , (
-        f"{CAPABILITY} is in NATIVE_SEAL_ROOTS. The seal's abort-stub "
-        "linkage check refused it -- NativeCapabilityCheckPass.transform "
-        "links the native_capability_violations stub -- so re-rooting it "
-        "needs that finding cleared first, not just this assertion flipped"
+    assert CAPABILITY not in NATIVE_SEAL_SERVED_MODULES , (
+        f"{CAPABILITY} is in NATIVE_SEAL_SERVED_MODULES. The seal's "
+        "abort-stub linkage check refused it -- "
+        "NativeCapabilityCheckPass.transform links the "
+        "native_capability_violations stub -- so serving it needs that "
+        "finding cleared first, not just this assertion flipped"
     );
-    blocker = NATIVE_SEAL_REFUSED_ROOTS.get(CAPABILITY, "");
+    blocker = NATIVE_SEAL_REFUSED_MODULES.get(CAPABILITY, "");
     assert "NativeCapabilityCheckPass" in blocker , (
-        f"{CAPABILITY} is not in NATIVE_SEAL_REFUSED_ROOTS with its "
+        f"{CAPABILITY} is not in NATIVE_SEAL_REFUSED_MODULES with its "
         f"measured blocker; a refusal without its name rots: {blocker!r}"
     );
 }
@@ -192,10 +193,7 @@ test "module_codegen_pass carries no seams of its own" {
     # The half of this wave that capability's coverage cannot see. All six of
     # its former seams -- iter_context_stmts and the five cascades of it --
     # cleared when iter_woven_segments stopped erasing the statement type.
-    # `_MODULE_CODEGEN_SEAM_WAIVERS` survives for exactly one other root:
-    # on `uni_pass.jac`, the only unit that links this pass without the
-    # unitree layout, the family still demotes and is waived there. On its
-    # own root -- what this test measures -- the count is zero.
+    # On its own root -- what this test measures -- the count is zero.
     seen = _own_seams(MODULE_CODEGEN, MODULE_CODEGEN);
     assert not seen , (
         f"module_codegen_pass demotes again: {sorted(seen)}. It reached zero "

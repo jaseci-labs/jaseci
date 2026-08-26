@@ -116,7 +116,43 @@ def _get_network_ips -> list[str];
 
 def _resolve_sso_client_redirect(requested: str | None, configured: str) -> str;
 
-obj JacAPIServerAuth {
+obj JacAPIServerParts {
+    has _hmr_pending: bool = False,
+        _hot_reloader: any | None = None,
+        _api_key_manager: ApiKeyManager | None = None,
+        _metrics: MetricsCollector | None = None,
+        _ws_manager: WebSocketConnectionManager | None = None,
+        _broker: EventStreamBroker | None = None,
+        _emailer: Emailer | None = None;
+
+    def register_auth_endpoints -> None abst;
+    def get_api_key_manager -> ApiKeyManager abst;
+    def setup_emailer -> Emailer | None abst;
+    def get_emailer -> Emailer | None abst;
+    def register_walkers_endpoints -> None abst;
+    def register_functions_endpoints -> None abst;
+    def register_webhook_endpoints -> None abst;
+    def register_websocket_endpoints -> None abst;
+    def register_scheduler_endpoints -> None abst;
+    def register_static_file_endpoint -> None abst;
+    def register_client_js_endpoint -> None abst;
+    def register_page_endpoint -> None abst;
+    def register_root_asset_endpoint -> None abst;
+    def register_graph_endpoint -> None abst;
+    def register_admin_endpoints -> None abst;
+    def validate_admin_token(Authorization: str | None) -> (str | None) abst;
+    def register_deploy_health_endpoints -> None abst;
+    def register_llm_telemetry_endpoints -> None abst;
+    def register_logs_endpoints -> None abst;
+    def register_network_endpoints -> None abst;
+    def register_ops_endpoints -> None abst;
+    def register_podenv_endpoints -> None abst;
+    def register_traces_endpoints -> None abst;
+    def register_workloads_endpoints -> None abst;
+}
+
+
+obj JacAPIServerAuth(JacAPIServerParts) {
     def register_auth_endpoints -> None;
     def register_register_endpoint -> None;
     def register_login_endpoint -> None;
@@ -148,12 +184,15 @@ obj JacAPIServerAuth {
     def register_api_key_endpoints -> None;
 }
 
-obj JacAPIServerEmailer {
+obj JacAPIServerHost(JacAPIServerParts, JServer) {}
+
+
+obj JacAPIServerEmailer(JacAPIServerHost) {
     def setup_emailer -> Emailer | None;
     def get_emailer -> Emailer | None;
 }
 
-obj JacAPIServerCore {
+obj JacAPIServerCore(JacAPIServerHost) {
     def postinit -> None;
     def _make_user_manager -> CoreUserManager;
     def start(
@@ -177,7 +216,7 @@ obj JacAPIServerCore {
     ) -> Callable[..., any];
 }
 
-obj JacAPIServerEndpoints {
+obj JacAPIServerEndpoints(JacAPIServerHost) {
     def register_walkers_endpoints -> None;
     def create_walker_callback(
         walker_name: str, has_node_param: bool = False
@@ -215,7 +254,7 @@ obj JacAPIServerEndpoints {
     def register_websocket_endpoints -> None;
 }
 
-obj JacAPIServerScheduler {
+obj JacAPIServerScheduler(JacAPIServerHost) {
     def register_scheduler_endpoints -> None;
     def create_job_callback -> Callable[..., TransportResponse];
     def list_jobs_callback -> Callable[..., TransportResponse];
@@ -224,7 +263,7 @@ obj JacAPIServerScheduler {
     def delete_job_callback -> Callable[..., TransportResponse];
 }
 
-obj JacAPIServerStatic {
+obj JacAPIServerStatic(JacAPIServerHost) {
     def serve_static_file(file_path: str) -> Response;
     def register_static_file_endpoint -> None;
     def serve_client_js_callback -> Callable[..., Response];
