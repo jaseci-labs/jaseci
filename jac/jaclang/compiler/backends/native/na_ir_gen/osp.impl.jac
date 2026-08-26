@@ -47,10 +47,8 @@ impl NaIRGenOsp._register_osp_kernel_module -> None {
     self._osp_kernel_mod = kernel_mod;
 
     _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
-    if (_manifest is not None)
-        and ("osp_kernel" not in _manifest.native_transitive_sources) {
-        _manifest.native_transitive_sources.append("osp_kernel");
-    }
+    import from jaclang.compiler.frontend.codeinfo { native_manifest_add_source }
+    native_manifest_add_source(_manifest, "osp_kernel");
 }
 
 impl NaIRGenOsp._compute_osp_model(archetypes: list[uni.Archetype]) -> None {
@@ -559,6 +557,9 @@ impl NaIRGenOsp._emit_osp_setup -> None {
     if (_model is None) or (not self._osp_active()) {
         return;
     }
+    import from jaclang.compiler.frontend.codeinfo { native_glob_init_name }
+    _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
+    _kernel_init = native_glob_init_name("osp_kernel", _manifest);
 
     for _req in ["Slot", "WalkerDesc", "NodeDesc", "OspRuntime"] {
         if _req not in self.struct_types {
@@ -676,14 +677,12 @@ impl NaIRGenOsp._emit_osp_setup -> None {
     _inited = ir.GlobalVariable(self.llvm_module, i8, name="__osp_inited");
     _inited.linkage = "internal";
     _inited.initializer = ir.Constant(i8, 0);
-    _kgi = self.func_symtab.get("__jac_glob_init_osp_kernel");
+    _kgi = self.func_symtab.get(_kernel_init);
     if _kgi is None {
         _kgi = ir.Function(
-            self.llvm_module,
-            ir.FunctionType(ir.VoidType(), []),
-            name="__jac_glob_init_osp_kernel"
+            self.llvm_module, ir.FunctionType(ir.VoidType(), []), name=_kernel_init
         );
-        self.func_symtab["__jac_glob_init_osp_kernel"] = _kgi;
+        self.func_symtab[_kernel_init] = _kgi;
     }
 
     self._osp_kernel_glob_init_fn = _kgi;

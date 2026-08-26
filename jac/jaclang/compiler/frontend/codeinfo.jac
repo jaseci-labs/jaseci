@@ -153,6 +153,20 @@ def native_module_key(path: str) -> str {
     return f"{stem}:{hashlib.sha1(rp.encode()).hexdigest()[:12]}";
 }
 
+def native_glob_init_keyed_name(key: str) -> str {
+    return f"__jac_glob_init_{native_safe_sym(key)}";
+}
+
+def native_manifest_add_source(manifest: (InteropManifest | None), src: str) -> None {
+    if manifest is None or not src {
+        return;
+    }
+    if src not in manifest.native_transitive_sources {
+        manifest.native_transitive_sources.append(src);
+        manifest.native_transitive_keys.append("");
+    }
+}
+
 def native_glob_init_name(src: str, manifest: (InteropManifest | None)) -> str {
     key: str = src;
     if manifest is not None {
@@ -166,7 +180,7 @@ def native_glob_init_name(src: str, manifest: (InteropManifest | None)) -> str {
             i += 1;
         }
     }
-    return f"__jac_glob_init_{native_safe_sym(key)}";
+    return native_glob_init_keyed_name(key);
 }
 
 def native_glob_init_symbols(manifest: (InteropManifest | None)) -> list[str] {

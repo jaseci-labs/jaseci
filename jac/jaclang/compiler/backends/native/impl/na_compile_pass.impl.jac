@@ -972,7 +972,10 @@ impl NativeCompilePass._compile_and_link_native_imports(
         try {
             imported_llvm_str = imported_llvm_str_raw;
 
-            import from jaclang.compiler.frontend.codeinfo { native_module_key }
+            import from jaclang.compiler.frontend.codeinfo {
+                native_module_key,
+                native_glob_init_keyed_name
+            }
             safe_name = native_safe_sym(native_module_key(real_path));
             entry_rename = f"__jac_entry_{safe_name}";
             imported_llvm_str = imported_llvm_str.replace(
@@ -986,7 +989,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 'name: "jac_entry"', f'name: "{entry_rename}"'
             );
 
-            glob_init_rename = f"__jac_glob_init_{safe_name}";
+            glob_init_rename = native_glob_init_keyed_name(
+                native_module_key(real_path)
+            );
             imported_llvm_str = imported_llvm_str.replace(
                 '@"__jac_glob_init"', f'@"{glob_init_rename}"'
             );
@@ -1202,10 +1207,20 @@ def _compile_osp_kernel_ir(
     return ir_str;
 }
 
+impl NativeCompilePass._kernel_glob_init_name(kernel: str) -> (str | None) {
+    import from jaclang.compiler.frontend.codeinfo { native_glob_init_name }
+    _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
+    return native_glob_init_name(kernel, _manifest);
+}
+
 impl NativeCompilePass._references_undefined_osp_kernel(main_mod: ModuleRef) -> bool {
+    _kernel_init = self._kernel_glob_init_name("osp_kernel");
+    if _kernel_init is None {
+        return False;
+    }
     try {
         for _fn in _mod_functions(main_mod) {
-            if _fn.name == "__jac_glob_init_osp_kernel" and _fn.is_declaration {
+            if _fn.name == _kernel_init and _fn.is_declaration {
                 return True;
             }
         }
@@ -1224,11 +1239,13 @@ impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
         return;
     }
 
-    ir_str = ir_str.replace('@"__jac_glob_init"', '@"__jac_glob_init_osp_kernel"');
-    ir_str = ir_str.replace("@__jac_glob_init", "@__jac_glob_init_osp_kernel");
-    ir_str = ir_str.replace(
-        'name: "__jac_glob_init"', 'name: "__jac_glob_init_osp_kernel"'
-    );
+    _kernel_init = self._kernel_glob_init_name("osp_kernel");
+    if _kernel_init is None {
+        return;
+    }
+    ir_str = ir_str.replace('@"__jac_glob_init"', f'@"{_kernel_init}"');
+    ir_str = ir_str.replace("@__jac_glob_init", f"@{_kernel_init}");
+    ir_str = ir_str.replace('name: "__jac_glob_init"', f'name: "{_kernel_init}"');
     try {
         kmod = llvm.parse_assembly(ir_str);
         kmod.verify();
@@ -1283,6 +1300,7 @@ def _compile_fmt_kernel_ir -> (str | None) {
 }
 
 impl NativeCompilePass._references_undefined_fmt_kernel(main_mod: ModuleRef) -> bool {
+    _fmt_init = self._kernel_glob_init_name("fmt_kernel");
     try {
         for _fn in _mod_functions(main_mod) {
             _fn_name = str(_fn.name);
@@ -1290,7 +1308,7 @@ impl NativeCompilePass._references_undefined_fmt_kernel(main_mod: ModuleRef) -> 
                 and (
                     _fn_name.startswith("jac_fmt_")
                     or _fn_name.startswith("_jac_fmt_")
-                    or _fn_name == "__jac_glob_init_fmt_kernel"
+                    or _fn_name == _fmt_init
                 ) {
                 return True;
             }
@@ -1307,11 +1325,13 @@ impl NativeCompilePass._link_fmt_kernel(main_mod: ModuleRef) -> None {
         return;
     }
 
-    ir_str = ir_str.replace('@"__jac_glob_init"', '@"__jac_glob_init_fmt_kernel"');
-    ir_str = ir_str.replace("@__jac_glob_init", "@__jac_glob_init_fmt_kernel");
-    ir_str = ir_str.replace(
-        'name: "__jac_glob_init"', 'name: "__jac_glob_init_fmt_kernel"'
-    );
+    _fmt_init = self._kernel_glob_init_name("fmt_kernel");
+    if _fmt_init is None {
+        return;
+    }
+    ir_str = ir_str.replace('@"__jac_glob_init"', f'@"{_fmt_init}"');
+    ir_str = ir_str.replace("@__jac_glob_init", f"@{_fmt_init}");
+    ir_str = ir_str.replace('name: "__jac_glob_init"', f'name: "{_fmt_init}"');
     try {
         kmod = llvm.parse_assembly(ir_str);
         kmod.verify();
