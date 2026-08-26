@@ -16,6 +16,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes { kubernetes_target as kt_module }
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
 
 def _as_any(v: any) -> any {
     return v;
@@ -553,8 +554,8 @@ def _get_status(
                 with unittest.mock.patch.object(
                     kt_module, "ManifestBuilder"
                 ) as mock_builder_cls {
-                    mock_builder_cls.return_value._get_autoscaler_config.return_value = autoscaler_cfg;
-                    return target.get_status("order-service");
+                    mock_builder_cls.return_value.autoscaler_config_for_deployment.return_value = autoscaler_cfg;
+                    return target.get_status("order-service-deployment");
                 }
             }
         }
@@ -614,4 +615,41 @@ test "get_status still reports FAILED at zero replicas when KEDA has no real tri
         f"CPU/memory-only triggers can't reach zero, so this is a real failure: "
         f"{info.status}"
     );
+}
+
+test "autoscaler_config_for_deployment resolves a service's real k8s Deployment name back to its config key" {
+    mb = ManifestBuilder(
+        k8s_config=KubernetesConfig(app_name="jac-shop", namespace="ns"),
+        microservices_config={
+            "routes": {"order_service": "/orders", "cart_service": "/cart"},
+            "services": {
+                "order_service": {
+                    "hpa": {"min": 0, "max": 2},
+                    "triggers": [{"type": "cron", "metadata": {}}]
+                }
+            }
+        }
+    );
+
+    cfg = mb.autoscaler_config_for_deployment("order-service-deployment");
+
+    assert cfg is not None and cfg["min"] == 0 , (
+        f"the real k8s Deployment name (with its '_' -> '-' k8s_safe_name "
+        f"mangling and '-deployment' suffix) must resolve back to the "
+        f"'order_service' config key, not fall back to defaults: {cfg}"
+    );
+}
+
+test "autoscaler_config_for_deployment resolves the gateway's deployment name" {
+    mb = ManifestBuilder(
+        k8s_config=KubernetesConfig(app_name="jac-shop", namespace="ns"),
+        microservices_config={"routes": {"order_service": "/orders"}}
+    );
+
+    # No per-service config for the gateway means hpa defaults (min=1), but the
+    # key resolution itself must not raise and must not collide with a real
+    # service -- this only proves the gateway's synthetic name resolves at all.
+    cfg = mb.autoscaler_config_for_deployment("gateway-deployment");
+
+    assert cfg is not None and cfg["min"] == 1;
 }
