@@ -239,8 +239,9 @@ test "an unchanged secret leaves the pod template untouched" {
 test "an app with no secrets gets no marker and no rollout" {
     manifest = with_config_revision(_deployment({}), "");
 
-    assert "annotations"
-        not in dict(dict(dict(manifest["spec"])["template"])["metadata"]);
+    assert "annotations" not in dict(
+        dict(dict(manifest["spec"])["template"])["metadata"]
+    );
 }
 
 
@@ -259,8 +260,6 @@ test "the marker is opaque and carries no secret material" {
         "the marker is the Secret's resourceVersion, not a function of its values"
     );
 }
-
-
 
 
 # The revision comes from the apply response rather than a follow up read. A
@@ -309,8 +308,9 @@ test "an unusable revision is reported rather than silently skipped" {
     api = _FakeSecrets(version="");
 
     assert create_k8s_secret(api, "ns", "app-secrets", {"MARKER": "v1"}) == "";
-    assert with_config_revision(_deployment({"MARKER": "v1"}), "")
-        == _deployment({"MARKER": "v1"}) , "an empty revision stamps nothing, so the caller has to fail loudly";
+    assert with_config_revision(_deployment({"MARKER": "v1"}), "") == _deployment(
+        {"MARKER": "v1"}
+    ) , "an empty revision stamps nothing, so the caller has to fail loudly";
 }
 
 

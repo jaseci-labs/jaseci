@@ -1377,8 +1377,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         if app_name and mine and str(app_name) != mine {
             detail = f"configured for '{mine}', asked about '{app_name}'";
             raise ValueError(
-                "This target cannot report or revert another app's revisions "
-                    + f"({detail}). Build a target for that app."
+                "This target cannot report or revert another app's revisions " + f"({detail}). Build a target for that app."
             );
         }
     }

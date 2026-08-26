@@ -265,12 +265,12 @@ test "the fleet is read from the cluster, not from a route table" {
 
     names = target._fleet_deployment_names(api, "shop");
 
-    assert names
-        == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"] , (
-        f"the real fleet, gateway last: {names}"
-    );
-    assert api.selector
-        == "managed=jac-scale,jac-scale.role in (microservice,gateway)" , (
+    assert names == [
+        "cart-app-deployment",
+        "orders-app-deployment",
+        "gateway-deployment"
+    ] , (f"the real fleet, gateway last: {names}");
+    assert api.selector == "managed=jac-scale,jac-scale.role in (microservice,gateway)" , (
         "the fleet must be scoped exactly as destroy scopes it, or a rollback "
         "reaches objects the app does not own"
     );
@@ -283,14 +283,15 @@ test "the fleet is read from the cluster, not from a route table" {
 test "the revert order puts the gateway last whatever the cluster returns" {
     assert fleet_revert_order(
         ["gateway-deployment", "orders-app-deployment", "cart-app-deployment"]
-    )
-        == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"];
+    ) == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"];
 }
 
 
 test "a fleet with no gateway is still ordered and complete" {
-    assert fleet_revert_order(["b-deployment", "a-deployment"])
-        == ["a-deployment", "b-deployment"];
+    assert fleet_revert_order(["b-deployment", "a-deployment"]) == [
+        "a-deployment",
+        "b-deployment"
+    ];
 }
 
 
@@ -333,14 +334,15 @@ test "a release groups the revisions that share a bundle digest" {
 
     assert len(releases) == 2;
     assert releases[0]["bundle_digest"] == "aaa";
-    assert releases[0]["deployments"]
-        == {"orders-app-deployment": 4, "gateway-deployment": 2} , "a release spans every service that shipped it, at whatever revision each took";
+    assert releases[0]["deployments"] == {
+        "orders-app-deployment": 4,
+        "gateway-deployment": 2
+    } , "a release spans every service that shipped it, at whatever revision each took";
 }
 
 
 test "the app bundle digest is read from the app bundle, not the toolchain" {
-    assert app_bundle_digest(["toolchain/shop/ccc.tar.gz", "bundles/shop/aaa.jab"])
-        == "aaa";
+    assert app_bundle_digest(["toolchain/shop/ccc.tar.gz", "bundles/shop/aaa.jab"]) == "aaa";
     assert app_bundle_digest(["toolchain/shop/ccc.tar.gz"]) == "";
 }
 
@@ -444,8 +446,10 @@ test "the same code and config stays one release across services" {
     );
 
     assert len(releases) == 1;
-    assert releases[0]["deployments"]
-        == {"orders-app-deployment": 4, "gateway-deployment": 2};
+    assert releases[0]["deployments"] == {
+        "orders-app-deployment": 4,
+        "gateway-deployment": 2
+    };
 }
 
 
@@ -829,8 +833,11 @@ test "a rollback reverts the whole microservice fleet, gateway last" {
     res = _rollback_with(api);
 
     assert res.success , res.message;
-    assert api.patched
-        == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"] , f"the fleet reverts services first and the gateway last: {api.patched}";
+    assert api.patched == [
+        "cart-app-deployment",
+        "orders-app-deployment",
+        "gateway-deployment"
+    ] , f"the fleet reverts services first and the gateway last: {api.patched}";
 }
 
 

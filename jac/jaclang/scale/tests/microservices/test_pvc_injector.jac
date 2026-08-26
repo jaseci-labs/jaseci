@@ -251,6 +251,5 @@ test "a pod spec with no bootstrap container references no bundles" {
     assert bundle_keys_from_pod_spec({}) == [];
     assert bundle_keys_from_pod_spec(
         {"initContainers": [{"name": "wait-for-postgres", "args": ["sleep 1"]}]}
-    )
-        == [];
+    ) == [];
 }
