@@ -1,4 +1,5 @@
 import from jaclang.compiler.backends.native.llvm { ir }
+import from jaclang.runtime.scalars { ScalarShape }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
 
