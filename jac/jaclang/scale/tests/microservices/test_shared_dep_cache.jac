@@ -47,16 +47,29 @@ test "shared pip cache is opened cross-uid, probed, with pod-local fallback" {
 # not the whole sealed bundle (which also includes app source and would
 # invalidate on every code change, defeating the point). Mirrors the
 # package.json-hash choice client_deps_stale already made on the npm side.
+# The base image is part of the key too: compiled wheels in a venv are
+# ABI-specific to the Python build they were installed against, so a venv
+# cached under one image is not safe to reuse under a different one even
+# when the declared specs haven't changed.
 
 test "venv_cache_key is deterministic and spec-order independent" {
-    a = venv_cache_key(["requests>=2.28.0", "flask~=3.0"]);
-    b = venv_cache_key(["flask~=3.0", "requests>=2.28.0"]);
+    a = venv_cache_key(["requests>=2.28.0", "flask~=3.0"], "python:3.12-slim");
+    b = venv_cache_key(["flask~=3.0", "requests>=2.28.0"], "python:3.12-slim");
     assert a == b;
 }
 
 test "venv_cache_key changes when a spec changes" {
-    a = venv_cache_key(["requests>=2.28.0"]);
-    b = venv_cache_key(["requests>=2.29.0"]);
+    a = venv_cache_key(["requests>=2.28.0"], "python:3.12-slim");
+    b = venv_cache_key(["requests>=2.29.0"], "python:3.12-slim");
+    assert a != b;
+}
+
+test "venv_cache_key changes when the base image changes" {
+    # A python_image bump (version or OS base) with unchanged specs must
+    # never collide with the old image's cached venv -- the old venv's
+    # compiled extensions would not match the new interpreter's ABI.
+    a = venv_cache_key(["requests>=2.28.0"], "python:3.11-slim");
+    b = venv_cache_key(["requests>=2.28.0"], "python:3.12-slim");
     assert a != b;
 }
 
@@ -64,30 +77,59 @@ test "venv_cache_key changes when a spec changes" {
 # ===== venv persistence across pod restarts =====
 # /app is an emptyDir, wiped every pod boot, so jac install rebuilds the
 # venv from scratch on every scale-to-zero wake even though the dependency
-# set is unchanged. These two only cover the bootstrap script's mechanical
-# copy in/copy out -- the actual install/skip *decision* is
-# _venv_deps_stale's job (test_dependencies.jac), not re-verified here.
+# set is unchanged. These only cover the bootstrap script's mechanical copy
+# in/copy out -- the actual install/skip *decision* is _venv_deps_stale's
+# job (test_dependencies.jac), not re-verified here.
 
 test "bootstrap restores a cached venv from the bundle PVC before jac install" {
     specs = ["requests>=2.28.0"];
+    base_image = "python:3.12-slim";
     ctr = build_bootstrap_init_container(
-        KubernetesConfig(), "python:3.12-slim", resolved_specs=specs
+        KubernetesConfig(), base_image, resolved_specs=specs
     );
     script = str(ctr["args"][0]);
-    cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(specs)}";
+    cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(specs, base_image)}";
     assert cache_dir in script;
     assert script.index(cache_dir) < script.index("jac install");
 }
 
 test "bootstrap persists the venv to the bundle PVC cache after jac install" {
     specs = ["requests>=2.28.0"];
+    base_image = "python:3.12-slim";
     ctr = build_bootstrap_init_container(
-        KubernetesConfig(), "python:3.12-slim", resolved_specs=specs
+        KubernetesConfig(), base_image, resolved_specs=specs
     );
     script = str(ctr["args"][0]);
-    cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(specs)}";
+    cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(specs, base_image)}";
     # A later occurrence of the same path after "jac install" is the
     # write-back; rindex catches it regardless of how many times the
     # restore step above also references the path.
     assert script.rindex(cache_dir) > script.index("jac install");
+}
+
+test "bootstrap persists the venv atomically, never deletes the live cache path in place" {
+    # Scale-to-zero's own point is bursty cold starts: several pods can be
+    # persisting to the same cache key at once. A sibling pod's restore, or
+    # the next wake, must never observe cache_dir mid-write -- an in-place
+    # `rm -rf` of the live path is exactly the window where a reader sees
+    # neither the old venv nor the new one. If a corrupted partial copy is
+    # what a reader lands on, and it happens to still carry a valid marker,
+    # _venv_deps_stale would wrongly call it fresh and skip reinstalling
+    # a genuinely broken venv -- worse than no caching at all.
+    specs = ["requests>=2.28.0"];
+    base_image = "python:3.12-slim";
+    ctr = build_bootstrap_init_container(
+        KubernetesConfig(), base_image, resolved_specs=specs
+    );
+    script = str(ctr["args"][0]);
+    cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(specs, base_image)}";
+    assert f'rm -rf "{cache_dir}"' not in script;
+    # The write-back must land in one atomic rename: the operation that
+    # most recently touches the final occurrence of cache_dir must be a
+    # move into place, not a direct copy onto the live path.
+    last_idx = script.rindex(cache_dir);
+    last_mv = script.rfind("mv ", 0, last_idx);
+    last_cp = script.rfind("cp -a", 0, last_idx);
+    assert last_mv != -1;
+    assert last_mv > last_cp;
 }
