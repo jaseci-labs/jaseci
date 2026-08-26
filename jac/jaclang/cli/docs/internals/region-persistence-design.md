@@ -14,8 +14,8 @@ into the anchor store as a **storage segment** and load it back.
   the handle and promotes the subgraph into the managed world. Pages
   stay live, teardown never runs. The seal is the membrane: after it,
   the subgraph traverses from the anchor like any managed graph.
-- **The anchor store** (`runtimelib/store.jac`,
-  `runtimelib/impl/store.impl.jac`): the Postgres `PgStore` with one
+- **The anchor store** (`data/store.jac`,
+  `data/impl/store.impl.jac`): the Postgres `PgStore` with one
   `anchors` table
   `anchors(id, kind, arch_type, arch_module, fingerprint, root_id,
   src, dst, undirected, props, format_version, version, updated_at,

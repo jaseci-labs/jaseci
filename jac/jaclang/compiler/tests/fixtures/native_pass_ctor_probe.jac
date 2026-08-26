@@ -7,8 +7,8 @@ Python-lane -- the construction passes no `prog`, because the pass base
 declares none.
 """
 
-import from jaclang.jac0core.unitree { Module, Name }
-import from jaclang.jac0core.passes.uni_pass { UniPass }
+import from jaclang.compiler.frontend.unitree { Module, Name }
+import from jaclang.compiler.passes.uni_pass { UniPass }
 
 obj LocalCountPass(UniPass) {
     has seen: int = 0;
