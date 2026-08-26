@@ -54,9 +54,19 @@ def _render_command_block(
     return lines;
 }
 
-impl format_verbose_help(prog: str = "jac") -> str {
+impl format_verbose_help(prog: str = "jac", include_hidden: bool = False) -> str {
     use_color = _use_color();
-    commands = iter_command_meta();
+    everything = iter_command_meta(include_hidden=True);
+    commands = [
+        cmd
+        for cmd in everything
+        if not cmd.hidden
+    ];
+    hidden = [
+        cmd
+        for cmd in everything
+        if cmd.hidden
+    ];
     commands.sort(key=_by_name);
     lines: list[str] = [];
     lines.append(_color('The Jac programming language', _TITLE, use_color));
@@ -72,6 +82,8 @@ impl format_verbose_help(prog: str = "jac") -> str {
     lines.append('          Print version info and exit');
     lines.append(f"  {_color('-h, --help', _CMD, use_color)}");
     lines.append('          Print help');
+    lines.append(f"  {_color('--all', _CMD, use_color)}");
+    lines.append('          With --help: also list hidden commands');
     lines.append('');
 
     grouped: dict[str, list[CommandMeta]] = {};
@@ -80,7 +92,7 @@ impl format_verbose_help(prog: str = "jac") -> str {
     }
 
     col = 12;
-    for cmd in commands {
+    for cmd in (commands + hidden if include_hidden else commands) {
         if len(cmd.name) >= col {
             col = len(cmd.name) + 2;
         }
@@ -107,9 +119,21 @@ impl format_verbose_help(prog: str = "jac") -> str {
         lines.append('');
     }
 
+    if include_hidden and hidden {
+        lines.append(_color('Hidden:', _HEADER, use_color));
+        lines.extend(_render_command_block(hidden, col, use_color));
+        lines.append('');
+    }
+
     lines.append(
         f"See '{prog} COMMAND --help' for more information on a specific command."
     );
+    if hidden and not include_hidden {
+        noun = 'command' if len(hidden) == 1 else 'commands';
+        lines.append(
+            f"{len(hidden)} hidden {noun} not listed; see '{prog} --help --all'."
+        );
+    }
     return '\n'.join(lines);
 }
 
@@ -155,6 +179,7 @@ impl format_curated_help(prog: str = "jac") -> str {
     );
     lines.append('');
     lines.append(f"  {prog} --help          Show all commands");
+    lines.append(f"  {prog} --help --all    Show hidden commands too");
     lines.append(f"  {prog} COMMAND --help  Show help for a command");
     return '\n'.join(lines);
 }

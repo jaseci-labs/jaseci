@@ -5,7 +5,7 @@ glob registry = get_registry();
 
 @registry.command(
     name="browse",
-    hidden=True,
+    hidden=False,
     help="Headless browser automation over CDP (open, click, snapshot, ...)",
     args=[
         Arg.create(

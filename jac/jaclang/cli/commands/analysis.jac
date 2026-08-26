@@ -185,7 +185,7 @@ def format(
 @registry.command(
     name="precommit",
     help="Run fmt (--lintfix) + check using jac.toml lint settings; installable as a git hook",
-    hidden=True,
+    hidden=False,
     args=[
         Arg.create(
             "paths",

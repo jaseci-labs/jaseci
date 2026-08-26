@@ -6,7 +6,7 @@ glob registry = get_registry();
 @registry.command(
     name="nacompile",
     help="Compile a Jac file to a standalone native binary (prefer 'jac build --as native' for projects)",
-    hidden=True,
+    hidden=False,
     args=[
         Arg.create(
             "filename",

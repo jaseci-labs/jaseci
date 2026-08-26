@@ -9,7 +9,7 @@ def _command_routes -> list[CommandMeta] {
             help='Headless browser automation over CDP (open, click, snapshot, ...)',
             group='tools',
             tier='',
-            hidden=True,
+            hidden=False,
             handler_module='jaclang.cli.commands.browse',
             handler_name='browse',
             examples=[
@@ -1250,7 +1250,7 @@ def _command_routes -> list[CommandMeta] {
             help="Compile a Jac file to a standalone native binary (prefer 'jac build --as native' for projects)",
             group='transform',
             tier='',
-            hidden=True,
+            hidden=False,
             handler_module='jaclang.cli.commands.nacompile',
             handler_name='nacompile',
             examples=[
@@ -1354,7 +1354,7 @@ def _command_routes -> list[CommandMeta] {
             help='Run fmt (--lintfix) + check using jac.toml lint settings; installable as a git hook',
             group='analysis',
             tier='',
-            hidden=True,
+            hidden=False,
             handler_module='jaclang.cli.commands.analysis',
             handler_name='precommit',
             examples=[
