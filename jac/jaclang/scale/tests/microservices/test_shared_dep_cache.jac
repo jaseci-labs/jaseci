@@ -133,3 +133,43 @@ test "bootstrap persists the venv atomically, never deletes the live cache path 
     assert last_mv != -1;
     assert last_mv > last_cp;
 }
+
+test "venv cache is size-bounded like the pip cache, not left to grow without limit" {
+    # The pip cache (15 lines above this one in the generated script) caps
+    # itself at 512MB and wipes-and-rewarms past that. Every unique
+    # (base_image, specs) pair otherwise gets a permanent directory under
+    # .cache/venv that nothing else in this codebase ever cleans up --
+    # reap_superseded_deployments only reaps stale Deployment objects, not
+    # PVC content. Left unbounded, this grows across every dependency bump
+    # and image upgrade over an app's lifetime, on the same PVC that stores
+    # the actual deployable bundles.
+    specs = ["requests>=2.28.0"];
+    base_image = "python:3.12-slim";
+    ctr = build_bootstrap_init_container(
+        KubernetesConfig(), base_image, resolved_specs=specs
+    );
+    script = str(ctr["args"][0]);
+    assert script.count("du -sm") == 2;
+    venv_cache_root = f"{BUNDLE_MOUNT_PATH}/.cache/venv";
+    last_du = script.rindex("du -sm");
+    assert venv_cache_root in script[last_du:last_du + len(venv_cache_root) + 20];
+}
+
+test "venv cache write path is opened cross-uid like the pip cache" {
+    # Without an explicit chmod, whichever pod's UID first creates
+    # .cache/venv leaves it at that UID's default permissions. A later pod
+    # running under a different UID (a different python_image, or an image
+    # whose default user changed) then fails to mkdir/cp its own
+    # hash-keyed subdir -- silently, swallowed by 2>/dev/null -- and
+    # permanently degrades to "no caching, full install every wake" with
+    # no visible signal. The pip cache right next to this one already
+    # solves exactly this.
+    specs = ["requests>=2.28.0"];
+    base_image = "python:3.12-slim";
+    ctr = build_bootstrap_init_container(
+        KubernetesConfig(), base_image, resolved_specs=specs
+    );
+    script = str(ctr["args"][0]);
+    venv_cache_root = f"{BUNDLE_MOUNT_PATH}/.cache/venv";
+    assert f"chmod 0777 {venv_cache_root}" in script;
+}
