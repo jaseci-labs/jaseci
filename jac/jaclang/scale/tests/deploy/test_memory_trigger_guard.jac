@@ -232,3 +232,31 @@ test "_build_startup_probe honors an explicit period, scaling failureThreshold t
     assert probe["periodSeconds"] * probe["failureThreshold"] == 900;
     assert probe["failureThreshold"] == 450;
 }
+
+test "_build_startup_probe clamps a non-positive period instead of crashing" {
+    # startup_probe_period is user-settable via jac.toml; 0 (or a negative
+    # value from a typo) must not reach the failureThreshold division raw,
+    # or it either raises ZeroDivisionError and aborts manifest generation,
+    # or produces a negative/zero failureThreshold Kubernetes rejects.
+    b = _builder(
+        {},
+        k8s_config=KubernetesConfig(
+            app_name="t", namespace="t-ns", startup_probe_period=0
+        )
+    );
+    probe = b._build_startup_probe();
+    assert probe["periodSeconds"] == 1;
+    assert probe["failureThreshold"] == 900;
+}
+
+test "_build_startup_probe floors failureThreshold at 1 for a period longer than the budget" {
+    b = _builder(
+        {},
+        k8s_config=KubernetesConfig(
+            app_name="t", namespace="t-ns", startup_probe_period=1000
+        )
+    );
+    probe = b._build_startup_probe();
+    assert probe["periodSeconds"] == 1000;
+    assert probe["failureThreshold"] == 1;
+}
