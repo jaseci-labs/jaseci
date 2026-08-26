@@ -12,7 +12,7 @@ impl IdentityStorage.create_user(
     credential: dict[str, any],
     profile: dict[str, any] | None = None
 ) -> dict[str, any] {
-    import from jaclang.jac0core.constructs { Root }
+    import from jaclang.runtime.constructs { Root }
     import from jaclang { JacRuntime as Jac }
 
     type_counts: dict[str, int] = {};
@@ -97,7 +97,7 @@ impl IdentityStorage.user_exists_by_id(user_id: str) -> bool {
 }
 
 impl IdentityStorage.ensure_user_by_id(user_id: str) -> str | None {
-    import from jaclang.jac0core.constructs { Root }
+    import from jaclang.runtime.constructs { Root }
     import from jaclang { JacRuntime as Jac }
 
     existing = self.get_user_by_id(user_id);
@@ -135,7 +135,7 @@ impl IdentityStorage.ensure_user_by_id(user_id: str) -> str | None {
 }
 
 impl IdentityStorage.reset_root(user_id: str) -> str | None {
-    import from jaclang.jac0core.constructs { Root }
+    import from jaclang.runtime.constructs { Root }
     import from jaclang { JacRuntime as Jac }
 
     existing = self.get_user_by_id(user_id);

@@ -1,6 +1,6 @@
 //! The pinned toolchain inputs `bootstrap/pins.json` carries, read at configure
 //! time. That file is the single source of truth shared with the Jac payload
-//! tool (`jaclang.payload.pins`): a slice bump -- dirname, triple, hash, size
+//! tool (`jaclang.dist.payload.pins`): a slice bump -- dirname, triple, hash, size
 //! -- is one edit that `zig build` and `fetch-llvm` can never disagree on.
 
 const std = @import("std");

@@ -1,19 +1,15 @@
 impl JScaleExecutionContext.init(self: JScaleExecutionContext) -> None {
     import os;
-    import from jaclang.jac0core.constructs { PermissionDenied }
-    import from jaclang.jac0core.runtime { JacRuntime }
-    import from jaclang.runtimelib.session {
-        Session,
-        conninfo_from_url,
-        promotions_for
-    }
+    import from jaclang.runtime.constructs { PermissionDenied }
+    import from jaclang.runtime.runtime { JacRuntime }
+    import from jaclang.server.session { Session, conninfo_from_url, promotions_for }
     import from jaclang.scale.persistence.pg { scale_db_url }
 
     base = JacRuntime.get_base_path_dir();
     target = JacRuntime.get_full_target_path();
     url = scale_db_url() or "";
     if url and not os.environ.get('JAC_DB_URL') {
-        import from jaclang.runtimelib.store { PgStore }
+        import from jaclang.data.store { PgStore }
         store = PgStore(
             conninfo=conninfo_from_url(url),
             promotions=promotions_for(base),

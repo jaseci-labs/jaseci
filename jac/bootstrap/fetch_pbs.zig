@@ -1,7 +1,7 @@
 //! Bootstrap seed for the jac build: fetch the pinned python-build-standalone
 //! CPython. This is the ONE build step that must run before any Python exists,
 //! so it stays in Zig (std.http + std.crypto + std.compress.zstd + std.tar --
-//! no host tools). Every later step is the Jac payload tool (`jaclang.payload`)
+//! no host tools). Every later step is the Jac payload tool (`jaclang.dist.payload`)
 //! running on the interpreter this fetches.
 //!
 //!     fetch_pbs <os-arch> <dest-dir> <pins.json>
