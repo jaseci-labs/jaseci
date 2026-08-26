@@ -78,7 +78,8 @@ impl Image.postinit -> None {
                         value?.seek(0);
                     }
                 }
-                stream_bytes = bytes(value?.read());
+                _read_bytes: any = value?.read();
+                stream_bytes = bytes(_read_bytes);
             }
             img = open_image(BytesIO(stream_bytes));
             fmt = img.format or "PNG";

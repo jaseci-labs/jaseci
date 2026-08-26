@@ -833,7 +833,11 @@ impl apply_solved_type_vars(
         _seen_keys: set[str] = set();
         for t in ty.types {
             _sub = apply_solved_type_vars(t, solution, class_type, shadowed);
-            _sub_key = str(_sub);
+            _sub_key = (
+                f"{id(_sub.shared)}|{_sub}"
+                    if isinstance(_sub, ClassType) and _sub._shared is not None
+                    else str(_sub)
+            );
             if _sub_key not in _seen_keys {
                 _seen_keys.add(_sub_key);
                 new_types.append(_sub);

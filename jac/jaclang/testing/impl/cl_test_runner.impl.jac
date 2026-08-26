@@ -601,7 +601,7 @@ impl register_results_into_jactestcheck(filepath: str, results: list) -> None {
     import from jaclang.testing.test { JacTestCheck }
 
     for res in results {
-        def make_case(r: ClTestResult) -> Callable {
+        def make_case(r: ClTestResult) -> Callable[[], object] {
             def synthetic_case {
                 if not r.ok {
                     raise AssertionError(r.error or "client test failed");
