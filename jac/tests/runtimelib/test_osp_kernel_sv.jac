@@ -1,13 +1,13 @@
 """Parity tests: the portable OSP kernel driven with server-derived dispatch
-descriptors (jaclang.jac0core.osp_kernel_sv) must reproduce the live server
+descriptors (jaclang.runtime.osp_kernel_sv) must reproduce the live server
 `spawn` engine on real archetypes — same walker state, same subtyping and
 untyped-entry semantics. This validates the descriptor-emission model before it
 replaces per-backend dispatch."""
 
 import asyncio;
-import jaclang.jac0core.osp_kernel as _kernel;
-import from jaclang.jac0core.osp_kernel { osp_spawn }
-import from jaclang.jac0core.osp_kernel_sv { make_sv_runtime, desc_for }
+import jaclang.runtime.osp_kernel as _kernel;
+import from jaclang.runtime.osp_kernel { osp_spawn }
+import from jaclang.runtime.osp_kernel_sv { make_sv_runtime, desc_for }
 
 def _as_any(v: any) -> any {
     return v;

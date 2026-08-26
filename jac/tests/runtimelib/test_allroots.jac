@@ -14,7 +14,7 @@ de-duplicated.
 
 import os;
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.archetype { NodeAnchor, Root }
+import from jaclang.runtime.archetype { NodeAnchor, Root }
 
 
 """Build a persistent, properly-linked Root anchor."""
