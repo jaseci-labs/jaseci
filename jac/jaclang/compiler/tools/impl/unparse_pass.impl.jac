@@ -1150,7 +1150,7 @@ impl UnparsePass.exit_match_k_v_pair(nd: uni.MatchKVPair) -> None {
 }
 
 impl UnparsePass.exit_match_star(nd: uni.MatchStar) -> None {
-    result = "*";
+    result = "*" if nd.is_list else "**";
     if nd.name {
         result = result + nd.name.gen.jac;
     }
