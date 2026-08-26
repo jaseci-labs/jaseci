@@ -13,9 +13,11 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 
 
-def venv_cache_key(specs: list[str]) -> str {
+def venv_cache_key(specs: list[str], base_image: str) -> str {
     import hashlib;
-    return hashlib.sha256("\n".join(sorted(specs)).encode()).hexdigest();
+    return hashlib.sha256(
+        (base_image + "\n" + "\n".join(sorted(specs))).encode()
+    ).hexdigest();
 }
 
 
@@ -171,7 +173,8 @@ def build_bootstrap_init_container(
 
     if resolved_specs {
         venv_cache_dir = (
-            f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(resolved_specs)}"
+            f"{BUNDLE_MOUNT_PATH}/.cache/venv/"
+            f"{venv_cache_key(resolved_specs, base_image)}"
         );
         commands.append(
             f'if [ -d "{venv_cache_dir}" ]; then mkdir -p "{APP_MOUNT_PATH}/.jac" '
@@ -182,10 +185,15 @@ def build_bootstrap_init_container(
     commands.append("jac install");
 
     if resolved_specs {
+        staging_dir = f"{venv_cache_dir}.tmp.$$";
         commands.append(
-            f'mkdir -p "{BUNDLE_MOUNT_PATH}/.cache/venv" && '
-            f'rm -rf "{venv_cache_dir}" && '
-            f'cp -a "{venv_dir}" "{venv_cache_dir}" 2>/dev/null || true'
+            f'if mkdir -p "{BUNDLE_MOUNT_PATH}/.cache/venv" 2>/dev/null '
+            f'&& [ ! -e "{venv_cache_dir}" ]; then '
+            f'rm -rf "{staging_dir}" 2>/dev/null; '
+            f'cp -a "{venv_dir}" "{staging_dir}" 2>/dev/null '
+            f'&& mv -T "{staging_dir}" "{venv_cache_dir}" 2>/dev/null; '
+            f'rm -rf "{staging_dir}" 2>/dev/null; '
+            f'fi; true'
         );
     }
 
