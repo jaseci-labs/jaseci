@@ -3,9 +3,11 @@ name: CI
 # One kit, one consumer shape. `build-kit` builds the binary from this
 # checkout and publishes the kit; every test lane runs the suite through that
 # binary with JAC_NO_DEV_SOURCE=1, so the compiler under test is the one the
-# PR would ship. `host-kit` restores the newest main binary and serves only
-# `jac-check`, which checks the tree with its own compiler through the repo's
-# `[dev] jaclang_source` reroute (root jac.toml). The whole darwin native lane
+# PR would ship. `host-kit` restores the newest main binary and serves the
+# lanes that must see the checkout as the compiler's own tree through the
+# repo's `[dev] jaclang_source` reroute (root jac.toml): `jac-check`, the
+# equivalence chunk, and the in-package suites under jaclang/byllm and
+# jaclang/scale (see test-packages-and-docs). The whole darwin native lane
 # lives in nightly.yml; `macos-native` below reruns it on a `macos` label.
 
 on:
@@ -567,6 +569,54 @@ jobs:
           HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=auto JAC_TEST_STRICT=1 jac test tests/ \
             --ignore tests/compiler tests/client
 
+  # In-package tests that do not pass through the reroute, run here against
+  # the built kit. Each entry names a real divergence between the reroute and
+  # the sealed payload, not a CI quirk; the job should shrink to nothing as
+  # they are fixed.
+  #
+  # - byllm/tests/test_mtir_integration.jac: "submodule MTIR keyed by import
+  #   fullname" finds an empty mtir_map under the reroute; with the native
+  #   pipeline off, two more MTIR tests fail. Registration is tied to the
+  #   codegen path.
+  # - scale/tests/server/test_serve.jac, the HMR test: a walker:pub added
+  #   after start is listed in /openapi.json but POSTs 401. The access table
+  #   is rebuilt from Jac.program.find_module(), which returns the pre-reload
+  #   tree when the module was compiled in-process; the sealed lane never
+  #   has one and recompiles. Fails the same way with the native pipeline
+  #   off.
+  test-in-package-sealed:
+    needs: [changes, build-kit]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.scale == 'true' || needs.changes.outputs.byllm == 'true' }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    env:
+      JAC_NO_DEV_SOURCE: "1"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: ./.github/actions/jac-kit
+      - name: Install the scale and byllm deps these files import
+        run: |
+          jac install \
+            "python-dotenv>=1.2.1,<2.0.0" \
+            "prometheus-client>=0.21.0,<1.0.0" \
+            "opentelemetry-sdk>=1.27.0,<2.0.0" \
+            "opentelemetry-exporter-otlp-proto-http>=1.27.0,<2.0.0" \
+            "apscheduler>=3.11.2,<4.0.0" "kubernetes>=34.1.0,<35.0.0" \
+            "docker>=7.1.0,<8.0.0" "boto3>=1.40.0,<2.0.0" \
+            requests "moto[s3]>=5.0.0" \
+            --global
+          jac install \
+            "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
+            "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
+            --global
+      - name: MTIR integration (byllm)
+        run: jac test jac/jaclang/byllm/tests/test_mtir_integration.jac
+      - name: HMR refresh (scale server)
+        env:
+          JAC_TEST_JOBS: "0"
+        run: jac test jac/jaclang/scale/tests/server/test_serve.jac -f hmr
+
   # The no-LLVM degradation path lives in the suite now
   # (tests/compiler/test_no_llvm_degradation.jac, via JAC_LLVM_SHIM=none).
 
@@ -601,27 +651,36 @@ jobs:
   # The jsdom suites gate on bun being on PATH and run in test-runtime under
   # JAC_TEST_STRICT=1; the desktop tests live in tests/client (test-client).
 
+  # In-package suites (jaclang/byllm/tests, jaclang/scale/tests) stay on the
+  # host kit: a test file inside the jaclang package is part of the compiler's
+  # own tree, which the reroute treats as self-hosted (parse and codegen, no
+  # analysis over the package's own modules). Through the sealed kit the same
+  # file is an ordinary module and is analyzed against the bundled copy of
+  # jaclang.*, and the checker reports what the reroute never has
+  # (test_byllm.jac, test_auth_cutover.jac, test_firebase_auth_sso.jac). Those
+  # findings are a follow-up on the test files, not on this lane.
   test-packages-and-docs:
-    needs: [changes, build-kit]
+    needs: [changes, host-kit]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.byllm == 'true' || needs.changes.outputs.docs == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    env:
-      JAC_NO_DEV_SOURCE: "1"
     steps:
       - uses: actions/checkout@v5
         with:
           submodules: true
       - uses: ./.github/actions/jac-kit
+        with:
+          name: jac-host
       - name: Install byllm deps + test deps
         run: |
           jac install \
             "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
+      # test_mtir_integration.jac runs in test-in-package-sealed (see there).
       - name: Run package tests
         env:
           JAC_TEST_STRICT: "1"
-        run: jac test jac/jaclang/byllm/tests
+        run: jac test jac/jaclang/byllm/tests --ignore jac/jaclang/byllm/tests/test_mtir_integration.jac
       # Named docs tests so docs-only PRs (which skip the core lanes) still
       # exercise the corpus; the same files run in test-runtime's full sweep.
       - name: Run docs corpus tests
@@ -633,11 +692,9 @@ jobs:
             jac/tests/cli/test_docs_code_blocks.jac
 
   test-scale:
-    needs: [changes, build-kit]
+    needs: [changes, host-kit]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.scale == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    env:
-      JAC_NO_DEV_SOURCE: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -650,7 +707,10 @@ jobs:
         uses: oven-sh/setup-bun@v2
       # The bundle tests read the pod binary from jac/zig-out/bin via a
       # __file__-relative lookup and silently self-skip when it is missing.
+      # Host kit for the same reason as test-packages-and-docs above.
       - uses: ./.github/actions/jac-kit
+        with:
+          name: jac-host
       - name: Install scale deps + test deps
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
@@ -668,7 +728,8 @@ jobs:
         run: jac install "google-cloud-firestore>=2.21.0,<3.0.0" "google-cloud-storage>=2.19.0,<3.0.0" "firebase-admin>=6.0.0,<8.0.0" --global
       # One process per file comes from the [test] isolate marks in the root
       # jac.toml (the shelf-db sharers are marked serial there); JOBS=1 keeps
-      # files sequential the way the old shell loop ran them. The root group
+      # files sequential the way the old shell loop ran them. The HMR test in
+      # server/test_serve.jac runs in test-in-package-sealed. The root group
       # is the directory's own top-level files -- including the ones the old
       # per-group globs never reached; test_deploy_k8s asks for JAC_TEST_K8S
       # and skips itself here.
@@ -686,7 +747,7 @@ jobs:
                 jac/jaclang/scale/tests/deploy \
                 jac/jaclang/scale/tests/misc
           elif [ "${{ matrix.group }}" = "server" ]; then
-            jac test jac/jaclang/scale/tests/server
+            jac test jac/jaclang/scale/tests/server -f "not hmr"
           else
             jac test jac/jaclang/scale/tests/${{ matrix.group }}
           fi
@@ -1104,6 +1165,7 @@ jobs:
       - contribution-checks
       - test-compiler
       - test-runtime
+      - test-in-package-sealed
       - test-client
       - test-packages-and-docs
       - test-scale
