@@ -3,8 +3,15 @@ import json;
 import from pathlib { Path }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     ManifestBuilder,
-    GATEWAY_NAME
+    GATEWAY_NAME,
+    CONFIG_REVISION_ANNOTATION,
+    with_config_revision
 }
+import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
+    create_k8s_secret
+}
+import from kubernetes.client.exceptions { ApiException }
+import from types { SimpleNamespace }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
@@ -176,4 +183,159 @@ test "a single-file full-stack app still gets its client bundle built" {
         assert builder._has_client_source();
         assert builder._client_entry() == "main.jac";
     }
+}
+
+
+# Config-only deploys. Secret sections are stripped from the bundle before it is
+# packed and the Secret is referenced by a constant name, so a deploy that
+# changed only configuration produced a byte identical pod template: the patch
+# was a no-op and running pods kept the old values while the deploy reported
+# success.
+#
+# The marker is the Secret's own resourceVersion, stamped at apply time. It
+# carries no secret material, which matters because OPS_READ_RULES grants read
+# on deployments and replicasets while withholding secrets: a digest of the
+# resolved values would put a brute-forceable fingerprint of them on an object
+# that boundary deliberately exposes.
+
+def _revision_of(manifest: dict[str, any]) -> str {
+    return dict(
+        dict(dict(manifest["spec"])["template"])["metadata"].get("annotations", {})
+    ).get(
+        CONFIG_REVISION_ANNOTATION, ""
+    );
+}
+
+
+def _deployment(secrets: (dict[str, str] | None) = None) -> dict[str, any] {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg, secrets=secrets or {});
+    return builder._build_deployment_manifest("jac-shop", {});
+}
+
+
+test "a changed secret changes the pod template" {
+    before = with_config_revision(_deployment({"MARKER": "v1"}), "1001");
+    after = with_config_revision(_deployment({"MARKER": "v2"}), "1002");
+
+    assert _revision_of(before) != _revision_of(after) , (
+        "a config-only change left the pod template identical, so the patch "
+        "is a no-op and running pods keep the old value"
+    );
+}
+
+
+test "an unchanged secret leaves the pod template untouched" {
+    first = with_config_revision(_deployment({"MARKER": "v1"}), "1001");
+    second = with_config_revision(_deployment({"MARKER": "v1"}), "1001");
+
+    assert first == second;
+}
+
+
+# An app with no secrets has no Secret object and so no revision. Stamping a
+# constant here would still change every existing pod template once, rolling
+# fleets that have no configuration at all.
+test "an app with no secrets gets no marker and no rollout" {
+    manifest = with_config_revision(_deployment({}), "");
+
+    assert "annotations"
+        not in dict(dict(dict(manifest["spec"])["template"])["metadata"]);
+}
+
+
+# The marker must not be derived from the values themselves: OPS_READ_RULES
+# exposes deployments while withholding secrets, so a digest of low entropy
+# config could be recovered offline from metadata a reader is allowed to see.
+test "the marker is opaque and carries no secret material" {
+    manifest = with_config_revision(
+        _deployment({"API_KEY": "sk-not-in-here", "MARKER": "v1"}), "4242"
+    );
+
+    rendered = json.dumps(manifest);
+    assert "sk-not-in-here" not in rendered;
+    assert "v1" not in _revision_of(manifest);
+    assert _revision_of(manifest) == "4242" , (
+        "the marker is the Secret's resourceVersion, not a function of its values"
+    );
+}
+
+
+
+
+# The revision comes from the apply response rather than a follow up read. A
+# second read would need get on secrets, which a least privilege deployer may
+# not have, and a read that failed would silently produce no marker, no
+# rollout, and a successful looking deploy: exactly the bug this fixes.
+
+obj _FakeSecrets {
+    has created: list = [],
+        version: str = "77";
+
+    def create_namespaced_secret(namespace: str, body: any) -> any {
+        self.created.append(body["metadata"]["name"]);
+        return SimpleNamespace(metadata=SimpleNamespace(resource_version=self.version));
+    }
+}
+
+
+test "the config revision comes from the applied Secret itself" {
+    api = _FakeSecrets();
+
+    revision = create_k8s_secret(api, "ns", "app-secrets", {"MARKER": "v1"});
+
+    assert revision == "77" , "the apply response already carries the revision";
+    assert api.created == ["app-secrets"];
+}
+
+
+# An apply that returns no usable revision must not fall through to a deploy
+# with no marker: that is the stale config failure the fix exists to remove.
+test "an unusable revision is reported rather than silently skipped" {
+    api = _FakeSecrets(version="");
+
+    assert create_k8s_secret(api, "ns", "app-secrets", {"MARKER": "v1"}) == "";
+    assert with_config_revision(_deployment({"MARKER": "v1"}), "")
+        == _deployment({"MARKER": "v1"}) , "an empty revision stamps nothing, so the caller has to fail loudly";
+}
+
+
+# The redeploy is where #8115 actually lives: the Secret already exists, the
+# create 409s, and the revision has to come off the replace response instead.
+# _FakeSecrets only implements create, so a regression in that second capture
+# would leave the suite green while every real redeploy failed on the missing
+# revision.
+obj _FakeSecretsExisting(_FakeSecrets) {
+    has replaced: list = [];
+
+    def create_namespaced_secret(namespace: str, body: any) -> any {
+        raise ApiException(status=409);
+    }
+
+    def replace_namespaced_secret(name: str, namespace: str, body: any) -> any {
+        self.replaced.append(name);
+        return SimpleNamespace(metadata=SimpleNamespace(resource_version=self.version));
+    }
+}
+
+
+test "a redeploy takes its revision from the replace, not the create" {
+    api = _FakeSecretsExisting(version="88");
+
+    revision = create_k8s_secret(api, "ns", "app-secrets", {"MARKER": "v2"});
+
+    assert revision == "88" , (
+        "the 409 path has to return the replace response's revision, or a "
+        "redeploy stamps nothing and the config never reaches running pods"
+    );
+    assert api.replaced == ["app-secrets"];
+    assert api.created == [];
+}
+
+
+test "an app with no secrets applies none and needs no revision" {
+    api = _FakeSecrets();
+
+    assert create_k8s_secret(api, "ns", "app-secrets", {}) == "";
+    assert api.created == [];
 }

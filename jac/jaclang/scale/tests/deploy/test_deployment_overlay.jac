@@ -2,7 +2,9 @@ import os;
 import from pathlib { Path }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     ManifestBuilder,
-    merge_manifest_overlay
+    merge_manifest_overlay,
+    CONFIG_REVISION_ANNOTATION,
+    with_config_revision
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -250,4 +252,42 @@ test "embedder overrides survive normalization" {
     assert cfg["gateway_port"] == 9001;
     assert cfg["client"]["entry"] == "";
     assert cfg["drain_timeout_seconds"] == 10.0;
+}
+
+
+# The config marker is stamped at apply time, after the overlay has already been
+# merged, so an overlay cannot drop it OR forge it. Asserting only that the key
+# survives would pass without the stamping step at all, because recursive map
+# merging already preserves unrelated annotations; the overlay therefore sets
+# the marker to a wrong value and the applied one has to win.
+test "a deployment overlay cannot forge the config marker" {
+    b = _builder(
+        {
+            "billing_ops": {
+                "deployment_overlay": {
+                    "spec": {
+                        "template": {
+                            "metadata": {
+                                "annotations": {
+                                    "team": "ops",
+                                    "jac-scale.config-revision": "forged"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    );
+
+    stamped = with_config_revision(
+        b._build_deployment_manifest("billing_ops", {"containers": []}), "9931"
+    );
+    annotations = stamped["spec"]["template"]["metadata"]["annotations"];
+
+    assert annotations[CONFIG_REVISION_ANNOTATION] == "9931" , (
+        "an overlay must not be able to pin the marker and re-break config-only "
+        "deploys"
+    );
+    assert annotations.get("team") == "ops" , "unrelated overlay annotations survive";
 }

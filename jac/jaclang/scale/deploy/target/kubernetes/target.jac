@@ -18,6 +18,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    with_config_revision,
     ManifestBuilder,
     GATEWAY_NAME,
     k8s_safe_name
@@ -841,14 +842,24 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
+        config_revision: str = "";
         user_secret = bundle.get("user_secret");
         if user_secret {
-            create_k8s_secret(
+            config_revision = create_k8s_secret(
                 core_v1,
                 namespace,
                 user_secret["metadata"]["name"],
                 user_secret["stringData"]
             );
+            if not config_revision {
+                raise RuntimeError(
+                    f"Applied the Secret for '{self.k8s_config.app_name}' but "
+                    "could not read the "
+                    "revision it returned, so a config change could not be made "
+                    "to reach running pods. Refusing to deploy workloads rather "
+                    "than reporting a success that leaves the old config live."
+                );
+            }
             if self.logger {
                 self.logger.info(
                     f"Applied Secret for user-defined [scale.secrets] "
@@ -875,7 +886,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
-        for (svc_name, dep_manifest) in bundle["deployments"].items() {
+        for (svc_name, raw_manifest) in bundle["deployments"].items() {
+            dep_manifest = with_config_revision(raw_manifest, config_revision);
             self._apply_or_replace(
                 apps_v1,
                 "read_namespaced_deployment",
