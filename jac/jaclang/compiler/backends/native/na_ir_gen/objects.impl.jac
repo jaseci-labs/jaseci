@@ -1032,11 +1032,11 @@ impl NaIRGenObjects._demote_method_if_unlowerable(
 
     _na_debug = self._na_debug_on();
     if self._seam_warnings_on() {
-        import sys;
+        import from jaclang.cli.console { console }
         _why = "; ".join(str(e) for e in _own);
-        sys.stderr.write(
-            f"warning: native seam -- demoting {full_name} to Python-only "
-            f"(un-lowerable): {_why}\n"
+        console.warning(
+            f"native seam -- demoting {full_name} to Python-only "
+            f"(un-lowerable): {_why}"
         );
     }
     if _na_debug {
@@ -1131,12 +1131,11 @@ impl NaIRGenObjects._opaque_field_if_unlowerable(
     _why = str(_first).split('\n')[0];
 
     if self._seam_warnings_on() {
-        import sys;
-        sys.stderr.write(
-            f"warning: native seam -- erasing field {arch_name}.{fname} to an "
+        import from jaclang.cli.console { console }
+        console.warning(
+            f"native seam -- erasing field {arch_name}.{fname} to an "
             f"opaque slot (un-lowerable declaration): "
                 + "; ".join(str(e) for e in _own)
-                + "\n"
         );
     }
     try {
@@ -1804,8 +1803,13 @@ impl NaIRGenObjects._codegen_instantiation(
         _inst_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
             if nd.loc
             else 0}";
+        if self.rc_alloc_fn is None {
+            self._emit_rc_helpers();
+        }
+        _alloc_fn = self.rc_alloc_fn;
+        assert _alloc_fn is not None , "rc helpers are emitted before allocation";
         raw_ptr = self._rc_call_with_ctx(
-            self.rc_alloc_fn, [size], op="new", loc=_inst_loc, name="raw.ptr"
+            _alloc_fn, [size], op="new", loc=_inst_loc, name="raw.ptr"
         );
         obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
         self._emit_struct_release_fn(type_name);
