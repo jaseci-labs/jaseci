@@ -190,7 +190,7 @@ def has_field(t: type, field: str) -> bool {
     return hasattr(t, field);
 }
 
-def field(target: any, field: str) -> any {
+def get_field(target: any, field: str) -> any {
     return getattr(target, field);
 }
 

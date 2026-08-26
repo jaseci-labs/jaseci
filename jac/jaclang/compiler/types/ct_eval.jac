@@ -110,7 +110,7 @@ glob CT_FUEL_DEFAULT: int = 50000000,
          {
              "typeof",
              "fields",
-             "field",
+             "get_field",
              "set_field",
              "has_field",
              "members",
@@ -1432,7 +1432,7 @@ obj CtEvaluator {
             }
             return `any(hv.name.value == args[1] for hv in self._has_vars_of(ct));
         }
-        if name == "field" {
+        if name == "get_field" {
             holder = args[0];
             if isinstance(holder, CtRecord) {
                 if args[1] in holder.fields {

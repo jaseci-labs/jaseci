@@ -1,3 +1,4 @@
+import from jaclang.comptime { fields }
 import from jaclang.server.serving.model { ApiModel, require_str }
 
 
@@ -44,9 +45,8 @@ obj CreateJobRequest(ApiModel) {
         if not isinstance(data, dict) {
             raise ValueError('request body must be an object');
         }
-        _validate_trigger_fields(
-            data, {'walker_or_function', 'trigger', 'interval', 'cron', 'date'}
-        );
+        comptime allowed: set[str] = {f.name for f in fields(CreateJobRequest)};
+        _validate_trigger_fields(data, allowed);
         return CreateJobRequest(
             walker_or_function=require_str(data, 'walker_or_function'),
             trigger=str(data.get('trigger')),
@@ -69,7 +69,8 @@ obj UpdateJobRequest(ApiModel) {
         if not isinstance(data, dict) {
             raise ValueError('request body must be an object');
         }
-        _validate_trigger_fields(data, {'trigger', 'interval', 'cron', 'date'});
+        comptime allowed: set[str] = {f.name for f in fields(UpdateJobRequest)};
+        _validate_trigger_fields(data, allowed);
         return UpdateJobRequest(
             trigger=str(data.get('trigger')),
             interval=float(data['interval'])
