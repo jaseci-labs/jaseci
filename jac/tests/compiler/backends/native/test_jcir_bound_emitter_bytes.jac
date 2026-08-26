@@ -5,7 +5,7 @@ file can deliver. This was `test_jcir_sealed_bytes.jac`, and it claimed
 to compare **sealed-emitter** bytes against **source-lane** bytes. It
 does not, and it cannot yet.
 
-The #8288 M1 crossing coverage measured why. `pass_serve._bind_one`
+The #8288 M1 crossing coverage measured why. The pass-serving binder
 resolves the artifact, `dlopen`s it, calls `__jac_shared_init`, checks
 that every advertised export resolves by `dlsym`, and probes
 `jac_str_new` for liveness -- and then retains the engine and **no
@@ -68,10 +68,6 @@ import from jaclang.dist.precompile_bytecode { seal_native_artifacts }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
      JCIR_MODULE: str = "jaclang.compiler.backends.py.jcir_gen_pass",
-     SEAL_MODULES: tuple = (
-         "compiler/frontend/unitree.jac",
-         "compiler/backends/py/jcir_gen_pass.jac"
-     ),
      _BUILD_MEMO: list = [];
 
 glob CORPUS: tuple = (
@@ -113,7 +109,7 @@ def native_true_image -> bool {
     return sealed.native_artifact_for(JCIR_MODULE) is not None;
 }
 
-"""Build the jcir artifact once for the whole file; (tmpdir, artifacts)."""
+"""Build the fused artifact once for the whole file; (tmpdir, record)."""
 def _built -> tuple {
     if native_true_image() {
         testskip(
@@ -125,31 +121,36 @@ def _built -> tuple {
         return _BUILD_MEMO[0];
     }
     tmp = tempfile.mkdtemp(prefix="jac_jcir_bytes_");
-    arts = seal_native_artifacts(PKG_PATH, Path(tmp), modules=SEAL_MODULES);
-    assert arts is not None , (
+    record = seal_native_artifacts(PKG_PATH, Path(tmp));
+    assert record is not None and record.get("artifact") , (
         "the seal refused; the sealed-versus-source comparison needs an "
-        "artifact. If the jcir root was refused, this file is the thing "
+        "artifact. If the jcir emitter was refused, this file is the thing "
         "that should have caught it"
     );
-    assert JCIR_MODULE in arts , (
-        f"the seal produced no artifact for {JCIR_MODULE}: {sorted(arts)}"
+    assert JCIR_MODULE in record["modules"] , (
+        f"the fused seal does not serve {JCIR_MODULE}: " f"{sorted(record['modules'])}"
     );
-    result = (tmp, arts, );
+    result = (tmp, record, );
     _BUILD_MEMO.append(result);
     return result;
 }
 
-def _artifact_resolver(tmp: str, arts: dict) -> any {
+def _artifact_resolver(tmp: str, record: dict) -> any {
+    `entry = record["artifact"];
+    modules = set(record["modules"]);
+    memo: list = [];
     def _resolve(fullname: str) -> (tuple | None) {
-        `entry = arts.get(fullname);
-        if `entry is None {
+        if fullname not in modules {
             return None;
         }
-        lib_path = os.path.join(tmp, `entry["lib"]);
-        layout = json.loads(
-            Path(os.path.join(tmp, `entry["layout"])).read_text(encoding="utf-8")
-        );
-        return (lib_path, layout, );
+        if not memo {
+            lib_path = os.path.join(tmp, `entry["lib"]);
+            layout = json.loads(
+                Path(os.path.join(tmp, `entry["layout"])).read_text(encoding="utf-8")
+            );
+            memo.append((lib_path, layout, ));
+        }
+        return memo[0];
     }
     return _resolve;
 }
@@ -226,12 +227,12 @@ def code_field_diffs(a: any, b: any, at: str, out: list[str]) -> list[str] {
 
 
 test "the emitter's artifact builds, binds and registers" {
-    (tmp, arts) = _built();
+    (tmp, record) = _built();
     real_for = sealed.native_artifact_for;
-    real_names = sealed.native_artifact_names;
+    real_names = sealed.native_served_modules;
     _reset_serving_state();
-    sealed.native_artifact_for = _artifact_resolver(tmp, arts);
-    sealed.native_artifact_names = lambda { list(arts.keys()); };
+    sealed.native_artifact_for = _artifact_resolver(tmp, record);
+    sealed.native_served_modules = lambda { sorted(record["modules"]); };
     try {
         _emit("with entry { probe = 1; }", "bind_probe.jac");
         assert JCIR_MODULE in _NATIVE_SERVED_PASSES , (
@@ -241,26 +242,26 @@ test "the emitter's artifact builds, binds and registers" {
         );
     } finally {
         sealed.native_artifact_for = real_for;
-        sealed.native_artifact_names = real_names;
+        sealed.native_served_modules = real_names;
         _reset_serving_state();
     }
 }
 
 
 test "container bytes are the same with the artifact bound and without" {
-    (tmp, arts) = _built();
+    (tmp, record) = _built();
     source_side: dict[(str, tuple)] = {};
     for (label, src, path) in CORPUS {
         source_side[label] = _emit(src, path);
     }
     real_for = sealed.native_artifact_for;
-    real_names = sealed.native_artifact_names;
+    real_names = sealed.native_served_modules;
     _reset_serving_state();
-    sealed.native_artifact_for = _artifact_resolver(tmp, arts);
-    sealed.native_artifact_names = lambda { list(arts.keys()); };
+    sealed.native_artifact_for = _artifact_resolver(tmp, record);
+    sealed.native_served_modules = lambda { sorted(record["modules"]); };
     failures: list[str] = [];
     try {
-        assert JCIR_MODULE in arts;
+        assert JCIR_MODULE in record["modules"];
         for (label, src, path) in CORPUS {
             (sealed_blob, sealed_tree) = _emit(src, path);
             (source_blob, source_tree) = source_side[label];
@@ -295,7 +296,7 @@ test "container bytes are the same with the artifact bound and without" {
         }
     } finally {
         sealed.native_artifact_for = real_for;
-        sealed.native_artifact_names = real_names;
+        sealed.native_served_modules = real_names;
         _reset_serving_state();
     }
     assert not failures , (
@@ -315,9 +316,9 @@ test "the bound emission still runs the Python body, and says so" {
     # pass, this observation stops holding -- and the two tests above have
     # to be rewritten to claim the sealed-versus-source comparison they
     # were once named for. That day is #8288 M1 rung 3.
-    (tmp, arts) = _built();
+    (tmp, record) = _built();
     real_for = sealed.native_artifact_for;
-    real_names = sealed.native_artifact_names;
+    real_names = sealed.native_served_modules;
     real_exit: any = JcirGenPass.exit_module;
     seen: list = [];
     def _counting_exit(self: any, nd: any) -> any {
@@ -325,15 +326,15 @@ test "the bound emission still runs the Python body, and says so" {
         return real_exit(self, nd);
     }
     _reset_serving_state();
-    sealed.native_artifact_for = _artifact_resolver(tmp, arts);
-    sealed.native_artifact_names = lambda { list(arts.keys()); };
+    sealed.native_artifact_for = _artifact_resolver(tmp, record);
+    sealed.native_served_modules = lambda { sorted(record["modules"]); };
     JcirGenPass.exit_module = _counting_exit;
     try {
         _emit("with entry { probe = 1; }", "body_probe.jac");
     } finally {
         JcirGenPass.exit_module = real_exit;
         sealed.native_artifact_for = real_for;
-        sealed.native_artifact_names = real_names;
+        sealed.native_served_modules = real_names;
         _reset_serving_state();
     }
     assert seen , (

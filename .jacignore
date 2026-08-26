@@ -13,19 +13,78 @@
 # Each entry is a module that does not currently pass `jac check`. Adding to
 # this list is a debt, not a policy: the goal is an empty file.
 
-# Fetched at build time, not repo source.
-# `jac ninja` fetches third-party zig packages into jac/zig-pkg/ and the
-# tree-sitter-jac package ships its own examples/sample.jac. Bare name so
-# any zig-pkg path component is skipped.
-zig-pkg
-
 # llvmlite-bound native IR generation.
 # The NaIRGen* mixins reach llvmlite handles (ir.Function.args, .linkage,
 # IRBuilder.append_basic_block, Type.as_pointer) through the vendored
 # py2jac translation under passes/native/llvm/, whose ctypes-derived
 # values the checker sees as Unknown. Not annotatable without typing that
 # vendored surface.
-jac/jaclang/compiler/backends/native/na_ir_gen/*
+jac/jaclang/compiler/backends/native/na_ir_gen/arena.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/arena.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/builtins.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/builtins.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/bytearray_na.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/bytearray_na.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/bytes.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/bytes.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/calls.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/calls.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/clib_abi.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/clib_abi.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/comprehensions.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/comprehensions.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/container_helpers.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/container_helpers.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/context_mgr.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/context_mgr.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/core.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/core.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/cycle_collector.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/cycle_collector.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/debug.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/debug.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/dicts.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/dicts.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/enums.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/enums.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/exceptions.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/exceptions.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/expr.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/expr.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/func.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/func.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/gc_debug.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/gc_debug.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/generics.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/generics.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/iterators.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/iterators.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/lists.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/lists.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/objects.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/objects.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/os.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/os.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/osp.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/osp.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/pyb_interop.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/pyb_interop.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/random.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/random.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/refcount.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/refcount.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/sets.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/sets.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/sized.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/sized.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/stmt.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/stmt.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/tuples.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/tuples.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/types.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/types.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/vtable.impl.jac
+jac/jaclang/compiler/backends/native/na_ir_gen/vtable.jac
 
 # Native compile driver (same llvmlite boundary as na_ir_gen).
 jac/jaclang/compiler/backends/native/impl/na_compile_pass.impl.jac
@@ -45,7 +104,6 @@ jac/jaclang/byllm/types.jac
 # jac-scale server surface.
 jac/jaclang/scale/server/impl/serve.auth.impl.jac
 jac/jaclang/scale/server/impl/serve.core.impl.jac
-jac/jaclang/scale/server/impl/serve.emailer.impl.jac
 jac/jaclang/scale/server/impl/serve.endpoints.impl.jac
 jac/jaclang/scale/server/impl/serve.identity.impl.jac
 jac/jaclang/scale/server/impl/serve.scheduler.impl.jac
