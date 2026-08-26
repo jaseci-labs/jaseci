@@ -209,6 +209,7 @@ impl NaIRGenFunc._maybe_declare_ability(nd: uni.ElementStmt) -> None {
 
     if len(self.errors_had) > _sig_mark {
         self.decorated_fns.pop(name, None);
+        self._claimed_capability_demotions.add(id(nd));
 
         _fd_imported = _fdm is not None and _fdm is not self.ir_in;
         if self._demote_method_if_unlowerable(
