@@ -17,7 +17,7 @@ import tempfile;
 
 import from pathlib { Path }
 
-import from jaclang.lsp.types {
+import from jaclang.lsp.protocol.types {
     DidChangeTextDocumentParams,
     DidOpenTextDocumentParams,
     DidSaveTextDocumentParams,
@@ -26,10 +26,10 @@ import from jaclang.lsp.types {
     VersionedTextDocumentIdentifier
 }
 
-import from jaclang.langserve.engine { JacLangServer }
-import from jaclang.langserve.server { did_change, did_open, did_save }
-import from jaclang.lsp.server { Workspace }
-import from jaclang.lsp.uris { from_fs_path }
+import from jaclang.lsp.server.engine { JacLangServer }
+import from jaclang.lsp.server.server { did_change, did_open, did_save }
+import from jaclang.lsp.protocol.server { Workspace }
+import from jaclang.lsp.protocol.uris { from_fs_path }
 
 # Library and consumer source pairs. APP_SRC instantiates Foo with field
 # `x`; LIB_BREAK renames the field to `y` so any cached LIB_OK lets APP_SRC

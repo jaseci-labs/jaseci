@@ -66,10 +66,10 @@ RSS, digests per kernel x mode) and `ir_audit.json` (`__rc_*` reference
 counts; the enforced build must be zero).
 
 The kernels double as compiler regression tests:
-`tests/compiler/passes/native/test_ownbench_differential.jac` compiles and
+`tests/compiler/backends/native/test_ownbench_differential.jac` compiles and
 runs every kernel under all three modes at small sizes and asserts digest
 identity (plus an erase.jac round-trip), and
-`tests/compiler/passes/main/test_ownership_regressions.jac` pins the
+`tests/compiler/passes/test_ownership_regressions.jac` pins the
 checker-level fixes the suite originally surfaced.
 
 Do NOT add a `jac.toml` in this tree: a nested jac.toml becomes the
@@ -101,7 +101,7 @@ coexist with the managed heap; these never use enforcement or
 
 Run with `./run_reg.sh [--quick]` -> `results/regions_results.json`.
 The differential tests live in
-`tests/compiler/passes/native/test_ownbench_regions.jac`.
+`tests/compiler/backends/native/test_ownbench_regions.jac`.
 
 Two measured semantics to know when reading results: managed nodes and
 edges are pinned immortal by the native runtime (the bare reg_graph

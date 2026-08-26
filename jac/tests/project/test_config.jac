@@ -488,7 +488,7 @@ test "parse build native_closure_cap" {
 }
 
 test "closure cap override resolves through effective_native_closure_cap" {
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.frontend.codeinfo {
         set_native_closure_cap,
         effective_native_closure_cap
     }
