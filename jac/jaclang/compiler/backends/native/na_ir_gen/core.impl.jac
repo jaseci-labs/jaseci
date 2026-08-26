@@ -1239,7 +1239,10 @@ impl NaIRGenCore._imported_function_demotions(
             CompileOptions as _FdOpts
         }
         _opts_src = self.prog?.options or _FdOpts();
-        if not bool(getattr(_opts_src, "no_ir_cache", False)) {
+        import from jaclang.compiler.driver.jir {
+            native_ir_cache_suspended as _fd_suspended
+        }
+        if not (bool(getattr(_opts_src, "no_ir_cache", False)) or _fd_suspended()) {
             try {
                 import from jaclang.compiler.backends.native.na_compile_pass {
                     native_dep_cache_paths

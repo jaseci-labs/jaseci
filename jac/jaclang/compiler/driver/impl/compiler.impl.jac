@@ -1128,6 +1128,15 @@ impl JacCompiler.compile(
     _outer_opts: (CompileOptions | None) = None;
     _outer_prog: (JacProgram | None) = None;
     _scratch_prog: (JacProgram | None) = None;
+
+    import from jaclang.compiler.driver.jir {
+        native_ir_cache_set_suspended,
+        native_ir_cache_suspended
+    }
+    _na_cache_prev = native_ir_cache_suspended();
+    if options.no_ir_cache {
+        native_ir_cache_set_suspended(True);
+    }
     try {
         if options.force_target_program {
             _wrap_prog = target_program;
@@ -1240,6 +1249,7 @@ impl JacCompiler.compile(
             options=options
         );
     } finally {
+        native_ir_cache_set_suspended(_na_cache_prev);
         set_effective_default_codespace(_prev_cs);
         self._reentrant_depth = _depth_prev;
         if _outer_prog is not None and _outer_opts is not None {

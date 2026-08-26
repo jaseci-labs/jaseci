@@ -94,8 +94,8 @@ def _seal_diag(err: str) -> str {
 
 """AOT-compile a fixture the way the seal does, returning (ir_text, seam_count).
 
-`no_ir_cache` is threaded through so a test can deliberately reproduce the warm
-native IR cache the seal itself refuses to read.
+`no_ir_cache` is threaded through so a test can compile the same sources both
+cold and warm and compare what the coverage reports.
 """
 def _compile_native(rel: str, no_ir_cache: bool) -> tuple[str, int] {
     prog = JacProgram();
@@ -221,16 +221,21 @@ test "a demotion one hop out cannot hide behind a warm native IR cache" {
         shutil.rmtree(tmp, ignore_errors=True);
     }
 
-    # Stage 2: the refused seal must not leave the demoted dependency's IR in
-    # the on-disk cache, or the next seal would inherit it.
-    assert _dep_cache_entries("seal_xmod_dep.jac") == [] , (
-        "a refused seal left the demoted dependency's native IR cached; a "
-        f"re-run would link it: {_dep_cache_entries('seal_xmod_dep.jac')}"
+    # Stage 2: the refused seal leaves the dependency's cached IR alone, and
+    # that is safe now because the seal cannot read it. `no_ir_cache` is held
+    # for the whole compile region rather than carried on an options object a
+    # compile can hop away from, so no part of a sealed closure is answered
+    # from disk -- scrubbing the cache behind every refusal was only ever
+    # covering for the hops that leaked. Stage 3 is what proves the verdict is
+    # unaffected by what stage 1 left behind.
+    assert _dep_cache_entries("seal_xmod_dep.jac") , (
+        "the refused seal purged the dependency's native IR; that is no longer "
+        "necessary and costs every later build a cold recompile"
     );
 
-    # Stage 3: same sources, now with whatever cache state stage 1 left. The
-    # verdict must be identical -- it is a function of the sources, not of
-    # cache warmth.
+    # Stage 3: same sources, now with the cache stage 1 left warm. The verdict
+    # must be identical -- it is a function of the sources, not of cache
+    # warmth, and this is the assertion that pins it.
     (arts2, err2, tmp2) = _seal("seal_xmod_root.jac");
     try {
         assert arts2 is None , (
@@ -242,20 +247,26 @@ test "a demotion one hop out cannot hide behind a warm native IR cache" {
         shutil.rmtree(tmp2, ignore_errors=True);
     }
 
-    # Stage 4: why the seal cannot rely on the coverage alone. Compiling with the
-    # native IR cache enabled twice makes the second compile serve the demoted
-    # dependency straight from disk, so NaIRGenPass never runs for it and the
-    # coverage records no seam at all. The abort-stub scan reads the IR that
-    # actually ships, so it still finds the stub.
+    # Stage 4: a compile served from the native IR cache still reports the
+    # demotion. NaIRGenPass never runs for a cached dependency, so the seam it
+    # reports is the record `na_coverage_capture` wrote into the entry's meta
+    # and `na_coverage_replay` puts back. Before that record existed the warm
+    # coverage came back empty here and only the abort-stub scan could refuse.
+    (_cold_ir, cold_seams) = _compile_native("seal_xmod_root.jac", True);
     _compile_native("seal_xmod_root.jac", False);
     (warm_ir, warm_seams) = _compile_native("seal_xmod_root.jac", False);
-    assert warm_seams == 0 , (
-        "expected the warm native IR cache to produce an empty coverage report (that is "
-        f"the hole the scan backstops), got {warm_seams} seam(s)"
+    assert cold_seams > 0 , "the cold compile recorded no seam to compare against";
+    assert warm_seams == cold_seams , (
+        "a compile served from the native IR cache reported a different number "
+        f"of seams than the cold compile ({warm_seams} vs {cold_seams}); the "
+        "coverage replay is lossy, so anything reading the coverage sees less "
+        "of a warm closure than of a cold one"
     );
+    # The scan still backstops it, reading what actually ships rather than the
+    # coverage, so a replay that ever regressed cannot let a stub through.
     assert "Meter.unlowerable" in seal_abort_stubs(warm_ir) , (
-        "the abort-stub scan missed a demotion the coverage could not see; the "
-        f"gate is only as good as cache warmth. stubs={seal_abort_stubs(warm_ir)}"
+        "the abort-stub scan missed a demotion in the shipped IR; the gate is "
+        f"only as good as cache warmth. stubs={seal_abort_stubs(warm_ir)}"
     );
 
     # And it must not cry wolf on a module that lowers in full.
