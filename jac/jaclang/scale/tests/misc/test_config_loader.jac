@@ -17,7 +17,8 @@ test "get_default_config kubernetes probe timings match KubernetesConfig default
         "readiness_period",
         "liveness_initial_delay",
         "liveness_period",
-        "liveness_failure_threshold"
+        "liveness_failure_threshold",
+        "startup_probe_period"
     ] {
         expected = getattr(struct_defaults, key);
         actual = defaults[key];
