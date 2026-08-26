@@ -39,8 +39,6 @@ jac/jaclang/compiler/backends/native/na_ir_gen/iterators.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/iterators.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/objects.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/objects.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/osp.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/osp.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/refcount.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/refcount.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/stmt.impl.jac
