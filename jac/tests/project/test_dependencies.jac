@@ -9,6 +9,7 @@ import os;
 import sys;
 import tempfile;
 import shutil;
+import hashlib;
 import from pathlib { Path }
 import from unittest.mock { MagicMock, patch }
 
@@ -34,7 +35,8 @@ import from jaclang.project.providers {
     get_provider_registry,
     get_python_provider,
     reset_provider_registry,
-    resolve_plan
+    resolve_plan,
+    _venv_deps_stale
 }
 
 """Reset global config singleton."""
@@ -306,6 +308,49 @@ test "ensure_venv recreates fused jac-as-python venvs" {
     }
 }
 
+# ===== venv dependency staleness =====
+# _venv_deps_stale mirrors client_deps_stale (vite_bundler.impl.jac) on the
+# Python side: a marker written into the venv, hashed over the resolved
+# specs, lets install_specs skip a real pip pass when nothing changed. Every
+# case here runs against a real temp dir/real hash -- no mocking of the
+# function under test.
+
+test "_venv_deps_stale: matching marker is not stale" {
+    with tempfile.TemporaryDirectory() as td {
+        venv_dir = Path(td);
+        specs = ["requests>=2.28.0", "flask~=3.0"];
+        current = hashlib.sha256("\n".join(sorted(specs)).encode()).hexdigest();
+        (venv_dir / ".jac-deps-hash").write_text(current, encoding="utf-8");
+        assert _venv_deps_stale(venv_dir, specs) is False;
+    }
+}
+
+test "_venv_deps_stale: changed specs are stale" {
+    with tempfile.TemporaryDirectory() as td {
+        venv_dir = Path(td);
+        old_hash = hashlib.sha256(
+            "\n".join(sorted(["requests>=2.28.0"])).encode()
+        ).hexdigest();
+        (venv_dir / ".jac-deps-hash").write_text(old_hash, encoding="utf-8");
+        assert _venv_deps_stale(venv_dir, ["requests>=2.29.0"]) is True;
+    }
+}
+
+test "_venv_deps_stale: missing marker is stale" {
+    with tempfile.TemporaryDirectory() as td {
+        # venv_dir exists (e.g. created by ensure_venv) but was never marked.
+        assert _venv_deps_stale(Path(td), ["requests>=2.28.0"]) is True;
+    }
+}
+
+test "_venv_deps_stale: missing venv dir is stale" {
+    with tempfile.TemporaryDirectory() as td {
+        never_created = Path(td) / "no-such-venv";
+        assert _venv_deps_stale(never_created, ["requests>=2.28.0"]) is True;
+    }
+}
+
+
 # ===== PythonProvider install/uninstall =====
 test "PythonProvider install_specs success" {
     reset_config();
@@ -328,6 +373,42 @@ test "PythonProvider install_specs success" {
             assert "--upgrade" in call_args;
             assert "requests>=2.28.0" in call_args;
             assert "--target" not in call_args;
+            # A successful install must leave a marker behind so the next
+            # call can skip a needless pip pass.
+            marker = config.get_venv_dir() / ".jac-deps-hash";
+            assert marker.exists();
+            expected_hash = hashlib.sha256(
+                "\n".join(sorted(["requests>=2.28.0"])).encode()
+            ).hexdigest();
+            assert marker.read_text(encoding="utf-8").strip() == expected_hash;
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+        reset_config();
+    }
+}
+
+test "PythonProvider install_specs skips pip when the venv marker matches" {
+    reset_config();
+    (tmp, project_dir) = make_temp_project();
+    try {
+        config = JacConfig.load(project_dir / "jac.toml");
+        python = PythonProvider();
+        specs = ["requests>=2.28.0"];
+
+        venv_dir = config.get_venv_dir();
+        venv_dir.mkdir(parents=True, exist_ok=True);
+        current = hashlib.sha256("\n".join(sorted(specs)).encode()).hexdigest();
+        (venv_dir / ".jac-deps-hash").write_text(current, encoding="utf-8");
+
+        with patch("jaclang.project.providers.ensure_venv") as _ev, patch.object(
+            PythonProvider, "_run_project_pip"
+        ) as mock_pip {
+            result = python.install_specs(config, specs, InstallContext());
+            assert result is True;
+            # The decision itself is proven by _venv_deps_stale's own tests;
+            # this only checks install_specs actually wires to it.
+            assert mock_pip.call_count == 0;
         }
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);

@@ -1,5 +1,6 @@
 import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
-    build_bootstrap_init_container
+    build_bootstrap_init_container,
+    venv_cache_key
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -38,4 +39,55 @@ test "shared pip cache is opened cross-uid, probed, with pod-local fallback" {
     assert "export PIP_CACHE_DIR=/tmp/jac-pip-cache" in script;
     # The wipe-and-rewarm path re-opens the recreated dir too.
     assert script.count("chmod 0777") == 2;
+}
+
+
+# ===== venv cache key =====
+# The dependency set alone determines whether a cached venv is reusable --
+# not the whole sealed bundle (which also includes app source and would
+# invalidate on every code change, defeating the point). Mirrors the
+# package.json-hash choice client_deps_stale already made on the npm side.
+
+test "venv_cache_key is deterministic and spec-order independent" {
+    a = venv_cache_key(["requests>=2.28.0", "flask~=3.0"]);
+    b = venv_cache_key(["flask~=3.0", "requests>=2.28.0"]);
+    assert a == b;
+}
+
+test "venv_cache_key changes when a spec changes" {
+    a = venv_cache_key(["requests>=2.28.0"]);
+    b = venv_cache_key(["requests>=2.29.0"]);
+    assert a != b;
+}
+
+
+# ===== venv persistence across pod restarts =====
+# /app is an emptyDir, wiped every pod boot, so jac install rebuilds the
+# venv from scratch on every scale-to-zero wake even though the dependency
+# set is unchanged. These two only cover the bootstrap script's mechanical
+# copy in/copy out -- the actual install/skip *decision* is
+# _venv_deps_stale's job (test_dependencies.jac), not re-verified here.
+
+test "bootstrap restores a cached venv from the bundle PVC before jac install" {
+    specs = ["requests>=2.28.0"];
+    ctr = build_bootstrap_init_container(
+        KubernetesConfig(), "python:3.12-slim", resolved_specs=specs
+    );
+    script = str(ctr["args"][0]);
+    cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(specs)}";
+    assert cache_dir in script;
+    assert script.index(cache_dir) < script.index("jac install");
+}
+
+test "bootstrap persists the venv to the bundle PVC cache after jac install" {
+    specs = ["requests>=2.28.0"];
+    ctr = build_bootstrap_init_container(
+        KubernetesConfig(), "python:3.12-slim", resolved_specs=specs
+    );
+    script = str(ctr["args"][0]);
+    cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(specs)}";
+    # A later occurrence of the same path after "jac install" is the
+    # write-back; rindex catches it regardless of how many times the
+    # restore step above also references the path.
+    assert script.rindex(cache_dir) > script.index("jac install");
 }

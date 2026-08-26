@@ -203,3 +203,32 @@ test "deploy loads the cluster config before it resolves the pod arch" {
     }
     assert order[:2] == ["config", "arch"];
 }
+
+
+# ===== startup probe =====
+# _build_startup_probe hardcoded periodSeconds: 10 while its siblings
+# (_build_readiness_probe / _build_liveness_probe) already read from
+# KubernetesConfig -- these follow the field the same way.
+
+test "_build_startup_probe defaults to the KubernetesConfig period" {
+    b = _builder({});
+    probe = b._build_startup_probe();
+    assert probe["periodSeconds"] == KubernetesConfig().startup_probe_period;
+}
+
+test "_build_startup_probe honors an explicit period, scaling failureThreshold to keep the same total budget" {
+    b = _builder(
+        {},
+        k8s_config=KubernetesConfig(
+            app_name="t", namespace="t-ns", startup_probe_period=2
+        )
+    );
+    probe = b._build_startup_probe();
+    assert probe["periodSeconds"] == 2;
+    # The pre-existing hardcoded pair (10 x 90) was a deliberate ~900s budget
+    # for a slow no-image cold compile, not an arbitrary choice -- a tighter
+    # period must scale failureThreshold to preserve that ceiling, not just
+    # poll more often within a much shorter one.
+    assert probe["periodSeconds"] * probe["failureThreshold"] == 900;
+    assert probe["failureThreshold"] == 450;
+}
