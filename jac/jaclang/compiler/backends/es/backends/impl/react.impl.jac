@@ -205,6 +205,7 @@ impl ReactBackend.lower_view(view: ViewElement, sync_loc: any) -> es.Expression 
         HostTag,
         ComponentTag,
         DynamicTag,
+        FragmentTag,
         SpreadAttr,
         TextChild,
         DynamicChild,
@@ -298,9 +299,20 @@ impl ReactBackend.lower_view(view: ViewElement, sync_loc: any) -> es.Expression 
             children_elements.append(child.expr);
         }
     }
-    children_expr = sync_loc(
-        es.ArrayExpression(elements=children_elements), jac_node=view.jac_node
-    );
+    # A lone dynamic fragment child is passed unwrapped, matching the JSX
+    # single-child convention: `<>{acc}</>` must hand the runtime the child
+    # expression itself so slot accumulators stay positional children (#7859).
+    if (
+        isinstance(tag, FragmentTag)
+        and len(view.children) == 1
+        and isinstance(view.children[0], DynamicChild)
+    ) {
+        children_expr = children_elements[0];
+    } else {
+        children_expr = sync_loc(
+            es.ArrayExpression(elements=children_elements), jac_node=view.jac_node
+        );
+    }
     return sync_loc(
         es.CallExpression(
             callee=sync_loc(
