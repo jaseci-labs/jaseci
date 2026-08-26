@@ -1197,6 +1197,31 @@ obj ManifestBuilder {
         };
     }
 
+    def autoscaler_config_for_deployment(
+        deployment_name: str
+    ) -> dict[str, any] | None {
+        return self._get_autoscaler_config(
+            self._service_key_for_deployment(deployment_name)
+        );
+    }
+
+    def _service_key_for_deployment(deployment_name: str) -> str {
+        suffix = "-deployment";
+        if not deployment_name.endswith(suffix) {
+            return deployment_name;
+        }
+        k8s_name = deployment_name[:-len(suffix)];
+        ms_cfg = self._ms_cfg();
+        candidates: list[str] = list(ms_cfg.get("routes", {}).keys());
+        candidates.append(GATEWAY_NAME);
+        for key in candidates {
+            if k8s_safe_name(str(key)) == k8s_name {
+                return str(key);
+            }
+        }
+        return k8s_name;
+    }
+
     def _get_http_activation_config(svc_name: str) -> dict[str, any] | None {
         svc: dict[str, any] = self._service_config(svc_name);
         per_service: dict[str, any] = svc.get("http_activation", {});

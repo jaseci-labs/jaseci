@@ -481,7 +481,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
                 and is_scale_to_zero_eligible(
                     ManifestBuilder(
                         k8s_config=self.k8s_config, logger=self.logger
-                    )._get_autoscaler_config(
+                    ).autoscaler_config_for_deployment(
                         app_name
                     ),
                     self.k8s_config.autoscaler_engine
