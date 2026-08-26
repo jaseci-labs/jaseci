@@ -1940,8 +1940,13 @@ impl NaIRGenObjects._codegen_instantiation(
         _inst_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
             if nd.loc
             else 0}";
+        if self.rc_alloc_fn is None {
+            self._emit_rc_helpers();
+        }
+        _alloc_fn = self.rc_alloc_fn;
+        assert _alloc_fn is not None , "rc helpers are emitted before allocation";
         raw_ptr = self._rc_call_with_ctx(
-            self.rc_alloc_fn, [size], op="new", loc=_inst_loc, name="raw.ptr"
+            _alloc_fn, [size], op="new", loc=_inst_loc, name="raw.ptr"
         );
         obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
         self._emit_struct_release_fn(type_name);
