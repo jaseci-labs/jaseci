@@ -185,14 +185,21 @@ def build_bootstrap_init_container(
     commands.append("jac install");
 
     if resolved_specs {
+        venv_cache_root = f"{BUNDLE_MOUNT_PATH}/.cache/venv";
         staging_dir = f"{venv_cache_dir}.tmp.$$";
         commands.append(
-            f'if mkdir -p "{BUNDLE_MOUNT_PATH}/.cache/venv" 2>/dev/null '
-            f'&& [ ! -e "{venv_cache_dir}" ]; then '
+            f'if mkdir -p {venv_cache_root} 2>/dev/null; then '
+            f'chmod 0777 {venv_cache_root} 2>/dev/null || true; '
+            f'if [ "$(du -sm {venv_cache_root} 2>/dev/null | cut -f1)" -gt 2048 ] '
+            f'2>/dev/null; then '
+            f'rm -rf {venv_cache_root} && mkdir -p {venv_cache_root} && '
+            f'chmod 0777 {venv_cache_root} 2>/dev/null || true; fi; '
+            f'if [ ! -e "{venv_cache_dir}" ]; then '
             f'rm -rf "{staging_dir}" 2>/dev/null; '
             f'cp -a "{venv_dir}" "{staging_dir}" 2>/dev/null '
             f'&& mv -T "{staging_dir}" "{venv_cache_dir}" 2>/dev/null; '
             f'rm -rf "{staging_dir}" 2>/dev/null; '
+            f'fi; '
             f'fi; true'
         );
     }
