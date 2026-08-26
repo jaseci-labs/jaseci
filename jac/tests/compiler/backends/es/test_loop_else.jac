@@ -72,7 +72,7 @@ with entry {
 }
 
 """Compile the loop-else fixture to JavaScript source."""
-def compile_to_js() -> str {
+def compile_to_js -> str {
     prog = JacProgram();
     ir = prog.compile(
         file_path=os.path.join(_test_tmp_dir, "loop_else.jac"), no_cgen=True
@@ -118,7 +118,7 @@ test "for-of exhaustion sequences the else body without a label" {
 
 test "for-of break rewrites to its own label and skips the else" {
     js = compile_to_js();
-    body = js[js.find("loop_for_break_skips") :];
+    body = js[js.find("loop_for_break_skips"):];
     assert "__jac_loop_" in body , f"no label around breaking for-of: {body[:400]}";
     assert "break __jac_loop_" in body , f"break not labeled: {body[:400]}";
 }

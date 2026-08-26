@@ -541,9 +541,7 @@ impl NaIRGenStmt._codegen_while(nd: uni.WhileStmt) -> None {
     cond = self._codegen_required(nd.condition);
     if cond is not None {
         cond = self._to_bool(cond);
-        self.builder.cbranch(
-            cond, body_bb, else_bb if else_bb is not None else end_bb
-        );
+        self.builder.cbranch(cond, body_bb, else_bb if else_bb is not None else end_bb);
     } else {
         self.builder.branch(else_bb if else_bb is not None else end_bb);
     }
@@ -687,9 +685,7 @@ impl NaIRGenStmt._codegen_iter_for(nd: uni.IterForStmt) -> None {
     cond = self._codegen_required(nd.condition);
     if cond is not None {
         cond = self._to_bool(cond);
-        self.builder.cbranch(
-            cond, body_bb, else_bb if else_bb is not None else end_bb
-        );
+        self.builder.cbranch(cond, body_bb, else_bb if else_bb is not None else end_bb);
     } else {
         self.builder.branch(else_bb if else_bb is not None else end_bb);
     }
@@ -4107,9 +4103,7 @@ impl NaIRGenStmt._codegen_for_indexed(
     } else {
         cmp = self.builder.icmp_signed("<", cur_idx, len_val, name="for.cmp");
     }
-    self.builder.cbranch(
-        cmp, body_bb, else_bb if else_bb is not None else end_bb
-    );
+    self.builder.cbranch(cmp, body_bb, else_bb if else_bb is not None else end_bb);
     self.loop_stack.append((incr_bb, end_bb));
     self.builder.position_at_end(body_bb);
 

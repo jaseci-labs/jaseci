@@ -1361,9 +1361,7 @@ impl NaIRGenIterators._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     }
     out_i8 = self.builder.bitcast(elem_slot, i8p, name="iterf.out");
     got = self._emit_iter_advance(self.builder, iter_val, out_i8);
-    self.builder.cbranch(
-        got, body_bb, else_bb if else_bb is not None else end_bb
-    );
+    self.builder.cbranch(got, body_bb, else_bb if else_bb is not None else end_bb);
     self.loop_stack.append((cond_bb, end_bb));
     self.builder.position_at_end(body_bb);
     if is_tuple_target {

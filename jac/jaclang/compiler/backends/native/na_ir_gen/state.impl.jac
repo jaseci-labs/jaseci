@@ -58,25 +58,18 @@ impl NaIRGenState.jacval_type.getter -> ir.Type {
     return self._jacval_type;
 }
 
-"""Create the loop-exit blocks for a loop that may carry an `else` clause.
-
-Python loop semantics (PEP 530/341): the else body runs only when the loop
-exhausts normally, so exhaustion must land on a dedicated block that falls
-through to the loop's end while `break` still targets the end directly.
-Returns (else_bb, end_bb); else_bb is None when the loop has no else."""
-impl NaIRGenState._loop_exit_blocks(func: object, nd: uni.UniNode, prefix: str) -> tuple {
+impl NaIRGenState._loop_exit_blocks(
+    func: object, nd: uni.UniNode, prefix: str
+) -> tuple {
     else_bb = (
         func.append_basic_block(name=f"{prefix}.else")
-        if nd.else_body is not None
-        else None
+            if nd.else_body is not None
+            else None
     );
     end_bb = func.append_basic_block(name=f"{prefix}.end");
     return (else_bb, end_bb);
 }
 
-"""Emit the else body of a loop between its exhaustion edge and the end block.
-
-Call right after popping the loop stack; positions at end_bb afterwards."""
 impl NaIRGenState._emit_loop_else(
     nd: uni.UniNode, else_bb: (object | None), end_bb: object
 ) -> None {

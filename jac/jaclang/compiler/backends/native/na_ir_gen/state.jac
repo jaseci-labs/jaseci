@@ -1042,6 +1042,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _emit_loop_else(
         nd: uni.UniNode, else_bb: (object | None), end_bb: object
     ) -> None;
+
     def _codegen_if(nd: uni.IfStmt) -> None abst;
     def _apply_scalar_aug_op(
         current: ir.Value,

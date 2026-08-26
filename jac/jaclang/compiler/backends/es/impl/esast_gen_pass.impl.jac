@@ -3783,9 +3783,7 @@ impl EsastGenPass.exit_ctrl_stmt(nd: uni.CtrlStmt) -> None {
             if label != '' {
                 stmt = self.sync_loc(
                     es.BreakStatement(
-                        label=self.sync_loc(
-                            es.Identifier(name=label), jac_node=nd
-                        )
+                        label=self.sync_loc(es.Identifier(name=label), jac_node=nd)
                     ),
                     jac_node=nd
                 );
@@ -4201,11 +4199,6 @@ impl EsastGenPass._view_loop_stmt(
     return self.sync_loc(es.ExpressionStatement(expression=iife), jac_node=nd);
 }
 
-"""Register the enclosing-loop break target for a loop entering scope.
-
-A label is allocated exactly when the loop carries an else body -- that is
-the only case where a bare `break` must be distinguishable from normal
-exhaustion."""
 impl EsastGenPass._push_loop_label(nd: uni.UniNode) -> None {
     if nd.else_body is not None {
         self._loop_label_seq += 1;
@@ -4215,14 +4208,9 @@ impl EsastGenPass._push_loop_label(nd: uni.UniNode) -> None {
     }
 }
 
-"""Finish a loop statement: pop its label entry and attach the else body.
-
-JS loops have no else clause, so PEP 530/341 semantics are recovered by
-wrapping the loop and its else block in a labeled block: exhaustion falls
-through the loop end into the trailing else statements, while any `break`
-inside the loop was rewritten to `break <label>` and skips them. When no
-`break` was rewritten, plain sequencing suffices."""
-impl EsastGenPass._finish_loop(nd: uni.UniNode, loop_stmt: es.Statement) -> es.Statement {
+impl EsastGenPass._finish_loop(
+    nd: uni.UniNode, loop_stmt: es.Statement
+) -> es.Statement {
     label = '';
     if self._loop_label_stack {
         label = self._loop_label_stack.pop();
@@ -4245,8 +4233,7 @@ impl EsastGenPass._finish_loop(nd: uni.UniNode, loop_stmt: es.Statement) -> es.S
     self._used_loop_labels.discard(label);
     return self.sync_loc(
         es.LabeledStatement(
-            label=self.sync_loc(es.Identifier(name=label), jac_node=nd),
-            body=seq_block
+            label=self.sync_loc(es.Identifier(name=label), jac_node=nd), body=seq_block
         ),
         jac_node=nd
     );
