@@ -193,18 +193,6 @@ def _command_argv(command_name: str) -> list[str] {
     );
 }
 
-"""End the process without walking the interpreter's object graph.
-
-A compiler run leaves hundreds of megabytes of module trees and LLVM IR
-reachable, and CPython's normal shutdown spends real wall time proving all of
-it unreachable -- measured at 12.4s out of a 42s native seal, for no observable
-effect on a process that is exiting anyway.
-
-Exit hooks still run, which is what `weakref.finalize`, `TemporaryDirectory`
-and coverage tools register through, and both streams are flushed first; only
-the teardown walk is skipped. Set JAC_SLOW_EXIT=1 to take the normal exit when
-debugging a finalizer.
-"""
 def _exit_now(code: int) -> None {
     if os.environ.get('JAC_SLOW_EXIT') {
         if code != 0 {

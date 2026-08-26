@@ -46,15 +46,6 @@ def na_coverage_seam(path: str, reason: str) {
     rec['seams'].append(reason);
 }
 
-"""One module's coverage record, in a form that survives to disk.
-
-The record is only ever built while `NaIRGenPass` actually runs for a module.
-A dependency served from the native IR cache skips codegen, so without this the
-run's coverage has nothing to say about it -- indistinguishable from a module
-that lowered in full. Capturing the record beside the cached IR, and replaying
-it on the hit, is what lets a warm compile answer the demotion question as
-precisely as a cold one.
-"""
 def na_coverage_capture(path: str) -> dict {
     if not path {
         return {};
@@ -71,11 +62,6 @@ def na_coverage_capture(path: str) -> dict {
     };
 }
 
-"""Put a cached module's coverage record back into this run's coverage.
-
-Yields to a record this run produced itself: that one came from codegen that
-actually ran, and is the more authoritative of the two.
-"""
 def na_coverage_replay(path: str, rec: dict) {
     if not _na_coverage_state["enabled"] or not path or not rec {
         return;

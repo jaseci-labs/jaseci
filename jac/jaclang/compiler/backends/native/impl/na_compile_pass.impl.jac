@@ -776,11 +776,6 @@ impl NativeCompilePass._compile_and_link_native_imports(
         }
 
         if _cache_hit {
-            # Codegen did not run for this module, so nothing recorded its
-            # demotions in this run's coverage. Put back the record the compile
-            # that produced this cache entry captured, so a warm closure answers
-            # the demotion question exactly as precisely as a cold one -- that
-            # equivalence is what lets the seal read this cache at all.
             import from jaclang.compiler.driver.na_coverage { na_coverage_replay }
             na_coverage_replay(real_path, meta.coverage);
             dep_base = os.path.dirname(full_path);

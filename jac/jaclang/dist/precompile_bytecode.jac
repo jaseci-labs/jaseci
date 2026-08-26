@@ -2018,23 +2018,6 @@ def derive_unitree_layout(pkg_path: Path) -> (dict[str, any] | None) {
     return layout;
 }
 
-"""Whether a refusal is the signature of a lowering-order miss rather than a
-real demotion.
-
-A genuine demotion states its own cause somewhere in the closure: an E5090
-saying the native pathway does not support some construct, or an E5092 naming a
-callee that is itself reported demoted. A refusal where *every* entry cascades
-from a callee nothing reported as demoted is a different animal -- the callee
-lowered fine, this compile just could not see it yet. That happens when a
-cross-module function is needed before its module has been lowered, and a
-second pass over the same sources settles it.
-
-This is the whole remaining justification for recompiling a refused closure.
-Before the cache-region fix it was impossible to tell that case apart from a
-verdict served off disk, so the seal recompiled after every refusal; now the
-suspicious shape is narrow enough to name, and an ordinary refusal costs one
-compile instead of two.
-"""
 def seal_refusal_looks_like_order_miss(
     coverage: dict[str, dict[str, any]],
     rel: str,
@@ -2067,20 +2050,6 @@ def seal_refusal_looks_like_order_miss(
 }
 
 
-"""Lower one root and its native closure into a shared library, or refuse.
-
-The closure is compiled with `no_ir_cache`, and that now means what it says.
-The flag used to ride on a per-call options object, which a compile can hop
-away from -- anything the self-hosted compiler owns is resolved onto the
-selfhost program and compiled under *its* default options -- so part of the
-closure was answered from disk while the rest was answered from source. That
-mixture is what made a refusal non-reproducible and forced the seal to compile
-everything twice. `jaclang.compiler.driver.jir` now holds the intent for the
-whole compile region, so every hop sees it and one compile settles the verdict.
-
-The abort-stub scan below backstops the gate independently: it reads the LLVM
-IR that actually ships, so a demotion cannot reach the artifact by any route.
-"""
 def seal_one_root(
     pkg_path: Path,
     precompiled_dir: Path,
