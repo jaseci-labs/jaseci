@@ -127,7 +127,7 @@ In manual routing, the same idea is a pathless parent route - the guard runs onc
 import from "@jac/runtime" { Router, Routes, Route, AuthGuard }
 
 def:pub AppShell() -> JsxElement {
-    <Router>
+    return <Router>
         <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<AuthGuard redirect="/login" />}>
@@ -135,7 +135,7 @@ def:pub AppShell() -> JsxElement {
                 <Route path="/settings" element={<Settings />} />
             </Route>
         </Routes>
-    </Router>
+    </Router>;
 }
 ```
 
