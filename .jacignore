@@ -23,8 +23,6 @@ jac/jaclang/compiler/backends/native/na_ir_gen/builtins.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/builtins.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/calls.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/calls.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/comprehensions.impl.jac
-jac/jaclang/compiler/backends/native/na_ir_gen/comprehensions.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/core.impl.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/core.jac
 jac/jaclang/compiler/backends/native/na_ir_gen/debug.impl.jac
