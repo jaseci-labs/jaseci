@@ -4,7 +4,6 @@ import marshal;
 import os;
 import shutil;
 import sys;
-import time;
 import zlib;
 
 import from pathlib { Path }
@@ -663,117 +662,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
 
      );
 
-def _seal_duration(seconds: float) -> str {
-    if seconds < 1.0 {
-        return f"{seconds * 1000:.0f}ms";
-    }
-    if seconds < 60.0 {
-        return f"{seconds:.1f}s";
-    }
-    return f"{int(seconds) // 60}m{int(seconds) % 60:02d}s";
-}
-
-
-obj SealProgress {
-    has quiet: bool = False,
-        _phase: str = "",
-        _t0: float = 0.0,
-        _run_t0: float = 0.0,
-        _open: bool = False;
-
-    def postinit {
-        self._run_t0 = time.monotonic();
-    }
-
-    def start(phase: str, detail: str = "") {
-        """Open a phase and say so before it runs, not after.
-
-        A seal is a long opaque pipeline -- compile, gate, link, canary,
-        write -- and every refusal it hands back names one of those phases.
-        Announcing a phase on entry is the only honest live signal available
-        here: the phase's own diagnostics go to stderr and would smear
-        anything redrawn in place, so nothing is redrawn. `ok`/`fail`/`again`
-        then close the line with the phase's result and what it cost, and a
-        seal that takes minutes reads as a log rather than as a hang.
-        """;
-        self._phase = phase;
-        self._t0 = time.monotonic();
-        self._open = True;
-        if self.quiet {
-            return;
-        }
-        mark = "▸" if console.use_emoji else ">";
-        console.print(f"  {mark} {phase.ljust(8)} {detail}", style="highlight");
-    }
-
-    def note(text: str) {
-        if not self.quiet {
-            console.print(f"      {text}", style="muted");
-        }
-    }
-
-    def ok(note: str = "") {
-        if not self._open {
-            return;
-        }
-        self._open = False;
-        if self.quiet {
-            return;
-        }
-        took = _seal_duration(time.monotonic() - self._t0);
-        mark = "✔" if console.use_emoji else "ok";
-        console.print(
-            f"    {mark} {note}  {took}" if note else f"    {mark} {took}",
-            style="success"
-        );
-    }
-
-    def fail {
-        if not self._open {
-            return;
-        }
-        self._open = False;
-        if self.quiet {
-            return;
-        }
-        took = _seal_duration(time.monotonic() - self._t0);
-        mark = "✖" if console.use_emoji else "FAIL";
-        console.print(f"    {mark} refused after {took}", style="error");
-    }
-
-    def refuse(message: str) {
-        self.fail();
-        console.error(message);
-    }
-
-    def again(reason: str) {
-        if self._open {
-            self._open = False;
-            if not self.quiet {
-                took = _seal_duration(time.monotonic() - self._t0);
-                mark = "↺" if console.use_emoji else "retry";
-                console.print(f"    {mark} retrying after {took}", style="warning");
-            }
-        }
-        console.warning(reason);
-    }
-
-    def facts(rows: list[tuple[str, str]]) {
-        if self.quiet or not rows {
-            return;
-        }
-        width = max(len(str(k)) for (k, _v) in rows);
-        for (k, v) in rows {
-            console.print(f"  {str(k).ljust(width)}  {v}");
-        }
-    }
-
-    def elapsed -> str {
-        return _seal_duration(time.monotonic() - self._run_t0);
-    }
-}
-
-
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
     if pkg_path is not None {
         try {
@@ -963,7 +851,8 @@ def seal_native_canary(lib_path: str, exports: list[str]) -> str {
 
     debug = env_na_debug();
     name = os.path.basename(lib_path);
-    console.print(f"      dlopen {name}", style="muted");
+    sys.stderr.write(f"    canary: dlopen {name}\n");
+    sys.stderr.flush();
     try {
         eng = DylibEngine(lib_path);
     } except Exception as _open_exc {
@@ -986,7 +875,8 @@ def seal_native_canary(lib_path: str, exports: list[str]) -> str {
             f"artifact: {shown}"
         );
     }
-    console.print(f"      __jac_shared_init in {name}", style="muted");
+    sys.stderr.write(f"    canary: __jac_shared_init in {name}\n");
+    sys.stderr.flush();
     try {
         eng.initialize();
     } except Exception as _init_exc {
@@ -999,7 +889,8 @@ def seal_native_canary(lib_path: str, exports: list[str]) -> str {
     if not probe {
         return "";
     }
-    console.print(f"      jac_str_new in {name}", style="muted");
+    sys.stderr.write(f"    canary: jac_str_new in {name}\n");
+    sys.stderr.flush();
     try {
         made = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(
             probe
@@ -1280,7 +1171,8 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str 
     import from jaclang.compiler.frontend.parser.parser { Parser }
 
     nl = chr(10);
-    console.print(f"      parse parity in {os.path.basename(lib_path)}", style="muted");
+    sys.stderr.write(f"    canary: parse parity in {os.path.basename(lib_path)}\n");
+    sys.stderr.flush();
     try {
         np = bind_native_parser(lib_path, layout_dict);
     } except Exception as bind_exc {
@@ -1389,9 +1281,8 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
     }
 
     nl = chr(10);
-    console.print(
-        f"      prefix parity in {os.path.basename(lib_path)}", style="muted"
-    );
+    sys.stderr.write(f"    canary: prefix parity in {os.path.basename(lib_path)}\n");
+    sys.stderr.flush();
     try {
         np = bind_native_parser(lib_path, layout_dict);
     } except Exception as bind_exc {
@@ -1607,7 +1498,8 @@ def _merge_probe_parity(np: any) -> str {
     annex_src = nl.join(list(_MERGE_PROBE_ANNEX));
     main_path = "__seal_merge_probe__.jac";
     annex_path = "__seal_merge_probe__.impl.jac";
-    console.print("      mat_merge_probe (native annex merge)", style="muted");
+    sys.stderr.write("    canary: mat_merge_probe (native annex merge)\n");
+    sys.stderr.flush();
     (merged, m_errs, a_errs) = np.merge_probe(
         main_src, main_path, annex_src, annex_path
     );
@@ -1704,9 +1596,10 @@ def seal_jcir_container_canary(lib_path: str) -> str {
     nl = chr(10);
     probe_path = "__seal_jcir_probe__.jac";
     probe_src = nl.join(list(_JCIR_PROBE_LINES));
-    console.print(
-        f"      jcir container crossing in {os.path.basename(lib_path)}", style="muted"
+    sys.stderr.write(
+        f"    canary: jcir container crossing in {os.path.basename(lib_path)}{nl}"
     );
+    sys.stderr.flush();
     blobs: list[bytes] = [];
     trees: list[any] = [];
     for _round in (0, 1) {
@@ -2025,9 +1918,7 @@ def seal_one_root(
     waivers: (dict[str, tuple[str, ...]] | None) = None,
     lib_stem: (str | None) = None,
     extra_layout_entries: (dict[str, any] | None) = None,
-    full_canaries: bool = False,
-    ir_out: (str | None) = None,
-    progress: (SealProgress | None) = None
+    full_canaries: bool = False
 ) -> (dict[str, any] | None) {
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.driver.compile_options { CompileOptions }
@@ -2051,9 +1942,8 @@ def seal_one_root(
     fullname = _seal_module_fullname(pkg_path.name, rel);
     lib_path = out_dir / _native_lib_filename(stem);
     layout_path = out_dir / f"{stem}.layout.json";
-    say = progress or SealProgress();
+    console.print(f"  Building {rel}.");
     for _seal_attempt in range(2) {
-        say.start("compile", f"lowering {rel} and its native closure");
         prog = JacProgram();
         na_coverage_begin();
         try {
@@ -2075,7 +1965,6 @@ def seal_one_root(
             closure_deps = list(ir.gen.interop_manifest.native_transitive_sources);
         }
         if prog.errors_had {
-            say.fail();
             for _err in prog.errors_had {
                 console.error(f"NATIVE SEAL: {_err.pretty_print()}");
             }
@@ -2083,28 +1972,26 @@ def seal_one_root(
             return None;
         }
         if ir is None or ir.gen.llvm_ir is None or ir.gen.native_layout is None {
-            say.refuse(f"NATIVE SEAL: no native IR/layout for {rel}");
+            console.error(f"NATIVE SEAL: no native IR/layout for {rel}");
             purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
-        say.ok(f"{len(closure_deps) + 1} source(s) in the closure");
         manifest = ir.gen.interop_manifest;
         if manifest is not None and manifest.native_imports {
-            say.refuse(
+            console.error(
                 f"NATIVE SEAL: {rel} has Python-side imports; artifact would "
                 "need in-process callbacks and cannot be sealed AOT."
             );
             purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
-        say.start("gate", "demotion report -- nothing may fall back to Python");
         (demotion_error, waived, stale_waivers) = seal_demotion_report(
             rel, coverage, waivers, pkg_path
         );
         if demotion_error {
             purge_native_ir_cache(str(src), closure_deps);
             if _seal_attempt == 0 {
-                say.again(
+                console.warning(
                     f"NATIVE SEAL: {rel} reported un-waived demotions that may "
                     "be verdicts served from dependency IR cached outside the "
                     "seal; the cached IR for this closure has been purged and "
@@ -2112,10 +1999,9 @@ def seal_one_root(
                 );
                 continue;
             }
-            say.refuse(demotion_error);
+            console.error(demotion_error);
             return None;
         }
-        say.ok(f"{len(waived)} demotion(s) waived" if waived else "no demotions");
         for name in waived {
             console.warning(
                 f"NATIVE SEAL: {rel} ships {name} as an abort stub -- waived by "
@@ -2129,7 +2015,6 @@ def seal_one_root(
                 "the stale entry from NATIVE_SEAL_DEMOTION_WAIVERS."
             );
         }
-        say.start("gate", "abort-stub scan over the IR that actually ships");
         llvm_ir_text = str(ir.gen.llvm_ir);
 
         (_qualified, allowed_bare) = seal_waiver_names(rel, waivers);
@@ -2155,12 +2040,11 @@ def seal_one_root(
             if s not in allowed_stub_names
         ];
         if not shipped_stubs {
-            say.ok("no abort stubs");
             break;
         }
         purge_native_ir_cache(str(src), closure_deps);
         if _seal_attempt == 0 {
-            say.again(
+            console.warning(
                 f"NATIVE SEAL: {rel} would link abort stub(s) "
                 f"({', '.join(shipped_stubs)}) served from cached "
                 "dependency IR compiled outside the seal; the cached IR "
@@ -2169,7 +2053,7 @@ def seal_one_root(
             );
             continue;
         }
-        say.refuse(
+        console.error(
             f"NATIVE SEAL: {rel} would link {len(shipped_stubs)} abort "
             f"stub(s) into its artifact: {', '.join(shipped_stubs)}. This "
             "is read off the IR that actually ships, and it held even "
@@ -2179,10 +2063,9 @@ def seal_one_root(
         );
         return None;
     }
-    say.start("layout", "reading the artifact's exported surface");
     layout = ir.gen.native_layout;
     if layout is None {
-        say.refuse(f"NATIVE SEAL: no native layout for {rel}");
+        console.error(f"NATIVE SEAL: no native layout for {rel}");
         purge_native_ir_cache(str(src), closure_deps);
         return None;
     }
@@ -2194,7 +2077,7 @@ def seal_one_root(
         if fn_name not in _clib_syms
     );
     if not exports {
-        say.refuse(f"NATIVE SEAL: {rel} exports no module functions");
+        console.error(f"NATIVE SEAL: {rel} exports no module functions");
         purge_native_ir_cache(str(src), closure_deps);
         return None;
     }
@@ -2221,14 +2104,7 @@ def seal_one_root(
         };
     }
     exports = seal_export_symbols(layout_dict, _clib_syms);
-    say.ok(f"{len(exports)} export(s), {len(_layout_structs)} struct(s)");
     out_dir.mkdir(parents=True, exist_ok=True);
-    if ir_out {
-        Path(ir_out).parent.mkdir(parents=True, exist_ok=True);
-        Path(ir_out).write_text(llvm_ir_text, encoding="utf-8");
-        say.note(f"IR written to {ir_out}");
-    }
-    say.start("link", f"emitting {lib_path.name}");
     lib_path.unlink(missing_ok=True);
     layout_path.unlink(missing_ok=True);
     (ok, err) = emit_shared_library(
@@ -2240,15 +2116,13 @@ def seal_one_root(
         clib_symbol_lib=dict(ir.gen._clib_symbol_lib or {})
     );
     if not ok {
-        say.refuse(f"NATIVE SEAL: {rel}: {err}");
+        console.error(f"NATIVE SEAL: {rel}: {err}");
         purge_native_ir_cache(str(src), closure_deps);
         return None;
     }
-    say.ok(f"{lib_path.stat().st_size:,} bytes");
-    say.start("canary", f"loading and calling into {lib_path.name}");
     canary = seal_native_canary(str(lib_path), exports);
     if canary {
-        say.refuse(
+        console.error(
             f"NATIVE SEAL: {rel}: the emitted artifact "
             f"{lib_path.name} failed its load canary: {canary}. The seal "
             "refuses artifacts it cannot load and call; set JAC_NA_DEBUG=1 "
@@ -2258,17 +2132,13 @@ def seal_one_root(
         purge_native_ir_cache(str(src), closure_deps);
         return None;
     }
-    say.ok("dlopen, exports, shared init");
-    say.start("write", f"{layout_path.name} beside the artifact");
     layout_path.write_text(
         json.dumps(layout_dict, sort_keys=True) + "\n", encoding="utf-8"
     );
-    say.ok(f"{layout_path.stat().st_size:,} bytes");
     if full_canaries {
-        say.start("canary", "container crossing and parse/prefix parity");
         crossing = seal_jcir_container_canary(str(lib_path));
         if crossing {
-            say.refuse(
+            console.error(
                 f"NATIVE SEAL: {rel}: the emitted artifact "
                 f"{lib_path.name} failed its container crossing canary. "
                 "The seal refuses a JCIR producer whose container is not "
@@ -2285,7 +2155,7 @@ def seal_one_root(
             parity = seal_prefix_parity_canary(str(lib_path), layout_dict);
         }
         if parity {
-            say.refuse(
+            console.error(
                 f"NATIVE SEAL: {rel}: the emitted artifact "
                 f"{lib_path.name} failed its parity canaries. The seal "
                 "refuses artifacts whose parse or prefix does not match "
@@ -2303,7 +2173,6 @@ def seal_one_root(
             purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
-        say.ok("byte-stable container, parse and prefix match");
     }
     artifact_entry: dict[str, any] = {
         "lib": lib_path.relative_to(precompiled_dir).as_posix(),
@@ -2312,8 +2181,8 @@ def seal_one_root(
         "lib_sha256": hashlib.sha256(lib_path.read_bytes()).hexdigest(),
         "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest()
     };
-    say.note(
-        f"{fullname} -> {lib_path.name} "
+    console.print(
+        f"  Native artifact: {fullname} -> {lib_path.name} "
         f"({lib_path.stat().st_size:,} bytes, {len(exports)} exports)"
     );
     return artifact_entry;
@@ -2322,9 +2191,7 @@ def seal_one_root(
 def seal_native_artifacts(
     pkg_path: Path,
     precompiled_dir: Path,
-    waivers: (dict[str, tuple[str, ...]] | None) = None,
-    ir_out: (str | None) = None,
-    progress: (SealProgress | None) = None
+    waivers: (dict[str, tuple[str, ...]] | None) = None
 ) -> (dict[str, any] | None) {
     if sys.platform.startswith("win") {
         stale_native = precompiled_dir / "native";
@@ -2337,21 +2204,16 @@ def seal_native_artifacts(
     import from jaclang.dist.gen_native_materialize {
         generate as generate_materialize_root
     }
-    say = progress or SealProgress();
 
-    say.start("stage", "generating the materializer and the fused seal root");
     unitree_layout = derive_unitree_layout(pkg_path);
     if unitree_layout is None {
-        say.fail();
         return None;
     }
-    say.note(f"unitree layout: {len(unitree_layout.get('structs') or {})} struct(s)");
     mat_src = pkg_path / NATIVE_SEAL_MATERIALIZE_ROOT;
     mat_result: dict[str, any] = generate_materialize_root(
         unitree_layout, mat_src, _UNITREE_SEAM_WAIVERS
     );
     atexit.register(mat_src.unlink, missing_ok=True);
-    say.note(f"{mat_src.name} generated");
     for mat_warn in (mat_result.pop("warnings", None) or []) {
         console.warning(
             f"NATIVE SEAL: the materializer erased a slot: {mat_warn}. "
@@ -2361,9 +2223,6 @@ def seal_native_artifacts(
     }
     fused_src = generate_fused_seal_root(pkg_path);
     atexit.register(fused_src.unlink, missing_ok=True);
-    say.ok(
-        f"{fused_src.name} fuses {len(NATIVE_SEAL_SERVED_MODULES)} served module(s)"
-    );
     try {
         artifact_entry = seal_one_root(
             pkg_path,
@@ -2372,9 +2231,7 @@ def seal_native_artifacts(
             waivers=waivers,
             lib_stem=NATIVE_SEAL_LIB_STEM,
             extra_layout_entries={"materialize_manifest": mat_result},
-            full_canaries=True,
-            ir_out=ir_out,
-            progress=say
+            full_canaries=True
         );
     } finally {
         fused_src.unlink(missing_ok=True);
@@ -2409,6 +2266,26 @@ def jir_to_module(pkg_name: str, rel_jir: str) -> tuple[str, str, bool] {
     }
     return (source_rel, fullname, is_pkg);
 }
+
+def _native_lib_suffix -> str {
+    """Local twin of sealed_serve.native_lib_suffix: this script also runs under
+    older runtime caches whose sealed_serve predates that symbol and
+    interop_record_path -- importing them there fails the whole seal.""";
+    import sys;
+    if sys.platform.startswith("win") {
+        return ".dll";
+    }
+    if sys.platform == "darwin" {
+        return ".dylib";
+    }
+    return ".so";
+}
+
+
+def _interop_record_path(lib_output: str) -> Path {
+    return Path(str(lib_output) + ".interop.json");
+}
+
 
 def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
     if not (pkg_path / "jac.toml").is_file() {
@@ -2450,7 +2327,7 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
         caps.append("attachable");
     }
 
-    meta = {"kind": kind, "capabilities": caps, "entry": `entry};
+    meta: dict[str, any] = {"kind": kind, "capabilities": caps, "entry": `entry};
     native_dir = pkg_path / NATIVE_DIR_REL;
     if native_dir.is_dir() {
         triples = sorted(
@@ -2463,6 +2340,36 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
         if triples {
             caps.append("platform-locked");
             meta["triples"] = triples;
+        }
+
+        _interop = False;
+        _unresolved: list = [];
+        _stem = (
+            ext_registry.base_stem(os.path.basename(entry_path)) if entry_path else ""
+        );
+        for _t in triples {
+            if not _stem {
+                continue;
+            }
+            _rec = _interop_record_path(
+                str(native_dir / _t / (_stem + _native_lib_suffix()))
+            );
+            if not _rec.is_file() {
+                continue;
+            }
+            _interop = True;
+            try {
+                _unresolved = json.loads(_rec.read_text(encoding="utf-8")).get(
+                    "unresolved", []
+                );
+            } except Exception {
+                _unresolved = [];
+            }
+            break;
+        }
+        meta["native"] = {"interop": _interop};
+        if _unresolved {
+            meta["native"]["unresolved"] = _unresolved;
         }
     }
     return meta;

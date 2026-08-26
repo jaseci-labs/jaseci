@@ -11,7 +11,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _jacval_type: (ir.Type | None) = None,
         _builder: (ir.IRBuilder | None) = None,
         func_symtab: dict[str, ir.Function] = {},
-        local_vars: dict[str, ir.Value] = {},
+        local_vars: dict[str, ir.AllocaInstr] = {},
         param_vars: set[str] = set(),
         _unlowered_locals: dict[str, set[str]] = {},
         flow_future_meta: dict = {},
