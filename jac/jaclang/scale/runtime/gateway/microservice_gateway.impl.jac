@@ -769,7 +769,12 @@ impl MicroserviceGateway.setup -> ServingApp {
                     resp = await gw.handle_openapi();
                 } elif path == "/docs" {
                     svc_label = "__docs__";
-                    resp = gw.handle_docs();
+                    if request.method == "GET" {
+                        resp = gw.serve_spa_fallback();
+                    }
+                    if resp is None {
+                        resp = gw.handle_docs();
+                    }
                 }
             } elif decision.kind == ROUTE_ADMIN {
                 svc_label = "__admin__";

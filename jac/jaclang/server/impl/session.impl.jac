@@ -248,6 +248,8 @@ impl Session.postinit -> None {
     self._active_units = 0;
     self._flushing = None;
     self._read_scopes = 0;
+    self._ro_units = 0;
+    self._unit_stack = [];
     self._snapshot_reads = set();
     self._version_seen = {};
     if self.store is None and self.base_path {
@@ -491,6 +493,7 @@ impl Session.abort -> None {
     self._evict_uncommitted();
     self._dirty.clear();
     self._deleted.clear();
+    self._drop_snapshot_reads();
     self._on_commit = [];
 }
 
@@ -591,13 +594,43 @@ impl Session._fire_on_commit -> None {
 
 
 impl Session._txn_isolation -> TxnIsolation {
-    if self._read_scopes > 0
-        and self._active_units == 0
-        and not self._dirty
-        and not self._deleted {
+    if self._dirty or self._deleted {
+        return TxnIsolation.SERIALIZABLE;
+    }
+    if self._read_scopes > 0 and self._active_units == 0 {
+        return TxnIsolation.SNAPSHOT_READ_ONLY;
+    }
+    if self._active_units > 0 and self._ro_units == self._active_units {
         return TxnIsolation.SNAPSHOT_READ_ONLY;
     }
     return TxnIsolation.SERIALIZABLE;
+}
+
+
+impl Session._register_ro_writers -> str {
+    keys = [
+        key
+        for (key, ro) in self._unit_stack
+        if ro and key is not None
+    ];
+    for key in keys {
+        record_unit_writes(key);
+    }
+    self._ro_units = 0;
+    self._unit_stack = [(key, False) for (key, _ro) in self._unit_stack];
+    return keys[-1] if keys else '';
+}
+
+
+impl Session._raise_ro_retry -> None {
+    import from uuid { UUID as _UUID }
+    last = self._register_ro_writers();
+    if self.store is not None {
+        try {
+            self.store.rollback();
+        } except Exception { }
+    }
+    raise ReadOnlyRetry(anchor_id=_UUID(int=0), unit_key=last);
 }
 
 
@@ -629,6 +662,9 @@ impl Session._ensure_txn -> None {
         }
         if wanted is TxnIsolation.SERIALIZABLE
             and self.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
+            if self._ro_units > 0 {
+                self._raise_ro_retry();
+            }
             self.store.commit();
             self._drop_snapshot_reads();
             self.store.begin(TxnIsolation.SERIALIZABLE);
@@ -637,9 +673,14 @@ impl Session._ensure_txn -> None {
 }
 
 
-impl Session.unit_enter -> None {
+impl Session.unit_enter(key: (str | None) = None) -> None {
     with self._lock {
+        ro = key is not None and ro_units_enabled() and not unit_writes_recorded(key);
         self._active_units += 1;
+        if ro {
+            self._ro_units += 1;
+        }
+        self._unit_stack.append((key, ro));
         if self.store is not None and self.store.in_txn() {
             self._ensure_txn();
         }
@@ -681,28 +722,42 @@ impl Session.read_scope_exit -> None {
 impl Session.unit_exit -> None {
     with self._lock {
         self._active_units = max(0, self._active_units - 1);
-        if self._active_units > 0 {
-            return;
-        }
-        if self.store is None or not self.store.in_txn() {
-            return;
-        }
         try {
-            self.commit();
-        } except WriteConflict {
+            if self._active_units > 0 {
+                return;
+            }
+            if self.store is None or not self.store.in_txn() {
+                return;
+            }
             try {
-                self.store.rollback();
-            } except Exception { }
-            raise;
-        } except Exception as e {
-            logger.warning(
-                f"unit close commit failed; rolling back: {type(e).__name__}: {e}"
-            );
-            try {
-                self.store.rollback();
-            } except Exception { }
+                self.commit();
+            } except WriteConflict {
+                try {
+                    self.store.rollback();
+                } except Exception { }
+                raise;
+            } except Exception as e {
+                logger.warning(
+                    f"unit close commit failed; rolling back: {type(e).__name__}: {e}"
+                );
+                try {
+                    self.store.rollback();
+                } except Exception { }
+            }
+        } finally {
+            if self._unit_stack {
+                (_key, was_ro) = self._unit_stack.pop();
+                if was_ro {
+                    self._ro_units = max(0, self._ro_units - 1);
+                }
+            }
         }
     }
+}
+
+
+impl Session.unit_depth -> int {
+    return self._active_units;
 }
 
 
@@ -799,7 +854,16 @@ impl Session._flush_locked(full: bool) -> None {
             pending.append((anchor, h));
         }
         if rows or self._deleted {
-            self._ensure_txn();
+            if self.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
+                if self._ro_units > 0 {
+                    self._raise_ro_retry();
+                }
+                self.store.commit();
+                self._drop_snapshot_reads();
+                self.store.begin(TxnIsolation.SERIALIZABLE);
+            } else {
+                self._ensure_txn();
+            }
         }
         if rows {
             self.store.upsert(rows);
