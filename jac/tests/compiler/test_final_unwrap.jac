@@ -11,8 +11,8 @@ bare Final and string.ascii_letters is Final[LiteralString], so
 each half looked healthy on its own.
 """
 
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 def check_src(src: str) -> list[str] {
     prog = JacProgram();

@@ -1,6 +1,6 @@
 import time;
 import asyncio;
-import from jaclang.runtimelib.serving.datatypes { Request, Headers, URL }
+import from jaclang.server.serving.datatypes { Request, Headers, URL }
 import from jaclang.scale.runtime.middleware.rate_limit {
     InProcessRateLimiter,
     build_rate_limit_middleware,
@@ -86,7 +86,7 @@ test "middleware 429s once the per-IP bucket is empty" {
     assert mw is not None;
 
     async def next_handler(req: object) -> object {
-        import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+        import from jaclang.server.serving.datatypes { JSONResponse }
         return JSONResponse({"ok": True});
     }
     r = _req(path="/api/x", client_host="9.9.9.9");
@@ -116,7 +116,7 @@ test "middleware exempts configured paths" {
         }
     );
     async def next_handler(req: object) -> object {
-        import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+        import from jaclang.server.serving.datatypes { JSONResponse }
         return JSONResponse({"ok": True});
     }
     health = _req(path="/health", client_host="9.9.9.9");
@@ -144,7 +144,7 @@ test "per-user bucket applies on top of per-IP when Authorization is set" {
         }
     );
     async def next_handler(req: object) -> object {
-        import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+        import from jaclang.server.serving.datatypes { JSONResponse }
         return JSONResponse({"ok": True});
     }
     r = _req(
@@ -176,7 +176,7 @@ test "429 envelope carries RATE_LIMITED code + Retry-After header" {
     );
     import json;
     async def next_handler(req: object) -> object {
-        import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+        import from jaclang.server.serving.datatypes { JSONResponse }
         return JSONResponse({"ok": True});
     }
     r = _req(path="/api/x", client_host="8.8.8.8");
@@ -306,7 +306,7 @@ test "forged X-Forwarded-For cannot mint fresh per-IP buckets" {
         }
     );
     async def next_handler(req: object) -> object {
-        import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+        import from jaclang.server.serving.datatypes { JSONResponse }
         return JSONResponse({"ok": True});
     }
     req_a = _req(
@@ -338,7 +338,7 @@ test "distinct clients behind a trusted proxy get distinct buckets" {
         }
     );
     async def next_handler(req: object) -> object {
-        import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+        import from jaclang.server.serving.datatypes { JSONResponse }
         return JSONResponse({"ok": True});
     }
     req_a = _req(
@@ -381,7 +381,7 @@ test "dropped X-Forwarded-For without trusted_proxies warns exactly once" {
         }
     );
     async def next_handler(req: object) -> object {
-        import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+        import from jaclang.server.serving.datatypes { JSONResponse }
         return JSONResponse({"ok": True});
     }
     handler = MemoryHandler(capacity=100);

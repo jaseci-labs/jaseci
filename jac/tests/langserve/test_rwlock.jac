@@ -8,13 +8,13 @@ import contextlib;
 
 import from tests.support { JAC_ROOT }
 
-import jaclang.lsp.types as lspt;
+import jaclang.lsp.protocol.types as lspt;
 
 import jaclang;
-import from jaclang.langserve.rwlock { ReadWriteLock }
-import from jaclang.langserve.engine { JacLangServer }
-import from jaclang.lsp { uris }
-import from jaclang.lsp.server { Workspace }
+import from jaclang.lsp.server.rwlock { ReadWriteLock }
+import from jaclang.lsp.server.engine { JacLangServer }
+import from jaclang.lsp.protocol { uris }
+import from jaclang.lsp.protocol.server { Workspace }
 
 glob FIXTURE_DIR = os.path.join(
          os.path.dirname(os.path.abspath(__file__)), "fixtures"
@@ -43,7 +43,7 @@ def teardown_test {
         with contextlib.suppress(Exception) as _s {
             server.shutdown();
         }
-        server.clear_type_system(clear_hub=True);
+        server.program.clear_type_system(clear_hub=True);
     }
     _active_servers.clear();
     _clear_jac_modules();

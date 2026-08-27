@@ -4,12 +4,12 @@ import from dataclasses { fields, is_dataclass }
 import from types { UnionType }
 import from jaclang.byllm._optdeps.loguru { logger }
 import from jaclang.byllm.llm { BaseLLM }
-import from jaclang.jac0core.mtp { ClassInfo }
-import from jaclang.jac0core.archetype { Anchor, Archetype, ObjectSpatialFunction }
+import from jaclang.compiler.driver.mtp { ClassInfo }
+import from jaclang.runtime.archetype { Anchor, Archetype, ObjectSpatialFunction }
 
 
 def _class_info(arch: object) -> (ClassInfo | None) {
-    import from jaclang.jac0core.mtp { fetch_mtir }
+    import from jaclang.compiler.driver.mtp { fetch_mtir }
     try {
         info = fetch_mtir(type(arch));
         return info if isinstance(info, ClassInfo) else None;
@@ -172,8 +172,8 @@ def _make_handles(recs: list[dict[str, object]]) -> list[str] {
 
 
 def _route_context -> tuple[object, (Anchor | None)] {
-    import from jaclang.jac0core.osp_kernel { _current_scope }
-    import from jaclang.jac0core.archetype { NodeAnchor, EdgeAnchor, WalkerAnchor }
+    import from jaclang.runtime.osp_kernel { _current_scope }
+    import from jaclang.runtime.archetype { NodeAnchor, EdgeAnchor, WalkerAnchor }
     scope = _current_scope();
     if scope is None {
         return (None, None);
@@ -190,7 +190,7 @@ def _route_context -> tuple[object, (Anchor | None)] {
 
 
 def _candidate_for(item: object, here_anchor: (Anchor | None)) -> tuple {
-    import from jaclang.jac0core.archetype {
+    import from jaclang.runtime.archetype {
         EdgeAnchor,
         EdgeArchetype,
         NodeAnchor,
@@ -213,10 +213,7 @@ def _candidate_for(item: object, here_anchor: (Anchor | None)) -> tuple {
     edge_arch = None;
     direction = "out";
     if isinstance(here_anchor, NodeAnchor) {
-        import from jaclang.jac0core.osp_graph_sv {
-            sv_live_edges,
-            sv_register_hydrated
-        }
+        import from jaclang.runtime.osp_graph_sv { sv_live_edges, sv_register_hydrated }
         here_arch = here_anchor.archetype;
         sv_register_hydrated(here_anchor, fetch_stubs=True);
         for ea in sv_live_edges(here_anchor, 3, None, True) {
@@ -271,7 +268,7 @@ def _resolve_choice(
 def route_visit(candidates: list[object], model: BaseLLM) -> list {
     import from jaclang.byllm.mtir { MTRuntime }
     import from jaclang.byllm.types { Message, MessageRole }
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     if not candidates {
         return [];

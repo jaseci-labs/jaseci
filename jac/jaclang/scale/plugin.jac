@@ -4,16 +4,16 @@ import threading;
 import from jaclang.cli.registry { get_registry }
 import from jaclang.cli.command { Arg, ArgKind }
 import from jaclang.cli.console { console }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.server { JacAPIServer as JacServer }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.server.server { JacAPIServer as JacServer }
 import from .config.config_loader { get_scale_config }
 import from .config.project_env { load_project_env }
 import from .events.streams.postgres { PgEventStream }
 
 import from .persistence.pg { shared_store as _pg_anchor }
 import from .state.pg_state_backend { PgStateBackend as _state_anchor }
-import from jaclang.runtimelib.server { UserManager }
-import from jaclang.runtimelib.storage { Storage }
+import from jaclang.server.server { UserManager }
+import from jaclang.data.storage { Storage }
 import from .observability.factory { UtilityFactory }
 import from .deploy.target.factory { DeploymentTargetFactory }
 
@@ -58,7 +58,7 @@ def scale_local_serve(filename: str, port: int = 8000) -> int | None {
     os.environ["JAC_SCALE_RUNTIME"] = "1";
     scale_config = get_scale_config();
     ms_config = scale_config.get_microservices_config();
-    if port and port != 8000 {
+    if port {
         ms_config["gateway_port"] = port;
     }
     is_sv_sibling = os.environ.get("JAC_SV_SIBLING") == "1";
@@ -101,6 +101,7 @@ def scale_local_serve(filename: str, port: int = 8000) -> int | None {
             should_serve_ms = False;
         }
         if should_serve_ms and realizer is not None {
+            ms_config["gateway_port_pinned"] = bool(port);
             if enabled is None {
                 _print_local_ms_banner(ms_config.get("routes", {}));
             }
@@ -332,7 +333,7 @@ def deploy_status(file_path: str, target: str = "kubernetes") -> int {
 
 def _scale_split(module_name: str) -> int {
     import tomllib;
-    import from jaclang.jac0core.modresolver { find_jac_project_root }
+    import from jaclang.compiler.driver.modresolver { find_jac_project_root }
     import from .runtime.routing { derive_route_prefix, guard_route_name }
 
     if not module_name {
@@ -699,7 +700,7 @@ class JacScalePlugin {
         import os;
         import atexit;
         import subprocess;
-        import from jaclang.runtimelib { sv_client }
+        import from jaclang.server { sv_client }
         import from pathlib { Path }
         import from jaclang.scale.runtime.context.util {
             pick_free_port,
@@ -816,7 +817,7 @@ class JacScalePlugin {
 
     static def get_sv_registry -> dict[str, str] {
         import os;
-        import from jaclang.runtimelib { sv_client }
+        import from jaclang.server { sv_client }
 
         if "KUBERNETES_SERVICE_HOST" not in os.environ {
             return dict(sv_client._registry);

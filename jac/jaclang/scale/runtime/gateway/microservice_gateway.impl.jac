@@ -1,7 +1,7 @@
 import shutil;
 
-import from jaclang.runtimelib.serving.ws { WebSocket }
-import from jaclang.runtimelib.serving.endpoint { WSEndPoint }
+import from jaclang.server.serving.ws { WebSocket }
+import from jaclang.server.serving.endpoint { WSEndPoint }
 import from jaclang.scale.runtime.routing {
     GATEWAY_BUILTIN_PREFIXES,
     GATEWAY_BARE_API_PATHS,
@@ -498,7 +498,7 @@ impl MicroserviceGateway.probe_services(
 
 impl MicroserviceGateway.handle_admin(path: str) -> Response | None {
     if path == "/admin" {
-        import from jaclang.runtimelib.serving.datatypes { RedirectResponse }
+        import from jaclang.server.serving.datatypes { RedirectResponse }
         return RedirectResponse(url="/admin/", status_code=302);
     }
     if path.startswith("/admin/") {
@@ -597,7 +597,7 @@ impl MicroserviceGateway.handle_openapi -> Response {
 }
 
 impl MicroserviceGateway.handle_docs -> Response {
-    import from jaclang.runtimelib.serving.openapi { swagger_ui_html }
+    import from jaclang.server.serving.openapi { swagger_ui_html }
     return HTMLResponse(
         content=swagger_ui_html("/openapi.json", "Jac Microservice Gateway - API")
     );
@@ -894,7 +894,7 @@ impl MicroserviceGateway.setup -> ServingApp {
 
     cors_cfg = ms_cfg.get("cors", {});
     if cors_cfg.get("allow_origins") {
-        import from jaclang.runtimelib.serving.middleware { cors_middleware }
+        import from jaclang.server.serving.middleware { cors_middleware }
         self.app.add_middleware(
             cors_middleware(
                 allow_origins=cors_cfg["allow_origins"],
@@ -911,24 +911,34 @@ impl MicroserviceGateway.setup -> ServingApp {
     return self.app;
 }
 
-impl MicroserviceGateway.start -> None {
+def _log_gateway_ready(host: str, bound: int) {
+    logger.info(f"Gateway starting on {host}:{bound}");
+}
+
+
+impl MicroserviceGateway.start(on_ready: any = None) -> None {
     import from jaclang.scale.runtime.lifecycle.drain { install_signal_drain }
     import from jaclang.scale.config.config_loader { get_scale_config }
 
     if self.app is None {
         self.setup();
     }
-    logger.info(f"Gateway starting on {self.host}:{self.port}");
-
     ms_cfg = get_scale_config().get_microservices_config();
     drain_timeout: float = float(ms_cfg.get("drain_timeout_seconds", 10));
 
-    import from jaclang.runtimelib.serving.server { ServingServer }
+    import from jaclang.server.serving.server { ServingServer, PORT_RETRY_LIMIT }
     serving = ServingServer(
         app=self.app, host=self.host, port=self.port, drain_timeout=drain_timeout
     );
     install_signal_drain(serving, timeout_s=drain_timeout);
-    serving.run();
+    import from functools { partial }
+    ready: any = on_ready;
+    if ready is None {
+        ready = partial(_log_gateway_ready, self.host);
+    }
+    serving.run(
+        on_ready=ready, port_retries=0 if self.port_pinned else PORT_RETRY_LIMIT
+    );
 }
 
 

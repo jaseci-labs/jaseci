@@ -1,3 +1,7 @@
+# Auto-generated CLI command routes.
+# DO NOT EDIT MANUALLY - regenerate with `jac gen-cli-manifest`.
+# Only the routes are generated; the section from the _COMMANDS declaration
+# down is hand-written and preserved by the generator.
 def _command_routes -> list[CommandMeta] {
     return [
         CommandMeta(
@@ -241,13 +245,6 @@ def _command_routes -> list[CommandMeta] {
                     typ='bool',
                     `default=False,
                     help='Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision',
-                    short=''
-                ),
-                ArgMeta(
-                    name='compile-stats',
-                    typ='bool',
-                    `default=False,
-                    help="Report how much of each module's pass schedule the binary executed natively, and name every module that fell back to the staged pass loop",
                     short=''
                 ),
 
@@ -1612,7 +1609,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='port',
                     typ='int',
-                    help='Server port (serving only)',
+                    help='Server port (serving only, default 8000). A port given here must be free: it is a contract with whatever sits in front of it, so the server fails rather than moving to another port.',
                     short='p',
                     config_key='serve.port'
                 ),
@@ -1773,7 +1770,7 @@ def _command_routes -> list[CommandMeta] {
             group='project',
             tier='',
             hidden=False,
-            handler_module='jaclang.runtimelib.client.cli',
+            handler_module='jaclang.client.cli',
             handler_name='setup',
             examples=[
                 ('jac setup mobile', 'Setup mobile target (default platform)'),
@@ -1815,7 +1812,10 @@ def _command_routes -> list[CommandMeta] {
                 (
                     'jac test --xit --verbose',
                     'Stop on first failure with verbose output'
-                )
+                ),
+                ('jac test --collect_only', 'List test files without running them'),
+                ('jac test --range 15-20', 'Run only that percent slice of the plan'),
+                ('jac test -x --resume', 'Fix-and-continue from the last failure')
             ],
             args=[
                 ArgMeta(
@@ -1849,6 +1849,27 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='directory', `default='', help='Test directory', short='d'
+                ),
+                ArgMeta(
+                    name='collect_only',
+                    typ='bool',
+                    `default=False,
+                    help='List collected test files without running them',
+                    short='c'
+                ),
+                ArgMeta(
+                    name='range',
+                    `default='',
+                    help='Run only this percent slice of the plan (N-M, N-, or -M)',
+                    short='',
+                    dest='pct_range'
+                ),
+                ArgMeta(
+                    name='resume',
+                    typ='bool',
+                    `default=False,
+                    help='Restart the plan from the file that failed last run',
+                    short='r'
                 ),
                 ArgMeta(
                     name='verbose',

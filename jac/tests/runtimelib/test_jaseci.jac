@@ -782,8 +782,8 @@ test "savable object" {
         );
         diag = "";
         if got != expected {
-            import from jaclang.runtimelib.serializer { Serializer }
-            import from jaclang.runtimelib { typecache }
+            import from jaclang.data.serializer { Serializer }
+            import from jaclang.runtime { typecache }
             reg_cls = Serializer._registry.get("__main__.SavableObject");
             cached = typecache._cache.get(reg_cls) if reg_cls else None;
             resolved = typecache.get_field_types(reg_cls) if reg_cls else None;
@@ -1064,9 +1064,9 @@ test "run persistent reuse" {
     try {
         # The project's rows live in its database on the shared embedded
         # server; inspect them out-of-band through a fresh store connection.
-        import from jaclang.runtimelib.pgembed { PgRuntime }
-        import from jaclang.runtimelib.session { project_db_name, shared_pg_data_dir }
-        import from jaclang.runtimelib.store { PgStore, TxnIsolation }
+        import from jaclang.data.pgembed { PgRuntime }
+        import from jaclang.server.session { project_db_name, shared_pg_data_dir }
+        import from jaclang.data.store { PgStore, TxnIsolation }
 
         def _db_counts -> tuple {
             rt = PgRuntime(

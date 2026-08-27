@@ -12,7 +12,7 @@ to the current context's root.
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.testing.testing { JacTestClient }
 
 def _as_any(v: any) -> any {
     return v;
