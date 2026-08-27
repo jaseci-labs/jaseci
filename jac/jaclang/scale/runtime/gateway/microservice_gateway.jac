@@ -52,7 +52,8 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
         _metrics: any = None,
         base_path: str = ".",
         route_table: ServiceRouteTable = ServiceRouteTable(),
-        _spec_crawl: any = None;
+        _spec_crawl: any = None,
+        port_pinned: bool = False;
 
     def setup -> ServingApp;
     def resolve_target_url(service_entry: ServiceEntry, path: str, query: str) -> str;
@@ -97,5 +98,5 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     def bootstrap_admin_ui -> None;
     def _install_admin_api -> None;
     def serve_admin_asset(asset_path: str) -> Response | None;
-    def start -> None;
+    def start(on_ready: any = None) -> None;
 }

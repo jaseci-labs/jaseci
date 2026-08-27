@@ -182,7 +182,7 @@ glob COMPILER_DIGEST_ROOTS: tuple = (
      ),
      COMPILER_DIGEST_SUFFIXES: tuple = (".jac", ".py"),
      COMPILER_DIGEST_SKIP_DIRS: tuple = ("tests", "test", "__pycache__"),
-     COMPILER_DIGEST_SKIP: tuple = ("compiler/native_materialize.jac", );
+     COMPILER_DIGEST_SKIP: tuple = ();
 
 def compiler_source_files(pkg_dir: str) -> list[str] {
     base = str(Path(pkg_dir));
