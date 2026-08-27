@@ -3,6 +3,14 @@
 A single-file compiler that reads the Jac subset used in jac0core
 and emits equivalent Python source code. Called in-memory by
 meta_importer._exec_bootstrap() at import time — no disk I/O needed.
+
+The object-spatial seed subset (lowered onto jaclang.jac0core.osp0, which
+reaches the same runtime statics the full compiler targets): node/edge/walker
+declarations; `a +>:T(k=v):+> b` and `a ++> b`; `[x ->:T:->]`, `[x <-:T:<-]`,
+`[x -->]`, `[x <--]`, `[edge x ->:T:->]` and plain hop chains; `a spawn b`;
+`visit expr;`; `disengage;`; `del x;`; `can f with T entry|exit` (and the
+`impl W.f with T entry` form). Filters, `report`, `root` and persistence are
+outside the subset; scripts/check_seed_manifest.py is the gate.
 """
 
 from __future__ import annotations
@@ -285,8 +293,9 @@ class Lexer:
             "^=",
             ":=",
             "@=",
+            "+>",
         }
-        three_char_ops = {"**=", "//=", ">>=", "<<="}
+        three_char_ops = {"**=", "//=", ">>=", "<<=", "++>"}
 
         while True:
             self._skip_ws_and_comments()
@@ -401,6 +410,7 @@ class ClassDef:
     body: list = field(default_factory=list)
     decorators: list = field(default_factory=list)
     is_dataclass: bool = False
+    arch_kind: str = ""
 
 
 @dataclass
@@ -430,6 +440,8 @@ class FuncDef:
     is_static: bool = False
     is_classmethod: bool = False
     is_async: bool = False
+    event: str = ""
+    trigger: str = ""
 
 
 @dataclass
@@ -481,6 +493,8 @@ class ImplDef:
     decorators: list = field(default_factory=list)
     is_static: bool = False
     is_async: bool = False
+    event: str = ""
+    trigger: str = ""
 
 
 @dataclass
@@ -555,6 +569,16 @@ class MatchStmt:
 class SwitchStmt:
     subject: str = ""
     cases: list = field(default_factory=list)  # list of (pattern_or_None, body)
+
+
+@dataclass
+class VisitStmt:
+    expr: str = ""
+
+
+@dataclass
+class DisengageStmt:
+    pass
 
 
 @dataclass
@@ -760,6 +784,215 @@ def _lower_braced_lambdas(tokens: list[Token]) -> list[Token]:
     return tokens
 
 
+def _tok(tt: TT, value: str, like: Token | None = None) -> Token:
+    return Token(tt, value, like.line if like else 0, like.col if like else 0)
+
+
+def _osp_call(name: str, args: list[list[Token]], like: Token | None) -> list[Token]:
+    out = [_tok(TT.NAME, "_jac_osp", like), _tok(TT.DOT, ".", like), _tok(TT.NAME, name, like), _tok(TT.LPAREN, "(", like)]
+    for i, a in enumerate(args):
+        if i:
+            out.append(_tok(TT.COMMA, ",", like))
+        out.extend(a)
+    out.append(_tok(TT.RPAREN, ")", like))
+    return out
+
+
+def _match_hop(toks: list[Token], k: int) -> tuple[int, int, str] | None:
+    """Recognize one edge-reference hop at toks[k].
+
+    Returns (length, dir, edge_type) for `->:T:->` (2, out), `<-:T:<-`
+    (1, in), `-->` (out, untyped) and `<--` (in, untyped); None otherwise.
+    """
+    def is_op(i: int, v: str) -> bool:
+        return i < len(toks) and toks[i].type == TT.OP and toks[i].value == v
+
+    def is_t(i: int, tt: TT) -> bool:
+        return i < len(toks) and toks[i].type == tt
+
+    if is_t(k, TT.ARROW) and is_t(k + 1, TT.COLON) and is_t(k + 2, TT.NAME) and is_t(k + 3, TT.COLON) and is_t(k + 4, TT.ARROW):
+        return 5, 2, toks[k + 2].value
+    if is_op(k, "<") and is_op(k + 1, "-") and is_t(k + 2, TT.COLON) and is_t(k + 3, TT.NAME) and is_t(k + 4, TT.COLON) and is_op(k + 5, "<") and is_op(k + 6, "-"):
+        return 7, 1, toks[k + 3].value
+    if is_op(k, "-") and is_t(k + 1, TT.ARROW):
+        return 2, 2, ""
+    if is_op(k, "<") and is_op(k + 1, "-") and is_op(k + 2, "-"):
+        return 3, 1, ""
+    return None
+
+
+def _lower_edge_refs(tokens: list[Token]) -> list[Token]:
+    """`[x ->:T:->]`, `[x <-:T:<-]`, `[x -->]`, `[edge x ->:T:->]` and hop chains
+    become `_jac_osp.refs0(origin, dir, T, edges_only)` calls."""
+    out: list[Token] = []
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok.type != TT.LBRACKET:
+            out.append(tok)
+            i += 1
+            continue
+        depth = 0
+        j = i
+        while j < len(tokens):
+            if tokens[j].type in (TT.LPAREN, TT.LBRACKET, TT.LBRACE):
+                depth += 1
+            elif tokens[j].type in (TT.RPAREN, TT.RBRACKET, TT.RBRACE):
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        inner = tokens[i + 1 : j]
+        edges_only = False
+        if inner and inner[0].type == TT.NAME and inner[0].value == "edge" and not inner[0].backtick:
+            edges_only = True
+            inner = inner[1:]
+        hops: list[tuple[int, int, int, str]] = []
+        d = 0
+        k = 0
+        while k < len(inner):
+            t = inner[k]
+            if t.type in (TT.LPAREN, TT.LBRACKET, TT.LBRACE):
+                d += 1
+            elif t.type in (TT.RPAREN, TT.RBRACKET, TT.RBRACE):
+                d -= 1
+            if d == 0:
+                m = _match_hop(inner, k)
+                if m is not None:
+                    hops.append((k, m[0], m[1], m[2]))
+                    k += m[0]
+                    continue
+            k += 1
+        if not hops:
+            out.append(tok)
+            i += 1
+            continue
+        origin = _lower_edge_refs(inner[: hops[0][0]])
+        if not origin:
+            raise ParseError(f"line {tok.line}: edge reference needs an origin")
+        cur = origin
+        for n, (k, length, direction, etype) in enumerate(hops):
+            end = k + length
+            nxt = hops[n + 1][0] if n + 1 < len(hops) else len(inner)
+            if inner[end:nxt]:
+                raise ParseError(
+                    f"line {tok.line}: only plain typed hops are admitted in the seed subset"
+                )
+            last = n + 1 == len(hops)
+            cur = _osp_call(
+                "refs0",
+                [
+                    cur,
+                    [_tok(TT.NUMBER, str(direction), tok)],
+                    [_tok(TT.NAME, etype or "None", tok)],
+                    [_tok(TT.NAME, "True" if (edges_only and last) else "False", tok)],
+                ],
+                tok,
+            )
+        out.extend(cur)
+        i = j + 1
+    return out
+
+
+def _split_top(toks: list[Token], sep: TT) -> list[list[Token]]:
+    parts: list[list[Token]] = [[]]
+    d = 0
+    for t in toks:
+        if t.type in (TT.LPAREN, TT.LBRACKET, TT.LBRACE):
+            d += 1
+        elif t.type in (TT.RPAREN, TT.RBRACKET, TT.RBRACE):
+            d -= 1
+        if d == 0 and t.type == sep:
+            parts.append([])
+        else:
+            parts[-1].append(t)
+    return [p for p in parts if p]
+
+
+def _lower_connect(tokens: list[Token]) -> list[Token]:
+    """`a +>:T(k=v):+> b` and `a ++> b` become `_jac_osp.connect0(a, b, T, assigns)`."""
+    d = 0
+    for k, t in enumerate(tokens):
+        if t.type in (TT.LPAREN, TT.LBRACKET, TT.LBRACE):
+            d += 1
+        elif t.type in (TT.RPAREN, TT.RBRACKET, TT.RBRACE):
+            d -= 1
+        if d != 0 or t.type != TT.OP or t.value not in ("+>", "++>"):
+            continue
+        before = tokens[:k]
+        left = _pop_primary_expr(before)
+        if not left:
+            raise ParseError(f"line {t.line}: connect needs a left operand")
+        etype = ""
+        assigns: list[Token] = [_tok(TT.NAME, "None", t)]
+        if t.value == "++>":
+            rest = tokens[k + 1 :]
+        else:
+            m = k + 1
+            if not (m + 1 < len(tokens) and tokens[m].type == TT.COLON and tokens[m + 1].type == TT.NAME):
+                raise ParseError(f"line {t.line}: expected `+>:T:+>`")
+            etype = tokens[m + 1].value
+            m += 2
+            if m < len(tokens) and tokens[m].type == TT.LPAREN:
+                dd = 0
+                q = m
+                while q < len(tokens):
+                    if tokens[q].type == TT.LPAREN:
+                        dd += 1
+                    elif tokens[q].type == TT.RPAREN:
+                        dd -= 1
+                        if dd == 0:
+                            break
+                    q += 1
+                keys: list[Token] = []
+                vals: list[Token] = []
+                for part in _split_top(tokens[m + 1 : q], TT.COMMA):
+                    if len(part) < 3 or part[0].type != TT.NAME or not (part[1].type == TT.OP and part[1].value == "="):
+                        raise ParseError(f"line {t.line}: edge attributes must be `name=value`")
+                    keys.extend([_tok(TT.STRING, repr(part[0].value), t), _tok(TT.COMMA, ",", t)])
+                    vals.extend(part[2:] + [_tok(TT.COMMA, ",", t)])
+                assigns = (
+                    [_tok(TT.LPAREN, "(", t), _tok(TT.LPAREN, "(", t)] + keys
+                    + [_tok(TT.RPAREN, ")", t), _tok(TT.COMMA, ",", t), _tok(TT.LPAREN, "(", t)] + vals
+                    + [_tok(TT.RPAREN, ")", t), _tok(TT.RPAREN, ")", t)]
+                )
+                m = q + 1
+            if not (m + 1 < len(tokens) and tokens[m].type == TT.COLON and tokens[m + 1].type == TT.OP and tokens[m + 1].value == "+>"):
+                raise ParseError(f"line {t.line}: expected closing `:+>`")
+            rest = tokens[m + 2 :]
+        for r in rest:
+            if r.type == TT.OP and r.value in ("+>", "++>"):
+                raise ParseError(f"line {t.line}: chained connects are outside the seed subset")
+        if not rest:
+            raise ParseError(f"line {t.line}: connect needs a right operand")
+        call = _osp_call(
+            "connect0",
+            [left, rest, [_tok(TT.NAME, etype or "None", t)], assigns],
+            t,
+        )
+        return before + call
+    return tokens
+
+
+def _lower_spawn(tokens: list[Token]) -> list[Token]:
+    """`a spawn b` becomes `_jac_osp.spawn0(a, b)`."""
+    d = 0
+    for k, t in enumerate(tokens):
+        if t.type in (TT.LPAREN, TT.LBRACKET, TT.LBRACE):
+            d += 1
+        elif t.type in (TT.RPAREN, TT.RBRACKET, TT.RBRACE):
+            d -= 1
+        if d != 0 or t.type != TT.NAME or t.value != "spawn" or t.backtick:
+            continue
+        before = tokens[:k]
+        left = _pop_primary_expr(before)
+        rest = tokens[k + 1 :]
+        if not left or not rest:
+            raise ParseError(f"line {t.line}: spawn needs two operands")
+        return before + _osp_call("spawn0", [left, rest], t)
+    return tokens
+
+
 def transform_tokens(tokens: list[Token]) -> list[Token]:
     """Apply Jac→Python transformations on a token list.
 
@@ -767,8 +1000,12 @@ def transform_tokens(tokens: list[Token]) -> list[Token]:
     2. NAME[( ... )] → NAME[ ... ] (Jac generic syntax)
     3. lambda(args): → lambda args: (Jac lambda syntax)
     4. lambda (args)? { expr; } → lambda args: expr (braced single-expression)
+    5. the object-spatial seed subset: edge references, connect, spawn
     """
     tokens = _lower_braced_lambdas(tokens)
+    tokens = _lower_edge_refs(tokens)
+    tokens = _lower_connect(tokens)
+    tokens = _lower_spawn(tokens)
     out: list[Token] = []
     i = 0
     bracket_stack: list[int] = []
@@ -1206,6 +1443,15 @@ class Parser:
                 return self._parse_assert()
             if v == "del":
                 return self._parse_delete()
+            if v == "visit":
+                self._advance()
+                expr = self._collect_until(TT.SEMI)
+                self._match(TT.SEMI)
+                return VisitStmt(expr=expr)
+            if v == "disengage":
+                self._advance()
+                self._match(TT.SEMI)
+                return DisengageStmt()
             if v == "break":
                 self._advance()
                 self._match(TT.SEMI)
@@ -1304,6 +1550,7 @@ class Parser:
     def _parse_class(self, decorators: list[str]) -> ClassDef:
         kw = self._advance()  # class/obj/node/edge/walker
         is_dc = kw.value in ("obj", "node", "edge", "walker")
+        arch_kind = kw.value if kw.value in ("node", "edge", "walker") else ""
         name = self._expect(TT.NAME).value
         type_params = ""
         if self._match(TT.LBRACKET):
@@ -1323,6 +1570,7 @@ class Parser:
             body=body,
             decorators=decorators,
             is_dataclass=is_dc,
+            arch_kind=arch_kind,
         )
 
     def _parse_type_alias(self) -> TypeAliasDef:
@@ -1437,6 +1685,7 @@ class Parser:
         if self._match(TT.LPAREN):
             params = self._parse_params()
             self._expect(TT.RPAREN)
+        event, trigger = self._parse_event_clause()
         return_type = ""
         if self._match(TT.ARROW):
             return_type = self._collect_type()
@@ -1455,7 +1704,34 @@ class Parser:
             is_static=is_static,
             is_classmethod=is_classmethod,
             is_async=is_async,
+            event=event,
+            trigger=trigger,
         )
+
+    def _parse_event_clause(self) -> tuple[str, str]:
+        """`with T entry` / `with entry` / `with T exit` on an ability.
+
+        Returns (event, trigger) with trigger already a Python expression
+        string ("" when the ability is untyped).
+        """
+        if not self._at(TT.NAME, "with"):
+            return "", ""
+        self._advance()
+        toks: list[Token] = []
+        depth = 0
+        while True:
+            tok = self._peek()
+            if tok.type == TT.EOF:
+                raise ParseError(f"{self.filename}:{tok.line}: unterminated event clause")
+            if depth == 0 and tok.type == TT.NAME and tok.value in ("entry", "exit"):
+                break
+            if tok.type in (TT.LPAREN, TT.LBRACKET):
+                depth += 1
+            elif tok.type in (TT.RPAREN, TT.RBRACKET):
+                depth -= 1
+            toks.append(self._advance())
+        event = self._advance().value
+        return event, tokens_to_str(toks)
 
     def _parse_params(self) -> list[Param]:
         params: list[Param] = []
@@ -1610,6 +1886,7 @@ class Parser:
             self._advance()
             params = self._parse_params()
             self._expect(TT.RPAREN)
+        event, trigger = self._parse_event_clause()
         return_type = ""
         if self._match(TT.ARROW):
             return_type = self._collect_type()
@@ -1623,6 +1900,8 @@ class Parser:
             body=body,
             decorators=decorators,
             is_static=is_static,
+            event=event,
+            trigger=trigger,
         )
 
     # ── With Entry ────────────────────────────────────────────────────────
@@ -1881,6 +2160,7 @@ class CodeGen:
         self.needs_typing_import = False
         self.impl_registry: dict[str, list[ImplDef]] = {}
         self._in_class = False
+        self._arch_kind = ""
 
     def _line(self, text: str = "") -> None:
         if text:
@@ -1913,8 +2193,11 @@ class CodeGen:
         if self.needs_typing_import:
             self._line("from typing import TYPE_CHECKING")
         self._line()
+        header_len = len(self.lines)
         for node in module.body:
             self._emit(node)
+        if any("_jac_osp." in ln for ln in self.lines[header_len:]):
+            self.lines.insert(1, "import jaclang.jac0core.osp0 as _jac_osp")
         return "\n".join(self.lines) + "\n"
 
     def _scan_needs(self, body: list) -> None:
@@ -1976,7 +2259,13 @@ class CodeGen:
         elif isinstance(node, AssertStmt):
             self._line(f"assert {node.expr}")
         elif isinstance(node, DeleteStmt):
+            self._line(f"_jac_osp.destroy0({node.expr})")
             self._line(f"del {node.expr}")
+        elif isinstance(node, VisitStmt):
+            self._line(f"_jac_osp.visit0(self, {node.expr})")
+        elif isinstance(node, DisengageStmt):
+            self._line("_jac_osp.disengage0(self)")
+            self._line("return")
         elif isinstance(node, ExprStmt):
             if node.expr:
                 self._line(node.expr)
@@ -2023,7 +2312,10 @@ class CodeGen:
     def _emit_class(self, node: ClassDef) -> None:
         for dec in node.decorators:
             self._line(f"@{dec}")
-        if node.is_dataclass:
+        # node/edge/walker: the runtime's make_archetype (Archetype.__init_subclass__)
+        # applies dataclass(eq=False) itself, exactly as for full-compiler output;
+        # a second application would clash with the fields it injects.
+        if node.is_dataclass and not node.arch_kind:
             has_dc = any("dataclass" in d for d in node.decorators)
             if not has_dc:
                 # Check if the class has 'has' fields. Property-only `has`
@@ -2057,9 +2349,15 @@ class CodeGen:
                     # or inherited __init__
                     self._line("@dataclass(eq=False, repr=False, init=False)")
         tp_str = f"[{node.type_params}]" if node.type_params else ""
-        base_str = f"({node.bases})" if node.bases else ""
+        bases = node.bases
+        if node.arch_kind:
+            arch_base = "_jac_osp." + node.arch_kind.capitalize()
+            bases = f"{bases}, {arch_base}" if bases else arch_base
+        base_str = f"({bases})" if bases else ""
         self._line(f"class {node.name}{tp_str}{base_str}:")
         self.indent += 1
+        prev_arch_kind = self._arch_kind
+        self._arch_kind = node.arch_kind
         body = node.body
         # Stitch impls
         impls = self.impl_registry.get(node.name, [])
@@ -2105,6 +2403,7 @@ class CodeGen:
                     continue
                 self._emit_impl_as_method(impl, stub_lookup)
             self._in_class = prev_in_class
+        self._arch_kind = prev_arch_kind
         self.indent -= 1
         self._line()
 
@@ -2146,9 +2445,20 @@ class CodeGen:
 
     # ── Functions ─────────────────────────────────────────────────────────
 
+    def _event_param_name(self) -> str:
+        return "here" if self._arch_kind == "walker" else "visitor"
+
+    def _emit_event_decorators(self, event: str, trigger: str) -> None:
+        if not event:
+            return
+        self._line(f"@_jac_osp.on_{event}")
+        if trigger:
+            self._line(f"@_jac_osp.set_trigger(lambda: {trigger})")
+
     def _emit_func(self, node: FuncDef) -> None:
         for dec in node.decorators:
             self._line(f"@{dec}")
+        self._emit_event_decorators(node.event, node.trigger)
         if node.is_classmethod:
             self._line("@classmethod")
         if node.is_static:
@@ -2171,6 +2481,10 @@ class CodeGen:
             and (not func_params or func_params[0].name not in ("self", "cls"))
         ):
             func_params.insert(0, Param(name="self"))
+        if node.event:
+            func_params.append(
+                Param(name=self._event_param_name(), type_ann=node.trigger)
+            )
         params = self._format_params(func_params)
         ap = "async " if node.is_async else ""
         ret = f" -> {node.return_type}" if node.return_type else ""
@@ -2302,9 +2616,13 @@ class CodeGen:
         is_static = impl.is_static
         is_classmethod = False
         is_async = impl.is_async
+        event = impl.event
+        trigger = impl.trigger
         decorators = list(impl.decorators)
         stub = stub_lookup.get(method_name) if stub_lookup else None
         if stub:
+            if stub.event and not event:
+                event, trigger = stub.event, stub.trigger
             # Inherit decorators from declaration that aren't already on impl
             for dec in stub.decorators:
                 if dec not in decorators:
@@ -2317,6 +2635,7 @@ class CodeGen:
                 is_async = True
         for dec in decorators:
             self._line(f"@{dec}")
+        self._emit_event_decorators(event, trigger)
         if is_classmethod:
             self._line("@classmethod")
         if is_static:
@@ -2334,6 +2653,8 @@ class CodeGen:
             and (not func_params or func_params[0].name not in ("self", "cls"))
         ):
             func_params.insert(0, Param(name="self"))
+        if event:
+            func_params.append(Param(name=self._event_param_name(), type_ann=trigger))
         params = self._format_params(func_params)
         ap = "async " if is_async else ""
         ret = f" -> {impl.return_type}" if impl.return_type else ""
