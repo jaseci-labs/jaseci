@@ -24,12 +24,12 @@ obj FakeMetrics {
 
 
 class _Capture(logging.Handler) {
-    def init(self: _Capture) -> None {
+    def init(self: _Capture) {
         super.__init__();
         self.records: list = [];
     }
 
-    def emit(self: _Capture, record: logging.LogRecord) -> None {
+    def emit(self: _Capture, record: logging.LogRecord) {
         self.records.append(record);
     }
 }
