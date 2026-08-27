@@ -31,7 +31,7 @@ glob _rk_addr: list[int] = [],
 The three drivers feed this table three different kinds of key: the native
 lowering passes 16-byte-aligned struct addresses, while the bytecode (sv) and
 JS drivers mint dense integer handles (1, 2, 3, ...). `k ^ (k >> 4)` folds an
-address\'s always-zero low bits back in while staying injective on the dense
+address's always-zero low bits back in while staying injective on the dense
 handles -- for any key below the table capacity the xor-shift preserves the
 highest set bit, so two distinct handles cannot share a bucket -- and the odd
 golden-ratio multiplier then scatters the result, which a bijection modulo a
@@ -40,7 +40,7 @@ power of two preserves.
 Every operand is chosen so the one expression lowers to all three backends:
 the 32-bit mask and the 16-bit multiplier keep the product under 2**48, inside
 i64 (native `int` multiply is overflow-checked, so a 64-bit constant would
-raise on a pointer key) and inside a double\'s 53-bit mantissa (JS bitwise ops
+raise on a pointer key) and inside a double's 53-bit mantissa (JS bitwise ops
 are 32-bit and its numbers are doubles).
 """
 def _hslot(k: int, m: int) -> int {
@@ -372,6 +372,11 @@ def _et_find(eh: int) -> int {
         h = (h + 1) & m;
     }
     return -1;
+}
+
+"""Does the kernel already hold a row for this edge handle?"""
+def osp_has_edge(eh: int) -> int {
+    return 1 if _et_find(eh) >= 0 else 0;
 }
 
 def _et_del(eh: int) {

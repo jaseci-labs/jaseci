@@ -20,7 +20,9 @@ import from jaclang.runtime.archetype {
     GenericEdge,
     ObjectAnchor,
     ObjectSpatialFunction,
-    Root
+    Root,
+    anchor_key,
+    same_anchor
 }
 import from jaclang.compiler.frontend.constant { EdgeDir, colors }
 import from jaclang.runtime.graph_query { GraphQuery, QHop }
@@ -88,6 +90,12 @@ def _scale_provider -> any {
     } except ImportError { }
     _scale_provider_cache.append(result);
     return result;
+}
+
+"""The blanket grant on an anchor, whether or not it has a Permission yet."""
+def _all_grant(anchor: Anchor) -> AccessLevel {
+    perm = anchor.access;
+    return AccessLevel.NO_ACCESS if perm is None else perm.all;
 }
 
 def resolve_ref(

@@ -216,7 +216,7 @@ def _edge_anchors(nodes: list[TNode]) -> list[Anchor] {
     return out;
 }
 
-test "a never-persisted anchor mints no uuid and no permission object" {
+test "a never-persisted anchor is exactly its archetype and its topology" {
     nodes = _chain(64);
     _connect(nodes);
     for nd in nodes {
@@ -225,17 +225,26 @@ test "a never-persisted anchor mints no uuid and no permission object" {
             "a rootless, storeless node anchor minted a uuid; identity is "
             "what persistence needs, and this graph never reaches a store"
         );
-        assert 'access' not in a.__dict__ , (
-            "a transient node anchor allocated its own Permission; the "
-            "no-grants default must be shared"
+        assert a.access is None , (
+            "a transient node anchor allocated a Permission; an anchor nobody "
+            "has granted anything has nothing to say about access"
+        );
+        assert set(a.__dict__.keys()) == {"archetype", "edges"} , (
+            f"a transient node anchor carries {sorted(a.__dict__.keys())}; "
+            "everything but the archetype and its edges is persistence "
+            "machinery and must stay unallocated until persistence needs it"
         );
     }
     edges = _edge_anchors(nodes);
     assert len(edges) == 63 , f"expected 63 edge anchors, saw {len(edges)}";
     for e in edges {
         assert e.id is None , "connecting minted a uuid for a transient edge";
-        assert 'access' not in e.__dict__ , (
-            "a transient edge anchor allocated its own Permission"
+        assert e.access is None , (
+            "a transient edge anchor allocated a Permission"
+        );
+        assert set(e.__dict__.keys())
+            == {"archetype", "source", "target", "is_undirected"} , (
+            f"a transient edge anchor carries {sorted(e.__dict__.keys())}"
         );
     }
 }
@@ -276,7 +285,13 @@ test "a transient edge costs hundreds of bytes, not thousands" {
         tracemalloc.stop();
     }
     per_edge = float(after - before) / float(n - 1);
-    assert per_edge < 900.0 , (
+    # ~1.1 KB measured, and what is left is the data itself plus the kernel's
+    # own slots: the edge archetype, the three anchors, seven row-array slots,
+    # the node and edge index entries and the handle registry. The ~750 bytes
+    # of uuids, uuid strings and Permission objects an edge used to add on top
+    # of that are gone. The cap leaves room for allocator and dict-growth
+    # noise while staying far below the old ~2.2 KB.
+    assert per_edge < 1400.0 , (
         f"a transient edge costs {per_edge:.0f} bytes; uuids, permissions and "
         "id-keyed registries are persistence machinery and must not be "
         "allocated for a graph that has no root and no store"

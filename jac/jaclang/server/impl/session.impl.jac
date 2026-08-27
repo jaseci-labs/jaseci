@@ -314,10 +314,12 @@ impl Session.get(id: UUID) -> (Anchor | None) {
 
 
 impl Session.put(anchor: Anchor) -> None {
+    # Attaching to the store is the moment an anchor needs a store key.
+    aid = anchor.ensure_id();
     with self._lock {
-        self.__mem__[anchor.id] = anchor;
-        self._dirty[anchor.id] = None;
-        self._deleted.discard(anchor.id);
+        self.__mem__[aid] = anchor;
+        self._dirty[aid] = None;
+        self._deleted.discard(aid);
     }
 }
 
@@ -907,12 +909,14 @@ impl Session._serialize(anchor: Anchor) -> AnchorRow {
     dst: (UUID | None) = None;
     undirected = False;
     if isinstance(anchor, EdgeAnchor) {
-        src = anchor.source.id if anchor.source is not None else None;
-        dst = anchor.target.id if anchor.target is not None else None;
+        # A row cites its endpoints by store key, so writing one is a reason
+        # for those endpoints to have keys.
+        src = anchor.source.ensure_id() if anchor.source is not None else None;
+        dst = anchor.target.ensure_id() if anchor.target is not None else None;
         undirected = anchor.is_undirected;
     }
     return AnchorRow(
-        id=anchor.id,
+        id=anchor.ensure_id(),
         kind=type(anchor).__name__,
         arch_type=arch_type,
         arch_module=arch_module,

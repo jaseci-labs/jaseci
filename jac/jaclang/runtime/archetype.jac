@@ -70,14 +70,37 @@ obj AnchorReport {
 }
 
 
+"""An anchor is what persistence needs to know about an archetype.
+
+Everything below `archetype` is persistence machinery, and a graph that is
+never connected to a root and never reaches a store needs none of it, so none
+of it is allocated up front. Every field below it is
+`init=False` with a class-level default, which means the dataclass `__init__`
+never writes it into the instance dict: a transient `NodeAnchor` is exactly
+`{archetype, edges}`, and a field only starts costing a dict slot once
+something assigns it. `access` is `None` -- not a shared
+default object -- until someone grants something, so an anchor that has been
+granted nothing does not allocate a `Permission` and two `Access` objects, and
+no amount of `anchor.access.all = ...` can silently rewrite the grants of every
+other anchor in the process. Writers go through `own_access`, which materializes
+this anchor's own `Permission` the first time it is needed.
+
+`id` in particular stays `None` until something actually needs a store key:
+`ensure_id` mints it, and `Session.put`, `save`, `make_stub` and the
+serializer -- every door into persistence -- call it. Until then an anchor is
+identified by object identity, which is what `__hash__` and `__eq__` fall back
+to and what the sv driver keys its registries by.
+"""
 obj Anchor {
     has archetype: Archetype,
-        id: UUID = field(default_factory=uuid4),
-        `root: (UUID | None) = None,
-        access: Permission = field(default_factory=Permission),
-        persistent: bool = False,
-        hash: int = 0;
+        id: (UUID | None) = field(`init=False, default=None),
+        `root: (UUID | None) = field(`init=False, default=None),
+        access: (Permission | None) = field(`init=False, default=None),
+        persistent: bool = field(`init=False, default=False),
+        hash: int = field(`init=False, default=0);
 
+    def ensure_id -> UUID;
+    def own_access -> Permission;
     def is_populated -> bool;
     def make_stub -> TANCH;
     def populate -> None;
@@ -93,7 +116,7 @@ obj Anchor {
 obj NodeAnchor(Anchor) {
     has archetype: NodeArchetype,
         edges: list[EdgeAnchor],
-        version: int = 0;
+        version: int = field(`init=False, default=0);
 
     def __getstate__ -> dict[(str, object)];
     def is_populated -> bool;
@@ -122,6 +145,33 @@ obj WalkerAnchor(Anchor) {
 
 obj ObjectAnchor(Anchor) {
     has archetype: ObjectArchetype;
+}
+
+"""Do two anchor references denote the same anchor?
+
+Object identity alone is not enough: a persisted anchor can be present as both
+a stub and the populated record. The store key alone is not enough either: a
+transient anchor does not have one. So identity first, key second.
+"""
+def same_anchor(a: (Anchor | None), b: (Anchor | None)) -> bool {
+    if a is b {
+        return True;
+    }
+    if a is None or b is None {
+        return False;
+    }
+    aid = a.id;
+    return aid is not None and aid == b.id;
+}
+
+"""What identifies an anchor to a keyed collection.
+
+The store key while the anchor has one, its object identity while it does not.
+The two never collide: a `UUID` never compares equal to an `int`.
+"""
+def anchor_key(anchor: Anchor) -> any {
+    aid = anchor.id;
+    return aid if aid is not None else id(anchor);
 }
 
 obj Archetype {
