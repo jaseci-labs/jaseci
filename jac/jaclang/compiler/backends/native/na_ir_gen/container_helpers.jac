@@ -57,7 +57,7 @@ obj NaIRGenContainerHelpers(NaIRGenState) {
         cont: ir.Value,
         layout: dict,
         tag: str,
-        body_cb: object,
+        body_cb: Callable[..., ir.IRBuilder],
         fields: (list | None) = None
     ) -> ir.IRBuilder;
 

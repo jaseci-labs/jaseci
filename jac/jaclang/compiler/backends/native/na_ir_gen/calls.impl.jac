@@ -154,9 +154,14 @@ impl NaIRGenCalls._codegen_bound_args(
                     }
                 }
             }
-            if _tup_ptr or _tup_val {
+            if (_tup_ptr or _tup_val) and _tv is not None {
                 _sp32 = ir.IntType(32);
-                _tup_elems = _tt.pointee.elements if _tup_ptr else _tt.elements;
+                _tup_elems: tuple = ();
+                if _tup_ptr and isinstance(_tt, ir.PointerType) {
+                    _tup_elems = _tt.pointee.elements;
+                } elif isinstance(_tt, ir.LiteralStructType) {
+                    _tup_elems = _tt.elements;
+                }
                 for (_ei, _et) in enumerate(_tup_elems) {
                     if _tup_ptr {
                         _ep = self.builder.gep(
@@ -176,7 +181,7 @@ impl NaIRGenCalls._codegen_bound_args(
                     }
                     positional.append(("spread.val", _ev));
                 }
-                if _tup_ptr and self._is_owned(_tv) {
+                if _tup_ptr and _tv is not None and self._is_owned(_tv) {
                     self._emit_rc_release_simple(_tv, op="spread_tuple", loc="");
                 }
             } elif _is_list_sp {
@@ -341,7 +346,9 @@ impl NaIRGenCalls._codegen_bound_args(
                 );
                 val = None;
             } else {
-                val = self._codegen_expr(chosen) if chosen is not None else None;
+                val = self._codegen_expr(chosen)
+                    if isinstance(chosen, uni.UniNode)
+                    else None;
             }
             if val is not None {
                 args.append(val);
@@ -411,7 +418,9 @@ impl NaIRGenCalls._codegen_bound_args(
                 );
                 val = None;
             } else {
-                val = self._codegen_expr(chosen) if chosen is not None else None;
+                val = self._codegen_expr(chosen)
+                    if isinstance(chosen, uni.UniNode)
+                    else None;
             }
             if val is not None {
                 args.append(val);
@@ -472,7 +481,9 @@ impl NaIRGenCalls._codegen_bound_args(
                 );
                 val = None;
             } else {
-                val = self._codegen_expr(chosen) if chosen is not None else None;
+                val = self._codegen_expr(chosen)
+                    if isinstance(chosen, uni.UniNode)
+                    else None;
             }
             if val is not None {
                 args.append(val);
@@ -861,6 +872,7 @@ impl NaIRGenCalls._codegen_kwargs_dict(
             self.builder.branch(_cont_bb);
             self.builder.position_at_end(_cont_bb);
         }
+        assert dict_key is not None , "the helper lookup above needs a key";
         if not self._merge_dict_into(
             dv, sv, helpers, dict_key, _loc, skip_keys=_skip_dv
         ) {
@@ -1088,7 +1100,7 @@ impl NaIRGenCalls._native_module_call_target(nd: uni.FuncCall) -> (tuple | None)
 }
 
 impl NaIRGenCalls._codegen_intrinsic(
-    nd: uni.FuncCall, intr: object
+    nd: uni.FuncCall, intr: IntrinsicEntry
 ) -> (ir.Value | None) {
     import from jaclang.compiler.intrinsic_registry { IntrinsicDispatch }
 
@@ -1111,13 +1123,12 @@ impl NaIRGenCalls._codegen_intrinsic(
         );
         return None;
     }
-    handler = {
+    _emitters: dict[IntrinsicDispatch, Callable[..., (ir.Value | None)]] = {
         IntrinsicDispatch.RC_RUNTIME: self._emit_intrinsic_rc_runtime,
         IntrinsicDispatch.FLOAT_BITS: self._emit_intrinsic_float_bits,
         IntrinsicDispatch.BITS_FLOAT: self._emit_intrinsic_bits_float
-    }.get(
-        intr.dispatch
-    );
+    };
+    handler = _emitters.get(intr.dispatch);
     if handler is None {
         self.emit(
             E9001,
@@ -1131,7 +1142,7 @@ impl NaIRGenCalls._codegen_intrinsic(
 }
 
 impl NaIRGenCalls._emit_intrinsic_misuse(
-    nd: uni.FuncCall, intr: object, reason: str
+    nd: uni.FuncCall, intr: IntrinsicEntry, reason: str
 ) -> None {
     for e in self.errors_had {
         if (
@@ -1147,7 +1158,7 @@ impl NaIRGenCalls._emit_intrinsic_misuse(
 }
 
 impl NaIRGenCalls._intrinsic_operand(
-    nd: uni.FuncCall, intr: object, arg: uni.Expr, spec: str
+    nd: uni.FuncCall, intr: IntrinsicEntry, arg: uni.Expr, spec: str
 ) -> (ir.Value | None) {
     arg_val = self._codegen_expr(arg);
     if arg_val is None {
@@ -1175,7 +1186,7 @@ impl NaIRGenCalls._intrinsic_operand(
 }
 
 impl NaIRGenCalls._emit_intrinsic_rc_runtime(
-    nd: uni.FuncCall, intr: object, args: list
+    nd: uni.FuncCall, intr: IntrinsicEntry, args: list
 ) -> (ir.Value | None) {
     if intr.gc_mode_gate is not None and self._gc_mode() != intr.gc_mode_gate {
         return None;
@@ -1188,7 +1199,7 @@ impl NaIRGenCalls._emit_intrinsic_rc_runtime(
 }
 
 impl NaIRGenCalls._emit_intrinsic_float_bits(
-    nd: uni.FuncCall, intr: object, args: list
+    nd: uni.FuncCall, intr: IntrinsicEntry, args: list
 ) -> (ir.Value | None) {
     arg_val = self._intrinsic_operand(nd, intr, args[0], intr.param_specs[0]);
     if arg_val is None {
@@ -1198,7 +1209,7 @@ impl NaIRGenCalls._emit_intrinsic_float_bits(
 }
 
 impl NaIRGenCalls._emit_intrinsic_bits_float(
-    nd: uni.FuncCall, intr: object, args: list
+    nd: uni.FuncCall, intr: IntrinsicEntry, args: list
 ) -> (ir.Value | None) {
     arg_val = self._intrinsic_operand(nd, intr, args[0], intr.param_specs[0]);
     if arg_val is None {
@@ -1227,7 +1238,7 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         );
     }
 
-    _call_kind = nd.call_kind;
+    _call_kind = nd.call_kind or "";
 
     _sized_call = self._codegen_sized_builtin_call(
         nd, self._get_name(nd.target), _call_kind
