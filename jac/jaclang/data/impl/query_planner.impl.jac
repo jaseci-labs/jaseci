@@ -339,7 +339,10 @@ impl resolve_query_edges(mem: Session, q: GraphQuery) -> list[Anchor] {
 impl resolve_query_count(mem: Session, q: GraphQuery) -> int {
     store = mem.store;
     origins = origin_anchors(q);
-    if not needs_store(mem, origins) or access_gated() or q.from_visit {
+    if store is None
+        or not needs_store(mem, origins)
+        or access_gated()
+        or q.from_visit {
         return len(_resolve_for(mem, q));
     }
     ids: list[UUID] = [];

@@ -112,7 +112,7 @@ def resolve_ref(
     }
     ctx = JacRuntimeInterface.get_context();
 
-    if ctx.mem.is_recoverable_quarantine(stub.id) {
+    if ctx.mem.is_recoverable_quarantine(stub.ensure_id()) {
         return None;
     }
 
