@@ -175,6 +175,10 @@ impl MicroserviceGateway.serve_extra_static(
 }
 
 
+impl MicroserviceGateway.has_client_bundle -> bool {
+    return (Path(self.client_dist_dir) / "index.html").is_file();
+}
+
 impl MicroserviceGateway.serve_spa_fallback -> Response | None {
     index = Path(self.client_dist_dir) / "index.html";
     if index.is_file() {
@@ -746,10 +750,13 @@ impl MicroserviceGateway.setup -> ServingApp {
                 ROUTE_BUILTIN,
                 ROUTE_ADMIN,
                 ROUTE_IDENTITY,
-                ROUTE_PROXY
+                ROUTE_PROXY,
+                ROUTE_CLIENT_PAGE
             }
             service_prefixes: list = [e.prefix for e in gw.registry.entries.values()];
-            decision = classify_route(path, service_prefixes);
+            decision = classify_route(
+                path, service_prefixes, client_pages=gw.has_client_bundle()
+            );
 
             if decision.kind == ROUTE_BUILTIN {
                 if path == "/healthz/live" {
@@ -769,13 +776,19 @@ impl MicroserviceGateway.setup -> ServingApp {
                     resp = await gw.handle_openapi();
                 } elif path == "/docs" {
                     svc_label = "__docs__";
-                    if request.method == "GET" {
-                        resp = gw.serve_spa_fallback();
-                    }
-                    if resp is None {
-                        resp = gw.handle_docs();
-                    }
+                    resp = gw.handle_docs();
                 }
+            } elif decision.kind == ROUTE_CLIENT_PAGE {
+                svc_label = "__static__";
+                page_resp: Response | None = None;
+                if request.method == "GET" {
+                    page_resp = gw.serve_spa_fallback();
+                }
+                if page_resp is None {
+                    import from jaclang.scale.runtime.context.errors { not_found }
+                    page_resp = not_found(path);
+                }
+                resp = page_resp;
             } elif decision.kind == ROUTE_ADMIN {
                 svc_label = "__admin__";
                 admin_resp: Response | None = None;
