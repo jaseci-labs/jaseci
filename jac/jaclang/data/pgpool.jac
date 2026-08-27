@@ -41,8 +41,11 @@ def _idle_ttl -> float {
 
 
 def pool_key(info: any) -> str {
+    import hashlib;
     where = info.unix_socket_dir or info.host or '';
-    return f"{where}:{info.port}:{info.user}:{info.database}:{info.password}";
+    raw: str = str(info.password or '');
+    secret = hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16];
+    return f"{where}:{info.port}:{info.user}:{info.database}:{secret}";
 }
 
 

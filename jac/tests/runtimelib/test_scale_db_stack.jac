@@ -183,6 +183,34 @@ test "pool: a parked connection comes back with no open transaction" {
 }
 
 
+test "pool: a parked connection comes back with session settings reset" {
+    with TemporaryDirectory() as td {
+        drain_all();
+        s = _mk_session(td);
+        st = _store(s);
+        st.rows("SET lock_timeout = '5s'", {});
+        st.rows('LISTEN jac_pool_probe', {});
+        first = getattr(st, '_conn');
+        info = getattr(st, 'conninfo');
+        st.close();
+        st2 = PgStore(conninfo=info);
+        got = st2.rows("SELECT current_setting('lock_timeout')", {});
+        assert getattr(st2, '_conn') is first;
+        assert str(got[0][0]) == '0' , (
+            'a session setting left by the previous borrower leaked through '
+            f"the pool: lock_timeout={got[0][0]}"
+        );
+        listening = st2.rows('SELECT count(*) FROM pg_listening_channels()', {});
+        assert int(listening[0][0]) == 0 , (
+            'a LISTEN registered by the previous borrower survived parking'
+        );
+        st2.close();
+        s.close();
+        drain_all();
+    }
+}
+
+
 test "pool: JAC_DB_POOL=0 disables parking" {
     with TemporaryDirectory() as td {
         drain_all();

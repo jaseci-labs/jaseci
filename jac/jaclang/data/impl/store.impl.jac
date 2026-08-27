@@ -337,8 +337,8 @@ def _park_conn(info: any, conn: any, in_txn: bool, listened: bool) -> None {
         if in_txn {
             conn.run('ROLLBACK');
         }
+        conn.run('DISCARD ALL');
         if listened {
-            conn.run('UNLISTEN *');
             conn.notifications.clear();
         }
     } except Exception {
