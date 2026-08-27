@@ -153,11 +153,11 @@ def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
     ];
     filtered = len(head_kid) != len(saved_kid);
     if filtered {
-        mod.body = [
+        mod._role_set("body", [
             st
             for st in saved_body
             if (not st.loc.mod_path) or (st.loc.mod_path == own_path)
-        ];
+        ]);
         mod.set_kids(nodes=head_kid or [uni.EmptyToken()]);
     }
     try {
@@ -170,7 +170,7 @@ def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
         return mod.gen.jac;
     } finally {
         if filtered {
-            mod.body = saved_body;
+            mod._role_set("body", saved_body);
             mod.set_kids(nodes=saved_kid);
         }
     }

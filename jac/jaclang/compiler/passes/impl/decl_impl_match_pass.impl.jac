@@ -151,8 +151,7 @@ impl DeclImplMatchPass._connect_one_impl(
         return;
     }
     self.validate_params_match(impl_node, sym_name, decl_node.name_of);
-    valid_decl.body = impl_node;
-    impl_node.decl_link = valid_decl;
+    valid_decl.link_impl(impl_node);
     for (idx, a) in enumerate(impl_node.target) {
         if ((idx < len(name_of_links)) and (link := name_of_links[idx])) {
             a.name_spec.name_of = link.name_of;

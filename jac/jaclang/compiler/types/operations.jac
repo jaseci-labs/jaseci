@@ -669,7 +669,9 @@ def get_type_of_binary_operation(
         synth_call = FuncCall(
             target=callable_node, params=params, genai_call=None, kid=expr.kid
         );
-        synth_call.parent = expr.parent;
+        if expr.parent is not None {
+            synth_call.set_parent(expr.parent);
+        }
         return evaluator.validate_call_args(synth_call);
     }
     return UnknownType();

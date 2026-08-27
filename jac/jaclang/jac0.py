@@ -798,11 +798,12 @@ def _osp_call(name: str, args: list[list[Token]], like: Token | None) -> list[To
     return out
 
 
-def _match_hop(toks: list[Token], k: int) -> tuple[int, int, str] | None:
+def _match_hop(toks: list[Token], k: int) -> tuple[int, int, str, list[Token]] | None:
     """Recognize one edge-reference hop at toks[k].
 
-    Returns (length, dir, edge_type) for `->:T:->` (2, out), `<-:T:<-`
-    (1, in), `-->` (out, untyped) and `<--` (in, untyped); None otherwise.
+    Returns (length, dir, edge_type, filter_tokens) for `->:T:->` (2, out),
+    `<-:T:<-` (1, in), `-->` (out, untyped) and `<--` (in, untyped); a typed
+    hop may carry edge-attribute predicates: `->:T:a == 1, b != x:->`.
     """
     def is_op(i: int, v: str) -> bool:
         return i < len(toks) and toks[i].type == TT.OP and toks[i].value == v
@@ -810,15 +811,66 @@ def _match_hop(toks: list[Token], k: int) -> tuple[int, int, str] | None:
     def is_t(i: int, tt: TT) -> bool:
         return i < len(toks) and toks[i].type == tt
 
-    if is_t(k, TT.ARROW) and is_t(k + 1, TT.COLON) and is_t(k + 2, TT.NAME) and is_t(k + 3, TT.COLON) and is_t(k + 4, TT.ARROW):
-        return 5, 2, toks[k + 2].value
-    if is_op(k, "<") and is_op(k + 1, "-") and is_t(k + 2, TT.COLON) and is_t(k + 3, TT.NAME) and is_t(k + 4, TT.COLON) and is_op(k + 5, "<") and is_op(k + 6, "-"):
-        return 7, 1, toks[k + 3].value
+    def closer(i: int, out: bool) -> int:
+        """Length of the closing `->` / `<-` at i, or 0."""
+        if out:
+            return 1 if is_t(i, TT.ARROW) else 0
+        return 2 if (is_op(i, "<") and is_op(i + 1, "-")) else 0
+
+    def typed(start: int, out: bool) -> tuple[int, int, str, list[Token]] | None:
+        # start points at COLON after the opening arrow; the hop begins at k
+        if not (is_t(start, TT.COLON) and is_t(start + 1, TT.NAME) and is_t(start + 2, TT.COLON)):
+            return None
+        etype = toks[start + 1].value
+        j = start + 3
+        flt: list[Token] = []
+        d = 0
+        while j < len(toks):
+            if toks[j].type in (TT.LPAREN, TT.LBRACKET, TT.LBRACE):
+                d += 1
+            elif toks[j].type in (TT.RPAREN, TT.RBRACKET, TT.RBRACE):
+                if d == 0:
+                    return None
+                d -= 1
+            if d == 0:
+                if flt and is_t(j, TT.COLON):
+                    c = closer(j + 1, out)
+                    if c:
+                        return j + 1 + c - k, (2 if out else 1), etype, flt
+                    return None
+                c = closer(j, out)
+                if c and not flt:
+                    return j + c - k, (2 if out else 1), etype, flt
+            flt.append(toks[j])
+            j += 1
+        return None
+
+    if is_t(k, TT.ARROW):
+        m = typed(k + 1, True)
+        if m:
+            return m
+    if is_op(k, "<") and is_op(k + 1, "-"):
+        m = typed(k + 2, False)
+        if m:
+            return m
     if is_op(k, "-") and is_t(k + 1, TT.ARROW):
-        return 2, 2, ""
+        return 2, 2, "", []
     if is_op(k, "<") and is_op(k + 1, "-") and is_op(k + 2, "-"):
-        return 3, 1, ""
+        return 3, 1, "", []
     return None
+
+
+def _lower_preds(flt: list[Token], like: Token) -> list[Token]:
+    """`a == 1, b != x` -> `(("a", "==", 1), ("b", "!=", x),)` tokens."""
+    out: list[Token] = [_tok(TT.LPAREN, "(", like)]
+    for part in _split_top(flt, TT.COMMA):
+        if len(part) < 3 or part[0].type != TT.NAME or part[1].type != TT.OP:
+            raise ParseError(f"line {like.line}: edge predicate must be `name op value`")
+        out.extend([_tok(TT.LPAREN, "(", like), _tok(TT.STRING, repr(part[0].value), like), _tok(TT.COMMA, ",", like), _tok(TT.STRING, repr(part[1].value), like), _tok(TT.COMMA, ",", like)])
+        out.extend(part[2:])
+        out.extend([_tok(TT.RPAREN, ")", like), _tok(TT.COMMA, ",", like)])
+    out.append(_tok(TT.RPAREN, ")", like))
+    return out
 
 
 def _lower_edge_refs(tokens: list[Token]) -> list[Token]:
@@ -847,7 +899,7 @@ def _lower_edge_refs(tokens: list[Token]) -> list[Token]:
         if inner and inner[0].type == TT.NAME and inner[0].value == "edge" and not inner[0].backtick:
             edges_only = True
             inner = inner[1:]
-        hops: list[tuple[int, int, int, str]] = []
+        hops: list[tuple[int, int, int, str, list[Token]]] = []
         d = 0
         k = 0
         while k < len(inner):
@@ -859,7 +911,7 @@ def _lower_edge_refs(tokens: list[Token]) -> list[Token]:
             if d == 0:
                 m = _match_hop(inner, k)
                 if m is not None:
-                    hops.append((k, m[0], m[1], m[2]))
+                    hops.append((k, m[0], m[1], m[2], m[3]))
                     k += m[0]
                     continue
             k += 1
@@ -871,24 +923,25 @@ def _lower_edge_refs(tokens: list[Token]) -> list[Token]:
         if not origin:
             raise ParseError(f"line {tok.line}: edge reference needs an origin")
         cur = origin
-        for n, (k, length, direction, etype) in enumerate(hops):
+        for n, (k, length, direction, etype, flt) in enumerate(hops):
             end = k + length
             nxt = hops[n + 1][0] if n + 1 < len(hops) else len(inner)
-            if inner[end:nxt]:
+            last = n + 1 == len(hops)
+            trailing = inner[end:nxt]
+            if trailing and not last:
                 raise ParseError(
                     f"line {tok.line}: only plain typed hops are admitted in the seed subset"
                 )
-            last = n + 1 == len(hops)
-            cur = _osp_call(
-                "refs0",
-                [
-                    cur,
-                    [_tok(TT.NUMBER, str(direction), tok)],
-                    [_tok(TT.NAME, etype or "None", tok)],
-                    [_tok(TT.NAME, "True" if (edges_only and last) else "False", tok)],
-                ],
-                tok,
-            )
+            args = [
+                cur,
+                [_tok(TT.NUMBER, str(direction), tok)],
+                [_tok(TT.NAME, etype or "None", tok)],
+                [_tok(TT.NAME, "True" if (edges_only and last) else "False", tok)],
+                _lower_preds(flt, tok) if flt else [_tok(TT.NAME, "None", tok)],
+            ]
+            if trailing:
+                args.append(_lower_edge_refs(trailing))
+            cur = _osp_call("refs0", args, tok)
         out.extend(cur)
         i = j + 1
     return out

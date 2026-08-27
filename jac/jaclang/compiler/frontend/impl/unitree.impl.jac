@@ -1,14 +1,165 @@
 impl UniNode.postinit -> None {
-    self.parent = None;
-    self.kid = [x.set_parent(self) for x in self.kid];
     self.__sub_node_tab = None;
     self._in_mod_nodes = [];
     self._gen = None;
     self.ct_pruned = False;
+    if getattr(self, "_role_shapes", None) is None {
+        self._role_shapes = {};
+    }
     (first_tok, last_tok) = self.resolve_tok_range();
     self.loc = CodeLocInfo(first_tok, last_tok);
 }
 
+impl UniNode._attach(child: UniNode, role: str, in_kid: bool) -> None {
+    self +>:KidRole(in_kid=in_kid):+> child;
+}
+
+impl UniNode._link(kid: Sequence[UniNode], roles: dict[str, any]) -> None {
+    shapes: dict[str, str] = getattr(self, "_role_shapes", None) or {};
+    self._role_shapes = shapes;
+    role_of: dict[int, str] = {};
+    for (name, value) in roles.items() {
+        if value is None {
+            shapes[name] = "none";
+        } elif isinstance(value, (list, tuple)) {
+            shapes[name] = "many";
+            for v in value {
+                if isinstance(v, UniNode) {
+                    role_of[id(v)] = name;
+                }
+            }
+        } elif isinstance(value, UniNode) {
+            shapes[name] = "one";
+            role_of[id(value)] = name;
+        } else {
+            shapes[name] = "none";
+        }
+    }
+    attached: set[int] = set();
+    for k in kid {
+        if k is not None {
+            self._attach(k, role_of.get(id(k), "kid"), True);
+            attached.add(id(k));
+        }
+    }
+    for (name, value) in roles.items() {
+        vals = value if isinstance(value, (list, tuple)) else [value];
+        for v in vals {
+            if isinstance(v, UniNode) and id(v) not in attached {
+                self._attach(v, name, False);
+                attached.add(id(v));
+            }
+        }
+    }
+}
+
+impl UniNode._role_edges -> list[Role] {
+    return [edge self ->:Role:->];
+}
+
+impl UniNode._edge_target(e: Role) -> UniNode {
+    return getattr(e, "__jac__").target.archetype;
+}
+
+impl UniNode._role_pairs -> list[tuple[str, UniNode, bool]] {
+    return [(getattr(`type(e), "NAME", "kid"), self._edge_target(e), e.in_kid) for e in self._role_edges()];
+}
+
+impl UniNode.kid.getter -> list[UniNode] {
+    return [self ->:Role:in_kid == True:->];
+}
+
+impl UniNode.parent.getter -> (UniNode | None) {
+    found = [self <-:Role:<-];
+    return found[-1] if found else None;
+}
+
+impl UniNode._role_shaped(name: str, found: list[UniNode]) -> any {
+    shape = (getattr(self, "_role_shapes", None) or {}).get(name, "none");
+    if shape == "many" {
+        return found;
+    }
+    if shape == "one" {
+        return found[0] if found else None;
+    }
+    return None;
+}
+
+impl UniNode._reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, str]) -> None {
+    role_of: dict[int, str] = {};
+    for (name, n, in_kid) in self._role_pairs() {
+        if name != "kid" {
+            role_of[id(n)] = name;
+        }
+    }
+    role_of.update(roles);
+    wanted: set[int] = set();
+    for n in nodes {
+        if n is not None {
+            wanted.add(id(n));
+        }
+    }
+    for e in self._role_edges() {
+        if e.in_kid or id(self._edge_target(e)) in wanted {
+            del e;
+        }
+    }
+    for n in nodes {
+        if n is not None {
+            self._attach(n, role_of.get(id(n), "kid"), True);
+        }
+    }
+    self._invalidate_sub_node_tab();
+}
+
+impl UniNode._role_set(name: str, value: any) -> None {
+    shapes: dict[str, str] = getattr(self, "_role_shapes", None) or {};
+    self._role_shapes = shapes;
+    if value is None {
+        shapes[name] = "none";
+        vals: list = [];
+    } elif isinstance(value, (list, tuple)) {
+        shapes[name] = "many";
+        vals = [v for v in value if isinstance(v, UniNode)];
+    } else {
+        shapes[name] = "one";
+        vals = [value];
+    }
+    keep: set[int] = set();
+    for v in vals {
+        keep.add(id(v));
+    }
+    kids_before = self.kid;
+    demoted: dict[int, str] = {};
+    already: set[int] = set();
+    for e in self._role_edges() {
+        tgt = self._edge_target(e);
+        if getattr(`type(e), "NAME", "kid") != name {
+            continue;
+        }
+        if id(tgt) in keep {
+            already.add(id(tgt));
+            continue;
+        }
+        if e.in_kid {
+            demoted[id(tgt)] = "kid";
+        }
+        del e;
+    }
+    if demoted {
+        self._reconnect_kids(kids_before, demoted);
+    }
+    for v in vals {
+        if id(v) not in already {
+            self._attach(v, name, False);
+        }
+    }
+    self._invalidate_sub_node_tab();
+}
+
+impl UniNode.link_impl(impl_node: UniNode) -> None {
+    self +>:ImplOf:+> impl_node;
+}
 
 impl UniNode._sub_node_tab.getter -> dict[(type, list[UniNode])] {
     if (self.__sub_node_tab is None) {
@@ -65,73 +216,93 @@ impl UniNode.sym_tab.getter -> UniScopeNode {
 }
 
 impl UniNode.add_kids_left(
-    nodes: Sequence[UniNode], pos_update: bool = True, parent_update: bool = False
+    nodes: Sequence[UniNode],
+    pos_update: bool = True,
+    parent_update: bool = False,
+    role: str = "kid"
 ) -> UniNode {
-    new_kid: list[UniNode] = [];
-    new_kid.extend(nodes);
-    new_kid.extend(self.kid);
-    self.kid = new_kid;
-    if pos_update {
-        for i in nodes {
-            i.parent = self;
-        }
-        self.loc.update_first_token(self.kid[0].loc.first_tok);
-    } elif parent_update {
-        for i in nodes {
-            i.parent = self;
-        }
-    }
-    self._invalidate_sub_node_tab();
+    self.set_kids(
+        [*nodes, *self.kid],
+        pos_update=pos_update,
+        roles={id(n): role for n in nodes} if role != "kid" else None
+    );
     return self;
 }
 
 impl UniNode.add_kids_right(
-    nodes: Sequence[UniNode], pos_update: bool = True, parent_update: bool = False
+    nodes: Sequence[UniNode],
+    pos_update: bool = True,
+    parent_update: bool = False,
+    role: str = "kid"
 ) -> UniNode {
-    new_kid: list[UniNode] = [];
-    new_kid.extend(self.kid);
-    new_kid.extend(nodes);
-    self.kid = new_kid;
-    if pos_update {
-        for i in nodes {
-            i.parent = self;
-        }
-        self.loc.update_last_token(self.kid[-1].loc.last_tok);
-    } elif parent_update {
-        for i in nodes {
-            i.parent = self;
-        }
-    }
-    self._invalidate_sub_node_tab();
+    self.set_kids(
+        [*self.kid, *nodes],
+        pos_update=pos_update,
+        roles={id(n): role for n in nodes} if role != "kid" else None
+    );
     return self;
 }
 
 impl UniNode.insert_kids_at_pos(
-    nodes: Sequence[UniNode], pos: int, pos_update: bool = True
+    nodes: Sequence[UniNode], pos: int, pos_update: bool = True, role: str = "kid"
 ) -> UniNode {
-    self.kid = [*self.kid[:pos], *nodes, *self.kid[pos:]];
-    if pos_update {
-        for i in nodes {
-            i.parent = self;
-        }
-        self.loc.update_token_range(*self.resolve_tok_range());
-    }
-    self._invalidate_sub_node_tab();
+    cur = self.kid;
+    self.set_kids(
+        [*cur[:pos], *nodes, *cur[pos:]],
+        pos_update=pos_update,
+        roles={id(n): role for n in nodes} if role != "kid" else None
+    );
     return self;
 }
 
-impl UniNode.set_kids(nodes: Sequence[UniNode]) -> UniNode {
-    self.kid = [*nodes];
-    for i in nodes {
-        i.parent = self;
+impl UniNode.set_kids(
+    nodes: Sequence[UniNode], pos_update: bool = True, roles: (dict[int, str] | None) = None
+) -> UniNode {
+    self._reconnect_kids(nodes, roles or {});
+    if pos_update {
+        self.loc.update_token_range(*self.resolve_tok_range());
     }
-    self.loc.update_token_range(*self.resolve_tok_range());
-    self._invalidate_sub_node_tab();
     return self;
+}
+
+impl UniNode.replace_kid(old: UniNode, new: UniNode) -> UniNode {
+    role = "kid";
+    for (name, n, in_kid) in self._role_pairs() {
+        if n is old {
+            role = name;
+        }
+    }
+    self._reconnect_kids([new if k is old else k for k in self.kid], {id(new): role});
+    return self;
+}
+
+impl UniNode.detached_copy -> UniNode {
+    import copy;
+    me = getattr(self, "__jac__");
+    saved: list = [];
+    for ea in `list(me.edges) {
+        if ea.target is me and isinstance(ea.archetype, Role) {
+            src = ea.source;
+            saved.append((ea, src, src.edges.index(ea), me.edges.index(ea)));
+        }
+    }
+    for (ea, src, si, ti) in reversed(saved) {
+        src.edges.remove(ea);
+        me.edges.remove(ea);
+    }
+    try {
+        dup = copy.deepcopy(self);
+    } finally {
+        for (ea, src, si, ti) in saved {
+            src.edges.insert(si, ea);
+            me.edges.insert(ti, ea);
+        }
+    }
+    return dup;
 }
 
 impl UniNode.set_parent(parent: UniNode) -> UniNode {
-    self.parent = parent;
+    parent +>:KidRole(in_kid=False):+> self;
     return self;
 }
 
@@ -620,7 +791,7 @@ impl UniScopeNode.__repr__ -> str {
 }
 
 impl AstDocNode.set_doc(elem_doc: (String | None)) -> None {
-    self.doc = elem_doc;
+    self._role_set("doc", elem_doc);
 }
 
 
@@ -919,8 +1090,7 @@ impl Module.annexable_by.getter -> (str | None) {
 }
 
 impl ProgramModule.postinit -> None {
-    self.main = self.main_mod or Module.make_stub();
-    self.kid = [self.main];
+    self._link([self.main_mod or Module.make_stub()], {"main": self.main_mod or Module.make_stub()});
     UniNode.postinit(self);
     self.hub = {self.loc.mod_path: self.main_mod} if self.main_mod else {};
 }
@@ -938,12 +1108,6 @@ impl TypeParam.postinit -> None {
 
 
 impl TypeAlias.postinit -> None {
-    _tp = self.type_params;
-    if _tp is not None {
-        self.type_params = `list(_tp);
-    } else {
-        self.type_params = [];
-    }
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -966,11 +1130,10 @@ impl GlobalVars.postinit -> None {
 
 impl Test.postinit -> None {
     name_node = self.name;
-    name_node.parent = self;
+    name_node.set_parent(self);
     name_node._sym_name = f"test_{name_node.value}"
         if not name_node.value.startswith('test_')
         else name_node.value;
-    self.body = `list(self.body);
     UniNode.postinit(self);
 
     if (self.description is None and name_node not in self.kid) {
@@ -1002,7 +1165,6 @@ impl PyInlineCode.postinit -> None {
 
 
 impl Import.postinit -> None {
-    self.hint = None;
     self.absorbed_mod = None;
     self.jac_detected = None;
     self.boundary_facts = None;
@@ -1274,24 +1436,6 @@ impl ModuleItem.resolve_relative_path -> str {
 }
 
 impl Archetype.postinit -> None {
-    _bc = self.base_classes;
-    if _bc is not None {
-        self.base_classes = `list(_bc);
-    } else {
-        self.base_classes = [];
-    }
-    _kw = self.keywords;
-    if _kw is not None {
-        self.keywords = `list(_kw);
-    } else {
-        self.keywords = [];
-    }
-    _tp = self.type_params;
-    if _tp is not None {
-        self.type_params = `list(_tp);
-    } else {
-        self.type_params = [];
-    }
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -1371,7 +1515,6 @@ impl Archetype.get_methods -> list[Ability] {
 }
 
 impl ImplDef.postinit -> None {
-    self.spec = `list(self.spec) if isinstance(self.spec, list) else self.spec;
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -1397,7 +1540,7 @@ impl ImplDef.create_impl_name_node -> Name {
         pos_start=self.target[0].loc.pos_start,
         pos_end=self.target[-1].loc.pos_end
     );
-    ret.parent = self;
+    ret.set_parent(self);
     return ret;
 }
 
@@ -1426,17 +1569,11 @@ impl SemDef.create_sem_name_node -> Name {
         pos_start=self.target[0].loc.pos_start,
         pos_end=self.target[-1].loc.pos_end
     );
-    ret.parent = self;
+    ret.set_parent(self);
     return ret;
 }
 
 impl Enum.postinit -> None {
-    _bc = self.base_classes;
-    if _bc is not None {
-        self.base_classes = `list(_bc);
-    } else {
-        self.base_classes = [];
-    }
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -1479,7 +1616,7 @@ impl Ability.postinit -> None {
             is_enum_stmt=False
         );
         name_spec_for_init: (Name | NameAtom) = synthetic_name_ref;
-        self.name_ref = synthetic_name_ref;
+        self._role_set("name_ref", synthetic_name_ref);
     } else {
         name_spec_for_init = self.name_ref;
     }
@@ -1598,14 +1735,6 @@ impl Ability.event_trigger_type_names -> (list[str] | None) {
 }
 
 impl FuncSignature.postinit -> None {
-    self.posonly_params = `list(self.posonly_params);
-    _ps = self.params;
-    if _ps is not None {
-        self.params = `list(_ps);
-    } else {
-        self.params = [];
-    }
-    self.kwonlyargs = `list(self.kwonlyargs);
     UniNode.postinit(self);
 }
 
@@ -1680,7 +1809,6 @@ impl ParamVar.is_kwargs.getter -> bool {
 }
 
 impl ArchHas.postinit -> None {
-    self.vars = `list(self.vars);
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
 }
@@ -1707,7 +1835,6 @@ impl TypedCtxBlock.postinit -> None {
 
 
 impl OpenStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1715,7 +1842,6 @@ impl OpenStmt.postinit -> None {
 
 
 impl IfStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1723,7 +1849,6 @@ impl IfStmt.postinit -> None {
 
 
 impl ElseStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
 }
@@ -1736,8 +1861,6 @@ impl ExprStmt.postinit -> None {
 
 
 impl TryStmt.postinit -> None {
-    self.body = `list(self.body);
-    self.excepts = `list(self.excepts);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1745,7 +1868,6 @@ impl TryStmt.postinit -> None {
 
 
 impl Except.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1753,7 +1875,6 @@ impl Except.postinit -> None {
 
 
 impl FinallyStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1761,7 +1882,6 @@ impl FinallyStmt.postinit -> None {
 
 
 impl AwaitingClause.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1769,7 +1889,6 @@ impl AwaitingClause.postinit -> None {
 
 
 impl IterForStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1777,7 +1896,6 @@ impl IterForStmt.postinit -> None {
 
 
 impl InForStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1785,7 +1903,6 @@ impl InForStmt.postinit -> None {
 
 
 impl WhileStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1793,7 +1910,6 @@ impl WhileStmt.postinit -> None {
 
 
 impl ForeverStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1801,7 +1917,6 @@ impl ForeverStmt.postinit -> None {
 
 
 impl WithStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1875,7 +1990,6 @@ impl CastExpr.postinit -> None {
 
 
 impl Assignment.postinit -> None {
-    self.target = `list(self.target);
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
 }
@@ -1906,10 +2020,6 @@ impl BoolExpr.postinit -> None {
 
 
 impl LambdaExpr.postinit -> None {
-    lam_body = self.body;
-    if isinstance(lam_body, list) {
-        self.body = `list(lam_body);
-    }
     UniNode.postinit(self);
     Expr.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
@@ -1997,7 +2107,6 @@ impl MultiString.lit_value.getter -> str | bytes {
 
 
 impl FString.postinit -> None {
-    self.parts = `list(self.parts);
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.STRING);
@@ -2018,12 +2127,6 @@ impl ListVal.postinit -> None {
 
 
 impl SetVal.postinit -> None {
-    _vals = self.values;
-    if _vals is not None {
-        self.values = `list(_vals);
-    } else {
-        self.values = [];
-    }
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.SEQUENCE);
@@ -2031,7 +2134,6 @@ impl SetVal.postinit -> None {
 
 
 impl TupleVal.postinit -> None {
-    self.values = `list(self.values);
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.SEQUENCE);
@@ -2118,12 +2220,6 @@ impl YieldExpr.postinit -> None {
 
 
 impl FuncCall.postinit -> None {
-    _ps = self.params;
-    if _ps is not None {
-        self.params = `list(_ps);
-    } else {
-        self.params = [];
-    }
     self.callee_decl = None;
     UniNode.postinit(self);
     Expr.postinit(self);
@@ -2168,7 +2264,6 @@ impl ConnectOp.postinit -> None {
 
 
 impl FilterCompr.postinit -> None {
-    self.compares = `list(self.compares);
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.SEQUENCE);
@@ -2176,7 +2271,6 @@ impl FilterCompr.postinit -> None {
 
 
 impl AssignCompr.postinit -> None {
-    self.assigns = `list(self.assigns);
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.SEQUENCE);
@@ -2184,18 +2278,6 @@ impl AssignCompr.postinit -> None {
 
 
 impl JsxElement.postinit -> None {
-    _attrs = self.attributes;
-    if _attrs is not None {
-        self.attributes = `list(_attrs);
-    } else {
-        self.attributes = [];
-    }
-    _ch = self.children;
-    if _ch is not None {
-        self.children = `list(_ch);
-    } else {
-        self.children = [];
-    }
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.OBJECT_ARCH);
@@ -2233,7 +2315,6 @@ impl JsxElement.get_body_end_line -> (int | None) {
 }
 
 impl JsxElementName.postinit -> None {
-    self.parts = `list(self.parts);
     UniNode.postinit(self);
 }
 
@@ -2379,18 +2460,6 @@ impl MatchStar.postinit -> None {
 
 
 impl MatchArch.postinit -> None {
-    _ap = self.arg_patterns;
-    if _ap is not None {
-        self.arg_patterns = `list(_ap);
-    } else {
-        self.arg_patterns = None;
-    }
-    _kp = self.kw_patterns;
-    if _kp is not None {
-        self.kw_patterns = `list(_kp);
-    } else {
-        self.kw_patterns = None;
-    }
     UniNode.postinit(self);
 }
 
@@ -2416,7 +2485,6 @@ impl Token.init(
     self.pos_start = pos_start;
     self.pos_end = pos_end;
     self._is_synthetic = False;
-    self.kid = [];
     UniNode.postinit(self);
 }
 
@@ -2654,7 +2722,7 @@ impl CommentToken.init(
         pos_start=pos_start,
         pos_end=pos_end
     );
-    self.kid = [x.set_parent(self) for x in kid];
+    self._link(kid, {});
     (first_tok, last_tok) = self.resolve_tok_range();
     self.loc = CodeLocInfo(first_tok, last_tok);
 }

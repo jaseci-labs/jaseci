@@ -3355,7 +3355,9 @@ impl JcirGenPass.translate_jac_bin_op(nd: BinaryExpr) -> list {
             genai_call=None,
             kid=nd.kid
         );
-        func_node.parent = nd.parent;
+        if nd.parent is not None {
+            func_node.set_parent(nd.parent);
+        }
         self.exit_func_call(func_node);
         return self.outs(func_node);
     } elif (nd.op.name in [Tok.KW_SPAWN]) {
@@ -3375,7 +3377,9 @@ impl JcirGenPass.translate_jac_bin_op(nd: BinaryExpr) -> list {
             genai_call=None,
             kid=nd.kid
         );
-        func_node.parent = nd.parent;
+        if nd.parent is not None {
+            func_node.set_parent(nd.parent);
+        }
         self.exit_func_call(func_node);
         return self.outs(func_node);
     } elif (nd.op.name in [Tok.KW_BY]) {

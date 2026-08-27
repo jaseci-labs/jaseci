@@ -24,14 +24,8 @@ impl UniPass.prune -> None {
 }
 
 impl UniPass.recalculate_parents(nd: UniNode) -> None {
-    if not nd {
-        return;
-    }
-    for i in nd.kid {
-        if i {
-            i.parent = nd;
-            self.recalculate_parents(i);
-        }
+    if nd {
+        nd._invalidate_sub_node_tab();
     }
 }
 

@@ -139,7 +139,7 @@ def missing_accept_decls(enter: list[str], exits: list[str]) -> list {
         (verb, kinds) = `entry;
         for node in kinds {
             m = re.search(
-                "obj " + re.escape(node) + r"(?:\[[^\]]*\])?\([^\n]*\{([\s\S]*?)\n\}",
+                r"(?:obj|node) " + re.escape(node) + r"(?:\[[^\]]*\])?\([^\n]*\{([\s\S]*?)\n\}",
                 src
             );
             body = m.group(1) if m else "";

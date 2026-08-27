@@ -239,7 +239,10 @@ glob _COMPILER_DIGEST_CACHE: list = [];
 
 def running_compiler_digest -> str {
     if not _COMPILER_DIGEST_CACHE {
-        _COMPILER_DIGEST_CACHE.append(compiler_source_digest(_jaclang_pkg_dir));
+        pinned = os.environ.get("JAC_COMPILER_DIGEST_PIN", "").strip();
+        _COMPILER_DIGEST_CACHE.append(
+            f"pin:{pinned}" if pinned else compiler_source_digest(_jaclang_pkg_dir)
+        );
     }
     return _COMPILER_DIGEST_CACHE[0];
 }

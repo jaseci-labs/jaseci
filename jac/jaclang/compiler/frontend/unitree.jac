@@ -21,42 +21,168 @@ import from jaclang.compiler.frontend.constant { JacSemTokenType as SemTokType }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.frontend.constant { ParamKind }
 import type from jaclang.compiler.types.types { TypeBase }
+import from jaclang.compiler.frontend.roles {
+    Role,
+    KidRole,
+    ImplOf,
+    AccessRole,
+    AccessorsRole,
+    AliasRole,
+    ArchTagInfoRole,
+    ArchTypeRole,
+    ArgPatternsRole,
+    AssignmentsRole,
+    AssignsRole,
+    AttributesRole,
+    AugOpRole,
+    AwaitingBodyRole,
+    BaseClassesRole,
+    BodyRole,
+    BoundRole,
+    CasesRole,
+    CastTypeRole,
+    CauseRole,
+    ChainRole,
+    ChildrenRole,
+    ClibDeclsRole,
+    CodeRole,
+    CollectionRole,
+    ComparesRole,
+    ComprRole,
+    ConditionRole,
+    ConditionalRole,
+    ConnAssignRole,
+    ConnTypeRole,
+    CountByRole,
+    CtrlRole,
+    DecoratorsRole,
+    DefaultValRole,
+    DescriptionRole,
+    DocRole,
+    DynamicTagRole,
+    EdgeSpecRole,
+    ElseBodyRole,
+    ElseValueRole,
+    EndRole,
+    ErrorMsgRole,
+    EventRole,
+    ExTypeRole,
+    ExceptsRole,
+    ExprRole,
+    ExprsRole,
+    FTypeRole,
+    FilterCondRole,
+    FinallyBodyRole,
+    FormatPartRole,
+    FormatSpecRole,
+    FromLocRole,
+    FromTargetRole,
+    GuardRole,
+    HintRole,
+    InsertLocRole,
+    ItemsRole,
+    IterRole,
+    KeyRole,
+    KeywordsRole,
+    KvPairRole,
+    KvPairsRole,
+    KwPatternsRole,
+    KwargsRole,
+    KwonlyargsRole,
+    LeftRole,
+    MainRole,
+    NameRole,
+    NameRefRole,
+    OpRole,
+    OperandRole,
+    OpsRole,
+    OutExprRole,
+    ParamsRole,
+    PartsRole,
+    PathRole,
+    PatternRole,
+    PatternsRole,
+    PosonlyParamsRole,
+    ReturnTypeRole,
+    RightRole,
+    RightsRole,
+    SignatureRole,
+    SlicesRole,
+    SpecRole,
+    SrcEndpointRole,
+    StartRole,
+    StepRole,
+    StopRole,
+    StringsRole,
+    TargetRole,
+    TgtEndpointRole,
+    TokRole,
+    TypeCtxRole,
+    TypeParamsRole,
+    TypeTagRole,
+    UnpackRole,
+    ValueRole,
+    ValueTypeRole,
+    ValuesRole,
+    VarargsRole,
+    VarsRole
+}
 
 
-obj UniNode {
-    has kid: Sequence[UniNode] = [],
-        parent: (UniNode | None) postinit,
-        __sub_node_tab: (dict[(type, list[UniNode])] | None) postinit,
-        _in_mod_nodes: list[UniNode] postinit,
+node UniNode {
+    has _in_mod_nodes: list[UniNode] postinit,
         _gen: (CodeGenTarget | None) postinit,
         loc: CodeLocInfo postinit,
+        _role_shapes: (dict[str, str] | None) postinit,
+        __sub_node_tab: (dict[(type, list[UniNode])] | None) postinit,
         ct_pruned: bool postinit;
 
     def postinit -> None;
     def accept_enter(v: UniPass) -> None;
     def accept_exit(v: UniPass) -> None;
 
+    has kid: list[UniNode] { getter; }
+    has parent: (UniNode | None) { getter; }
     has gen: CodeGenTarget { getter; setter(value: CodeGenTarget); }
     has _sub_node_tab: dict[(type, list[UniNode])] { getter; }
 
+    def _link(kid: Sequence[UniNode], roles: dict[str, any]) -> None;
+    def detached_copy -> UniNode;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def _role_edges -> list[Role];
+    def _edge_target(e: Role) -> UniNode;
+    def _role_pairs -> list[tuple[str, UniNode, bool]];
+    def _role_shaped(name: str, found: list[UniNode]) -> any;
+    def _role_set(name: str, value: any) -> None;
+    def _reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, str]) -> None;
+    def link_impl(impl_node: UniNode) -> None;
     def _construct_sub_node_tab -> None;
     def _invalidate_sub_node_tab -> None;
 
     has sym_tab: UniScopeNode { getter; }
 
     def add_kids_left(
-        nodes: Sequence[UniNode], pos_update: bool = True, parent_update: bool = False
+        nodes: Sequence[UniNode],
+        pos_update: bool = True,
+        parent_update: bool = False,
+        role: str = "kid"
     ) -> UniNode;
 
     def add_kids_right(
-        nodes: Sequence[UniNode], pos_update: bool = True, parent_update: bool = False
+        nodes: Sequence[UniNode],
+        pos_update: bool = True,
+        parent_update: bool = False,
+        role: str = "kid"
     ) -> UniNode;
 
     def insert_kids_at_pos(
-        nodes: Sequence[UniNode], pos: int, pos_update: bool = True
+        nodes: Sequence[UniNode], pos: int, pos_update: bool = True, role: str = "kid"
     ) -> UniNode;
 
-    def set_kids(nodes: Sequence[UniNode]) -> UniNode;
+    def set_kids(
+        nodes: Sequence[UniNode], pos_update: bool = True, roles: (dict[int, str] | None) = None
+    ) -> UniNode;
+    def replace_kid(old: UniNode, new: UniNode) -> UniNode;
     def set_parent(parent: UniNode) -> UniNode;
     def resolve_tok_range -> tuple[(Token, Token)];
     def gen_token(name: Tok, value: (str | None) = None) -> Token;
@@ -95,6 +221,7 @@ obj UniNode {
     def in_client_context -> bool;
     def in_native_context -> bool;
     def flatten -> list[UniNode];
+    def __repr__ -> str;
 }
 
 obj Symbol {
@@ -137,7 +264,7 @@ obj InheritedSymbolTable {
         symbols: list[str] = [];
 }
 
-obj UniScopeNode(UniNode) {
+node UniScopeNode(UniNode) {
     has scope_name: str postinit,
         parent_scope: (UniScopeNode | None) postinit,
         kid_scope: list[UniScopeNode] postinit,
@@ -185,9 +312,10 @@ obj UniScopeNode(UniNode) {
     def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
     def _fix_store_ctx(item: UniNode) -> None;
     def __repr__ -> str;
+    def init(*, kid: Sequence[UniNode] = []) -> None;
 }
 
-obj AstSymbolNode(UniNode) {
+node AstSymbolNode(UniNode) {
     has name_spec: NameAtom postinit,
         semstr: str postinit;
 
@@ -200,68 +328,94 @@ obj AstSymbolNode(UniNode) {
     has sym_category: SymbolType { getter; }
     has expr_ctx: ExprCtx { getter; }
     has type_sym_tab: (UniScopeNode | None) { getter; }
+    def init(*, kid: Sequence[UniNode] = []) -> None;
+    def __repr__ -> str;
 }
 
-obj AstSymbolStubNode(AstSymbolNode) {
+node AstSymbolStubNode(AstSymbolNode) {
     def _init_stub(sym_type: SymbolType) -> None;
+    def init(*, kid: Sequence[UniNode] = []) -> None;
+    def __repr__ -> str;
 }
 
-obj AstAccessNode(UniNode) {
-    has access: (SubTag[Token] | None) = None;
+node AstAccessNode(UniNode) {
+    has access: (SubTag[Token] | None) { getter; }
     has access_type: SymbolAccess { getter; }
     has public_access: bool { getter; }
+    def init(*, access: (SubTag[Token] | None) = None, kid: Sequence[UniNode] = []) -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ContextAwareNode(UniNode) {
+node ContextAwareNode(UniNode) {
     has code_context: CodeContext postinit,
         codespace_dual: bool = False;
+    def init(*, codespace_dual: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def __repr__ -> str;
 }
 
-obj AstDocNode(UniNode) {
-    has doc: (String | None) = None;
+node AstDocNode(UniNode) {
+    has doc: (String | None) { getter; }
 
     def set_doc(elem_doc: (String | None)) -> None;
+    def init(*, doc: (String | None) = None, kid: Sequence[UniNode] = []) -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj AstAsyncNode(UniNode) {
+node AstAsyncNode(UniNode) {
     has is_async: bool = False;
+    def init(*, is_async: bool = False, kid: Sequence[UniNode] = []) -> None;
+    def __repr__ -> str;
 }
 
-obj AstElseBodyNode(UniNode) {
-    has else_body: (ElseStmt | ElseIf | None) = None;
+node AstElseBodyNode(UniNode) {
+    has else_body: (ElseStmt | ElseIf | None) { getter; }
+    def init(*, else_body: (ElseStmt | ElseIf | None) = None, kid: Sequence[UniNode] = []) -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj AstTypedVarNode(UniNode) {
-    has type_tag: (SubTag[Expr] | None) = None,
-        type: (TypeBase | None) = None;
+node AstTypedVarNode(UniNode) {
+    has type: (TypeBase | None) = None;
+    has type_tag: (SubTag[Expr] | None) { getter; }
+    def init(*, type_tag: (SubTag[Expr] | None) = None, type: (TypeBase | None) = None, kid: Sequence[UniNode] = []) -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj WalkerStmtOnlyNode(UniNode) {
+node WalkerStmtOnlyNode(UniNode) {
     has from_walker: bool postinit;
+    def init(*, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def __repr__ -> str;
 }
 
-obj UniCFGNode(UniNode) {
+node UniCFGNode(UniNode) {
     has bb_in: list[UniCFGNode] postinit,
         bb_out: list[UniCFGNode] postinit,
         affected_symbols: set[str] postinit;
+    def init(*, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
     def get_head -> UniCFGNode;
     def get_tail -> UniCFGNode;
+    def __repr__ -> str;
 }
 
-obj ConditionalNode(UniCFGNode) {
+node ConditionalNode(UniCFGNode) {
     has sc_true_target: (UniCFGNode | None) = None,
         sc_false_target: (UniCFGNode | None) = None;
+    def init(*, sc_true_target: (UniCFGNode | None) = None, sc_false_target: (UniCFGNode | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def __repr__ -> str;
 }
 
-obj Expr(UniNode) {
+node Expr(UniNode) {
     has _type_sym_tab: (UniScopeNode | None) postinit,
         type: (TypeBase | None) postinit,
         narrowed_type: (TypeBase | None) postinit,
@@ -270,6 +424,7 @@ obj Expr(UniNode) {
         fw: (str | None) postinit,
         fw_safe: bool postinit,
         attached_tokens: (list[Token] | None) postinit;
+    def init(*, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
 
@@ -277,43 +432,55 @@ obj Expr(UniNode) {
         getter;
         setter(type_sym_tab: UniScopeNode);
     }
+    def __repr__ -> str;
 }
 
-obj CfgExpr(Expr, ConditionalNode) {
+node CfgExpr(Expr, ConditionalNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has expr: Expr;
+    has expr: Expr { getter; }
+    def init(*, sc_true_target: (UniCFGNode | None) = None, sc_false_target: (UniCFGNode | None) = None, expr: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj AtomExpr(Expr, AstSymbolStubNode) {}
+node AtomExpr(Expr, AstSymbolStubNode) {}
 
-obj ElementStmt(AstDocNode) {}
+node ElementStmt(AstDocNode) {}
 
-obj ArchBlockStmt(UniNode) {}
+node ArchBlockStmt(UniNode) {}
 
-obj EnumBlockStmt(UniNode) {
+node EnumBlockStmt(UniNode) {
     has is_enum_stmt: bool = False;
+    def init(*, is_enum_stmt: bool = False, kid: Sequence[UniNode] = []) -> None;
+    def __repr__ -> str;
 }
 
-obj CodeBlockStmt(UniCFGNode) {
+node CodeBlockStmt(UniCFGNode) {
+    def init(*, kid: Sequence[UniNode] = []) -> None;
     def postinit -> None;
+    def __repr__ -> str;
 }
 
-obj AstImplNeedingNode(AstSymbolNode) {
-    has body: (Sequence[UniNode] | UniNode | None);
+node AstImplNeedingNode(AstSymbolNode) {
+    has body: (Sequence[UniNode] | UniNode | None) { getter; }
     has needs_impl: bool { getter; }
+    def init(*, body: (Sequence[UniNode] | UniNode | None), kid: Sequence[UniNode] = []) -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj NameAtom(AtomExpr, EnumBlockStmt) {
+node NameAtom(AtomExpr, EnumBlockStmt) {
     has name_of: AstSymbolNode postinit,
         _sym: (Symbol | None) postinit,
         _sym_name: str postinit,
         _sym_category: SymbolType postinit,
         _expr_ctx: ExprCtx postinit,
         is_getattr_resolved: bool = False;
+    def init(*, is_enum_stmt: bool = False, is_getattr_resolved: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
 
@@ -334,51 +501,77 @@ obj NameAtom(AtomExpr, EnumBlockStmt) {
     has clean_type: str { getter; }
     has expr_ctx: ExprCtx { getter; setter(expr_ctx: ExprCtx); }
     has sem_token: (tuple[(SemTokType, SemTokMod)] | None) { getter; }
+    def __repr__ -> str;
 }
 
-obj ArchSpec(ElementStmt, CodeBlockStmt, AstSymbolNode, AstAsyncNode, AstDocNode) {
-    has decorators: (Sequence[Expr] | None);
+node ArchSpec(ElementStmt, CodeBlockStmt, AstSymbolNode, AstAsyncNode, AstDocNode) {
+    has decorators: (Sequence[Expr] | None) { getter; }
+    def init(*, doc: (String | None) = None, is_async: bool = False, decorators: (Sequence[Expr] | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchPattern(UniNode) {}
+node MatchPattern(UniNode) {}
 
-obj SubTag[T](UniNode) {
+node SubTag[T](UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
     has tag: T,
+
         ownership: OwnershipKind = OwnershipKind.NONE;
+    def init(*, tag: T, ownership: OwnershipKind = OwnershipKind.NONE, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def __repr__ -> str;
 }
 
-obj Module(AstDocNode, UniScopeNode) {
+node Module(AstDocNode, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
     has name: str,
+
         source: Source,
-        body: Sequence[ElementStmt | String | EmptyToken],
+
         terminals: list[Token],
+
         stub_only: bool = False,
+
         src_terminals: list[Token] = [],
+
         is_raised_from_py: bool = False,
+
         decided_codespace: str = "",
+
         parse_failed: bool = False,
+
         mobui_enforced_root: (str | None) = None,
+
         jac_project_root: (str | None) = None,
+
         access_enforced: bool = False,
         ct_resolved: bool = False,
         ct_file_deps: list[str] postinit,
+
         native_viols_reported: bool = False,
+
         client_viols_reported: bool = False,
+
         rc_last_use: dict[int, list[str]] postinit,
+
         rc_move_in: set[int] postinit,
+
         anon_region_open: dict[int, int] postinit,
+
         anon_region_close: dict[int, int] postinit,
+
         anon_region_locals: dict[int, list[str]] postinit;
+
+    has body: Sequence[ElementStmt | String | EmptyToken] { getter; }
+    def init(*, doc: (String | None) = None, name: str, source: Source, body: Sequence[ElementStmt | String | EmptyToken], terminals: list[Token], stub_only: bool = False, src_terminals: list[Token] = [], is_raised_from_py: bool = False, decided_codespace: str = "", parse_failed: bool = False, mobui_enforced_root: (str | None) = None, jac_project_root: (str | None) = None, access_enforced: bool = False, ct_resolved: bool = False, native_viols_reported: bool = False, client_viols_reported: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
 
@@ -398,79 +591,113 @@ obj Module(AstDocNode, UniScopeNode) {
             kid=[EmptyToken()]
         );
     }
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ProgramModule(UniNode) {
+node ProgramModule(UniNode) {
     has main_mod: (Module | None) = None,
-        main: Module postinit,
         hub: dict[(str, Module)] postinit;
+    has main: Module { getter; }
+    def init(*, main_mod: (Module | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj TypeParam(AstSymbolNode, UniNode) {
+node TypeParam(AstSymbolNode, UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
-        bound: (Expr | None),
-        default_val: (Expr | None),
-        is_comptime: bool = False;
+    has name: Name { getter; }
+
+    has bound: (Expr | None) { getter; }
+
+    has default_val: (Expr | None) { getter; }
+
+    has is_comptime: bool = False;
+    def init(*, name: Name, bound: (Expr | None), default_val: (Expr | None), is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
+node TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
-        type_params: (Sequence[TypeParam] | None),
-        value: Expr,
-        is_distinct: bool = False;
+    has is_distinct: bool = False;
+
+    has name: Name { getter; }
+
+    has type_params: (Sequence[TypeParam] | None) { getter; }
+
+    has value: Expr { getter; }
+    def init(*, doc: (String | None) = None, access: (SubTag[Token] | None) = None, codespace_dual: bool = False, name: Name, type_params: (Sequence[TypeParam] | None), value: Expr, is_distinct: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode, ArchBlockStmt, CodeBlockStmt) {
+node GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode, ArchBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has assignments: Sequence[Assignment],
-        is_frozen: bool;
+    has is_frozen: bool;
+
+    has assignments: Sequence[Assignment] { getter; }
+    def init(*, access: (SubTag[Token] | None) = None, doc: (String | None) = None, codespace_dual: bool = False, assignments: Sequence[Assignment], is_frozen: bool, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNode) {
+node Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
-        body: Sequence[CodeBlockStmt],
-        description: (String | None) = None,
-        decorators: (Sequence[Expr] | None) = None;
+    has name: Name { getter; }
+
+    has body: Sequence[CodeBlockStmt] { getter; }
+
+    has description: (String | None) { getter; }
+
+    has decorators: (Sequence[Expr] | None) { getter; }
+    def init(*, doc: (String | None) = None, codespace_dual: bool = False, name: Name, body: Sequence[CodeBlockStmt], description: (String | None) = None, decorators: (Sequence[Expr] | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
+node ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (Name | None),
-        body: Sequence[CodeBlockStmt];
+    has name: (Name | None) { getter; }
+
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, is_enum_stmt: bool = False, doc: (String | None) = None, codespace_dual: bool = False, name: (Name | None), body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
+node PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has code: Token;
+    has code: Token { getter; }
+    def init(*, is_enum_stmt: bool = False, doc: (String | None) = None, code: Token, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
 obj ImportBoundaryFacts {
@@ -488,21 +715,30 @@ obj ImportBoundaryFacts {
         bridged_decls: dict[(str, Ability)] = {};
 }
 
-obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
+node Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has from_loc: (ModulePath | None),
-        items: Sequence[(ModuleItem | ModulePath)],
-        is_absorb: bool,
+    has is_absorb: bool,
         is_typed: bool = False,
-        clib_decls: (Sequence[UniNode] | None) = None,
         is_comptime: bool = False,
-        hint: (SubTag[Token] | None) postinit,
+
         absorbed_mod: (Module | None) postinit,
+
         jac_detected: (bool | None) postinit,
+
         boundary_facts: (ImportBoundaryFacts | None) postinit,
+
         native_only_drop: bool postinit;
+
+    has from_loc: (ModulePath | None) { getter; }
+
+    has items: Sequence[(ModuleItem | ModulePath)] { getter; }
+
+    has clib_decls: (Sequence[UniNode] | None) { getter; }
+
+    has hint: (SubTag[Token] | None) { getter; }
+    def init(*, doc: (String | None) = None, codespace_dual: bool = False, from_loc: (ModulePath | None), items: Sequence[(ModuleItem | ModulePath)], is_absorb: bool, is_typed: bool = False, clib_decls: (Sequence[UniNode] | None) = None, is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
 
@@ -513,16 +749,22 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     has is_service_import: bool { getter; }
     has is_virtual_jac: bool { getter; }
     has ecosystem: str { getter; }
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ModulePath(UniNode) {
+node ModulePath(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has path: (Sequence[(Name | String)] | None),
-        level: int,
-        alias: (Name | None),
+    has level: int,
+
         abs_path: (str | None) postinit;
+
+    has path: (Sequence[(Name | String)] | None) { getter; }
+
+    has alias: (Name | None) { getter; }
+    def init(*, path: (Sequence[(Name | String)] | None), level: int, alias: (Name | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
 
@@ -534,15 +776,20 @@ obj ModulePath(UniNode) {
     def resolve_relative_path(target_item: (str | None) = None) -> str;
     def resolve_relative_path_list -> list[str];
     def native_bundled_path -> (str | None);
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ModuleItem(UniNode) {
+node ModuleItem(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (Name | Token),
-        alias: (Name | None),
-        abs_path: (str | None) postinit;
+    has abs_path: (str | None) postinit;
+
+    has name: (Name | Token) { getter; }
+
+    has alias: (Name | None) { getter; }
+    def init(*, name: (Name | Token), alias: (Name | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
 
@@ -551,19 +798,28 @@ obj ModuleItem(UniNode) {
     has binding_name: (Name | None) { getter; }
 
     def resolve_relative_path -> str;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImplNeedingNode, UniScopeNode, UniCFGNode) {
+node Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImplNeedingNode, UniScopeNode, UniCFGNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
-        arch_type: Token,
-        base_classes: (Sequence[Expr] | None),
-        keywords: (Sequence[KWPair] | None) = None,
-        type_params: (Sequence[TypeParam] | None) = None,
-        src_endpoint: (Expr | None) = None,
-        tgt_endpoint: (Expr | None) = None;
+    has name: Name { getter; }
+
+    has arch_type: Token { getter; }
+
+    has base_classes: (Sequence[Expr] | None) { getter; }
+
+    has keywords: (Sequence[KWPair] | None) { getter; }
+
+    has type_params: (Sequence[TypeParam] | None) { getter; }
+
+    has src_endpoint: (Expr | None) { getter; }
+
+    has tgt_endpoint: (Expr | None) { getter; }
+    def init(*, doc: (String | None) = None, is_async: bool = False, body: (Sequence[UniNode] | UniNode | None), access: (SubTag[Token] | None) = None, decorators: (Sequence[Expr] | None), codespace_dual: bool = False, name: Name, arch_type: Token, base_classes: (Sequence[Expr] | None), keywords: (Sequence[KWPair] | None) = None, type_params: (Sequence[TypeParam] | None) = None, src_endpoint: (Expr | None) = None, tgt_endpoint: (Expr | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
     def _get_impl_resolved_body -> list[UniNode];
@@ -573,59 +829,87 @@ obj Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImplN
 
     def get_has_vars -> list[HasVar];
     def get_methods -> list[Ability];
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ImplDef(ContextAwareNode, CodeBlockStmt, ElementStmt, ArchBlockStmt, AstSymbolNode, UniScopeNode) {
+node ImplDef(ContextAwareNode, CodeBlockStmt, ElementStmt, ArchBlockStmt, AstSymbolNode, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has decorators: (Sequence[Expr] | None),
-        target: Sequence[NameAtom],
-        spec: (Sequence[Expr] | FuncSignature | EventSignature | None),
-        body: Sequence[CodeBlockStmt] | Sequence[EnumBlockStmt] | Expr,
-        decl_link: (UniNode | None) = None;
+    has decorators: (Sequence[Expr] | None) { getter; }
+
+    has target: Sequence[NameAtom] { getter; }
+
+    has spec: (Sequence[Expr] | FuncSignature | EventSignature | None) { getter; }
+
+    has body: Sequence[CodeBlockStmt] | Sequence[EnumBlockStmt] | Expr { getter; }
+
+    has decl_link: (UniNode | None) { getter; }
+    def init(*, doc: (String | None) = None, codespace_dual: bool = False, decorators: (Sequence[Expr] | None), target: Sequence[NameAtom], spec: (Sequence[Expr] | FuncSignature | EventSignature | None), body: Sequence[CodeBlockStmt] | Sequence[EnumBlockStmt] | Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
     def create_impl_name_node -> Name;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj SemDef(ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
+node SemDef(ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Sequence[NameAtom],
-        value: MultiString;
+    has target: Sequence[NameAtom] { getter; }
+
+    has value: MultiString { getter; }
+    def init(*, doc: (String | None) = None, target: Sequence[NameAtom], value: MultiString, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
     def create_sem_name_node -> Name;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj Enum(ContextAwareNode, ArchSpec, AstAccessNode, AstImplNeedingNode, ArchBlockStmt, UniScopeNode) {
+node Enum(ContextAwareNode, ArchSpec, AstAccessNode, AstImplNeedingNode, ArchBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
-        value_type: (Expr | None),
-        base_classes: (Sequence[Expr] | None);
+    has name: Name { getter; }
+
+    has value_type: (Expr | None) { getter; }
+
+    has base_classes: (Sequence[Expr] | None) { getter; }
+    def init(*, doc: (String | None) = None, is_async: bool = False, body: (Sequence[UniNode] | UniNode | None), access: (SubTag[Token] | None) = None, decorators: (Sequence[Expr] | None), codespace_dual: bool = False, name: Name, value_type: (Expr | None), base_classes: (Sequence[Expr] | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBlockStmt, CodeBlockStmt, AstImplNeedingNode, UniScopeNode) {
+node Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBlockStmt, CodeBlockStmt, AstImplNeedingNode, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name_ref: (NameAtom | None),
-        is_override: bool,
+    has is_override: bool,
+
         is_static: bool,
+
         is_classmethod: bool,
+
         is_abstract: bool,
-        signature: FuncSignature | EventSignature | None,
-        decorators: (Sequence[Expr] | None) = None,
-        type_params: (Sequence[TypeParam] | None) = None,
+
         accessor_kind: str = "",
-        event_triggers: (list[TypeBase] | None) = None,
-        is_comptime: bool = False;
+        is_comptime: bool = False,
+
+        event_triggers: (list[TypeBase] | None) = None;
+
+    has name_ref: (NameAtom | None) { getter; }
+
+    has signature: FuncSignature | EventSignature | None { getter; }
+
+    has decorators: (Sequence[Expr] | None) { getter; }
+
+    has type_params: (Sequence[TypeParam] | None) { getter; }
+    def init(*, body: (Sequence[UniNode] | UniNode | None), is_async: bool = False, doc: (String | None) = None, access: (SubTag[Token] | None) = None, codespace_dual: bool = False, name_ref: (NameAtom | None), is_override: bool, is_static: bool, is_classmethod: bool, is_abstract: bool, signature: FuncSignature | EventSignature | None, decorators: (Sequence[Expr] | None) = None, type_params: (Sequence[TypeParam] | None) = None, accessor_kind: str = "", is_comptime: bool = False, event_triggers: (list[TypeBase] | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
 
@@ -637,920 +921,1293 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
 
     def py_resolve_name -> str;
     def event_trigger_type_names -> (list[str] | None);
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj FuncSignature(UniNode) {
+node FuncSignature(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has posonly_params: Sequence[ParamVar],
-        params: (Sequence[ParamVar] | None),
-        varargs: (ParamVar | None),
-        kwonlyargs: Sequence[ParamVar],
-        kwargs: (ParamVar | None),
-        return_type: (Expr | None);
+    has posonly_params: Sequence[ParamVar] { getter; }
+
+    has params: (Sequence[ParamVar] | None) { getter; }
+
+    has varargs: (ParamVar | None) { getter; }
+
+    has kwonlyargs: Sequence[ParamVar] { getter; }
+
+    has kwargs: (ParamVar | None) { getter; }
+
+    has return_type: (Expr | None) { getter; }
+    def init(*, posonly_params: Sequence[ParamVar], params: (Sequence[ParamVar] | None), varargs: (ParamVar | None), kwonlyargs: Sequence[ParamVar], kwargs: (ParamVar | None), return_type: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
     def get_parameters -> list[ParamVar];
 
     has is_static: bool { getter; }
     has is_in_py_class: bool { getter; }
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj EventSignature(WalkerStmtOnlyNode) {
+node EventSignature(WalkerStmtOnlyNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has event: Token,
-        arch_tag_info: (Expr | None);
+    has event: Token { getter; }
+
+    has arch_tag_info: (Expr | None) { getter; }
+    def init(*, event: Token, arch_tag_info: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ParamVar(AstSymbolNode, AstTypedVarNode) {
+node ParamVar(AstSymbolNode, AstTypedVarNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
-        unpack: (Token | None),
-        value: (Expr | None),
-        param_kind: ParamKind postinit,
+    has param_kind: ParamKind postinit,
         is_comptime: bool = False;
+
+    has name: Name { getter; }
+
+    has unpack: (Token | None) { getter; }
+
+    has value: (Expr | None) { getter; }
+    def init(*, type_tag: (SubTag[Expr] | None) = None, type: (TypeBase | None) = None, name: Name, unpack: (Token | None), value: (Expr | None), is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
 
     has is_vararg: bool { getter; }
     has is_kwargs: bool { getter; }
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ArchHas(AstAccessNode, AstDocNode, ArchBlockStmt, CodeBlockStmt) {
+node ArchHas(AstAccessNode, AstDocNode, ArchBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
     has is_static: bool,
-        vars: Sequence[HasVar],
+
         is_frozen: bool;
 
+    has vars: Sequence[HasVar] { getter; }
+    def init(*, doc: (String | None) = None, access: (SubTag[Token] | None) = None, is_static: bool, vars: Sequence[HasVar], is_frozen: bool, kid: Sequence[UniNode] = []) -> None;
+
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj HasVar(AstSymbolNode, AstTypedVarNode) {
+node HasVar(AstSymbolNode, AstTypedVarNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
-        value: (Expr | None),
-        defer: bool,
-        accessors: (Sequence[Ability] | None) = None;
+    has defer: bool;
+
+    has name: Name { getter; }
+
+    has value: (Expr | None) { getter; }
+
+    has accessors: (Sequence[Ability] | None) { getter; }
+    def init(*, type_tag: (SubTag[Expr] | None) = None, type: (TypeBase | None) = None, name: Name, value: (Expr | None), defer: bool, accessors: (Sequence[Ability] | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj TypedCtxBlock(CodeBlockStmt, WalkerStmtOnlyNode, UniScopeNode) {
+node TypedCtxBlock(CodeBlockStmt, WalkerStmtOnlyNode, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has type_ctx: Expr,
-        body: Sequence[CodeBlockStmt];
+    has type_ctx: Expr { getter; }
+
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, type_ctx: Expr, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj OpenStmt(CodeBlockStmt, UniScopeNode) {
+node OpenStmt(CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Expr,
-        body: Sequence[CodeBlockStmt];
+    has target: Expr { getter; }
+
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, target: Expr, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj IfStmt(CodeBlockStmt, AstElseBodyNode, UniScopeNode) {
+node IfStmt(CodeBlockStmt, AstElseBodyNode, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has condition: Expr,
-        body: Sequence[CodeBlockStmt],
-        is_comptime: bool = False,
+    has is_comptime: bool = False,
         ct_taken: (bool | None) = None;
 
-    def postinit -> None;
-}
+    has condition: Expr { getter; }
 
-obj ElseIf(IfStmt) {
-    def accept_enter(v: UniPass) -> None;
-    def accept_exit(v: UniPass) -> None;
-}
-
-obj ElseStmt(UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has body: Sequence[CodeBlockStmt];
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, else_body: (ElseStmt | ElseIf | None) = None, condition: Expr, body: Sequence[CodeBlockStmt], is_comptime: bool = False, ct_taken: (bool | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ExprStmt(CodeBlockStmt) {
+node ElseIf(IfStmt) {
+    def accept_enter(v: UniPass) -> None;
+    def accept_exit(v: UniPass) -> None;
+    def init(*, else_body: (ElseStmt | ElseIf | None) = None, condition: Expr, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
+    def __repr__ -> str;
+}
+
+node ElseStmt(UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has expr: Expr,
-        in_fstring: bool,
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
+
+    def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
+}
+
+node ExprStmt(CodeBlockStmt) {
+    def accept_exit(v: UniPass) -> None;
+    def accept_enter(v: UniPass) -> None;
+
+    has in_fstring: bool,
+
         has_semi: bool = True;
 
+    has expr: Expr { getter; }
+    def init(*, expr: Expr, in_fstring: bool, has_semi: bool = True, kid: Sequence[UniNode] = []) -> None;
+
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj TryStmt(AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
+node TryStmt(AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has body: Sequence[CodeBlockStmt],
-        excepts: Sequence[Except],
-        awaiting_body: (AwaitingClause | None),
-        finally_body: (FinallyStmt | None);
+    has body: Sequence[CodeBlockStmt] { getter; }
+
+    has excepts: Sequence[Except] { getter; }
+
+    has awaiting_body: (AwaitingClause | None) { getter; }
+
+    has finally_body: (FinallyStmt | None) { getter; }
+    def init(*, else_body: (ElseStmt | ElseIf | None) = None, body: Sequence[CodeBlockStmt], excepts: Sequence[Except], awaiting_body: (AwaitingClause | None), finally_body: (FinallyStmt | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj AwaitingClause(CodeBlockStmt, UniScopeNode) {
+node AwaitingClause(CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has body: Sequence[CodeBlockStmt];
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj Except(CodeBlockStmt, UniScopeNode) {
+node Except(CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has ex_type: Expr,
-        name: (Name | None),
-        body: Sequence[CodeBlockStmt];
+    has ex_type: Expr { getter; }
+
+    has name: (Name | None) { getter; }
+
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, ex_type: Expr, name: (Name | None), body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj FinallyStmt(CodeBlockStmt, UniScopeNode) {
+node FinallyStmt(CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has body: Sequence[CodeBlockStmt];
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj IterForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
+node IterForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has iter: Assignment,
-        condition: Expr,
-        count_by: Assignment,
-        body: Sequence[CodeBlockStmt];
+    has iter: Assignment { getter; }
+
+    has condition: Expr { getter; }
+
+    has count_by: Assignment { getter; }
+
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, else_body: (ElseStmt | ElseIf | None) = None, is_async: bool = False, iter: Assignment, condition: Expr, count_by: Assignment, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj InForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
+node InForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Expr,
-        collection: Expr,
-        body: Sequence[CodeBlockStmt],
-        is_comptime: bool = False;
+    has is_comptime: bool = False;
+
+    has target: Expr { getter; }
+
+    has collection: Expr { getter; }
+
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, else_body: (ElseStmt | ElseIf | None) = None, is_async: bool = False, target: Expr, collection: Expr, body: Sequence[CodeBlockStmt], is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj WhileStmt(AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
+node WhileStmt(AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has condition: Expr,
-        body: Sequence[CodeBlockStmt];
+    has condition: Expr { getter; }
+
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, else_body: (ElseStmt | ElseIf | None) = None, condition: Expr, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ForeverStmt(CodeBlockStmt, UniScopeNode) {
+node ForeverStmt(CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has body: Sequence[CodeBlockStmt];
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj WithStmt(AstAsyncNode, CodeBlockStmt, UniScopeNode) {
+node WithStmt(AstAsyncNode, CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has exprs: Sequence[ExprAsItem],
-        body: Sequence[CodeBlockStmt];
+    has exprs: Sequence[ExprAsItem] { getter; }
+
+    has body: Sequence[CodeBlockStmt] { getter; }
+    def init(*, is_async: bool = False, exprs: Sequence[ExprAsItem], body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ExprAsItem(UniNode) {
+node ExprAsItem(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has expr: Expr,
-        alias: (Expr | None);
+    has expr: Expr { getter; }
+
+    has alias: (Expr | None) { getter; }
+    def init(*, expr: Expr, alias: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj RaiseStmt(CodeBlockStmt) {
+node RaiseStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has cause: (Expr | None),
-        from_target: (Expr | None);
+    has cause: (Expr | None) { getter; }
+
+    has from_target: (Expr | None) { getter; }
+    def init(*, cause: (Expr | None), from_target: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj AssertStmt(ElementStmt, CodeBlockStmt) {
+node AssertStmt(ElementStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has condition: Expr,
-        error_msg: (Expr | None),
-        is_comptime: bool = False;
+    has is_comptime: bool = False;
+
+    has condition: Expr { getter; }
+
+    has error_msg: (Expr | None) { getter; }
+    def init(*, condition: Expr, error_msg: (Expr | None), is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj CtrlStmt(CodeBlockStmt) {
+node CtrlStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has ctrl: Token;
+    has ctrl: Token { getter; }
+    def init(*, ctrl: Token, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj DeleteStmt(CodeBlockStmt) {
+node DeleteStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Expr;
+    has target: Expr { getter; }
+    def init(*, target: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ReportStmt(CodeBlockStmt) {
+node ReportStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has expr: Expr;
+    has expr: Expr { getter; }
+    def init(*, expr: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ReturnStmt(CodeBlockStmt) {
+node ReturnStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has expr: (Expr | None),
-        is_implicit: bool = False;
+    has is_implicit: bool = False;
+
+    has expr: (Expr | None) { getter; }
+    def init(*, expr: (Expr | None), is_implicit: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj VisitStmt(WalkerStmtOnlyNode, AstElseBodyNode, CodeBlockStmt) {
+node VisitStmt(WalkerStmtOnlyNode, AstElseBodyNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has insert_loc: (Expr | None),
-        target: Expr;
+    has insert_loc: (Expr | None) { getter; }
+
+    has target: Expr { getter; }
+    def init(*, else_body: (ElseStmt | ElseIf | None) = None, insert_loc: (Expr | None), target: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj DisengageStmt(WalkerStmtOnlyNode, CodeBlockStmt) {
+node DisengageStmt(WalkerStmtOnlyNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
+    def init(*, kid: Sequence[UniNode] = []) -> None;
     def postinit -> None;
+    def __repr__ -> str;
 }
 
-obj AwaitExpr(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has target: Expr;
-
-    def postinit -> None;
-}
-
-obj CastExpr(Expr) {
+node AwaitExpr(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has value: Expr,
-        cast_type: Expr;
+    has target: Expr { getter; }
+    def init(*, target: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt) {
+node CastExpr(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Sequence[Expr],
-        value: Expr | YieldExpr | None,
-        mutable: bool = True,
-        aug_op: (Token | None) = None,
+    has value: Expr { getter; }
+
+    has cast_type: Expr { getter; }
+    def init(*, value: Expr, cast_type: Expr, kid: Sequence[UniNode] = []) -> None;
+
+    def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
+}
+
+node Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt) {
+    def accept_exit(v: UniPass) -> None;
+    def accept_enter(v: UniPass) -> None;
+
+    has mutable: bool = True,
+
         na_move_lowerable: bool = False,
+
         na_overwrite_consumed: bool = False,
+
         na_flow_reduce: str = "",
         is_comptime: bool = False;
 
+    has target: Sequence[Expr] { getter; }
+
+    has value: Expr | YieldExpr | None { getter; }
+
+    has aug_op: (Token | None) { getter; }
+    def init(*, is_enum_stmt: bool = False, type_tag: (SubTag[Expr] | None) = None, type: (TypeBase | None) = None, target: Sequence[Expr], value: Expr | YieldExpr | None, mutable: bool = True, aug_op: (Token | None) = None, na_move_lowerable: bool = False, na_overwrite_consumed: bool = False, na_flow_reduce: str = "", is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
+
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ConcurrentExpr(Expr) {
+node ConcurrentExpr(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has tok: (Token | None),
-        target: Expr;
+    has tok: (Token | None) { getter; }
+
+    has target: Expr { getter; }
+    def init(*, tok: (Token | None), target: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj BinaryExpr(Expr) {
+node BinaryExpr(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has left: Expr,
-        right: Expr,
-        op: Token | DisconnectOp | ConnectOp;
+    has left: Expr { getter; }
+
+    has right: Expr { getter; }
+
+    has op: Token | DisconnectOp | ConnectOp { getter; }
+    def init(*, left: Expr, right: Expr, op: Token | DisconnectOp | ConnectOp, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj CompareExpr(Expr) {
+node CompareExpr(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has left: Expr,
-        rights: list[Expr],
-        ops: list[Token];
+    has left: Expr { getter; }
+
+    has rights: list[Expr] { getter; }
+
+    has ops: list[Token] { getter; }
+    def init(*, left: Expr, rights: list[Expr], ops: list[Token], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj BoolExpr(Expr) {
+node BoolExpr(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has op: Token,
-        values: list[CfgExpr];
+    has op: Token { getter; }
+
+    has values: list[CfgExpr] { getter; }
+    def init(*, op: Token, values: list[CfgExpr], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj LambdaExpr(Expr, UniScopeNode) {
+node LambdaExpr(Expr, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has body: (Expr | Sequence[CodeBlockStmt]),
-        signature: (FuncSignature | None) = None;
+    has body: (Expr | Sequence[CodeBlockStmt]) { getter; }
+
+    has signature: (FuncSignature | None) { getter; }
+    def init(*, body: (Expr | Sequence[CodeBlockStmt]), signature: (FuncSignature | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
     def tail_return_expr -> Expr | None;
 
     has captures: list[Symbol] { getter; }
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj UnaryExpr(Expr) {
+node UnaryExpr(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has operand: Expr,
-        op: Token,
-        ownership: OwnershipKind = OwnershipKind.NONE;
+    has ownership: OwnershipKind = OwnershipKind.NONE;
+
+    has operand: Expr { getter; }
+
+    has op: Token { getter; }
+    def init(*, operand: Expr, op: Token, ownership: OwnershipKind = OwnershipKind.NONE, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj IfElseExpr(Expr) {
+node IfElseExpr(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has condition: CfgExpr,
-        value: CfgExpr,
-        else_value: CfgExpr;
+    has condition: CfgExpr { getter; }
+
+    has value: CfgExpr { getter; }
+
+    has else_value: CfgExpr { getter; }
+    def init(*, condition: CfgExpr, value: CfgExpr, else_value: CfgExpr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MultiString(AtomExpr) {
+node MultiString(AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has strings: Sequence[(String | FString)];
+    has strings: Sequence[(String | FString)] { getter; }
+    def init(*, strings: Sequence[(String | FString)], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
 
     has lit_value: str | bytes { getter; }
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj FString(AtomExpr) {
+node FString(AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has start: (Token | None),
-        parts: Sequence[(String | FormattedValue)],
-        end: (Token | None);
+    has start: (Token | None) { getter; }
+
+    has parts: Sequence[(String | FormattedValue)] { getter; }
+
+    has end: (Token | None) { getter; }
+    def init(*, start: (Token | None), parts: Sequence[(String | FormattedValue)], end: (Token | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj FormattedValue(Expr) {
+node FormattedValue(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has format_part: Expr,
-        conversion: int,
-        format_spec: (Expr | None);
+    has conversion: int;
+
+    has format_part: Expr { getter; }
+
+    has format_spec: (Expr | None) { getter; }
+    def init(*, format_part: Expr, conversion: int, format_spec: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ListVal(AtomExpr) {
+node ListVal(AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has values: Sequence[Expr];
+    has values: Sequence[Expr] { getter; }
+    def init(*, values: Sequence[Expr], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj SetVal(AtomExpr) {
+node SetVal(AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has values: (Sequence[Expr] | None);
+    has values: (Sequence[Expr] | None) { getter; }
+    def init(*, values: (Sequence[Expr] | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj TupleVal(AtomExpr) {
+node TupleVal(AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has values: Sequence[(Expr | KWPair)];
+    has values: Sequence[(Expr | KWPair)] { getter; }
+    def init(*, values: Sequence[(Expr | KWPair)], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj DictVal(AtomExpr) {
+node DictVal(AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has kv_pairs: Sequence[KVPair];
+    has kv_pairs: Sequence[KVPair] { getter; }
+    def init(*, kv_pairs: Sequence[KVPair], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj KVPair(UniNode) {
+node KVPair(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has key: (Expr | None),
-        value: Expr;
+    has key: (Expr | None) { getter; }
+
+    has value: Expr { getter; }
+    def init(*, key: (Expr | None), value: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj KWPair(UniNode) {
+node KWPair(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has key: (NameAtom | None),
-        value: Expr;
+    has key: (NameAtom | None) { getter; }
+
+    has value: Expr { getter; }
+    def init(*, key: (NameAtom | None), value: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj InnerCompr(AstAsyncNode, UniScopeNode, UniCFGNode) {
+node InnerCompr(AstAsyncNode, UniScopeNode, UniCFGNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Expr,
-        collection: Expr,
-        conditional: (list[Expr] | None);
+    has target: Expr { getter; }
+
+    has collection: Expr { getter; }
+
+    has conditional: (list[Expr] | None) { getter; }
+    def init(*, is_async: bool = False, target: Expr, collection: Expr, conditional: (list[Expr] | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ListCompr(AtomExpr, UniScopeNode, UniCFGNode) {
+node ListCompr(AtomExpr, UniScopeNode, UniCFGNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has out_expr: Expr,
-        compr: list[InnerCompr];
+    has out_expr: Expr { getter; }
+
+    has compr: list[InnerCompr] { getter; }
+    def init(*, out_expr: Expr, compr: list[InnerCompr], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj GenCompr(ListCompr) {
+node GenCompr(ListCompr) {
     def accept_enter(v: UniPass) -> None;
     def accept_exit(v: UniPass) -> None;
+    def init(*, out_expr: Expr, compr: list[InnerCompr], kid: Sequence[UniNode] = []) -> None;
+    def __repr__ -> str;
 }
 
-obj SetCompr(ListCompr) {
+node SetCompr(ListCompr) {
     def accept_enter(v: UniPass) -> None;
     def accept_exit(v: UniPass) -> None;
+    def init(*, out_expr: Expr, compr: list[InnerCompr], kid: Sequence[UniNode] = []) -> None;
+    def __repr__ -> str;
 }
 
-obj DictCompr(AtomExpr, UniScopeNode, UniCFGNode) {
+node DictCompr(AtomExpr, UniScopeNode, UniCFGNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has kv_pair: KVPair,
-        compr: list[InnerCompr];
+    has kv_pair: KVPair { getter; }
+
+    has compr: list[InnerCompr] { getter; }
+    def init(*, kv_pair: KVPair, compr: list[InnerCompr], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj AtomTrailer(Expr) {
+node AtomTrailer(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Expr,
-        right: (AtomExpr | Expr),
-        is_attr: bool,
+    has is_attr: bool,
+
         is_null_ok: bool,
+
         is_genai: bool = False;
+
+    has target: Expr { getter; }
+
+    has right: (AtomExpr | Expr) { getter; }
+    def init(*, target: Expr, right: (AtomExpr | Expr), is_attr: bool, is_null_ok: bool, is_genai: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
 
     has as_attr_list: list[AstSymbolNode] { getter; }
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj AtomUnit(Expr) {
+node AtomUnit(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has value: Expr | YieldExpr | Ability;
+    has value: Expr | YieldExpr | Ability { getter; }
+    def init(*, value: Expr | YieldExpr | Ability, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj YieldExpr(Expr) {
+node YieldExpr(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has expr: (Expr | None),
-        with_from: bool;
+    has with_from: bool;
+
+    has expr: (Expr | None) { getter; }
+    def init(*, expr: (Expr | None), with_from: bool, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj FuncCall(Expr) {
+node FuncCall(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Expr,
-        params: (Sequence[(Expr | KWPair)] | None),
-        genai_call: (Expr | None),
+    has genai_call: (Expr | None),
+
         call_kind: (str | None) = None,
+
         chunks_recv_type: (str | None) = None,
+
         callee_decl: (Ability | None) postinit;
 
+    has target: Expr { getter; }
+
+    has params: (Sequence[(Expr | KWPair)] | None) { getter; }
+    def init(*, target: Expr, params: (Sequence[(Expr | KWPair)] | None), genai_call: (Expr | None), call_kind: (str | None) = None, chunks_recv_type: (str | None) = None, kid: Sequence[UniNode] = []) -> None;
+
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj Slice(UniNode) {
+node Slice(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has start: (Expr | None),
-        stop: (Expr | None),
-        step: (Expr | None);
+    has start: (Expr | None) { getter; }
+
+    has stop: (Expr | None) { getter; }
+
+    has step: (Expr | None) { getter; }
+    def init(*, start: (Expr | None), stop: (Expr | None), step: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj IndexSlice(AtomExpr) {
+node IndexSlice(AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has slices: list[Slice],
-        is_range: bool;
+    has is_range: bool;
+
+    has slices: list[Slice] { getter; }
+    def init(*, slices: list[Slice], is_range: bool, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj EdgeRefTrailer(Expr) {
+node EdgeRefTrailer(Expr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has chain: list[(Expr | FilterCompr)],
-        edges_only: bool,
+    has edges_only: bool,
+
         is_async: bool;
 
+    has chain: list[(Expr | FilterCompr)] { getter; }
+    def init(*, chain: list[(Expr | FilterCompr)], edges_only: bool, is_async: bool, kid: Sequence[UniNode] = []) -> None;
+
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj EdgeOpRef(WalkerStmtOnlyNode, AtomExpr) {
+node EdgeOpRef(WalkerStmtOnlyNode, AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has filter_cond: (FilterCompr | None),
-        edge_dir: EdgeDir;
+    has edge_dir: EdgeDir;
+
+    has filter_cond: (FilterCompr | None) { getter; }
+    def init(*, filter_cond: (FilterCompr | None), edge_dir: EdgeDir, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj DisconnectOp(WalkerStmtOnlyNode) {
+node DisconnectOp(WalkerStmtOnlyNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has edge_spec: EdgeOpRef;
+    has edge_spec: EdgeOpRef { getter; }
+    def init(*, edge_spec: EdgeOpRef, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj ConnectOp(UniNode) {
+node ConnectOp(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has conn_type: (Expr | None),
-        conn_assign: (AssignCompr | None),
-        edge_dir: EdgeDir;
+    has edge_dir: EdgeDir;
+
+    has conn_type: (Expr | None) { getter; }
+
+    has conn_assign: (AssignCompr | None) { getter; }
+    def init(*, conn_type: (Expr | None), conn_assign: (AssignCompr | None), edge_dir: EdgeDir, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj FilterCompr(AtomExpr) {
+node FilterCompr(AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has f_type: (Expr | None),
-        compares: Sequence[Expr];
+    has f_type: (Expr | None) { getter; }
+
+    has compares: Sequence[Expr] { getter; }
+    def init(*, f_type: (Expr | None), compares: Sequence[Expr], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj AssignCompr(AtomExpr) {
+node AssignCompr(AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has assigns: Sequence[KWPair];
+    has assigns: Sequence[KWPair] { getter; }
+    def init(*, assigns: Sequence[KWPair], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj JsxElement(AtomExpr) {
+node JsxElement(AtomExpr) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (JsxElementName | None),
-        attributes: (Sequence[JsxAttribute] | None),
-        children: (Sequence[(JsxChild | JsxElement)] | None),
-        is_self_closing: bool,
-        is_fragment: bool,
-        dynamic_tag: (Expr | None) = None;
+    has is_self_closing: bool,
+
+        is_fragment: bool;
+
+    has name: (JsxElementName | None) { getter; }
+
+    has attributes: (Sequence[JsxAttribute] | None) { getter; }
+
+    has children: (Sequence[(JsxChild | JsxElement)] | None) { getter; }
+
+    has dynamic_tag: (Expr | None) { getter; }
+    def init(*, name: (JsxElementName | None), attributes: (Sequence[JsxAttribute] | None), children: (Sequence[(JsxChild | JsxElement)] | None), is_self_closing: bool, is_fragment: bool, dynamic_tag: (Expr | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
     def get_body_start_line -> (int | None);
     def get_body_end_line -> (int | None);
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj JsxElementName(UniNode) {
+node JsxElementName(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has parts: Sequence[(Name | Token)];
+    has parts: Sequence[(Name | Token)] { getter; }
+    def init(*, parts: Sequence[(Name | Token)], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj JsxAttribute(UniNode) {
+node JsxAttribute(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
+    def init(*, kid: Sequence[UniNode] = []) -> None;
     def postinit -> None;
+    def __repr__ -> str;
 }
 
-obj JsxSpreadAttribute(JsxAttribute) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has expr: Expr;
-
-    def postinit -> None;
-}
-
-obj JsxNormalAttribute(JsxAttribute) {
+node JsxSpreadAttribute(JsxAttribute) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (Name | Token),
-        value: String | Expr | None,
-        is_shorthand: bool = False;
+    has expr: Expr { getter; }
+    def init(*, expr: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj JsxChild(UniNode) {
+node JsxNormalAttribute(JsxAttribute) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
+
+    has is_shorthand: bool = False;
+
+    has name: (Name | Token) { getter; }
+
+    has value: String | Expr | None { getter; }
+    def init(*, name: (Name | Token), value: String | Expr | None, is_shorthand: bool = False, kid: Sequence[UniNode] = []) -> None;
+
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj JsxText(JsxChild) {
+node JsxChild(UniNode) {
+    def accept_exit(v: UniPass) -> None;
+    def accept_enter(v: UniPass) -> None;
+    def init(*, kid: Sequence[UniNode] = []) -> None;
+    def postinit -> None;
+    def __repr__ -> str;
+}
+
+node JsxText(JsxChild) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
     has value: (str | Token);
+    def init(*, value: (str | Token), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
     def get_normalized_text -> str;
+    def __repr__ -> str;
 }
 
-obj JsxExpression(JsxChild) {
+node JsxExpression(JsxChild) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has expr: Expr;
+    has expr: Expr { getter; }
+    def init(*, expr: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj JsxSlot(JsxChild) {
+node JsxSlot(JsxChild) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has body: list[UniNode];
+    has body: list[UniNode] { getter; }
+    def init(*, body: list[UniNode], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj JsxComment(JsxChild) {
+node JsxComment(JsxChild) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has value: Token;
+    has value: Token { getter; }
+    def init(*, value: Token, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchStmt(CodeBlockStmt) {
+node MatchStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Expr,
-        cases: list[MatchCase];
+    has target: Expr { getter; }
+
+    has cases: list[MatchCase] { getter; }
+    def init(*, target: Expr, cases: list[MatchCase], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchCase(CodeBlockStmt, UniScopeNode) {
+node MatchCase(CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has pattern: MatchPattern,
-        guard: (Expr | None),
-        body: list[CodeBlockStmt];
+    has pattern: MatchPattern { getter; }
+
+    has guard: (Expr | None) { getter; }
+
+    has body: list[CodeBlockStmt] { getter; }
+    def init(*, pattern: MatchPattern, guard: (Expr | None), body: list[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj SwitchStmt(CodeBlockStmt) {
+node SwitchStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Expr,
-        cases: list[SwitchCase];
+    has target: Expr { getter; }
+
+    has cases: list[SwitchCase] { getter; }
+    def init(*, target: Expr, cases: list[SwitchCase], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj SwitchCase(CodeBlockStmt, UniScopeNode) {
+node SwitchCase(CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has pattern: (MatchPattern | None),
-        body: list[CodeBlockStmt];
+    has pattern: (MatchPattern | None) { getter; }
+
+    has body: list[CodeBlockStmt] { getter; }
+    def init(*, pattern: (MatchPattern | None), body: list[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchOr(MatchPattern) {
+node MatchOr(MatchPattern) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has patterns: list[MatchPattern];
+    has patterns: list[MatchPattern] { getter; }
+    def init(*, patterns: list[MatchPattern], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchAs(MatchPattern) {
+node MatchAs(MatchPattern) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: NameAtom,
-        pattern: (MatchPattern | None);
+    has name: NameAtom { getter; }
+
+    has pattern: (MatchPattern | None) { getter; }
+    def init(*, name: NameAtom, pattern: (MatchPattern | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchWild(MatchPattern) {
+node MatchWild(MatchPattern) {
     def accept_enter(v: UniPass) -> None;
     def accept_exit(v: UniPass) -> None;
+    def init(*, kid: Sequence[UniNode] = []) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchValue(MatchPattern) {
+node MatchValue(MatchPattern) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has value: Expr;
+    has value: Expr { getter; }
+    def init(*, value: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchSingleton(MatchPattern) {
+node MatchSingleton(MatchPattern) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has value: (Bool | Null);
+    has value: (Bool | Null) { getter; }
+    def init(*, value: (Bool | Null), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchSequence(MatchPattern) {
+node MatchSequence(MatchPattern) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has values: list[MatchPattern];
+    has values: list[MatchPattern] { getter; }
+    def init(*, values: list[MatchPattern], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchMapping(MatchPattern) {
+node MatchMapping(MatchPattern) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has values: list[(MatchKVPair | MatchStar)];
+    has values: list[(MatchKVPair | MatchStar)] { getter; }
+    def init(*, values: list[(MatchKVPair | MatchStar)], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchKVPair(MatchPattern) {
+node MatchKVPair(MatchPattern) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has key: MatchPattern | NameAtom | AtomExpr,
-        value: MatchPattern;
+    has key: MatchPattern | NameAtom | AtomExpr { getter; }
+
+    has value: MatchPattern { getter; }
+    def init(*, key: MatchPattern | NameAtom | AtomExpr, value: MatchPattern, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchStar(MatchPattern) {
+node MatchStar(MatchPattern) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: NameAtom,
-        is_list: bool;
+    has is_list: bool;
+
+    has name: NameAtom { getter; }
+    def init(*, name: NameAtom, is_list: bool, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj MatchArch(MatchPattern) {
+node MatchArch(MatchPattern) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (AtomTrailer | NameAtom),
-        arg_patterns: (Sequence[MatchPattern] | None),
-        kw_patterns: (Sequence[MatchKVPair] | None);
+    has name: (AtomTrailer | NameAtom) { getter; }
+
+    has arg_patterns: (Sequence[MatchPattern] | None) { getter; }
+
+    has kw_patterns: (Sequence[MatchKVPair] | None) { getter; }
+    def init(*, name: (AtomTrailer | NameAtom), arg_patterns: (Sequence[MatchPattern] | None), kw_patterns: (Sequence[MatchKVPair] | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
+    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def __repr__ -> str;
 }
 
-obj Token(UniNode) {
+node Token(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
     has orig_src: Source postinit,
+
         name: str postinit,
+
         value: str postinit,
+
         line_no: int postinit,
+
         end_line: int postinit,
+
         c_start: int postinit,
+
         c_end: int postinit,
+
         pos_start: int postinit,
+
         pos_end: int postinit,
+
         _is_synthetic: bool = False;
 
     def init(
@@ -1568,11 +2225,12 @@ obj Token(UniNode) {
     def __repr__ -> str;
 }
 
-obj Name(Token, NameAtom) {
+node Name(Token, NameAtom) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
     has is_kwesc: bool postinit,
+
         is_enum_stmt: bool postinit;
 
     def init(
@@ -1603,13 +2261,16 @@ obj Name(Token, NameAtom) {
             pos_start=nd.loc.pos_start,
             pos_end=nd.loc.pos_end
         );
-        ret.parent = nd.parent;
+        if nd.parent is not None {
+            ret.set_parent(nd.parent);
+        }
         ret.name_of = set_name_of or ret;
         return ret;
     }
+    def __repr__ -> str;
 }
 
-obj SpecialVarRef(Name) {
+node SpecialVarRef(Name) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -1617,9 +2278,10 @@ obj SpecialVarRef(Name) {
 
     def init(var: Name, is_enum_stmt: bool = False) -> None;
     def py_resolve_name -> str;
+    def __repr__ -> str;
 }
 
-obj Literal(Token, AtomExpr) {
+node Literal(Token, AtomExpr) {
     with entry {
         SYMBOL_TYPE = SymbolType.VAR;
         type_map = {
@@ -1649,9 +2311,10 @@ obj Literal(Token, AtomExpr) {
     ) -> None;
 
     has lit_value: int | str | bytes | float | bool | None | type | object { getter; }
+    def __repr__ -> str;
 }
 
-obj BuiltinType(Name, Literal) {
+node BuiltinType(Name, Literal) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -1660,9 +2323,10 @@ obj BuiltinType(Name, Literal) {
     }
 
     has lit_value: type { getter; }
+    def __repr__ -> str;
 }
 
-obj Float(Literal) {
+node Float(Literal) {
     def accept_exit(v: UniPass) -> None;
 
     with entry {
@@ -1670,9 +2334,10 @@ obj Float(Literal) {
     }
 
     has lit_value: float { getter; }
+    def __repr__ -> str;
 }
 
-obj Int(Literal) {
+node Int(Literal) {
     def accept_exit(v: UniPass) -> None;
 
     with entry {
@@ -1680,9 +2345,10 @@ obj Int(Literal) {
     }
 
     has lit_value: int { getter; }
+    def __repr__ -> str;
 }
 
-obj String(Literal) {
+node String(Literal) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -1691,9 +2357,10 @@ obj String(Literal) {
     }
 
     has lit_value: str | bytes { getter; }
+    def __repr__ -> str;
 }
 
-obj Bool(Literal) {
+node Bool(Literal) {
     def accept_exit(v: UniPass) -> None;
 
     with entry {
@@ -1701,9 +2368,10 @@ obj Bool(Literal) {
     }
 
     has lit_value: bool { getter; }
+    def __repr__ -> str;
 }
 
-obj Null(Literal) {
+node Null(Literal) {
     def accept_exit(v: UniPass) -> None;
 
     with entry {
@@ -1711,9 +2379,10 @@ obj Null(Literal) {
     }
 
     has lit_value: None { getter; }
+    def __repr__ -> str;
 }
 
-obj Ellipsis(Literal) {
+node Ellipsis(Literal) {
     def accept_exit(v: UniPass) -> None;
 
     with entry {
@@ -1721,13 +2390,15 @@ obj Ellipsis(Literal) {
     }
 
     has lit_value: object { getter; }
+    def __repr__ -> str;
 }
 
-obj EmptyToken(Token) {
+node EmptyToken(Token) {
     def init(orig_src: (Source | None) = None) -> None;
+    def __repr__ -> str;
 }
 
-obj Semi(Token, CodeBlockStmt) {
+node Semi(Token, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def init(
         orig_src: Source,
@@ -1740,9 +2411,10 @@ obj Semi(Token, CodeBlockStmt) {
         pos_start: int,
         pos_end: int
     ) -> None;
+    def __repr__ -> str;
 }
 
-obj CommentToken(Token) {
+node CommentToken(Token) {
     def accept_exit(v: UniPass) -> None;
     def init(
         orig_src: Source,
@@ -1756,9 +2428,10 @@ obj CommentToken(Token) {
         pos_end: int,
         kid: Sequence[UniNode]
     ) -> None;
+    def __repr__ -> str;
 }
 
-obj Source(EmptyToken) {
+node Source(EmptyToken) {
     has comments: list[CommentToken] postinit,
         inline_suppressions: dict[int, set[str]] postinit,
         file_path: str postinit,
@@ -1768,14 +2441,16 @@ obj Source(EmptyToken) {
 
     has code: str { getter; }
     has hash: str { getter; }
+    def __repr__ -> str;
 }
 
-obj PythonModuleAst(EmptyToken) {
+node PythonModuleAst(EmptyToken) {
     has ast: object postinit,
         orig_src: Source postinit,
         file_path: str postinit;
 
     def init(ast: object, orig_src: Source) -> None;
+    def __repr__ -> str;
 }
 
 glob _HEX_DIGITS: str = '0123456789abcdefABCDEF',

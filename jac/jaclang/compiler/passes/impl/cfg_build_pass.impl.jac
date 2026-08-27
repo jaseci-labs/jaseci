@@ -828,9 +828,7 @@ impl CFGBuildPass._wire_compr_filters(
                 cfg_pred = cond;
             } else {
                 cfg_pred = CfgExpr(expr=cond, kid=[cond]);
-                cfg_pred.parent = compr;
-                idx = compr.kid.index(cond);
-                compr.kid[idx] = cfg_pred;
+                compr.replace_kid(cond, cfg_pred);
             }
             cfg_pred.affected_symbols.update(collect_narrowing_symbols(cfg_pred.expr));
             if prev_node is not None {
@@ -840,7 +838,6 @@ impl CFGBuildPass._wire_compr_filters(
             prev_node = cfg_pred;
             new_conditional.append(cfg_pred);
         }
-        compr.conditional = new_conditional;
     }
 
     if prev_node is not None and prev_node is not target_node {
