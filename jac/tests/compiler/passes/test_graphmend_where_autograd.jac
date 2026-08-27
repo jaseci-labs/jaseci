@@ -1,9 +1,39 @@
 """Predication autograd gate: torch.where evaluates both operands and routes
 the untaken one into the backward pass, so the rewrite must decline whenever
 the region is reachable under gradient tracking."""
+import from jaclang.testing.test { parametrize }
 import from tests.support {
     graphmend_break_kinds as _break_kinds,
     graphmend_pysrc as _pysrc
+}
+
+glob AUTOGRAD_DECLINES = [
+         ("requires_grad keyword", "autograd_requires_grad_kw.jac"),
+         ("requires_grad_ attribute call", "autograd_requires_grad_attr.jac"),
+         ("train() call", "autograd_train_call.jac"),
+         ("training-flag read", "autograd_training_read.jac"),
+         ("grad attribute read", "autograd_grad_read.jac"),
+         ("torch.optim import", "autograd_optim_path.jac"),
+         ("optimizer-spelled step() call", "autograd_optim_step.jac"),
+         ("torch autograd submodule import", "autograd_autograd_item.jac"),
+         ("enable_grad nested inside no_grad", "autograd_enable_grad_inner.jac"),
+         ("unrecognized context before no_grad", "autograd_opaque_ctx.jac"),
+         ("shadowed torch root cannot prove no_grad", "autograd_shadowed_no_grad.jac")
+     ];
+
+def _autograd_declines(row: tuple) {
+    src = _pysrc(row[1], True);
+    assert "torch.where(" not in src , f"{row[0]}: predication must decline";
+    assert "if x.sum() > 0:" in src , f"{row[0]}: original branch must survive";
+}
+
+with entry {
+    parametrize(
+        "autograd signal declines predication",
+        AUTOGRAD_DECLINES,
+        _autograd_declines,
+        id_fn=lambda (c: tuple) -> str { return c[0]; }
+    );
 }
 
 test "a backward() call in the module declines predication" {
@@ -13,54 +43,6 @@ test "a backward() call in the module declines predication" {
     assert "loss.backward()" in src;
     # detection still tags the break; only the rewrite declines
     assert _break_kinds("autograd_backward.jac") == ["dyn_ctrl_fl"];
-}
-
-test "a requires_grad keyword in the module declines predication" {
-    src = _pysrc("autograd_requires_grad_kw.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
-}
-
-test "a requires_grad_ attribute call declines predication" {
-    src = _pysrc("autograd_requires_grad_attr.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
-}
-
-test "a train() call declines predication" {
-    src = _pysrc("autograd_train_call.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
-}
-
-test "a training-flag read declines predication" {
-    src = _pysrc("autograd_training_read.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
-}
-
-test "a grad attribute read declines predication" {
-    src = _pysrc("autograd_grad_read.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
-}
-
-test "a torch.optim import declines predication" {
-    src = _pysrc("autograd_optim_path.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
-}
-
-test "an optimizer-spelled step() call declines predication" {
-    src = _pysrc("autograd_optim_step.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
-}
-
-test "a torch autograd submodule import declines predication" {
-    src = _pysrc("autograd_autograd_item.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
 }
 
 test "a branch inside torch.no_grad() still predicates in a training module" {
@@ -76,24 +58,6 @@ test "a no-arg inference_mode decorator on the entry still predicates" {
     assert "z = torch.where(" in src;
     assert "if x.sum() > 0:" not in src;
     assert "loss.backward()" in src;
-}
-
-test "enable_grad nested inside no_grad blocks the permit" {
-    src = _pysrc("autograd_enable_grad_inner.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
-}
-
-test "an unrecognized context between the branch and no_grad fails closed" {
-    src = _pysrc("autograd_opaque_ctx.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
-}
-
-test "a shadowed torch root cannot prove its no_grad" {
-    src = _pysrc("autograd_shadowed_no_grad.jac", True);
-    assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" in src;
 }
 
 test "an autograd-free module still predicates (coverage guard)" {
