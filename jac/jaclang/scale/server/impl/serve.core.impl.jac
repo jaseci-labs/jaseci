@@ -71,6 +71,10 @@ impl JacAPIServerCore.postinit -> None {
     import from jaclang.scale.observability.factory { UtilityFactory }
     metrics_config = get_scale_config().get_monitoring_config();
     self._metrics = UtilityFactory.create_metrics('prometheus', metrics_config);
+    mgr = self?.execution_manager;
+    if mgr is not None {
+        mgr.metrics = self._metrics;
+    }
     if self._metrics.is_enabled() {
         metrics_collector = self._metrics;
         metrics_endpoint = metrics_config.get('endpoint', '/metrics');

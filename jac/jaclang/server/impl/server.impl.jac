@@ -334,6 +334,24 @@ def _deserialize_wire_args(args: dict[(str, any)]) {
     }
 }
 
+impl observe_read_tier_retry(metrics: any, unit_key: str) -> None {
+    import logging;
+    logging.getLogger("jaclang.serve").info(
+        f"read tier: unit {unit_key or '<anonymous>'} wrote inside a read-only "
+        "snapshot; re-running at SERIALIZABLE and recording it as a writer"
+    );
+    if metrics is not None {
+        try {
+            metrics.record_read_tier_retry(unit_key);
+        } except Exception as e {
+            logging.getLogger("jaclang.serve").debug(
+                f"read tier retry metric not recorded: {type(e).__name__}: {e}"
+            );
+        }
+    }
+}
+
+
 def _unit_key_for(target: any) -> (str | None) {
     mod = str(getattr(target, '__module__', '') or '');
     name = str(getattr(target, '__name__', '') or '');
@@ -435,7 +453,7 @@ async def _run_function_with_occ(
                 ctx.mem.unit_exit();
                 settled = True;
                 return outcome;
-            } except ReadOnlyRetry {
+            } except ReadOnlyRetry as rr {
                 settled = False;
                 if ctx.mem.unit_depth() == 0 {
                     ctx.mem.unit_enter(unit_key);
@@ -445,6 +463,7 @@ async def _run_function_with_occ(
                 ctx.read_versions.clear();
                 ctx.diagnostics.clear();
                 ro_retries += 1;
+                observe_read_tier_retry(mgr.metrics, rr.unit_key or unit_key or "");
                 if ro_retries <= 2 {
                     attempt -= 1;
                 }
