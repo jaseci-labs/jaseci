@@ -314,10 +314,11 @@ impl Session.get(id: UUID) -> (Anchor | None) {
 
 
 impl Session.put(anchor: Anchor) -> None {
+    aid = anchor.ensure_id();
     with self._lock {
-        self.__mem__[anchor.id] = anchor;
-        self._dirty[anchor.id] = None;
-        self._deleted.discard(anchor.id);
+        self.__mem__[aid] = anchor;
+        self._dirty[aid] = None;
+        self._deleted.discard(aid);
     }
 }
 
@@ -378,7 +379,7 @@ impl Session.get_roots -> Generator[Root, None, None] {
     seen: set[UUID] = set();
     for anchor in list(self.__mem__.values()) {
         if isinstance(anchor.archetype, Root) {
-            seen.add(anchor.id);
+            seen.add(anchor.ensure_id());
             yield anchor.archetype;
         }
     }
@@ -532,11 +533,12 @@ impl Session.get_mem -> dict[UUID, Anchor] {
 
 impl Session.quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None {
     import from jaclang.runtime.osp_graph_sv { sv_forget_by_id }
-    sv_forget_by_id(stub.id, self);
+    sid = stub.ensure_id();
+    sv_forget_by_id(sid, self);
     if self.store is not None {
         try {
             self.store.quarantine(
-                stub.id, referrer.id if referrer else None, type(stub).__name__
+                sid, referrer.ensure_id() if referrer else None, type(stub).__name__
             );
         } except Exception as e {
             logger.debug(f"quarantine record failed: {e}");
@@ -868,10 +870,11 @@ impl Session._flush_locked(full: bool) -> None {
         if rows {
             self.store.upsert(rows);
             for (i, (anchor, h)) in enumerate(pending) {
-                self._flushed_hash[anchor.id] = h;
+                aid = anchor.ensure_id();
+                self._flushed_hash[aid] = h;
                 anchor.hash = h;
-                self._version_seen[anchor.id] = rows[i].version;
-                self._txn_changed.add(anchor.id);
+                self._version_seen[aid] = rows[i].version;
+                self._txn_changed.add(aid);
             }
         }
         if self._deleted {
@@ -907,18 +910,19 @@ impl Session._serialize(anchor: Anchor) -> AnchorRow {
     dst: (UUID | None) = None;
     undirected = False;
     if isinstance(anchor, EdgeAnchor) {
-        src = anchor.source.id if anchor.source is not None else None;
-        dst = anchor.target.id if anchor.target is not None else None;
+        src = anchor.source.ensure_id() if anchor.source is not None else None;
+        dst = anchor.target.ensure_id() if anchor.target is not None else None;
         undirected = anchor.is_undirected;
     }
+    row_id = anchor.ensure_id();
     return AnchorRow(
-        id=anchor.id,
+        id=row_id,
         kind=type(anchor).__name__,
         arch_type=arch_type,
         arch_module=arch_module,
         fingerprint=fingerprint,
         root_id=anchor.root,
-        version=self._version_seen.get(anchor.id, 0),
+        version=self._version_seen.get(row_id, 0),
         props=props if isinstance(props, dict) else {},
         src=src,
         dst=dst,
