@@ -182,7 +182,7 @@ glob COMPILER_DIGEST_ROOTS: tuple = (
      ),
      COMPILER_DIGEST_SUFFIXES: tuple = (".jac", ".py"),
      COMPILER_DIGEST_SKIP_DIRS: tuple = ("tests", "test", "__pycache__"),
-     COMPILER_DIGEST_SKIP: tuple = ("compiler/native_materialize.jac", );
+     COMPILER_DIGEST_SKIP: tuple = ();
 
 def compiler_source_files(pkg_dir: str) -> list[str] {
     base = str(Path(pkg_dir));
@@ -241,6 +241,17 @@ def running_compiler_digest -> str {
         _COMPILER_DIGEST_CACHE.append(compiler_source_digest(_jaclang_pkg_dir));
     }
     return _COMPILER_DIGEST_CACHE[0];
+}
+
+glob _COMPILER_GENERATION_CACHE: list = [];
+
+def compiler_generation -> str {
+    if not _COMPILER_GENERATION_CACHE {
+        _COMPILER_GENERATION_CACHE.append(
+            hashlib.sha256(running_compiler_digest().encode()).hexdigest()[:16]
+        );
+    }
+    return _COMPILER_GENERATION_CACHE[0];
 }
 
 glob _JAC_VERSION_CACHE: list = [];
@@ -407,7 +418,7 @@ glob _jaclang_pkg_dir: str = str(
          Path(str(__file__)).resolve().parent.parent.parent
      );
 
-def _get_module_cache_dir(source_path: str) -> Path {
+def _module_cache_root(source_path: str) -> Path {
     resolved = Path(source_path).resolve();
     resolved_str = str(resolved);
 
@@ -435,12 +446,101 @@ def _get_module_cache_dir(source_path: str) -> Path {
     return resolved.parent / ".jac" / "cache";
 }
 
+def _get_module_cache_dir(source_path: str) -> Path {
+    return _module_cache_root(source_path) / compiler_generation();
+}
+
 def get_module_cache_path(source_path: str) -> Path {
     cache_dir = _get_module_cache_dir(source_path);
     source = Path(source_path).resolve();
     path_hash = hashlib.sha256(str(source).encode()).hexdigest()[:8];
     (major, minor) = (sys.version_info.major, sys.version_info.minor);
     return cache_dir / f"{source.stem}.{path_hash}.cpython-{major}{minor}.jir";
+}
+
+glob GENERATION_TTL_DAYS: float = 14.0,
+     _SWEPT_ROOTS: set[str] = set();
+
+def generation_ttl_seconds -> float {
+    raw = os.environ.get("JAC_CACHE_GENERATION_TTL_DAYS", "").strip();
+    if not raw {
+        return GENERATION_TTL_DAYS * 86400.0;
+    }
+    try {
+        return max(0.0, float(raw)) * 86400.0;
+    } except ValueError {
+        return GENERATION_TTL_DAYS * 86400.0;
+    }
+}
+
+def _is_generation_name(name: str) -> bool {
+    if len(name) != 16 {
+        return False;
+    }
+    for ch in name {
+        if ch not in "0123456789abcdef" {
+            return False;
+        }
+    }
+    return True;
+}
+
+def sweep_stale_generations(cache_root: Path, keep: str) -> int {
+    import shutil;
+    import time;
+    ttl = generation_ttl_seconds();
+    if ttl <= 0.0 {
+        return 0;
+    }
+    now = time.time();
+    removed = 0;
+    try {
+        items = list(cache_root.iterdir());
+    } except OSError {
+        return 0;
+    }
+    for item in items {
+        name = item.name;
+        is_dir = item.is_dir();
+        if is_dir {
+            if name == keep or not (_is_generation_name(name) or name == "native") {
+                continue;
+            }
+        } elif not name.endswith(".jir") {
+            continue;
+        }
+        try {
+            if now - item.stat().st_mtime <= ttl {
+                continue;
+            }
+        } except OSError {
+            continue;
+        }
+        if is_dir {
+            shutil.rmtree(item, ignore_errors=True);
+        } else {
+            try {
+                item.unlink();
+            } except OSError {
+                continue;
+            }
+        }
+        removed += 1;
+    }
+    return removed;
+}
+
+def _sweep_once(cache_root: Path) {
+    key = str(cache_root);
+    if key in _SWEPT_ROOTS {
+        return;
+    }
+    _SWEPT_ROOTS.add(key);
+    try {
+        sweep_stale_generations(cache_root, compiler_generation());
+    } except Exception {
+        ;
+    }
 }
 
 glob _na_ir_cache_region: dict[str, bool] = {"suspended": False};
@@ -650,6 +750,7 @@ def write_module_cache(
             return False;
         }
         cache_path.parent.mkdir(parents=True, exist_ok=True);
+        _sweep_once(_module_cache_root(resolved_path));
         sections: dict[int, bytes] = module_jir_key_sections(resolved_path);
         if extra_sections is not None {
             for (k, v) in extra_sections.items() {

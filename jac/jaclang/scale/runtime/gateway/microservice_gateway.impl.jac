@@ -250,10 +250,15 @@ impl MicroserviceGateway.build_forward_headers(request: Request) -> dict[str, st
     }
     fwd: dict[str, str] = {};
     for (key, value) in request.headers.items() {
-        if key.lower() not in HOP_BY_HOP_HEADERS {
+        if key.lower() not in HOP_BY_HOP_HEADERS and key.lower() != "x-forwarded-for" {
             fwd[key] = value;
         }
     }
+
+    peer: str = request.client_host or "unknown";
+    fwd["X-Forwarded-For"] = ", ".join(
+        request.headers.getlist("X-Forwarded-For") + [peer]
+    );
 
     trace = get_current_trace() or ensure_trace_id(request.headers.get("X-Trace-Id"));
     fwd["X-Trace-Id"] = trace;
@@ -518,9 +523,6 @@ impl MicroserviceGateway.forward_to(
     }
 
     fwd_headers = self.build_forward_headers(request);
-    client_addr: str = getattr(request?.client, "host", "unknown");
-    fwd_headers["X-Forwarded-For"] = client_addr;
-
     body: bytes = request.body;
 
     timeout = http_forward_timeout(service_entry.name);
@@ -914,24 +916,34 @@ impl MicroserviceGateway.setup -> ServingApp {
     return self.app;
 }
 
-impl MicroserviceGateway.start -> None {
+def _log_gateway_ready(host: str, bound: int) {
+    logger.info(f"Gateway starting on {host}:{bound}");
+}
+
+
+impl MicroserviceGateway.start(on_ready: any = None) -> None {
     import from jaclang.scale.runtime.lifecycle.drain { install_signal_drain }
     import from jaclang.scale.config.config_loader { get_scale_config }
 
     if self.app is None {
         self.setup();
     }
-    logger.info(f"Gateway starting on {self.host}:{self.port}");
-
     ms_cfg = get_scale_config().get_microservices_config();
     drain_timeout: float = float(ms_cfg.get("drain_timeout_seconds", 10));
 
-    import from jaclang.server.serving.server { ServingServer }
+    import from jaclang.server.serving.server { ServingServer, PORT_RETRY_LIMIT }
     serving = ServingServer(
         app=self.app, host=self.host, port=self.port, drain_timeout=drain_timeout
     );
     install_signal_drain(serving, timeout_s=drain_timeout);
-    serving.run();
+    import from functools { partial }
+    ready: any = on_ready;
+    if ready is None {
+        ready = partial(_log_gateway_ready, self.host);
+    }
+    serving.run(
+        on_ready=ready, port_retries=0 if self.port_pinned else PORT_RETRY_LIMIT
+    );
 }
 
 
