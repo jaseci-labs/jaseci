@@ -75,7 +75,7 @@ def _hop(nodes: list[TNode]) -> float {
     t0 = time.perf_counter();
     seen = 0;
     for nd in nodes {
-        seen += len([nd -->]);
+        seen += len([nd-->]);
     }
     dt = time.perf_counter() - t0;
     assert seen == n - 1 , f"chain of {n} yielded {seen} hops";
@@ -173,7 +173,7 @@ test "the node table counts occupancy instead of storing one zero per key" {
 def _detach(nodes: list[TNode]) -> float {
     edges: list = [];
     for nd in nodes {
-        for e in [edge nd -->] {
+        for e in [edge nd-->] {
             edges.append(e);
         }
     }
@@ -239,9 +239,7 @@ test "a never-persisted anchor is exactly its archetype and its topology" {
     assert len(edges) == 63 , f"expected 63 edge anchors, saw {len(edges)}";
     for e in edges {
         assert e.id is None , "connecting minted a uuid for a transient edge";
-        assert e.access is None , (
-            "a transient edge anchor allocated a Permission"
-        );
+        assert e.access is None , ("a transient edge anchor allocated a Permission");
         assert set(e.__dict__.keys())
             == {"archetype", "source", "target", "is_undirected"} , (
             f"a transient edge anchor carries {sorted(e.__dict__.keys())}"
@@ -324,8 +322,7 @@ test "a transient traversal records no optimistic-concurrency reads" {
     with TemporaryDirectory() as proj {
         try {
             ctx = ExecutionContext(
-                base_path_dir=proj,
-                full_target_path=str(Path(proj) / "occ_probe.jac")
+                base_path_dir=proj, full_target_path=str(Path(proj) / "occ_probe.jac")
             );
             JacRuntime.exec_ctx = ctx;
             before = len(ctx.read_versions);
@@ -357,11 +354,11 @@ edge RtRel {
 
 def _transcript(origin: any) -> list {
     out: list = [];
-    for n in [origin --> ] {
+    for n in [origin-->] {
         if isinstance(n, RtNode) {
             out.append(n.label);
-            for m in [n ->:RtRel:-> ] {
-                out.append(f"{n.label}>{m.label}:{len([m --> ])}");
+            for m in [n->:RtRel:->] {
+                out.append(f"{n.label}>{m.label}:{len([m-->])}");
             }
         }
     }

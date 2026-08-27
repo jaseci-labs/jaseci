@@ -8,18 +8,6 @@ import from jaclang.runtime.archetype {
     same_anchor
 }
 
-"""One context's slice of the process-global graph store.
-
-`h_of_key` maps an anchor's key -- its store id while it has one, its object
-identity while it does not -- to the integer handle the kernel knows it by, and
-it is keyed that way rather than by the id alone so an anchor that mints an id
-partway through its life keeps the row it already owns.
-
-That map is the only per-anchor bookkeeping here. Whether an edge is already
-wired is a question the kernel's own edge index answers (`osp_has_edge`), so
-there is no second registry to keep in step with it, and `forgotten` only ever
-holds the handles something explicitly retracted.
-"""
 obj _SvStore {
     has h_of_key: dict[any, int] = {},
         forgotten: set[int] = field(default_factory=`set),
@@ -59,7 +47,6 @@ def _store_for(m: any) -> _SvStore {
     return st;
 }
 
-"""The handle `anchor` already has in this store, or 0."""
 def _handle_of(st: _SvStore, anchor: Anchor) -> int {
     aid = anchor.id;
     if aid is None {
@@ -69,13 +56,6 @@ def _handle_of(st: _SvStore, anchor: Anchor) -> int {
     return h if h != 0 else st.h_of_key.get(id(anchor), 0);
 }
 
-"""The handle the kernel knows `anchor` by, minting one if it has none.
-
-An anchor registered while it was still transient is keyed by its object
-identity; minting a store id renames that key, it does not make it a different
-node, so the identity entry is renamed rather than shadowed -- otherwise
-persisting a graph mid-life would strand the rows it already owns.
-"""
 def _mint(st: _SvStore, anchor: Anchor) -> int {
     aid = anchor.id;
     key: any = id(anchor) if aid is None else aid;

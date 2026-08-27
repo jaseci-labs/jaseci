@@ -988,8 +988,6 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
 }
 
 impl Serializer._deserialize_permission(data: object) -> (Permission | None) {
-    # An anchor whose record carries no grants stays without a Permission, the
-    # same as one that was never granted anything in the first place.
     if not isinstance(data, dict) or not data {
         return None;
     }

@@ -164,8 +164,7 @@ impl JacAccessValidation.check_access_level(
         return access_level_cast(custom_level);
     }
     access_level: AccessLevel = AccessLevel.NO_ACCESS;
-    # `access` is None for an anchor nobody has granted anything, which leaves
-    # the level wherever the owning root puts it.
+
     to_access = to.access;
     if to_access is not None and to_access.all.value > AccessLevel.NO_ACCESS.value {
         access_level = to_access.all;
@@ -204,7 +203,6 @@ impl JacAccessValidation._groups_of(jroot: NodeAnchor) -> list[str] {
     sv_register_hydrated(jroot, fetch_stubs=True);
     out: list[str] = [];
     for grp in sv_live_edges(jroot, EdgeDir.OUT.value, None, False) {
-        # A group only exists as a group if it has a store key to be named by.
         gid = grp.id;
         if gid is not None {
             out.append(str(gid));
@@ -1014,10 +1012,7 @@ impl JacGraph.refs(
         }
         return out;
     }
-    # A graph nobody has persisted is answered from the anchors in hand: there
-    # is no row to read, no stored version to guard, and nothing for the query
-    # planner to compile. Reaching for the store is what has to be justified,
-    # and only an origin that has a row in it justifies it.
+
     if not needs_store(ctx.mem, origins) {
         gated = access_gated();
         return _archetypes(

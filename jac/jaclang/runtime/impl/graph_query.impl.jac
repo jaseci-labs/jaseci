@@ -161,11 +161,6 @@ impl QHop.add_node_constraint(node_type: (type | None)) -> None {
 }
 
 
-"""Store keys of the nodes this hop is pinned to, for SQL pushdown.
-
-Only anchors that have a store key can appear in a stored row, so a transient
-one contributes nothing here; `only_keys` is what the in-memory arm matches on.
-"""
 impl QHop.only_ids -> (set | None) {
     if self.only is None {
         return None;

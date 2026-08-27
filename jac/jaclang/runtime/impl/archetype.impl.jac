@@ -25,12 +25,6 @@ impl PermissionDenied.message -> str {
     );
 }
 
-"""Mint this anchor's store key, if it does not have one yet.
-
-Called from every door into persistence -- `Session.put`, `save`, `make_stub`
-and the serializer -- so a transient anchor picks up an identity exactly when
-something is about to need one, and keeps it from then on.
-"""
 impl Anchor.ensure_id -> UUID {
     aid = self.id;
     if aid is None {
@@ -40,12 +34,6 @@ impl Anchor.ensure_id -> UUID {
     return aid;
 }
 
-"""This anchor's own grants, materializing them if it has none yet.
-
-Callers that are about to *write* a grant use this. Readers use `access`, which
-is `None` for an anchor nobody has granted anything -- the overwhelmingly common
-case, and the one worth not allocating for.
-"""
 impl Anchor.own_access -> Permission {
     perm = self.access;
     if perm is None {
@@ -122,8 +110,7 @@ impl Anchor.__setstate__(state: dict[(str, any)]) -> None {
 
     if isinstance(self, NodeAnchor) {
         self.__dict__['_initial_edge_ids'] = frozenset(
-            e.ensure_id()
-            for e in self.__dict__.get('edges', [])
+            e.ensure_id() for e in self.__dict__.get('edges', [])
         );
     }
 }
@@ -152,14 +139,6 @@ impl Anchor.`report -> AnchorReport {
     );
 }
 
-"""Store key while there is one, object identity while there is not.
-
-An anchor that has never reached a store has no uuid to hash, and two such
-anchors are the same anchor only if they are the same object. Minting an id
-changes an anchor's hash, so an anchor must not be persisted while it is
-sitting in a hash container -- every mint point is a persistence boundary,
-where that does not happen.
-"""
 impl Anchor.__hash__ -> int {
     aid = self.id;
     return hash(aid) if aid is not None else id(self);
@@ -200,10 +179,7 @@ impl NodeAnchor.edge_delta -> (tuple[(set[UUID], set[UUID])] | None) {
         return None;
     }
     initial: set[UUID] = set(initial_fs);
-    current: set[UUID] = set(
-        e.ensure_id()
-        for e in self.edges
-    );
+    current: set[UUID] = set(e.ensure_id() for e in self.edges);
     return (current - initial, initial - current);
 }
 
@@ -343,8 +319,6 @@ impl GenericEdge.__repr__ -> str {
 
 @cached_property
 impl Root.__jac__ -> NodeAnchor {
-    # A root is the one anchor that is persistent before anything touches it,
-    # and persistence needs a key, so this is also where its id is minted.
     anchor = NodeAnchor(archetype=self, edges=[]);
     anchor.persistent = True;
     anchor.ensure_id();

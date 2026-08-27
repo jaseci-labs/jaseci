@@ -213,8 +213,7 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
     }
     origins = origin_anchors(q);
     gated = access_gated();
-    # Walking live anchors is the default. The store is what has to be asked
-    # for, and only an origin with a row in it does the asking.
+
     if not needs_store(mem, origins) {
         return walk_nodes(origins, q, gated);
     }

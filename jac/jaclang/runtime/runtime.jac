@@ -92,7 +92,6 @@ def _scale_provider -> any {
     return result;
 }
 
-"""The blanket grant on an anchor, whether or not it has a Permission yet."""
 def _all_grant(anchor: Anchor) -> AccessLevel {
     perm = anchor.access;
     return AccessLevel.NO_ACCESS if perm is None else perm.all;

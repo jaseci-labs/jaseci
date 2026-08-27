@@ -26,23 +26,6 @@ glob _rk_addr: list[int] = [],
      _rk_next: list[int] = [],
      _rk_free: list[int] = [];
 
-"""Bucket for key `k` in a power-of-two table with mask `m`.
-
-The three drivers feed this table three different kinds of key: the native
-lowering passes 16-byte-aligned struct addresses, while the bytecode (sv) and
-JS drivers mint dense integer handles (1, 2, 3, ...). `k ^ (k >> 4)` folds an
-address's always-zero low bits back in while staying injective on the dense
-handles -- for any key below the table capacity the xor-shift preserves the
-highest set bit, so two distinct handles cannot share a bucket -- and the odd
-golden-ratio multiplier then scatters the result, which a bijection modulo a
-power of two preserves.
-
-Every operand is chosen so the one expression lowers to all three backends:
-the 32-bit mask and the 16-bit multiplier keep the product under 2**48, inside
-i64 (native `int` multiply is overflow-checked, so a 64-bit constant would
-raise on a pointer key) and inside a double's 53-bit mantissa (JS bitwise ops
-are 32-bit and its numbers are doubles).
-"""
 def _hslot(k: int, m: int) -> int {
     return (((k ^ (k >> 4)) & 4294967295) * 40503) & m;
 }
@@ -282,13 +265,6 @@ def _rt_del(s: int) {
 }
 
 
-"""Edge-handle -> row index.
-
-`osp_disconnect` and `osp_edge_peer` used to answer "which row is this edge?"
-by scanning `_r_handle` from zero, which made detaching E edges O(E**2) on the
-same graphs the node table made quadratic to build. The row a handle owns is
-maintained here instead, in the same open-addressed shape as the node table.
-"""
 def _et_grow {
     ocap = len(_et_key);
     ok: list[int] = [];
@@ -374,7 +350,6 @@ def _et_find(eh: int) -> int {
     return -1;
 }
 
-"""Does the kernel already hold a row for this edge handle?"""
 def osp_has_edge(eh: int) -> int {
     return 1 if _et_find(eh) >= 0 else 0;
 }
@@ -427,7 +402,6 @@ def _et_del(eh: int) {
     _et_cnt[0] -= 1;
 }
 
-"""Retire row `row` and the handle that owned it."""
 def _row_retire(row: int) {
     _et_del(_r_handle[row]);
     _r_src[row] = -1;

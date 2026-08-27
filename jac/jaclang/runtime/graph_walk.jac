@@ -1,53 +1,22 @@
-"""Traversal over live anchors.
-
-Walking a graph is the primitive. A store is something some of a graph's nodes
-additionally have, and it is what pulls in `jaclang.data.query_planner`: SQL
-compilation, predicate pushdown, residual filters, the round trip that turns
-anchors into store keys and back. A graph that has never been connected to a
-root has none of that, and answering `[-->]` over it should not go near any of
-it.
-
-This module is that primitive. Given origin anchors and a `GraphQuery` it
-answers the query from the anchors themselves -- edge lists, direction, node
-and edge type filters, predicates, `only` pins, slices and limits -- and knows
-nothing about sessions, SQL or pushdown. `needs_store` is the single predicate
-that decides when the planner has to be involved at all, and the planner calls
-back in here for the part of a mixed query that its SQL arm cannot answer.
-
-Access control is a parameter rather than a lookup: a caller that has already
-resolved whether the context is gated passes it in, because resolving it means
-walking to the execution context and back through two root properties.
-"""
-
-import from jaclang.runtime.archetype {
-    Anchor,
-    EdgeAnchor,
-    NodeAnchor,
-    anchor_key
-}
+import from jaclang.runtime.archetype { Anchor, EdgeAnchor, NodeAnchor, anchor_key }
 import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
 
 glob __all__ = [
-    'access_gated',
-    'acl_read_ok',
-    'bounded',
-    'edge_pair_for',
-    'hop_matches_node',
-    'needs_store',
-    'origin_anchors',
-    'pred_subject',
-    'unique_anchors',
-    'walk',
-    'walk_edges',
-    'walk_nodes'
-];
+         'access_gated',
+         'acl_read_ok',
+         'bounded',
+         'edge_pair_for',
+         'hop_matches_node',
+         'needs_store',
+         'origin_anchors',
+         'pred_subject',
+         'unique_anchors',
+         'walk',
+         'walk_edges',
+         'walk_nodes'
+     ];
 
 
-"""Is access control active in this context?
-
-It is not when there is no context, and it is not when the request runs as the
-system root, which owns everything. Both are the ordinary case for a script.
-"""
 def access_gated -> bool {
     import from jaclang.runtime.runtime { JacRuntimeInterface }
     try {
@@ -60,7 +29,6 @@ def access_gated -> bool {
 }
 
 
-"""May the current root read this anchor?"""
 def acl_read_ok(anchor: Anchor) -> bool {
     import from jaclang.runtime.archetype { AccessLevel }
     import from jaclang.runtime.runtime { JacRuntimeInterface }
@@ -69,13 +37,6 @@ def acl_read_ok(anchor: Anchor) -> bool {
 }
 
 
-"""Does answering a query from these origins require reading the store?
-
-Only if there is a store and at least one origin has a row in it. Everything
-else -- a script with no store at all, a subgraph built in memory and not yet
-attached to a root -- is answered by `walk`, whether or not access control is
-gated, since the walk applies the gate itself.
-"""
 def needs_store(mem: any, origins: list[Anchor]) -> bool {
     if not origins or mem?.store is None {
         return False;
@@ -89,7 +50,6 @@ def needs_store(mem: any, origins: list[Anchor]) -> bool {
 }
 
 
-"""The distinct anchors a query starts from, in the order it names them."""
 def origin_anchors(q: GraphQuery) -> list[Anchor] {
     seen: set = set();
     out: list[Anchor] = [];
@@ -107,7 +67,6 @@ def origin_anchors(q: GraphQuery) -> list[Anchor] {
 }
 
 
-"""The value a predicate tests, read off an archetype."""
 def pred_subject(arch: any, p: QPred) -> any {
     if isinstance(p.field, tuple) {
         return tuple(getattr(arch, name, None) for name in p.field);
@@ -116,7 +75,6 @@ def pred_subject(arch: any, p: QPred) -> any {
 }
 
 
-"""Does this anchor satisfy the hop's node type, predicates and `only` pins?"""
 def hop_matches_node(anchor: Anchor, hop: QHop) -> bool {
     if not anchor.is_populated() or anchor.archetype is None {
         return False;
@@ -140,12 +98,6 @@ def hop_matches_node(anchor: Anchor, hop: QHop) -> bool {
 }
 
 
-"""The far end of `e` from `cur`, if this hop accepts that edge at all.
-
-Endpoints are compared with `anchor_key` semantics rather than by store key:
-a transient anchor has no key, and a persisted one can be present as both a
-stub and the populated record.
-"""
 def edge_pair_for(e: EdgeAnchor, cur: Anchor, hop: QHop) -> (Anchor | None) {
     import from jaclang.runtime.archetype { same_anchor }
     src = e.source;
@@ -190,11 +142,6 @@ def edge_pair_for(e: EdgeAnchor, cur: Anchor, hop: QHop) -> (Anchor | None) {
 }
 
 
-"""Walk `upto` hops from `origins`, returning (node, edge that reached it).
-
-The origins themselves are the zero-hop answer, so `upto == 0` returns them
-paired with no edge.
-"""
 def walk(
     origins: list[Anchor], q: GraphQuery, upto: int, gated: bool
 ) -> list[tuple[Anchor, (EdgeAnchor | None)]] {
@@ -230,7 +177,7 @@ def walk(
             }
         }
         pairs = nxt;
-        # The last hop's frontier is the answer, and every caller dedupes it.
+
         if i < nhops {
             frontier = unique_anchors(nxt);
         }
@@ -239,10 +186,7 @@ def walk(
 }
 
 
-"""Distinct nodes of a walk, in first-seen order."""
-def unique_anchors(
-    pairs: list[tuple[Anchor, (EdgeAnchor | None)]]
-) -> list[Anchor] {
+def unique_anchors(pairs: list[tuple[Anchor, (EdgeAnchor | None)]]) -> list[Anchor] {
     seen: set = set();
     out: list[Anchor] = [];
     for (a, _) in pairs {
@@ -256,10 +200,6 @@ def unique_anchors(
 }
 
 
-"""Apply a query's slice or limit/offset to an already-resolved list.
-
-Only correct where nothing was pushed into SQL, which is exactly here.
-"""
 def bounded(out: list[Anchor], q: GraphQuery) -> list[Anchor] {
     if q.limit is not None {
         stop = None if q.limit is None else q.offset + q.limit;
@@ -272,17 +212,11 @@ def bounded(out: list[Anchor], q: GraphQuery) -> list[Anchor] {
 }
 
 
-"""Answer a node query from live anchors."""
 def walk_nodes(origins: list[Anchor], q: GraphQuery, gated: bool) -> list[Anchor] {
     return bounded(unique_anchors(walk(origins, q, len(q.hops), gated)), q);
 }
 
 
-"""Answer an edge query from live anchors.
-
-`from_visit` interleaves each edge with the node it reached, which is what
-`visit` consumes; otherwise the edges alone are the answer.
-"""
 def walk_edges(origins: list[Anchor], q: GraphQuery, gated: bool) -> list[Anchor] {
     if not q.hops {
         return [];
