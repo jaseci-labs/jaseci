@@ -1,13 +1,3 @@
-impl _acl_gated -> bool {
-    return access_gated();
-}
-
-
-impl _acl_read_ok(anchor: Anchor) -> bool {
-    return acl_read_ok(anchor);
-}
-
-
 def _effective_bound(q: GraphQuery) -> (tuple[(int | None), int] | None) {
     if q.limit is not None {
         return (q.limit, q.offset);
@@ -32,7 +22,7 @@ def _effective_bound(q: GraphQuery) -> (tuple[(int | None), int] | None) {
 
 
 def _acl_pushdown_root(q: GraphQuery, upto: int) -> (str | None) {
-    if not _acl_gated() {
+    if not access_gated() {
         return None;
     }
     import from jaclang.runtime.runtime { JacRuntimeInterface }
@@ -57,7 +47,7 @@ def _acl_pushdown_root(q: GraphQuery, upto: int) -> (str | None) {
 
 
 def _bound_pushable -> bool {
-    return not _acl_gated();
+    return not access_gated();
 }
 
 
@@ -231,7 +221,7 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
         out = [
             a
             for a in out
-            if _acl_read_ok(a)
+            if acl_read_ok(a)
         ];
     }
     bound = _effective_bound(q);
@@ -301,16 +291,16 @@ impl resolve_query_edges(mem: Session, q: GraphQuery) -> list[Anchor] {
         }
     }
     edges = _materialize_ids(mem, edge_ids, local);
-    if _acl_gated() {
+    if access_gated() {
         kept: list[Anchor] = [];
         for ea in edges {
-            if not _acl_read_ok(ea) {
+            if not acl_read_ok(ea) {
                 continue;
             }
             nid = node_of.get(anchor_key(ea));
             if nid is not None {
                 ends = _materialize_ids(mem, [nid], local);
-                if not ends or not _acl_read_ok(ends[0]) {
+                if not ends or not acl_read_ok(ends[0]) {
                     continue;
                 }
             }

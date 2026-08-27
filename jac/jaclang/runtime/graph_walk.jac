@@ -1,4 +1,10 @@
-import from jaclang.runtime.archetype { Anchor, EdgeAnchor, NodeAnchor, anchor_key }
+import from jaclang.runtime.archetype {
+    Anchor,
+    EdgeAnchor,
+    NodeAnchor,
+    anchor_key,
+    same_anchor
+}
 import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
 
 glob __all__ = [
@@ -99,7 +105,6 @@ def hop_matches_node(anchor: Anchor, hop: QHop) -> bool {
 
 
 def edge_pair_for(e: EdgeAnchor, cur: Anchor, hop: QHop) -> (Anchor | None) {
-    import from jaclang.runtime.archetype { same_anchor }
     src = e.source;
     tgt = e.target;
     if src is None or tgt is None or e.archetype is None {
@@ -202,8 +207,7 @@ def unique_anchors(pairs: list[tuple[Anchor, (EdgeAnchor | None)]]) -> list[Anch
 
 def bounded(out: list[Anchor], q: GraphQuery) -> list[Anchor] {
     if q.limit is not None {
-        stop = None if q.limit is None else q.offset + q.limit;
-        return out[q.offset:stop];
+        return out[q.offset:q.offset + q.limit];
     }
     if q.slc is not None {
         return out[q.slc];

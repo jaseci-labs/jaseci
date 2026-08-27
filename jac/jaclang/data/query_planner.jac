@@ -34,12 +34,6 @@ def _sql_pairs(
 def resolve_query_prefix(mem: Session, q: GraphQuery, upto: int) -> list[UUID];
 
 
-def _acl_gated -> bool;
-
-
-def _acl_read_ok(anchor: Anchor) -> bool;
-
-
 def resolve_query(mem: Session, q: GraphQuery) -> list[Anchor];
 
 
