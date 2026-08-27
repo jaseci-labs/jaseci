@@ -142,15 +142,38 @@ ns_owner() {
     kubectl get namespace "$1" -o "jsonpath={.metadata.labels.${OWNER_LABEL//./\\.}}" 2>/dev/null || echo ""
 }
 
-require_absent() {
-    kubectl get "$2" "$3" -n "$1" >/dev/null 2>&1 \
-        && fail "$1" "$2/$3 still present in '$1' after destroy"
-    return 0
+deletion_timestamp() {
+    kubectl get "$2" "$3" -n "$1" -o jsonpath='{.metadata.deletionTimestamp}' 2>/dev/null || true
 }
 
+# A PVC stays readable while its pvc-protection finalizer waits for the
+# mounting pod to go, so "reclaimed" means gone or marked for deletion, not
+# merely unreadable the instant destroy returns.
+require_absent() {
+    ns="$1"; kind="$2"; name="$3"
+    waited=0
+    while [ "${waited}" -lt "${RECLAIM_WAIT:-180}" ]; do
+        if ! kubectl get "${kind}" "${name}" -n "${ns}" >/dev/null 2>&1; then
+            return 0
+        fi
+        if [ -n "$(deletion_timestamp "${ns}" "${kind}" "${name}")" ]; then
+            echo "  ${kind}/${name} is Terminating"
+            return 0
+        fi
+        sleep 5
+        waited=$(( waited + 5 ))
+    done
+    fail "${ns}" "${kind}/${name} still present in '${ns}' after destroy, with no deletion timestamp"
+}
+
+# Surviving means untouched: an object already marked for deletion has been
+# reclaimed by something, which for a foreign object is the bug under test.
 require_present() {
-    kubectl get "$2" "$3" -n "$1" >/dev/null 2>&1 \
-        || fail "$1" "$2/$3 was deleted from '$1' but jac-scale does not own it"
+    ns="$1"; kind="$2"; name="$3"
+    kubectl get "${kind}" "${name}" -n "${ns}" >/dev/null 2>&1 \
+        || fail "${ns}" "${kind}/${name} was deleted from '${ns}' but jac-scale does not own it"
+    [ -z "$(deletion_timestamp "${ns}" "${kind}" "${name}")" ] \
+        || fail "${ns}" "${kind}/${name} is Terminating in '${ns}' but jac-scale does not own it"
     return 0
 }
 
