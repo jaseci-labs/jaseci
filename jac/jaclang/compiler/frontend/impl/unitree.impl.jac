@@ -413,13 +413,28 @@ impl Symbol.init(
     parent_tab: (UniScopeNode | None) = None,
     imported: bool = False
 ) -> None {
-    self.defn = [defn];
-    self.uses = [];
+    self.name = defn.sym_name;
     self.imported = imported;
-    defn.sym = self;
     self.access = access;
-    self.parent_tab = parent_tab;
     self.semstr = '';
+    self +>:Defines:+> defn;
+    defn.sym = self;
+    if parent_tab is not None {
+        parent_tab +>:InScope:+> self;
+    }
+}
+
+impl Symbol.defn.getter -> list[NameAtom] {
+    return [self ->:Defines:->];
+}
+
+impl Symbol.uses.getter -> list[NameAtom] {
+    return [self ->:Uses:->];
+}
+
+impl Symbol.parent_tab.getter -> (UniScopeNode | None) {
+    found = [self <-:InScope:<-];
+    return found[0] if found else None;
 }
 
 impl Symbol.decl.getter -> NameAtom {
@@ -501,7 +516,7 @@ impl Symbol.storage.getter -> SymbolStorage {
 }
 
 impl Symbol.add_defn(nd: NameAtom) -> None {
-    self.defn.append(nd);
+    self +>:Defines:+> nd;
     nd.sym = self;
 }
 
@@ -511,7 +526,7 @@ impl Symbol.add_use(nd: NameAtom) -> None {
     if self.in_stub_scope() {
         return;
     }
-    self.uses.append(nd);
+    self +>:Uses:+> nd;
 }
 
 impl Symbol.in_stub_scope -> bool {
@@ -540,11 +555,45 @@ impl UniScopeNode._init_scope(
     name: str, parent_scope: (UniScopeNode | None) = None
 ) -> None {
     self.scope_name = name;
-    self.parent_scope = parent_scope;
-    self.kid_scope: list[UniScopeNode] = [];
-    self.names_in_scope: dict[(str, Symbol)] = {};
-    self.names_in_scope_overload: dict[(str, list[Symbol])] = {};
     self.implicit_rebinds: dict[(str, Symbol)] = {};
+    if parent_scope is not None {
+        self.parent_scope = parent_scope;
+    }
+}
+
+impl UniScopeNode.parent_scope.getter -> (UniScopeNode | None) {
+    found = [self <-:ScopeChild:<-];
+    return found[-1] if found else None;
+}
+
+impl UniScopeNode.parent_scope.setter(parent_scope: (UniScopeNode | None)) {
+    for e in [edge self <-:ScopeChild:<-] {
+        del e;
+    }
+    if parent_scope is not None {
+        parent_scope +>:ScopeChild(in_kids=False):+> self;
+    }
+}
+
+impl UniScopeNode.kid_scope.getter -> list[UniScopeNode] {
+    return [self ->:ScopeChild:in_kids == True:->];
+}
+
+impl UniScopeNode.names_in_scope.getter -> dict[(str, Symbol)] {
+    out: dict[(str, Symbol)] = {};
+    for e in [edge self ->:ScopePrimary:->] {
+        sym = getattr(e, "__jac__").target.archetype;
+        out[e.alias or sym.name] = sym;
+    }
+    return out;
+}
+
+impl UniScopeNode.names_in_scope_overload.getter -> dict[(str, list[Symbol])] {
+    out: dict[(str, list[Symbol])] = {};
+    for sym in [self ->:ScopeOverload:->] {
+        out.setdefault(sym.name, []).append(sym);
+    }
+    return out;
 }
 
 impl UniScopeNode.lookup(
@@ -615,15 +664,23 @@ impl UniScopeNode.insert(
         parent_tab=self,
         imported=imported
     );
-    if (nd.sym_name in self.names_in_scope) {
-        self.names_in_scope_overload.setdefault(nd.sym_name, []).append(symbol);
+    current = self.names_in_scope;
+    if (nd.sym_name in current) {
+        self +>:ScopeOverload:+> symbol;
     }
-    if (force_overwrite or (nd.sym_name not in self.names_in_scope)) {
-        self.names_in_scope[nd.sym_name] = symbol;
+    if (force_overwrite or (nd.sym_name not in current)) {
+        for e in [edge self ->:ScopePrimary:->] {
+            if (e.alias or getattr(e, "__jac__").target.archetype.name) == nd.sym_name {
+                del e;
+            }
+        }
+        self +>:ScopePrimary:+> symbol;
+        winner = symbol;
     } else {
-        self.names_in_scope[nd.sym_name].add_defn(nd.name_spec);
+        winner = current[nd.sym_name];
+        winner.add_defn(nd.name_spec);
     }
-    nd.name_spec.sym = self.names_in_scope[nd.sym_name];
+    nd.name_spec.sym = winner;
     return collision;
 }
 
@@ -669,10 +726,31 @@ impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
     return out;
 }
 
+impl UniScopeNode.set_primary_names(syms: dict[(str, Symbol)]) -> None {
+    for e in [edge self ->:ScopePrimary:->] {
+        del e;
+    }
+    for (key, sym) in syms.items() {
+        self +>:ScopePrimary(alias=(key if key != sym.name else "")):+> sym;
+    }
+}
+
+impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
+    key = alias or sym.name;
+    for e in [edge self ->:ScopePrimary:->] {
+        if (e.alias or getattr(e, "__jac__").target.archetype.name) == key {
+            del e;
+        }
+    }
+    self +>:ScopePrimary(alias=(key if key != sym.name else "")):+> sym;
+}
+
 impl UniScopeNode.link_kid_scope(key_node: UniScopeNode) -> UniScopeNode {
-    key_node.parent_scope = self;
-    self.kid_scope.append(key_node);
-    return self.kid_scope[-1];
+    for e in [edge key_node <-:ScopeChild:<-] {
+        del e;
+    }
+    self +>:ScopeChild:+> key_node;
+    return key_node;
 }
 
 impl UniScopeNode.def_insert(
@@ -855,8 +933,32 @@ impl AstAccessNode.public_access.getter -> bool {
     return (self.access_type == SymbolAccess.PUBLIC);
 }
 
-impl ContextAwareNode.postinit -> None {
-    self.code_context = CodeContext.SERVER;
+impl ContextAwareNode.postinit -> None { }
+
+impl ContextAwareNode.code_context.getter -> CodeContext {
+    found = [self ->:PlacedIn:->];
+    return CodeContext(found[0].kind) if found else CodeContext.SERVER;
+}
+
+impl ContextAwareNode.code_context.setter(code_context: CodeContext) {
+    for e in [edge self ->:PlacedIn:->] {
+        del e;
+    }
+    self +>:PlacedIn:+> codespace_node(code_context.value);
+}
+
+impl Module.decided_codespace.getter -> str {
+    found = [self ->:DecidedCodespace:->];
+    return found[0].kind if found else "";
+}
+
+impl Module.decided_codespace.setter(decided_codespace: str) {
+    for e in [edge self ->:DecidedCodespace:->] {
+        del e;
+    }
+    if decided_codespace {
+        self +>:DecidedCodespace:+> codespace_node(decided_codespace);
+    }
 }
 
 
@@ -866,10 +968,50 @@ impl WalkerStmtOnlyNode.postinit -> None {
 
 
 impl UniCFGNode.postinit -> None {
-    self.bb_in = [];
-    self.bb_out = [];
     _syms: set[str] = set();
     self.affected_symbols = _syms;
+}
+
+impl UniCFGNode.bb_out.getter -> list[UniCFGNode] {
+    return [self ->:CfgSucc:->];
+}
+
+impl UniCFGNode.bb_in.getter -> list[UniCFGNode] {
+    return [self <-:CfgSucc:<-];
+}
+
+impl UniCFGNode.cfg_link(target: UniCFGNode) -> None {
+    if target not in [self ->:CfgSucc:->] {
+        self +>:CfgSucc:+> target;
+    }
+}
+
+impl ConditionalNode.sc_true_target.getter -> (UniCFGNode | None) {
+    found = [self ->:CfgTrue:->];
+    return found[0] if found else None;
+}
+
+impl ConditionalNode.sc_true_target.setter(sc_true_target: (UniCFGNode | None)) {
+    for e in [edge self ->:CfgTrue:->] {
+        del e;
+    }
+    if sc_true_target is not None {
+        self +>:CfgTrue:+> sc_true_target;
+    }
+}
+
+impl ConditionalNode.sc_false_target.getter -> (UniCFGNode | None) {
+    found = [self ->:CfgFalse:->];
+    return found[0] if found else None;
+}
+
+impl ConditionalNode.sc_false_target.setter(sc_false_target: (UniCFGNode | None)) {
+    for e in [edge self ->:CfgFalse:->] {
+        del e;
+    }
+    if sc_false_target is not None {
+        self +>:CfgFalse:+> sc_false_target;
+    }
 }
 
 impl ConditionalNode.postinit -> None {
@@ -976,7 +1118,6 @@ impl AstImplNeedingNode.needs_impl.getter -> bool {
 
 impl NameAtom.postinit -> None {
     self.name_of = self;
-    self._sym = None;
     self._sym_name = '';
     self._sym_category = SymbolType.UNKNOWN;
     self._expr_ctx = ExprCtx.LOAD;
@@ -1165,7 +1306,6 @@ impl PyInlineCode.postinit -> None {
 
 
 impl Import.postinit -> None {
-    self.absorbed_mod = None;
     self.jac_detected = None;
     self.boundary_facts = None;
     self.native_only_drop = False;
@@ -2220,7 +2360,6 @@ impl YieldExpr.postinit -> None {
 
 
 impl FuncCall.postinit -> None {
-    self.callee_decl = None;
     UniNode.postinit(self);
     Expr.postinit(self);
 }
@@ -2520,7 +2659,6 @@ impl Name.init(
         pos_end=pos_end
     );
     self.name_of = self;
-    self._sym = None;
     self._sym_name = '';
     self._sym_category = SymbolType.UNKNOWN;
     self._expr_ctx = ExprCtx.LOAD;
@@ -2778,12 +2916,46 @@ impl Expr.type_sym_tab.setter(type_sym_tab: UniScopeNode) {
     self._type_sym_tab = type_sym_tab;
 }
 
+impl FuncCall.callee_decl.getter -> (Ability | None) {
+    found = [self ->:CalleeDecl:->];
+    return found[0] if found else None;
+}
+
+impl FuncCall.callee_decl.setter(callee_decl: (Ability | None)) {
+    for e in [edge self ->:CalleeDecl:->] {
+        del e;
+    }
+    if callee_decl is not None {
+        self +>:CalleeDecl:+> callee_decl;
+    }
+}
+
+impl Import.absorbed_mod.getter -> (Module | None) {
+    found = [self ->:Absorbs:->];
+    return found[0] if found else None;
+}
+
+impl Import.absorbed_mod.setter(absorbed_mod: (Module | None)) {
+    for e in [edge self ->:Absorbs:->] {
+        del e;
+    }
+    if absorbed_mod is not None {
+        self +>:Absorbs:+> absorbed_mod;
+    }
+}
+
 impl NameAtom.sym.getter -> (Symbol | None) {
-    return self._sym;
+    found = [self ->:SymOf:->];
+    return found[0] if found else None;
 }
 
 impl NameAtom.sym.setter(sym: Symbol) {
-    self._sym = sym;
+    for e in [edge self ->:SymOf:->] {
+        del e;
+    }
+    if sym is not None {
+        self +>:SymOf:+> sym;
+    }
 }
 
 impl NameAtom.expr_ctx.getter -> ExprCtx {
@@ -2866,7 +3038,10 @@ impl record_cross_scope_rebind(py_scope: UniScopeNode, name: str, sym: Symbol) -
     if not isinstance(py_scope, (Ability, ImplDef, Test)) {
         return;
     }
-    if py_scope.names_in_scope is outer_tab.names_in_scope {
+    if isinstance(py_scope, ImplDef) and py_scope.decl_link is outer_tab {
+        return;
+    }
+    if isinstance(outer_tab, ImplDef) and outer_tab.decl_link is py_scope {
         return;
     }
     if isinstance(outer_tab, Module) {
@@ -2887,7 +3062,7 @@ impl rebind_or_def_insert(
         outer_sym = lookup_enclosing_binding(py_scope, target.sym_name);
         if outer_sym is not None {
             outer_sym.add_use(target.name_spec);
-            py_scope.names_in_scope[target.sym_name] = outer_sym;
+            py_scope.adopt_primary(outer_sym, target.sym_name);
             py_scope.implicit_rebinds[target.sym_name] = outer_sym;
             return;
         }

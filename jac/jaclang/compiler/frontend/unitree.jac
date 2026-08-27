@@ -127,6 +127,24 @@ import from jaclang.compiler.frontend.roles {
     VarargsRole,
     VarsRole
 }
+import from jaclang.compiler.frontend.relations {
+    Absorbs,
+    CalleeDecl,
+    CfgFalse,
+    CfgSucc,
+    CfgTrue,
+    Codespace,
+    DecidedCodespace,
+    Defines,
+    InScope,
+    PlacedIn,
+    ScopeChild,
+    ScopeOverload,
+    ScopePrimary,
+    SymOf,
+    Uses,
+    codespace_node
+}
 
 
 node UniNode {
@@ -142,8 +160,11 @@ node UniNode {
     def accept_exit(v: UniPass) -> None;
 
     has kid: list[UniNode] { getter; }
+
     has parent: (UniNode | None) { getter; }
+
     has gen: CodeGenTarget { getter; setter(value: CodeGenTarget); }
+
     has _sub_node_tab: dict[(type, list[UniNode])] { getter; }
 
     def _link(kid: Sequence[UniNode], roles: dict[str, any]) -> None;
@@ -224,11 +245,9 @@ node UniNode {
     def __repr__ -> str;
 }
 
-obj Symbol {
-    has defn: list[NameAtom] postinit,
-        uses: list[NameAtom] postinit,
+node Symbol {
+    has name: str postinit,
         access: SymbolAccess postinit,
-        parent_tab: (UniScopeNode | None) postinit,
         imported: bool postinit,
         semstr: str postinit,
         ownership: OwnershipKind = OwnershipKind.NONE,
@@ -245,11 +264,22 @@ obj Symbol {
         imported: bool = False
     ) -> None;
 
+    has defn: list[NameAtom] { getter; }
+
+    has uses: list[NameAtom] { getter; }
+
+    has parent_tab: (UniScopeNode | None) { getter; }
+
     has decl: NameAtom { getter; }
+
     has sym_name: str { getter; }
+
     has sym_type: SymbolType { getter; }
+
     has sym_dotted_name: str { getter; }
+
     has symbol_table: (UniScopeNode | None) { getter; }
+
     has storage: SymbolStorage { getter; }
 
     def add_defn(nd: NameAtom) -> None;
@@ -266,11 +296,15 @@ obj InheritedSymbolTable {
 
 node UniScopeNode(UniNode) {
     has scope_name: str postinit,
-        parent_scope: (UniScopeNode | None) postinit,
-        kid_scope: list[UniScopeNode] postinit,
-        names_in_scope: dict[(str, Symbol)] postinit,
-        names_in_scope_overload: dict[(str, list[Symbol])] postinit,
         implicit_rebinds: dict[(str, Symbol)] postinit;
+
+    has parent_scope: (UniScopeNode | None) { getter; setter(parent_scope: (UniScopeNode | None)); }
+
+    has kid_scope: list[UniScopeNode] { getter; }
+
+    has names_in_scope: dict[(str, Symbol)] { getter; }
+
+    has names_in_scope_overload: dict[(str, list[Symbol])] { getter; }
 
     def _init_scope(name: str, parent_scope: (UniScopeNode | None) = None) -> None;
     static def is_python_scoping(nd: (UniNode | None)) -> bool {
@@ -293,6 +327,8 @@ node UniScopeNode(UniNode) {
     ) -> (UniNode | None);
 
     def find_scope(name: str) -> (UniScopeNode | None);
+    def set_primary_names(syms: dict[(str, Symbol)]) -> None;
+    def adopt_primary(sym: Symbol, alias: str = "") -> None;
     def get_enclosing_captures -> list[Symbol];
     def link_kid_scope(key_node: UniScopeNode) -> UniScopeNode;
     def def_insert(
@@ -324,9 +360,13 @@ node AstSymbolNode(UniNode) {
     ) -> None;
 
     has sym: (Symbol | None) { getter; }
+
     has sym_name: str { getter; }
+
     has sym_category: SymbolType { getter; }
+
     has expr_ctx: ExprCtx { getter; }
+
     has type_sym_tab: (UniScopeNode | None) { getter; }
     def init(*, kid: Sequence[UniNode] = []) -> None;
     def __repr__ -> str;
@@ -340,7 +380,9 @@ node AstSymbolStubNode(AstSymbolNode) {
 
 node AstAccessNode(UniNode) {
     has access: (SubTag[Token] | None) { getter; }
+
     has access_type: SymbolAccess { getter; }
+
     has public_access: bool { getter; }
     def init(*, access: (SubTag[Token] | None) = None, kid: Sequence[UniNode] = []) -> None;
     def _attach(child: UniNode, role: str, in_kid: bool) -> None;
@@ -348,8 +390,9 @@ node AstAccessNode(UniNode) {
 }
 
 node ContextAwareNode(UniNode) {
-    has code_context: CodeContext postinit,
-        codespace_dual: bool = False;
+    has codespace_dual: bool = False;
+
+    has code_context: CodeContext { getter; setter(code_context: CodeContext); }
     def init(*, codespace_dual: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
@@ -395,9 +438,13 @@ node WalkerStmtOnlyNode(UniNode) {
 }
 
 node UniCFGNode(UniNode) {
-    has bb_in: list[UniCFGNode] postinit,
-        bb_out: list[UniCFGNode] postinit,
-        affected_symbols: set[str] postinit;
+    has affected_symbols: set[str] postinit;
+
+    has bb_in: list[UniCFGNode] { getter; }
+
+    has bb_out: list[UniCFGNode] { getter; }
+
+    def cfg_link(target: UniCFGNode) -> None;
     def init(*, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
@@ -407,8 +454,9 @@ node UniCFGNode(UniNode) {
 }
 
 node ConditionalNode(UniCFGNode) {
-    has sc_true_target: (UniCFGNode | None) = None,
-        sc_false_target: (UniCFGNode | None) = None;
+    has sc_true_target: (UniCFGNode | None) { getter; setter(sc_true_target: (UniCFGNode | None)); }
+
+    has sc_false_target: (UniCFGNode | None) { getter; setter(sc_false_target: (UniCFGNode | None)); }
     def init(*, sc_true_target: (UniCFGNode | None) = None, sc_false_target: (UniCFGNode | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
@@ -467,6 +515,7 @@ node CodeBlockStmt(UniCFGNode) {
 
 node AstImplNeedingNode(AstSymbolNode) {
     has body: (Sequence[UniNode] | UniNode | None) { getter; }
+
     has needs_impl: bool { getter; }
     def init(*, body: (Sequence[UniNode] | UniNode | None), kid: Sequence[UniNode] = []) -> None;
     def _attach(child: UniNode, role: str, in_kid: bool) -> None;
@@ -475,7 +524,6 @@ node AstImplNeedingNode(AstSymbolNode) {
 
 node NameAtom(AtomExpr, EnumBlockStmt) {
     has name_of: AstSymbolNode postinit,
-        _sym: (Symbol | None) postinit,
         _sym_name: str postinit,
         _sym_category: SymbolType postinit,
         _expr_ctx: ExprCtx postinit,
@@ -485,7 +533,9 @@ node NameAtom(AtomExpr, EnumBlockStmt) {
     def postinit -> None;
 
     has sym: (Symbol | None) { getter; setter(sym: Symbol); }
+
     has sym_name: str { getter; }
+
     has sym_category: SymbolType { getter; }
 
     def bind_sym(
@@ -499,7 +549,9 @@ node NameAtom(AtomExpr, EnumBlockStmt) {
     ) -> Symbol;
 
     has clean_type: str { getter; }
+
     has expr_ctx: ExprCtx { getter; setter(expr_ctx: ExprCtx); }
+
     has sem_token: (tuple[(SemTokType, SemTokMod)] | None) { getter; }
     def __repr__ -> str;
 }
@@ -544,8 +596,6 @@ node Module(AstDocNode, UniScopeNode) {
 
         is_raised_from_py: bool = False,
 
-        decided_codespace: str = "",
-
         parse_failed: bool = False,
 
         mobui_enforced_root: (str | None) = None,
@@ -571,7 +621,9 @@ node Module(AstDocNode, UniScopeNode) {
         anon_region_locals: dict[int, list[str]] postinit;
 
     has body: Sequence[ElementStmt | String | EmptyToken] { getter; }
-    def init(*, doc: (String | None) = None, name: str, source: Source, body: Sequence[ElementStmt | String | EmptyToken], terminals: list[Token], stub_only: bool = False, src_terminals: list[Token] = [], is_raised_from_py: bool = False, decided_codespace: str = "", parse_failed: bool = False, mobui_enforced_root: (str | None) = None, jac_project_root: (str | None) = None, access_enforced: bool = False, ct_resolved: bool = False, native_viols_reported: bool = False, client_viols_reported: bool = False, kid: Sequence[UniNode] = []) -> None;
+    def init(*, doc: (String | None) = None, name: str, source: Source, body: Sequence[ElementStmt | String | EmptyToken], terminals: list[Token], stub_only: bool = False, src_terminals: list[Token] = [], is_raised_from_py: bool = False, parse_failed: bool = False, mobui_enforced_root: (str | None) = None, jac_project_root: (str | None) = None, access_enforced: bool = False, ct_resolved: bool = False, native_viols_reported: bool = False, client_viols_reported: bool = False, kid: Sequence[UniNode] = []) -> None;
+
+    has decided_codespace: str { getter; setter(decided_codespace: str); }
 
     def postinit -> None;
 
@@ -723,7 +775,6 @@ node Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
         is_typed: bool = False,
         is_comptime: bool = False,
 
-        absorbed_mod: (Module | None) postinit,
 
         jac_detected: (bool | None) postinit,
 
@@ -740,14 +791,22 @@ node Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     has hint: (SubTag[Token] | None) { getter; }
     def init(*, doc: (String | None) = None, codespace_dual: bool = False, from_loc: (ModulePath | None), items: Sequence[(ModuleItem | ModulePath)], is_absorb: bool, is_typed: bool = False, clib_decls: (Sequence[UniNode] | None) = None, is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
 
+    has absorbed_mod: (Module | None) { getter; setter(absorbed_mod: (Module | None)); }
+
     def postinit -> None;
 
     has is_jac: bool { getter; }
+
     has __jac_detected: bool { getter; }
+
     has has_string_path: bool { getter; }
+
     has has_clib_decls: bool { getter; }
+
     has is_service_import: bool { getter; }
+
     has is_virtual_jac: bool { getter; }
+
     has ecosystem: str { getter; }
     def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
@@ -769,8 +828,11 @@ node ModulePath(UniNode) {
     def postinit -> None;
 
     has is_import_from: bool { getter; }
+
     has dot_path_str: str { getter; }
+
     has base_module_name: str { getter; }
+
     has string_path_value: (str | None) { getter; }
 
     def resolve_relative_path(target_item: (str | None) = None) -> str;
@@ -794,7 +856,9 @@ node ModuleItem(UniNode) {
     def postinit -> None;
 
     has from_parent: Import { getter; }
+
     has from_mod_path: ModulePath { getter; }
+
     has binding_name: (Name | None) { getter; }
 
     def resolve_relative_path -> str;
@@ -825,6 +889,7 @@ node Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImpl
     def _get_impl_resolved_body -> list[UniNode];
 
     has is_abstract: bool { getter; }
+
     has arch_kind: (str | None) { getter; }
 
     def get_has_vars -> list[HasVar];
@@ -914,9 +979,13 @@ node Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBlo
     def postinit -> None;
 
     has is_method: bool { getter; }
+
     has is_cls_method: bool { getter; }
+
     has is_def: bool { getter; }
+
     has method_owner: Archetype | Enum | None { getter; }
+
     has is_genai_ability: bool { getter; }
 
     def py_resolve_name -> str;
@@ -946,6 +1015,7 @@ node FuncSignature(UniNode) {
     def get_parameters -> list[ParamVar];
 
     has is_static: bool { getter; }
+
     has is_in_py_class: bool { getter; }
     def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
@@ -982,6 +1052,7 @@ node ParamVar(AstSymbolNode, AstTypedVarNode) {
     def postinit -> None;
 
     has is_vararg: bool { getter; }
+
     has is_kwargs: bool { getter; }
     def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
@@ -1747,9 +1818,9 @@ node FuncCall(Expr) {
 
         call_kind: (str | None) = None,
 
-        chunks_recv_type: (str | None) = None,
+        chunks_recv_type: (str | None) = None;
 
-        callee_decl: (Ability | None) postinit;
+    has callee_decl: (Ability | None) { getter; setter(callee_decl: (Ability | None)); }
 
     has target: Expr { getter; }
 
@@ -2440,6 +2511,7 @@ node Source(EmptyToken) {
     def init(source: str, mod_path: str) -> None;
 
     has code: str { getter; }
+
     has hash: str { getter; }
     def __repr__ -> str;
 }

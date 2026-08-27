@@ -405,9 +405,10 @@ impl TypeEvaluator._install_synth_member(
         pos_end=0,
     );
     field_node.type = member_type;
-    scope.names_in_scope[mname] = Symbol(
+    _field_sym = Symbol(
         defn=field_node, access=SymbolAccess.PUBLIC, parent_tab=scope
     );
+    scope.adopt_primary(_field_sym, mname);
 }
 
 impl TypeEvaluator._synthesize_ts_decl_class(

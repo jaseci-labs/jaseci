@@ -1295,13 +1295,13 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: HasVar) -> None {
             if isinstance(arch, Archetype) {
                 postinit_sym = arch.names_in_scope.get("__post_init__");
                 if postinit_sym is not None {
-                    postinit_nd._sym = postinit_sym;
+                    postinit_nd.sym = postinit_sym;
                 }
             } elif isinstance(arch, ImplDef)
                 and isinstance(arch.decl_link, Archetype) {
                 if (postinit_sym := arch.decl_link.names_in_scope.get("__post_init__"))
                     is not None {
-                    postinit_nd._sym = postinit_sym;
+                    postinit_nd.sym = postinit_sym;
                 }
             }
         }

@@ -94,7 +94,7 @@ impl DeclImplMatchPass._connect_one_impl(
         if ((len(arch_refs) == 1) and lookup)
         else self._find_archetype_defn(lookup) if lookup else None;
     name_of_links.append(decl_node) if decl_node else None;
-    for name in arch_refs[1:] {
+    for (ref_idx, name) in enumerate(arch_refs[1:]) {
         if decl_node {
             if (
                 isinstance(decl_node.name_of, HasVar)
@@ -118,6 +118,15 @@ impl DeclImplMatchPass._connect_one_impl(
                 if decl_node.name_of.sym_tab
                 else None;
             decl_node = lookup.defn[-1] if lookup else None;
+            next_ref = arch_refs[ref_idx + 2] if (ref_idx + 2) < len(arch_refs) else "";
+            if lookup and next_ref in ["getter", "setter", "deleter"] {
+                for cand in reversed(lookup.defn) {
+                    if isinstance(cand.name_of, HasVar) and cand.name_of.accessors {
+                        decl_node = cand;
+                        break;
+                    }
+                }
+            }
             name_of_links.append(decl_node) if decl_node else None;
         } else {
             break;
@@ -160,8 +169,10 @@ impl DeclImplMatchPass._connect_one_impl(
             }
         }
     }
-    impl_node.sym_tab.names_in_scope.update(valid_decl.sym_tab.names_in_scope);
-    valid_decl.sym_tab.names_in_scope = impl_node.sym_tab.names_in_scope;
+    merged = impl_node.sym_tab.names_in_scope;
+    merged.update(valid_decl.sym_tab.names_in_scope);
+    impl_node.sym_tab.set_primary_names(merged);
+    valid_decl.sym_tab.set_primary_names(merged);
 
     for assignment in impl_node.get_all_sub_nodes(Assignment) {
         if assignment.type_tag is not None {

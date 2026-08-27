@@ -4233,7 +4233,7 @@ impl TypeEvaluator.postinit -> None {
         }
         existing = self.builtins_module.names_in_scope.get(name);
         if existing is None or existing.imported {
-            self.builtins_module.names_in_scope[name] = sym;
+            self.builtins_module.adopt_primary(sym, name);
         }
     }
 
@@ -4245,13 +4245,13 @@ impl TypeEvaluator.postinit -> None {
         if overrides_allowed is not None and name not in overrides_allowed {
             continue;
         }
-        self.builtins_module.names_in_scope[name] = sym;
+        self.builtins_module.adopt_primary(sym, name);
     }
 
     for (name, sym) in self.dom_types_module.names_in_scope.items() {
         existing = self.builtins_module.names_in_scope.get(name);
         if existing is None or existing.imported {
-            self.builtins_module.names_in_scope[name] = sym;
+            self.builtins_module.adopt_primary(sym, name);
         }
     }
 
@@ -4272,7 +4272,7 @@ impl TypeEvaluator.postinit -> None {
         }
         existing_typing = self.builtins_module.names_in_scope.get(typing_name);
         if existing_typing is None or existing_typing.imported {
-            self.builtins_module.names_in_scope[typing_name] = typing_sym;
+            self.builtins_module.adopt_primary(typing_sym, typing_name);
         }
     }
     self._prefetch_types();

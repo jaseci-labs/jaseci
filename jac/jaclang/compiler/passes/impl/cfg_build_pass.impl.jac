@@ -257,12 +257,7 @@ impl CFGBuildPass.before_pass -> None { }
 
 impl CFGBuildPass.link_bbs(source: UniCFGNode, target: UniCFGNode) -> None {
     if source and target {
-        if target not in source.bb_out {
-            source.bb_out.append(target);
-        }
-        if source not in target.bb_in {
-            target.bb_in.append(source);
-        }
+        source.cfg_link(target);
         new_symbols = source.affected_symbols - target.affected_symbols;
         target.affected_symbols.update(source.affected_symbols);
 

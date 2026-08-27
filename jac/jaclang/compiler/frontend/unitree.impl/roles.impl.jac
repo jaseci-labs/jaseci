@@ -2484,14 +2484,13 @@ impl SubTag.init(*, tag: T, ownership: OwnershipKind = OwnershipKind.NONE, kid: 
     self.postinit();
 }
 
-impl Module.init(*, doc: (String | None) = None, name: str, source: Source, body: Sequence[ElementStmt | String | EmptyToken], terminals: list[Token], stub_only: bool = False, src_terminals: list[Token] = [], is_raised_from_py: bool = False, decided_codespace: str = "", parse_failed: bool = False, mobui_enforced_root: (str | None) = None, jac_project_root: (str | None) = None, access_enforced: bool = False, ct_resolved: bool = False, native_viols_reported: bool = False, client_viols_reported: bool = False, kid: Sequence[UniNode] = []) -> None {
+impl Module.init(*, doc: (String | None) = None, name: str, source: Source, body: Sequence[ElementStmt | String | EmptyToken], terminals: list[Token], stub_only: bool = False, src_terminals: list[Token] = [], is_raised_from_py: bool = False, parse_failed: bool = False, mobui_enforced_root: (str | None) = None, jac_project_root: (str | None) = None, access_enforced: bool = False, ct_resolved: bool = False, native_viols_reported: bool = False, client_viols_reported: bool = False, kid: Sequence[UniNode] = []) -> None {
     self.name = name;
     self.source = source;
     self.terminals = terminals;
     self.stub_only = stub_only;
     self.src_terminals = src_terminals;
     self.is_raised_from_py = is_raised_from_py;
-    self.decided_codespace = decided_codespace;
     self.parse_failed = parse_failed;
     self.mobui_enforced_root = mobui_enforced_root;
     self.jac_project_root = jac_project_root;
