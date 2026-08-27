@@ -103,11 +103,22 @@ impl KEDAAutoscaler._build_trigger{
     return keda_trigger;
 }
 
+impl KEDAAutoscaler._owner_label_value{
+    if len(name) <= 63 {
+        return name;
+    }
+    return f"so-{hashlib.sha256(name.encode()).hexdigest()[:16]}";
+}
+
+impl KEDAAutoscaler._scaled_object_name{
+    return spec.autoscaler_name or self.resource_name_for(app_name);
+}
+
 impl KEDAAutoscaler._build_manifests{
-    scaled_obj_name = spec.autoscaler_name or f"{spec.scale_target_name}-scaledobject";
-    keda_triggers: list[dict[str, any]] = [];
     app_name = spec.app_name or spec.scale_target_name;
     self._validate_triggers(spec, app_name);
+    scaled_obj_name = self._scaled_object_name(spec, app_name);
+    keda_triggers: list[dict[str, any]] = [];
     for (i, trigger) in enumerate(spec.triggers) {
         keda_triggers.append(self._build_trigger(trigger, app_name, i));
     }
@@ -161,7 +172,7 @@ impl KEDAAutoscaler._build_manifests{
     manifests: list[dict[str, any]] = [scaled_object];
     for (i, trigger) in enumerate(spec.triggers) {
         auth_manifest = self._build_trigger_auth_manifest(
-            trigger, spec.namespace, app_name, i
+            trigger, spec.namespace, app_name, i, scaled_obj_name
         );
         if auth_manifest is not None {
             manifests.append(auth_manifest);
@@ -197,7 +208,11 @@ impl KEDAAutoscaler._build_trigger_auth_manifest{
         "metadata": {
             "name": auth_name,
             "namespace": namespace,
-            "labels": Autoscaler._managed_labels()
+            "labels": {
+                "app": app_name,
+                "jac-scale/owner": self._owner_label_value(owner),
+                ** Autoscaler._managed_labels()
+            }
         },
         "spec": {"secretTargetRef": secret_target_refs}
     };
@@ -282,18 +297,101 @@ impl KEDAAutoscaler.apply{
             }
         }
     }
+
+    owner = self._scaled_object_name(spec, app_name);
+    desired_auth_names: set[str] = set();
+    for manifest in manifests {
+        if manifest["kind"] == "TriggerAuthentication" {
+            desired_auth_names.add(manifest["metadata"]["name"]);
+        }
+    }
+    self._prune_orphan_trigger_auths(api, spec.namespace, owner, desired_auth_names);
     return True;
+}
+
+impl KEDAAutoscaler._prune_orphan_trigger_auths{
+    selector = f"jac-scale/owner={self._owner_label_value(owner)},managed=jac-scale";
+    try {
+        existing = api.list_namespaced_custom_object(
+            group="keda.sh",
+            version="v1alpha1",
+            namespace=namespace,
+            plural="triggerauthentications",
+            label_selector=selector
+        );
+    } except ApiException as e {
+        if e.status not in [404, 422] {
+            raise;
+        }
+        return;
+    }
+    for item in existing.get("items", []) {
+        item_name = item["metadata"]["name"];
+        if item_name in desired_auth_names {
+            continue;
+        }
+        try {
+            api.delete_namespaced_custom_object(
+                group="keda.sh",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="triggerauthentications",
+                name=item_name
+            );
+        } except ApiException as e {
+            if e.status not in [404, 422] {
+                raise;
+            }
+        }
+    }
 }
 
 impl KEDAAutoscaler.destroy{
     api = self._custom_api or client.CustomObjectsApi();
+    scaled_object_name = self.resource_name_for(app_name);
+    selector = f"jac-scale/owner={self._owner_label_value(
+        scaled_object_name
+    )},managed=jac-scale";
+    try {
+        existing = api.list_namespaced_custom_object(
+            group="keda.sh",
+            version="v1alpha1",
+            namespace=namespace,
+            plural="triggerauthentications",
+            label_selector=selector
+        );
+        listing: dict[str, list[dict[str, any]]] = existing
+            if isinstance(existing, dict)
+            else {};
+        for item in listing.get("items", []) {
+            item_name = item["metadata"]["name"];
+            try {
+                api.delete_namespaced_custom_object(
+                    group="keda.sh",
+                    version="v1alpha1",
+                    namespace=namespace,
+                    plural="triggerauthentications",
+                    name=item_name
+                );
+            } except ApiException as e {
+                if e.status not in [404, 422] {
+                    raise;
+                }
+            }
+        }
+    } except ApiException as e {
+        if e.status not in [404, 422] {
+            raise;
+        }
+    }
+
     try {
         api.delete_namespaced_custom_object(
             group="keda.sh",
             version="v1alpha1",
             namespace=namespace,
             plural="scaledobjects",
-            name=app_name
+            name=scaled_object_name
         );
     } except ApiException as e {
         if e.status not in [404, 422] {

@@ -47,8 +47,10 @@ obj KEDAAutoscaler(Autoscaler) {
         trigger: Trigger, app_name: str, trigger_index: int
     ) -> dict[str, any];
 
+    static def _owner_label_value(name: str) -> str;
+    def _scaled_object_name(spec: AutoscalerSpec, app_name: str) -> str;
     def _build_trigger_auth_manifest(
-        trigger: Trigger, namespace: str, app_name: str, trigger_index: int
+        trigger: Trigger, namespace: str, app_name: str, trigger_index: int, owner: str
     ) -> (dict[str, any] | None);
 
     def _apply_custom_object(
@@ -59,6 +61,10 @@ obj KEDAAutoscaler(Autoscaler) {
         plural: str,
         name: str,
         body: dict[str, any]
+    ) -> None;
+
+    def _prune_orphan_trigger_auths(
+        api: any, namespace: str, owner: str, desired_auth_names: set[str]
     ) -> None;
 
     def _build_manifests(spec: AutoscalerSpec) -> list[dict[str, any]];

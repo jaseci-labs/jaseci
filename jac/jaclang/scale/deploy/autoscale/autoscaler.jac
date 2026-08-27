@@ -113,7 +113,7 @@ class Autoscaler {
         );
     }
 
-    def destroy(self: Autoscaler, autoscaler_name: str, namespace: str) {
+    def destroy(self: Autoscaler, app_name: str, namespace: str) {
         raise NotImplementedError(
             "destroy() must be implemented by a concrete Autoscaler subclass"
         );

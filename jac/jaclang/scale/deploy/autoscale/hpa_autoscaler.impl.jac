@@ -116,7 +116,7 @@ impl HPAAutoscaler.destroy{
     autoscaling_v2 = AutoscalingV2Api();
     delete_if_exists(
         autoscaling_v2.delete_namespaced_horizontal_pod_autoscaler,
-        autoscaler_name,
+        self.resource_name_for(app_name),
         namespace,
         'HorizontalPodAutoscaler'
     );
