@@ -112,10 +112,11 @@ graph TD
         FE7[MTIRGenPass]
         FE8[JsxIntrinsicGuardPass]
         FE9[PlacementApplyPass]
+        FE10[ComptimeResolvePass]
     end
 
-    FRONTEND --> FE1 --> FE2 --> FE3 --> FE4 --> FE5 --> FE6 --> FE7 --> FE8 --> FE9
-    FE9 --> TYPECK["Analysis (unconditional)<br/>TypeCheckPass / StaticAnalysisPass / AccessCheckPass / OwnershipCheckPass /<br/>NativeCapabilityCheckPass / ClientCapabilityCheckPass / PortabilityWarnPass / JacLintCheckPass"]
+    FRONTEND --> FE1 --> FE2 --> FE3 --> FE4 --> FE5 --> FE6 --> FE7 --> FE8 --> FE9 --> FE10
+    FE10 --> TYPECK["Analysis (unconditional)<br/>TypeCheckPass / StaticAnalysisPass / AccessCheckPass / OwnershipCheckPass /<br/>NativeCapabilityCheckPass / ClientCapabilityCheckPass / PortabilityWarnPass / JacLintCheckPass"]
     TYPECK --> INTEROP["BoundaryAnalysisPass<br/>(boundary discovery)"]
     INTEROP --> SV[JcirGenPass + JcirBytecodeGenPass]
     INTEROP --> CL[EsastGenPass]
@@ -258,6 +259,7 @@ The ir-gen schedule (`get_ir_gen_sched`):
 | `MTIRGenPass` | [`compiler/passes/mtir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/mtir_gen_pass.jac) | Generates Meaning-Typed IR for `by llm` calls (scheduled unless MTIR generation is off) |
 | `JsxIntrinsicGuardPass` | [`compiler/passes/jsx_intrinsic_guard_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/jsx_intrinsic_guard_pass.jac) | Rejects raw HTML host tags per the project's client kind (`E1105`) |
 | `PlacementApplyPass` | [`compiler/placement/placement_solver.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/placement/placement_solver.jac) | Applies the placement solver's per-module stage: summary-driven seeding plus the CLIENT/NATIVE reference fixpoint (see Stage 2) |
+| `ComptimeResolvePass` | [`compiler/passes/comptime_resolve_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/comptime_resolve_pass.jac) | Settles every `comptime` site (bindings, `if`/`for`/`assert`, comptime-parameter arguments) through the shared `TypeEvaluator` and its `CtEvaluator`, visiting only subtrees that contain a comptime construct; marks the module `ct_resolved` so a later `TypeCheckPass` does not report the same site twice. Runs here, not in the analysis schedule, so modules compiled on import fold identically to `jac check` |
 
 The analysis schedule (`get_analysis_sched`) -- **unconditional**, appended
 on every compile:
