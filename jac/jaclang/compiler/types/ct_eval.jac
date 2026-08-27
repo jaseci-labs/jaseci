@@ -74,6 +74,7 @@ import from jaclang.compiler.frontend.constant {
     Tokens as Tok
 }
 import from jaclang.compiler.frontend.codeinfo { module_dotted_name }
+import from jaclang.runtime.scalars { shape_of }
 import from jaclang.compiler.types.ct_value {
     CT_DEFERRED,
     CtDeferred,
@@ -855,7 +856,6 @@ obj CtEvaluator {
             if name in self._builtins {
                 return self._builtins[name];
             }
-            import from jaclang.runtime.scalars { shape_of }
             if shape_of(name) is not None {
                 return CtType(name=name, module="jaclang.runtime.scalars");
             }
@@ -898,7 +898,6 @@ obj CtEvaluator {
                     return self._builtins[nm];
                 }
             }
-            import from jaclang.runtime.scalars { shape_of }
             if isinstance(node_, Archetype) and shape_of(nm) is not None {
                 return CtType(name=nm, module="jaclang.runtime.scalars");
             }
@@ -2008,7 +2007,6 @@ obj CtEvaluator {
     }
 
     def _scalar_size_align(t: any) -> (tuple | None) {
-        import from jaclang.runtime.scalars { shape_of }
         name = t.name if isinstance(t, CtType) else str(t);
         if isinstance(t, `type) {
             name = t.__name__;

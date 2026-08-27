@@ -812,12 +812,12 @@ impl JcirGenPass._is_ct_type_param(nd: Name) -> bool {
 }
 
 impl JcirGenPass._ct_param_decls(cls_expr: Expr) -> (list[TypeParam] | None) {
-    import from jaclang.compiler.types.types { ClassType as _CtClassType }
-    t = cls_expr.type;
-    if not isinstance(t, _CtClassType) or not t.shared.ct_params {
+    t: any = cls_expr.type;
+    shared: any = t?.shared;
+    if shared is None or not shared?.ct_params {
         return None;
     }
-    arch = t.shared.symbol_table;
+    arch = shared.symbol_table;
     if not isinstance(arch, Archetype) {
         return None;
     }
