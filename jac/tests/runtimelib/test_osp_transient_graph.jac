@@ -100,6 +100,83 @@ def _ratio(small: float, big: float) -> float {
     return big / small if small > 0.0 else 1000000.0;
 }
 
+"""Average probes per insert for `keys`, replaying the kernel's own insert loop
+against its own hash and its own capacity schedule.
+
+This is the deterministic form of "connect is flat in the size of the graph":
+the wall-clock tests below can only ever be a smoke check, because a CI runner
+under memory pressure adds allocation cost that has nothing to do with the
+kernel, but probe count is exact and is what the hash actually decides.
+"""
+def _probes_per_insert(keys: list[int]) -> float {
+    slots: list[int] = [];
+    cap = 0;
+    live = 0;
+    total = 0;
+    for k in keys {
+        if cap == 0 or live * 4 >= cap * 3 {
+            old = slots;
+            ncap = cap * 2 if cap > 0 else 1024;
+            slots = [];
+            i = 0;
+            while i < ncap {
+                slots.append(0);
+                i += 1;
+            }
+            cap = ncap;
+            m = cap - 1;
+            for ok in old {
+                if ok != 0 {
+                    h = _g._hslot(ok, m);
+                    while slots[h] != 0 {
+                        h = (h + 1) & m;
+                    }
+                    slots[h] = ok;
+                }
+            }
+        }
+        m = cap - 1;
+        h = _g._hslot(k, m);
+        probes = 1;
+        while True {
+            cur = slots[h];
+            if cur == k {
+                break;
+            }
+            if cur == 0 {
+                slots[h] = k;
+                live += 1;
+                break;
+            }
+            h = (h + 1) & m;
+            probes += 1;
+        }
+        total += probes;
+    }
+    return float(total) / float(len(keys));
+}
+
+"""Node-table keys in the order `sv_conn` mints them: one handle per edge, then
+one per endpoint the first time it is seen, with only the endpoints reaching
+the node table."""
+def _sv_handles(edges: int) -> list[int] {
+    out: list[int] = [];
+    of_node: dict[int, int] = {};
+    h = 0;
+    for i in range(edges) {
+        h += 1;
+        for nd in [i, i + 1] {
+            if nd not in of_node {
+                h += 1;
+                of_node[nd] = h;
+            }
+        }
+        out.append(of_node[i]);
+        out.append(of_node[i + 1]);
+    }
+    return out;
+}
+
 # ---------------------------------------------------------------------------
 # A. The node table hashes dense handles as well as it hashes pointers.
 # ---------------------------------------------------------------------------
@@ -138,12 +215,43 @@ test "aligned addresses still scatter after the dense-handle fix" {
     );
 }
 
+test "the node table costs a constant number of probes per insert" {
+    for n in [2000, 16000, 64000] {
+        dense: list[int] = [];
+        k = 1;
+        while k <= n {
+            dense.append(k);
+            k += 1;
+        }
+        p = _probes_per_insert(dense);
+        assert p < 1.05 , (
+            f"{n} dense handles cost {p:.2f} probes per insert; the fold is "
+            "injective below the table capacity, so they must not collide "
+            "at all (the shipped hash cost ~n/2)"
+        );
+        q = _probes_per_insert(_sv_handles(n));
+        assert q < 4.0 , (
+            f"the handle pattern sv_conn actually mints cost {q:.2f} probes "
+            f"per insert at {n} edges (the shipped hash cost ~n/2)"
+        );
+    }
+}
+
 test "connecting a transient chain stays flat as the graph grows" {
-    _connect(_chain(500));
-    small = _connect(_chain(2000));
-    big = _connect(_chain(16000));
+    # Wall-clock, so: warm past both sizes first, so no table growth lands in a
+    # timed window, and take the best of three runs, so a scheduler or
+    # allocator hiccup on a loaded runner cannot masquerade as a growth curve.
+    # The probe-count test above is the exact statement; this one is the
+    # end-to-end guard, and its bound is set to catch a quadratic, not a wobble.
+    _connect(_chain(12000));
+    small = 1.0;
+    big = 1.0;
+    for trial in range(3) {
+        small = min(small, _connect(_chain(1000)));
+        big = min(big, _connect(_chain(8000)));
+    }
     r = _ratio(small, big);
-    assert r < 4.0 , (
+    assert r < 5.0 , (
         f"per-connect cost grew {r:.1f}x when the graph grew 8x "
         f"({small * 1e6:.1f}us -> {big * 1e6:.1f}us per edge); connect must be "
         "flat in the size of the graph"
@@ -186,17 +294,21 @@ def _detach(nodes: list[TNode]) -> float {
 }
 
 test "detaching an edge is flat in the number of edge rows ever allocated" {
-    warm = _chain(500);
+    warm = _chain(12000);
     _connect(warm);
     _detach(warm);
-    small_nodes = _chain(2000);
-    _connect(small_nodes);
-    small = _detach(small_nodes);
-    big_nodes = _chain(16000);
-    _connect(big_nodes);
-    big = _detach(big_nodes);
+    small = 1.0;
+    big = 1.0;
+    for trial in range(3) {
+        small_nodes = _chain(1000);
+        _connect(small_nodes);
+        small = min(small, _detach(small_nodes));
+        big_nodes = _chain(8000);
+        _connect(big_nodes);
+        big = min(big, _detach(big_nodes));
+    }
     r = _ratio(small, big);
-    assert r < 4.0 , (
+    assert r < 5.0 , (
         f"per-detach cost grew {r:.1f}x when the graph grew 8x "
         f"({small * 1e6:.1f}us -> {big * 1e6:.1f}us per edge); an edge must be "
         "found by its handle, not by scanning the row table"
