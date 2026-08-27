@@ -79,6 +79,36 @@ test "an artifact store leaves another compiler generation's artifact alone" {
     os.remove(mine);
 }
 
+test "a superseded generation's artifacts retire once they go untouched" {
+    import time;
+    import from jaclang.compiler.backends.kernel_units { _RETIRED_UNITS }
+    unit = osp_core_unit_path('cl');
+    units_dir = os.path.dirname(unit);
+    aged = os.path.join(
+        units_dir, "osp_core_cl.0123456789abcdef.feedfacefeedface.canary"
+    );
+    recent = os.path.join(
+        units_dir, "osp_core_cl.fedcba9876543210.cafebabecafebabe.canary"
+    );
+    for stray in [aged, recent] {
+        with open(stray, "w") as f {
+            f.write("; superseded\n");
+        }
+    }
+    old_stamp = time.time() - (40.0 * 86400.0);
+    os.utime(aged, (old_stamp, old_stamp));
+    _RETIRED_UNITS.discard("osp_core_cl");
+    osp_core_unit_path('cl');
+    assert not os.path.exists(aged) , (
+        "an untouched superseded artifact was not retired"
+    );
+    assert os.path.exists(recent) , (
+        "a superseded artifact still in use was retired too eagerly"
+    );
+    assert os.path.exists(unit) , "retirement removed the live unit";
+    os.remove(recent);
+}
+
 test "storing bytes already at an artifact key leaves the file untouched" {
     unit = osp_core_unit_path('cl');
     fp = "storecanary";

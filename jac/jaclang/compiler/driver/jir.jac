@@ -461,7 +461,7 @@ def get_module_cache_path(source_path: str) -> Path {
 glob GENERATION_TTL_DAYS: float = 14.0,
      _SWEPT_ROOTS: set[str] = set();
 
-def _generation_ttl_seconds -> float {
+def generation_ttl_seconds -> float {
     raw = os.environ.get("JAC_CACHE_GENERATION_TTL_DAYS", "").strip();
     if not raw {
         return GENERATION_TTL_DAYS * 86400.0;
@@ -488,7 +488,7 @@ def _is_generation_name(name: str) -> bool {
 def sweep_stale_generations(cache_root: Path, keep: str) -> int {
     import shutil;
     import time;
-    ttl = _generation_ttl_seconds();
+    ttl = generation_ttl_seconds();
     if ttl <= 0.0 {
         return 0;
     }

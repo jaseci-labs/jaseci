@@ -37,6 +37,37 @@ def _atomic_write(path: str, text: str) {
     os.replace(tmp, path);
 }
 
+glob _RETIRED_UNITS: set[str] = set();
+
+def _retire_superseded_artifacts(name: str, keep: str) {
+    import glob as _g;
+    import time;
+    import from jaclang.compiler.driver.jir { generation_ttl_seconds }
+    if name in _RETIRED_UNITS {
+        return;
+    }
+    _RETIRED_UNITS.add(name);
+    ttl = generation_ttl_seconds();
+    if ttl <= 0.0 {
+        return;
+    }
+    cutoff = time.time() - ttl;
+    live = f"{name}.{keep}.";
+    for path in _g.`glob(os.path.join(_units_dir(), f"{name}.*")) {
+        base = os.path.basename(path);
+        if base.endswith(".jac") or base.startswith(live) {
+            continue;
+        }
+        try {
+            if os.path.getmtime(path) < cutoff {
+                os.remove(path);
+            }
+        } except OSError {
+            ;
+        }
+    }
+}
+
 def kernel_unit_path(name: str, parts: list[str]) -> str {
     import hashlib;
     source = unit_source(parts);
@@ -45,6 +76,7 @@ def kernel_unit_path(name: str, parts: list[str]) -> str {
     if not os.path.exists(path) {
         _atomic_write(path, source);
     }
+    _retire_superseded_artifacts(name, digest);
     return path;
 }
 
