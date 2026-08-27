@@ -74,13 +74,6 @@ glob registry = get_registry();
             short="",
             help="Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision"
         ),
-        Arg.create(
-            "compile-stats",
-            typ=bool,
-            `default=False,
-            short="",
-            help="Report how much of each module's pass schedule the binary executed natively, and name every module that fell back to the staged pass loop"
-        ),
 
     ],
     examples=[
@@ -97,7 +90,7 @@ glob registry = get_registry();
             "Check while suppressing selected diagnostics"
         ),
         (
-            "jac check myprogram.jac --parse-only",
+            "jac check myprogram.jac --parse_only",
             "Only check syntax, skip type checking"
         ),
         ("jac check myprogram.jac --nowarn", "Check without warnings"),
@@ -115,8 +108,7 @@ def check(
     lint_only: bool = False,
     fix: bool = False,
     native_coverage: bool = False,
-    placements: bool = False,
-    compile_stats: bool = False
+    placements: bool = False
 ) -> int;
 
 def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;
@@ -272,6 +264,26 @@ def precommit(
         ),
         Arg.create("directory", `default="", help="Test directory", short="d"),
         Arg.create(
+            "collect_only",
+            typ=bool,
+            `default=False,
+            help="List collected test files without running them"
+        ),
+        Arg.create(
+            "range",
+            dest="pct_range",
+            `default="",
+            short="",
+            help="Run only this percent slice of the plan (N-M, N-, or -M)"
+        ),
+        Arg.create(
+            "resume",
+            typ=bool,
+            `default=False,
+            help="Restart the plan from the file that failed last run",
+            short="r"
+        ),
+        Arg.create(
             "verbose",
             typ=bool,
             `default=False,
@@ -279,7 +291,12 @@ def precommit(
             short="v",
             config_key="test.verbose"
         ),
-        Arg.create("ignore", `default="", help="Path to skip during collection"),
+        Arg.create(
+            "ignore",
+            kind=ArgKind.MULTI_OPTION,
+            `default=[],
+            help="Paths to skip during collection (space separated)"
+        ),
         Arg.create(
             "profile",
             `default="",
@@ -294,6 +311,9 @@ def precommit(
         ("jac test a.jac b.jac", "Run tests in several files"),
         ("jac test --test_name my_test", "Run only test_my_test"),
         ("jac test --xit --verbose", "Stop on first failure with verbose output"),
+        ("jac test --collect_only", "List test files without running them"),
+        ("jac test --range 15-20", "Run only that percent slice of the plan"),
+        ("jac test -x --resume", "Fix-and-continue from the last failure"),
 
     ],
     group="analysis"
@@ -305,8 +325,11 @@ def `test(
     xit: bool = False,
     maxfail: int = None,
     directory: str = "",
+    collect_only: bool = False,
+    pct_range: str = "",
+    resume: bool = False,
     verbose: bool = False,
-    ignore: str = ""
+    ignore: (list | None) = None
 ) -> int;
 
 @registry.command(

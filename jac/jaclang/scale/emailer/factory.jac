@@ -52,7 +52,7 @@ def _instantiate(
 }
 
 def create(config: dict[str, any]) -> Emailer | None {
-    provider = (config.get('provider') or '').strip();
+    provider = str(config.get('provider') or '').strip();
     if not provider {
         logger.info(
             "No emailer provider configured - email features disabled. "

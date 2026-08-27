@@ -7,7 +7,7 @@ import from jaclang.scale._optdeps.prometheus {
     CONTENT_TYPE_LATEST,
     CollectorRegistry
 }
-import from jaclang.runtimelib.serving.datatypes { Response }
+import from jaclang.server.serving.datatypes { Response }
 
 glob DEFAULT_BUCKETS: tuple = (
          0.005,
@@ -30,13 +30,13 @@ obj PrometheusMetricsCollector(MetricsCollector) {
         _enabled: bool postinit,
         _namespace: str postinit,
         _include_walker_metrics: bool postinit,
-        _registry: CollectorRegistry | None = None,
-        _request_count: Counter | None = None,
-        _request_latency: Histogram | None = None,
-        _active_requests: Gauge | None = None,
-        _walker_latency: Histogram | None = None,
-        _ws_connections_active: Gauge | None = None,
-        _ws_broadcasts_total: Counter | None = None;
+        _registry: any = None,
+        _request_count: any = None,
+        _request_latency: any = None,
+        _active_requests: any = None,
+        _walker_latency: any = None,
+        _ws_connections_active: any = None,
+        _ws_broadcasts_total: any = None;
 
     def postinit {
         self._enabled = bool(self.config.get("enabled", True));
@@ -134,7 +134,11 @@ obj PrometheusMetricsCollector(MetricsCollector) {
     def record_request(
         method: str, path: str, status_code: int, duration_seconds: float
     ) -> None {
-        if not self._enabled {
+        if (
+            not self._enabled
+            or self._request_count is None
+            or self._request_latency is None
+        ) {
             return;
         }
         self._request_count.labels(
@@ -170,15 +174,16 @@ obj PrometheusMetricsCollector(MetricsCollector) {
     def get_endpoint_handler -> Callable[..., any] {
         registry = self._registry;
         def metrics_endpoint -> Response {
-            return Response(
-                content=generate_latest(registry), media_type=CONTENT_TYPE_LATEST
-            );
+            _content: any = generate_latest(registry);
+            _mt: any = CONTENT_TYPE_LATEST;
+            return Response(content=_content, media_type=_mt);
         }
         return metrics_endpoint;
     }
 
     def expose -> bytes {
-        return generate_latest(self._registry);
+        _payload: any = generate_latest(self._registry);
+        return _payload;
     }
 
     def is_enabled -> bool {

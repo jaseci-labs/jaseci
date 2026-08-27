@@ -4,7 +4,7 @@ A small social feed -- post, persist, like -- in **one `main.jac` file** that ru
 **web and native from the same source**. It's the mobUI counterpart to
 [`examples/littleX`](../../littleX): same idea (a graph of `Tweet` nodes with walkers
 as the API), but the UI is built entirely from portable
-[`@jac/mobui`](../../../jaclang/runtimelib/client/client_mobui.cl.jac)
+[`@jac/mobui`](../../../jaclang/client/client_mobui.cl.jac)
 primitives instead of raw `<div>`/`<button>`/antd -- so it isn't locked to the browser.
 
 ## What it demonstrates
@@ -27,10 +27,10 @@ primitives instead of raw `<div>`/`<button>`/antd -- so it isn't locked to the b
 
 ```bash
 # web -- View=<div>, Text=<span> via react-native-web
-jac start main.jac --dev
+jac run --dev main.jac
 
 # native -- real React Native components on a device/simulator
-jac start main.jac --dev --client react-native
+jac run --dev --client react-native main.jac
 ```
 
 Then post something. It's stored as a `Tweet` node on the shared root graph and

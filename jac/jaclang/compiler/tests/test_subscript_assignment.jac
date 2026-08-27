@@ -8,8 +8,8 @@ buffer / iterable of ints (``ident[0:4] = b"..."``), which the old
 element-assignment model rejected.
 """
 
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 
 """Type-check a Jac source string and return the emitted error messages."""
@@ -18,7 +18,7 @@ def check_errors(src: str) -> list[str] {
     prog.compile(
         file_path="subscript_test_src.jac",
         use_str=src,
-        options=CompileOptions(type_check=True, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
     return [str(e) for e in prog.errors_had];
 }

@@ -173,10 +173,9 @@ test "commit-msg hook blocks AI co-author attribution" {
     assert plain_rc == 0 , "a message with no co-author trailer must pass";
 }
 
-test "precommit typecheck knob gates the check step" {
-    # A formatted file with a TYPE error: with [precommit] typecheck = false
-    # the gate passes (format-only commits while a codebase is not yet
-    # check-clean); with the default it fails.
+test "precommit gates the commit on type errors" {
+    # Type checking is on the critical path, so a staged file with a TYPE
+    # error fails the gate. There is no knob that turns the check off.
     bad = "def f(x: int) -> str {\n    return x;\n}\n";
     repo = make_repo();
     old = os.getcwd();
@@ -187,19 +186,13 @@ test "precommit typecheck knob gates the check step" {
         f.write_text(bad);
         subprocess.run(["git", "add", "a.jac"], check=True, cwd=repo);
         # The config singleton may hold whatever repo the suite ran from;
-        # reset around each call so precommit discovers THIS repo's toml.
+        # reset so precommit discovers THIS repo's toml.
         config_mod._config = None;
-        with_check = precommit(staged=True, verify=True);
-        (Path(repo) / "jac.toml").write_text(
-            '[project]\nname = "pctest"\n\n[precommit]\ntypecheck = false\n'
-        );
-        config_mod._config = None;
-        without_check = precommit(staged=True, verify=True);
+        rc = precommit(staged=True, verify=True);
         config_mod._config = None;
     } finally {
         os.chdir(old);
         shutil.rmtree(repo, ignore_errors=True);
     }
-    assert with_check != 0 , "with typecheck on (default), a staged type error must fail the gate";
-    assert without_check == 0 , "with [precommit] typecheck = false, only formatting gates the commit";
+    assert rc != 0 , "a staged type error must fail the precommit gate";
 }

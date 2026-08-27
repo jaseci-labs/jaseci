@@ -17,9 +17,9 @@ values; subsequent seed mutations cannot poison a live ctx.
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.session { Session }
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.server.session { Session }
+import from jaclang.runtime.runtime { JacRuntime }
 
 
 test "ExecutionContext uses explicit per-context target_path, ignoring stale seed state" {
@@ -73,6 +73,8 @@ test "two ExecutionContexts in one process keep independent persistence paths" {
 
             a_path = ctx_a.mem.data_location();
             b_path = ctx_b.mem.data_location();
+            assert a_path is not None;
+            assert b_path is not None;
 
             assert a_path != b_path , "two contexts collapsed onto the same store";
             assert "alpha_app" in a_path;
@@ -105,6 +107,7 @@ test "ExecutionContext without explicit base/target falls back to JacRuntime see
             ctx = ExecutionContext();
             assert isinstance(ctx.mem, Session);
             loc = ctx.mem.data_location();
+            assert loc is not None;
             # Standalone file (no jac.toml in tmpdir) — get_name() falls back
             # to the filename stem.
             assert "standalone" in loc , f"expected 'standalone' in {loc}";

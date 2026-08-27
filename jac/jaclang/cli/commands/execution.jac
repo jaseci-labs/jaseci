@@ -6,20 +6,20 @@ glob registry = get_registry();
 
 @registry.command(
     name="run",
-    help="Run a Jac program",
+    help="Run a Jac program or project (executes or serves, per project kind)",
     tier="core",
     args=[
         Arg.create(
             "filename",
             kind=ArgKind.POSITIONAL,
             `default="",
-            help="Path to .jac or .py file (omit to use the project's jac.toml)"
+            help="Path to .jac, .py or .jab file (omit to use the project's jac.toml)"
         ),
         Arg.create(
             "show",
             typ=bool,
             `default=False,
-            help="Print the resolved project-kind run plan without executing it",
+            help="Print the resolved run plan without executing it",
             short="s"
         ),
         Arg.create(
@@ -55,7 +55,7 @@ glob registry = get_registry();
             dest="entry_name",
             `default="",
             short="",
-            help="Invoke a specific function/walker entrypoint (absorbs 'jac enter')"
+            help="Invoke a specific function/walker entrypoint"
         ),
         Arg.create(
             "node",
@@ -77,7 +77,98 @@ glob registry = get_registry();
             typ=bool,
             `default=False,
             short="",
-            help="Run under the Python debugger (absorbs 'jac debug')"
+            help="Run under the Python debugger"
+        ),
+        Arg.create(
+            "serve",
+            dest="serve_mode",
+            typ=bool,
+            `default=None,
+            short="",
+            help="Serve instead of executing (default: the project kind decides)"
+        ),
+        Arg.create(
+            "port",
+            typ=int,
+            `default=None,
+            help=(
+                "Server port (serving only, default 8000). A port given here "
+                "must be free: it is a contract with whatever sits in front "
+                "of it, so the server fails rather than moving to another port."
+            ),
+            short="p",
+            config_key="serve.port"
+        ),
+        Arg.create(
+            "dev",
+            typ=bool,
+            `default=None,
+            help="Serve with hot reload / HMR (serving only)",
+            short="d"
+        ),
+        Arg.create(
+            "api-port",
+            dest="api_port",
+            typ=int,
+            `default=None,
+            short="",
+            help="Separate backend API port in --dev mode (serving only)"
+        ),
+        Arg.create(
+            "no-client",
+            typ=bool,
+            `default=None,
+            help="Skip client bundling/serving, API only (serving only)",
+            short=""
+        ),
+        Arg.create(
+            "faux",
+            typ=bool,
+            `default=None,
+            help="Print endpoint docs only, no server (serving only)",
+            short="f"
+        ),
+        Arg.create(
+            "client",
+            typ=str,
+            `default=None,
+            help=(
+                "Client build target for the dev server (web, pwa, mobile, desktop). "
+                "Choices reflect installed targets (desktop builds a native webview app)."
+            ),
+            choices=["web", "pwa", "mobile", "desktop"],
+            short=""
+        ),
+        Arg.create(
+            "host",
+            typ=str,
+            `default=None,
+            short="",
+            help=(
+                "Mobile dev (--client mobile --dev): optional host/IP override for "
+                "Capacitor live-reload. When omitted, jac auto-selects a host."
+            )
+        ),
+        Arg.create(
+            "platform",
+            typ=str,
+            `default=None,
+            help=(
+                "Mobile serving: android or ios (auto = use [client.mobile] "
+                "default_platform or android)"
+            ),
+            choices=["auto", "android", "ios"],
+            short=""
+        ),
+        Arg.create(
+            "takeover",
+            typ=bool,
+            `default=None,
+            help=(
+                "Evict any other session holding this project's database "
+                "before serving (use when a previous jac process is stuck)"
+            ),
+            short=""
         ),
         Arg.create(
             "args", kind=ArgKind.REMAINDER, help="Arguments passed to the script"
@@ -89,16 +180,25 @@ glob registry = get_registry();
         ("jac run", "Run the current project per its jac.toml kind"),
         (
             "jac run app.jab",
-            "Run a sealed app bundle (kind-aware; servable kinds use the app's configured port -- override with jac start app.jab --port N)"
+            "Run a sealed app bundle (kind-aware; servable kinds serve on the app's configured port)"
         ),
         ("jac run --entry my_walker app.jac arg1", "Invoke a specific entrypoint"),
         ("jac run --debug app.jac", "Run under the Python debugger"),
-        ("jac run --show", "Print what the project would run/build, without doing it"),
+        (
+            "jac run --show",
+            "Print what the project would run/serve/build, without doing it"
+        ),
         ("jac run --no-cache app.jac", "Run without caching"),
         ("jac run --profile prod app.jac", "Run with production profile"),
         ("jac run -e all app.jac", "Run and show all diagnostics (errors+warnings)"),
-        ("jac run -e none app.jac", "Run silently, suppress all diagnostics"),
         ("jac run script.jac arg1 arg2", "Run with script arguments"),
+        ("jac run --serve app.jac", "Serve a file that no jac.toml marks as servable"),
+        ("jac run --port 3000", "Serve the current project on port 3000"),
+        ("jac run --dev", "Serve the current project with hot module replacement"),
+        ("jac run --dev --no-client", "HMR mode without client bundling"),
+        ("jac run --faux", "Print the project's endpoint docs without serving"),
+        ("jac run --client mobile", "Run the mobile client dev server"),
+        ("jac run --takeover", "Evict a stuck session holding this project's database"),
 
     ],
     group="execution"
@@ -113,213 +213,22 @@ def run(
     nd: str = "",
     root_id: str = "",
     debug_mode: bool = False,
-    args: list = []
+    serve_mode: bool | None = None,
+    port: int | None = None,
+    dev: bool | None = None,
+    api_port: int | None = None,
+    no_client: bool | None = None,
+    faux: bool | None = None,
+    client: str | None = None,
+    host: str | None = None,
+    platform: str | None = None,
+    takeover: bool | None = None,
+    args: list[str] = []
 ) -> int;
 
-@registry.command(
-    name="dev",
-    help="Serve with hot reload and live compilation",
-    tier="core",
-    args=[
-        Arg.create(
-            "filename",
-            kind=ArgKind.POSITIONAL,
-            `default="",
-            help="Entry .jac file (default: [project] entry-point from jac.toml)"
-        ),
-        Arg.create(
-            "port",
-            typ=int,
-            `default=8000,
-            help="Port to serve on",
-            short="p",
-            config_key="serve.port"
-        ),
-        Arg.create(
-            "api_port",
-            typ=int,
-            `default=0,
-            short="",
-            help="Backend API port for client dev servers (0 = auto)"
-        ),
-
-    ],
-    examples=[
-        ("jac dev", "Dev-serve the current project with hot reload"),
-        ("jac dev main.jac --port 3000", "Dev-serve a specific entry on port 3000"),
-
-    ],
-    group="execution"
-)
-def dev(filename: str = "", port: int = 8000, api_port: int = 0) -> int;
-
-def enter(
+def serve(
     filename: str,
-    entrypoint: str,
-    args: list = [],
-    main: bool = True,
-    `root: str = "",
-    nd: str = ""
-) -> int;
-
-@registry.command(
-    name="start",
-    help="Start server for a Jac program",
-    tier="core",
-    args=[
-        Arg.create(
-            "filename",
-            kind=ArgKind.POSITIONAL,
-            `default="main.jac",
-            help="Path to .jac file (default: main.jac)"
-        ),
-        Arg.create(
-            "port",
-            typ=int,
-            `default=8000,
-            help="Server port",
-            short="p",
-            config_key="serve.port"
-        ),
-        Arg.create(
-            "main",
-            typ=bool,
-            `default=True,
-            help="Treat as __main__",
-            short="m",
-            config_key="run.main"
-        ),
-        Arg.create(
-            "faux",
-            typ=bool,
-            `default=False,
-            help="Print docs only (no server)",
-            short="f"
-        ),
-        Arg.create(
-            "dev",
-            typ=bool,
-            `default=False,
-            help="Enable HMR (Hot Module Replacement) mode",
-            short="d"
-        ),
-        Arg.create(
-            "api_port",
-            typ=int,
-            `default=0,
-            help="Separate API port for HMR mode (0=same as port)"
-        ),
-        Arg.create(
-            "no-client",
-            typ=bool,
-            `default=False,
-            help="Skip client bundling/serving (API only)"
-        ),
-        Arg.create(
-            "profile",
-            `default="",
-            short="",
-            help="Configuration profile to load (e.g. prod, staging)"
-        ),
-        Arg.create(
-            "client",
-            typ=str,
-            `default="web",
-            help=(
-                "Client build target for dev server (web, pwa, mobile, desktop). "
-                "Choices reflect installed targets (desktop builds a native webview app)."
-            ),
-            choices=["web", "pwa", "mobile", "desktop"],
-            short=""
-        ),
-        Arg.create(
-            "host",
-            typ=str,
-            `default="",
-            help=(
-                "Mobile dev (--client mobile --dev): optional host/IP override for "
-                "Capacitor live-reload. When omitted, jac auto-selects a host."
-            ),
-            short=""
-        ),
-        Arg.create(
-            "platform",
-            typ=str,
-            `default="auto",
-            help=(
-                "Mobile start/dev: android or ios (auto = use [client.mobile] "
-                "default_platform or android)"
-            ),
-            choices=["auto", "android", "ios"],
-            short=""
-        ),
-        Arg.create(
-            "scale",
-            typ=bool,
-            `default=False,
-            help="Deploy to a target platform instead of running locally",
-            short=""
-        ),
-        Arg.create(
-            "target",
-            typ=str,
-            `default="kubernetes",
-            help="Deployment target (kubernetes, aws, gcp, etc.)"
-        ),
-        Arg.create(
-            "enable-tls",
-            typ=bool,
-            `default=False,
-            help="Enable HTTPS via Let's Encrypt (run after pointing your domain CNAME to the NLB)",
-            short=""
-        ),
-        Arg.create(
-            "dry-run",
-            typ=bool,
-            `default=False,
-            help="Print the manifests that would be applied; touch nothing (no cluster contact, no downloads, no client build, no DB provisioning, no TLS issuance, no deploy tooling installed)",
-            short=""
-        ),
-        Arg.create(
-            "show-yaml",
-            typ=bool,
-            `default=False,
-            help="With --dry-run: dump the raw YAML stream",
-            short=""
-        ),
-        Arg.create(
-            "takeover",
-            typ=bool,
-            `default=False,
-            help=(
-                "Evict any other session holding this project's database "
-                "before starting (use when a previous jac process is stuck)"
-            ),
-            short=""
-        ),
-
-    ],
-    examples=[
-        ("jac start", "Start server with default main.jac"),
-        ("jac start app.jac", "Start server with specific file"),
-        ("jac start --port 3000", "Start main.jac on port 3000"),
-        ("jac start app.jac --faux", "Generate API docs without starting"),
-        ("jac start --dev", "Start with hot module replacement"),
-        ("jac start app.jac --dev --no-client", "HMR mode without client bundling"),
-        ("jac start --profile prod", "Start with production profile"),
-        ("jac start --client mobile", "Run the mobile client dev server"),
-        ("jac start --scale", "Deploy to a platform target instead of serving locally"),
-        (
-            "jac start --takeover",
-            "Evict a stuck session holding this project's database"
-        ),
-
-    ],
-    group="execution"
-)
-def start(
-    filename: str,
-    port: int = 8000,
+    port: int = 0,
     main: bool = True,
     faux: bool = False,
     dev: bool = False,
@@ -328,18 +237,13 @@ def start(
     client: str = "web",
     host: str = "",
     platform: str = "auto",
-    scale: bool = False,
-    target: str = "kubernetes",
-    enable_tls: bool = False,
-    dry_run: bool = False,
-    show_yaml: bool = False,
     takeover: bool = False
 ) -> int;
 
 def debug(filename: str, main: bool = True, cache: bool = False) -> int;
 
 def run_jab_image(
-    img_root: Path, port: (int | None), args: list, serve_only: bool, label: str
+    img_root: Path, port: (int | None), args: list[str], serve_only: bool, label: str
 ) -> int;
 
 @registry.command(
@@ -401,5 +305,5 @@ def x(
     use_global: bool = False,
     use_node: bool = False,
     list_tools: bool = False,
-    args: list = []
+    args: list[str] = []
 ) -> int;

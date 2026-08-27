@@ -9,7 +9,9 @@ It covers the full workflow:
 
 - Forking, cloning, and setting up the Zig-built `jac` binary with the
   editable dev loop for compiler work.
-- Running the test suites and the `jac precommit` format/lint gates.
+- Running the test suites and the `jac precommit` format/lint gates. The
+  repo's own suites run on the native `jac test` runner (the pytest harness
+  was retired).
 - PR conventions, including the required release-note fragment
   (`release_notes/unreleased/<package>/<PR#>.<category>.md`).
 - Code rules: Jac style, type safety, no scaffolding, and documentation

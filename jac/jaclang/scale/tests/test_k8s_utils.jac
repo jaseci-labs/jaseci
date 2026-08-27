@@ -1,7 +1,7 @@
 import from types { SimpleNamespace }
 import unittest.mock;
 import from kubernetes.client.exceptions { ApiException }
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 import from jaclang.scale.deploy.target.kubernetes.utils { kubernetes_utils as utils }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     parse_storage_quantity,
@@ -10,7 +10,7 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
 
 test "cluster type detects aws by provider" {
     class Node {
-        def init(self, provider_id: str) {
+        def init(self: Node, provider_id: str) {
             self.provider_id = provider_id;
             self.spec = SimpleNamespace(provider_id=provider_id);
             self.metadata = SimpleNamespace(labels={});
@@ -18,13 +18,13 @@ test "cluster type detects aws by provider" {
     }
 
     class Response {
-        def init(self) {
+        def init(self: Response) {
             self.items = [Node("aws://12345")];
         }
     }
 
     class FakeApi {
-        def list_node(self) -> Response {
+        def list_node(self: FakeApi) -> Response {
             return Response();
         }
     }

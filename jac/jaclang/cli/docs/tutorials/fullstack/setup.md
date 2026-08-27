@@ -110,7 +110,7 @@ base_route_app = "app"
 ### Development Mode (with Hot Reload)
 
 ```bash
-jac start --dev
+jac run --dev
 ```
 
 This starts:
@@ -124,7 +124,7 @@ Open http://localhost:8000/cl/app
 ### Production Mode
 
 ```bash
-jac start
+jac run
 ```
 
 Open http://localhost:8000/cl/app
@@ -246,7 +246,7 @@ axios = "^1.6.0"
 Then use in frontend:
 
 !!! note "npm imports and `jac check`"
-    `jac check` reads installed npm `.d.ts` files for client imports when available; packages or constructs without declarations still type as foreign `any`. The code below runs as written under `jac start`.
+    `jac check` reads installed npm `.d.ts` files for client imports when available; packages or constructs without declarations still type as foreign `any`. The code below runs as written under `jac run`.
 
 ```jac
 import lodash;
@@ -305,7 +305,7 @@ def:pub app() -> JsxElement {
     }
 ```
 
-Run `jac start --dev` and open http://localhost:8000/cl/app
+Run `jac run --dev` and open http://localhost:8000/cl/app
 
 Click the button - the count should increase!
 

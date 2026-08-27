@@ -24,7 +24,7 @@ import from jaclang.scale.injector.binary {
     download_release_binary,
     stage_admin_dist
 }
-import from jaclang.runtimelib.utils { host_arch }
+import from jaclang.runtime.graph_utils { host_arch }
 import from jaclang.scale.injector.binary_injector { BinaryInjector }
 import from jaclang.scale.injector.bundle { TOOLCHAIN_SUBDIR }
 import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
@@ -582,11 +582,16 @@ def _payload_response(payload: bytes, url: str) -> bytes {
 }
 
 
+def _as_any(value: any) -> any {
+    return value;
+}
+
+
 test "channel tags are pinned to the registry digest at deploy time" {
     d = _write_toml("[dev]\ntest_jobs = \"auto\"\n");
     payload = json.dumps({"digest": "sha256:" + ("ab" * 32)}).encode();
     saved = binary_mod._http_get_bytes;
-    binary_mod._http_get_bytes = functools.partial(_payload_response, payload);
+    binary_mod._http_get_bytes = _as_any(functools.partial(_payload_response, payload));
     try {
         image = binary_mod.resolve_pod_base_image(d, "");
         assert image == "jaseci/jaclang@sha256:" + ("ab" * 32);
@@ -599,8 +604,8 @@ test "channel tags are pinned to the registry digest at deploy time" {
 test "a hub response without a digest keeps the tag form" {
     d = _write_toml("[dev]\ntest_jobs = \"auto\"\n");
     saved = binary_mod._http_get_bytes;
-    binary_mod._http_get_bytes = functools.partial(
-        _payload_response, json.dumps({"name": "dev"}).encode()
+    binary_mod._http_get_bytes = _as_any(
+        functools.partial(_payload_response, json.dumps({"name": "dev"}).encode())
     );
     try {
         assert binary_mod.resolve_pod_base_image(d, "") == "jaseci/jaclang:dev";
@@ -614,7 +619,7 @@ test "experimental images stay in tag form (downstream keys on the tag)" {
     d = _write_toml("[experimental]\npr = 7494\n");
     payload = json.dumps({"digest": "sha256:" + ("cd" * 32)}).encode();
     saved = binary_mod._http_get_bytes;
-    binary_mod._http_get_bytes = functools.partial(_payload_response, payload);
+    binary_mod._http_get_bytes = _as_any(functools.partial(_payload_response, payload));
     try {
         image = binary_mod.resolve_pod_base_image(d, "");
         assert image == "jaseci/jaclang:experimental-7494";
@@ -628,7 +633,7 @@ test "explicit python_image is never rewritten" {
     d = _write_toml("[dev]\ntest_jobs = \"auto\"\n");
     payload = json.dumps({"digest": "sha256:" + ("ef" * 32)}).encode();
     saved = binary_mod._http_get_bytes;
-    binary_mod._http_get_bytes = functools.partial(_payload_response, payload);
+    binary_mod._http_get_bytes = _as_any(functools.partial(_payload_response, payload));
     try {
         image = binary_mod.resolve_pod_base_image(d, "my.registry/app:v1");
         assert image == "my.registry/app:v1";

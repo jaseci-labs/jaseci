@@ -16,11 +16,11 @@ import from difflib { unified_diff }
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.helpers { add_line_numbers }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
-import from jaclang.runtimelib.test { parametrize }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.helpers { add_line_numbers }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.tools.unparse_pass { unparse_module }
+import from jaclang.testing.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
 
 def parent_scrub(`node: uni.UniNode) -> bool {
@@ -78,8 +78,12 @@ def micro_suite_combined_test(rel_path: str) -> None {
         if isinstance(i, (ast3.Constant, ast3.arg)) {
             continue;
         }
-        assert i.lineno >= 1 , (
-            f"{filename}: {type(i).__name__} has lineno {i.lineno}: " f"{ast3.dump(i)}"
+        # `lineno` lives on concrete nodes, not the `AST` base the stub types
+        # here; the `_attributes` guard above is the real check.
+        located: any = i;
+        assert located.lineno >= 1 , (
+            f"{filename}: {type(i).__name__} has lineno {located.lineno}: "
+            f"{ast3.dump(i)}"
         );
     }
     assert parent_scrub(code_gen) , f"Parent scrub failed for {filename}";
@@ -160,6 +164,6 @@ with entry {
         "micro suite",
         MICRO_JAC_FILES,
         micro_suite_combined_test,
-        id_fn=lambda (f) { Path(f).stem; }
+        id_fn=lambda (f: str) { Path(f).stem; }
     );
 }

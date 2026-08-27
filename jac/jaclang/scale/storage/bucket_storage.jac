@@ -1,4 +1,4 @@
-import from jaclang.runtimelib.storage.storage { Storage }
+import from jaclang.data.storage.storage { Storage }
 
 class BucketStorage(Storage) {
     has prefix: str = "";

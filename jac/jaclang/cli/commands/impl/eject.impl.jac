@@ -4,6 +4,7 @@ import json;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
 import from jaclang.jac0core.ext_registry { base_stem, is_annex }
+import type from jaclang.project.config { JacConfig }
 
 glob _SKIP_DIRS: set = {
          ".jac",
@@ -24,7 +25,7 @@ def load_eject_project_metadata(src: Path) -> dict {
     if not toml_path.exists() {
         raise FileNotFoundError(f"No jac.toml found in {src}");
     }
-    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+    import from jaclang.project.tomlio { read_toml_with_encoding }
     toml_data = read_toml_with_encoding(str(toml_path));
     project_section = toml_data.get("project", {});
     raw_name = project_section.get("name", "") or "";
@@ -125,11 +126,11 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         return 1;
     }
 
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.runtimelib.client_surface { prepend_active_runtime_globals }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.client.client_surface { prepend_active_runtime_globals }
 
-    import jaclang.jac0core.unitree as uni;
-    import from jaclang.jac0core.constant { SymbolType }
+    import jaclang.compiler.frontend.unitree as uni;
+    import from jaclang.compiler.frontend.constant { SymbolType }
 
     js_count = 0;
 
@@ -191,7 +192,7 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         server = _is_meaningful_python(py_code) and (not is_client);
 
         if server {
-            import from jaclang.jac0core.constant { CodeContext }
+            import from jaclang.compiler.frontend.constant { CodeContext }
             mod_is_native = ir.decided_codespace == 'native';
             for item in ir.body {
                 if item?.code_context == CodeContext.CLIENT {
@@ -560,7 +561,7 @@ def _is_meaningful_python(py_code: str) -> bool {
 }
 
 
-def _eject_config(src: Path, project_name: str) -> object {
+def _eject_config(src: Path, project_name: str) -> JacConfig {
     import from jaclang.project.config { JacConfig }
     config = JacConfig.load(src / "jac.toml");
     if (not config.project.name) or ("{{" in config.project.name) {
@@ -572,7 +573,7 @@ def _eject_config(src: Path, project_name: str) -> object {
 
 def _emit_frontend_package_json(src: Path, frontend_dir: Path, project_name: str) {
     import from jaclang.project.providers { EMIT_EJECT }
-    import from jaclang.runtimelib.client.npm_provider { NpmProvider }
+    import from jaclang.client.npm_provider { NpmProvider }
     config = _eject_config(src, project_name);
     npm = NpmProvider();
     npm.emit_standalone(config, npm.resolve(config), frontend_dir, EMIT_EJECT);
@@ -652,7 +653,7 @@ def _copy_client_runtime(src: Path, frontend_root: Path) -> bool {
         console.warning(
             "  No .jac/client/compiled/client_runtime.js found; "
             "@jac/runtime imports will be unresolved. "
-            "Run `jac install` (or any `jac start`) before `jac eject` "
+            "Run `jac install` (or any `jac run`) before `jac eject` "
             "to build the client runtime."
         );
         return False;
@@ -857,7 +858,7 @@ def _emit_index_html(
 
 
 def _emit_entry_js(frontend_src_dir: Path, entry_module: str) {
-    import from jaclang.compiler.passes.ecmascript.backends.registry {
+    import from jaclang.compiler.backends.es.backends.registry {
         resolve_active_backend
     }
     backend = resolve_active_backend();
@@ -937,7 +938,7 @@ def _py_import_targets(py_code: str, mod_name: str, known: set) -> set {
                 if keep < 0 {
                     continue;
                 }
-                base_parts = list(pkg_parts[:keep]);
+                base_parts = [str(part) for part in pkg_parts[:keep]];
                 if node.module {
                     base_parts.append(str(node.module));
                 }
@@ -1157,8 +1158,8 @@ def _emit_readme(out: Path, project_name: str, has_frontend: bool, env_files: li
 
 
 def _has_pub_access(ast_item: any) -> bool {
-    import jaclang.jac0core.unitree as uni;
-    import from jaclang.jac0core.constant { Tokens as Tok }
+    import jaclang.compiler.frontend.unitree as uni;
+    import from jaclang.compiler.frontend.constant { Tokens as Tok }
     if not isinstance(ast_item, uni.AstAccessNode) {
         return False;
     }

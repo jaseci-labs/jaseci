@@ -7,7 +7,6 @@ impl build(
     filename: str = "",
     projection: str = "jab",
     output: str = "dist",
-    no_typecheck: bool = False,
     check_only: bool = False,
     client: str = "",
     platform: str | None = None,
@@ -17,7 +16,7 @@ impl build(
     import from jaclang.project.kinds { resolve_entry }
 
     if client {
-        import from jaclang.runtimelib.client.cli { run_client_build }
+        import from jaclang.client.cli { run_client_build }
         return run_client_build(filename, client, platform);
     }
     if fat and projection not in ["jab", "binary"] {
@@ -43,24 +42,12 @@ impl build(
         entry_path = os.path.join(project_root, entry_path);
     }
 
-    if not no_typecheck {
+    if check_only {
         import from jaclang.cli.commands.analysis { check }
-        console.print("  Running whole-program type-check", style="muted");
-        gate_rc = check(
+        return check(
             paths=[project_root],
             ignore=[".jac", ".jachome", ".venv", "venv", "node_modules", ".git"]
         );
-        if gate_rc != 0 {
-            console.error(
-                "Build gate failed: the project does not type-check.",
-                hint="Fix the errors above, or bypass once with --no_typecheck."
-            );
-            return gate_rc;
-        }
-        console.print("  ✔ Gate passed", style="success");
-    }
-    if check_only {
-        return 0;
     }
 
     if projection in ["jab", "sealed", "binary", "wheel", "npm"] {

@@ -10,11 +10,11 @@ super root); single-tenant flows keep the lazy ungated hop path.
 
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.archetype { EdgeAnchor, GenericEdge, Root }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.jac0core.graph_query { GraphQuery, QHop }
-import from jaclang.runtimelib.query_planner { resolve_query }
+import from jaclang.runtime.archetype { EdgeAnchor, GenericEdge }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.runtime.graph_query { GraphQuery, QHop }
+import from jaclang.data.query_planner { resolve_query }
 
 node SecretNode {
     has label: str = "";
@@ -33,10 +33,19 @@ walker Probe {
     }
 }
 
+def _acl_label(a: any) -> any {
+    return a.archetype.label;
+}
+
+
+def _as_root(v: any) -> Root {
+    return v;
+}
+
 def _mk_user_root(mem: any) -> any {
     anch: any = Root().__jac__;
     anch.persistent = True;
-    anch.root = anch.id;
+    setattr(anch, "root", anch.id);
     mem.put(anch);
     return anch;
 }
@@ -48,13 +57,13 @@ def _three_transcripts(origin_arch: any, mem: any) -> tuple {
         if isinstance(n, SecretNode)
     ];
     planned = [
-        a.archetype.label
+        _acl_label(a)
         for a in resolve_query(
             mem, GraphQuery(origin_arch, hops=[QHop(dir=2, nd=SecretNode)])
         )
     ];
     w = Probe();
-    w spawn origin_arch;
+    w spawn _as_root(origin_arch);
     return (bare, planned, w.seen);
 }
 
@@ -70,7 +79,7 @@ test "bare refs, planner queries, and walker visits filter identically" {
             rb = _mk_user_root(ctx.mem);
             s = SecretNode(label="secret").__jac__;
             s.persistent = True;
-            s.root = ra.id;
+            setattr(s, "root", ra.id);
             ctx.mem.put(s);
             e = EdgeAnchor(
                 archetype=GenericEdge(), source=rb, target=s, is_undirected=False

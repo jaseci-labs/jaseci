@@ -129,7 +129,7 @@ import from "@jac/runtime" { Router, Routes, Route }  # npm (quoted)
 
 A no-dot import is depth-independent: moving a file between directories never changes it. Dot-counted forms (`..`, `...`) DO break when a file moves to a different depth - wrong dot count = silent resolution failure = imported names become `<Unknown>` → cascading type errors.
 
-**Server modules should prefer the no-dot form, and a `..` that climbs out of a package is a bug waiting to happen.** `import from ..shared.github { fetch }` resolves fine under `jac start` but fails `jac test <file>` with `attempted relative import beyond top-level package`, because the test runner roots the package at the target file's own directory. `import from shared.github { fetch }` works in both. Client modules keep the dotted form - that is what the bundler resolves.
+**Server modules should prefer the no-dot form, and a `..` that climbs out of a package is a bug waiting to happen.** `import from ..shared.github { fetch }` resolves fine under `jac run` but fails `jac test <file>` with `attempted relative import beyond top-level package`, because the test runner roots the package at the target file's own directory. `import from shared.github { fetch }` works in both. Client modules keep the dotted form - that is what the bundler resolves.
 
 ## Also available (Python semantics, brace bodies)
 

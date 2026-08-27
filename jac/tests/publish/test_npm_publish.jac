@@ -1,4 +1,4 @@
-"""Tests for the jaclang.publish npm pipeline.
+"""Tests for the jaclang.dist.publish npm pipeline.
 
 Covers the js-package counterparts of the wheel pipeline:
   package_json - package.json string generation from jac.toml
@@ -18,23 +18,23 @@ import shutil;
 import from pathlib { Path }
 import from subprocess { run }
 import from jaclang.project.config { JacConfig }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.publish.package_json {
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.dist.publish.package_json {
     generate_package_json,
     npm_package_name,
     npm_tarball_filename
 }
-import from jaclang.publish.jsdoc {
+import from jaclang.dist.publish.jsdoc {
     jac_type_to_jsdoc,
     jac_type_to_ts,
     jsdoc_for_module,
     inject_jsdoc
 }
-import from jaclang.publish.dts { dts_for_module }
-import from jaclang.publish.npm_sources { collect_npm_sources, NpmBoundaryError }
-import from jaclang.publish.npm_builder { NpmBuilder }
-import from jaclang.publish.runtime_npm {
+import from jaclang.dist.publish.dts { dts_for_module }
+import from jaclang.dist.publish.npm_sources { collect_npm_sources, NpmBoundaryError }
+import from jaclang.dist.publish.npm_builder { NpmBuilder }
+import from jaclang.dist.publish.runtime_npm {
     build_runtime_tarball,
     runtime_api_names,
     runtime_peer_deps,
@@ -45,6 +45,20 @@ import from jaclang.publish.runtime_npm {
 
 
 # Helpers --------------------------------------------------------------------------
+"""Identity helper: routes duck-typed values past the checker."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
+
+"""Read a tar member as decoded text (extractfile types as IO[bytes] | None)."""
+def _tar_text(tf: any, name: str) -> str {
+    member = tf.extractfile(name);
+    assert member is not None;
+    return member.read().decode();
+}
+
+
 """Scaffold a minimal client library (jac.toml + a public .jac module)."""
 def _scaffold_lib(tmp_path: str, name: str = "mylib") {
     toml = (
@@ -76,7 +90,7 @@ def _exported_names(js: str) -> list[str] {
         for part in block.group(1).split(",") {
             piece = part.strip();
             if piece {
-                names.append(re.split(r"\s+as\s+", piece)[-1].strip());
+                names.append(_as_any(re.split(r"\s+as\s+", piece)[-1].strip()));
             }
         }
     }
@@ -224,7 +238,7 @@ test "NpmBuilder.build produces a valid npm tarball with package.json and JS" {
             assert "package/package.json" in names;
             assert any(n.endswith("index.js") for n in names);
             assert all(n.startswith("package/") for n in names);
-            pj = json.loads(tf.extractfile("package/package.json").read().decode());
+            pj = json.loads(_tar_text(tf, "package/package.json"));
             assert pj["name"] == "mylib";
             assert pj["version"] == "1.0.0";
             assert pj["main"] == "mylib/index.js";
@@ -264,7 +278,7 @@ test "NpmBuilder rejects modules that cross a server boundary" {
         );
         (pkg / "index.jac").write_text(
             'import from api { fetch_count }\n\n'
-            'def:pub show() -> int { return fetch_count(); }\n'
+            'async def:pub show() -> int { return await fetch_count(); }\n'
         );
         cfg = JacConfig.from_toml_str(
             '[project]\nname = "svlib"\nversion = "1.0.0"\n\n'
@@ -302,9 +316,9 @@ test "JSX module wires the runtime import and adds @jaseci/runtime dependency" {
         cfg.project_root = Path(tmpdir);
         data = NpmBuilder(config=cfg, project_root=Path(tmpdir)).build();
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf {
-            pj = json.loads(tf.extractfile("package/package.json").read().decode());
+            pj = json.loads(_tar_text(tf, "package/package.json"));
             assert RUNTIME_PKG_NAME in pj["dependencies"];
-            js = tf.extractfile("package/ui/index.js").read().decode();
+            js = _tar_text(tf, "package/ui/index.js");
             assert f'from "{RUNTIME_PKG_NAME}"' in js;
             assert "__jacJsx" in js;
         }
@@ -318,14 +332,14 @@ test "build_runtime_tarball packages the runtime with exports" {
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf {
         names = tf.getnames();
         assert "package/package.json" in names;
-        pj = json.loads(tf.extractfile("package/package.json").read().decode());
+        pj = json.loads(_tar_text(tf, "package/package.json"));
         assert pj["name"] == RUNTIME_PKG_NAME;
         assert pj["version"] == "1.2.3";
         # The split-out shared core must travel inside the package, or it fails to
         # load at runtime (ERR_MODULE_NOT_FOUND on `./jaclang/.../client_runtime_core.js`).
         assert "package/index.js" in names;
-        assert "package/jaclang/runtimelib/client_runtime_core.js" in names;
-        js = tf.extractfile("package/index.js").read().decode();
+        assert "package/jaclang/client/client_runtime_core.js" in names;
+        js = _tar_text(tf, "package/index.js");
         assert "export {" in js;
         # The public API is exported exactly once — no duplicate export (invalid ESM).
         exported = _exported_names(js);
@@ -335,13 +349,13 @@ test "build_runtime_tarball packages the runtime with exports" {
             f"duplicate export in runtime index.js: {sorted(exported)}"
         );
         # The entry imports the core's symbols from the bundled sibling module.
-        assert "./jaclang/runtimelib/client_runtime_core.js" in js;
+        assert "./jaclang/client/client_runtime_core.js" in js;
         # The runtime is built on @tanstack/react-form, so NO `.js` in the package
         # pulls in the legacy react-hook-form library (checked across the entry
         # AND the bundled core).
         for member in names {
             if member.endswith(".js") {
-                src = tf.extractfile(member).read().decode();
+                src = _tar_text(tf, member);
                 assert "react-hook-form" not in src , f"{member} imports react-hook-form";
                 assert "@hookform" not in src , f"{member} imports @hookform";
             }
@@ -383,13 +397,13 @@ test "build_runtime_tarball packages the Solid runtime with no React ecosystem" 
     data = build_runtime_tarball("1.2.3", framework="solid");
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf {
         names = tf.getnames();
-        pj = json.loads(tf.extractfile("package/package.json").read().decode());
+        pj = json.loads(_tar_text(tf, "package/package.json"));
         assert pj["name"] == f"{RUNTIME_PKG_NAME}-solid";
         assert pj["version"] == "1.2.3";
         # The shared core travels in the package at its relative import path.
         assert "package/index.js" in names;
-        assert "package/jaclang/runtimelib/client_runtime_core.js" in names;
-        js = tf.extractfile("package/index.js").read().decode();
+        assert "package/jaclang/client/client_runtime_core.js" in names;
+        js = _tar_text(tf, "package/index.js");
         # Branch 5: solid-js/h hyperscript import removed; user component code
         # uses the JSX compiler path (vite-plugin-solid). Core symbols are present.
         assert "solid-js/h" not in js;
@@ -407,7 +421,7 @@ test "build_runtime_tarball packages the Solid runtime with no React ecosystem" 
         # ecosystem package (checked across the entry AND the bundled core).
         for member in names {
             if member.endswith(".js") {
-                src = tf.extractfile(member).read().decode();
+                src = _tar_text(tf, member);
                 assert 'from "react"' not in src , f"{member} imports react";
                 assert "react-dom" not in src , f"{member} imports react-dom";
                 assert "react-router" not in src , f"{member} imports react-router";
@@ -453,7 +467,7 @@ test "react import is recorded as a peerDependency" {
         cfg.project_root = Path(tmpdir);
         data = NpmBuilder(config=cfg, project_root=Path(tmpdir)).build();
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf {
-            pj = json.loads(tf.extractfile("package/package.json").read().decode());
+            pj = json.loads(_tar_text(tf, "package/package.json"));
             assert "react" in pj["peerDependencies"];
         }
     } finally {
@@ -482,7 +496,7 @@ test "dts_for_module declares exported functions, classes, and globals" {
             'def:pub names(items: list[str]) -> int { return len(items); }\n'
         );
         mod = JacProgram().compile(
-            str(src), options=CompileOptions(force_codespace='client', type_check=False)
+            str(src), options=CompileOptions(force_codespace='client')
         );
         dts = dts_for_module(mod);
         assert "export declare function add(a: number, b: number): number;" in dts;
@@ -508,10 +522,10 @@ test "NpmBuilder emits .d.ts files and sets package.json types" {
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf {
             names = tf.getnames();
             assert "package/mylib/index.d.ts" in names;
-            pj = json.loads(tf.extractfile("package/package.json").read().decode());
+            pj = json.loads(_tar_text(tf, "package/package.json"));
             assert pj["types"] == "mylib/index.d.ts";
             assert pj["exports"]["."]["types"] == "./mylib/index.d.ts";
-            dts = tf.extractfile("package/mylib/index.d.ts").read().decode();
+            dts = _tar_text(tf, "package/mylib/index.d.ts");
             assert "export declare function add(a: number, b: number): number;" in dts;
         }
     } finally {
@@ -527,11 +541,7 @@ test "jac bundle --target npm writes a tarball to dist/" {
     os.chdir(tmp_path);
     try {
         _scaffold_lib(tmp_path, "mylib");
-        result = run(
-            ["jac", "build", "--as", "npm", "--no_typecheck"],
-            capture_output=True,
-            text=True
-        );
+        result = run(["jac", "build", "--as", "npm"], capture_output=True, text=True);
         assert result.returncode == 0 , (
             f"exit {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
         );

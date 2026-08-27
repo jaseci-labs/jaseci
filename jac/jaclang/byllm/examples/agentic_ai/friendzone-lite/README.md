@@ -57,7 +57,7 @@ obj Response {
 1. Start the Jac server:
 
    ```bash
-   jac start friendzone_lite.jac
+   jac run friendzone_lite.jac
    ```
 
 ## Frontend Features
@@ -161,7 +161,7 @@ friendzone-lite/
 3. **Run the Application**:
 
    ```bash
-   jac start friendzone_lite.jac
+   jac run friendzone_lite.jac
    ```
 
 ## Technical Details

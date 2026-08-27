@@ -25,7 +25,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry
 }
-import from jaclang.runtimelib.sv_client { peer_url_env_key }
+import from jaclang.server.sv_client { peer_url_env_key }
 
 
 glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e",
@@ -491,6 +491,20 @@ obj _FakeSecrets {
 }
 
 
+# Rollback depth (#8089) rode the Kubernetes default of 10 because the field was
+# never set. Declaring it makes the depth something a consumer can read back and
+# reason about before offering a rollback it cannot honor.
+test "every deployment declares its revision history limit" {
+    cfg = KubernetesConfig(app_name="littlex", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg);
+
+    for name in ["littlex", GATEWAY_NAME] {
+        manifest = builder._build_deployment_manifest(name, {});
+        assert manifest["spec"]["revisionHistoryLimit"] == 10;
+    }
+}
+
+
 test "the config revision comes from the applied Secret itself" {
     api = _FakeSecrets();
 
@@ -550,4 +564,16 @@ test "an app with no secrets applies none and needs no revision" {
 
     assert create_k8s_secret(api, "ns", "app-secrets", {}) == "";
     assert api.created == [];
+}
+
+
+test "a configured revision history limit reaches the deployment" {
+    cfg = KubernetesConfig(
+        app_name="littlex", namespace="ns", revision_history_limit=3
+    );
+    builder = ManifestBuilder(k8s_config=cfg);
+
+    manifest = builder._build_deployment_manifest("littlex", {});
+
+    assert manifest["spec"]["revisionHistoryLimit"] == 3;
 }

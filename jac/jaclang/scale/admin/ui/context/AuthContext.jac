@@ -7,6 +7,11 @@ import from ..utils.api { getErrorMessage }
 
 glob:pub AuthContext = createContext(None);
 
+async def _jsonBody(resp: Response) -> dict {
+    body = await resp.json();
+    return body as dict;
+}
+
 def:pub AuthProvider(children: any) -> JsxElement {
     has authToken: str = "",
         currentUsername: str = "",
@@ -20,7 +25,7 @@ def:pub AuthProvider(children: any) -> JsxElement {
                 baseUrl + "/admin/users",
                 {"headers": {"Authorization": "Bearer " + token}}
             );
-            data = await resp.json();
+            data = await _jsonBody(resp);
             if data["ok"] {
                 authToken = token;
                 currentUsername = username;
@@ -47,7 +52,7 @@ def:pub AuthProvider(children: any) -> JsxElement {
                     "body": JSON.stringify({"username": username, "password": password})
                 }
             );
-            data = await resp.json();
+            data = await _jsonBody(resp);
             if data["ok"] and data["data"] {
                 if data["data"]["requires_password_reset"] {
                     tempToken = data["data"]["token"];
@@ -85,7 +90,7 @@ def:pub AuthProvider(children: any) -> JsxElement {
                     )
                 }
             );
-            data = await resp.json();
+            data = await _jsonBody(resp);
             if data["ok"] and data["data"] {
                 token = data["data"]["token"];
                 authToken = token;

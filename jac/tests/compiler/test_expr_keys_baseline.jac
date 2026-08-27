@@ -31,24 +31,17 @@ communication when this accumulates.
 
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.sealed { native_artifact_for }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     CFG_ROOT: str = "compiler/passes/main/cfg_build_pass.jac",
+     CFG_ROOT: str = "compiler/passes/cfg_build_pass.jac",
      KEYS_MOD: str = "compiler/expr_keys.jac",
      HOISTED: tuple = ("collect_narrowing_symbols", "collect_assigned_symbols");
 
-"""Compile one root the way seal_native_artifacts does, up to the coverage."""
+"""Compile one root as a native unit, up to the coverage."""
 def _root_coverage(rel: str) -> tuple {
-    if native_artifact_for("jaclang." + rel[:-4].replace("/", ".")) is not None {
-        testskip(
-            f"{rel} is served from this runtime's native seal; the coverage "
-            "gated the build via seal_demotion_report"
-        );
-    }
     prog = JacProgram();
     na_coverage_begin();
     try {
@@ -56,7 +49,6 @@ def _root_coverage(rel: str) -> tuple {
             file_path=str(PKG_PATH / rel),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

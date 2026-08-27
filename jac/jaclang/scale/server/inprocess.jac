@@ -2,8 +2,10 @@ import os;
 import sys;
 
 import from jaclang { JacRuntime as Jac }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.compiler.frontend.constant { Constants as Con }
+import type from jaclang.runtime.context { ExecutionContext }
 import from jaclang.jac0core.ext_registry { base_stem }
+import from jaclang.scale.identity.user_manager { JacScaleUserManager }
 import from jaclang.scale.server.serve { JacAPIServer }
 
 
@@ -11,7 +13,7 @@ obj PreparedInProcessRuntime {
     has server: any,
         transport_kind: str,
         client: any | None = None,
-        _prior_ctx: any = None;
+        _prior_ctx: (ExecutionContext | None) = None;
 
     def close {
         if self.client is not None {
@@ -22,7 +24,9 @@ obj PreparedInProcessRuntime {
         Jac.set_shared_root_resolver(None);
         self.server = None;
 
-        Jac.set_context(self._prior_ctx);
+        if self._prior_ctx is not None {
+            Jac.set_context(self._prior_ctx);
+        }
         self._prior_ctx = None;
     }
 }
@@ -35,7 +39,7 @@ def _register_endpoint_profile(server: any, profile: str) {
         server.register_walkers_endpoints();
         server.register_functions_endpoints();
     } elif profile == "test" {
-        import from jaclang.runtimelib.serving.openapi { register_docs_endpoints }
+        import from jaclang.server.serving.openapi { register_docs_endpoints }
         server.register_health_endpoint();
         server.register_auth_endpoints();
         server.register_graph_endpoint();
@@ -69,7 +73,7 @@ def prepare_inprocess_runtime(
     setup_background_services: bool = True,
     transport_kind: str = "testclient"
 ) -> PreparedInProcessRuntime {
-    import from jaclang.runtimelib.serving.testing { ServingTestClient }
+    import from jaclang.testing.testkit { ServingTestClient }
 
     if transport_kind != "testclient" {
         raise NotImplementedError(
@@ -109,6 +113,7 @@ def prepare_inprocess_runtime(
         _register_endpoint_profile(server, endpoint_profile);
 
         _um = server.user_manager;
+        assert isinstance(_um, JacScaleUserManager) , "the scale server builds a JacScaleUserManager";
         if _um.get_root_id(Con.GUEST.value) is None {
             _um.create_internal_user(Con.GUEST.value, "__no_password__");
         }
@@ -123,8 +128,12 @@ def prepare_inprocess_runtime(
             server._setup_events();
         }
 
+        native_server = server.server;
+        if native_server is None {
+            raise RuntimeError("in-process runtime requires a started server");
+        }
         client = ServingTestClient(
-            app=server.server.app, raise_server_exceptions=False
+            app=native_server.app, raise_server_exceptions=False
         );
         return PreparedInProcessRuntime(
             server=server,
@@ -140,7 +149,9 @@ def prepare_inprocess_runtime(
             del sys.modules[mod];
         }
         Jac.set_shared_root_resolver(None);
-        Jac.set_context(prior_ctx);
+        if prior_ctx is not None {
+            Jac.set_context(prior_ctx);
+        }
         mach.close();
         raise;
     }
