@@ -58,7 +58,7 @@ def scale_local_serve(filename: str, port: int = 8000) -> int | None {
     os.environ["JAC_SCALE_RUNTIME"] = "1";
     scale_config = get_scale_config();
     ms_config = scale_config.get_microservices_config();
-    if port and port != 8000 {
+    if port {
         ms_config["gateway_port"] = port;
     }
     is_sv_sibling = os.environ.get("JAC_SV_SIBLING") == "1";
@@ -101,6 +101,7 @@ def scale_local_serve(filename: str, port: int = 8000) -> int | None {
             should_serve_ms = False;
         }
         if should_serve_ms and realizer is not None {
+            ms_config["gateway_port_pinned"] = bool(port);
             if enabled is None {
                 _print_local_ms_banner(ms_config.get("routes", {}));
             }
