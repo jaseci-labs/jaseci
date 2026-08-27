@@ -8,9 +8,9 @@
 
 | Mode | Command | Description |
 |------|---------|-------------|
-| **Deploy** | `jac start app.jac --scale` | Ship the project source into the cluster and deploy |
-| **Preview** | `jac start app.jac --scale --dry-run` | Print the manifests that would be applied; change nothing |
-| **Enable HTTPS** | `jac start app.jac --scale --enable-tls` | Enable TLS on a live deployment (no redeploy, run after CNAME propagates) |
+| **Deploy** | `jac scale deploy app.jac` | Ship the project source into the cluster and deploy |
+| **Preview** | `jac scale deploy app.jac --dry-run` | Print the manifests that would be applied; change nothing |
+| **Enable HTTPS** | `jac scale deploy app.jac --enable-tls` | Enable TLS on a live deployment (no redeploy, run after CNAME propagates) |
 
 There is no image-build step. `jac-scale` does not build, tag, or push a Docker
 image, and it needs no registry and no registry credentials: pods run a stock
@@ -38,7 +38,7 @@ Channel precedence is local, then experimental, then dev, then stable -- an `[ex
 
 ```bash
 export JAC_SCALE_BINARY_PATH=/path/to/jac
-jac start app.jac --scale
+jac scale deploy app.jac
 ```
 
 Use this for air-gapped clusters, to pin an exact build, or to deploy a binary you compiled locally. The driver checksum-caches downloaded release binaries per channel and architecture, so an unchanged `stable`/`dev` deploy does not re-download on every run.
@@ -257,7 +257,7 @@ cert_manager_email = "you@example.com"
 ```
 
 ```bash
-jac start app.jac --scale
+jac scale deploy app.jac
 ```
 
 After deploy, the external endpoint is printed along with the DNS record to create. The record type is detected automatically: an IP endpoint (e.g. a bare-metal or local cluster) prompts an `A` record, a hostname endpoint (e.g. an AWS NLB) prompts a `CNAME`:
@@ -270,7 +270,7 @@ Deployment complete! Service available at: http://k8s-default-...elb.amazonaws.c
     Name:  app.example.com
     Value: k8s-default-...elb.amazonaws.com
 
-  Then run: jac start app.jac --scale --enable-tls
+  Then run: jac scale deploy app.jac --enable-tls
 ```
 
 #### Step 2 - Add DNS record
@@ -282,7 +282,7 @@ Wait for DNS propagation (usually 1–15 minutes). Verify with `dig app.example.
 #### Step 3 - Enable TLS
 
 ```bash
-jac start app.jac --scale --enable-tls
+jac scale deploy app.jac --enable-tls
 ```
 
 This installs cert-manager, creates a Let's Encrypt `Issuer`, patches the live Ingress with TLS annotations, and updates all service URLs to HTTPS. No redeployment of your application occurs.
@@ -809,6 +809,7 @@ histogram_buckets = [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0,
 | `{namespace}_http_request_duration_seconds` | Histogram | `method`, `path` | HTTP request latency in seconds |
 | `{namespace}_http_requests_in_progress` | Gauge | -- | Concurrent HTTP requests |
 | `{namespace}_walker_duration_seconds` | Histogram | `walker_name`, `success` | Walker execution duration (only when `walker_metrics=true`) |
+| `{namespace}_read_tier_retries_total` | Counter | `unit` | Requests re-run at SERIALIZABLE after a read-tier unit wrote; one per writing unit per replica per `JAC_DB_RO_WRITER_TTL_S` window (see [Persistence](../persistence.md#connections-and-isolation-tiers-under-jac-serve)) |
 | `{namespace}_ws_connections_active` | Gauge | -- | Active WebSocket connections |
 | `{namespace}_ws_broadcasts_total` | Counter | -- | WebSocket broadcasts sent |
 
@@ -895,7 +896,7 @@ Values using `${ENV_VAR}` syntax are resolved from the local environment at depl
 
 ### How It Works
 
-1. At `jac start app.jac --scale`, environment variable references (`${...}`) are resolved
+1. At `jac scale deploy app.jac`, environment variable references (`${...}`) are resolved
 2. A Kubernetes `Opaque` Secret named `{app_name}-secrets` is created (or updated if it already exists)
 3. The Secret is attached to the deployment pod spec via `envFrom.secretRef`
 4. All keys become environment variables inside the container
@@ -907,17 +908,17 @@ Values using `${ENV_VAR}` syntax are resolved from the local environment at depl
 # jac.toml
 [scale.secrets]
 OPENAI_API_KEY = "${OPENAI_API_KEY}"
-MONGO_PASSWORD = "${MONGO_PASSWORD}"
+JAC_DB_URL = "${JAC_DB_URL}"
 JWT_SECRET = "${JWT_SECRET}"
 ```
 
 ```bash
 # Set local env vars, then deploy
 export OPENAI_API_KEY="sk-..."
-export MONGO_PASSWORD="secret123"
+export JAC_DB_URL="postgresql://jac:secret123@db.example.com:5432/jac"
 export JWT_SECRET="my-jwt-key"
 
-jac start app.jac --scale
+jac scale deploy app.jac
 ```
 
 This eliminates the need for manual `kubectl create secret` commands after deployment.
@@ -1011,11 +1012,11 @@ PVC mode and hostPath mode are mutually exclusive per entry. K-track applies PVC
 
 ## Microservice Mode in Kubernetes
 
-When `[scale.microservices].enabled = true` and you run `jac start --scale` against a Kubernetes cluster, every entry in `[scale.microservices.routes]` becomes its own Deployment + Service + HPA + PodDisruptionBudget. The gateway runs as a separate pod that fronts every microservice via its routes prefix.
+When `[scale.microservices].enabled = true` and you run `jac scale deploy` against a Kubernetes cluster, every entry in `[scale.microservices.routes]` becomes its own Deployment + Service + HPA + PodDisruptionBudget. The gateway runs as a separate pod that fronts every microservice via its routes prefix.
 
 ### Auto-Injected Peer URLs
 
-Outside Kubernetes, sv-to-sv calls find peer providers via auto-spawn (single-process mode) or `JAC_SV_<MODULE>_URL` env vars (manual multi-host setup). Inside `--scale` Kubernetes mode, K-track auto-injects those env vars on every pod, derived from the routes table:
+Outside Kubernetes, sv-to-sv calls find peer providers via auto-spawn (single-process mode) or `JAC_SV_<MODULE>_URL` env vars (manual multi-host setup). Inside `jac scale deploy` Kubernetes mode, K-track auto-injects those env vars on every pod, derived from the routes table:
 
 ```text
 JAC_SV_<PEER_MODULE>_URL=http://<peer>-service.<namespace>.svc.cluster.local:<container_port>
@@ -1025,7 +1026,7 @@ The env-var key uses the raw module name (the peer's key in `[scale.microservice
 
 Alongside the peer URLs, every pod also receives `JAC_SV_ROUTES` (the full routes map as JSON), `K8S_APP_NAME`, and `K8S_NAMESPACE`. Every pod's entrypoint (gateway included) also exports `JAC_SV_SIBLING=1` -- a shell export in the container command, not a PodSpec `env:` entry. (Sibling-only scoping of that variable exists only in local multi-process mode.)
 
-You do not write these env vars by hand in `--scale` K8s mode; K-track derives them from `[scale.microservices.routes]` and the configured namespace.
+You do not write these env vars by hand in deployed K8s mode; K-track derives them from `[scale.microservices.routes]` and the configured namespace.
 
 Per-service env overrides under `[scale.microservices.services.<name>.env]` cannot shadow these keys. A stale override would silently route sv-to-sv calls to a wrong backend. To point a peer at a non-cluster URL (e.g. a vendor SaaS), use a per-service `deployment_overlay` (which merges raw manifest fields, including env) or edit the Deployment env spec after deploy.
 
@@ -1095,7 +1096,7 @@ Microservice mode can deploy a Loki + Grafana Alloy log aggregation pipeline alo
 enabled = true
 ```
 
-When enabled, `jac start --scale` deploys:
+When enabled, `jac scale deploy` deploys:
 
 - **Loki** -- single-process log store (port 3100, ClusterIP). Uses filesystem/TSDB storage backed by `emptyDir` (logs are ephemeral and reset on pod restart; suitable for dev and staging).
 - **Grafana Alloy** -- DaemonSet on every node (tolerates `NoSchedule`). Tails `/var/log/pods`, labels each stream with `namespace`, `pod`, and `container`, and pushes to Loki via Kubernetes service discovery. River-syntax config; supersedes Promtail (EOL 2026-03-02).
@@ -1147,9 +1148,9 @@ mkdir -p ~/.kube && microk8s config > ~/.kube/config
 chmod 600 ~/.kube/config
 ```
 
-The last two steps are required, not cosmetic: `jac start --scale` reads `~/.kube/config` to reach the cluster and shells out to a real `kubectl` binary to seed the source bundle. A shell alias (`alias kubectl='microk8s kubectl'`) is not enough because subprocesses cannot see it. You do not need the MicroK8s `ingress` addon -- the deploy ships its own NGINX ingress controller.
+The last two steps are required, not cosmetic: `jac scale deploy` reads `~/.kube/config` to reach the cluster and shells out to a real `kubectl` binary to seed the source bundle. A shell alias (`alias kubectl='microk8s kubectl'`) is not enough because subprocesses cannot see it. You do not need the MicroK8s `ingress` addon -- the deploy ships its own NGINX ingress controller.
 
-After `jac start --scale`, the app is reachable at `http://localhost:30080` (see [Ports](#ports)).
+After `jac scale deploy`, the app is reachable at `http://localhost:30080` (see [Ports](#ports)).
 
 ### Docker Desktop
 
@@ -1241,7 +1242,7 @@ kubectl get events --sort-by='.lastTimestamp'
 ## Programmatic SDK
 
 A platform (a PaaS, a CI job, an ops daemon) can drive deploys in-process
-instead of shelling out to `jac start --scale` and parsing stdout. The SDK is
+instead of shelling out to `jac scale deploy` and parsing stdout. The SDK is
 `jaclang.scale.sdk`: a `ScaleClient` plus a `DeploySpec` that carries the whole
 deploy configuration in memory. `jac.toml` is never read, nothing prompts for
 input, and every call returns structured data. The CLI is unchanged and shares

@@ -7,7 +7,7 @@ api_key, signature and timestamp in three headers. Use allowed_walkers to
 scope an api key to specific webhook walkers.
 
 Run:
-    jac start app.jac --port 8000
+    jac run --serve --port 8000 app.jac
 
 1. Register and log in:
     curl -X POST localhost:8000/user/register \

@@ -7,6 +7,9 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
     TriggerAuth
 }
 
+def _as_any(v: any) -> any {
+    return v;
+}
 
 test "cpu trigger is translated to KEDA Utilization format" {
     keda = KEDAAutoscaler();
@@ -159,6 +162,83 @@ test "duplicate trigger identities raise ValueError before any cluster write" {
     } except ValueError as e {
         raised = True;
         assert "cache" in str(e);
+    }
+    assert raised;
+}
+
+
+test "build manifests rejects duplicate trigger identities so the dry run refuses what apply refuses" {
+    # The rendered YAML is documented as pipeable into kubectl apply; if only
+    # apply() validated, the dry run would emit colliding TriggerAuthentications
+    # that silently resolve to whichever secret kubectl applied last.
+    keda = KEDAAutoscaler();
+    spec = AutoscalerSpec(
+        scale_target_name="svc-deployment",
+        app_name="order-service",
+        namespace="default",
+        triggers=[
+            Trigger(
+                type="redis",
+                metadata={},
+                name="cache",
+                auth=TriggerAuth(
+                    secret_refs={"password": {"name": "redis-secret", "key": "pw"}}
+                )
+            ),
+            Trigger(
+                type="rabbitmq",
+                metadata={},
+                name="cache",
+                auth=TriggerAuth(
+                    secret_refs={"password": {"name": "rmq-secret", "key": "pw"}}
+                )
+            )
+        ]
+    );
+    raised = False;
+    try {
+        keda._build_manifests(spec);
+    } except ValueError as e {
+        raised = True;
+        assert "cache" in str(e);
+    }
+    assert raised;
+}
+
+
+test "build manifests rejects an unnamed trigger colliding with an explicitly named one" {
+    # An unnamed trigger auto-keys to "<type>-<index>". KEDA's admission webhook
+    # cannot see this collision because only one trigger carries a name, so the
+    # builder is the last line of defense for both render and apply.
+    keda = KEDAAutoscaler();
+    spec = AutoscalerSpec(
+        scale_target_name="svc-deployment",
+        app_name="order-service",
+        namespace="default",
+        triggers=[
+            Trigger(
+                type="redis",
+                metadata={},
+                auth=TriggerAuth(
+                    secret_refs={"password": {"name": "right-secret", "key": "pw"}}
+                )
+            ),
+            Trigger(
+                type="rabbitmq",
+                metadata={},
+                name="redis-0",
+                auth=TriggerAuth(
+                    secret_refs={"password": {"name": "wrong-secret", "key": "pw"}}
+                )
+            )
+        ]
+    );
+    raised = False;
+    try {
+        keda._build_manifests(spec);
+    } except ValueError as e {
+        raised = True;
+        assert "redis-0" in str(e);
     }
     assert raised;
 }
@@ -369,7 +449,7 @@ test "apply logs the install docs link when KEDA CRDs are not installed" {
     mock_api = unittest.mock.MagicMock();
     mock_api.list_cluster_custom_object.side_effect = ApiException(status=404);
     mock_logger = unittest.mock.MagicMock();
-    keda = KEDAAutoscaler(_custom_api=mock_api, logger=mock_logger);
+    keda = KEDAAutoscaler(_custom_api=mock_api, logger=_as_any(mock_logger));
     spec = AutoscalerSpec(
         scale_target_name="svc-deployment",
         namespace="default",

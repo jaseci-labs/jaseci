@@ -531,7 +531,7 @@ max_failures = 10
 ### Import
 
 ```python
-from jaclang.runtimelib.testing import JacTestClient
+from jaclang.testing.testing import JacTestClient
 ```
 
 ### Creating a Client
@@ -596,7 +596,7 @@ Responses from `JacTestClient` are `TestResponse` objects:
 
 ```jac
 import tempfile;
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.testing.testing { JacTestClient }
 
 test "task crud" {
     client = JacTestClient.from_file("app.jac", base_path=tempfile.mkdtemp());
@@ -652,7 +652,7 @@ The `parametrize()` helper registers one test per parameter. It creates individu
 ### Import
 
 ```jac
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 ```
 
 ### Signature
@@ -673,7 +673,7 @@ parametrize(base_name: str, params: Iterable, test_func: Callable, id_fn: Callab
 Define a test function that takes a single parameter, then call `parametrize()` in a `with entry` block:
 
 ```jac
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 
 def _test_square(pair: tuple) {
     input_val = pair[0];
@@ -698,7 +698,7 @@ This registers four tests: `square_0`, `square_1`, `square_2`, `square_3`.
 Use `id_fn` to generate descriptive test names:
 
 ```jac
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 
 def _test_parse(raw: str) {
     # test logic

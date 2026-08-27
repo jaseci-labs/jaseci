@@ -13,6 +13,10 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes { kubernetes_target as kt_module }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 test "deployment target factory creates kubernetes target" {
     config = {"app_name": "test-app", "namespace": "default", "container_port": 8000};
 
@@ -217,7 +221,7 @@ test "deployment target with logger" {
 test "deployment target factory register and create custom target" {
     mock_target = unittest.mock.MagicMock();
 
-    def custom_factory(config: dict, logger: object = None) -> object {
+    def custom_factory(config: dict, logger: any = None) -> any {
         mock_target.config = config;
         mock_target.logger = logger;
         return mock_target;
@@ -235,7 +239,7 @@ test "deployment target factory register and create custom target" {
 test "deployment target factory custom target with logger" {
     calls: list = [];
 
-    def custom_factory(config: dict, logger: object = None) -> object {
+    def custom_factory(config: dict, logger: any = None) -> any {
         calls.append({"config": config, "logger": logger});
         return unittest.mock.MagicMock();
     }
@@ -254,7 +258,7 @@ test "deployment target factory custom target with logger" {
 test "deployment target factory custom target overrides builtin" {
     mock_target = unittest.mock.MagicMock();
 
-    def override_factory(config: dict, logger: object = None) -> object {
+    def override_factory(config: dict, logger: any = None) -> any {
         return mock_target;
     }
 
@@ -289,7 +293,7 @@ test "autoscaler factory raises for unsupported engine" {
 test "autoscaler factory register and create custom engine" {
     mock_autoscaler = unittest.mock.MagicMock();
 
-    def custom_factory(config: dict, logger: object = None) -> object {
+    def custom_factory(config: dict, logger: any = None) -> any {
         return mock_autoscaler;
     }
 
@@ -305,7 +309,7 @@ test "autoscaler factory register and create custom engine" {
 test "autoscaler factory custom engine overrides builtin" {
     mock_autoscaler = unittest.mock.MagicMock();
 
-    def override_factory(config: dict, logger: object = None) -> object {
+    def override_factory(config: dict, logger: any = None) -> any {
         return mock_autoscaler;
     }
 
@@ -441,7 +445,9 @@ test "hpa apply deletes competing ScaledObject when switching from keda engine" 
                 status=404
             );
             HPAAutoscaler().apply(spec);
-            mock_client.CustomObjectsApi.return_value.delete_namespaced_custom_object.assert_called_once_with(
+            _as_any(
+                mock_client
+            ).CustomObjectsApi.return_value.delete_namespaced_custom_object.assert_called_once_with(
                 group="keda.sh",
                 version="v1alpha1",
                 namespace="default",
@@ -468,7 +474,9 @@ test "hpa apply engine-switch ScaledObject deletion is a no-op when no ScaledObj
             mock_v2_cls.return_value.read_namespaced_horizontal_pod_autoscaler.side_effect = ApiException(
                 status=404
             );
-            mock_client.CustomObjectsApi.return_value.delete_namespaced_custom_object.side_effect = ApiException(
+            _as_any(
+                mock_client
+            ).CustomObjectsApi.return_value.delete_namespaced_custom_object.side_effect = ApiException(
                 status=404
             );
             result = HPAAutoscaler().apply(spec);
@@ -484,11 +492,15 @@ test "hpa destroy collection also sweeps competing KEDA resources" {
         with unittest.mock.patch(
             "jaclang.scale.deploy.autoscale.hpa_autoscaler.client"
         ) as mock_client {
-            mock_client.CustomObjectsApi.return_value.list_namespaced_custom_object.return_value = {
+            _as_any(
+                mock_client
+            ).CustomObjectsApi.return_value.list_namespaced_custom_object.return_value = {
                 "items": []
             };
             HPAAutoscaler().destroy_collection("default", "managed=jac-scale");
-            assert mock_client.CustomObjectsApi.return_value.list_namespaced_custom_object.call_count
+            assert _as_any(
+                mock_client
+            ).CustomObjectsApi.return_value.list_namespaced_custom_object.call_count
                 == 2;
         }
     }

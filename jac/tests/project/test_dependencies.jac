@@ -988,7 +988,10 @@ test "add_venv_to_path adds bin to PATH env" {
 
         add_venv_to_path(config);
 
-        assert bin_str in os.environ.get("PATH", "").split(os.pathsep);
+        path_entries = [
+            os.path.realpath(p) for p in os.environ.get("PATH", "").split(os.pathsep)
+        ];
+        assert os.path.realpath(bin_str) in path_entries;
     } finally {
         sys.path.clear();
         sys.path.extend(saved_path);
@@ -1014,7 +1017,10 @@ test "remove_venv_from_path removes bin from PATH env" {
 
         remove_venv_from_path(config);
 
-        assert bin_str not in os.environ.get("PATH", "").split(os.pathsep);
+        path_entries = [
+            os.path.realpath(p) for p in os.environ.get("PATH", "").split(os.pathsep)
+        ];
+        assert os.path.realpath(bin_str) not in path_entries;
     } finally {
         sys.path.clear();
         sys.path.extend(saved_path);
@@ -1065,7 +1071,7 @@ test "install pip and npm deps" {
     reset_config();
     reset_provider_registry();
     import from jaclang.cli.commands { project as proj_cmds }
-    import from jaclang.runtimelib.client.npm_provider { NpmProvider }
+    import from jaclang.client.npm_provider { NpmProvider }
     tmp = tempfile.mkdtemp(prefix="jac_test_");
     try {
         toml = '[project]\nname = "fullstack"\nversion = "0.1.0"\n\n[dependencies]\nrequests = "~=2.31"\nflask = "~=3.0"\n\n[dependencies.npm]\nreact = "^18.0.0"\ntypescript = "^5.0.0"\n\n[dev-dependencies]\npytest = ">=8.0.0"\n';
@@ -1113,7 +1119,7 @@ test "install npm-only project dispatches the npm provider" {
     reset_config();
     reset_provider_registry();
     import from jaclang.cli.commands { project as proj_cmds }
-    import from jaclang.runtimelib.client.npm_provider { NpmProvider }
+    import from jaclang.client.npm_provider { NpmProvider }
     tmp = tempfile.mkdtemp(prefix="jac_test_");
     try {
         toml = '[project]\nname = "testproj"\nversion = "0.1.0"\n\n[dependencies]\n\n[dependencies.npm]\nreact = "18.0"\n';
@@ -1148,7 +1154,7 @@ test "install --no-npm skips the npm provider on a full install" {
     reset_config();
     reset_provider_registry();
     import from jaclang.cli.commands { project as proj_cmds }
-    import from jaclang.runtimelib.client.npm_provider { NpmProvider }
+    import from jaclang.client.npm_provider { NpmProvider }
     tmp = tempfile.mkdtemp(prefix="jac_test_");
     try {
         toml = '[project]\nname = "testproj"\nversion = "0.1.0"\n\n[dependencies]\n\n[dependencies.npm]\nreact = "18.0"\n';
@@ -1597,7 +1603,7 @@ test "install --npm warns when a venv-only save flag is ignored" {
         os.chdir(project_path);
         reset_config();
         try {
-            with patch("jaclang.runtimelib.client.cli.run_npm_add") as mock_npm, patch.object(
+            with patch("jaclang.client.cli.run_npm_add") as mock_npm, patch.object(
                 console, "warning"
             ) as mock_warn {
                 mock_npm.return_value = 0;

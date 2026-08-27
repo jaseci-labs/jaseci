@@ -8,7 +8,9 @@ def:pub DataTable(columns: list, children: any) -> JsxElement {
                     <th
                         key={col["key"]}
                         className={"px-4 py-2 text-xs font-medium text-faint uppercase tracking-wider "
-                            + (col["align"] == "right" and "text-right" or "text-left")}
+                            + (
+                                "text-right" if col["align"] == "right" else "text-left"
+                            )}
                     >
                         {col["label"]}
                     </th> for col in columns
@@ -26,6 +28,6 @@ def:pub TableRow(children: any, className: str = "") -> JsxElement {
 }
 
 def:pub TableCell(children: any, align: str = "left") -> JsxElement {
-    alignClass = align == "right" and "text-right" or "text-left";
+    alignClass: str = "text-right" if align == "right" else "text-left";
     <td className={"px-4 py-3 " + alignClass}>{children}</td>
 }

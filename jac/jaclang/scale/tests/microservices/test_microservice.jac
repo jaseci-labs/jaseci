@@ -6,9 +6,9 @@ import glob;
 import tempfile;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.jac0core.constant { Constants as Con }
-import from jaclang.runtimelib { sv_client as __jac_sv }
-import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+import from jaclang.compiler.frontend.constant { Constants as Con }
+import from jaclang.server { sv_client as __jac_sv }
+import from jaclang.testing.testkit { ServingTestClient as TestClient }
 import from jaclang.scale.server.serve { JacAPIServer }
 
 glob FIXTURES: Path = Path(__file__).parent.parent / "fixtures" / "microservice";
@@ -27,8 +27,12 @@ def build_service(mod: str, tmp: str) -> tuple[TestClient, JacAPIServer] {
     srv.register_walkers_endpoints();
     srv.register_functions_endpoints();
     srv.register_auth_endpoints();
-    srv.user_manager.create_internal_user(Con.GUEST.value, '__no_password__');
-    client = TestClient(srv.server.app, raise_server_exceptions=False);
+    user_manager = srv.user_manager;
+    assert user_manager is not None;
+    user_manager.create_internal_user(Con.GUEST.value, '__no_password__');
+    server_impl = srv.server;
+    assert server_impl is not None;
+    client = TestClient(server_impl.app, raise_server_exceptions=False);
     __jac_sv.register_test_client(mod, client);
     return (client, srv);
 }
@@ -270,9 +274,11 @@ glob _SECURE_PROVIDER_SRC: str = '"""Secure downstream provider fixture.\n\n`rep
      _SECURE_CONSUMER_SRC: str = '"""Consumer that imports the private downstream function report_status."""\n\nimport from secure_service { report_status, AuditEntry }\n\ndef:pub proxy_status(actor: str) -> AuditEntry {\n    return report_status(actor);\n}\n';
 
 def _mint_user_token(srv: JacAPIServer, username: str) -> tuple[str, str] {
-    user = srv.user_manager.create_internal_user(username, "pw-secret-123");
+    user_manager = srv.user_manager;
+    assert user_manager is not None;
+    user = user_manager.create_internal_user(username, "pw-secret-123");
     uid = user.get("user_id", username);
-    return (uid, srv.user_manager.create_jwt_token(uid));
+    return (uid, user_manager.create_jwt_token(uid));
 }
 
 def _secure_provider(tmp: str) -> tuple[TestClient, JacAPIServer] {
@@ -312,7 +318,7 @@ test "sv boundary: private function rejects malformed token (401)" {
 
 test "sv boundary: private function rejects expired token (401)" {
     import from datetime { datetime, UTC, timedelta }
-    import from jaclang.runtimelib.serving.authcrypt { jwt_encode }
+    import from jaclang.server.serving.authcrypt { jwt_encode }
     import from jaclang.scale.identity.user_manager { JWT_SECRET, JWT_ALGORITHM }
 
     tmp = setup_env();

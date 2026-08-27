@@ -9,7 +9,7 @@ producer side, which is the seat the sealed native emitter sits in.
 
 import ast as pyast;
 import from builtins { exec as pyexec }
-import from jaclang.jac0core.codegen_ir {
+import from jaclang.compiler.backends.py.codegen_ir {
     CIR_FORMAT_VERSION,
     CirDiag,
     CodegenIrFormatError,
@@ -18,7 +18,7 @@ import from jaclang.jac0core.codegen_ir {
     DIAG_WARNING,
     read_container
 }
-import from jaclang.jac0core.codegen_shim { compile_ir, transcribe }
+import from jaclang.compiler.backends.py.codegen_shim { compile_ir, transcribe }
 
 glob FIXTURE_SRC: str = """'''Round trip fixture.'''
 def greet(name, excited=False):
@@ -71,11 +71,16 @@ def encode_value(w: CodegenIrWriter, val: object) {
             names.append(fname);
         }
         if "lineno" in val._attributes {
-            end_line = val.end_lineno if val.end_lineno is not None else val.lineno;
-            end_col = val.end_col_offset
-                if val.end_col_offset is not None
-                else val.col_offset;
-            w.emit_loc(val.lineno, val.col_offset, end_line, end_col);
+            # Location fields live on concrete nodes, not the `AST` base the
+            # stub types here; the `_attributes` guard is the real check.
+            located: any = val;
+            end_line = located.end_lineno
+                if located.end_lineno is not None
+                else located.lineno;
+            end_col = located.end_col_offset
+                if located.end_col_offset is not None
+                else located.col_offset;
+            w.emit_loc(located.lineno, located.col_offset, end_line, end_col);
         }
         w.emit_node(type(val).__name__, names);
     } else {

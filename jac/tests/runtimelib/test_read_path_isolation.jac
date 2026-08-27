@@ -17,8 +17,8 @@ mechanical guard behind that.
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID, uuid4 }
-import from jaclang.runtimelib.session { Session }
-import from jaclang.runtimelib.store { TxnIsolation }
+import from jaclang.server.session { Session }
+import from jaclang.data.store { Store, TxnIsolation }
 
 
 def _mk_session(td: str) -> Session {
@@ -26,8 +26,15 @@ def _mk_session(td: str) -> Session {
 }
 
 
+def _store(s: Session) -> Store {
+    st = s.store;
+    assert st is not None;
+    return st;
+}
+
+
 def _server_txn_state(s: Session) -> list {
-    r = s.store.rows(
+    r = _store(s).rows(
         "SELECT current_setting('transaction_isolation'),"
         " current_setting('transaction_read_only')",
         {}
@@ -37,7 +44,7 @@ def _server_txn_state(s: Session) -> list {
 
 
 def _sireads(s: Session) -> int {
-    r = s.store.rows(
+    r = _store(s).rows(
         "SELECT count(*) FROM pg_locks"
         " WHERE mode = 'SIReadLock' AND pid = pg_backend_pid()",
         {}
@@ -53,9 +60,9 @@ test "isolation: a declared read scope takes zero predicate locks" {
             s.read_scope_enter();
             try {
                 s.read_barrier();
-                assert s.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY , (
+                assert _store(s).txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY , (
                     'a declared read scope must not open a SERIALIZABLE '
-                    f"transaction (got {s.store.txn_isolation()})"
+                    f"transaction (got {_store(s).txn_isolation()})"
                 );
                 state = _server_txn_state(s);
                 assert state[0] == 'repeatable read' , (
@@ -67,14 +74,14 @@ test "isolation: a declared read scope takes zero predicate locks" {
                     'cannot silently run under-isolated'
                 );
                 s.batch_get([uuid4(), uuid4(), uuid4()]);
-                s.store.rows('SELECT count(*) FROM anchors', {});
+                _store(s).rows('SELECT count(*) FROM anchors', {});
                 assert _sireads(s) == 0 , (
                     f"read scope took {_sireads(s)} SIReadLocks, expected 0"
                 );
             } finally {
                 s.read_scope_exit();
             }
-            assert not s.store.in_txn() , (
+            assert not _store(s).in_txn() , (
                 'closing the last read scope must commit and close the '
                 'read snapshot so predicate-lock reclamation is never pinned'
             );
@@ -92,7 +99,7 @@ test "isolation: a unit of work still runs at SERIALIZABLE" {
             s.unit_enter();
             try {
                 s.read_barrier();
-                assert s.store.txn_isolation() is TxnIsolation.SERIALIZABLE , (
+                assert _store(s).txn_isolation() is TxnIsolation.SERIALIZABLE , (
                     'write transactions must keep SERIALIZABLE: SSI is the '
                     'only thing that makes check-then-create converge'
                 );
@@ -119,10 +126,10 @@ test "isolation: entering a unit promotes an open read snapshot" {
             s.read_scope_enter();
             try {
                 s.read_barrier();
-                assert s.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY;
+                assert _store(s).txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY;
                 s.unit_enter();
                 try {
-                    assert s.store.txn_isolation() is TxnIsolation.SERIALIZABLE , (
+                    assert _store(s).txn_isolation() is TxnIsolation.SERIALIZABLE , (
                         'a read snapshot must be restarted at SERIALIZABLE when '
                         'a unit of work begins, never carried into the write'
                     );
@@ -150,7 +157,7 @@ test "isolation: a pending write inside a read scope forces SERIALIZABLE" {
             try {
                 s.delete(uuid4());
                 s.read_barrier();
-                assert s.store.txn_isolation() is TxnIsolation.SERIALIZABLE , (
+                assert _store(s).txn_isolation() is TxnIsolation.SERIALIZABLE , (
                     'a session with pending mutations must not open the read '
                     'tier: the flush inside read_barrier is a write'
                 );
@@ -165,14 +172,14 @@ test "isolation: a pending write inside a read scope forces SERIALIZABLE" {
 
 
 test "isolation: scale context construction declares read intent" {
-    import from jaclang.jac0core.constant { Constants as Con }
+    import from jaclang.compiler.frontend.constant { Constants as Con }
     with TemporaryDirectory() as td {
         s = _mk_session(td);
         try {
             s.read_scope_enter();
             try {
                 s.get(UUID(Con.SUPER_ROOT_UUID));
-                assert s.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY , (
+                assert _store(s).txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY , (
                     'the root probe every request runs at context construction '
                     'must not open a SERIALIZABLE transaction'
                 );
@@ -194,16 +201,16 @@ test "isolation: the read tier refuses writes at the server" {
     with TemporaryDirectory() as td {
         s = _mk_session(td);
         try {
-            s.store.begin(TxnIsolation.SNAPSHOT_READ_ONLY);
+            _store(s).begin(TxnIsolation.SNAPSHOT_READ_ONLY);
             refused = False;
             try {
-                s.store.rows(
+                _store(s).rows(
                     "INSERT INTO kv_state (key, value) VALUES ('probe_8050', 'x')", {}
                 );
             } except Exception {
                 refused = True;
             }
-            s.store.rollback();
+            _store(s).rollback();
             assert refused , (
                 'the read tier must be READ ONLY at the server, so any write '
                 'path that escapes the promotion logic fails loudly instead of '

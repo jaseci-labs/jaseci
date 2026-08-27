@@ -1,7 +1,7 @@
 import logging;
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.endpoint { JEndPoint, WSEndPoint }
-import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME, ServingServer }
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.endpoint { JEndPoint, WSEndPoint }
+import from jaclang.server.serving.server { ACCESS_LOGGER_NAME, ServingServer }
 
 
 glob logger: logging.Logger = logging.getLogger(__name__),
@@ -57,7 +57,7 @@ obj NativeJServer {
         _prebound_listen_socket: any = None;
 
     def postinit {
-        import from jaclang.jac0core.runtime { JacRuntime }
+        import from jaclang.runtime.runtime { JacRuntime }
         import from jaclang.scale.runtime.lifecycle.drain { build_drain_middleware }
         server = self;
 
@@ -144,12 +144,15 @@ obj NativeJServer {
             user_id = request.state?.user_root_id if request?.state else None;
             if user_id {
                 root_ref: any = user_id;
+                ctx.mem.read_scope_enter();
                 try {
                     await ctx.aset_user_root(root_ref);
                 } except ValueError {
                     logger.warning(
                         f"Invalid user_root_id: {user_id}, using system root"
                     );
+                } finally {
+                    ctx.mem.read_scope_exit();
                 }
             }
             try {

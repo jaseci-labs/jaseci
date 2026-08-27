@@ -118,6 +118,7 @@ impl KEDAAutoscaler._scaled_object_name{
 
 impl KEDAAutoscaler._build_manifests{
     app_name = spec.app_name or spec.scale_target_name;
+    self._validate_triggers(spec, app_name);
     scaled_obj_name = self._scaled_object_name(spec, app_name);
     keda_triggers: list[dict[str, any]] = [];
     for (i, trigger) in enumerate(spec.triggers) {
@@ -249,7 +250,7 @@ impl KEDAAutoscaler._apply_custom_object{
 
 impl KEDAAutoscaler.apply{
     app_name = spec.app_name or spec.scale_target_name;
-    self._validate_triggers(spec, app_name);
+    manifests = self._build_manifests(spec);
     warnings = self.preflight();
     if warnings {
         if self.logger {
@@ -271,7 +272,6 @@ impl KEDAAutoscaler.apply{
         }
     }
 
-    manifests = self._build_manifests(spec);
     known_kinds = [kind for (kind, _) in KEDAAutoscaler._APPLY_ORDER];
     unknown_kinds = [
         manifest["kind"]
@@ -414,7 +414,10 @@ impl KEDAAutoscaler.destroy_collection{
                 plural=plural,
                 label_selector=label_selector
             );
-            for item in items.get("items", []) {
+            listing: dict[str, list[dict[str, any]]] = items
+                if isinstance(items, dict)
+                else {};
+            for item in listing.get("items", []) {
                 item_name = item["metadata"]["name"];
                 try {
                     api.delete_namespaced_custom_object(

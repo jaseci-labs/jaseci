@@ -12,8 +12,7 @@ import re;
 import unicodedata;
 import from pathlib { Path }
 import from jaclang.cli.guide_store { docs_dir }
-import from jaclang.cli.registry { get_registry }
-import jaclang.cli.commands.execution;
+import from jaclang.cli.manifest { get_command_meta }
 
 """Retrieve all Markdown files in the bundled corpus."""
 def get_md_files -> list[str] {
@@ -35,10 +34,10 @@ def get_current_md_files -> list[str] {
     ];
 }
 
-"""Every flag `jac start` actually accepts, as it would be spelled in the docs."""
-def start_flags -> set[str] {
-    spec = get_registry().get("start");
-    assert spec is not None , "the 'start' command is not registered";
+"""Every flag `jac run` actually accepts, as it would be spelled in the docs."""
+def run_flags -> set[str] {
+    spec = get_command_meta("run");
+    assert spec is not None , "the 'run' command is not registered";
     flags: set[str] = set();
     for arg in spec.get_all_args() {
         flags.add(f"--{arg.name}");
@@ -189,7 +188,7 @@ test "docs do not describe the removed image-build pipeline" {
     # image loading) was deleted; the copy-source "no-image" path is the only
     # one that ships. Docs kept advertising the removed surface, sending people
     # after a --build flag, config keys, and modules that are not in the tree.
-    assert "--build" not in start_flags() , "jac start grew a --build flag; drop it from `removed` below";
+    assert "--build" not in run_flags() , "jac run grew a --build flag; drop it from `removed` below";
     removed = [
         "--build",
         "_cluster_detect",

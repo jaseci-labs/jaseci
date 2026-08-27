@@ -1,7 +1,7 @@
 import random;
 import string;
 import from urllib.parse { urlparse }
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
+import from jaclang.server.transport { TransportResponse, Meta }
 
 glob _LOOPBACK_HOSTS: set[str] = {'127.0.0.1', 'localhost', '::1'};
 
@@ -42,7 +42,9 @@ def _extract_path_param_names(path: (str | None)) -> list[str] {
 }
 
 def generate_random_password(length: int = 8) -> str {
-    characters = string.ascii_letters + string.digits + string.punctuation;
+    characters: str = ''.join(
+        [string.ascii_letters, string.digits, string.punctuation]
+    );
     password_chars = [random.choice(characters) for _ in range(length)];
     return ''.join(password_chars);
 }

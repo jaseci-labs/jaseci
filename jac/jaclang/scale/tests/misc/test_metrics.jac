@@ -196,3 +196,20 @@ test "admin metrics endpoint requires authentication" {
         shutil.rmtree(tmp, ignore_errors=True);
     }
 }
+
+
+test "prometheus counts read-tier retries per unit" {
+    collector = PrometheusMetricsCollector(config=ENABLED_CONFIG);
+    collector.record_read_tier_retry("walker:app.place_order");
+    collector.record_read_tier_retry("walker:app.place_order");
+    body = collector.expose().decode("utf-8");
+    assert 'test_app_read_tier_retries_total{unit="walker:app.place_order"} 2.0'
+        in body , (f"read-tier retries must be exposed per unit key, got:\n{body}");
+}
+
+
+test "noop read-tier retry is a no-op" {
+    collector = NoOpMetricsCollector();
+    collector.record_read_tier_retry("walker:app.place_order");
+    assert collector.expose() == b"";
+}

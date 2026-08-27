@@ -543,8 +543,8 @@ Even without a frontend, you can start the server and interact with your API rig
     `main.jac` is the default entry point. Since this project uses `main.jac`, you can omit the filename entirely. Both forms below are equivalent.
 
 ```bash
-jac start main.jac
-# or: jac start
+jac run main.jac
+# or: jac run
 ```
 
 The server starts on port 8000 by default. Use `--port 3000` to pick a different port.
@@ -553,8 +553,8 @@ Open [http://localhost:8000/docs](http://localhost:8000/docs) to see Swagger UI 
 
 You can also visit [http://localhost:8000/graph](http://localhost:8000/graph) to see a visual representation of the data graph attached to `root`. Right now it will be empty, but once you add tasks (try it from the Swagger UI!), you'll see them appear as nodes connected to `root`.
 
-!!! info "`jac` vs `jac start`"
-    In Parts 1-2 we used `jac <file>` to run scripts. `jac start <file>` launches a web server that serves `def:pub` endpoints and any frontend components. Use `jac` for scripts, `jac start` for web apps.
+!!! info "`jac` vs `jac run`"
+    In Parts 1-2 we used `jac <file>` to run scripts. `jac run <file>` launches a web server that serves `def:pub` endpoints and any frontend components. Use `jac` for scripts, `jac run` for web apps.
 
 !!! warning "Common issue"
     If you see "Address already in use", another process is on that port. Use `--port` to pick a different one.
@@ -565,7 +565,7 @@ You can also visit [http://localhost:8000/graph](http://localhost:8000/graph) to
 - **`jid(node)`** -- get the unique identifier of any node (no manual ID management needed)
 - **List comprehensions** -- `[expr for x in list]` and `[expr for x in list if cond]`
 - **Dictionaries** -- `{"key": value}` for structured data
-- **`jac start`** -- run the web server
+- **`jac run`** -- run the web server
 
 !!! example "Try It Yourself"
     Add a `get_pending_tasks` endpoint that returns only tasks where `done` is `False`. Hint: add an `if not t.done` condition to the list comprehension from `get_tasks`.
@@ -960,7 +960,7 @@ h1 { text-align: center; margin-bottom: 24px; color: #333; }
     ```
 
 ```bash
-jac start main.jac  # or: jac start
+jac run main.jac    # builds and serves
 ```
 
 Open [http://localhost:8000](http://localhost:8000). You should see a clean day planner with an input field and an "Add" button. Try it:
@@ -1036,7 +1036,7 @@ That's the whole configuration. Anywhere you write `by llm()` in your Jac code, 
     | Google Gemini | `"gemini/gemini-2.5-flash"` | Set `GEMINI_API_KEY`; free tier at [ai.google.dev](https://ai.google.dev/) |
     | Ollama (local daemon) | `"ollama/llama3.2:1b"` | Requires [Ollama](https://ollama.ai/) running locally |
 
-    Whichever you pick, set the matching API key as an environment variable before `jac start` (e.g. `export ANTHROPIC_API_KEY="..."`). The rest of the tutorial code is identical.
+    Whichever you pick, set the matching API key as an environment variable before `jac run` (e.g. `export ANTHROPIC_API_KEY="..."`). The rest of the tutorial code is identical.
 
 !!! info "Alternative: configure the model in code with `glob`"
     You can also initialize the model from Jac source, which is useful when you want the choice of model to be visible in the code itself or vary by file:
@@ -1170,11 +1170,13 @@ def:pub generate_list(meal: str) -> list[ShoppingItem] {
     # Generate new ones
     ingredients = generate_shopping_list(meal);
     for ing in ingredients {
-        root ++> ShoppingItem(
-            name=ing.name, quantity=ing.quantity,
-            unit=str(ing.unit).split(".")[-1].lower(),
-            cost=ing.cost, carby=ing.carby
-        );
+        item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+        comptime for f in fields(ShoppingItem) {
+            comptime if f.name != "unit" {
+                item[f.name] = get_field(ing, f.name);
+            }
+        }
+        root ++> ShoppingItem(**item);
     }
     return [root-->][?:ShoppingItem];
 }
@@ -1692,11 +1694,13 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
         }
         ingredients = generate_shopping_list(meal);
         for ing in ingredients {
-            root ++> ShoppingItem(
-                name=ing.name, quantity=ing.quantity,
-                unit=str(ing.unit).split(".")[-1].lower(),
-                cost=ing.cost, carby=ing.carby
-            );
+            item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+            comptime for f in fields(ShoppingItem) {
+                comptime if f.name != "unit" {
+                    item[f.name] = get_field(ing, f.name);
+                }
+            }
+            root ++> ShoppingItem(**item);
         }
         return [root-->][?:ShoppingItem];
     }
@@ -1882,14 +1886,14 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
     ```
 
 ```bash
-jac start main.jac  # or: jac start
+jac run main.jac    # builds and serves
 ```
 
 !!! warning "Common issue"
-    If adding a task silently fails (nothing happens), check the terminal running `jac start` for error messages. The most common culprits:
+    If adding a task silently fails (nothing happens), check the terminal running `jac run` for error messages. The most common culprits:
 
     - `byllm[local]` not installed -- re-run `jac install 'byllm[local]'`
-    - Weights not downloaded yet in a non-interactive terminal -- run `jac model pull gemma-4-e4b` once, or set `BYLLM_AUTO_DOWNLOAD=1` and let `jac start` fetch them
+    - Weights not downloaded yet in a non-interactive terminal -- run `jac model pull gemma-4-e4b` once, or set `BYLLM_AUTO_DOWNLOAD=1` and let `jac run` fetch them
     - If you switched to a cloud model, a missing or invalid API key causes a server error -- check the export
 
 Open [http://localhost:8000](http://localhost:8000). The app now has two columns. Try it:
@@ -2080,6 +2084,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     ```jac
     """AI Day Planner -- authenticated, multi-file version."""
 
+    import from jaclang.comptime { fields, get_field }
     import from frontend { app as ClientApp }
 
     def:pub app -> JsxElement {
@@ -2173,11 +2178,13 @@ All the complete files are in the collapsible sections below. Create each file, 
         }
         ingredients = generate_shopping_list(meal);
         for ing in ingredients {
-            root ++> ShoppingItem(
-                name=ing.name, quantity=ing.quantity,
-                unit=str(ing.unit).split(".")[-1].lower(),
-                cost=ing.cost, carby=ing.carby
-            );
+            item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+            comptime for f in fields(ShoppingItem) {
+                comptime if f.name != "unit" {
+                    item[f.name] = get_field(ing, f.name);
+                }
+            }
+            root ++> ShoppingItem(**item);
         }
         return [root-->][?:ShoppingItem];
     }
@@ -2702,7 +2709,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     ```
 
 ```bash
-jac start main.jac  # or: jac start
+jac run main.jac    # builds and serves
 ```
 
 Open [http://localhost:8000](http://localhost:8000). You should see a login screen.
@@ -2969,11 +2976,13 @@ walker GenerateShoppingList {
         # Generate new ingredients (runs before queued visits)
         ingredients = generate_shopping_list(self.meal_description);
         for ing in ingredients {
-            here ++> ShoppingItem(
-                name=ing.name, quantity=ing.quantity,
-                unit=str(ing.unit).split(".")[-1].lower(),
-                cost=ing.cost, carby=ing.carby
-            );
+            item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+            comptime for f in fields(ShoppingItem) {
+                comptime if f.name != "unit" {
+                    item[f.name] = get_field(ing, f.name);
+                }
+            }
+            here ++> ShoppingItem(**item);
         }
         report [here-->][?:ShoppingItem];
     }
@@ -3105,6 +3114,7 @@ The three files that change are in the collapsible sections below. Copy the unch
     ```jac
     """AI Day Planner -- walker-based version with OSP."""
 
+    import from jaclang.comptime { fields, get_field }
     import from frontend { app as ClientApp }
 
     def:pub app -> JsxElement {
@@ -3222,13 +3232,13 @@ The three files that change are in the collapsible sections below. Copy the unch
             visit [-->];
             ingredients = generate_shopping_list(self.meal_description);
             for ing in ingredients {
-                here ++> ShoppingItem(
-                    name=ing.name,
-                    quantity=ing.quantity,
-                    unit=str(ing.unit).split(".")[-1].lower(),
-                    cost=ing.cost,
-                    carby=ing.carby
-                );
+                item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+                comptime for f in fields(ShoppingItem) {
+                    comptime if f.name != "unit" {
+                        item[f.name] = get_field(ing, f.name);
+                    }
+                }
+                here ++> ShoppingItem(**item);
             }
             report [here-->][?:ShoppingItem];
         }
@@ -3455,7 +3465,7 @@ The three files that change are in the collapsible sections below. Copy the unch
     ```
 
 ```bash
-jac start main.jac  # or: jac start
+jac run main.jac    # builds and serves
 ```
 
 Open [http://localhost:8000](http://localhost:8000). You should see a login screen -- that's authentication working with `walker:priv`.
@@ -3540,7 +3550,7 @@ The concepts you've learned are interconnected. Types constrain AI output. Graph
 
 Now that you have a solid foundation, here are some directions to deepen your understanding:
 
-- **Deploy** -- [Deploy to Kubernetes](../production/kubernetes.md) with `jac start --scale` (the built-in scale subsystem) to take your app to production
+- **Deploy** -- [Deploy to Kubernetes](../production/kubernetes.md) with `jac scale deploy` (the built-in scale subsystem) to take your app to production
 - **Go deeper on walkers** -- [Object-Spatial Programming](../language/osp.md) covers advanced graph patterns like recursive traversals and multi-hop queries
 - **More AI** -- [byLLM Quickstart](../ai/quickstart.md) for standalone examples and [Agentic AI](../ai/agentic.md) for building tool-using agents
 - **Examples** -- Explore [community examples](https://github.com/Jaseci-Labs/jaseci/tree/main/examples) for inspiration on what to build next

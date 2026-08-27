@@ -10,11 +10,15 @@ import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
-import from jaclang.jac0core.graph_query { GraphQuery, QHop }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.query_planner { resolve_query }
+import from jaclang.runtime.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
+import from jaclang.runtime.graph_query { GraphQuery, QHop }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.data.query_planner { resolve_query }
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 node SItem {
     has tag: str = "";
@@ -35,7 +39,7 @@ def _attach(ctx: ExecutionContext, ranch: NodeAnchor, tag: str) -> NodeAnchor {
     nanch = SItem(tag=tag).__jac__;
     nanch.persistent = True;
     eanch = EdgeAnchor(
-        archetype=SRel(), source=ranch, target=nanch, is_undirected=False
+        archetype=_as_any(SRel()), source=ranch, target=nanch, is_undirected=False
     );
     eanch.persistent = True;
     ranch.edges.append(eanch);
@@ -186,7 +190,7 @@ test "persistence across sessions: same base path reopens the graph" {
         try {
             r2 = ctx2.mem.get(rid);
             assert r2 is not None;
-            assert len(_out_items(ctx2, r2)) == 1;
+            assert len(_out_items(ctx2, _as_any(r2))) == 1;
         } finally {
             JacRuntime.exec_ctx = old;
             ctx2.close();
@@ -222,12 +226,11 @@ test "field mutation lands in the dirty set without a full-session sweep" {
 
 
 test "read barrier hashes only dirty anchors, not the whole session" {
-    import jaclang.runtimelib.session;
+    import jaclang.server.session as smod;
     with TemporaryDirectory() as td {
         old = JacRuntime.exec_ctx;
         ctx = _make_ctx(td);
         JacRuntime.exec_ctx = ctx;
-        smod = jaclang.runtimelib.session;
         orig = smod._persist_hash;
         calls: list = [];
         def counting_hash(anchor: Anchor) -> int {

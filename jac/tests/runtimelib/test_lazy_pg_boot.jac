@@ -22,15 +22,19 @@ import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
-import from jaclang.jac0core.constant { Constants as Con }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.session { Session }
-import from jaclang.runtimelib.store { PgStore }
+import from jaclang.compiler.frontend.constant { Constants as Con }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.server.session { Session }
+import from jaclang.data.store { PgStore }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures"),
      REPO_ROOT = Path(__file__).resolve().parents[3],
      DOCKERFILE = REPO_ROOT / "docker" / "jaclang.Dockerfile";
 
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 obj _BootProbe {
     has calls: list[str] = [],
@@ -45,7 +49,7 @@ obj _BootProbe {
             calls.append(str(rt.database));
             return orig(rt);
         }
-        PgRuntime.ensure = _probe;
+        PgRuntime.ensure = _as_any(_probe);
     }
 
     def remove {
@@ -110,7 +114,7 @@ test "session construction is free and the first store read boots once" {
 
 
 test "an unprivileged euid runs the embedded engine as-is" {
-    import from jaclang.runtimelib.pgembed { PgPrivMode, pg_priv_plan }
+    import from jaclang.data.pgembed { PgPrivMode, pg_priv_plan }
 
     plan = pg_priv_plan(1000, []);
     assert plan.mode == PgPrivMode.AS_IS;
@@ -119,7 +123,7 @@ test "an unprivileged euid runs the embedded engine as-is" {
 
 
 test "euid 0 drops privileges to a resolvable unprivileged account" {
-    import from jaclang.runtimelib.pgembed { PgPrivMode, PgRunAs, pg_priv_plan }
+    import from jaclang.data.pgembed { PgPrivMode, PgRunAs, pg_priv_plan }
 
     plan = pg_priv_plan(
         0,
@@ -137,7 +141,7 @@ test "euid 0 drops privileges to a resolvable unprivileged account" {
 
 
 test "euid 0 with no unprivileged account fails with an actionable diagnostic" {
-    import from jaclang.runtimelib.pgembed { PgPrivMode, pg_priv_plan }
+    import from jaclang.data.pgembed { PgPrivMode, pg_priv_plan }
 
     plan = pg_priv_plan(0, []);
     assert plan.mode == PgPrivMode.BLOCKED;
@@ -149,7 +153,7 @@ test "euid 0 with no unprivileged account fails with an actionable diagnostic" {
 
 
 test "candidate discovery never offers a privileged account" {
-    import from jaclang.runtimelib.pgembed { pg_run_candidates }
+    import from jaclang.data.pgembed { pg_run_candidates }
 
     for cand in pg_run_candidates() {
         assert cand.uid != 0 , f"candidate {cand.name} is privileged";
@@ -202,7 +206,7 @@ obj _CountingStore(PgStore) {
 test "first-use schema DDL runs once per database, even from many threads" {
     import threading;
     import from uuid { uuid4 }
-    import from jaclang.runtimelib.store { ConnInfo }
+    import from jaclang.data.store { ConnInfo }
 
     store = _CountingStore(
         conninfo=ConnInfo(
@@ -241,9 +245,12 @@ test "no production module runs first-use schema DDL outside the gate" {
     # whichever side loses the DDL lock raises SessionConflictError at what is,
     # to the operator, a plain first request against a fresh database.
     src = REPO_ROOT / "jac" / "jaclang";
-    owner = {"runtimelib/store.jac", "runtimelib/impl/store.impl.jac"};
+    owner = {"data/store.jac", "data/impl/store.impl.jac"};
     offenders: list[str] = [];
     for path in sorted(src.rglob("*.jac")) {
+        if not path.is_file() {
+            continue;
+        }
         rel = path.relative_to(src).as_posix();
         if rel in owner or "tests/" in rel {
             continue;

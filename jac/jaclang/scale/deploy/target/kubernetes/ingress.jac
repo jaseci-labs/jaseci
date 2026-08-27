@@ -721,7 +721,7 @@ obj IngressDeployer {
         ingress = networking_v1.read_namespaced_ingress(
             name=ingress_name, namespace=namespace
         );
-        ann = ingress.metadata.annotations or {};
+        ann: dict[str, str] = ingress.metadata.annotations or {};
         domain = ann.get('jac-scale/domain', '') or self.k8s_config.domain;
         cert_email = ann.get('jac-scale/cert-email', '')
             or self.k8s_config.cert_manager_email;
@@ -747,7 +747,9 @@ obj IngressDeployer {
             'nginx.ingress.kubernetes.io/force-ssl-redirect': 'true',
             'jac-scale/domain': domain
         };
-        tls_spec = {'tls': [{'hosts': [domain], 'secretName': tls_secret_name}]};
+        tls_spec: dict[str, list[dict[str, any]]] = {
+            'tls': [{'hosts': [domain], 'secretName': tls_secret_name}]
+        };
 
         api_client = client.ApiClient();
         current_ingress = networking_v1.read_namespaced_ingress(
@@ -808,7 +810,7 @@ obj IngressDeployer {
             elapsed = elapsed + 5;
         }
         if self.logger {
-            self.logger.warning(
+            self.logger.warn(
                 f"Timeout: certificate '{tls_secret_name}' not Ready after 300s. "
                 "Check: kubectl describe certificate "
                 f"{tls_secret_name} -n {namespace}"

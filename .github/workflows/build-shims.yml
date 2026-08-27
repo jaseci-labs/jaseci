@@ -5,7 +5,7 @@ name: Build LLVMPY shim assets
 # the rolling `deps` prerelease, named by the hash of its complete input set:
 #
 #   libjacllvm-<platform>-<hashFiles(jac/native/**, jac/build.zig,
-#                                    jac/launcher/llvm_release.zig)>.<so|dylib>
+#                                    jac/bootstrap/pins.json)>.<so|dylib>
 #
 # build-binaries.yml's release channel fetches the matching asset instead of
 # range-fetching the ~0.5 GB LLVM slice and re-linking the shim cold on every
@@ -29,7 +29,7 @@ on:
     paths:
       - jac/native/**
       - jac/build.zig
-      - jac/launcher/llvm_release.zig
+      - jac/bootstrap/pins.json
       - .github/workflows/build-shims.yml
   workflow_dispatch:
 
@@ -69,7 +69,7 @@ jobs:
         id: asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHIM_KEY: ${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/launcher/llvm_release.zig') }}
+          SHIM_KEY: ${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
         run: |
           set -euo pipefail
           EXT=so
@@ -93,7 +93,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.llvm-build
-          key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/llvm_release.zig') }}
+          key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/bootstrap/pins.json') }}
 
       # Same key as setup-jac / build-binaries: one shared entry per os/arch.
       - name: Cache the Zig package store
@@ -116,12 +116,12 @@ jobs:
       - name: Fetch LLVM
         if: steps.asset.outputs.exists != 'true' && steps.llvm-cache.outputs.cache-hit != 'true'
         working-directory: jac
-        run: zig build -Dno-ninja fetch-llvm $DTARGET --summary all
+        run: zig build fetch-llvm $DTARGET --summary all
 
       - name: Build the shim
         if: steps.asset.outputs.exists != 'true'
         working-directory: jac
-        run: zig build -Dno-ninja jacllvm $DTARGET --summary all
+        run: zig build jacllvm $DTARGET --summary all
 
       # Hold the artifact to the same floors build-binaries enforces on release
       # binaries, BEFORE it is published -- a floor regression must fail here,
@@ -134,7 +134,7 @@ jobs:
         run: |
           set -euxo pipefail
           FLOOR="${ZIG_TARGET##*gnu.}"
-          SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.so"
+          SHIM="jaclang/compiler/backends/native/llvm/libjacllvm.so"
           hi="$(objdump -T "$SHIM" 2>/dev/null | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sed 's/GLIBC_//' | sort -V | tail -1 || true)"
           : "${hi:=0}"
           echo "$SHIM -> max GLIBC_$hi (floor $FLOOR)"
@@ -150,7 +150,7 @@ jobs:
         run: |
           set -euxo pipefail
           FLOOR="${ZIG_TARGET##*macos.}"
-          SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.dylib"
+          SHIM="jaclang/compiler/backends/native/llvm/libjacllvm.dylib"
           minos="$(otool -l "$SHIM" | awk '/minos/ {print $2; exit}')"
           echo "$SHIM -> minos $minos (floor $FLOOR)"
           if [ "$(printf '%s\n%s\n' "$FLOOR" "$minos" | sort -V | tail -1)" != "$FLOOR" ]; then
@@ -168,7 +168,7 @@ jobs:
           set -euo pipefail
           ASSET="${{ steps.asset.outputs.name }}"
           mkdir -p dist
-          cp jac/jaclang/compiler/passes/native/llvm/libjacllvm.* "dist/$ASSET"
+          cp jac/jaclang/compiler/backends/native/llvm/libjacllvm.* "dist/$ASSET"
           ( cd dist && shasum -a 256 "$ASSET" > "$ASSET.sha256" )
           gh release create deps --repo "$GITHUB_REPOSITORY" --prerelease \
             --title "Prebuilt build dependencies (rolling)" \

@@ -34,10 +34,10 @@ def capture_get(captured: io.StringIO) -> str {
     return captured.getvalue();
 }
 
-def _run(entrypoint: str, args: list = [], `root: str = "", nd: str = "") -> str {
+def _run(entrypoint: str, args: list = [], root_id: str = "", nd: str = "") -> str {
     captured = capture_start();
-    execution.enter(
-        filename=FIXTURE, entrypoint=entrypoint, args=args, **{"root": `root}, nd=nd
+    execution.run(
+        filename=FIXTURE, entry_name=entrypoint, args=args, root_id=root_id, nd=nd
     );
     return capture_get(captured).strip();
 }
@@ -46,10 +46,10 @@ def _run(entrypoint: str, args: list = [], `root: str = "", nd: str = "") -> str
 def _setup_alice_bob -> tuple[(str, str, str)] {
     alice = _run("create_other_root");
     bob = _run("create_other_root");
-    profile_id = _run("create_profile", args=["alice_v1"], **{"root": alice});
+    profile_id = _run("create_profile", args=["alice_v1"], root_id=alice);
     # Alice grants READ so Bob can resolve the profile by id, but neither
     # connect nor write.
-    _run("grant_profile_to", args=[bob, "READ"], **{"root": alice});
+    _run("grant_profile_to", args=[bob, "READ"], root_id=alice);
     return (alice, bob, profile_id);
 }
 
@@ -59,7 +59,7 @@ test "edge write across users emits edge_write diagnostic" {
     Jac.set_base_path(_tmp);
     try {
         (alice, bob, profile_id) = _setup_alice_bob();
-        out = _run("try_edge_write", args=[profile_id], **{"root": bob});
+        out = _run("try_edge_write", args=[profile_id], root_id=bob);
         diags = [
             line
             for line in out.split("\n")
@@ -85,7 +85,7 @@ test "field write across users emits field_write diagnostic and persist drops" {
     Jac.set_base_path(_tmp);
     try {
         (alice, bob, profile_id) = _setup_alice_bob();
-        out = _run("try_field_write", args=[profile_id, "TAMPERED"], **{"root": bob});
+        out = _run("try_field_write", args=[profile_id, "TAMPERED"], root_id=bob);
         diags = [
             line
             for line in out.split("\n")
@@ -100,7 +100,7 @@ test "field write across users emits field_write diagnostic and persist drops" {
         ];
         assert matches , f"expected field_write diagnostic, got: {diags}";
         # Persist-time drop: alice reading her own profile sees the original.
-        tag = _run("check_profile_tag", args=[profile_id], **{"root": alice});
+        tag = _run("check_profile_tag", args=[profile_id], root_id=alice);
         assert tag == "alice_v1" , f"expected unchanged tag, got {tag!r}";
     } finally {
         Jac.set_base_path(_orig);
@@ -114,7 +114,7 @@ test "delete across users emits delete diagnostic and node survives" {
     Jac.set_base_path(_tmp);
     try {
         (alice, bob, profile_id) = _setup_alice_bob();
-        out = _run("try_delete", args=[profile_id], **{"root": bob});
+        out = _run("try_delete", args=[profile_id], root_id=bob);
         diags = [
             line
             for line in out.split("\n")
@@ -128,7 +128,7 @@ test "delete across users emits delete diagnostic and node survives" {
         ];
         assert matches , f"expected delete diagnostic, got: {diags}";
         # Node still exists from alice's view.
-        tag = _run("check_profile_tag", args=[profile_id], **{"root": alice});
+        tag = _run("check_profile_tag", args=[profile_id], root_id=alice);
         assert tag == "alice_v1";
     } finally {
         Jac.set_base_path(_orig);
@@ -142,17 +142,15 @@ test "owner write does not emit diagnostic" {
     Jac.set_base_path(_tmp);
     try {
         alice = _run("create_other_root");
-        profile_id = _run("create_profile", args=["alice_v1"], **{"root": alice});
-        out = _run(
-            "try_field_write", args=[profile_id, "owner_update"], **{"root": alice}
-        );
+        profile_id = _run("create_profile", args=["alice_v1"], root_id=alice);
+        out = _run("try_field_write", args=[profile_id, "owner_update"], root_id=alice);
         diags = [
             line
             for line in out.split("\n")
             if line.startswith("DIAG:")
         ];
         assert len(diags) == 0 , f"owner write should not emit diagnostics, got: {diags}";
-        tag = _run("check_profile_tag", args=[profile_id], **{"root": alice});
+        tag = _run("check_profile_tag", args=[profile_id], root_id=alice);
         assert tag == "owner_update";
     } finally {
         Jac.set_base_path(_orig);
@@ -170,7 +168,7 @@ test "strict mode raises PermissionError on cross-user edge write" {
         (alice, bob, profile_id) = _setup_alice_bob();
         raised = False;
         try {
-            _run("try_edge_write", args=[profile_id], **{"root": bob});
+            _run("try_edge_write", args=[profile_id], root_id=bob);
         } except PermissionError {
             raised = True;
         }
@@ -192,7 +190,7 @@ test "strict mode raises PermissionError on cross-user delete" {
         (alice, bob, profile_id) = _setup_alice_bob();
         raised = False;
         try {
-            _run("try_delete", args=[profile_id], **{"root": bob});
+            _run("try_delete", args=[profile_id], root_id=bob);
         } except PermissionError {
             raised = True;
         }
