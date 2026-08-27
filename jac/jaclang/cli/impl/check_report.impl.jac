@@ -229,33 +229,3 @@ impl print_placement_report(rows_by_module: dict[str, dict[str, any]]) -> None {
         }
     }
 }
-
-impl print_compile_stats -> None {
-    import from jaclang.cli.console { console }
-    import from jaclang.compiler.placement.prefix_flip {
-        prefix_clause_help,
-        prefix_fallbacks_by_clause,
-        prefix_report_lines,
-        prefix_stats_lines
-    }
-    console.print("");
-    console.print(separator("compile stats"));
-    for line in prefix_stats_lines() {
-        console.print(line);
-    }
-    by_clause = prefix_fallbacks_by_clause();
-    if not by_clause {
-        return;
-    }
-    console.print("");
-    console.print("staged fallbacks (ranked by clause):");
-    ranked = sorted(by_clause.items(), key=lambda (x: tuple) { (-x[1], x[0]); });
-    for (clause, count) in ranked {
-        console.print(f"  {clause}  ({count})  -- {prefix_clause_help(clause)}");
-    }
-    console.print("");
-    console.print("per module:");
-    for line in prefix_report_lines() {
-        console.print(line);
-    }
-}

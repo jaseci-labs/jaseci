@@ -193,6 +193,25 @@ def _command_argv(command_name: str) -> list[str] {
     );
 }
 
+def _exit_now(code: int) -> None {
+    if os.environ.get('JAC_SLOW_EXIT') {
+        if code != 0 {
+            raise SystemExit(code);
+        }
+        return;
+    }
+    import atexit;
+    try {
+        atexit._run_exitfuncs();
+    } except Exception { }
+    try {
+        sys.stdout.flush();
+        sys.stderr.flush();
+    } except Exception { }
+    os._exit(code);
+}
+
+
 impl run_selected_command(command_name: str) -> None {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.cli.manifest_parse { build_command_parser }
@@ -246,7 +265,5 @@ impl run_selected_command(command_name: str) -> None {
     if result.error {
         console.error(f"{result.error}");
     }
-    if result.return_code != 0 {
-        raise SystemExit(result.return_code);
-    }
+    _exit_now(result.return_code);
 }
