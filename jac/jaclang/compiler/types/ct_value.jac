@@ -36,7 +36,8 @@ obj CtEnumMember {
 obj CtType {
     has name: str,
         module: str = "",
-        typ: (TypeBase | None) = None;
+        typ: (TypeBase | None) = None,
+        ct_args: (dict[str, any] | None) = None;
 
     def __eq__(other: any) -> bool {
         return (
@@ -83,7 +84,8 @@ obj CtRecord {
         module: str = "",
         fields: dict[str, any] = {},
         class_type: (ClassType | None) = None,
-        home: str = "";
+        home: str = "",
+        ct_args: (dict[str, any] | None) = None;
 
     def __getattr__(name: str) -> any {
         flds: dict[str, any] = object.__getattribute__(self, "fields");

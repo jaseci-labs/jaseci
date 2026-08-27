@@ -62,6 +62,9 @@ impl NaIRGenCalls._erased_generic_ctor(nd: uni.FuncCall) -> (str | None) {
         or not isinstance(_tgt.right, uni.IndexSlice) {
         return None;
     }
+    if self._ct_ctor_slots(_tgt) {
+        return self._get_name(_tgt.target);
+    }
     _base_tk = self._type_key_of(_tgt.target);
     if _base_tk is None or not _base_tk.startswith("type[") {
         return None;

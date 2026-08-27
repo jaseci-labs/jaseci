@@ -118,7 +118,12 @@ glob CT_FUEL_DEFAULT: int = 50000000,
              "semstr",
              "name",
              "module_of",
-             "is_subtype"
+             "is_subtype",
+             "set_fuel",
+             "embed_file",
+             "embed_bytes",
+             "sizeof",
+             "alignof"
          }
      ),
      CT_PY_TYPES: dict[str, type] = {
@@ -850,6 +855,10 @@ obj CtEvaluator {
             if name in self._builtins {
                 return self._builtins[name];
             }
+            import from jaclang.runtime.scalars { shape_of }
+            if shape_of(name) is not None {
+                return CtType(name=name, module="jaclang.runtime.scalars");
+            }
             raise CtNotComptime();
         }
         return self._eval_symbol(sym, nd);
@@ -888,6 +897,10 @@ obj CtEvaluator {
                 if nm in self._builtins {
                     return self._builtins[nm];
                 }
+            }
+            import from jaclang.runtime.scalars { shape_of }
+            if isinstance(node_, Archetype) and shape_of(nm) is not None {
+                return CtType(name=nm, module="jaclang.runtime.scalars");
             }
             raise CtNotComptime();
         }
@@ -1199,14 +1212,18 @@ obj CtEvaluator {
             } elif not t.is_builtin() {
                 mod = "";
             }
-            return CtType(name=t.shared.class_name, module=mod, typ=t);
+            return CtType(
+                name=t.shared.class_name, module=mod, typ=t, ct_args=t.private.ct_args
+            );
         }
         raise CtNotComptime();
     }
 
     def ct_type_of_value(v: any) -> CtType {
         if isinstance(v, CtRecord) {
-            return CtType(name=v.class_name, module=v.module, typ=v.class_type);
+            return CtType(
+                name=v.class_name, module=v.module, typ=v.class_type, ct_args=v.ct_args
+            );
         }
         if isinstance(v, CtEnumMember) {
             return CtType(name=v.enum_name, module=v.module, typ=v.enum_type);
@@ -1434,6 +1451,26 @@ obj CtEvaluator {
     }
 
     def _intrinsic(name: str, nd: FuncCall, args: list, kwargs: dict) -> any {
+        if name == "set_fuel" {
+            if len(args) != 1 or not isinstance(args[0], int) {
+                raise CtError("set_fuel() takes one int argument");
+            }
+            self.fuel = max(self.fuel, int(args[0]));
+            return None;
+        }
+        if name in ("embed_file", "embed_bytes") {
+            if len(args) != 1 or not isinstance(args[0], str) {
+                raise CtError(f"{name}() takes one str path argument");
+            }
+            return self._embed(nd, args[0], name == "embed_bytes");
+        }
+        if name in ("sizeof", "alignof") {
+            if len(args) != 1 {
+                raise CtError(f"{name}() takes one type argument");
+            }
+            (size, align) = self._size_align(args[0]);
+            return size if name == "sizeof" else align;
+        }
         if name == "typeof" {
             if len(args) != 1 {
                 raise CtError("typeof() takes one argument");
@@ -1614,6 +1651,51 @@ obj CtEvaluator {
         return self._call_value(callee, args, kwargs);
     }
 
+    def _class_binding(ct: (ClassType | None), name: str) -> (Assignment | None) {
+        if ct is None {
+            return None;
+        }
+        for cls in ct.shared.mro {
+            tab = cls.shared.symbol_table;
+            if not isinstance(tab, Archetype) {
+                continue;
+            }
+            for item in _impl_body(tab) {
+                if not (isinstance(item, GlobalVars) and item.is_frozen) {
+                    continue;
+                }
+                for asn in item.assignments {
+                    tgt = asn.target[0] if asn.target else None;
+                    if isinstance(tgt, Name) and tgt.value == name {
+                        return asn;
+                    }
+                }
+            }
+        }
+        return None;
+    }
+
+    def _ct_subscript(base: CtType, head: (Expr | None)) -> CtType {
+        vals: list = [];
+        if isinstance(head, TupleVal) {
+            vals = `list(head.values);
+        } elif head is not None {
+            vals = [head];
+        }
+        node_ = self._arch_node_of(self._class_type_of(base));
+        ct_args: dict[str, any] = `dict(base.ct_args or {});
+        if isinstance(node_, Archetype) {
+            for (i, tp) in enumerate(node_.type_params or []) {
+                if tp.is_comptime and i < len(vals) {
+                    ct_args[tp.name.value] = self.eval(vals[i]);
+                }
+            }
+        }
+        return CtType(
+            name=base.name, module=base.module, typ=base.typ, ct_args=ct_args or None
+        );
+    }
+
     def _find_method(ct: (ClassType | None), name: str) -> (Ability | None) {
         if ct is None {
             return None;
@@ -1643,8 +1725,8 @@ obj CtEvaluator {
             if m is None {
                 raise CtError(f"{recv.name} has no method '{attr}'");
             }
-            if m.is_static {
-                return self.call_ability(m, args, kwargs);
+            if m.is_static or m.is_comptime {
+                return self.call_ability(m, args, kwargs, self_val=recv);
             }
             if m.is_classmethod {
                 return self.call_ability(m, args, kwargs, self_val=recv);
@@ -1734,18 +1816,29 @@ obj CtEvaluator {
         if ct is None or node_ is None {
             raise CtError(f"cannot construct '{t.name}' at compile time");
         }
-        if self._has_custom_init(ct) {
-            raise CtError(
-                f"{t.name} declares init or postinit; only plain records can be "
-                "built at compile time"
-            );
-        }
         hvs = [
             hv
             for hv in self._has_vars_of(ct)
             if not hv.accessors
         ];
         fields: dict[str, any] = {};
+        init_ab = self._user_method(ct, "init") or self._user_method(ct, "__init__");
+        if init_ab is not None {
+            for hv in hvs {
+                if hv.value is not None {
+                    fields[hv.name.value] = self.eval(hv.value);
+                }
+            }
+            rec = CtRecord(
+                class_name=t.name,
+                module=t.module,
+                fields=fields,
+                class_type=ct,
+                ct_args=t.ct_args
+            );
+            self.call_ability(init_ab, args, kwargs, self_val=rec);
+            return rec;
+        }
         ai = 0;
         for hv in hvs {
             nm = hv.name.value;
@@ -1770,9 +1863,27 @@ obj CtEvaluator {
         if kwargs {
             raise CtError(f"{t.name}() got unexpected field(s) {sorted(kwargs)}");
         }
-        return CtRecord(
-            class_name=t.name, module=t.module, fields=fields, class_type=ct
+        rec = CtRecord(
+            class_name=t.name,
+            module=t.module,
+            fields=fields,
+            class_type=ct,
+            ct_args=t.ct_args
         );
+        post_ab = self._user_method(ct, "postinit")
+            or self._user_method(ct, "__post_init__");
+        if post_ab is not None {
+            self.call_ability(post_ab, [], {}, self_val=rec);
+        }
+        return rec;
+    }
+
+    def _user_method(ct: ClassType, name: str) -> (Ability | None) {
+        m = self._find_method(ct, name);
+        if m is None or self._is_stub_module(m.find_parent_of_type(Module)) {
+            return None;
+        }
+        return m;
     }
 
     def call_ability(
@@ -1808,6 +1919,16 @@ obj CtEvaluator {
         self.push_frame(barrier=True);
         self.call_stack.append(name);
         try {
+            self_type = self._self_type_of(self_val, ability);
+            if self_type is not None {
+                self.bind("Self", self_type);
+                for (ck, cvv) in (self_type.ct_args or {}).items() {
+                    self.bind(ck, cvv);
+                }
+            }
+            if isinstance(self_val, CtRecord) and not ability.is_static {
+                self.bind("self", self_val);
+            }
             ai = 0;
             first = True;
             for p in params {
@@ -1858,6 +1979,105 @@ obj CtEvaluator {
             self.call_stack.pop();
             self.pop_frame();
         }
+    }
+
+    def _embed(nd: FuncCall, rel: str, as_bytes: bool) -> any {
+        mod = nd.find_parent_of_type(Module);
+        base = os.path.dirname(mod.loc.mod_path) if mod is not None and mod.loc else "";
+        path = rel if os.path.isabs(rel) else os.path.join(base, rel);
+        path = os.path.normpath(path);
+        try {
+            with open(path, "rb") as fh {
+                data = fh.read();
+            }
+        } except OSError as e {
+            raise CtError(f"embed_file: cannot read {path}: {e}");
+        }
+        if mod is not None and path not in mod.ct_file_deps {
+            mod.ct_file_deps.append(path);
+        }
+        self.burn(len(data) // 64 + 1);
+        if as_bytes {
+            return data;
+        }
+        try {
+            return data.decode("utf-8");
+        } except UnicodeDecodeError {
+            raise CtError(f"embed_file: {path} is not UTF-8 text; use embed_bytes");
+        }
+    }
+
+    def _scalar_size_align(t: any) -> (tuple | None) {
+        import from jaclang.runtime.scalars { shape_of }
+        name = t.name if isinstance(t, CtType) else str(t);
+        if isinstance(t, `type) {
+            name = t.__name__;
+        }
+        if name == "bool" {
+            return (1, 1, );
+        }
+        if name in ("int", "float") {
+            return (8, 8, );
+        }
+        shape = shape_of(name);
+        if shape is not None {
+            n = shape.size_bytes();
+            return (n, n, );
+        }
+        return None;
+    }
+
+    def _size_align(t: any) -> tuple {
+        if isinstance(t, CtDeferred) {
+            raise CtDeferredSignal();
+        }
+        scalar = self._scalar_size_align(t);
+        if scalar is not None {
+            return scalar;
+        }
+        ct = self._class_type_of(t);
+        node_ = self._arch_node_of(ct) if ct is not None else None;
+        if ct is None or not isinstance(node_, Archetype) {
+            return (8, 8, );
+        }
+        off = 0;
+        top = 1;
+        for hv in self._has_vars_of(ct) {
+            if hv.accessors {
+                continue;
+            }
+            inner: (tuple | None) = None;
+            if hv.type_tag is not None and hv.type_tag.tag is not None {
+                try {
+                    ftype = self.ct_type_of_class(
+                        self.evaluator._convert_to_instance(
+                            self.evaluator.get_type_of_expression(hv.type_tag.tag)
+                        )
+                    );
+                    inner = self._scalar_size_align(ftype);
+                } except Exception {
+                    inner = None;
+                }
+            }
+            (sz, al) = inner if inner is not None else (8, 8, );
+            off = (off + al - 1) // al * al + sz;
+            top = max(top, al);
+        }
+        return ((off + top - 1) // top * top, top, );
+    }
+
+    def _self_type_of(self_val: any, ability: Ability) -> (CtType | None) {
+        if isinstance(self_val, CtType) {
+            return self_val;
+        }
+        if isinstance(self_val, CtRecord) {
+            return self.ct_type_of_value(self_val);
+        }
+        owner = ability.find_parent_of_type(Archetype);
+        if owner is not None {
+            return self._type_of_arch(owner);
+        }
+        return None;
     }
 
     def _exec_block(stmts: list) -> int {
@@ -2115,6 +2335,10 @@ obj CtEvaluator {
             if name in base.fields {
                 return base.fields[name];
             }
+            rec_asn = self._class_binding(base.class_type, name);
+            if rec_asn is not None and rec_asn.value is not None {
+                return self.eval_with_bindings(rec_asn.value, base.ct_args or {});
+            }
             m = self._find_method(base.class_type, name);
             if m is not None {
                 return CtBound(self_val=base, ability=m);
@@ -2144,11 +2368,12 @@ obj CtEvaluator {
                 }
                 raise CtError(f"{base.name} has no member '{name}'");
             }
+            bound_asn = self._class_binding(self._class_type_of(base), name);
+            if bound_asn is not None and bound_asn.value is not None {
+                return self.eval_with_bindings(bound_asn.value, base.ct_args or {});
+            }
             meth = self._find_method(self._class_type_of(base), name);
             if meth is not None {
-                if meth.is_static {
-                    return self._func_of(meth);
-                }
                 return CtBound(self_val=base, ability=meth);
             }
             if base.module == "builtins"
@@ -2190,6 +2415,9 @@ obj CtEvaluator {
                 );
             }
             s0 = right.slices[0];
+            if isinstance(base, CtType) and not right.is_range {
+                return self._ct_subscript(base, s0.start);
+            }
             if right.is_range {
                 lo = self.eval(s0.start) if s0.start is not None else None;
                 hi = self.eval(s0.stop) if s0.stop is not None else None;

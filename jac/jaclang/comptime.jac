@@ -3,7 +3,8 @@ import platform as _platform;
 import from dataclasses {
     MISSING as _MISSING,
     fields as _dc_fields,
-    is_dataclass as _is_dataclass
+    is_dataclass as _is_dataclass,
+    field as _dc_field
 }
 import from enum { Enum as _PyEnum }
 import from typing { get_type_hints as _get_type_hints }
@@ -203,4 +204,109 @@ def members(e: type) -> list {
         return `list(e);
     }
     return [];
+}
+
+def set_fuel(n: int) -> None {
+    return None;
+}
+
+def embed_file(path: str) -> str {
+    with open(path, "r", encoding="utf-8") as fh {
+        return fh.read();
+    }
+}
+
+def embed_bytes(path: str) -> bytes {
+    with open(path, "rb") as fh {
+        return fh.read();
+    }
+}
+
+def _scalar_size_align(t: any) -> (tuple | None) {
+    import from jaclang.runtime.scalars { shape_of }
+    name = t?.__name__ if isinstance(t, `type) else str(t);
+    if name == "bool" {
+        return (1, 1, );
+    }
+    if name in ("int", "float") {
+        return (8, 8, );
+    }
+    shape = shape_of(str(name)) if name else None;
+    if shape is not None {
+        n = shape.size_bytes();
+        return (n, n, );
+    }
+    return None;
+}
+
+def _size_align(t: any) -> tuple {
+    scalar = _scalar_size_align(t);
+    if scalar is not None {
+        return scalar;
+    }
+    if not _is_dataclass(t) {
+        return (8, 8, );
+    }
+    try {
+        hints = _get_type_hints(t);
+    } except Exception {
+        hints = {};
+    }
+    off = 0;
+    top = 1;
+    for f in _dc_fields(t) {
+        ft = hints.get(f.name, f.`type);
+        inner = _scalar_size_align(ft) or (8, 8, );
+        (sz, al) = inner;
+        off = (off + al - 1) // al * al + sz;
+        top = max(top, al);
+    }
+    return ((off + top - 1) // top * top, top, );
+}
+
+def sizeof(t: any) -> int {
+    return _size_align(t)[0];
+}
+
+def alignof(t: any) -> int {
+    return _size_align(t)[1];
+}
+
+def record(cls: type, **fields: any) -> any {
+    inst = getattr(cls, "__new__")(cls);
+    for (k, v) in fields.items() {
+        setattr(inst, k, v);
+    }
+    return inst;
+}
+
+glob _SPECIALIZED: dict = {};
+
+def specialize(cls: type, **ct: any) -> type {
+    import copy as _copy;
+    import functools as _functools;
+    key = (cls, tuple(sorted(ct.items(), key=_ct_sort_key)), );
+    hit = _SPECIALIZED.get(key);
+    if hit is not None {
+        return hit;
+    }
+    annotations: dict = {};
+    ns: dict = {"__annotations__": annotations, "__ct_args__": dict(ct)};
+    for (k, v) in ct.items() {
+        annotations[k] = `type(v);
+        if isinstance(v, (list, dict, set)) {
+            ns[k] = _dc_field(
+                default_factory=_functools.partial(_copy.copy, v), kw_only=True
+            );
+        } else {
+            ns[k] = _dc_field(`default=v, kw_only=True);
+        }
+    }
+    made = `type(cls.__name__, (cls, ), ns);
+    _SPECIALIZED[key] = made;
+    return made;
+}
+
+def _ct_sort_key(item: tuple) -> str {
+    return str(item[0]);
 }

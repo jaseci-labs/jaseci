@@ -268,7 +268,15 @@ impl NaIRGenGenerics._ct_fold(nd: (uni.UniNode | None)) -> (ir.Value | None) {
 
 impl NaIRGenGenerics._ct_origin(nd: uni.Expr) -> bool {
     if isinstance(nd, uni.FuncCall) {
-        return nd.callee_decl is not None and nd.callee_decl.is_comptime;
+        if nd.callee_decl is not None and nd.callee_decl.is_comptime {
+            return True;
+        }
+        return isinstance(nd.target, uni.Name) and self._ct_only_name(nd.target);
+    }
+    if isinstance(nd, uni.AtomTrailer)
+        and nd.is_attr
+        and isinstance(nd.right, uni.Name) {
+        return self._ct_origin(nd.right);
     }
     if not isinstance(nd, uni.Name) {
         return False;
@@ -697,4 +705,34 @@ impl NaIRGenGenerics._find_source_ability(
         }
     }
     return None;
+}
+
+impl NaIRGenGenerics._ct_only_name(nd: uni.Name) -> bool {
+    sym = nd.sym;
+    if sym is None {
+        return False;
+    }
+    decl = sym.decl;
+    imp = decl.find_parent_of_type(uni.Import) if isinstance(decl, uni.Name) else None;
+    if imp is not None and imp.is_comptime {
+        return True;
+    }
+    mod = nd.find_parent_of_type(uni.Module);
+    if mod is None {
+        return False;
+    }
+    for imp2 in mod.get_all_sub_nodes(uni.Import) {
+        if not imp2.is_comptime {
+            continue;
+        }
+        for item in imp2.items {
+            bound = item.alias
+                if item.alias is not None
+                else (item.name if isinstance(item, uni.ModuleItem) else None);
+            if isinstance(bound, uni.Name) and bound.sym_name == nd.sym_name {
+                return True;
+            }
+        }
+    }
+    return False;
 }

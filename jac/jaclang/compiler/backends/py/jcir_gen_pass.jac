@@ -389,6 +389,12 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def _ct_concrete(nd: Expr) -> bool;
     def _is_comptime_only_name(nd: Name) -> bool;
     def _comptime_only_names -> set[str];
+    def _record_bypasses_init(v: any) -> bool;
+    def _is_ct_type_param(nd: Name) -> bool;
+    def _ct_param_decls(cls_expr: Expr) -> (list[TypeParam] | None);
+    def _ct_ctor_slots(nd: AtomTrailer) -> (list[tuple] | None);
+    def _trailer_reaches_ct_class(nd: AtomTrailer) -> bool;
+    def _ct_param_fields(nd: Archetype) -> list[CgNode];
     def _import_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
     def _class_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
     def _materialize(v: any, jac_node: UniNode) -> (CgNode | None);

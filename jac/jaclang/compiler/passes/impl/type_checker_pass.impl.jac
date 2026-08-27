@@ -209,6 +209,21 @@ impl TypeCheckPass.exit_func_call(self: TypeCheckPass, nd: FuncCall) -> None {
         );
     }
 
+    tgt_t = nd.target.type;
+    if (
+        isinstance(tgt_t, ClassType)
+        and not tgt_t.is_instance()
+        and tgt_t.shared.ct_params
+        and tgt_t.private.ct_args is None
+        and not self.evaluator.ct_quiet
+    ) {
+        self.emit(
+            E0033,
+            node_override=nd,
+            what=f"instantiation of '{tgt_t.shared.class_name}'",
+            reason=f": comptime parameters {tgt_t.shared.ct_params} must be given as {tgt_t.shared.class_name}[...]"
+        );
+    }
     if isinstance(nd.target, AtomTrailer) and not nd.target.is_attr {
         if isinstance(nd.target.right, IndexSlice) {
             idx_slice: IndexSlice = nd.target.right;
@@ -1111,15 +1126,6 @@ impl TypeCheckPass.exit_type_alias(self: TypeCheckPass, nd: TypeAlias) -> None {
 
 impl TypeCheckPass.exit_archetype(self: TypeCheckPass, nd: Archetype) -> None {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
-    for tp in (nd.type_params or []) {
-        if tp.is_comptime and not self.evaluator.ct_quiet {
-            self.emit(
-                E0108,
-                node_override=tp,
-                reason=f"comptime parameter '{tp.name.value}' on archetype '{nd.name.value}': archetype-level comptime parameters are not supported yet; use a comptime def parameter or a comptime binding"
-            );
-        }
-    }
     cls_type = self.evaluator.get_type_of_class(nd);
     if isinstance(cls_type, ClassType)
         and nd.arch_type.name == Tok.KW_OBJECT

@@ -10,6 +10,7 @@ obj NaIRGenGenerics(NaIRGenState) {
     def _ct_native_const(v: any, nd: uni.Expr) -> (ir.Value | None);
     def _ct_fold(nd: (uni.UniNode | None)) -> (ir.Value | None);
     def _ct_origin(nd: uni.Expr) -> bool;
+    def _ct_only_name(nd: uni.Name) -> bool;
     def _ability_has_ct_params(ability: uni.Ability) -> bool;
     def _solve_ct_args(ability: uni.Ability, nd: uni.FuncCall) -> (dict | None);
     def _bind_ct_target(tgt: uni.UniNode, v: any) -> None;

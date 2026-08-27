@@ -371,6 +371,7 @@ obj Module(AstDocNode, UniScopeNode) {
         jac_project_root: (str | None) = None,
         access_enforced: bool = False,
         ct_resolved: bool = False,
+        ct_file_deps: list[str] postinit,
         native_viols_reported: bool = False,
         client_viols_reported: bool = False,
         rc_last_use: dict[int, list[str]] postinit,
@@ -431,7 +432,7 @@ obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniSc
     def postinit -> None;
 }
 
-obj GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode, CodeBlockStmt) {
+obj GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode, ArchBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -876,7 +877,7 @@ obj RaiseStmt(CodeBlockStmt) {
     def postinit -> None;
 }
 
-obj AssertStmt(CodeBlockStmt) {
+obj AssertStmt(ElementStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 

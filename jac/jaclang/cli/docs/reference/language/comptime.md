@@ -9,6 +9,9 @@
 - [Branches, Loops, and Assertions](#branches-loops-and-assertions) - `comptime if`, `comptime for`, `comptime assert`
 - [Compile-Time Functions and Imports](#compile-time-functions-and-imports) - `comptime def` and `comptime import`
 - [Comptime Parameters](#comptime-parameters) - Functions specialized per argument value
+- [Archetype Value Parameters](#archetype-value-parameters) - `obj Matrix[T, comptime rows: int]` and class-body bindings
+- [Records, `init`, and `Self`](#records-init-and-self) - What the evaluator does with archetypes
+- [Files and Sizes](#files-and-sizes) - `embed_file`, `sizeof`, `alignof`, `set_fuel`
 - [Reflection](#reflection) - The `jaclang.comptime` intrinsics
 - [What Can Be Evaluated](#what-can-be-evaluated) - The interpreted subset and its limits
 - [Per-Tier Behavior](#per-tier-behavior) - Python, client, and native lowering
@@ -83,7 +86,7 @@ def total_len -> int {
 }
 ```
 
-`comptime assert` checks its condition during compilation and fails the build with `E0109` and the message; nothing remains at runtime.
+`comptime assert` checks its condition during compilation and fails the build with `E0109` and the message; nothing remains at runtime. It is allowed at module level as well as inside bodies, so an invariant can sit next to the declarations it protects.
 
 ## Compile-Time Functions and Imports
 
@@ -95,6 +98,28 @@ comptime def stride(n: int) -> int {
 }
 
 comptime STRIDE: int = stride(4);
+```
+
+A `comptime def` may return a type. The result is a comptime value like any other, so it can seed a binding, be instantiated, or be compared to another type:
+
+```jac
+obj Narrow {
+    has v: i32;
+}
+
+obj Wide {
+    has v: i64;
+}
+
+comptime def cell(comptime big: bool) -> type {
+    return Wide if big else Narrow;
+}
+
+comptime Cell: type = cell(True);
+
+with entry {
+    print(Cell(v=7).v);
+}
 ```
 
 A `comptime import` brings names in for compile-time use only; the import itself is erased from every backend. Use it for the reflection intrinsics and for compile-time values shared between modules.
@@ -136,6 +161,112 @@ with entry {
 
 On the native tier every distinct argument value produces its own specialized function; on the Python and client tiers the parameter erases to an ordinary one and the argument is still checked at compile time.
 
+## Archetype Value Parameters
+
+An archetype's `[]` list may carry `comptime` value parameters beside its type parameters. Instantiate the archetype by subscripting it with comptime-known values; the values become fields of the instance, so methods read them without any extra plumbing, and comptime sites see them as constants.
+
+```jac
+obj Matrix[T, comptime rows: int, comptime cols: int] {
+    has data: list[T];
+
+    comptime SIZE: int = rows * cols;
+
+    def at(r: int, c: int) -> T {
+        return self.data[r * cols + c];
+    }
+}
+
+with entry {
+    m = Matrix[float, 3, 4](data=[0.0] * 12);
+    print(m.at(1, 2), Matrix[float, 3, 4].SIZE, m.SIZE);
+}
+```
+
+`Matrix[float, 3, 4].SIZE` folds to `12` wherever it is written; the type parameter `T` keeps its ordinary meaning. Calling `Matrix(...)` without the subscript reports `E0033`, since the comptime parameters have no value. A subscripted archetype is itself a value: `comptime Small: type = Matrix[float, 2, 2];` binds a specialization that can be instantiated later.
+
+Inside the body, `comptime NAME: T = expr;` declares a class-body binding. When the initializer depends only on literals it is a class attribute; when it depends on the comptime parameters it is evaluated per instantiation at comptime sites and read as a property on instances at runtime.
+
+The comptime parameters erase to constructor-bound fields on every tier: keyword-only dataclass fields on the Python tier, constructor properties on the client tier, and struct fields on the native tier. The struct layout is therefore shared by all instantiations of one archetype; only the values differ.
+
+## Records, `init`, and `Self`
+
+The evaluator constructs archetype instances at compile time. A plain `obj` takes its fields from the call; an `obj` with an `init` runs that body with `self` bound to the fresh record, and an `obj` with a `postinit` runs it after the fields are assigned. A record that reaches a runtime site materializes as a constructor call, or, when the archetype has `init`/`postinit`, as `jaclang.comptime.record(Cls, ...)`, which restores the fields without running the constructor twice.
+
+```jac
+obj Span {
+    has lo: int,
+        hi: int,
+        width: int postinit;
+
+    def postinit {
+        self.width = self.hi - self.lo;
+    }
+}
+
+comptime S: Span = Span(lo=4, hi=10);
+
+with entry {
+    comptime assert S.width == 6, "postinit ran at compile time";
+    print(S.width);
+}
+```
+
+A `comptime def` declared inside an archetype is re-evaluated for each archetype it is called on: `Self` is bound to the receiving class, so a base can describe a subclass.
+
+```jac
+comptime import from jaclang.comptime { fields }
+
+obj Base {
+    has id: int = 0;
+
+    comptime def field_names -> list[str] {
+        return [f.name for f in fields(Self)];
+    }
+}
+
+obj Child(Base) {
+    has extra: str = "";
+}
+
+with entry {
+    comptime assert Child.field_names() == ["id", "extra"], "Self is the subclass";
+    print(Base.field_names(), Child.field_names());
+}
+```
+
+## Files and Sizes
+
+`embed_file(path)` reads a UTF-8 file relative to the module at compile time and returns its text; `embed_bytes(path)` returns the raw bytes. The file becomes a dependency of the module's compiled cache, so editing it recompiles the module.
+
+`sizeof(T)` and `alignof(T)` report the native field payload size and alignment of a type: fixed-width scalars by their width, `int`/`float` as 8 bytes, `bool` as 1, and any object, string, or container as a pointer. For an archetype the fields are laid out in declaration order with natural alignment.
+
+`set_fuel(n)` raises the evaluation budget for the comptime work that follows it, for a computation that is known to be large.
+
+```jac
+comptime import from jaclang.comptime { alignof, set_fuel, sizeof }
+
+obj Packed {
+    has a: i32,
+        b: bool,
+        c: f64;
+}
+
+comptime def busy -> int {
+    set_fuel(100000000);
+    total = 0;
+    for i in range(2000) {
+        total += i;
+    }
+    return total;
+}
+
+comptime SUM: int = busy();
+
+with entry {
+    print(sizeof(Packed), alignof(Packed), SUM);
+}
+```
+
 ## Reflection
 
 The module `jaclang.comptime` exposes program facts as comptime values. Each intrinsic also has a runtime fallback, so the same call works when it reaches the Python tier unchanged.
@@ -154,6 +285,10 @@ The module `jaclang.comptime` exposes program facts as comptime values. Each int
 | `is_subtype(A, B)` | Whether `A` is a subtype of `B` |
 | `codespace` | An enum with `is_python`, `is_client`, `is_native` |
 | `target` | The host `os`, `arch`, and `pointer_width` |
+| `embed_file(path)` / `embed_bytes(path)` | A file beside the module, read at compile time and tracked as a cache dependency |
+| `sizeof(T)` / `alignof(T)` | Native payload size and alignment of a type |
+| `set_fuel(n)` | Raises the evaluation budget for the current comptime work |
+| `record(Cls, **fields)` / `specialize(Cls, **params)` | Runtime helpers the backends emit for materialized records and value-parameterized archetypes |
 
 Iterating `fields(T)` is the idiom for converters that must not drift when a `has` line is added:
 
@@ -193,7 +328,7 @@ The compiler interprets a bounded subset of Jac: literals, strings and f-strings
 
 Evaluation is fuel-limited, has no access to the file system, network, environment, or clock, and cannot call into Python packages. Bodies of ordinary functions are interpreted only when a comptime site demands them; nothing else is folded speculatively.
 
-Not interpreted: `match`, lambdas, generators, `async`, `with`, walkers and `spawn`, classes with a custom `init` or `postinit`, and archetype-level `comptime` type parameters (which are reserved for a later phase and currently report `E0108`).
+Not interpreted: `match`, lambdas, generators, `async`, `with`, walkers and `spawn`, and `super` calls inside a comptime-run `init`.
 
 ## Per-Tier Behavior
 

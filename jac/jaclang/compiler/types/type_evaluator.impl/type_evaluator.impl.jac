@@ -1547,21 +1547,27 @@ impl TypeEvaluator._get_type_of_expression_core(
                 if isinstance(base_type, ClassType)
                     and base_type.is_instantiable_class() {
                     type_args: list[TypeBase] = [];
+                    slot_vals: list[Expr] = [];
                     if isinstance(expr.right, IndexSlice) and expr.right.slices {
                         type_args_vals = expr.right.slices[0].start;
                         if isinstance(type_args_vals, TupleVal) {
-                            for val in type_args_vals.values {
-                                type_args.append(
-                                    self._type_from_union_annotation_arg(val)
-                                );
-                            }
-                        } else {
-                            type_args.append(
-                                self._type_from_union_annotation_arg(type_args_vals)
-                            );
+                            slot_vals = `list(type_args_vals.values);
+                        } elif type_args_vals is not None {
+                            slot_vals = [type_args_vals];
                         }
                     }
-                    return base_type.specialize_generics(type_args);
+                    ct_args = self._ct_args_for_class(base_type, slot_vals);
+                    for (si, val) in enumerate(slot_vals) {
+                        if ct_args is not None and si in ct_args[1] {
+                            continue;
+                        }
+                        type_args.append(self._type_from_union_annotation_arg(val));
+                    }
+                    specialized = base_type.specialize_generics(type_args);
+                    if ct_args is not None {
+                        specialized.private.ct_args = ct_args[0];
+                    }
+                    return specialized;
                 }
                 if isinstance(expr.right, IndexSlice) and expr.right.is_range {
                     return self.get_type_of_expression(expr.target);

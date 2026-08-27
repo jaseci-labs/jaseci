@@ -172,6 +172,17 @@ impl EsastGenPass.exit_global_vars(nd: uni.GlobalVars) -> None {
 }
 
 impl EsastGenPass.exit_name(nd: uni.Name) -> None {
+    if self._is_ct_type_param(nd) and not self._in_identifier_slot(nd) {
+        nd.gen.es_ast = self.sync_loc(
+            es.MemberExpression(
+                object=self.sync_loc(es.ThisExpression(), jac_node=nd),
+                property=es.Identifier(name=nd.sym_name),
+                computed=False
+            ),
+            jac_node=nd
+        );
+        return;
+    }
     if self._ct_only_name(nd) {
         folded = self._ct_es_expr(nd.ct_value, nd);
         if folded is not None {
@@ -901,6 +912,17 @@ impl EsastGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
 }
 
 impl EsastGenPass.exit_atom_trailer(nd: uni.AtomTrailer) -> None {
+    if nd.is_attr and self._trailer_reaches_ct_class(nd) {
+        folded = self._ct_es_expr(nd.ct_value, nd);
+        if folded is not None {
+            nd.gen.es_ast = folded;
+            return;
+        }
+    }
+    if self._ct_ctor_slots(nd) is not None and nd.target.gen.es_ast {
+        nd.gen.es_ast = nd.target.gen.es_ast;
+        return;
+    }
     `obj = cast(
         es.Expression,
         nd.target.gen.es_ast
@@ -1948,6 +1970,23 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         }
     }
 
+    for (ct_name, ct_expr) in (self._ct_ctor_slots(nd.target) or []) {
+        if ct_expr.gen.es_ast {
+            props.append(
+                self.sync_loc(
+                    es.Property(
+                        key=es.Identifier(name=ct_name),
+                        value=cast(es.Expression, ct_expr.gen.es_ast),
+                        kind='init',
+                        method=False,
+                        shorthand=False,
+                        computed=False
+                    ),
+                    jac_node=ct_expr
+                )
+            );
+        }
+    }
     server_call = self._try_lower_server_rpc_call(nd, args, props);
     if server_call is not None {
         nd.gen.es_ast = server_call;
@@ -6130,6 +6169,65 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
                 has_members.append(stmt);
                 continue;
             }
+            if isinstance(stmt, uni.GlobalVars) and stmt.is_frozen {
+                for asn in stmt.assignments {
+                    tgt = asn.target[0] if asn.target else None;
+                    folded = (
+                        self._ct_es_expr(asn.value.ct_value, asn.value)
+                            if asn.value is not None
+                            else None
+                    );
+                    if isinstance(tgt, uni.Name) and folded is not None {
+                        body_stmts.append(
+                            self.sync_loc(
+                                es.PropertyDefinition(
+                                    key=es.Identifier(name=tgt.sym_name),
+                                    value=folded,
+                                    `static=True
+                                ),
+                                jac_node=asn
+                            )
+                        );
+                    } elif (
+                        isinstance(tgt, uni.Name)
+                        and asn.value is not None
+                        and isinstance(asn.value.gen.es_ast, es.Expression)
+                    ) {
+                        body_stmts.append(
+                            self.sync_loc(
+                                es.MethodDefinition(
+                                    key=es.Identifier(name=tgt.sym_name),
+                                    kind='get',
+                                    value=self.sync_loc(
+                                        es.FunctionExpression(
+                                            params=[],
+                                            body=self.sync_loc(
+                                                es.BlockStatement(
+                                                    body=[
+                                                        self.sync_loc(
+                                                            es.ReturnStatement(
+                                                                argument=cast(
+                                                                    es.Expression,
+                                                                    asn.value.gen.es_ast
+                                                                )
+                                                            ),
+                                                            jac_node=asn
+                                                        )
+                                                    ]
+                                                ),
+                                                jac_node=asn
+                                            )
+                                        ),
+                                        jac_node=asn
+                                    )
+                                ),
+                                jac_node=asn
+                            )
+                        );
+                    }
+                }
+                continue;
+            }
             if (
                 stmt.gen.es_ast
                 and stmt.gen.es_ast
@@ -6261,6 +6359,44 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
                     )
                 );
             }
+        }
+        for tp in (nd.type_params or []) {
+            if not tp.is_comptime {
+                continue;
+            }
+            constructor_stmts.append(
+                self.sync_loc(
+                    es.ExpressionStatement(
+                        expression=self.sync_loc(
+                            es.AssignmentExpression(
+                                operator='=',
+                                left=self.sync_loc(
+                                    es.MemberExpression(
+                                        object=self.sync_loc(
+                                            es.ThisExpression(), jac_node=tp
+                                        ),
+                                        property=es.Identifier(name=tp.name.value),
+                                        computed=False
+                                    ),
+                                    jac_node=tp
+                                ),
+                                right=self.sync_loc(
+                                    es.MemberExpression(
+                                        object=self.sync_loc(
+                                            es.Identifier(name='props'), jac_node=tp
+                                        ),
+                                        property=es.Identifier(name=tp.name.value),
+                                        computed=False
+                                    ),
+                                    jac_node=tp
+                                )
+                            ),
+                            jac_node=tp
+                        )
+                    ),
+                    jac_node=tp
+                )
+            );
         }
         if has_postinit {
             constructor_stmts.append(
@@ -8461,4 +8597,54 @@ impl EsastGenPass._ct_only_name(nd: uni.Name) -> bool {
     }
     owner = decl.name_of;
     return isinstance(owner, uni.Ability) and owner.is_comptime;
+}
+
+impl EsastGenPass._is_ct_type_param(nd: uni.Name) -> bool {
+    sym = nd.sym;
+    if sym is None {
+        return False;
+    }
+    owner = sym.decl.name_of;
+    return isinstance(owner, uni.TypeParam) and owner.is_comptime;
+}
+
+impl EsastGenPass._ct_ctor_slots(nd: uni.UniNode) -> (list[tuple] | None) {
+    if not isinstance(nd, uni.AtomTrailer) or nd.is_attr {
+        return None;
+    }
+    if not isinstance(nd.right, uni.IndexSlice) or nd.right.is_range {
+        return None;
+    }
+    t = nd.target.type;
+    shared = t?.shared;
+    if shared is None or not shared.ct_params {
+        return None;
+    }
+    arch = shared.symbol_table;
+    if not isinstance(arch, uni.Archetype) {
+        return None;
+    }
+    s0 = nd.right.slices[0] if nd.right.slices else None;
+    head = s0.start if s0 is not None else None;
+    vals: list = `list(head.values)
+        if isinstance(head, uni.TupleVal)
+        else ([head] if head else []);
+    out: list[tuple] = [];
+    for (i, tp) in enumerate(arch.type_params or []) {
+        if tp.is_comptime and i < len(vals) {
+            out.append((tp.name.value, vals[i], ));
+        }
+    }
+    return out;
+}
+
+impl EsastGenPass._trailer_reaches_ct_class(nd: uni.AtomTrailer) -> bool {
+    cur: any = nd.target;
+    while isinstance(cur, uni.AtomTrailer) {
+        if self._ct_ctor_slots(cur) is not None {
+            return True;
+        }
+        cur = cur.target;
+    }
+    return False;
 }

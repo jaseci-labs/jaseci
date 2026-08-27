@@ -262,7 +262,7 @@ element_stmt ::=
     | PYNLINE
     | module_code
 
-comptime_element ::= ability | import_stmt | comptime_global
+comptime_element ::= ability | import_stmt | comptime_stmt | comptime_global
 
 comptime_global ::=
     "comptime" access_tag global_var_assignment ("," global_var_assignment)* ";"
@@ -447,6 +447,7 @@ archetype_member ::=
     STRING? (
         ability
         | has_stmt
+        | comptime_global
         | archetype
         | enum
         | impl_def

@@ -385,6 +385,9 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _ct_es_value(v: any) -> (es.Expression | None);
     def _ct_only_name(nd: uni.Name) -> bool;
     def _comptime_only_names -> set[str];
+    def _is_ct_type_param(nd: uni.Name) -> bool;
+    def _ct_ctor_slots(nd: uni.UniNode) -> (list[tuple] | None);
+    def _trailer_reaches_ct_class(nd: uni.AtomTrailer) -> bool;
     def _build_block_statement(
         scope_node: uni.UniScopeNode, body_nodes: (Sequence[uni.UniNode] | None)
     ) -> es.BlockStatement;

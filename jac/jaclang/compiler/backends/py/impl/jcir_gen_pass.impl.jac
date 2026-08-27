@@ -719,7 +719,29 @@ impl JcirGenPass._materialize(v: any, jac_node: UniNode) -> (CgNode | None) {
         );
     }
     if kind == "CtType" {
-        return self._class_ref(v.module, v.name, jac_node);
+        cls_ref = self._class_ref(v.module, v.name, jac_node);
+        ct_args = v?.ct_args or {};
+        if not ct_args {
+            return cls_ref;
+        }
+        ct_kws: list = [];
+        for (ck, cvv) in ct_args.items() {
+            mv = self._materialize(cvv, jac_node);
+            if mv is None {
+                return None;
+            }
+            ct_kws.append(self.nod('keyword', ['arg', 'value'], [ck, mv]));
+        }
+        return self.nod(
+            'Call',
+            ['func', 'args', 'keywords'],
+            [
+                self._import_ref("jaclang.comptime", "specialize", jac_node),
+                [cls_ref],
+                ct_kws
+            ],
+            jac_node=jac_node
+        );
     }
     if kind == "CtFunc" {
         same_module = v.module
@@ -760,14 +782,148 @@ impl JcirGenPass._materialize(v: any, jac_node: UniNode) -> (CgNode | None) {
             }
             kws.append(self.nod('keyword', ['arg', 'value'], [k, mv]));
         }
+        cls_ref = self._class_ref(v.module, v.class_name, jac_node);
+        if self._record_bypasses_init(v) {
+            return self.nod(
+                'Call',
+                ['func', 'args', 'keywords'],
+                [
+                    self._import_ref("jaclang.comptime", "record", jac_node),
+                    [cls_ref],
+                    kws
+                ],
+                jac_node=jac_node
+            );
+        }
         return self.nod(
-            'Call',
-            ['func', 'args', 'keywords'],
-            [self._class_ref(v.module, v.class_name, jac_node), [], kws],
-            jac_node=jac_node
+            'Call', ['func', 'args', 'keywords'], [cls_ref, [], kws], jac_node=jac_node
         );
     }
     return None;
+}
+
+impl JcirGenPass._is_ct_type_param(nd: Name) -> bool {
+    sym = nd.sym;
+    if sym is None {
+        return False;
+    }
+    owner = sym.decl.name_of;
+    return isinstance(owner, TypeParam) and owner.is_comptime;
+}
+
+impl JcirGenPass._ct_param_decls(cls_expr: Expr) -> (list[TypeParam] | None) {
+    import from jaclang.compiler.types.types { ClassType as _CtClassType }
+    t = cls_expr.type;
+    if not isinstance(t, _CtClassType) or not t.shared.ct_params {
+        return None;
+    }
+    arch = t.shared.symbol_table;
+    if not isinstance(arch, Archetype) {
+        return None;
+    }
+    return `list(arch.type_params or []);
+}
+
+impl JcirGenPass._ct_ctor_slots(nd: AtomTrailer) -> (list[tuple] | None) {
+    if nd.is_attr or not isinstance(nd.right, IndexSlice) or nd.right.is_range {
+        return None;
+    }
+    tps = self._ct_param_decls(nd.target);
+    if tps is None {
+        return None;
+    }
+    s0 = nd.right.slices[0] if nd.right.slices else None;
+    head = s0.start if s0 is not None else None;
+    vals: list = `list(head.values)
+        if isinstance(head, TupleVal)
+        else ([head] if head else []);
+    out: list[tuple] = [];
+    for (i, tp) in enumerate(tps) {
+        if tp.is_comptime and i < len(vals) {
+            out.append((tp.name.value, vals[i], ));
+        }
+    }
+    return out;
+}
+
+impl JcirGenPass._trailer_reaches_ct_class(nd: AtomTrailer) -> bool {
+    cur: any = nd.target;
+    while isinstance(cur, AtomTrailer) {
+        if self._ct_ctor_slots(cur) is not None {
+            return True;
+        }
+        cur = cur.target;
+    }
+    return False;
+}
+
+impl JcirGenPass._ct_param_fields(nd: Archetype) -> list[CgNode] {
+    out: list[CgNode] = [];
+    for tp in (nd.type_params or []) {
+        if not tp.is_comptime {
+            continue;
+        }
+        bnd = tp.bound;
+        ann = self.val(bnd) if bnd is not None else self.name_load('object', tp);
+        out.append(
+            self.nod(
+                'AnnAssign',
+                ['target', 'annotation', 'value', 'simple'],
+                [
+                    self.nod(
+                        'Name',
+                        ['id', 'ctx'],
+                        [tp.name.value, self.nod('Store', [], [])]
+                    ),
+                    ann,
+                    self.nod(
+                        'Call',
+                        ['func', 'args', 'keywords'],
+                        [
+                            self._import_ref("dataclasses", "field", tp),
+                            [],
+                            [
+                                self.nod(
+                                    'keyword',
+                                    ['arg', 'value'],
+                                    ['kw_only', self.const_of(True)]
+                                )
+                            ]
+                        ]
+                    ),
+                    1
+                ],
+                jac_node=tp
+            )
+        );
+    }
+    return out;
+}
+
+impl JcirGenPass._record_bypasses_init(v: any) -> bool {
+    ct = v?.class_type;
+    shared = ct?.shared;
+    if shared is None {
+        return False;
+    }
+    for cls in (shared.mro or []) {
+        arch = cls.shared.symbol_table;
+        if not isinstance(arch, Archetype) {
+            continue;
+        }
+        for m in arch.get_methods() {
+            nm = m.name_ref.sym_name if m.name_ref else "";
+            if nm in ("init", "__init__", "postinit", "__post_init__") {
+                return True;
+            }
+        }
+        for hv in arch.get_has_vars() {
+            if hv.defer {
+                return True;
+            }
+        }
+    }
+    return False;
 }
 
 impl JcirGenPass.name_load(name_id: str, jac_node: (UniNode | None) = None) -> CgNode {
@@ -1324,6 +1480,10 @@ impl JcirGenPass.exit_module(nd: Module) -> None {
 }
 
 impl JcirGenPass.exit_type_param(nd: TypeParam) -> None {
+    if nd.is_comptime {
+        self.set_out(nd, []);
+        return;
+    }
     bound_ast = self.val(nd.bound) if nd.bound else None;
     self.set_out(
         nd, [self.nod('TypeVar', ['name', 'bound'], [nd.name.value, bound_ast])]
@@ -1708,6 +1868,11 @@ impl JcirGenPass.exit_archetype(nd: Archetype) -> None {
     if (not body and not isinstance(nd.body, Expr)) {
         self.emit(E5003, node_override=nd);
         body = [self.nod('Pass', [], [], jac_node=nd)];
+    }
+    ct_fields = self._ct_param_fields(nd);
+    if ct_fields {
+        insert_at = 1 if nd.doc else 0;
+        body[insert_at:insert_at] = ct_fields;
     }
     if nd.is_async {
         body.insert(
@@ -2955,7 +3120,63 @@ impl JcirGenPass.exit_assignment(nd: Assignment) -> None {
         );
     }
     targets_ast = [self.val(t) for t in nd.target];
-    if nd.type_tag {
+    class_body_ct = (
+        nd.is_comptime
+        and isinstance(nd.parent, GlobalVars)
+        and isinstance(nd.parent.parent, Archetype)
+    );
+    ct_val0 = nd.value;
+    if class_body_ct and ct_val0 is not None and not self._ct_concrete(ct_val0) {
+        tgt0 = nd.target[0] if nd.target else None;
+        if isinstance(tgt0, Name) {
+            self.set_out(
+                nd,
+                [
+                    self.nod(
+                        'FunctionDef',
+                        ['name', 'args', 'body', 'decorator_list', 'returns'],
+                        [
+                            tgt0.sym_name,
+                            self.nod(
+                                'arguments',
+                                [
+                                    'posonlyargs',
+                                    'args',
+                                    'kwonlyargs',
+                                    'kw_defaults',
+                                    'defaults'
+                                ],
+                                [
+                                    [],
+                                    [
+                                        self.nod(
+                                            'arg', ['arg', 'annotation'], ['self', None]
+                                        )
+                                    ],
+                                    [],
+                                    [],
+                                    []
+                                ]
+                            ),
+                            [
+                                self.nod(
+                                    'Return',
+                                    ['value'],
+                                    [self.val(ct_val0)],
+                                    jac_node=nd
+                                )
+                            ],
+                            [self.name_load('property', nd)],
+                            None
+                        ],
+                        jac_node=nd
+                    )
+                ]
+            );
+            return;
+        }
+    }
+    if nd.type_tag and not class_body_ct {
         assignment_stmt = self.nod(
             'AnnAssign',
             ['target', 'annotation', 'value', 'simple'],
@@ -3647,6 +3868,45 @@ impl JcirGenPass.exit_dict_compr(nd: DictCompr) -> None {
 impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
     if nd.is_genai {
         self.set_out(nd, []);
+    }
+    trailer_cv = nd.ct_value;
+    if (
+        nd.is_attr
+        and trailer_cv is not None
+        and self._ct_concrete(nd)
+        and self._ct_kind(trailer_cv.v) in ("scalar", "CtEnumMember")
+        and self._trailer_reaches_ct_class(nd)
+    ) {
+        folded = self._materialize(trailer_cv.v, nd);
+        if folded is not None {
+            self.set_out(nd, [folded]);
+            return;
+        }
+    }
+    ct_slots = self._ct_ctor_slots(nd);
+    if ct_slots is not None {
+        kws: list = [];
+        for pair in ct_slots {
+            pname: str = pair[0];
+            pexpr: UniNode = pair[1];
+            kws.append(self.nod('keyword', ['arg', 'value'], [pname, self.val(pexpr)]));
+        }
+        self.set_out(
+            nd,
+            [
+                self.nod(
+                    'Call',
+                    ['func', 'args', 'keywords'],
+                    [
+                        self._import_ref("jaclang.comptime", "specialize", nd),
+                        [self.val(nd.target)],
+                        kws
+                    ],
+                    jac_node=nd
+                )
+            ]
+        );
+        return;
     }
     if nd.is_attr {
         if isinstance(nd.right, AstSymbolNode) {
@@ -4951,6 +5211,20 @@ impl JcirGenPass.exit_token(nd: Token) -> None {
 
 impl JcirGenPass.exit_name(nd: Name) -> None {
     name = nd.sym_name;
+    if self._is_ct_type_param(nd) and nd.expr_ctx == ExprCtx.LOAD {
+        self.set_out(
+            nd,
+            [
+                self.nod(
+                    'Attribute',
+                    ['value', 'attr', 'ctx'],
+                    [self.name_load('self', nd), name, self.nod('Load', [], [])],
+                    jac_node=nd
+                )
+            ]
+        );
+        return;
+    }
     if name == "Self" {
         resolved = self._resolve_self_type(nd);
         if resolved is not None {

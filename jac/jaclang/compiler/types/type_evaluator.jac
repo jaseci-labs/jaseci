@@ -449,6 +449,11 @@ obj TypeEvaluator {
 
     def _metaclass_of(cls_type: ClassType) -> (ClassType | None);
     def _extract_type_params(node_: Archetype) -> list[TypeVarType];
+    def _extract_ct_params(node_: Archetype) -> (list[str] | None);
+    def _ct_args_for_class(
+        base_type: ClassType, slot_vals: list[Expr]
+    ) -> (tuple | None);
+
     def _is_class_scoped_type_param(node_: TypeParam) -> bool;
     def _collect_typevars_from_base(
         base_class: AtomTrailer,

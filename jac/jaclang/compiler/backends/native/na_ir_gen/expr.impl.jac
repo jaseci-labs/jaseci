@@ -499,6 +499,18 @@ impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
 
 impl NaIRGenExpr._codegen_name(nd: uni.Name) -> (ir.Value | None) {
     var_name = nd.value;
+    _ct_owner = self._ct_type_param_owner(nd);
+    if _ct_owner is not None {
+        _self_val: (ir.Value | None) = None;
+        if "self" in self.local_vars {
+            _self_val = self.builder.load(self.local_vars["self"], name="self");
+        } elif "self" in self.func_symtab {
+            _self_val = self.func_symtab["self"];
+        }
+        if _self_val is not None {
+            return self._codegen_field_access(_self_val, var_name, _ct_owner, nd);
+        }
+    }
     _has_caps = var_name in self.lambda_captures or var_name in self.nested_captures;
     if _has_caps {
         _np = nd.parent;
@@ -2392,4 +2404,17 @@ impl NaIRGenExpr._infer_dict_type(val: ir.Value) -> (tuple | None) {
         }
     }
     return None;
+}
+
+impl NaIRGenExpr._ct_type_param_owner(nd: uni.Name) -> (str | None) {
+    sym = nd.sym;
+    if sym is None {
+        return None;
+    }
+    owner = sym.decl.name_of;
+    if not (isinstance(owner, uni.TypeParam) and owner.is_comptime) {
+        return None;
+    }
+    arch = owner.find_parent_of_type(uni.Archetype);
+    return arch.name.value if arch is not None else None;
 }

@@ -3342,6 +3342,10 @@ impl Parser.parse_comptime_element -> ElementStmt | EmptyToken | None {
     if self.check_peek(TokenKind.KW_IMPORT) {
         return self.parse_import_stmt();
     }
+    if self.check_peek(TokenKind.KW_ASSERT) {
+        stmt = self.parse_comptime_stmt();
+        return stmt if isinstance(stmt, AssertStmt) else None;
+    }
     return self.parse_comptime_global();
 }
 
@@ -5529,6 +5533,20 @@ impl Parser.parse_archetype_member -> UniNode | None {
             _ = self._attach_doc(ability, doc);
         }
         return ability;
+    }
+    if self.check(TokenKind.KW_COMPTIME)
+        and not self.check_peek_any(
+            TokenKind.KW_DEF,
+            TokenKind.KW_CAN,
+            TokenKind.KW_OVERRIDE,
+            TokenKind.KW_STATIC,
+            TokenKind.KW_ASYNC
+        ) {
+        ct_globals = self.parse_comptime_global();
+        if doc {
+            _ = self._attach_doc(ct_globals, doc);
+        }
+        return ct_globals;
     }
     if self.check_any(
         TokenKind.KW_DEF, TokenKind.KW_CAN, TokenKind.KW_OVERRIDE, TokenKind.KW_COMPTIME
