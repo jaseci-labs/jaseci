@@ -135,12 +135,25 @@ impl EmbeddedGateway.setup -> None {
 }
 
 
-impl EmbeddedGateway.serve -> None {
+def _log_embedded_ready(host: str, bound: int) {
+    _logger.info(f"Embedded gateway serving in-process on {host}:{bound}");
+}
+
+
+impl EmbeddedGateway.serve(on_ready: any = None) -> None {
     if self.app is None {
         self.setup();
     }
-    _logger.info(f"Embedded gateway serving in-process on {self.host}:{self.port}");
-    import from jaclang.server.serving.server { ServingServer }
+    import from functools { partial }
+    import from jaclang.server.serving.server { ServingServer, PORT_RETRY_LIMIT }
+    import from jaclang.scale.config.config_loader { get_scale_config }
+    pinned = bool(
+        get_scale_config().get_microservices_config().get("gateway_port_pinned", False)
+    );
     serving = ServingServer(app=self.app, host=self.host, port=self.port);
-    serving.run();
+    ready: any = on_ready;
+    if ready is None {
+        ready = partial(_log_embedded_ready, self.host);
+    }
+    serving.run(on_ready=ready, port_retries=0 if pinned else PORT_RETRY_LIMIT);
 }

@@ -184,7 +184,7 @@ glob COMPILER_DIGEST_ROOTS: tuple = (
      ),
      COMPILER_DIGEST_SUFFIXES: tuple = (".jac", ".py"),
      COMPILER_DIGEST_SKIP_DIRS: tuple = ("tests", "test", "__pycache__"),
-     COMPILER_DIGEST_SKIP: tuple = ("compiler/native_materialize.jac", );
+     COMPILER_DIGEST_SKIP: tuple = ();
 
 def compiler_source_files(pkg_dir: str) -> list[str] {
     base = str(Path(pkg_dir));
@@ -468,6 +468,21 @@ def get_module_cache_path(source_path: str) -> Path {
     (major, minor) = (sys.version_info.major, sys.version_info.minor);
     return cache_dir / f"{source.stem}.{path_hash}.cpython-{major}{minor}.jir";
 }
+
+glob _na_ir_cache_region: dict[str, bool] = {"suspended": False};
+
+
+def native_ir_cache_suspended -> bool {
+    return _na_ir_cache_region["suspended"];
+}
+
+
+def native_ir_cache_set_suspended(value: bool) -> bool {
+    prev = _na_ir_cache_region["suspended"];
+    _na_ir_cache_region["suspended"] = value;
+    return prev;
+}
+
 
 def get_native_cache_dir(source_path: str) -> Path {
     return _get_module_cache_dir(source_path) / "native";

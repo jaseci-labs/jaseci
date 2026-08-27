@@ -22,6 +22,16 @@ def _sqlstate(e: Exception) -> str {
 def humanize_error(e: Exception) -> (tuple[str, (str | None)] | None) {
     import from jaclang.data.store { SessionConflictError }
     import from jaclang.data.pgwire { PgWireError }
+    import from jaclang.server.net { PortInUseError }
+
+    if isinstance(e, PortInUseError) {
+        return (
+            str(e),
+            'A port you named is a contract, so jac fails instead of moving to'
+            ' another one. Free the port (lsof -i :<port>), name a different'
+            ' one, or drop --port to let jac pick the next free port.'
+        );
+    }
 
     if isinstance(e, SessionConflictError) {
         return (

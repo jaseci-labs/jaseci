@@ -247,13 +247,6 @@ def _command_routes -> list[CommandMeta] {
                     help='Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision',
                     short=''
                 ),
-                ArgMeta(
-                    name='compile-stats',
-                    typ='bool',
-                    `default=False,
-                    help="Report how much of each module's pass schedule the binary executed natively, and name every module that fell back to the staged pass loop",
-                    short=''
-                ),
 
             ]
         ),
@@ -1623,7 +1616,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='port',
                     typ='int',
-                    help='Server port (serving only)',
+                    help='Server port (serving only, default 8000). A port given here must be free: it is a contract with whatever sits in front of it, so the server fails rather than moving to another port.',
                     short='p',
                     config_key='serve.port'
                 ),

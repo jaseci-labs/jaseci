@@ -7,8 +7,7 @@ import from jaclang.cli.check_report {
     print_failed_summary,
     print_final_summary,
     print_native_coverage,
-    print_placement_report,
-    print_compile_stats
+    print_placement_report
 }
 
 def _maybe_malloc_trim {
@@ -28,8 +27,7 @@ impl check(
     lint_only: bool = False,
     fix: bool = False,
     native_coverage: bool = False,
-    placements: bool = False,
-    compile_stats: bool = False
+    placements: bool = False
 ) -> int {
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.frontend.diagnostic_utils { resolve_diagnostic_tokens }
@@ -54,10 +52,6 @@ impl check(
     if native_coverage {
         import from jaclang.compiler.driver.na_coverage { na_coverage_begin }
         na_coverage_begin();
-    }
-    if compile_stats {
-        import from jaclang.compiler.placement.prefix_flip { prefix_outcomes_reset }
-        prefix_outcomes_reset();
     }
 
     total_files = failed_files=total_errors=total_warnings=0;
@@ -206,9 +200,6 @@ impl check(
     if native_coverage {
         import from jaclang.compiler.driver.na_coverage { na_coverage_end }
         print_native_coverage(na_coverage_end());
-    }
-    if compile_stats {
-        print_compile_stats();
     }
     if placements {
         print_placement_report(placement_report);
@@ -1398,13 +1389,19 @@ def _iter_jac_files(
                 explicit.add(os.path.realpath(path));
             }
         } elif path_obj.is_dir() {
+            walked: list[str] = [];
             for jac_file in path_obj.`glob('**/*.jac') {
                 if not jac_file.is_file() {
                     continue;
                 }
                 if not _should_ignore(str(jac_file), ignore_list) {
-                    result.append(str(jac_file));
+                    walked.append(str(jac_file));
                 }
+            }
+            if _drop_git_ignored([str(path_obj)]) {
+                result.extend(_drop_git_ignored(walked));
+            } else {
+                result.extend(walked);
             }
         } else {
             console.error(f"'{path}' is not a .jac file or directory.");
@@ -1443,6 +1440,42 @@ def _normalize_ignore_patterns(ignore: list) -> list {
     import from jaclang.compiler.frontend.helpers { normalize_exclude_patterns }
     return normalize_exclude_patterns(ignore);
 }
+
+def _drop_git_ignored(paths: list[str]) -> list[str] {
+    import subprocess;
+    if not paths {
+        return paths;
+    }
+    try {
+        proc = subprocess.run(
+            ['git', 'check-ignore', '--stdin'],
+            input="\n".join(paths),
+            capture_output=True,
+            text=True,
+            check=False
+        );
+    } except (OSError, ValueError) {
+        return paths;
+    }
+
+    if proc.returncode not in (0, 1) {
+        return paths;
+    }
+    ignored = {
+        line
+        for line in proc.stdout.splitlines()
+        if line
+    };
+    if not ignored {
+        return paths;
+    }
+    return [
+        p
+        for p in paths
+        if p not in ignored
+    ];
+}
+
 
 def _should_ignore(file_path: str, ignore_patterns: list) -> bool {
     import from jaclang.compiler.frontend.helpers { path_matches_exclude }

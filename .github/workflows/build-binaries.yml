@@ -350,60 +350,6 @@ jobs:
         working-directory: jac
         run: zig build fetch-llvm $DTARGET --summary all
 
-      # Backstop, no longer the load-bearing fix. Each materializer crossing
-      # strands that crossing's native tree (the unitree parent/kid cycles
-      # defeat plain RC and the artifact collector is not yet multi-module-safe
-      # to arm, #8139), and while the seal compiled every NATIVE_SEAL_ROOTS
-      # entry in ONE process that accumulation summed over all thirteen roots
-      # into a peak no hosted Linux runner could hold: on cd049457a both Linux
-      # legs died mid-seal with "the runner has received a shutdown signal" and
-      # exit 143 -- no zig diagnostic, no failed command, the signature of a
-      # runner whose memory is gone. The seal now runs a worker process per
-      # root, so the stranded trees die with each worker and the peak is
-      # JAC_SEAL_JOBS times ONE root's high-water mark instead of the sum. This
-      # step stays because the seal must still survive JAC_SEAL_JOBS=1 (the
-      # documented sequential fallback) and because the stranded pages are cold
-      # -- written once, never read again -- so swap holds them for the price of
-      # the paging. Retire it when the crossing reclaims its tree in process.
-      - name: Swap headroom for the sealed precompile (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          set -euo pipefail
-          echo "--- before"
-          free -h
-          swapon --show || true
-          df -h
-          # Prefer the runner's scratch volume: the build stages the payload on
-          # the workspace volume, so a swapfile there competes with it.
-          WORK_DEV="$(df -P "$RUNNER_TEMP" | awk 'NR==2 {print $1}')"
-          MNT_DEV="$(df -P /mnt 2>/dev/null | awk 'NR==2 {print $1}' || true)"
-          if [ -n "$MNT_DEV" ] && [ "$MNT_DEV" != "$WORK_DEV" ]; then
-            SWAP_DIR=/mnt
-            RESERVE_GB=2
-          else
-            SWAP_DIR="$RUNNER_TEMP"
-            RESERVE_GB=25
-          fi
-          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
-          SIZE_GB=$(( AVAIL_GB - RESERVE_GB ))
-          if [ "$SIZE_GB" -gt 24 ]; then
-            SIZE_GB=24
-          fi
-          if [ "$SIZE_GB" -lt 4 ]; then
-            echo "::error::$SWAP_DIR has ${AVAIL_GB}G free, too little to spare;" \
-                 "the seal needs swap headroom at this root count and would exhaust the runner"
-            exit 1
-          fi
-          SWAP_FILE="$SWAP_DIR/jac-seal-swap"
-          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
-            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
-          sudo chmod 600 "$SWAP_FILE"
-          sudo mkswap "$SWAP_FILE"
-          sudo swapon "$SWAP_FILE"
-          echo "--- after"
-          free -h
-          swapon --show
-
       # The seal loads every artifact it emits and calls into it, so a
       # miscompiled artifact kills the worker in native code with nothing but a
       # signal number (#8313). ReportCrash turns that into a symbolicated .ips
@@ -424,15 +370,6 @@ jobs:
 
       - name: Build the jac binary (one command)
         working-directory: jac
-        env:
-          # Size the seal's worker pool for a hosted runner. The auto-size
-          # divides free memory by a worker's budget and caps at the core
-          # count, which on a 16 GiB / 4 vCPU Linux runner lands at four; pin
-          # three so the fan-out leaves the runner its own headroom and the
-          # swapfile above stays a backstop rather than a working set. The
-          # macOS legs keep the auto-size (smaller memory, swap that grows on
-          # demand), which is what an empty value selects.
-          JAC_SEAL_JOBS: ${{ runner.os == 'Linux' && '3' || '' }}
         # On a dev-channel shim-cache hit, stage the shim outside its in-tree
         # place path: the build copies -Dshim-bin back there, and a self-copy
         # would read the file it is truncating. Mirrors setup-jac. The
@@ -523,7 +460,7 @@ jobs:
           find "$PWD" "$GITHUB_WORKSPACE/.zig-cache" -name 'libjac_*.dylib' -type f 2>/dev/null \
             | sort -u > "$RUNNER_TEMP/jac-dylibs.txt"
           if ! [ -s "$RUNNER_TEMP/jac-dylibs.txt" ]; then
-            echo "(no libjac_*.dylib on the runner: the seal died before it emitted one)"
+            echo "(no libjac_*.dylib on the runner)"
           fi
           : > "$RUNNER_TEMP/jac-dylibs-bad.txt"
           while IFS= read -r dl; do
@@ -649,16 +586,6 @@ jobs:
           [ -f "$SHIM" ] || zig build jacllvm -Dtarget=${{ matrix.zig_target }} --summary all
           [ -f "$SHIM" ] || SHIM="zig-out/lib/libjacllvm.so"
           check "$SHIM"
-          # Sealed AOT compiler artifacts (the materializer root carrying
-          # the parser, plus unitree): materialize the payload once, then
-          # hold EVERY shipped artifact to the same glibc floor. The sealed
-          # parser serves all parse trees with no bytecode fallback, so a
-          # missing artifact here is a broken binary.
-          WORK="$(mktemp -d)"
-          env -i HOME="$WORK" PATH=/usr/bin:/bin ./zig-out/bin/jac --version >/dev/null
-          ARTS="$(find "$WORK/.cache/jac/rt" -path '*/_precompiled/native/*' -name 'libjac_*.so')"
-          [ -n "$ARTS" ] || { echo "::error::no sealed native artifacts (libjac_*.so) in the payload"; exit 1; }
-          while IFS= read -r a; do check "$a"; done <<< "$ARTS"
 
       # Intel-mac mirror of the glibc check: neither the launcher nor the shim
       # may require a macOS newer than the zig_target floor, and the shim must
@@ -688,21 +615,6 @@ jobs:
           if otool -L "$SHIM" | grep -E "/opt/homebrew|/usr/local"; then
             echo "::error::$SHIM links Homebrew dylibs; the from-source slice must not."; exit 1
           fi
-          # Sealed AOT compiler artifacts (the materializer root carrying
-          # the parser, plus unitree): materialize the payload once, then
-          # hold EVERY shipped artifact to the minos floor and the
-          # no-Homebrew rule. The sealed parser serves all parse trees with
-          # no bytecode fallback, so a missing artifact is a broken binary.
-          WORK="$(mktemp -d)"
-          env -i HOME="$WORK" PATH=/usr/bin:/bin ./zig-out/bin/jac --version >/dev/null
-          ARTS="$(find "$WORK/.cache/jac/rt" -path '*/_precompiled/native/*' -name 'libjac_*.dylib')"
-          [ -n "$ARTS" ] || { echo "::error::no sealed native artifacts (libjac_*.dylib) in the payload"; exit 1; }
-          while IFS= read -r a; do
-            check "$a"
-            if otool -L "$a" | grep -E "/opt/homebrew|/usr/local"; then
-              echo "::error::$a links Homebrew dylibs."; exit 1
-            fi
-          done <<< "$ARTS"
 
       # A release-channel cold build just produced (and floor-verified) the
       # shim the deps release was missing: publish it so the next release with

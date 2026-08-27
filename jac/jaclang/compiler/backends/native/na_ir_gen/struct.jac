@@ -6,10 +6,18 @@ import jaclang.compiler.frontend.unitree as uni;
 obj NaIRGenStruct(NaIRGenState) {
     def _emit_struct_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_struct_pack(
-        nd: uni.FuncCall, params: list, fields: list, total: int, little: bool
+        nd: uni.FuncCall,
+        params: Sequence[uni.Expr | uni.KWPair],
+        fields: list,
+        total: int,
+        little: bool
     ) -> (ir.Value | None);
 
     def _emit_struct_unpack(
-        nd: uni.FuncCall, params: list, fields: list, total: int, little: bool
+        nd: uni.FuncCall,
+        params: Sequence[uni.Expr | uni.KWPair],
+        fields: list,
+        total: int,
+        little: bool
     ) -> (ir.Value | None);
 }

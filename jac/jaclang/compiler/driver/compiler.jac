@@ -87,14 +87,6 @@ obj JacCompiler {
 
     has selfhost: SelfHostCache { getter; }
 
-    def postinit {
-        import from jaclang.compiler.driver.native_brands {
-            DRIVER_ORIGIN,
-            ensure_native_brands_bound
-        }
-        ensure_native_brands_bound(DRIVER_ORIGIN);
-    }
-
     def get_native_interop_setup(
         full_target: str, target_program: JacProgram
     ) -> tuple[((object | None), (dict[(str, object)] | None))];
@@ -146,8 +138,7 @@ obj JacCompiler {
         source_str: str,
         file_path: str,
         target_program: JacProgram,
-        cancel_token: (Event | None) = None,
-        prefix_kind: str = ''
+        cancel_token: (Event | None) = None
     ) -> uni.Module;
 
     def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;

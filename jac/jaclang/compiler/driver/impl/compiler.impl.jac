@@ -687,8 +687,7 @@ impl JacCompiler.parse_str(
     source_str: str,
     file_path: str,
     target_program: JacProgram,
-    cancel_token: (Event | None) = None,
-    prefix_kind: str = ''
+    cancel_token: (Event | None) = None
 ) -> uni.Module {
     had_error = False;
     run_codespace_infer = False;
@@ -726,8 +725,10 @@ impl JacCompiler.parse_str(
                 "'jac fix placement' to migrate the project."
             );
         }
-        import from jaclang.compiler.placement.prefix_flip { parse_with_prefix }
-        _p_opts_pre = target_program.options;
+        import from jaclang.compiler.frontend.parser.frontend {
+            annex_sources,
+            parse_woven
+        }
         codespace = '';
         import from jaclang.compiler.frontend.codeinfo {
             is_client_by_location as _cbl,
@@ -773,13 +774,8 @@ impl JacCompiler.parse_str(
                 codespace = _kind_space;
             }
         }
-        (mod, had_error) = parse_with_prefix(
-            source_str,
-            file_path,
-            target_program,
-            kind=prefix_kind,
-            no_cgen=bool(_p_opts_pre.no_cgen) if _p_opts_pre is not None else False,
-            codespace=codespace
+        (mod, had_error) = parse_woven(
+            source_str, file_path, target_program, annex_sources(file_path)
         );
         if (codespace == 'client') {
             _coerce_client_module(mod);
@@ -1213,6 +1209,15 @@ impl JacCompiler.compile(
     _outer_opts: (CompileOptions | None) = None;
     _outer_prog: (JacProgram | None) = None;
     _scratch_prog: (JacProgram | None) = None;
+
+    import from jaclang.compiler.driver.jir {
+        native_ir_cache_set_suspended,
+        native_ir_cache_suspended
+    }
+    _na_cache_prev = native_ir_cache_suspended();
+    if options.no_ir_cache {
+        native_ir_cache_set_suspended(True);
+    }
     try {
         if options.force_target_program {
             _wrap_prog = target_program;
@@ -1325,14 +1330,11 @@ impl JacCompiler.compile(
             options=options
         );
     } finally {
+        native_ir_cache_set_suspended(_na_cache_prev);
         set_effective_default_codespace(_prev_cs);
         self._reentrant_depth = _depth_prev;
         if _outer_prog is not None and _outer_opts is not None {
             _outer_prog.options = _outer_opts;
-        }
-        if _depth_prev == 0 {
-            import from jaclang.compiler.placement.prefix_flip { emit_prefix_summary }
-            emit_prefix_summary();
         }
         if _scratch_prog is not None {
             _scratch_prog.scratch.compile_depth -= 1;
@@ -1400,26 +1402,10 @@ impl JacCompiler._compile_once(
         options.graphmend = False;
     }
     had_parse_errors = len(actual_program.errors_had);
-    import from jaclang.compiler.placement.prefix_flip {
-        drop_executed_prefix,
-        mark_prefix_provided,
-        prefix_span_blocking,
-        prefix_span_errors,
-        take_prefix_handoff
-    }
     mod_targ = self.parse_str(
-        keep_str,
-        file_path,
-        actual_program,
-        cancel_token=options.cancel_token,
-        prefix_kind=('symtab-ir' if options.symtab_ir_only else 'ir-gen')
+        keep_str, file_path, actual_program, cancel_token=options.cancel_token
     );
-    _prefix_span = take_prefix_handoff(mod_targ);
-    _prefix_ran = _prefix_span[0];
-    had_parse_errors = (
-        len(actual_program.errors_had) - prefix_span_errors(_prefix_span)
-    )
-        > had_parse_errors;
+    had_parse_errors = len(actual_program.errors_had) > had_parse_errors;
     if options.graphmend is True {
         import from jaclang.compiler.passes.graphmend.scope_facts { module_binds_torch }
         options.graphmend = module_binds_torch(mod_targ);
@@ -1428,8 +1414,7 @@ impl JacCompiler._compile_once(
     cur_mod_path = os.path.normpath(file_path);
     blocking_errs_pre_ir = self._count_module_blocking_errors(
         actual_program, cur_mod_path
-    )
-        - prefix_span_blocking(actual_program, _prefix_span, cur_mod_path);
+    );
     if options.symtab_ir_only {
         _head_sched = get_symtab_ir_sched();
     } else {
@@ -1440,13 +1425,10 @@ impl JacCompiler._compile_once(
     }
 
     _full_head = 'cfg' in providers_of(_head_sched);
-    if _prefix_ran {
-        mark_prefix_provided(actual_program, mod_targ, _head_sched[:len(_prefix_ran)]);
-    }
     self.run_schedule(
         mod=mod_targ,
         target_program=actual_program,
-        passes=drop_executed_prefix(_head_sched, _prefix_ran),
+        passes=_head_sched,
         cancel_token=options.cancel_token
     );
 
