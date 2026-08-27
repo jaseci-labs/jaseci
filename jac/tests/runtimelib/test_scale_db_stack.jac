@@ -228,3 +228,51 @@ test "pool: JAC_DB_POOL=0 disables parking" {
         }
     }
 }
+
+
+test "ro units: marking the whole unit stack bounds the read-tier retry at two passes" {
+    outer = 'walker:test.nested_outer';
+    inner = 'walker:test.nested_inner';
+    with TemporaryDirectory() as td {
+        s = _mk_session(td);
+        try {
+            s.unit_enter(outer);
+            s.unit_enter(inner);
+            raised = False;
+            try {
+                s.read_barrier();
+                assert _store(s).txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY;
+                s.delete(uuid4());
+                try {
+                    s.read_barrier();
+                } except ReadOnlyRetry {
+                    raised = True;
+                }
+            } finally {
+                s.unit_exit();
+                s.unit_exit();
+            }
+            assert raised;
+            assert unit_writes_recorded(inner);
+            assert unit_writes_recorded(outer) , (
+                'the outer unit must be recorded as a writer too: the re-run '
+                'enters it first, and an outer unit still classified read-only '
+                'would reopen the read tier and trip a second ReadOnlyRetry, so '
+                'marking only the writing unit would not bound the retry at two '
+                'passes'
+            );
+            s.abort();
+            s.unit_enter(outer);
+            try {
+                s.read_barrier();
+                assert _store(s).txn_isolation() is TxnIsolation.SERIALIZABLE , (
+                    'the second pass must open SERIALIZABLE from the first read'
+                );
+            } finally {
+                s.unit_exit();
+            }
+        } finally {
+            s.close();
+        }
+    }
+}
