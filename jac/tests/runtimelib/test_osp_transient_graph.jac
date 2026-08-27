@@ -35,7 +35,7 @@ import jaclang.runtime.osp_graph_sv as _sv;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang.runtime.archetype { Anchor }
-import from jaclang.runtime.osp_graph_sv { handle_of, sv_live_edges }
+import from jaclang.runtime.osp_graph_sv { sv_live_edges }
 import from jaclang.runtime.context { ExecutionContext }
 import from jaclang.runtime.runtime { JacRuntime }
 
@@ -79,20 +79,6 @@ def _hop(nodes: list[TNode]) -> float {
     }
     dt = time.perf_counter() - t0;
     assert seen == n - 1 , f"chain of {n} yielded {seen} hops";
-    return dt / float(n);
-}
-
-"""The kernel adjacency walk `[-->]` should be compiling down to."""
-def _kernel_hop(nodes: list[TNode]) -> float {
-    n = len(nodes);
-    anchors = [nd.__jac__ for nd in nodes];
-    t0 = time.perf_counter();
-    seen = 0;
-    for a in anchors {
-        seen += len(sv_live_edges(a, 2, None, False));
-    }
-    dt = time.perf_counter() - t0;
-    assert seen == n - 1 , f"kernel walk of {n} yielded {seen} hops";
     return dt / float(n);
 }
 
@@ -411,22 +397,73 @@ test "a transient edge costs hundreds of bytes, not thousands" {
 # ---------------------------------------------------------------------------
 # C. A transient hop reads the kernel adjacency, not the query planner.
 # ---------------------------------------------------------------------------
-test "a transient hop costs about what the kernel adjacency walk costs" {
-    warm = _chain(500);
-    _connect(warm);
-    _hop(warm);
-    _kernel_hop(warm);
-    nodes = _chain(4000);
-    _connect(nodes);
-    kernel = _kernel_hop(nodes);
-    hop = _hop(nodes);
-    r = _ratio(kernel, hop);
-    assert r < 3.0 , (
-        f"[-->] on a rootless graph cost {hop * 1e6:.1f}us per hop against "
-        f"{kernel * 1e6:.1f}us for the kernel adjacency walk it should be "
-        f"compiling to ({r:.1f}x); the planner and the ACL have nothing to "
-        "decide for a graph with no owner and no backing table"
-    );
+test "a transient hop never enters the query planner" {
+    # The exact form of "a rootless traversal does not pay for persistence":
+    # the planner is booby-trapped, and the hop still answers. `refs` imports
+    # `resolve_query` from the module at call time, so a hop that reached the
+    # planner would find this and raise.
+    import jaclang.data.query_planner as _qp;
+    orig = _qp.resolve_query;
+    orig_edges = _qp.resolve_query_edges;
+
+    def _refuse(mem: any, q: any) -> list {
+        raise AssertionError(
+            "a rootless, storeless traversal entered the persistence query "
+            "planner; the anchors are already in hand and there is no store "
+            "to consult"
+        );
+    }
+    setattr(_qp, "resolve_query", _refuse);
+    setattr(_qp, "resolve_query_edges", _refuse);
+    try {
+        nodes = _chain(24);
+        _connect(nodes);
+        assert len([nodes[0]-->]) == 1;
+        assert len([nodes[0]->:TRel:->]) == 1;
+        assert len([edge nodes[0]-->]) == 1;
+        assert len([nodes[0]-->-->]) == 1;
+        assert len([nodes[23]-->]) == 0;
+        assert [nodes[0]-->][0] is nodes[1];
+    } finally {
+        setattr(_qp, "resolve_query", orig);
+        setattr(_qp, "resolve_query_edges", orig_edges);
+    }
+}
+
+test "a persisted hop still goes through the planner" {
+    # The other half of the same claim: the trap fires when there is a store
+    # and a stored origin, so the test above is measuring a real fork and not
+    # a planner that nothing uses any more.
+    with TemporaryDirectory() as proj {
+        orig_ctx = JacRuntime.exec_ctx;
+        import jaclang.data.query_planner as _qp;
+        orig = _qp.resolve_query;
+        def _refuse(mem: any, q: any) -> list {
+            raise AssertionError("planner-was-reached");
+        }
+        try {
+            ctx = ExecutionContext(
+                base_path_dir=proj,
+                full_target_path=str(Path(proj) / "planner_fork.jac")
+            );
+            JacRuntime.exec_ctx = ctx;
+            root ++> TNode(a=1);
+            setattr(_qp, "resolve_query", _refuse);
+            reached = False;
+            try {
+                _ = [root-->];
+            } except AssertionError as e {
+                reached = str(e) == "planner-was-reached";
+            }
+            assert reached , (
+                "a hop from a persisted root must still consult the planner"
+            );
+            ctx.close();
+        } finally {
+            setattr(_qp, "resolve_query", orig);
+            JacRuntime.exec_ctx = orig_ctx;
+        }
+    }
 }
 
 test "a transient traversal records no optimistic-concurrency reads" {
