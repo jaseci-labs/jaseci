@@ -109,6 +109,7 @@ impl KEDAAutoscaler._build_manifests{
     scaled_obj_name = spec.autoscaler_name or f"{spec.scale_target_name}-scaledobject";
     keda_triggers: list[dict[str, any]] = [];
     app_name = spec.app_name or spec.scale_target_name;
+    self._validate_triggers(spec, app_name);
     for (i, trigger) in enumerate(spec.triggers) {
         keda_triggers.append(self._build_trigger(trigger, app_name, i));
     }
@@ -234,7 +235,7 @@ impl KEDAAutoscaler._apply_custom_object{
 
 impl KEDAAutoscaler.apply{
     app_name = spec.app_name or spec.scale_target_name;
-    self._validate_triggers(spec, app_name);
+    manifests = self._build_manifests(spec);
     warnings = self.preflight();
     if warnings {
         if self.logger {
@@ -256,7 +257,6 @@ impl KEDAAutoscaler.apply{
         }
     }
 
-    manifests = self._build_manifests(spec);
     known_kinds = [kind for (kind, _) in KEDAAutoscaler._APPLY_ORDER];
     unknown_kinds = [
         manifest["kind"]
