@@ -372,7 +372,7 @@ impl privileged_pss_labels(existing: dict[str, str]) -> dict[str, str] | None {
 }
 
 
-impl ensure_namespace_exists(namespace: str, owner: str = '') -> None {
+impl ensure_namespace_exists(namespace: str, owner: str) -> None {
     if (namespace == 'default') {
         return;
     }
@@ -423,9 +423,7 @@ impl ensure_namespace_exists(namespace: str, owner: str = '') -> None {
     }
 }
 
-impl namespace_is_owned(
-    core_v1: client.CoreV1Api, namespace: str, owner: str
-) -> bool {
+impl namespace_is_owned(core_v1: client.CoreV1Api, namespace: str, owner: str) -> bool {
     if (namespace == 'default') or not owner {
         return False;
     }
