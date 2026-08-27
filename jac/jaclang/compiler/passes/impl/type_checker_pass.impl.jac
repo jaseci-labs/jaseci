@@ -32,6 +32,9 @@ impl TypeCheckPass.exit_name(self: TypeCheckPass, nd: Name) -> None {
         }
         self.evaluator.get_type_of_expression(nd);
     }
+    if nd.sym is not None {
+        self._check_comptime_only_use(nd);
+    }
 }
 
 impl TypeCheckPass.exit_edge_ref_trailer(
@@ -192,6 +195,35 @@ impl TypeCheckPass.exit_func_call(self: TypeCheckPass, nd: FuncCall) -> None {
         self._check_intrinsic_call(nd);
     }
 
+    if (
+        nd.callee_decl is not None
+        and nd.callee_decl.is_comptime
+        and not self._in_comptime_context(nd)
+    ) {
+        cname = nd.callee_decl.name_ref.sym_name if nd.callee_decl.name_ref else "?";
+        self.evaluator.ct_site_error(
+            nd,
+            f"call to comptime def '{cname}' at runtime",
+            self.evaluator.ct_demand(nd),
+            allow_deferred=False
+        );
+    }
+
+    tgt_t = nd.target.type;
+    if (
+        isinstance(tgt_t, ClassType)
+        and not tgt_t.is_instance()
+        and tgt_t.shared.ct_params
+        and tgt_t.private.ct_args is None
+        and not self.evaluator.ct_quiet
+    ) {
+        self.emit(
+            E0033,
+            node_override=nd,
+            what=f"instantiation of '{tgt_t.shared.class_name}'",
+            reason=f": comptime parameters {tgt_t.shared.ct_params} must be given as {tgt_t.shared.class_name}[...]"
+        );
+    }
     if isinstance(nd.target, AtomTrailer) and not nd.target.is_attr {
         if isinstance(nd.target.right, IndexSlice) {
             idx_slice: IndexSlice = nd.target.right;
@@ -392,6 +424,15 @@ impl TypeCheckPass.exit_atom_trailer(self: TypeCheckPass, nd: AtomTrailer) -> No
 impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None {
     if nd.is_enum_stmt {
         return;
+    }
+    if nd.is_comptime and nd.value is not None {
+        first = nd.target[0] if nd.target else None;
+        label = first.value if isinstance(first, Name) else "binding";
+        self.evaluator.ct_site_error(
+            nd.value,
+            f"initializer of comptime binding '{label}'",
+            self.evaluator.ct_demand(nd.value)
+        );
     }
     if ((len(nd.target) == 1) and (nd.value is not None)) {
         target = nd.target[0];
@@ -1211,6 +1252,8 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
 
     self._prev_eval_pass = self.evaluator._pass;
     self.evaluator._pass = self;
+    self._prev_ct_quiet = self.evaluator.ct_quiet;
+    self.evaluator.ct_quiet = bool(self.ir_in.ct_resolved);
     self._insert_builtin_symbols();
     self._install_client_state_setters();
 }
@@ -1218,6 +1261,7 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
 impl TypeCheckPass.after_pass(self: TypeCheckPass) -> None {
     self._check_unresolved_lambda_params();
     self._stamp_fixed_width();
+    self.evaluator.ct_quiet = self._prev_ct_quiet;
     if self.evaluator._pass is self {
         self.evaluator._pass = self._prev_eval_pass;
     }
@@ -1367,6 +1411,23 @@ impl TypeCheckPass.exit_in_for_stmt(self: TypeCheckPass, nd: InForStmt) -> None 
 
     collection_type = self.evaluator.get_type_of_expression(nd.collection);
 
+    if nd.is_comptime {
+        cv = self.evaluator.ct_demand(nd.collection);
+        if not self.evaluator.ct_site_error(
+            nd.collection, "comptime for collection", cv
+        )
+            and cv is not None
+            and not cv.is_deferred
+            and not self.evaluator.ct_quiet
+            and not hasattr(cv.v, "__iter__") {
+            self.emit(
+                E0108,
+                node_override=nd.collection,
+                reason=f"comptime for needs a sequence, got {type(cv.v).__name__}"
+            );
+        }
+    }
+
     if isinstance(collection_type, TypeVarType) {
         if collection_type.constraints {
             for constraint_type in collection_type.constraints {
@@ -1454,6 +1515,125 @@ impl TypeCheckPass.enter_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
     }
 }
 
+impl TypeCheckPass.enter_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None {
+    if nd.is_comptime {
+        self._resolve_comptime_if(nd);
+    }
+}
+
+impl TypeCheckPass.enter_else_if(self: TypeCheckPass, nd: ElseIf) -> None {
+    if nd.is_comptime {
+        self._resolve_comptime_if(nd);
+    }
+}
+
+impl TypeCheckPass._resolve_comptime_if(self: TypeCheckPass, nd: IfStmt) -> None {
+    cv = self.evaluator.ct_demand(nd.condition);
+    if self.evaluator.ct_site_error(nd.condition, "comptime if condition", cv) {
+        return;
+    }
+    if cv is None or cv.is_deferred {
+        return;
+    }
+    taken = bool(cv.v);
+    nd.ct_taken = taken;
+    if taken {
+        if nd.else_body is not None {
+            nd.else_body.ct_pruned = True;
+        }
+    } else {
+        for stmt in nd.body {
+            stmt.ct_pruned = True;
+        }
+    }
+    nd._invalidate_sub_node_tab();
+}
+
+impl TypeCheckPass._in_comptime_context(self: TypeCheckPass, nd: UniNode) -> bool {
+    cur: (UniNode | None) = nd;
+    prev: (UniNode | None) = None;
+    while cur is not None {
+        if isinstance(cur, Assignment) and cur.is_comptime and prev is cur.value {
+            return True;
+        }
+        if isinstance(cur, IfStmt) and cur.is_comptime and prev is cur.condition {
+            return True;
+        }
+        if isinstance(cur, InForStmt) and cur.is_comptime and prev is cur.collection {
+            return True;
+        }
+        if isinstance(cur, AssertStmt) and cur.is_comptime {
+            return True;
+        }
+        if isinstance(cur, Ability) and cur.is_comptime {
+            return True;
+        }
+        if isinstance(cur, Import) {
+            return True;
+        }
+        if isinstance(cur, FuncCall) and prev is not None and prev is not cur.target {
+            callee = cur.callee_decl;
+            if callee is not None and isinstance(callee.signature, FuncSignature) {
+                for p in callee.signature.get_parameters() {
+                    if p.is_comptime {
+                        return True;
+                    }
+                }
+            }
+        }
+        prev = cur;
+        cur = cur.parent;
+    }
+    return False;
+}
+
+impl TypeCheckPass._check_comptime_only_use(self: TypeCheckPass, nd: Name) -> None {
+    sym = nd.sym;
+    if sym is None or nd.ct_value is not None {
+        return;
+    }
+    if isinstance(nd.parent, FuncCall) and nd.parent.target is nd {
+        return;
+    }
+    local: (Symbol | None) = None;
+    try {
+        local = nd.sym_tab.lookup(nd.sym_name, deep=True);
+    } except ValueError {
+        local = None;
+    }
+    is_ct_import = False;
+    is_ct_def = False;
+    for cand in (local, sym) {
+        if cand is None {
+            continue;
+        }
+        decl = cand.decl;
+        if isinstance(decl, Name) and decl is nd {
+            return;
+        }
+        imp = decl.find_parent_of_type(Import) if isinstance(decl, Name) else None;
+        if imp is not None and imp.is_comptime {
+            is_ct_import = True;
+        }
+        owner = decl.name_of;
+        if isinstance(owner, Ability) and owner.is_comptime {
+            is_ct_def = True;
+        }
+    }
+    if not is_ct_import and not is_ct_def {
+        return;
+    }
+    if self._in_comptime_context(nd) or self.evaluator.ct_quiet {
+        return;
+    }
+    what = (
+        f"comptime-imported name '{nd.value}' used at runtime"
+            if is_ct_import
+            else f"comptime def '{nd.value}' used at runtime"
+    );
+    self.emit(E0033, node_override=nd, what=what, reason="");
+}
+
 impl TypeCheckPass.exit_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None {
     self.evaluator.get_type_of_expression(nd.condition);
 }
@@ -1500,6 +1680,24 @@ impl TypeCheckPass.exit_assert_stmt(self: TypeCheckPass, nd: AssertStmt) -> None
     if nd.error_msg is not None {
         self.evaluator.get_type_of_expression(nd.error_msg);
     }
+    if not nd.is_comptime {
+        return;
+    }
+    cv = self.evaluator.ct_demand(nd.condition);
+    if self.evaluator.ct_site_error(nd.condition, "comptime assert condition", cv) {
+        return;
+    }
+    if cv is None or cv.is_deferred or bool(cv.v) or self.evaluator.ct_quiet {
+        return;
+    }
+    message = "";
+    if nd.error_msg is not None {
+        mv = self.evaluator.ct_demand(nd.error_msg);
+        if mv is not None and not mv.is_deferred {
+            message = f": {mv.v}";
+        }
+    }
+    self.emit(E0109, node_override=nd, message=message);
 }
 
 impl TypeCheckPass.exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None {

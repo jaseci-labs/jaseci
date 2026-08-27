@@ -144,6 +144,26 @@ def native_safe_sym(src: str) -> str {
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
 }
 
+def module_dotted_name(mod_path: str, mod_name: str = "") -> str {
+    import os;
+    path = mod_path.replace("\\", "/");
+    if not path {
+        return mod_name;
+    }
+    idx = path.rfind("/jaclang/");
+    stem = path[idx + 1:] if idx >= 0 else os.path.basename(path);
+    for ext in (".impl.jac", ".test.jac", ".jac", ".py") {
+        if stem.endswith(ext) {
+            stem = stem[:-len(ext)];
+            break;
+        }
+    }
+    if stem.endswith("/__init__") {
+        stem = stem[:-len("/__init__")];
+    }
+    return stem.replace("/", ".");
+}
+
 def native_module_key(path: str) -> str {
     import os;
     rp = os.path.realpath(path);

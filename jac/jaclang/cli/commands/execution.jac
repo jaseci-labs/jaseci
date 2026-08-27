@@ -1,208 +1,218 @@
 import from pathlib { Path }
-import from jaclang.cli.command { Arg, ArgKind }
-import from jaclang.cli.registry { get_registry }
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
+import from jaclang.comptime { name as ct_name }
 
-glob registry = get_registry();
 
-@registry.command(
-    name="run",
-    help="Run a Jac program or project (executes or serves, per project kind)",
-    tier="core",
-    args=[
-        Arg.create(
-            "filename",
-            kind=ArgKind.POSITIONAL,
-            `default="",
-            help="Path to .jac, .py or .jab file (omit to use the project's jac.toml)"
-        ),
-        Arg.create(
-            "show",
-            typ=bool,
-            `default=False,
-            help="Print the resolved run plan without executing it",
-            short="s"
-        ),
-        Arg.create(
-            "main",
-            typ=bool,
-            `default=True,
-            help="Treat module as __main__",
-            short="m",
-            config_key="run.main"
-        ),
-        Arg.create(
-            "cache",
-            typ=bool,
-            `default=True,
-            help="Enable compilation cache",
-            short="c",
-            config_key="run.cache"
-        ),
-        Arg.create(
-            "profile",
-            `default="",
-            short="",
-            help="Configuration profile to load (e.g. prod, staging)"
-        ),
-        Arg.create(
-            "diagnostics",
-            `default="",
-            help="Diagnostic verbosity: error (default, fail on errors), all (errors+warnings), none (silent)",
-            short="e"
-        ),
-        Arg.create(
-            "entry",
-            dest="entry_name",
-            `default="",
-            short="",
-            help="Invoke a specific function/walker entrypoint"
-        ),
-        Arg.create(
-            "node",
-            dest="nd",
-            `default="",
-            help="Starting node ID for --entry (OSP node binding)",
-            short="n"
-        ),
-        Arg.create(
-            "root",
-            dest="root_id",
-            `default="",
-            help="Root executor ID for --entry",
-            short="r"
-        ),
-        Arg.create(
-            "debug",
-            dest="debug_mode",
-            typ=bool,
-            `default=False,
-            short="",
-            help="Run under the Python debugger"
-        ),
-        Arg.create(
-            "serve",
-            dest="serve_mode",
-            typ=bool,
-            `default=None,
-            short="",
-            help="Serve instead of executing (default: the project kind decides)"
-        ),
-        Arg.create(
-            "port",
-            typ=int,
-            `default=None,
-            help=(
-                "Server port (serving only, default 8000). A port given here "
-                "must be free: it is a contract with whatever sits in front "
-                "of it, so the server fails rather than moving to another port."
-            ),
-            short="p",
-            config_key="serve.port"
-        ),
-        Arg.create(
-            "dev",
-            typ=bool,
-            `default=None,
-            help="Serve with hot reload / HMR (serving only)",
-            short="d"
-        ),
-        Arg.create(
-            "api-port",
-            dest="api_port",
-            typ=int,
-            `default=None,
-            short="",
-            help="Separate backend API port in --dev mode (serving only)"
-        ),
-        Arg.create(
-            "no-client",
-            typ=bool,
-            `default=None,
-            help="Skip client bundling/serving, API only (serving only)",
-            short=""
-        ),
-        Arg.create(
-            "faux",
-            typ=bool,
-            `default=None,
-            help="Print endpoint docs only, no server (serving only)",
-            short="f"
-        ),
-        Arg.create(
-            "client",
-            typ=str,
-            `default=None,
-            help=(
-                "Client build target for the dev server (web, pwa, mobile, desktop). "
-                "Choices reflect installed targets (desktop builds a native webview app)."
-            ),
-            choices=["web", "pwa", "mobile", "desktop"],
-            short=""
-        ),
-        Arg.create(
-            "host",
-            typ=str,
-            `default=None,
-            short="",
-            help=(
-                "Mobile dev (--client mobile --dev): optional host/IP override for "
-                "Capacitor live-reload. When omitted, jac auto-selects a host."
-            )
-        ),
-        Arg.create(
-            "platform",
-            typ=str,
-            `default=None,
-            help=(
-                "Mobile serving: android or ios (auto = use [client.mobile] "
-                "default_platform or android)"
-            ),
-            choices=["auto", "android", "ios"],
-            short=""
-        ),
-        Arg.create(
-            "takeover",
-            typ=bool,
-            `default=None,
-            help=(
-                "Evict any other session holding this project's database "
-                "before serving (use when a previous jac process is stuck)"
-            ),
-            short=""
-        ),
-        Arg.create(
-            "args", kind=ArgKind.REMAINDER, help="Arguments passed to the script"
-        ),
+comptime SPEC_RUN: CommandSpec = CommandSpec(
+         name="run",
+         help="Run a Jac program or project (executes or serves, per project kind)",
+         tier="core",
+         args=[
+             Arg.create(
+                 "filename",
+                 kind=ArgKind.POSITIONAL,
+                 `default="",
+                 help="Path to .jac, .py or .jab file (omit to use the project's jac.toml)"
+             ),
+             Arg.create(
+                 "show",
+                 typ=bool,
+                 `default=False,
+                 help="Print the resolved run plan without executing it",
+                 short="s"
+             ),
+             Arg.create(
+                 "main",
+                 typ=bool,
+                 `default=True,
+                 help="Treat module as __main__",
+                 short="m",
+                 config_key="run.main"
+             ),
+             Arg.create(
+                 "cache",
+                 typ=bool,
+                 `default=True,
+                 help="Enable compilation cache",
+                 short="c",
+                 config_key="run.cache"
+             ),
+             Arg.create(
+                 "profile",
+                 `default="",
+                 short="",
+                 help="Configuration profile to load (e.g. prod, staging)"
+             ),
+             Arg.create(
+                 "diagnostics",
+                 `default="",
+                 help="Diagnostic verbosity: error (default, fail on errors), all (errors+warnings), none (silent)",
+                 short="e"
+             ),
+             Arg.create(
+                 "entry",
+                 dest="entry_name",
+                 `default="",
+                 short="",
+                 help="Invoke a specific function/walker entrypoint"
+             ),
+             Arg.create(
+                 "node",
+                 dest="nd",
+                 `default="",
+                 help="Starting node ID for --entry (OSP node binding)",
+                 short="n"
+             ),
+             Arg.create(
+                 "root",
+                 dest="root_id",
+                 `default="",
+                 help="Root executor ID for --entry",
+                 short="r"
+             ),
+             Arg.create(
+                 "debug",
+                 dest="debug_mode",
+                 typ=bool,
+                 `default=False,
+                 short="",
+                 help="Run under the Python debugger"
+             ),
+             Arg.create(
+                 "serve",
+                 dest="serve_mode",
+                 typ=bool,
+                 `default=None,
+                 short="",
+                 help="Serve instead of executing (default: the project kind decides)"
+             ),
+             Arg.create(
+                 "port",
+                 typ=int,
+                 `default=None,
+                 help=(
+                     "Server port (serving only, default 8000). A port given here "
+                     "must be free: it is a contract with whatever sits in front "
+                     "of it, so the server fails rather than moving to another port."
+                 ),
+                 short="p",
+                 config_key="serve.port"
+             ),
+             Arg.create(
+                 "dev",
+                 typ=bool,
+                 `default=None,
+                 help="Serve with hot reload / HMR (serving only)",
+                 short="d"
+             ),
+             Arg.create(
+                 "api-port",
+                 dest="api_port",
+                 typ=int,
+                 `default=None,
+                 short="",
+                 help="Separate backend API port in --dev mode (serving only)"
+             ),
+             Arg.create(
+                 "no-client",
+                 typ=bool,
+                 `default=None,
+                 help="Skip client bundling/serving, API only (serving only)",
+                 short=""
+             ),
+             Arg.create(
+                 "faux",
+                 typ=bool,
+                 `default=None,
+                 help="Print endpoint docs only, no server (serving only)",
+                 short="f"
+             ),
+             Arg.create(
+                 "client",
+                 typ=str,
+                 `default=None,
+                 help=(
+                     "Client build target for the dev server (web, pwa, mobile, desktop). "
+                     "Choices reflect installed targets (desktop builds a native webview app)."
+                 ),
+                 choices=["web", "pwa", "mobile", "desktop"],
+                 short=""
+             ),
+             Arg.create(
+                 "host",
+                 typ=str,
+                 `default=None,
+                 short="",
+                 help=(
+                     "Mobile dev (--client mobile --dev): optional host/IP override for "
+                     "Capacitor live-reload. When omitted, jac auto-selects a host."
+                 )
+             ),
+             Arg.create(
+                 "platform",
+                 typ=str,
+                 `default=None,
+                 help=(
+                     "Mobile serving: android or ios (auto = use [client.mobile] "
+                     "default_platform or android)"
+                 ),
+                 choices=["auto", "android", "ios"],
+                 short=""
+             ),
+             Arg.create(
+                 "takeover",
+                 typ=bool,
+                 `default=None,
+                 help=(
+                     "Evict any other session holding this project's database "
+                     "before serving (use when a previous jac process is stuck)"
+                 ),
+                 short=""
+             ),
+             Arg.create(
+                 "args", kind=ArgKind.REMAINDER, help="Arguments passed to the script"
+             ),
 
-    ],
-    examples=[
-        ("jac run hello.jac", "Run a simple program"),
-        ("jac run", "Run the current project per its jac.toml kind"),
-        (
-            "jac run app.jab",
-            "Run a sealed app bundle (kind-aware; servable kinds serve on the app's configured port)"
-        ),
-        ("jac run --entry my_walker app.jac arg1", "Invoke a specific entrypoint"),
-        ("jac run --debug app.jac", "Run under the Python debugger"),
-        (
-            "jac run --show",
-            "Print what the project would run/serve/build, without doing it"
-        ),
-        ("jac run --no-cache app.jac", "Run without caching"),
-        ("jac run --profile prod app.jac", "Run with production profile"),
-        ("jac run -e all app.jac", "Run and show all diagnostics (errors+warnings)"),
-        ("jac run script.jac arg1 arg2", "Run with script arguments"),
-        ("jac run --serve app.jac", "Serve a file that no jac.toml marks as servable"),
-        ("jac run --port 3000", "Serve the current project on port 3000"),
-        ("jac run --dev", "Serve the current project with hot module replacement"),
-        ("jac run --dev --no-client", "HMR mode without client bundling"),
-        ("jac run --faux", "Print the project's endpoint docs without serving"),
-        ("jac run --client mobile", "Run the mobile client dev server"),
-        ("jac run --takeover", "Evict a stuck session holding this project's database"),
+         ],
+         examples=[
+             ("jac run hello.jac", "Run a simple program"),
+             ("jac run", "Run the current project per its jac.toml kind"),
+             (
+                 "jac run app.jab",
+                 "Run a sealed app bundle (kind-aware; servable kinds serve on the app's configured port)"
+             ),
+             ("jac run --entry my_walker app.jac arg1", "Invoke a specific entrypoint"),
+             ("jac run --debug app.jac", "Run under the Python debugger"),
+             (
+                 "jac run --show",
+                 "Print what the project would run/serve/build, without doing it"
+             ),
+             ("jac run --no-cache app.jac", "Run without caching"),
+             ("jac run --profile prod app.jac", "Run with production profile"),
+             (
+                 "jac run -e all app.jac",
+                 "Run and show all diagnostics (errors+warnings)"
+             ),
+             ("jac run script.jac arg1 arg2", "Run with script arguments"),
+             (
+                 "jac run --serve app.jac",
+                 "Serve a file that no jac.toml marks as servable"
+             ),
+             ("jac run --port 3000", "Serve the current project on port 3000"),
+             ("jac run --dev", "Serve the current project with hot module replacement"),
+             ("jac run --dev --no-client", "HMR mode without client bundling"),
+             ("jac run --faux", "Print the project's endpoint docs without serving"),
+             ("jac run --client mobile", "Run the mobile client dev server"),
+             (
+                 "jac run --takeover",
+                 "Evict a stuck session holding this project's database"
+             ),
 
-    ],
-    group="execution"
-)
+         ],
+         group="execution",
+         handler_name=ct_name(run)
+     );
+
 def run(
     filename: str = "",
     show: bool = False,
@@ -246,60 +256,64 @@ def run_jab_image(
     img_root: Path, port: (int | None), args: list[str], serve_only: bool, label: str
 ) -> int;
 
-@registry.command(
-    name="x",
-    help="Run an installed CLI tool (console-script) under the Jac runtime",
-    args=[
-        Arg.create(
-            "name",
-            kind=ArgKind.POSITIONAL,
-            `default="",
-            help="Tool/command name to run (omit to list available tools)"
-        ),
-        Arg.create(
-            "global",
-            typ=bool,
-            `default=False,
-            help="Resolve from jac-owned global tools only (global python site + global npm), ignoring the project",
-            short="g",
-            dest="use_global"
-        ),
-        Arg.create(
-            "node",
-            typ=bool,
-            `default=False,
-            help="Resolve from the project's npm tools (node_modules/.bin) only",
-            short="n",
-            dest="use_node"
-        ),
-        Arg.create(
-            "list_tools",
-            typ=bool,
-            `default=False,
-            help="List the CLI tools available to run here",
-            short="l"
-        ),
-        Arg.create("args", kind=ArgKind.REMAINDER, help="Arguments passed to the tool"),
+comptime SPEC_X: CommandSpec = CommandSpec(
+         name="x",
+         help="Run an installed CLI tool (console-script) under the Jac runtime",
+         args=[
+             Arg.create(
+                 "name",
+                 kind=ArgKind.POSITIONAL,
+                 `default="",
+                 help="Tool/command name to run (omit to list available tools)"
+             ),
+             Arg.create(
+                 "global",
+                 typ=bool,
+                 `default=False,
+                 help="Resolve from jac-owned global tools only (global python site + global npm), ignoring the project",
+                 short="g",
+                 dest="use_global"
+             ),
+             Arg.create(
+                 "node",
+                 typ=bool,
+                 `default=False,
+                 help="Resolve from the project's npm tools (node_modules/.bin) only",
+                 short="n",
+                 dest="use_node"
+             ),
+             Arg.create(
+                 "list_tools",
+                 typ=bool,
+                 `default=False,
+                 help="List the CLI tools available to run here",
+                 short="l"
+             ),
+             Arg.create(
+                 "args", kind=ArgKind.REMAINDER, help="Arguments passed to the tool"
+             ),
 
-    ],
-    examples=[
-        (
-            "jac x hf download gpt2",
-            "Run the 'hf' tool (project venv first, else global)"
-        ),
-        ("jac x black .", "Run an installed formatter on the current directory"),
-        ("jac x eslint .", "Run a project npm tool (node_modules/.bin) via bun"),
-        ("jac x --global hf whoami", "Force the global-site copy of a tool"),
-        (
-            "jac x --global eslint .",
-            "Run a globally-installed npm tool (jac install --npm --global eslint)"
-        ),
-        ("jac x --node vite build", "Force the project's npm tool"),
-        ("jac x --list", "List the CLI tools available here"),
+         ],
+         examples=[
+             (
+                 "jac x hf download gpt2",
+                 "Run the 'hf' tool (project venv first, else global)"
+             ),
+             ("jac x black .", "Run an installed formatter on the current directory"),
+             ("jac x eslint .", "Run a project npm tool (node_modules/.bin) via bun"),
+             ("jac x --global hf whoami", "Force the global-site copy of a tool"),
+             (
+                 "jac x --global eslint .",
+                 "Run a globally-installed npm tool (jac install --npm --global eslint)"
+             ),
+             ("jac x --node vite build", "Force the project's npm tool"),
+             ("jac x --list", "List the CLI tools available here"),
 
-    ],
-    group="execution"
-)
+         ],
+         group="execution",
+         handler_name=ct_name(x)
+     );
+
 def x(
     name: str = "",
     use_global: bool = False,

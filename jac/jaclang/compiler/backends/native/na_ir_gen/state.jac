@@ -234,6 +234,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _mono_fns: dict[str, ir.Function] = {},
         _mono_solution: (dict | None) = None,
         _mono_mangle_map: (dict | None) = None,
+        _ct_bindings: dict = {},
         _gen_ctx: (dict | None) = None,
         _gen_try_stack: list = [],
         decorated_fns: dict[str, tuple] = {},

@@ -435,6 +435,7 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
                 is_self=is_self_param,
                 is_cls=is_cls_param,
                 param_kind=_convert_param_kind(param.param_kind),
+                is_comptime=param.is_comptime,
             )
         );
     }
@@ -575,6 +576,7 @@ impl TypeEvaluator.get_type_of_class(node_: Archetype) -> ClassType {
             class_name=node_.name_spec.sym_name,
             symbol_table=node_,
             type_params=type_params,
+            ct_params=self._extract_ct_params(node_),
             base_classes=base_classes,
             is_builtin_class=is_builtin_class,
             is_from_stdlib_stub=is_from_stdlib_stub,

@@ -21,6 +21,7 @@ glob MAGIC = b"JIR\x00",
      SEC_DEBUG_SRC: int = 0x09,
      SEC_PLACEMENT: int = 0x0A,
      SEC_ENVKEY: int = 0x0B,
+     SEC_CTDEPS: int = 0x0C,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
@@ -345,6 +346,51 @@ def read_modkey(data: bytes) -> (str | None) {
 
 def read_envkey(data: bytes) -> (str | None) {
     return _read_key_section(data, SEC_ENVKEY);
+}
+
+def read_ct_deps(data: bytes) -> list[tuple[(str, float)]] {
+    raw = _read_key_section(data, SEC_CTDEPS);
+    out: list[tuple[(str, float)]] = [];
+    if not raw {
+        return out;
+    }
+    for line in raw.split("\n") {
+        if "\t" not in line {
+            continue;
+        }
+        (path, _sep, stamp) = line.partition("\t");
+        try {
+            out.append((path, float(stamp), ));
+        } except ValueError {
+            continue;
+        }
+    }
+    return out;
+}
+
+def ct_deps_section(paths: list[str]) -> bytes {
+    lines: list[str] = [];
+    for path in paths {
+        try {
+            lines.append(f"{path}\t{os.path.getmtime(path)}");
+        } except OSError {
+            lines.append(f"{path}\t0");
+        }
+    }
+    return "\n".join(lines).encode("utf-8");
+}
+
+def ct_deps_fresh(data: bytes) -> bool {
+    for (path, stamp) in read_ct_deps(data) {
+        try {
+            if os.path.getmtime(path) != stamp {
+                return False;
+            }
+        } except OSError {
+            return False;
+        }
+    }
+    return True;
 }
 
 def compute_stub_module_key(source_path: str) -> str {
@@ -702,6 +748,9 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
             return False;
         }
         if not jir_env_matches(data, source_path) {
+            return False;
+        }
+        if not ct_deps_fresh(data) {
             return False;
         }
         cache_mtime = os.path.getmtime(cache_path);
