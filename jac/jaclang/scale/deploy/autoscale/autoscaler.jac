@@ -97,7 +97,9 @@ class Autoscaler {
         return merge_manifest_overlay(`default, spec.behavior_overlay);
     }
 
-    def _build_manifests(self: Autoscaler, spec: AutoscalerSpec) -> dict[str, any] {
+    def _build_manifests(
+        self: Autoscaler, spec: AutoscalerSpec
+    ) -> list[dict[str, any]] {
         raise NotImplementedError(
             "_build_manifests() must be implemented by a concrete Autoscaler subclass"
         );
@@ -109,7 +111,7 @@ class Autoscaler {
         );
     }
 
-    def destroy(self: Autoscaler, autoscaler_name: str, namespace: str) {
+    def destroy(self: Autoscaler, app_name: str, namespace: str) {
         raise NotImplementedError(
             "destroy() must be implemented by a concrete Autoscaler subclass"
         );

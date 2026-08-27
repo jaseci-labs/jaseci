@@ -89,7 +89,7 @@ After `jac create`:
    unless you passed `--skip` / set `JAC_CLIENT_SKIP_NPM_INSTALL`. If you
    skipped, or you edited `jac.toml` deps afterward, run `jac install`.
 3. **Verify the scaffold compiles**: `jac check .` (then `jac run main.jac` for backend projects)
-4. **Run the project**: a bare `jac run` (no filename) dispatches on the project's `kind` in `jac.toml` - execute / serve / build as appropriate (`jac run --show` prints the plan first). For web-app, `jac run --dev` runs the server with hot reload. NOT `jac serve` (deprecated).
+4. **Run the project**: a bare `jac run` (no filename) dispatches on the project's `kind` in `jac.toml` - execute / serve / build as appropriate (`jac run --show` prints the plan first). For web-app, `jac run --dev` runs the server with hot reload. `jac serve` is not a command - it hard-errors.
 5. QA in a headless browser with `jac browse`: `jac browse open localhost:8000`, `jac browse snapshot`, `jac browse click @e5`, `jac browse close`. See `jac-fullstack-patterns` for the full loop.
 
 ## Make your own template

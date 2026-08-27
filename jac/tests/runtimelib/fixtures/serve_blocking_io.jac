@@ -40,10 +40,10 @@ async walker :pub whoami_async {
     has sleep_s: float = 0.1;
 
     async can enter with Root entry {
-        import from jaclang.jac0core.runtime { JacRuntimeInterface as Jac }
-        start_root_id = Jac.get_context().user_root.id.hex;
+        import from jaclang.runtime.runtime { JacRuntimeInterface as Jac }
+        start_root_id = Jac.get_context().user_root.ensure_id().hex;
         await asyncio.sleep(self.sleep_s);
-        end_root_id = Jac.get_context().user_root.id.hex;
+        end_root_id = Jac.get_context().user_root.ensure_id().hex;
         report {
             "start_root_id": start_root_id,
             "end_root_id": end_root_id
@@ -58,10 +58,10 @@ walker :pub whoami_sync {
 
     can enter with Root entry {
         import from time { sleep }
-        import from jaclang.jac0core.runtime { JacRuntimeInterface as Jac }
-        start_root_id = Jac.get_context().user_root.id.hex;
+        import from jaclang.runtime.runtime { JacRuntimeInterface as Jac }
+        start_root_id = Jac.get_context().user_root.ensure_id().hex;
         sleep(self.sleep_s);
-        end_root_id = Jac.get_context().user_root.id.hex;
+        end_root_id = Jac.get_context().user_root.ensure_id().hex;
         report {
             "start_root_id": start_root_id,
             "end_root_id": end_root_id

@@ -95,6 +95,18 @@ Emitted by the parser and lexer during source code parsing.
 | `E0032` | Unexpected '{token}' -- must follow its parent statement (if/try/match/switch) |
 | `E0034` | Expected 'with' after 'can' ability name (use 'def' for function-style declarations) |
 
+### Compile-Time Evaluation
+
+Emitted at `comptime` sites; see [Compile-Time Evaluation](language/comptime.md) and `jac guide jac-comptime`.
+
+| Code | Message |
+|------|---------|
+| `E0033` | {what} is not known at compile time{reason} |
+| `E0108` | Compile-time evaluation failed: {reason} |
+| `E0109` | Compile-time assertion failed{message} |
+
+All three block code generation for the module that reports them.
+
 ### Block / Body Requirements
 
 | Code | Message |
@@ -182,13 +194,18 @@ Emitted by the type checker and type evaluator.
 | `E1010` | Operator "{op}" not supported for type "{type}" |
 | `E1011` | Unsupported operand types for {op}: {left} and {right} |
 | `E1110` | Operator "{op}" not supported between types "{left}" and "{right}" (comparison operators) |
+| `E1124` | Membership test "{op}" over an operand with no static type ("{type}"); native code cannot answer it |
 | `E1126` | Integer literal {value} does not fit in {type} (range {min}..{max}) |
 | `E1127` | Cannot implicitly convert {src} to {dest}; the conversion is not value-preserving |
 | `E1128` | Operands of '{op}' have no common fixed-width type ({left} and {right}) |
 | `E1129` | Unary minus on unsigned type {type} |
+| `E1130` | Float literal {value} overflows {type} (largest finite magnitude {max}) |
 
-!!! tip "Fixing `E1126`-`E1129` (fixed-width numerics)"
-    The ten sized types (`i8`..`u64`, `f32`, `f64`) convert implicitly only along the value-preserving lattice (widening, unsigned into a strictly wider signed type, exactly-representable ints into floats, `f32 -> f64 -> float`). `E1126`: the literal is out of range -- use a wider type or spell the modular result with `T.wrap(x)`. `E1127`: cast at the boundary with the checked `T(x)` (raises `OverflowError` out of range) or widen the destination; extern `i32`/`u64` parameters need the cast from a plain `int`. `E1128`: neither operand widens into the other -- cast one side so the operation's width and sign are explicit. `E1129`: negate in a signed type (`-i64(x)`) or use `wrapping_neg(x)`. See `jac guide jac-types` and [Fixed-width semantics](language/types-and-values.md#fixed-width-semantics).
+!!! tip "Fixing `E1126`-`E1130` (fixed-width numerics)"
+    The ten sized types (`i8`..`u64`, `f32`, `f64`) convert implicitly only along the value-preserving lattice (widening, unsigned into a strictly wider signed type, exactly-representable ints into `f32`, any int-kind into `f64`, `f32 -> f64`). `int` and `float` are in that lattice rather than beside it: `int` is the signed 64-bit machine integer and behaves as `i64`, `float` is binary64 and behaves as `f64`, so `u64 -> int` needs the same cast `u64 -> i64` does. `E1126`: the literal is out of range -- use a wider type or spell the modular result with `T.wrap(x)`. `E1127`: cast at the boundary with the checked `T(x)` (raises `OverflowError` out of range) or widen the destination; extern `i32`/`u64` parameters need the cast from a plain `int`. `E1128`: neither operand widens into the other -- cast one side so the operation's width and sign are explicit. `E1129`: negate in a signed type (`-i64(x)`) or use `wrapping_neg(x)`. `E1130`: the literal is past what the target float can represent and would arrive as `inf` -- widen the type or write a value it can hold; precision loss inside the range is accepted. See `jac guide jac-types` and [Fixed-width semantics](language/types-and-values.md#fixed-width-semantics).
+
+!!! tip "Fixing `E1124` (membership over an untyped operand)"
+    `E1124` fires on natively lowered code when the container operand of an `in` / `not in` comparison has no static type at all -- typed `any`, or left unannotated and never inferred. Every container answers `in` from its own layout, and native code has no dynamic-dispatch tier to fall back on, so the operand must carry a static type by the time the comparison is reached. Annotate the operand with the container it actually holds (`list[Tag]`, `dict[str, int]`, `set[str]`), or bind it to a directly-typed local first, so its layout reaches the comparison. The error blocks codegen.
 
 ### Iterability / Callable
 
@@ -344,8 +361,28 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `W1102` | Imported name '{name}' from foreign-source module '{module}' typed as Any |
 | `E1120` | Import of '{name}' from untyped external module '{module}' (no type declarations found) |
 | `W1103` | '{name}' is ambient and does not need to be imported from '{module}' |
-| `W1104` | Use the lowercase `any` keyword instead of importing `Any` from typing |
 | `W1105` | Local module '{name}' shadows the npm package of the same name |
+
+---
+
+## Import Errors (E11xx)
+
+Emitted by `StaticAnalysisPass` for refused `import from` items. All three block codegen. Only the from-import item form is refused: the module form (`import typing;` then `typing.Any`) stays legal.
+
+| Code | Message |
+|------|---------|
+| `E1122` | 'Any' cannot be imported from 'typing' -- use jac's builtin `any` |
+| `E1123` | '{name}' cannot be imported from 'typing' -- use the builtin `{remedy}` |
+| `E1125` | '{name}' is ambient and cannot be imported from '{module}' |
+
+!!! tip "Fixing `E1122` (importing `Any` from typing)"
+    Jac has its own `any` and will not carry an aliased twin: the two spell the same type, so a second name for it is redundant. Drop `Any` from the import list (remove the import when it was the only name) and write the lowercase keyword instead -- `x: any`, `dict[str, any]`. If you need the runtime `typing.Any` object itself (reflection over annotations, not an annotation), reach it in module form: `import typing;` then `typing.Any`.
+
+!!! tip "Fixing `E1123` (deprecated typing aliases)"
+    Fires for the six deprecated typing aliases of builtins: `Dict` -> `dict`, `FrozenSet` -> `frozenset`, `List` -> `list`, `Set` -> `set`, `Tuple` -> `tuple`, `Type` -> `type`. The alias and the builtin spell the same type, and jac subscripts the builtin directly, so the alias buys nothing and costs an import. The `as`-renamed form (`List as L`) is refused too. Drop the name from the import list and write the builtin instead -- `list[int]`, not `List[int]`.
+
+!!! tip "Fixing `E1125` (importing an ambient name)"
+    Jac provides a curated set of typing constructs in every module's scope, so importing one is a second spelling of the same binding -- and when the source is `typing`, the import alone keeps the module off the native pathway. The ambient set (defined in `compiler/types/typing_ambient.pyi`) is: `Annotated`, `AsyncIterable`, `AsyncIterator`, `Awaitable`, `Callable`, `ClassVar`, `Coroutine`, `Generic`, `Iterable`, `Iterator`, `Literal`, `Mapping`, `MutableMapping`, `MutableSequence`, `Protocol`, `Sequence`, `TypeVar`. Each name is refused both from `typing` and from its real home module (`collections.abc` for the collection ABCs). Drop the name from the import list and keep writing it as before -- generated code re-imports ambient names automatically, so runtime annotation introspection still works. Binding a different local name on purpose stays legal: the `as`-alias form (`Callable as Cb`) is exempt. In the compiler's own bootstrap-compiled modules and the ambient-provider modules the finding downgrades to the advisory `W1103`.
 
 ---
 
@@ -464,7 +501,9 @@ Emitted by `jac check --lint`. Rules can be configured in [`jac.toml`](config/in
 
 Emitted during code generation, formatting, and native compilation.
 
-### Python AST Generation
+### JCIR Generation
+
+Emitted while lowering the unitree into the compact codegen IR container (`JcirGenPass`) that the Python-bytecode backend compiles.
 
 | Code | Message |
 |------|---------|

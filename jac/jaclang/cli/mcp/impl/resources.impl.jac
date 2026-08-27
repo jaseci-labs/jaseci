@@ -79,7 +79,7 @@ impl ResourceProvider._index_grammar -> None {
             "path": str(spec_path)
         };
     }
-    tokens_path = jaclang_dir / "jac0core" / "parser" / "tokens.jac";
+    tokens_path = jaclang_dir / "compiler" / "frontend" / "parser" / "tokens.jac";
     if tokens_path.exists() {
         self._resources["jac://grammar/tokens"] = {
             "uri": "jac://grammar/tokens",

@@ -60,7 +60,7 @@ test "staging writes sanitized root and nested jac.toml before the seal runs" {
 test "placement pins are readable from inside the seal stage (issue 7866)" {
     base = Path(_pinned_app());
     stage_root = _stage_app(base, sanitized_jac_toml(base));
-    import from jaclang.jac0core.placement_pins { config_module_pin }
+    import from jaclang.compiler.placement.placement_pins { config_module_pin }
     staged_page = stage_root / "app" / "ui" / "page.jac";
     assert config_module_pin(str(staged_page)) == "client";
 }
@@ -88,12 +88,12 @@ test "the seal skips pinned and inferred client modules and nested projects" {
     );
     stage_root = _stage_app(base, sanitized_jac_toml(base));
     stage = stage_root / "app";
-    import from jaclang.utils.precompile_bytecode { sealable_sources }
+    import from jaclang.dist.precompile_bytecode { sealable_sources }
     rels = {
         Path(p).relative_to(stage).as_posix() for p in sealable_sources(str(stage))
     };
     assert rels == {"__init__.jac", "svc.jac"} , rels;
-    import from jaclang.utils.precompile_bytecode { placement_facts_map }
+    import from jaclang.dist.precompile_bytecode { placement_facts_map }
     placement = placement_facts_map(str(stage));
     assert placement["svc.jac"] == ["server"];
     assert placement["ui/page.jac"] == ["client"];
@@ -111,7 +111,7 @@ test "any discovery error voids client skips so failures surface per-file" {
     );
     stage_root = _stage_app(base, sanitized_jac_toml(base));
     stage = stage_root / "app";
-    import from jaclang.utils.precompile_bytecode { sealable_sources }
+    import from jaclang.dist.precompile_bytecode { sealable_sources }
     rels = {
         Path(p).relative_to(stage).as_posix() for p in sealable_sources(str(stage))
     };
@@ -131,7 +131,7 @@ test "a project without jac.toml stages the minimal placeholder for the seal" {
 
 
 test "sealing an app tree without jac.toml fails loudly before compiling" {
-    import from jaclang.utils.precompile_bytecode { main as seal_main }
+    import from jaclang.dist.precompile_bytecode { main as seal_main }
     d = tempfile.mkdtemp(prefix="jac-app-");
     app = Path(d, "app");
     app.mkdir();
@@ -194,7 +194,7 @@ test "an unrunnable pod binary fails the seal instead of shipping unsealed" {
 
 test "the seal and vendor subprocesses run without persistent storage (issue 8094)" {
     import from jaclang.scale.injector.bundle { seal_step_env }
-    import from jaclang.runtimelib.session { SCRATCH_ENV }
+    import from jaclang.server.session { SCRATCH_ENV }
     env = seal_step_env();
     assert env.get(SCRATCH_ENV) == "1" , (
         "the seal/vendor children stage the app under a fresh temp path, so a "

@@ -11,7 +11,7 @@ bundler anymore.
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
 import from types { ModuleType }
-import from jaclang.runtimelib.client_bundle {
+import from jaclang.client.client_bundle {
     ClientBundle,
     ClientBundleBuilder,
     ClientBundleError
@@ -52,7 +52,7 @@ test "base builder bundling requires the built-in client framework" {
 
 test "dev vite config registers the port reporter; build config does not" {
     import tempfile;
-    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+    import from jaclang.client.vite_bundler { ViteBundler }
     with tempfile.TemporaryDirectory() as tmp {
         bundler = ViteBundler(Path(tmp));
         `entry = Path(tmp) / "main.js";
@@ -80,7 +80,7 @@ test "dev vite config registers the port reporter; build config does not" {
 
 test "dev vite config registers error reporter; overlay is gated to module-load errors only" {
     import tempfile;
-    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+    import from jaclang.client.vite_bundler { ViteBundler }
     with tempfile.TemporaryDirectory() as tmp {
         bundler = ViteBundler(Path(tmp));
         `entry = Path(tmp) / "main.js";
@@ -97,7 +97,7 @@ test "dev vite config registers error reporter; overlay is gated to module-load 
 
 test "dev index.html loads entry via dynamic import and tags load errors with phase flag" {
     import tempfile;
-    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+    import from jaclang.client.vite_bundler { ViteBundler }
     with tempfile.TemporaryDirectory() as tmp {
         bundler = ViteBundler(Path(tmp));
         bundler._ensure_dev_index_html(Path(tmp));
@@ -117,7 +117,7 @@ test "dev index.html loads entry via dynamic import and tags load errors with ph
 
 test "dev config wires fast refresh and index.html installs the hook before the entry" {
     import tempfile;
-    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+    import from jaclang.client.vite_bundler { ViteBundler }
     with tempfile.TemporaryDirectory() as tmp {
         bundler = ViteBundler(Path(tmp));
         `entry = Path(tmp) / "main.js";
@@ -148,7 +148,7 @@ test "dev config wires fast refresh and index.html installs the hook before the 
 
 test "dev config wires the layered dev-status bridge; build config does not" {
     import tempfile;
-    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+    import from jaclang.client.vite_bundler { ViteBundler }
     with tempfile.TemporaryDirectory() as tmp {
         bundler = ViteBundler(Path(tmp));
         `entry = Path(tmp) / "main.js";
@@ -202,8 +202,8 @@ test "vite builds run under bun with no node on PATH" {
     import subprocess;
     import sys;
     import tempfile;
-    import from jaclang.runtimelib.client { get_bun }
-    import from jaclang.runtimelib.client.vite_bundler { _build_vite_command }
+    import from jaclang.client { get_bun }
+    import from jaclang.client.vite_bundler { _build_vite_command }
 
     if sys.platform == "win32" {
         testskip("shebang dispatch is POSIX-only");
@@ -237,8 +237,8 @@ test "vite builds run under bun with no node on PATH" {
 
 test "vite commands address vite's js entry, not the bunx shim" {
     import tempfile;
-    import from jaclang.runtimelib.client { get_bun }
-    import from jaclang.runtimelib.client.vite_bundler {
+    import from jaclang.client { get_bun }
+    import from jaclang.client.vite_bundler {
         _build_vite_command,
         _build_vite_dev_command
     }
@@ -267,9 +267,9 @@ test "vite commands address vite's js entry, not the bunx shim" {
 
 test "a missing vite install is an error, not a silent bunx fallback" {
     import tempfile;
-    import from jaclang.runtimelib.client { get_bun }
-    import from jaclang.runtimelib.client_bundle { ClientBundleError }
-    import from jaclang.runtimelib.client.vite_bundler { _build_vite_command }
+    import from jaclang.client { get_bun }
+    import from jaclang.client.client_bundle { ClientBundleError }
+    import from jaclang.client.vite_bundler { _build_vite_command }
 
     if get_bun() is None {
         testskip("bun is required but could not be located/installed");
@@ -326,7 +326,7 @@ test "a changed emitted tree invalidates the cached bundle" {
 test "emitted tree digest tracks content not just mtimes" {
     import os;
     import tempfile;
-    import from jaclang.runtimelib.client_bundle { emitted_tree_digest }
+    import from jaclang.client.client_bundle { emitted_tree_digest }
     tmp = tempfile.mkdtemp(prefix="jac_emit_digest_");
     js_path = os.path.join(tmp, "a.js");
     with open(js_path, "w") as f {

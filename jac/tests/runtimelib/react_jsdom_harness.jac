@@ -17,15 +17,15 @@ import shutil;
 import subprocess;
 import from pathlib { Path }
 
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { run_pass }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-import from jaclang.runtimelib.client_surface { with_runtime_globals }
-import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.pass_driver { run_pass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
+import from jaclang.client.client_surface { with_runtime_globals }
+import from jaclang.client.runtime_source { resolve_client_runtime_cl_path }
 
 # Mirrors `_default_client_deps("react")` runtime deps; jsdom is test-only.
 glob REACT_JSDOM_DEPS: dict[str, str] = {
@@ -38,14 +38,10 @@ glob REACT_JSDOM_DEPS: dict[str, str] = {
          "zod": "^4.3.6"
      };
 
-"""Skip unless the client toolchain integration flag is set."""
+"""Skip unless the client toolchain is present (JAC_TEST_STRICT escalates)."""
 def require_client_integration(suite: str) {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            f"{suite} jsdom test does a real bun install; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 """Compile a `.jac` to JS with the React backend; type errors are non-fatal.

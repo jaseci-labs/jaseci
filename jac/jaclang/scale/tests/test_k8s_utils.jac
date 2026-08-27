@@ -1,7 +1,7 @@
 import from types { SimpleNamespace }
 import unittest.mock;
 import from kubernetes.client.exceptions { ApiException }
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 import from jaclang.scale.deploy.target.kubernetes.utils { kubernetes_utils as utils }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     default_cluster_key,

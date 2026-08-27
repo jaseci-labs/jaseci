@@ -15,10 +15,10 @@ column's shape, the index's usability, and the compiler naming it.
 
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }
-import from jaclang.runtimelib.session { runtime_for_base }
-import from jaclang.runtimelib.sqlcompile { compile_query }
-import from jaclang.runtimelib.store { PgStore }
+import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
+import from jaclang.server.session { runtime_for_base }
+import from jaclang.data.sqlcompile { compile_query }
+import from jaclang.data.store { PgStore }
 
 node PMsg {
     has body: str = "",

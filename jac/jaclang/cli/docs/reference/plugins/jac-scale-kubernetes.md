@@ -845,6 +845,7 @@ histogram_buckets = [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0,
 | `{namespace}_http_request_duration_seconds` | Histogram | `method`, `path` | HTTP request latency in seconds |
 | `{namespace}_http_requests_in_progress` | Gauge | -- | Concurrent HTTP requests |
 | `{namespace}_walker_duration_seconds` | Histogram | `walker_name`, `success` | Walker execution duration (only when `walker_metrics=true`) |
+| `{namespace}_read_tier_retries_total` | Counter | `unit` | Requests re-run at SERIALIZABLE after a read-tier unit wrote; one per writing unit per replica per `JAC_DB_RO_WRITER_TTL_S` window (see [Persistence](../persistence.md#connections-and-isolation-tiers-under-jac-serve)) |
 | `{namespace}_ws_connections_active` | Gauge | -- | Active WebSocket connections |
 | `{namespace}_ws_broadcasts_total` | Counter | -- | WebSocket broadcasts sent |
 
@@ -943,14 +944,14 @@ Values using `${ENV_VAR}` syntax are resolved from the local environment at depl
 # jac.toml
 [scale.secrets]
 OPENAI_API_KEY = "${OPENAI_API_KEY}"
-MONGO_PASSWORD = "${MONGO_PASSWORD}"
+JAC_DB_URL = "${JAC_DB_URL}"
 JWT_SECRET = "${JWT_SECRET}"
 ```
 
 ```bash
 # Set local env vars, then deploy
 export OPENAI_API_KEY="sk-..."
-export MONGO_PASSWORD="secret123"
+export JAC_DB_URL="postgresql://jac:secret123@db.example.com:5432/jac"
 export JWT_SECRET="my-jwt-key"
 
 jac scale deploy app.jac

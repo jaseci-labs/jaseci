@@ -7,7 +7,7 @@ These tests verify byLLM-specific MTIR functionality:
 4. Python library fallback mode works when MTIR is unavailable
 
 Note: MTIR extraction from compiled code is tested in:
-  jac/tests/compiler/passes/main/test_mtir_gen_pass.py
+  jac/tests/compiler/passes/test_mtir_gen_pass.py
 """
 
 import io;
@@ -19,7 +19,7 @@ import from pathlib { Path }
 
 import from jaclang { JacRuntime }
 import from jaclang { JacRuntimeInterface as Jac }
-import from jaclang.jac0core.mtp {
+import from jaclang.compiler.driver.mtp {
     ClassInfo,
     EnumInfo,
     FieldInfo,
@@ -29,7 +29,7 @@ import from jaclang.jac0core.mtp {
     mk_dict,
     mk_list,
 }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob jac_import = Jac.jac_import,
      FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures");
@@ -212,7 +212,7 @@ test "method tool in class" {
 # Python Library Fallback Tests
 # =============================================================================
 test "mtruntime without mtir info" {
-    import from jaclang.jac0core.mtp { MTIR }
+    import from jaclang.compiler.driver.mtp { MTIR }
 
     def sample_func(x: int, y: str) -> str {
         return f"{y}: {x}";
@@ -243,7 +243,7 @@ test "python lib mode fixture" {
 # MTIR Caching Tests
 # =============================================================================
 test "jir cache path for source" {
-    import from jaclang.jac0core.jir { get_module_cache_path }
+    import from jaclang.compiler.driver.jir { get_module_cache_path }
 
     cache_path = get_module_cache_path("/path/to/test.jac");
     assert cache_path is not None;
@@ -251,7 +251,7 @@ test "jir cache path for source" {
 }
 
 test "jir cache has sec mtir constant" {
-    import from jaclang.jac0core.jir { SEC_MTIR, SEC_BYTECODE, SECTIONS_MAGIC }
+    import from jaclang.compiler.driver.jir { SEC_MTIR, SEC_BYTECODE, SECTIONS_MAGIC }
 
     assert SEC_MTIR == 0x03;
     assert SEC_BYTECODE == 0x02;
@@ -261,7 +261,7 @@ test "jir cache has sec mtir constant" {
 test "mtir roundtrip via jir cache" {
     import pickle;
     import shutil;
-    import from jaclang.jac0core.jir {
+    import from jaclang.compiler.driver.jir {
         get_module_cache_path,
         write_sections,
         read_sections,
