@@ -362,7 +362,10 @@ impl KEDAAutoscaler.destroy{
             plural="triggerauthentications",
             label_selector=selector
         );
-        for item in existing.get("items", []) {
+        listing: dict[str, list[dict[str, any]]] = existing
+            if isinstance(existing, dict)
+            else {};
+        for item in listing.get("items", []) {
             item_name = item["metadata"]["name"];
             try {
                 api.delete_namespaced_custom_object(
