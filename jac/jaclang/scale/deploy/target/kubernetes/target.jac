@@ -1778,15 +1778,21 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _destroy_shared_volume_pvcs(namespace: str, core_v1: any) {
-        try {
-            core_v1.delete_collection_namespaced_persistent_volume_claim(
-                namespace=namespace,
-                label_selector="managed=jac-scale,jac-scale.role=shared-volume"
-            );
-        } except ApiException as e {
-            if e.status != 404 {
-                raise;
+    def _destroy_shared_volume_pvcs(app_name: str, namespace: str, core_v1: any) {
+        shared: str = "managed=jac-scale,jac-scale.role=shared-volume";
+        selectors: list[str] = [
+            f"{shared},jac-scale.owner={k8s_safe_name(app_name)}",
+            f"{shared},!jac-scale.owner"
+        ];
+        for selector in selectors {
+            try {
+                core_v1.delete_collection_namespaced_persistent_volume_claim(
+                    namespace=namespace, label_selector=selector
+                );
+            } except ApiException as e {
+                if e.status != 404 {
+                    raise;
+                }
             }
         }
     }
@@ -1868,7 +1874,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
     ) {
         self._destroy_app_database(app_name, namespace, apps_v1, core_v1);
         self._destroy_app_pvcs(app_name, namespace, core_v1);
-        self._destroy_shared_volume_pvcs(namespace, core_v1);
+        self._destroy_shared_volume_pvcs(app_name, namespace, core_v1);
         self._destroy_ops_rbac(app_name, namespace);
         delete_k8s_secret(core_v1, namespace, f"{app_name}-secrets");
     }

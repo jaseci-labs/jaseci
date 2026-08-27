@@ -35,6 +35,8 @@ SIBLING="${APP}-analytics"
 COTENANT="${DESTROY_E2E_COTENANT:-billing}"
 SENTINEL="foreign-workload"
 SHARED_VOL="uploads"
+SIBLING_VOL="reports"
+LEGACY_VOL="legacy-cache"
 
 CLUSTER_TYPE="${CLUSTER_TYPE:-kind}"
 case "${CLUSTER_TYPE}" in
@@ -216,15 +218,18 @@ YAML
 # A shared volume is named straight from user config, with no app prefix. It is
 # the resource a startswith(app_name) sweep cannot see.
 seed_shared_volume_pvc() {
-    kubectl apply -n "$1" -f - >/dev/null <<YAML
+    ns="$1"; name="$2"; owner="${3:-}"
+    owner_label=""
+    [ -n "${owner}" ] && owner_label=$'\n    jac-scale.owner: '"${owner}"
+    kubectl apply -n "${ns}" -f - >/dev/null <<YAML
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: ${SHARED_VOL}
+  name: ${name}
   labels:
     app: jac-scale-shared
     managed: jac-scale
-    jac-scale.role: shared-volume
+    jac-scale.role: shared-volume${owner_label}
 spec:
   accessModes: ["ReadWriteOnce"]
   resources: { requests: { storage: 64Mi } }
@@ -244,7 +249,7 @@ OWNER="$(ns_owner "${OWNED_NS}")"
 
 kubectl get statefulset "${APP}-postgres" -n "${OWNED_NS}" >/dev/null 2>&1 \
     || fail "${OWNED_NS}" "postgres was never provisioned, so this run cannot prove reclamation"
-seed_shared_volume_pvc "${OWNED_NS}"
+seed_shared_volume_pvc "${OWNED_NS}" "${SHARED_VOL}" "${APP}"
 PVC_BEFORE=$(kubectl get pvc -n "${OWNED_NS}" --no-headers 2>/dev/null | wc -l | tr -d ' ')
 [ "${PVC_BEFORE}" -ge 1 ] \
     || fail "${OWNED_NS}" "no PVCs bound before destroy, so this run cannot prove reclamation"
@@ -283,7 +288,6 @@ ADOPTED_OWNER="$(ns_owner "${ADOPTED_NS}")"
 echo "  adopted namespace left unclaimed"
 
 # D: a shared volume, named from config with no app prefix.
-seed_shared_volume_pvc "${ADOPTED_NS}"
 # E: a sibling app's PVC, which shares this app's name prefix.
 kubectl apply -n "${ADOPTED_NS}" -f - >/dev/null <<YAML
 apiVersion: v1
@@ -295,9 +299,12 @@ spec:
   accessModes: ["ReadWriteOnce"]
   resources: { requests: { storage: 64Mi } }
 YAML
+seed_shared_volume_pvc "${ADOPTED_NS}" "${SHARED_VOL}" "${APP}"
+seed_shared_volume_pvc "${ADOPTED_NS}" "${SIBLING_VOL}" "${SIBLING}"
+seed_shared_volume_pvc "${ADOPTED_NS}" "${LEGACY_VOL}"
 seed_ops_rbac "${ADOPTED_NS}" "${APP}"
 seed_ops_rbac "${ADOPTED_NS}" "${SIBLING}"
-echo "  seeded shared volume '${SHARED_VOL}', sibling PVC and ops RBAC for both apps"
+echo "  seeded shared volumes (ours, the sibling's, one unlabelled), sibling PVC and ops RBAC"
 
 _t "B deployed"
 destroy_app "${APP}" "${ADOPTED_NS}"
@@ -311,9 +318,12 @@ require_absent "${ADOPTED_NS}" statefulset "${APP}-postgres"
 require_absent "${ADOPTED_NS}" deployment "${APP}-deployment"
 require_absent "${ADOPTED_NS}" pvc "${APP}-bundles"
 
-# D: the shared volume must be gone. A startswith(app_name) sweep never sees it.
-require_absent "${ADOPTED_NS}" pvc "${SHARED_VOL}"
-echo "  shared-volume PVC '${SHARED_VOL}' reclaimed"
+# D: our shared volume goes, a co-tenant's stays, and one predating the owner
+# label is still swept so it cannot leak forever with no way to attribute it.
+require_absent  "${ADOPTED_NS}" pvc "${SHARED_VOL}"
+require_present "${ADOPTED_NS}" pvc "${SIBLING_VOL}"
+require_absent  "${ADOPTED_NS}" pvc "${LEGACY_VOL}"
+echo "  shared volumes: '${SHARED_VOL}' reclaimed, '${SIBLING_VOL}' left to '${SIBLING}', '${LEGACY_VOL}' swept"
 
 # E: the sibling's PVC must survive. A prefix sweep would have deleted it.
 require_present "${ADOPTED_NS}" pvc "${SIBLING}-postgres-data-${SIBLING}-postgres-0"
