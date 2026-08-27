@@ -1,3 +1,4 @@
+import from dataclasses { field }
 import from jaclang.compiler.frontend.unitree {
     Ability,
     Archetype,
@@ -21,18 +22,18 @@ import from jaclang.compiler.frontend.unitree {
 import from jaclang.compiler.frontend.constant { SymbolType, Tokens as Tok }
 import from jaclang.compiler.passes.uni_pass { UniPass }
 
-class EndpointEffectPass(UniPass) {
+walker EndpointEffectPass(UniPass) {
     has _is_writer: bool = False,
-        _touches: set[str] = set(),
-        _visited: set[int] = set();
+        _touches: set[str] = field(default_factory=`set),
+        _visited: set[int] = field(default_factory=set);
 
-    def before_pass(self: EndpointEffectPass) {
+    def before_pass() {
         self._is_writer = False;
         self._touches.clear();
         self._visited.clear();
     }
 
-    def enter_ability(self: EndpointEffectPass, nd: Ability) {
+    def enter_ability(nd: Ability) {
         if (
             not nd.is_method
             and not nd.in_client_context()
@@ -46,7 +47,7 @@ class EndpointEffectPass(UniPass) {
         }
     }
 
-    def enter_archetype(self: EndpointEffectPass, nd: Archetype) -> None {
+    def enter_archetype(nd: Archetype) -> None {
         if nd.arch_kind != "walker" {
             return;
         }
@@ -58,7 +59,7 @@ class EndpointEffectPass(UniPass) {
         ] = self._classify(self._resolved_body(nd));
     }
 
-    def _classify(self: EndpointEffectPass, body_nodes: list) -> dict {
+    def _classify(body_nodes: list) -> dict {
         self._is_writer = False;
         self._touches.clear();
         self._visited.clear();
@@ -69,7 +70,7 @@ class EndpointEffectPass(UniPass) {
         return {"is_writer": self._is_writer, "touches": touches_list};
     }
 
-    def _scan(self: EndpointEffectPass, nd: (UniNode | None)) -> None {
+    def _scan(nd: (UniNode | None)) -> None {
         if nd is None {
             return;
         }
@@ -145,8 +146,7 @@ class EndpointEffectPass(UniPass) {
         }
     }
 
-    def _call_target_symbol(
-        self: EndpointEffectPass, call: FuncCall
+    def _call_target_symbol(call: FuncCall
     ) -> (Symbol | None) {
         if isinstance(call.target, Name) {
             sym = call.target.sym;
@@ -168,7 +168,7 @@ class EndpointEffectPass(UniPass) {
         return None;
     }
 
-    def _callee_body(self: EndpointEffectPass, call: FuncCall) -> list {
+    def _callee_body(call: FuncCall) -> list {
         sym = self._call_target_symbol(call);
         if not sym or not sym.defn {
             return [];
@@ -186,7 +186,7 @@ class EndpointEffectPass(UniPass) {
         return [];
     }
 
-    def _resolved_body(self: EndpointEffectPass, owner: UniNode) -> list {
+    def _resolved_body(owner: UniNode) -> list {
         if isinstance(owner, Archetype) {
             return owner._get_impl_resolved_body();
         }

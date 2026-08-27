@@ -10,7 +10,7 @@ declares none.
 import from jaclang.compiler.frontend.unitree { Module, Name }
 import from jaclang.compiler.passes.uni_pass { UniPass }
 
-obj LocalCountPass(UniPass) {
+walker LocalCountPass(UniPass) {
     has seen: int = 0;
 
     def enter_name(nd: Name) {

@@ -47,21 +47,33 @@ impl UniPass.traverse(nd: UniNode) -> UniNode {
     if self.is_canceled() or nd.ct_pruned {
         return nd;
     }
-    self.cur_node = nd;
-    self.enter_node(nd);
-    if not self.prune_signal {
-        for i in nd.kid {
-            if i {
-                self.traverse(i);
+    nd spawn self;
+    return nd;
+}
+
+impl UniPass.enter_walk with UniNode entry {
+    if self.is_canceled() or here.ct_pruned {
+        return;
+    }
+    self.cur_node = here;
+    self.enter_node(here);
+    if self.prune_signal {
+        self.prune_signal = False;
+    } else {
+        for k in here.kid {
+            if k and not k.ct_pruned and not self.is_canceled() {
+                k spawn self;
             }
         }
-    } else {
-        self.prune_signal = False;
     }
-    self.cur_node = nd;
-    if self.is_canceled() {
-        return nd;
+}
+
+impl UniPass.exit_walk with UniNode exit {
+    if here.ct_pruned {
+        return;
     }
-    self.exit_node(nd);
-    return nd;
+    self.cur_node = here;
+    if not self.is_canceled() {
+        self.exit_node(here);
+    }
 }

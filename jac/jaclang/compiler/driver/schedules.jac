@@ -102,6 +102,9 @@ def get_ir_gen_sched(
     }
     _tok = _ir_sched_loading.set(True);
     try {
+        import jaclang.compiler.types.type_evaluator;
+        import jaclang.compiler.backends.es.framework_backend;
+        import jaclang.compiler.passes.pyast_load_pass;
         import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
         import from jaclang.compiler.passes.sem_def_match_pass { SemDefMatchPass }
         import from jaclang.compiler.passes.jsx_intrinsic_guard_pass {

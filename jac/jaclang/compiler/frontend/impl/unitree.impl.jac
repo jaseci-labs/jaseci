@@ -556,6 +556,8 @@ impl UniScopeNode._init_scope(
 ) -> None {
     self.scope_name = name;
     self.implicit_rebinds: dict[(str, Symbol)] = {};
+    self._names_index: dict[(str, Symbol)] = {};
+    self._overload_index: dict[(str, list[Symbol])] = {};
     if parent_scope is not None {
         self.parent_scope = parent_scope;
     }
@@ -580,20 +582,11 @@ impl UniScopeNode.kid_scope.getter -> list[UniScopeNode] {
 }
 
 impl UniScopeNode.names_in_scope.getter -> dict[(str, Symbol)] {
-    out: dict[(str, Symbol)] = {};
-    for e in [edge self ->:ScopePrimary:->] {
-        sym = getattr(e, "__jac__").target.archetype;
-        out[e.alias or sym.name] = sym;
-    }
-    return out;
+    return getattr(self, "_names_index", None) or {};
 }
 
 impl UniScopeNode.names_in_scope_overload.getter -> dict[(str, list[Symbol])] {
-    out: dict[(str, list[Symbol])] = {};
-    for sym in [self ->:ScopeOverload:->] {
-        out.setdefault(sym.name, []).append(sym);
-    }
-    return out;
+    return getattr(self, "_overload_index", None) or {};
 }
 
 impl UniScopeNode.lookup(
@@ -667,6 +660,7 @@ impl UniScopeNode.insert(
     current = self.names_in_scope;
     if (nd.sym_name in current) {
         self +>:ScopeOverload:+> symbol;
+        self._overload_index.setdefault(nd.sym_name, []).append(symbol);
     }
     if (force_overwrite or (nd.sym_name not in current)) {
         for e in [edge self ->:ScopePrimary:->] {
@@ -675,6 +669,7 @@ impl UniScopeNode.insert(
             }
         }
         self +>:ScopePrimary:+> symbol;
+        self._names_index[nd.sym_name] = symbol;
         winner = symbol;
     } else {
         winner = current[nd.sym_name];
@@ -733,6 +728,7 @@ impl UniScopeNode.set_primary_names(syms: dict[(str, Symbol)]) -> None {
     for (key, sym) in syms.items() {
         self +>:ScopePrimary(alias=(key if key != sym.name else "")):+> sym;
     }
+    self._names_index = dict(syms);
 }
 
 impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
@@ -743,6 +739,7 @@ impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
         }
     }
     self +>:ScopePrimary(alias=(key if key != sym.name else "")):+> sym;
+    self._names_index[key] = sym;
 }
 
 impl UniScopeNode.link_kid_scope(key_node: UniScopeNode) -> UniScopeNode {

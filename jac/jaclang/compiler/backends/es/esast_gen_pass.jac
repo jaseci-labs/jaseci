@@ -224,7 +224,7 @@ obj CallArgSlot {
         value: (es.Expression | es.SpreadElement | None);
 }
 
-obj EsastGenPass(BaseAstGenPass[es.Statement]) {
+walker EsastGenPass(BaseAstGenPass[es.Statement]) {
     has prog: JacProgram,
         _ct_only_names: (set[str] | None) = None,
         child_passes: list[EsastGenPass] = [],

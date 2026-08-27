@@ -167,9 +167,12 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
         scope.wlk.reports = scope.reports;
     }
 
-    import from jaclang.runtime.runtime { JacRuntimeInterface }
+    import from jaclang.runtime.runtime { JacRuntime, _request_context }
     try {
-        ctx = JacRuntimeInterface.get_context();
+        ctx = _request_context.get() or JacRuntime.exec_ctx;
+        if ctx is None {
+            return;
+        }
         cs = ctx.call_state.get(None);
         if cs is not None {
             for r in scope.reports {

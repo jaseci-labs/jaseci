@@ -53,7 +53,7 @@ import from jaclang.compiler.frontend.unitree {
 }
 import from jaclang.compiler.passes.uni_pass { UniPass }
 
-obj CFGBuildPass(UniPass) {
+walker CFGBuildPass(UniPass) {
     static has PROVIDES: tuple = ('cfg', );
 
     def before_pass -> None;
@@ -137,7 +137,7 @@ obj CFGBuildPass(UniPass) {
     def exit_test(nd: Test) -> None;
 }
 
-obj CoalesceBBPass(UniPass) {
+walker CoalesceBBPass(UniPass) {
     has basic_blocks: dict[int, dict[str, list[UniCFGNode]]] = {},
         bb_counter: int = 0;
 

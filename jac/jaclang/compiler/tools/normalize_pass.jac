@@ -3,7 +3,7 @@ import from jaclang.compiler.passes { UniPass }
 import from jaclang.compiler.frontend.constant { CodeContext, EdgeDir }
 import from jaclang.compiler.frontend.unitree { Tok, EmptyToken, Token }
 
-obj NormalizePass(UniPass) {
+walker NormalizePass(UniPass) {
     def enter_sub_tag(nd: uni.SubTag) -> None;
     def enter_module(nd: uni.Module) -> None;
     def enter_type_param(nd: uni.TypeParam) -> None;

@@ -90,7 +90,7 @@ impl NaIRGenCore.postinit -> None {
     super.postinit();
 }
 
-impl NaIRGenCore.transform(ir_in: uni.Module) -> uni.Module {
+impl NaIRGenCore._run_impl(ir_in: uni.Module) -> uni.Module {
     import from jaclang.compiler.passes.capability_check_pass {
         native_capability_violations,
         partition_native_capability_violations
@@ -1663,4 +1663,16 @@ impl NaIRGenCore._ct_ctor_slots(target: uni.UniNode) -> list[tuple] {
         }
     }
     return out;
+}
+
+impl NaIRGenCore.transform(ir_in: uni.Module) -> uni.Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, uni.Module);
+    return out;
+}
+
+impl NaIRGenCore.run_walk with uni.Module entry {
+    self.ir_out = self._run_impl(here);
 }

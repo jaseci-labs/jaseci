@@ -83,7 +83,7 @@ obj BorrowMeta {
         field: str = "";
 }
 
-obj OwnershipCheckPass(Transform) {
+walker OwnershipCheckPass(Transform) {
     has prog: JacProgram,
         ir_in: Module,
         cancel_token: any = None,
@@ -114,6 +114,8 @@ obj OwnershipCheckPass(Transform) {
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
+    def _run_impl(ir_in: Module) -> Module;
+    can run_walk with Module entry;
     def _nogc_setup -> None;
     def _nogc_resolve_provenance -> (str | None);
     def _nogc_infer_locals -> None;

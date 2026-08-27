@@ -1,3 +1,4 @@
+import from dataclasses { field }
 import from jaclang.compiler.frontend.unitree {
     Ability,
     ArchHas,
@@ -99,89 +100,88 @@ glob TEST_ASSERT_METHOD_NAMES = (
          'assertWarnsRegex'
      );
 
-class SymTabBuildPass(UniPass) {
-    has cur_sym_tab: list[UniScopeNode];
+walker SymTabBuildPass(UniPass) {
+    has cur_sym_tab: list[UniScopeNode] = field(default_factory=`list);
 
-    def before_pass(self: SymTabBuildPass) -> None;
-    def push_scope_and_link(self: SymTabBuildPass, key_node: UniScopeNode) -> None;
-    def pop_scope(self: SymTabBuildPass) -> UniScopeNode;
+    def before_pass() -> None;
+    def push_scope_and_link(key_node: UniScopeNode) -> None;
+    def pop_scope() -> UniScopeNode;
 
     has cur_scope: UniScopeNode { getter; }
 
-    def _bind_import_path_symbols(
-        self: SymTabBuildPass, module_path: ModulePath
+    def _bind_import_path_symbols(module_path: ModulePath
     ) -> None;
 
-    def enter_module(self: SymTabBuildPass, nd: Module) -> None;
-    def exit_module(self: SymTabBuildPass, nd: Module) -> None;
-    def enter_type_alias(self: SymTabBuildPass, nd: TypeAlias) -> None;
-    def exit_type_alias(self: SymTabBuildPass, nd: TypeAlias) -> None;
-    def enter_type_param(self: SymTabBuildPass, nd: TypeParam) -> None;
-    def exit_global_vars(self: SymTabBuildPass, nd: GlobalVars) -> None;
-    def exit_assignment(self: SymTabBuildPass, nd: Assignment) -> None;
-    def exit_binary_expr(self: SymTabBuildPass, nd: BinaryExpr) -> None;
-    def enter_test(self: SymTabBuildPass, nd: Test) -> None;
-    def exit_test(self: SymTabBuildPass, nd: Test) -> None;
-    def _exit_import_absorb(self: SymTabBuildPass, nd: Import) -> None;
-    def exit_import(self: SymTabBuildPass, nd: Import) -> None;
-    def import_binding_scope(self: SymTabBuildPass, nd: AstSymbolNode) -> UniScopeNode;
-    def exit_module_path(self: SymTabBuildPass, nd: ModulePath) -> None;
-    def exit_module_item(self: SymTabBuildPass, nd: ModuleItem) -> None;
-    def enter_archetype(self: SymTabBuildPass, nd: Archetype) -> None;
-    def exit_archetype(self: SymTabBuildPass, nd: Archetype) -> None;
-    def enter_ability(self: SymTabBuildPass, nd: Ability) -> None;
-    def exit_ability(self: SymTabBuildPass, nd: Ability) -> None;
-    def enter_impl_def(self: SymTabBuildPass, nd: ImplDef) -> None;
-    def exit_impl_def(self: SymTabBuildPass, nd: ImplDef) -> None;
-    def enter_sem_def(self: SymTabBuildPass, nd: SemDef) -> None;
-    def exit_sem_def(self: SymTabBuildPass, nd: SemDef) -> None;
-    def enter_enum(self: SymTabBuildPass, nd: Enum) -> None;
-    def enter_has_var(self: SymTabBuildPass, nd: HasVar) -> None;
-    def enter_param_var(self: SymTabBuildPass, nd: ParamVar) -> None;
-    def exit_atom_trailer(self: SymTabBuildPass, nd: AtomTrailer) -> None;
-    def _is_self_member_assignment(self: SymTabBuildPass, nd: AtomTrailer) -> bool;
-    def exit_enum(self: SymTabBuildPass, nd: Enum) -> None;
-    def enter_typed_ctx_block(self: SymTabBuildPass, nd: TypedCtxBlock) -> None;
-    def exit_typed_ctx_block(self: SymTabBuildPass, nd: TypedCtxBlock) -> None;
-    def enter_open_stmt(self: SymTabBuildPass, nd: OpenStmt) -> None;
-    def exit_open_stmt(self: SymTabBuildPass, nd: OpenStmt) -> None;
-    def enter_if_stmt(self: SymTabBuildPass, nd: IfStmt) -> None;
-    def exit_if_stmt(self: SymTabBuildPass, nd: IfStmt) -> None;
-    def enter_else_if(self: SymTabBuildPass, nd: ElseIf) -> None;
-    def exit_else_if(self: SymTabBuildPass, nd: ElseIf) -> None;
-    def enter_else_stmt(self: SymTabBuildPass, nd: ElseStmt) -> None;
-    def exit_else_stmt(self: SymTabBuildPass, nd: ElseStmt) -> None;
-    def enter_try_stmt(self: SymTabBuildPass, nd: TryStmt) -> None;
-    def exit_try_stmt(self: SymTabBuildPass, nd: TryStmt) -> None;
-    def enter_except(self: SymTabBuildPass, nd: Except) -> None;
-    def exit_except(self: SymTabBuildPass, nd: Except) -> None;
-    def enter_finally_stmt(self: SymTabBuildPass, nd: FinallyStmt) -> None;
-    def exit_finally_stmt(self: SymTabBuildPass, nd: FinallyStmt) -> None;
-    def enter_iter_for_stmt(self: SymTabBuildPass, nd: IterForStmt) -> None;
-    def exit_iter_for_stmt(self: SymTabBuildPass, nd: IterForStmt) -> None;
-    def enter_in_for_stmt(self: SymTabBuildPass, nd: InForStmt) -> None;
-    def exit_in_for_stmt(self: SymTabBuildPass, nd: InForStmt) -> None;
-    def enter_while_stmt(self: SymTabBuildPass, nd: WhileStmt) -> None;
-    def exit_while_stmt(self: SymTabBuildPass, nd: WhileStmt) -> None;
-    def enter_forever_stmt(self: SymTabBuildPass, nd: ForeverStmt) -> None;
-    def exit_forever_stmt(self: SymTabBuildPass, nd: ForeverStmt) -> None;
-    def enter_with_stmt(self: SymTabBuildPass, nd: WithStmt) -> None;
-    def exit_with_stmt(self: SymTabBuildPass, nd: WithStmt) -> None;
-    def exit_expr_as_item(self: SymTabBuildPass, nd: ExprAsItem) -> None;
-    def enter_lambda_expr(self: SymTabBuildPass, nd: LambdaExpr) -> None;
-    def exit_lambda_expr(self: SymTabBuildPass, nd: LambdaExpr) -> None;
-    def enter_list_compr(self: SymTabBuildPass, nd: ListCompr) -> None;
-    def exit_list_compr(self: SymTabBuildPass, nd: ListCompr) -> None;
-    def enter_set_compr(self: SymTabBuildPass, nd: SetCompr) -> None;
-    def exit_set_compr(self: SymTabBuildPass, nd: SetCompr) -> None;
-    def enter_gen_compr(self: SymTabBuildPass, nd: GenCompr) -> None;
-    def exit_gen_compr(self: SymTabBuildPass, nd: GenCompr) -> None;
-    def enter_dict_compr(self: SymTabBuildPass, nd: DictCompr) -> None;
-    def exit_dict_compr(self: SymTabBuildPass, nd: DictCompr) -> None;
-    def enter_inner_compr(self: SymTabBuildPass, nd: InnerCompr) -> None;
-    def exit_inner_compr(self: SymTabBuildPass, nd: InnerCompr) -> None;
-    def enter_match_case(self: SymTabBuildPass, nd: MatchCase) -> None;
-    def exit_match_case(self: SymTabBuildPass, nd: MatchCase) -> None;
-    def enter_switch_case(self: SymTabBuildPass, nd: SwitchCase) -> None;
-    def exit_switch_case(self: SymTabBuildPass, nd: SwitchCase) -> None;
+    def enter_module(nd: Module) -> None;
+    def exit_module(nd: Module) -> None;
+    def enter_type_alias(nd: TypeAlias) -> None;
+    def exit_type_alias(nd: TypeAlias) -> None;
+    def enter_type_param(nd: TypeParam) -> None;
+    def exit_global_vars(nd: GlobalVars) -> None;
+    def exit_assignment(nd: Assignment) -> None;
+    def exit_binary_expr(nd: BinaryExpr) -> None;
+    def enter_test(nd: Test) -> None;
+    def exit_test(nd: Test) -> None;
+    def _exit_import_absorb(nd: Import) -> None;
+    def exit_import(nd: Import) -> None;
+    def import_binding_scope(nd: AstSymbolNode) -> UniScopeNode;
+    def exit_module_path(nd: ModulePath) -> None;
+    def exit_module_item(nd: ModuleItem) -> None;
+    def enter_archetype(nd: Archetype) -> None;
+    def exit_archetype(nd: Archetype) -> None;
+    def enter_ability(nd: Ability) -> None;
+    def exit_ability(nd: Ability) -> None;
+    def enter_impl_def(nd: ImplDef) -> None;
+    def exit_impl_def(nd: ImplDef) -> None;
+    def enter_sem_def(nd: SemDef) -> None;
+    def exit_sem_def(nd: SemDef) -> None;
+    def enter_enum(nd: Enum) -> None;
+    def enter_has_var(nd: HasVar) -> None;
+    def enter_param_var(nd: ParamVar) -> None;
+    def exit_atom_trailer(nd: AtomTrailer) -> None;
+    def _is_self_member_assignment(nd: AtomTrailer) -> bool;
+    def exit_enum(nd: Enum) -> None;
+    def enter_typed_ctx_block(nd: TypedCtxBlock) -> None;
+    def exit_typed_ctx_block(nd: TypedCtxBlock) -> None;
+    def enter_open_stmt(nd: OpenStmt) -> None;
+    def exit_open_stmt(nd: OpenStmt) -> None;
+    def enter_if_stmt(nd: IfStmt) -> None;
+    def exit_if_stmt(nd: IfStmt) -> None;
+    def enter_else_if(nd: ElseIf) -> None;
+    def exit_else_if(nd: ElseIf) -> None;
+    def enter_else_stmt(nd: ElseStmt) -> None;
+    def exit_else_stmt(nd: ElseStmt) -> None;
+    def enter_try_stmt(nd: TryStmt) -> None;
+    def exit_try_stmt(nd: TryStmt) -> None;
+    def enter_except(nd: Except) -> None;
+    def exit_except(nd: Except) -> None;
+    def enter_finally_stmt(nd: FinallyStmt) -> None;
+    def exit_finally_stmt(nd: FinallyStmt) -> None;
+    def enter_iter_for_stmt(nd: IterForStmt) -> None;
+    def exit_iter_for_stmt(nd: IterForStmt) -> None;
+    def enter_in_for_stmt(nd: InForStmt) -> None;
+    def exit_in_for_stmt(nd: InForStmt) -> None;
+    def enter_while_stmt(nd: WhileStmt) -> None;
+    def exit_while_stmt(nd: WhileStmt) -> None;
+    def enter_forever_stmt(nd: ForeverStmt) -> None;
+    def exit_forever_stmt(nd: ForeverStmt) -> None;
+    def enter_with_stmt(nd: WithStmt) -> None;
+    def exit_with_stmt(nd: WithStmt) -> None;
+    def exit_expr_as_item(nd: ExprAsItem) -> None;
+    def enter_lambda_expr(nd: LambdaExpr) -> None;
+    def exit_lambda_expr(nd: LambdaExpr) -> None;
+    def enter_list_compr(nd: ListCompr) -> None;
+    def exit_list_compr(nd: ListCompr) -> None;
+    def enter_set_compr(nd: SetCompr) -> None;
+    def exit_set_compr(nd: SetCompr) -> None;
+    def enter_gen_compr(nd: GenCompr) -> None;
+    def exit_gen_compr(nd: GenCompr) -> None;
+    def enter_dict_compr(nd: DictCompr) -> None;
+    def exit_dict_compr(nd: DictCompr) -> None;
+    def enter_inner_compr(nd: InnerCompr) -> None;
+    def exit_inner_compr(nd: InnerCompr) -> None;
+    def enter_match_case(nd: MatchCase) -> None;
+    def exit_match_case(nd: MatchCase) -> None;
+    def enter_switch_case(nd: SwitchCase) -> None;
+    def exit_switch_case(nd: SwitchCase) -> None;
 }

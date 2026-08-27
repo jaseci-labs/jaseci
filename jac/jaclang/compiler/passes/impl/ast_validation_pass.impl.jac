@@ -1,13 +1,11 @@
-impl ASTValidationPass.enter_match_stmt(
-    self: ASTValidationPass, nd: MatchStmt
+impl ASTValidationPass.enter_match_stmt(nd: MatchStmt
 ) -> None {
     if len(nd.cases) == 0 {
         self.emit(E0041, node_override=nd);
     }
 }
 
-impl ASTValidationPass.enter_module_code(
-    self: ASTValidationPass, nd: ModuleCode
+impl ASTValidationPass.enter_module_code(nd: ModuleCode
 ) -> None {
     if isinstance(nd.parent, Module) or nd.parent is None {
         for k in nd.kid {
@@ -19,8 +17,7 @@ impl ASTValidationPass.enter_module_code(
     }
 }
 
-impl ASTValidationPass.enter_binary_expr(
-    self: ASTValidationPass, nd: BinaryExpr
+impl ASTValidationPass.enter_binary_expr(nd: BinaryExpr
 ) -> None {
     if nd.op is not None and isinstance(nd.op, Token) and nd.op.name == Tok.WALRUS_EQ {
         if not isinstance(nd.left, Name) and not isinstance(nd.left, SpecialVarRef) {
@@ -31,13 +28,13 @@ impl ASTValidationPass.enter_binary_expr(
     }
 }
 
-impl ASTValidationPass.enter_name(self: ASTValidationPass, nd: Name) -> None {
+impl ASTValidationPass.enter_name(nd: Name) -> None {
     if nd.value == "pass" {
         self.emit(E0010, node_override=nd, keyword="pass");
     }
 }
 
-impl ASTValidationPass.enter_param_var(self: ASTValidationPass, nd: ParamVar) -> None {
+impl ASTValidationPass.enter_param_var(nd: ParamVar) -> None {
     ctx_owner = nd.find_parent_of_type(ContextAwareNode);
     if isinstance(nd.name, Name)
         and keyword.iskeyword(nd.name.value)
@@ -56,8 +53,7 @@ impl ASTValidationPass.enter_param_var(self: ASTValidationPass, nd: ParamVar) ->
     }
 }
 
-impl ASTValidationPass.enter_func_signature(
-    self: ASTValidationPass, nd: FuncSignature
+impl ASTValidationPass.enter_func_signature(nd: FuncSignature
 ) -> None {
     has_slash = False;
     has_star = False;
@@ -99,8 +95,7 @@ impl ASTValidationPass.enter_func_signature(
     }
 }
 
-impl ASTValidationPass.enter_iter_for_stmt(
-    self: ASTValidationPass, nd: IterForStmt
+impl ASTValidationPass.enter_iter_for_stmt(nd: IterForStmt
 ) -> None {
     if nd.count_by is not None
         and isinstance(nd.count_by, Assignment)
@@ -109,22 +104,20 @@ impl ASTValidationPass.enter_iter_for_stmt(
     }
 }
 
-impl ASTValidationPass.enter_enum(self: ASTValidationPass, nd: Enum) -> None {
+impl ASTValidationPass.enter_enum(nd: Enum) -> None {
     if isinstance(nd.body, list) and len(nd.body) == 0 {
         self.emit(E0043, node_override=nd);
     }
 }
 
-impl ASTValidationPass.enter_switch_stmt(
-    self: ASTValidationPass, nd: SwitchStmt
+impl ASTValidationPass.enter_switch_stmt(nd: SwitchStmt
 ) -> None {
     if len(nd.cases) == 0 {
         self.emit(E0042, node_override=nd);
     }
 }
 
-impl ASTValidationPass._reject_non_bindable(
-    self: ASTValidationPass, target: object
+impl ASTValidationPass._reject_non_bindable(target: object
 ) -> None {
     non_bindable = {Tok.KW_ROOT, Tok.KW_SUPER};
     if isinstance(target, (TupleVal, ListVal)) {
@@ -141,8 +134,7 @@ impl ASTValidationPass._reject_non_bindable(
     }
 }
 
-impl ASTValidationPass.enter_assignment(
-    self: ASTValidationPass, nd: Assignment
+impl ASTValidationPass.enter_assignment(nd: Assignment
 ) -> None {
     for target in nd.target {
         self._reject_non_bindable(target);
@@ -150,14 +142,12 @@ impl ASTValidationPass.enter_assignment(
     self._check_render_phase_state_write(nd);
 }
 
-impl ASTValidationPass.enter_in_for_stmt(
-    self: ASTValidationPass, nd: InForStmt
+impl ASTValidationPass.enter_in_for_stmt(nd: InForStmt
 ) -> None {
     self._reject_non_bindable(nd.target);
 }
 
-impl ASTValidationPass._check_render_phase_state_write(
-    self: ASTValidationPass, nd: Assignment
+impl ASTValidationPass._check_render_phase_state_write(nd: Assignment
 ) -> None {
     targets = nd.target if isinstance(nd.target, (list, tuple)) else [nd.target];
     if len(targets) != 1 or not isinstance(targets[0], Name) {
@@ -179,8 +169,7 @@ impl ASTValidationPass._check_render_phase_state_write(
     }
 }
 
-impl ASTValidationPass._scope_declares_state(
-    self: ASTValidationPass, scope: (Ability | ImplDef), name: str
+impl ASTValidationPass._scope_declares_state(scope: (Ability | ImplDef), name: str
 ) -> bool {
     body = scope.body;
     if not isinstance(body, list) {
@@ -198,8 +187,7 @@ impl ASTValidationPass._scope_declares_state(
     return False;
 }
 
-impl ASTValidationPass._returns_jsx(
-    self: ASTValidationPass, scope: (Ability | ImplDef)
+impl ASTValidationPass._returns_jsx(scope: (Ability | ImplDef)
 ) -> bool {
     sig: (FuncSignature | None) = None;
     if isinstance(scope, Ability) and isinstance(scope.signature, FuncSignature) {
@@ -226,13 +214,12 @@ impl ASTValidationPass._returns_jsx(
     return False;
 }
 
-impl ASTValidationPass.enter_inner_compr(
-    self: ASTValidationPass, nd: InnerCompr
+impl ASTValidationPass.enter_inner_compr(nd: InnerCompr
 ) -> None {
     self._reject_non_bindable(nd.target);
 }
 
-impl ASTValidationPass.enter_has_var(self: ASTValidationPass, nd: HasVar) -> None {
+impl ASTValidationPass.enter_has_var(nd: HasVar) -> None {
     ctx_owner = nd.find_parent_of_type(ContextAwareNode);
     if isinstance(nd.name, Name)
         and keyword.iskeyword(nd.name.value)
@@ -242,21 +229,19 @@ impl ASTValidationPass.enter_has_var(self: ASTValidationPass, nd: HasVar) -> Non
     self._reject_non_bindable(nd.name);
 }
 
-impl ASTValidationPass.enter_expr_as_item(
-    self: ASTValidationPass, nd: ExprAsItem
+impl ASTValidationPass.enter_expr_as_item(nd: ExprAsItem
 ) -> None {
     if nd.alias is not None {
         self._reject_non_bindable(nd.alias);
     }
 }
 
-impl ASTValidationPass.enter_delete_stmt(
-    self: ASTValidationPass, nd: DeleteStmt
+impl ASTValidationPass.enter_delete_stmt(nd: DeleteStmt
 ) -> None {
     self._reject_non_bindable(nd.target);
 }
 
-impl ASTValidationPass.enter_import(self: ASTValidationPass, nd: Import) -> None {
+impl ASTValidationPass.enter_import(nd: Import) -> None {
     if nd.items is not None
         and len(nd.items) == 0
         and (nd.clib_decls is None or len(nd.clib_decls) == 0) {
@@ -264,8 +249,7 @@ impl ASTValidationPass.enter_import(self: ASTValidationPass, nd: Import) -> None
     }
 }
 
-impl ASTValidationPass.enter_yield_expr(
-    self: ASTValidationPass, nd: YieldExpr
+impl ASTValidationPass.enter_yield_expr(nd: YieldExpr
 ) -> None {
     if nd.find_parent_of_type(Ability) is None
         and nd.find_parent_of_type(ImplDef) is None {
@@ -273,7 +257,7 @@ impl ASTValidationPass.enter_yield_expr(
     }
 }
 
-impl ASTValidationPass.enter_ctrl_stmt(self: ASTValidationPass, nd: CtrlStmt) -> None {
+impl ASTValidationPass.enter_ctrl_stmt(nd: CtrlStmt) -> None {
     if nd.ctrl is None or not isinstance(nd.ctrl, Token) {
         return;
     }
@@ -300,8 +284,7 @@ impl ASTValidationPass.enter_ctrl_stmt(self: ASTValidationPass, nd: CtrlStmt) ->
     self.emit(E0058, node_override=nd, keyword=kw);
 }
 
-impl ASTValidationPass.enter_global_vars(
-    self: ASTValidationPass, nd: GlobalVars
+impl ASTValidationPass.enter_global_vars(nd: GlobalVars
 ) -> None {
     valid_parents = (Module, );
     if nd.is_frozen and isinstance(nd.parent, Archetype) {
@@ -312,7 +295,7 @@ impl ASTValidationPass.enter_global_vars(
     }
 }
 
-impl ASTValidationPass.enter_func_call(self: ASTValidationPass, nd: FuncCall) -> None {
+impl ASTValidationPass.enter_func_call(nd: FuncCall) -> None {
     if nd.params is None {
         return;
     }
@@ -338,7 +321,7 @@ impl ASTValidationPass.enter_func_call(self: ASTValidationPass, nd: FuncCall) ->
     }
 }
 
-impl ASTValidationPass.enter_archetype(self: ASTValidationPass, nd: Archetype) -> None {
+impl ASTValidationPass.enter_archetype(nd: Archetype) -> None {
     if nd.base_classes is not None {
         seen_bases: set[str] = set();
         for base in nd.base_classes {
@@ -444,7 +427,7 @@ impl ASTValidationPass.enter_archetype(self: ASTValidationPass, nd: Archetype) -
     }
 }
 
-impl ASTValidationPass.enter_try_stmt(self: ASTValidationPass, nd: TryStmt) -> None {
+impl ASTValidationPass.enter_try_stmt(nd: TryStmt) -> None {
     if len(nd.excepts) == 0 and nd.finally_body is None and nd.awaiting_body is None {
         self.emit(E0040, node_override=nd);
     }
@@ -456,18 +439,17 @@ impl ASTValidationPass.enter_try_stmt(self: ASTValidationPass, nd: TryStmt) -> N
     }
 }
 
-impl ASTValidationPass.enter_jsx_slot(self: ASTValidationPass, nd: JsxSlot) -> None {
+impl ASTValidationPass.enter_jsx_slot(nd: JsxSlot) -> None {
     self._check_slot_body([s for s in nd.body], False, "");
 }
 
-impl ASTValidationPass.enter_expr_stmt(self: ASTValidationPass, nd: ExprStmt) -> None {
+impl ASTValidationPass.enter_expr_stmt(nd: ExprStmt) -> None {
     if not nd.has_semi {
         self.emit(E2084, node_override=nd);
     }
 }
 
-impl ASTValidationPass._check_slot_body(
-    self: ASTValidationPass, stmts: list[UniNode], in_loop: bool, loop_kw: str
+impl ASTValidationPass._check_slot_body(stmts: list[UniNode], in_loop: bool, loop_kw: str
 ) -> None {
     for s in stmts {
         if isinstance(s, ReturnStmt) {
@@ -541,8 +523,7 @@ impl ASTValidationPass._check_slot_body(
     }
 }
 
-impl ASTValidationPass._check_slot_else(
-    self: ASTValidationPass, else_body: object, in_loop: bool, loop_kw: str
+impl ASTValidationPass._check_slot_else(else_body: object, in_loop: bool, loop_kw: str
 ) -> None {
     if else_body is None {
         return;
@@ -554,8 +535,7 @@ impl ASTValidationPass._check_slot_else(
     }
 }
 
-impl ASTValidationPass._slot_emits_keyless_jsx(
-    self: ASTValidationPass, stmts: list[UniNode]
+impl ASTValidationPass._slot_emits_keyless_jsx(stmts: list[UniNode]
 ) -> bool {
     for s in stmts {
         if isinstance(s, ExprStmt) and isinstance(s.expr, JsxElement) {
@@ -612,8 +592,7 @@ impl ASTValidationPass._slot_emits_keyless_jsx(
     return False;
 }
 
-impl ASTValidationPass._slot_has_key_attr(
-    self: ASTValidationPass, el: JsxElement
+impl ASTValidationPass._slot_has_key_attr(el: JsxElement
 ) -> bool {
     if el.attributes is None {
         return False;

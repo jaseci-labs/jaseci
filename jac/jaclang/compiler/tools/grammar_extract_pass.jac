@@ -139,7 +139,7 @@ obj ConditionResult {
         tokens: list;
 }
 
-obj GrammarExtractPass(UniPass) {
+walker GrammarExtractPass(UniPass) {
     has rules: list = [],
         target_class: str = "Parser",
         diagnostics: list = [],

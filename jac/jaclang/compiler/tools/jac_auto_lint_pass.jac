@@ -37,7 +37,7 @@ import from jaclang.compiler.frontend.diagnostics {
 }
 import type from jaclang.compiler.driver.program { JacProgram }
 
-obj JacAutoLintPass(UniPass) {
+walker JacAutoLintPass(UniPass) {
     has prog: JacProgram,
         lint_enabled: bool = True,
         report_only: bool = False,
@@ -196,6 +196,6 @@ obj JacAutoLintPass(UniPass) {
     def _convert_property_impl(nd: uni.ImplDef) -> None;
 }
 
-obj JacLintCheckPass(JacAutoLintPass) {
+walker JacLintCheckPass(JacAutoLintPass) {
     has report_only: bool = True;
 }

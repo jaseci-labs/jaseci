@@ -2,7 +2,7 @@ import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes { UniPass }
 import from jaclang.compiler.frontend.constant { OwnershipKind, is_mut_kind }
 
-obj UnparsePass(UniPass) {
+walker UnparsePass(UniPass) {
     def _comma_sep(nodes: Sequence[uni.UniNode]) -> str;
     def exit_node(nd: uni.UniNode) -> None;
     def default_exit(nd: uni.UniNode) -> None;

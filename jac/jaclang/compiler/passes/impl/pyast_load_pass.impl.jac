@@ -2094,7 +2094,7 @@ impl PyastBuildPass.extract_with_entry(
     return extracted;
 }
 
-impl PyastBuildPass.transform(ir_in: PythonModuleAst) -> Module {
+impl PyastBuildPass._run_impl(ir_in: PythonModuleAst) -> Module {
     py_mod = ir_in.ast;
     if not isinstance(py_mod, py_ast.Module) {
         raise RuntimeError(self.ice('Expected a Python module AST root'));
@@ -2244,4 +2244,15 @@ impl PyastBuildPass._strip_string_continuations(seg: str) -> str {
         i += 1;
     }
     return ''.join(out);
+}
+
+impl PyastBuildPass.transform(ir_in: PythonModuleAst) -> Module {
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, Module);
+    return out;
+}
+
+impl PyastBuildPass.run_walk with PythonModuleAst entry {
+    self.ir_out = self._run_impl(here);
 }

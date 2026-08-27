@@ -3,7 +3,7 @@ import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.frontend.constant { Tokens as Tok, is_mut_kind }
 import from jaclang.compiler.passes { UniPass }
 
-obj DocIRGenPass(UniPass) {
+walker DocIRGenPass(UniPass) {
     has _live_comment_ids: (set[int] | None) = None,
         _emitted_comment_ids: (set[int] | None) = None;
 

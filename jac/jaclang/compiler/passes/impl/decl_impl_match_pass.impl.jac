@@ -1,4 +1,4 @@
-impl DeclImplMatchPass.transform(self: DeclImplMatchPass, ir_in: Module) -> Module {
+impl DeclImplMatchPass._run_impl(ir_in: Module) -> Module {
     fresh_reported: set[int] = set();
     self._e2026_reported = fresh_reported;
     self.cur_node = ir_in;
@@ -13,8 +13,7 @@ impl DeclImplMatchPass.transform(self: DeclImplMatchPass, ir_in: Module) -> Modu
     return ir_in;
 }
 
-impl DeclImplMatchPass.defn_lookup(
-    self: DeclImplMatchPass, lookup: Symbol
+impl DeclImplMatchPass.defn_lookup(lookup: Symbol
 ) -> (NameAtom | None) {
     for defn in range(len(lookup.defn)) {
         candidate = lookup.defn[(len(lookup.defn) - (defn + 1))];
@@ -28,8 +27,7 @@ impl DeclImplMatchPass.defn_lookup(
     return None;
 }
 
-impl DeclImplMatchPass._find_archetype_defn(
-    self: DeclImplMatchPass, lookup: Symbol
+impl DeclImplMatchPass._find_archetype_defn(lookup: Symbol
 ) -> (NameAtom | None) {
     for defn_idx in range(len(lookup.defn)) {
         candidate = lookup.defn[defn_idx];
@@ -51,8 +49,7 @@ impl DeclImplMatchPass._find_archetype_defn(
     return lookup.defn[-1] if lookup.defn else None;
 }
 
-impl DeclImplMatchPass.connect_impls(
-    self: DeclImplMatchPass, source_sym_tab: UniScopeNode, target_sym_tab: UniScopeNode
+impl DeclImplMatchPass.connect_impls(source_sym_tab: UniScopeNode, target_sym_tab: UniScopeNode
 ) -> None {
     for sym in source_sym_tab.names_in_scope.values() {
         for defn in sym.defn {
@@ -77,7 +74,6 @@ impl DeclImplMatchPass.connect_impls(
 }
 
 impl DeclImplMatchPass._connect_one_impl(
-    self: DeclImplMatchPass,
     impl_node: ImplDef,
     sym_name: str,
     target_sym_tab: UniScopeNode
@@ -199,8 +195,7 @@ impl DeclImplMatchPass._connect_one_impl(
     }
 }
 
-impl DeclImplMatchPass._report_bare_redecls(
-    self: DeclImplMatchPass, sym_tab: UniScopeNode
+impl DeclImplMatchPass._report_bare_redecls(sym_tab: UniScopeNode
 ) -> None {
     for sym in sym_tab.names_in_scope.values() {
         stub: (UniNode | None) = None;
@@ -234,7 +229,6 @@ impl DeclImplMatchPass._report_bare_redecls(
 }
 
 impl DeclImplMatchPass.validate_params_match(
-    self: DeclImplMatchPass,
     impl_node: ImplDef,
     sym_name: str,
     valid_decl: AstSymbolNode
@@ -280,8 +274,7 @@ impl DeclImplMatchPass.validate_params_match(
     }
 }
 
-impl DeclImplMatchPass._resolve_symbols_in_subtree(
-    self: DeclImplMatchPass, root_node: UniNode
+impl DeclImplMatchPass._resolve_symbols_in_subtree(root_node: UniNode
 ) -> None {
     for name_node in root_node.get_all_sub_nodes(Name) {
         if name_node.sym is not None {
@@ -310,8 +303,7 @@ impl DeclImplMatchPass._resolve_symbols_in_subtree(
 }
 
 
-impl DeclImplMatchPass._populate_self_member_symbols(
-    self: DeclImplMatchPass, impl_def: ImplDef, archetype: Archetype
+impl DeclImplMatchPass._populate_self_member_symbols(impl_def: ImplDef, archetype: Archetype
 ) -> None {
     import from jaclang.compiler.frontend.diagnostics { W2080 }
 
@@ -358,8 +350,7 @@ impl DeclImplMatchPass._populate_self_member_symbols(
     }
 }
 
-impl DeclImplMatchPass._populate_inline_init_symbols(
-    self: DeclImplMatchPass, archetype: Archetype
+impl DeclImplMatchPass._populate_inline_init_symbols(archetype: Archetype
 ) -> None {
     import from jaclang.compiler.frontend.diagnostics { W2080 }
 
@@ -414,4 +405,16 @@ impl DeclImplMatchPass._populate_inline_init_symbols(
             );
         }
     }
+}
+
+impl DeclImplMatchPass.transform(ir_in: Module) -> Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, Module);
+    return out;
+}
+
+impl DeclImplMatchPass.run_walk with Module entry {
+    self.ir_out = self._run_impl(here);
 }

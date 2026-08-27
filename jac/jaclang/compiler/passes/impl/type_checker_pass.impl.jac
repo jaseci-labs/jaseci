@@ -1,10 +1,9 @@
-impl TypeCheckPass.exit_special_var_ref(
-    self: TypeCheckPass, nd: SpecialVarRef
+impl TypeCheckPass.exit_special_var_ref(nd: SpecialVarRef
 ) -> None {
     self.evaluator.get_type_of_expression(nd);
 }
 
-impl TypeCheckPass.exit_name(self: TypeCheckPass, nd: Name) -> None {
+impl TypeCheckPass.exit_name(nd: Name) -> None {
     if nd.sym is None {
         if isinstance(nd.parent, AtomTrailer) and nd.parent.right is nd {
             return;
@@ -37,8 +36,7 @@ impl TypeCheckPass.exit_name(self: TypeCheckPass, nd: Name) -> None {
     }
 }
 
-impl TypeCheckPass.exit_edge_ref_trailer(
-    self: TypeCheckPass, nd: EdgeRefTrailer
+impl TypeCheckPass.exit_edge_ref_trailer(nd: EdgeRefTrailer
 ) -> None {
     for chain in nd.chain {
         if isinstance(chain, FilterCompr) {
@@ -47,13 +45,12 @@ impl TypeCheckPass.exit_edge_ref_trailer(
     }
 }
 
-impl TypeCheckPass.exit_formatted_value(
-    self: TypeCheckPass, nd: FormattedValue
+impl TypeCheckPass.exit_formatted_value(nd: FormattedValue
 ) -> None {
     self.evaluator.get_type_of_expression(nd.format_part);
 }
 
-impl TypeCheckPass.exit_return_stmt(self: TypeCheckPass, nd: ReturnStmt) -> None {
+impl TypeCheckPass.exit_return_stmt(nd: ReturnStmt) -> None {
     scope = self.evaluator._get_enclosing_return_scope(nd);
     if scope is None {
         return;
@@ -131,17 +128,17 @@ impl TypeCheckPass.exit_return_stmt(self: TypeCheckPass, nd: ReturnStmt) -> None
     }
 }
 
-impl TypeCheckPass.exit_filter_compr(self: TypeCheckPass, nd: FilterCompr) -> None {
+impl TypeCheckPass.exit_filter_compr(nd: FilterCompr) -> None {
     self.evaluator.get_type_of_expression(nd);
 }
 
-impl TypeCheckPass.enter_lambda_expr(self: TypeCheckPass, nd: LambdaExpr) -> None {
+impl TypeCheckPass.enter_lambda_expr(nd: LambdaExpr) -> None {
     if (isinstance(nd.body, Expr) or nd.tail_return_expr() is not None) {
         self._lambda_depth += 1;
     }
 }
 
-impl TypeCheckPass.exit_lambda_expr(self: TypeCheckPass, nd: LambdaExpr) -> None {
+impl TypeCheckPass.exit_lambda_expr(nd: LambdaExpr) -> None {
     if (isinstance(nd.body, Expr) or nd.tail_return_expr() is not None) {
         self._lambda_depth -= 1;
     }
@@ -169,7 +166,7 @@ def _chunks_receiver_type(nd: FuncCall) -> (str | None) {
     }
 }
 
-impl TypeCheckPass.exit_func_call(self: TypeCheckPass, nd: FuncCall) -> None {
+impl TypeCheckPass.exit_func_call(nd: FuncCall) -> None {
     import from jaclang.compiler.symbol_utils {
         CallKind,
         classify_call,
@@ -237,7 +234,7 @@ impl TypeCheckPass.exit_func_call(self: TypeCheckPass, nd: FuncCall) -> None {
     }
 }
 
-impl TypeCheckPass._check_intrinsic_call(self: TypeCheckPass, nd: FuncCall) -> None {
+impl TypeCheckPass._check_intrinsic_call(nd: FuncCall) -> None {
     import from jaclang.compiler.symbol_utils { intrinsic_registry_if_ready }
 
     intrinsics = intrinsic_registry_if_ready();
@@ -292,8 +289,7 @@ impl TypeCheckPass._check_intrinsic_call(self: TypeCheckPass, nd: FuncCall) -> N
     }
 }
 
-impl TypeCheckPass._check_intrinsic_collision(
-    self: TypeCheckPass, nd: Ability
+impl TypeCheckPass._check_intrinsic_collision(nd: Ability
 ) -> None {
     import from jaclang.compiler.symbol_utils { intrinsic_registry_if_ready }
 
@@ -325,11 +321,11 @@ impl TypeCheckPass._check_intrinsic_collision(
     self.emit(W6008, node_override=nd, name=name);
 }
 
-impl TypeCheckPass.exit_jsx_element(self: TypeCheckPass, nd: JsxElement) -> None {
+impl TypeCheckPass.exit_jsx_element(nd: JsxElement) -> None {
     self.evaluator.get_type_of_expression(nd);
 }
 
-impl TypeCheckPass.exit_compare_expr(self: TypeCheckPass, nd: CompareExpr) -> None {
+impl TypeCheckPass.exit_compare_expr(nd: CompareExpr) -> None {
     if self._lambda_depth > 0 {
         return;
     }
@@ -358,8 +354,7 @@ impl TypeCheckPass.exit_compare_expr(self: TypeCheckPass, nd: CompareExpr) -> No
     }
 }
 
-impl TypeCheckPass._diag_erased_membership(
-    self: TypeCheckPass, nd: CompareExpr, hay: Expr, op_text: str
+impl TypeCheckPass._diag_erased_membership(nd: CompareExpr, hay: Expr, op_text: str
 ) -> None {
     if not self.evaluator._in_native_context()
         or not self.evaluator._is_strict_site(nd) {
@@ -380,14 +375,14 @@ impl TypeCheckPass._diag_erased_membership(
     }
 }
 
-impl TypeCheckPass.exit_binary_expr(self: TypeCheckPass, nd: BinaryExpr) -> None {
+impl TypeCheckPass.exit_binary_expr(nd: BinaryExpr) -> None {
     if self._lambda_depth > 0 {
         return;
     }
     self.evaluator.get_type_of_expression(nd);
 }
 
-impl TypeCheckPass.exit_atom_trailer(self: TypeCheckPass, nd: AtomTrailer) -> None {
+impl TypeCheckPass.exit_atom_trailer(nd: AtomTrailer) -> None {
     if self._lambda_depth > 0 {
         return;
     }
@@ -421,7 +416,7 @@ impl TypeCheckPass.exit_atom_trailer(self: TypeCheckPass, nd: AtomTrailer) -> No
     }
 }
 
-impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None {
+impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
     if nd.is_enum_stmt {
         return;
     }
@@ -781,7 +776,7 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
     }
 }
 
-impl TypeCheckPass.exit_import(self: TypeCheckPass, nd: Import) -> None {
+impl TypeCheckPass.exit_import(nd: Import) -> None {
     if nd.clib_decls {
         return;
     }
@@ -801,7 +796,7 @@ impl TypeCheckPass.exit_import(self: TypeCheckPass, nd: Import) -> None {
     }
 }
 
-impl TypeCheckPass.enter_ability(self: TypeCheckPass, nd: Ability) -> None {
+impl TypeCheckPass.enter_ability(nd: Ability) -> None {
     for decor in (nd.decorators or []) {
         ty = self.evaluator.get_type_of_expression(decor);
         if (isinstance(ty, ClassType) and ty.is_builtin('staticmethod')) {
@@ -811,7 +806,7 @@ impl TypeCheckPass.enter_ability(self: TypeCheckPass, nd: Ability) -> None {
     }
 }
 
-impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: Ability) -> None {
+impl TypeCheckPass.exit_ability(nd: Ability) -> None {
     self.evaluator.validate_typevar_variance(nd);
 
     self._check_intrinsic_collision(nd);
@@ -956,8 +951,7 @@ impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: Ability) -> None {
     }
 }
 
-impl TypeCheckPass._check_event_trigger_archetype(
-    self: TypeCheckPass, nd: Ability
+impl TypeCheckPass._check_event_trigger_archetype(nd: Ability
 ) -> None {
     sig = nd.signature;
     if not isinstance(sig, EventSignature) or sig.arch_tag_info is None {
@@ -1032,14 +1026,12 @@ impl TypeCheckPass._check_event_trigger_archetype(
     nd.event_triggers = resolved;
 }
 
-impl TypeCheckPass._body_always_returns(
-    self: TypeCheckPass, body: list[CodeBlockStmt]
+impl TypeCheckPass._body_always_returns(body: list[CodeBlockStmt]
 ) -> bool {
     return self.evaluator._collect_return_types(body, []);
 }
 
-impl TypeCheckPass._check_bare_generic(
-    self: TypeCheckPass, ann_node: UniNode, ty: object
+impl TypeCheckPass._check_bare_generic(ann_node: UniNode, ty: object
 ) -> None {
     if isinstance(ty, UnionType) and ty.types {
         for branch in ty.types {
@@ -1057,7 +1049,7 @@ impl TypeCheckPass._check_bare_generic(
     }
 }
 
-impl TypeCheckPass._check_unresolved_lambda_params(self: TypeCheckPass) -> None {
+impl TypeCheckPass._check_unresolved_lambda_params() -> None {
     if self.ir_in is None {
         return;
     }
@@ -1078,7 +1070,7 @@ impl TypeCheckPass._check_unresolved_lambda_params(self: TypeCheckPass) -> None 
     }
 }
 
-impl TypeCheckPass._check_explicit_any(self: TypeCheckPass, ann_node: UniNode) -> None {
+impl TypeCheckPass._check_explicit_any(ann_node: UniNode) -> None {
     if isinstance(ann_node, BuiltinType) and ann_node.value == "any" {
         self.emit(W1037, node_override=ann_node);
     }
@@ -1112,7 +1104,7 @@ impl TypeCheckPass._check_explicit_any(self: TypeCheckPass, ann_node: UniNode) -
     }
 }
 
-impl TypeCheckPass.exit_type_alias(self: TypeCheckPass, nd: TypeAlias) -> None {
+impl TypeCheckPass.exit_type_alias(nd: TypeAlias) -> None {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     if not nd.is_distinct {
         return;
@@ -1124,7 +1116,7 @@ impl TypeCheckPass.exit_type_alias(self: TypeCheckPass, nd: TypeAlias) -> None {
     }
 }
 
-impl TypeCheckPass.exit_archetype(self: TypeCheckPass, nd: Archetype) -> None {
+impl TypeCheckPass.exit_archetype(nd: Archetype) -> None {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     cls_type = self.evaluator.get_type_of_class(nd);
     if isinstance(cls_type, ClassType)
@@ -1152,7 +1144,7 @@ impl TypeCheckPass.exit_archetype(self: TypeCheckPass, nd: Archetype) -> None {
     }
 }
 
-impl TypeCheckPass.exit_enum(self: TypeCheckPass, nd: Enum) -> None {
+impl TypeCheckPass.exit_enum(nd: Enum) -> None {
     cls_type = self.evaluator.get_type_of_enum(nd);
 
     for child in nd.kid {
@@ -1170,7 +1162,7 @@ impl TypeCheckPass.exit_enum(self: TypeCheckPass, nd: Enum) -> None {
     }
 }
 
-impl TypeCheckPass._insert_builtin_symbols(self: TypeCheckPass) -> None {
+impl TypeCheckPass._insert_builtin_symbols() -> None {
     if (self.ir_in == self.evaluator.builtins_module) {
         return;
     }
@@ -1180,8 +1172,7 @@ impl TypeCheckPass._insert_builtin_symbols(self: TypeCheckPass) -> None {
     self.ir_in.parent_scope = self.evaluator.builtins_module;
 }
 
-impl TypeCheckPass._client_state_field_owner(
-    self: TypeCheckPass, nd: HasVar
+impl TypeCheckPass._client_state_field_owner(nd: HasVar
 ) -> (Ability | None) {
     if not isinstance(nd.parent, ArchHas) {
         return None;
@@ -1208,7 +1199,7 @@ impl TypeCheckPass._client_state_field_owner(
     return owner;
 }
 
-impl TypeCheckPass._install_client_state_setters(self: TypeCheckPass) -> None {
+impl TypeCheckPass._install_client_state_setters() -> None {
     import from jaclang.compiler.backends.es.framework_backend { state_setter_name }
     import from jaclang.compiler.types.types { create_callable_type }
     mod = self.ir_in;
@@ -1242,12 +1233,17 @@ impl TypeCheckPass._install_client_state_setters(self: TypeCheckPass) -> None {
     }
 }
 
-impl TypeCheckPass.init(self: TypeCheckPass, prog: JacProgram, **kwargs: any) -> None {
+impl TypeCheckPass.init(prog: JacProgram, **kwargs: any) -> None {
     self.prog = prog;
     UniPass.__init__(self, **kwargs);
 }
 
-impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
+impl TypeCheckPass.postinit -> None {
+    self.evaluator = self.prog.get_type_evaluator();
+    super.postinit();
+}
+
+impl TypeCheckPass.before_pass() -> None {
     self.evaluator = self.prog.get_type_evaluator();
 
     self._prev_eval_pass = self.evaluator._pass;
@@ -1258,7 +1254,7 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
     self._install_client_state_setters();
 }
 
-impl TypeCheckPass.after_pass(self: TypeCheckPass) -> None {
+impl TypeCheckPass.after_pass() -> None {
     self._check_unresolved_lambda_params();
     self._stamp_fixed_width();
     self.evaluator.ct_quiet = self._prev_ct_quiet;
@@ -1267,7 +1263,7 @@ impl TypeCheckPass.after_pass(self: TypeCheckPass) -> None {
     }
 }
 
-impl TypeCheckPass.exit_param_var(self: TypeCheckPass, nd: ParamVar) -> None {
+impl TypeCheckPass.exit_param_var(nd: ParamVar) -> None {
     if (sym := nd.sym) {
         declared_type = self.evaluator.get_type_of_symbol(sym);
         nd.type = declared_type;
@@ -1287,7 +1283,7 @@ impl TypeCheckPass.exit_param_var(self: TypeCheckPass, nd: ParamVar) -> None {
     }
 }
 
-impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: HasVar) -> None {
+impl TypeCheckPass.exit_has_var(nd: HasVar) -> None {
     if (nd.defer and nd.kid and isinstance(nd.kid[-1], Name)) {
         postinit_nd: Name = nd.kid[-1];
         if postinit_nd.sym is None {
@@ -1339,8 +1335,7 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: HasVar) -> None {
     }
 }
 
-impl TypeCheckPass._check_walker_reports_shape(
-    self: TypeCheckPass, nd: HasVar, declared_type: object
+impl TypeCheckPass._check_walker_reports_shape(nd: HasVar, declared_type: object
 ) -> None {
     if nd.name.value != "reports" {
         return;
@@ -1367,8 +1362,7 @@ impl TypeCheckPass._check_walker_reports_shape(
     self.emit(E1112, node_override=nd, type=str(declared_type));
 }
 
-impl TypeCheckPass._enclosing_walker_report_elem_type(
-    self: TypeCheckPass, nd: UniNode
+impl TypeCheckPass._enclosing_walker_report_elem_type(nd: UniNode
 ) -> (TypeBase | None) {
     arch = nd.find_parent_of_type(Archetype);
     if arch is None {
@@ -1402,7 +1396,7 @@ impl TypeCheckPass._enclosing_walker_report_elem_type(
     return None;
 }
 
-impl TypeCheckPass.exit_in_for_stmt(self: TypeCheckPass, nd: InForStmt) -> None {
+impl TypeCheckPass.exit_in_for_stmt(nd: InForStmt) -> None {
     if isinstance(nd.target, Name) {
         self.evaluator.get_type_of_expression(nd.target);
     } elif isinstance(nd.target, (TupleVal, ListVal)) {
@@ -1466,7 +1460,7 @@ impl TypeCheckPass.exit_in_for_stmt(self: TypeCheckPass, nd: InForStmt) -> None 
     }
 }
 
-impl TypeCheckPass.exit_raise_stmt(self: TypeCheckPass, nd: RaiseStmt) -> None {
+impl TypeCheckPass.exit_raise_stmt(nd: RaiseStmt) -> None {
     if nd.cause {
         cause_type = self.evaluator.get_type_of_expression(nd.cause);
         if isinstance(cause_type, ClassType)
@@ -1488,7 +1482,7 @@ impl TypeCheckPass.exit_raise_stmt(self: TypeCheckPass, nd: RaiseStmt) -> None {
     }
 }
 
-impl TypeCheckPass.enter_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
+impl TypeCheckPass.enter_with_stmt(nd: WithStmt) -> None {
     enter_method = "__aenter__" if nd.is_async else "__enter__";
     for item in nd.exprs {
         ctx_item: ExprAsItem = item;
@@ -1515,19 +1509,19 @@ impl TypeCheckPass.enter_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
     }
 }
 
-impl TypeCheckPass.enter_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None {
+impl TypeCheckPass.enter_if_stmt(nd: IfStmt) -> None {
     if nd.is_comptime {
         self._resolve_comptime_if(nd);
     }
 }
 
-impl TypeCheckPass.enter_else_if(self: TypeCheckPass, nd: ElseIf) -> None {
+impl TypeCheckPass.enter_else_if(nd: ElseIf) -> None {
     if nd.is_comptime {
         self._resolve_comptime_if(nd);
     }
 }
 
-impl TypeCheckPass._resolve_comptime_if(self: TypeCheckPass, nd: IfStmt) -> None {
+impl TypeCheckPass._resolve_comptime_if(nd: IfStmt) -> None {
     cv = self.evaluator.ct_demand(nd.condition);
     if self.evaluator.ct_site_error(nd.condition, "comptime if condition", cv) {
         return;
@@ -1549,7 +1543,7 @@ impl TypeCheckPass._resolve_comptime_if(self: TypeCheckPass, nd: IfStmt) -> None
     nd._invalidate_sub_node_tab();
 }
 
-impl TypeCheckPass._in_comptime_context(self: TypeCheckPass, nd: UniNode) -> bool {
+impl TypeCheckPass._in_comptime_context(nd: UniNode) -> bool {
     cur: (UniNode | None) = nd;
     prev: (UniNode | None) = None;
     while cur is not None {
@@ -1587,7 +1581,7 @@ impl TypeCheckPass._in_comptime_context(self: TypeCheckPass, nd: UniNode) -> boo
     return False;
 }
 
-impl TypeCheckPass._check_comptime_only_use(self: TypeCheckPass, nd: Name) -> None {
+impl TypeCheckPass._check_comptime_only_use(nd: Name) -> None {
     sym = nd.sym;
     if sym is None or nd.ct_value is not None {
         return;
@@ -1634,15 +1628,15 @@ impl TypeCheckPass._check_comptime_only_use(self: TypeCheckPass, nd: Name) -> No
     self.emit(E0033, node_override=nd, what=what, reason="");
 }
 
-impl TypeCheckPass.exit_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None {
+impl TypeCheckPass.exit_if_stmt(nd: IfStmt) -> None {
     self.evaluator.get_type_of_expression(nd.condition);
 }
 
-impl TypeCheckPass.exit_else_if(self: TypeCheckPass, nd: ElseIf) -> None {
+impl TypeCheckPass.exit_else_if(nd: ElseIf) -> None {
     self.evaluator.get_type_of_expression(nd.condition);
 }
 
-impl TypeCheckPass.exit_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
+impl TypeCheckPass.exit_with_stmt(nd: WithStmt) -> None {
     enter_method = "__aenter__" if nd.is_async else "__enter__";
     exit_method = "__aexit__" if nd.is_async else "__exit__";
     for item in nd.exprs {
@@ -1671,11 +1665,11 @@ impl TypeCheckPass.exit_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
     }
 }
 
-impl TypeCheckPass.exit_while_stmt(self: TypeCheckPass, nd: WhileStmt) -> None {
+impl TypeCheckPass.exit_while_stmt(nd: WhileStmt) -> None {
     self.evaluator.get_type_of_expression(nd.condition);
 }
 
-impl TypeCheckPass.exit_assert_stmt(self: TypeCheckPass, nd: AssertStmt) -> None {
+impl TypeCheckPass.exit_assert_stmt(nd: AssertStmt) -> None {
     self.evaluator.get_type_of_expression(nd.condition);
     if nd.error_msg is not None {
         self.evaluator.get_type_of_expression(nd.error_msg);
@@ -1700,7 +1694,7 @@ impl TypeCheckPass.exit_assert_stmt(self: TypeCheckPass, nd: AssertStmt) -> None
     self.emit(E0109, node_override=nd, message=message);
 }
 
-impl TypeCheckPass.exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None {
+impl TypeCheckPass.exit_yield_expr(nd: YieldExpr) -> None {
     if nd.expr is None {
         return;
     }
@@ -1753,11 +1747,11 @@ impl TypeCheckPass.exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None {
     }
 }
 
-impl TypeCheckPass.exit_delete_stmt(self: TypeCheckPass, nd: DeleteStmt) -> None {
+impl TypeCheckPass.exit_delete_stmt(nd: DeleteStmt) -> None {
     self.evaluator.get_type_of_expression(nd.target);
 }
 
-impl TypeCheckPass.exit_visit_stmt(self: TypeCheckPass, nd: VisitStmt) -> None {
+impl TypeCheckPass.exit_visit_stmt(nd: VisitStmt) -> None {
     target_type = self.evaluator.get_type_of_expression(nd.target);
     path_class = self.evaluator.prefetch.path_class;
 
@@ -1794,7 +1788,7 @@ impl TypeCheckPass.exit_visit_stmt(self: TypeCheckPass, nd: VisitStmt) -> None {
     }
 }
 
-impl TypeCheckPass.exit_report_stmt(self: TypeCheckPass, nd: ReportStmt) -> None {
+impl TypeCheckPass.exit_report_stmt(nd: ReportStmt) -> None {
     expr_type = self.evaluator.get_type_of_expression(nd.expr);
     elem_type = self._enclosing_walker_report_elem_type(nd);
     if elem_type is None {
@@ -1807,7 +1801,7 @@ impl TypeCheckPass.exit_report_stmt(self: TypeCheckPass, nd: ReportStmt) -> None
     }
 }
 
-impl TypeCheckPass.exit_impl_def(self: TypeCheckPass, nd: ImplDef) -> None {
+impl TypeCheckPass.exit_impl_def(nd: ImplDef) -> None {
     import from jaclang.compiler.frontend.constant { Tokens as Tok }
 
     if not (
@@ -1860,7 +1854,7 @@ impl TypeCheckPass.exit_impl_def(self: TypeCheckPass, nd: ImplDef) -> None {
     }
 }
 
-impl TypeCheckPass.exit_sub_tag(self: TypeCheckPass, nd: SubTag) -> None {
+impl TypeCheckPass.exit_sub_tag(nd: SubTag) -> None {
     if isinstance(nd.tag, Expr) {
         self.evaluator.validate_typevar_in_type_expr(nd.tag);
 
@@ -1870,7 +1864,7 @@ impl TypeCheckPass.exit_sub_tag(self: TypeCheckPass, nd: SubTag) -> None {
     }
 }
 
-impl TypeCheckPass._eval_unpacking_names(self: TypeCheckPass, container: Expr) -> None {
+impl TypeCheckPass._eval_unpacking_names(container: Expr) -> None {
     if isinstance(container, (TupleVal, ListVal)) {
         for val in container.values {
             if isinstance(val, Name) {
@@ -1882,7 +1876,7 @@ impl TypeCheckPass._eval_unpacking_names(self: TypeCheckPass, container: Expr) -
     }
 }
 
-impl TypeCheckPass._stamp_fixed_width(self: TypeCheckPass) -> None {
+impl TypeCheckPass._stamp_fixed_width() -> None {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     import from jaclang.compiler.types.fixed_width { numeric_name_of }
     stack: list = [self.ir_in];
@@ -1901,8 +1895,7 @@ impl TypeCheckPass._stamp_fixed_width(self: TypeCheckPass) -> None {
     }
 }
 
-impl TypeCheckPass._provably_in_range(
-    self: TypeCheckPass, nd: Expr, name: str
+impl TypeCheckPass._provably_in_range(nd: Expr, name: str
 ) -> bool {
     import from jaclang.compiler.types.fixed_width { interval_of_expr, interval_of_op }
     if isinstance(nd, BinaryExpr) and isinstance(nd.op, Token) {

@@ -114,7 +114,7 @@ glob PyPositioned: TypeAlias = py_ast.stmt
          | py_ast.SetComp
          | py_ast.GeneratorExp;
 
-obj PyastBuildPass(Transform) {
+walker PyastBuildPass(Transform) {
     has ir_in: PythonModuleAst,
         cancel_token: Event | None = None,
         mod_path: str postinit,
@@ -141,6 +141,8 @@ obj PyastBuildPass(Transform) {
     def is_canceled -> bool;
     def convert(nd: py_ast.AST) -> UniNode;
     def transform(ir_in: PythonModuleAst) -> Module;
+    def _run_impl(ir_in: PythonModuleAst) -> Module;
+    can run_walk with PythonModuleAst entry;
     def extract_with_entry(
         body: list[UniNode], exclude_types: (type[T] | tuple[type[T], ...])
     ) -> list[(T | ModuleCode)];

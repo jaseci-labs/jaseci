@@ -12,9 +12,11 @@ import jaclang.compiler.frontend.unitree as uni;
 import os;
 import sys;
 
-obj NaIRGenCore(NaIRGenState) {
+walker NaIRGenCore(NaIRGenState) {
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
+    def _run_impl(ir_in: uni.Module) -> uni.Module;
+    can run_walk with uni.Module entry;
     def _register_imported_struct_types -> None;
     def _permuted_walk_order(mods: list) -> list;
     def _extract_import_module_name(imp: uni.Import) -> (str | None);

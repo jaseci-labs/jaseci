@@ -333,7 +333,7 @@ def module_container_bytes(mod_path: str, root_node: CgNode) -> bytes {
     return w.to_bytes();
 }
 
-obj JcirGenPass(BaseAstGenPass[CgItem]) {
+walker JcirGenPass(BaseAstGenPass[CgItem]) {
     has already_added: list[str] = [],
         _ct_only_names: (set[str] | None) = None,
         jaclib_imports: set[str] postinit,

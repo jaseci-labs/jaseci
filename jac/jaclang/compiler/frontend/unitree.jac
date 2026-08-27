@@ -296,7 +296,9 @@ obj InheritedSymbolTable {
 
 node UniScopeNode(UniNode) {
     has scope_name: str postinit,
-        implicit_rebinds: dict[(str, Symbol)] postinit;
+        implicit_rebinds: dict[(str, Symbol)] postinit,
+        _names_index: dict[(str, Symbol)] postinit,
+        _overload_index: dict[(str, list[Symbol])] postinit;
 
     has parent_scope: (UniScopeNode | None) { getter; setter(parent_scope: (UniScopeNode | None)); }
 

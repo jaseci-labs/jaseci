@@ -8,8 +8,7 @@ impl inform_from_walker(nd: UniNode) -> None {
     }
 }
 
-impl SemanticAnalysisPass.enter_archetype(
-    self: SemanticAnalysisPass, nd: Archetype
+impl SemanticAnalysisPass.enter_archetype(nd: Archetype
 ) -> None {
     if (nd.arch_kind == "walker") {
         inform_from_walker(nd);
@@ -22,8 +21,7 @@ impl SemanticAnalysisPass.enter_archetype(
     self._check_archetype(nd);
 }
 
-impl SemanticAnalysisPass._check_archetype(
-    self: SemanticAnalysisPass, nd: Archetype
+impl SemanticAnalysisPass._check_archetype(nd: Archetype
 ) -> None {
     if ((nd.arch_type.name != Tok.KW_CLASS) and isinstance(nd.body, Sequence)) {
         found_default_init = False;
@@ -124,8 +122,7 @@ impl SemanticAnalysisPass._check_archetype(
     }
 }
 
-impl SemanticAnalysisPass._property_type_names(
-    self: SemanticAnalysisPass, methods: list[Ability]
+impl SemanticAnalysisPass._property_type_names(methods: list[Ability]
 ) -> dict[str, str] {
     names: dict[str, str] = {};
     for method in methods {
@@ -141,7 +138,7 @@ impl SemanticAnalysisPass._property_type_names(
     return names;
 }
 
-impl SemanticAnalysisPass._update_ctx(self: SemanticAnalysisPass, nd: UniNode) -> None {
+impl SemanticAnalysisPass._update_ctx(nd: UniNode) -> None {
     if isinstance(nd, AtomTrailer) {
         self._change_atom_trailer_ctx(nd);
     } elif isinstance(nd, AstSymbolNode) {
@@ -151,8 +148,7 @@ impl SemanticAnalysisPass._update_ctx(self: SemanticAnalysisPass, nd: UniNode) -
     }
 }
 
-impl SemanticAnalysisPass.enter_has_var(
-    self: SemanticAnalysisPass, nd: HasVar
+impl SemanticAnalysisPass.enter_has_var(nd: HasVar
 ) -> None {
     if isinstance(nd.parent, ArchHas) {
         nd.sym_tab.update_expr_ctx_for_def(nd);
@@ -161,42 +157,36 @@ impl SemanticAnalysisPass.enter_has_var(
     }
 }
 
-impl SemanticAnalysisPass.enter_param_var(
-    self: SemanticAnalysisPass, nd: ParamVar
+impl SemanticAnalysisPass.enter_param_var(nd: ParamVar
 ) -> None {
     nd.sym_tab.update_expr_ctx_for_def(nd);
 }
 
-impl SemanticAnalysisPass.enter_assignment(
-    self: SemanticAnalysisPass, nd: Assignment
+impl SemanticAnalysisPass.enter_assignment(nd: Assignment
 ) -> None {
     for target in nd.target {
         self._update_ctx(target);
     }
 }
 
-impl SemanticAnalysisPass.enter_in_for_stmt(
-    self: SemanticAnalysisPass, nd: InForStmt
+impl SemanticAnalysisPass.enter_in_for_stmt(nd: InForStmt
 ) -> None {
     self._update_ctx(nd.target);
 }
 
-impl SemanticAnalysisPass.enter_expr_as_item(
-    self: SemanticAnalysisPass, nd: ExprAsItem
+impl SemanticAnalysisPass.enter_expr_as_item(nd: ExprAsItem
 ) -> None {
     if nd.alias {
         self._update_ctx(nd.alias);
     }
 }
 
-impl SemanticAnalysisPass.enter_inner_compr(
-    self: SemanticAnalysisPass, nd: InnerCompr
+impl SemanticAnalysisPass.enter_inner_compr(nd: InnerCompr
 ) -> None {
     self._update_ctx(nd.target);
 }
 
-impl SemanticAnalysisPass._change_atom_trailer_ctx(
-    self: SemanticAnalysisPass, nd: AtomTrailer
+impl SemanticAnalysisPass._change_atom_trailer_ctx(nd: AtomTrailer
 ) -> None {
     last = nd.right;
     if isinstance(last, AtomExpr) {
