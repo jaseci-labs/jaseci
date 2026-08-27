@@ -38,18 +38,13 @@ def _atomic_write(path: str, text: str) {
 }
 
 def kernel_unit_path(name: str, parts: list[str]) -> str {
+    import hashlib;
     source = unit_source(parts);
-    path = os.path.join(_units_dir(), f"{name}.jac");
-    try {
-        with open(path, "r") as f {
-            if f.read() == source {
-                return path;
-            }
-        }
-    } except Exception {
-        ;
+    digest = hashlib.sha256(source.encode()).hexdigest()[:16];
+    path = os.path.join(_units_dir(), f"{name}.{digest}.jac");
+    if not os.path.exists(path) {
+        _atomic_write(path, source);
     }
-    _atomic_write(path, source);
     return path;
 }
 
