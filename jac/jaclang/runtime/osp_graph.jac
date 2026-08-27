@@ -7,20 +7,45 @@ glob _r_src: list[int] = [],
      _r_ntgt: list[int] = [],
      _row_free: list[int] = [];
 
-glob _nt_cnt: list[int] = [],
+glob _nt_cnt: list[int] = [0],
      _nt_key: list[int] = [],
      _nt_ho: list[int] = [],
      _nt_to: list[int] = [],
      _nt_hi: list[int] = [],
      _nt_ti: list[int] = [];
 
-glob _rt_cnt: list[int] = [],
+glob _rt_cnt: list[int] = [0],
      _rt_key: list[int] = [],
      _rt_head: list[int] = [];
+
+glob _et_cnt: list[int] = [0],
+     _et_key: list[int] = [],
+     _et_row: list[int] = [];
 
 glob _rk_addr: list[int] = [],
      _rk_next: list[int] = [],
      _rk_free: list[int] = [];
+
+"""Bucket for key `k` in a power-of-two table with mask `m`.
+
+The three drivers feed this table three different kinds of key: the native
+lowering passes 16-byte-aligned struct addresses, while the bytecode (sv) and
+JS drivers mint dense integer handles (1, 2, 3, ...). `k ^ (k >> 4)` folds an
+address\'s always-zero low bits back in while staying injective on the dense
+handles -- for any key below the table capacity the xor-shift preserves the
+highest set bit, so two distinct handles cannot share a bucket -- and the odd
+golden-ratio multiplier then scatters the result, which a bijection modulo a
+power of two preserves.
+
+Every operand is chosen so the one expression lowers to all three backends:
+the 32-bit mask and the 16-bit multiplier keep the product under 2**48, inside
+i64 (native `int` multiply is overflow-checked, so a 64-bit constant would
+raise on a pointer key) and inside a double\'s 53-bit mantissa (JS bitwise ops
+are 32-bit and its numbers are doubles).
+"""
+def _hslot(k: int, m: int) -> int {
+    return (((k ^ (k >> 4)) & 4294967295) * 40503) & m;
+}
 
 def _nt_grow {
     ocap = len(_nt_key);
@@ -29,30 +54,30 @@ def _nt_grow {
     oto: list[int] = [];
     ohi: list[int] = [];
     oti: list[int] = [];
+    live = 0;
     i = 0;
     while i < ocap {
-        ok.append(_nt_key[i]);
+        k = _nt_key[i];
+        ok.append(k);
         oho.append(_nt_ho[i]);
         oto.append(_nt_to[i]);
         ohi.append(_nt_hi[i]);
         oti.append(_nt_ti[i]);
+        if k != 0 {
+            live += 1;
+        }
+        _nt_key[i] = 0;
+        _nt_ho[i] = -1;
+        _nt_to[i] = -1;
+        _nt_hi[i] = -1;
+        _nt_ti[i] = -1;
         i += 1;
     }
     ncap = ocap * 2;
     if ncap == 0 {
         ncap = 1024;
     }
-    while len(_nt_key) > 0 {
-        _nt_key.pop();
-        _nt_ho.pop();
-        _nt_to.pop();
-        _nt_hi.pop();
-        _nt_ti.pop();
-    }
-    while len(_nt_cnt) > 0 {
-        _nt_cnt.pop();
-    }
-    i = 0;
+    i = ocap;
     while i < ncap {
         _nt_key.append(0);
         _nt_ho.append(-1);
@@ -66,7 +91,7 @@ def _nt_grow {
     while i < ocap {
         k = ok[i];
         if k != 0 {
-            h = ((k >> 4) ^ (k >> 16)) & m;
+            h = _hslot(k, m);
             while _nt_key[h] != 0 {
                 h = (h + 1) & m;
             }
@@ -75,18 +100,18 @@ def _nt_grow {
             _nt_to[h] = oto[i];
             _nt_hi[h] = ohi[i];
             _nt_ti[h] = oti[i];
-            _nt_cnt.append(0);
         }
         i += 1;
     }
+    _nt_cnt[0] = live;
 }
 
 def _nt_slot(addr: int) -> int {
-    if len(_nt_key) == 0 or len(_nt_cnt) * 4 >= len(_nt_key) * 3 {
+    if len(_nt_key) == 0 or _nt_cnt[0] * 4 >= len(_nt_key) * 3 {
         _nt_grow();
     }
     m = len(_nt_key) - 1;
-    h = ((addr >> 4) ^ (addr >> 16)) & m;
+    h = _hslot(addr, m);
     while True {
         k = _nt_key[h];
         if k == addr {
@@ -94,7 +119,7 @@ def _nt_slot(addr: int) -> int {
         }
         if k == 0 {
             _nt_key[h] = addr;
-            _nt_cnt.append(0);
+            _nt_cnt[0] += 1;
             return h;
         }
         h = (h + 1) & m;
@@ -107,7 +132,7 @@ def _nt_find(addr: int) -> int {
         return -1;
     }
     m = len(_nt_key) - 1;
-    h = ((addr >> 4) ^ (addr >> 16)) & m;
+    h = _hslot(addr, m);
     while True {
         k = _nt_key[h];
         if k == addr {
@@ -131,7 +156,7 @@ def _nt_del(s: int) {
         if k == 0 {
             break;
         }
-        h = ((k >> 4) ^ (k >> 16)) & m;
+        h = _hslot(k, m);
         move = False;
         if i <= j {
             if h <= i or h > j {
@@ -156,31 +181,31 @@ def _nt_del(s: int) {
     _nt_to[i] = -1;
     _nt_hi[i] = -1;
     _nt_ti[i] = -1;
-    _nt_cnt.pop();
+    _nt_cnt[0] -= 1;
 }
 
 def _rt_grow {
     ocap = len(_rt_key);
     ok: list[int] = [];
     oh: list[int] = [];
+    live = 0;
     i = 0;
     while i < ocap {
-        ok.append(_rt_key[i]);
+        k = _rt_key[i];
+        ok.append(k);
         oh.append(_rt_head[i]);
+        if k != 0 {
+            live += 1;
+        }
+        _rt_key[i] = 0;
+        _rt_head[i] = -1;
         i += 1;
     }
     ncap = ocap * 2;
     if ncap == 0 {
         ncap = 256;
     }
-    while len(_rt_key) > 0 {
-        _rt_key.pop();
-        _rt_head.pop();
-    }
-    while len(_rt_cnt) > 0 {
-        _rt_cnt.pop();
-    }
-    i = 0;
+    i = ocap;
     while i < ncap {
         _rt_key.append(0);
         _rt_head.append(-1);
@@ -191,24 +216,24 @@ def _rt_grow {
     while i < ocap {
         k = ok[i];
         if k != 0 {
-            h = ((k >> 4) ^ (k >> 16)) & m;
+            h = _hslot(k, m);
             while _rt_key[h] != 0 {
                 h = (h + 1) & m;
             }
             _rt_key[h] = k;
             _rt_head[h] = oh[i];
-            _rt_cnt.append(0);
         }
         i += 1;
     }
+    _rt_cnt[0] = live;
 }
 
 def _rt_slot(rgn: int) -> int {
-    if len(_rt_key) == 0 or len(_rt_cnt) * 4 >= len(_rt_key) * 3 {
+    if len(_rt_key) == 0 or _rt_cnt[0] * 4 >= len(_rt_key) * 3 {
         _rt_grow();
     }
     m = len(_rt_key) - 1;
-    h = ((rgn >> 4) ^ (rgn >> 16)) & m;
+    h = _hslot(rgn, m);
     while True {
         k = _rt_key[h];
         if k == rgn {
@@ -216,7 +241,7 @@ def _rt_slot(rgn: int) -> int {
         }
         if k == 0 {
             _rt_key[h] = rgn;
-            _rt_cnt.append(0);
+            _rt_cnt[0] += 1;
             return h;
         }
         h = (h + 1) & m;
@@ -234,7 +259,7 @@ def _rt_del(s: int) {
         if k == 0 {
             break;
         }
-        h = ((k >> 4) ^ (k >> 16)) & m;
+        h = _hslot(k, m);
         move = False;
         if i <= j {
             if h <= i or h > j {
@@ -253,7 +278,156 @@ def _rt_del(s: int) {
     }
     _rt_key[i] = 0;
     _rt_head[i] = -1;
-    _rt_cnt.pop();
+    _rt_cnt[0] -= 1;
+}
+
+
+"""Edge-handle -> row index.
+
+`osp_disconnect` and `osp_edge_peer` used to answer "which row is this edge?"
+by scanning `_r_handle` from zero, which made detaching E edges O(E**2) on the
+same graphs the node table made quadratic to build. The row a handle owns is
+maintained here instead, in the same open-addressed shape as the node table.
+"""
+def _et_grow {
+    ocap = len(_et_key);
+    ok: list[int] = [];
+    orow: list[int] = [];
+    live = 0;
+    i = 0;
+    while i < ocap {
+        k = _et_key[i];
+        ok.append(k);
+        orow.append(_et_row[i]);
+        if k != 0 {
+            live += 1;
+        }
+        _et_key[i] = 0;
+        _et_row[i] = -1;
+        i += 1;
+    }
+    ncap = ocap * 2;
+    if ncap == 0 {
+        ncap = 1024;
+    }
+    i = ocap;
+    while i < ncap {
+        _et_key.append(0);
+        _et_row.append(-1);
+        i += 1;
+    }
+    m = ncap - 1;
+    i = 0;
+    while i < ocap {
+        k = ok[i];
+        if k != 0 {
+            h = _hslot(k, m);
+            while _et_key[h] != 0 {
+                h = (h + 1) & m;
+            }
+            _et_key[h] = k;
+            _et_row[h] = orow[i];
+        }
+        i += 1;
+    }
+    _et_cnt[0] = live;
+}
+
+def _et_put(eh: int, row: int) {
+    if len(_et_key) == 0 or _et_cnt[0] * 4 >= len(_et_key) * 3 {
+        _et_grow();
+    }
+    m = len(_et_key) - 1;
+    h = _hslot(eh, m);
+    while True {
+        k = _et_key[h];
+        if k == eh {
+            _et_row[h] = row;
+            return;
+        }
+        if k == 0 {
+            _et_key[h] = eh;
+            _et_row[h] = row;
+            _et_cnt[0] += 1;
+            return;
+        }
+        h = (h + 1) & m;
+    }
+}
+
+def _et_find(eh: int) -> int {
+    if len(_et_key) == 0 {
+        return -1;
+    }
+    m = len(_et_key) - 1;
+    h = _hslot(eh, m);
+    while True {
+        k = _et_key[h];
+        if k == eh {
+            return _et_row[h];
+        }
+        if k == 0 {
+            return -1;
+        }
+        h = (h + 1) & m;
+    }
+    return -1;
+}
+
+def _et_del(eh: int) {
+    if len(_et_key) == 0 {
+        return;
+    }
+    m = len(_et_key) - 1;
+    h = _hslot(eh, m);
+    s = -1;
+    while True {
+        k = _et_key[h];
+        if k == eh {
+            s = h;
+            break;
+        }
+        if k == 0 {
+            return;
+        }
+        h = (h + 1) & m;
+    }
+    i = s;
+    j = s;
+    while True {
+        j = (j + 1) & m;
+        k = _et_key[j];
+        if k == 0 {
+            break;
+        }
+        hh = _hslot(k, m);
+        move = False;
+        if i <= j {
+            if hh <= i or hh > j {
+                move = True;
+            }
+        } else {
+            if hh <= i and hh > j {
+                move = True;
+            }
+        }
+        if move {
+            _et_key[i] = k;
+            _et_row[i] = _et_row[j];
+            i = j;
+        }
+    }
+    _et_key[i] = 0;
+    _et_row[i] = -1;
+    _et_cnt[0] -= 1;
+}
+
+"""Retire row `row` and the handle that owned it."""
+def _row_retire(row: int) {
+    _et_del(_r_handle[row]);
+    _r_src[row] = -1;
+    _r_handle[row] = 0;
+    _row_free.append(row);
 }
 
 def osp_conn(
@@ -307,6 +481,7 @@ def osp_conn(
         _nt_hi[ts] = r;
     }
     _nt_ti[ts] = r;
+    _et_put(eobj, r);
     return tgt;
 }
 
@@ -439,18 +614,14 @@ def _unlink_in(tgt: int, row: int) {
 }
 
 def osp_edge_peer(edge_handle: int, origin: int) -> int {
-    i = 0;
-    n = len(_r_handle);
-    while i < n {
-        if _r_handle[i] == edge_handle and _r_src[i] != -1 {
-            if _r_src[i] == origin {
-                return _r_tgt[i];
-            }
-            return _r_src[i];
-        }
-        i = i + 1;
+    r = _et_find(edge_handle);
+    if r < 0 or _r_src[r] == -1 {
+        return -1;
     }
-    return -1;
+    if _r_src[r] == origin {
+        return _r_tgt[r];
+    }
+    return _r_src[r];
 }
 
 def osp_disconn_between(src: int, tgt: int, dir: int, edge_tag: int) -> int {
@@ -493,29 +664,21 @@ def osp_disconn_between(src: int, tgt: int, dir: int, edge_tag: int) -> int {
         row = hits[i];
         _unlink_out(_r_src[row], row);
         _unlink_in(_r_tgt[row], row);
-        _r_src[row] = -1;
-        _r_handle[row] = 0;
-        _row_free.append(row);
+        _row_retire(row);
         i = i + 1;
     }
     return n;
 }
 
 def osp_disconnect(edge_handle: int) -> int {
-    i = 0;
-    n = len(_r_handle);
-    while i < n {
-        if _r_handle[i] == edge_handle and _r_src[i] != -1 {
-            _unlink_out(_r_src[i], i);
-            _unlink_in(_r_tgt[i], i);
-            _r_src[i] = -1;
-            _r_handle[i] = 0;
-            _row_free.append(i);
-            return 1;
-        }
-        i = i + 1;
+    r = _et_find(edge_handle);
+    if r < 0 or _r_src[r] == -1 {
+        return 0;
     }
-    return 0;
+    _unlink_out(_r_src[r], r);
+    _unlink_in(_r_tgt[r], r);
+    _row_retire(r);
+    return 1;
 }
 
 def osp_region_died(rgn: int) -> int {
@@ -524,7 +687,7 @@ def osp_region_died(rgn: int) -> int {
         return 0;
     }
     m = len(_rt_key) - 1;
-    h = ((rgn >> 4) ^ (rgn >> 16)) & m;
+    h = _hslot(rgn, m);
     s = -1;
     while True {
         k = _rt_key[h];
@@ -562,9 +725,7 @@ def osp_region_died(rgn: int) -> int {
                 if _nt_find(_r_tgt[r]) >= 0 {
                     _unlink_in(_r_tgt[r], r);
                 }
-                _r_src[r] = -1;
-                _r_handle[r] = 0;
-                _row_free.append(r);
+                _row_retire(r);
                 n += 1;
             }
             r = nx;
@@ -576,9 +737,7 @@ def osp_region_died(rgn: int) -> int {
                 if _nt_find(_r_src[r]) >= 0 {
                     _unlink_out(_r_src[r], r);
                 }
-                _r_src[r] = -1;
-                _r_handle[r] = 0;
-                _row_free.append(r);
+                _row_retire(r);
                 n += 1;
             }
             r = nx;
