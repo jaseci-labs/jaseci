@@ -1,3 +1,5 @@
+import from jaclang.comptime { fields }
+
 enum IdentityType { USERNAME = 'username' }
 
 
@@ -12,15 +14,15 @@ obj IdentityInput {
         if not isinstance(data, dict) {
             raise ValueError('identity must be an object');
         }
-        type_value = data.get('type');
-        value = data.get('value');
-        if not isinstance(type_value, str) or not type_value {
-            raise ValueError('identity.type is required');
+        kw: dict[str, str] = {};
+        comptime for f in fields(IdentityInput) {
+            v = data.get(f.name);
+            if not isinstance(v, str) or not v {
+                raise ValueError(f"identity.{f.name} is required");
+            }
+            kw[f.name] = v;
         }
-        if not isinstance(value, str) or not value {
-            raise ValueError('identity.value is required');
-        }
-        return IdentityInput(type=type_value, value=value);
+        return IdentityInput(**kw);
     }
 }
 
@@ -33,15 +35,15 @@ obj CredentialInput {
         if not isinstance(data, dict) {
             raise ValueError('credential must be an object');
         }
-        type_value = data.get('type');
-        password = data.get('password');
-        if not isinstance(type_value, str) or not type_value {
-            raise ValueError('credential.type is required');
+        kw: dict[str, str] = {};
+        comptime for f in fields(CredentialInput) {
+            v = data.get(f.name);
+            if not isinstance(v, str) or not v {
+                raise ValueError(f"credential.{f.name} is required");
+            }
+            kw[f.name] = v;
         }
-        if not isinstance(password, str) or not password {
-            raise ValueError('credential.password is required');
-        }
-        return CredentialInput(type=type_value, password=password);
+        return CredentialInput(**kw);
     }
 }
 
