@@ -1,6 +1,6 @@
 """A broken file in the compiler's own sources is never degraded around.
 
-Every schedule builder in `jac0core.compiler` degrades on `ImportError` so the
+Every schedule builder in `compiler.driver.schedules` degrades on `ImportError` so the
 compiler can bootstrap itself and so an install missing an optional backend
 still compiles. Both of those are *absence*. When #8215 dropped a comma from
 `esast_gen_pass.jac`'s import list the file was present and simply would not
@@ -24,17 +24,15 @@ import os;
 import sys;
 import tempfile;
 import types;
-import jaclang.jac0core.unitree as uni;
-import jaclang.jac0core.compiler as compiler_mod;
+import jaclang.compiler.frontend.unitree as uni;
+import jaclang.compiler.driver.compiler as compiler_mod;
 import from jaclang.meta_importer { JacSourceCompileError }
-import from jaclang.jac0core.compiler {
-    CompilerSourceError,
-    JcirBytecodeGenPass,
-    JcirGenPass,
-    get_py_code_gen
-}
-import from jaclang.jac0core.passes { Transform }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.compiler.driver.source_failures { CompilerSourceError }
+import from jaclang.compiler.backends.py.jcir_bc_gen_pass { JcirBytecodeGenPass }
+import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
+import from jaclang.compiler.driver.schedules { get_py_code_gen }
+import from jaclang.compiler.passes { Transform }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
 
 # The #8215 defect shape: an import list whose separator went missing.
 glob BROKEN_SRC = (
@@ -48,7 +46,7 @@ glob BROKEN_SRC = (
          '    return 1;\n'
          '}\n'
      ),
-     ES_BACKEND = 'jaclang.compiler.passes.ecmascript';
+     ES_BACKEND = 'jaclang.compiler.backends.es';
 
 glob COMPILER_SRC = os.path.join(
          os.path.dirname(os.path.dirname(compiler_mod.__file__)),

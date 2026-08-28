@@ -18,7 +18,7 @@ import sys;
 import shutil;
 import tempfile;
 import importlib;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 
 glob _UNTYPED_BODY: str = (

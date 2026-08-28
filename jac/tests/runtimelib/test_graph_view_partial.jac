@@ -8,8 +8,8 @@ raising turns one dangling reference into a blank graph for the whole app.
 
 import from uuid { uuid4 }
 
-import from jaclang.jac0core.archetype { EdgeAnchor, GenericEdge, Root }
-import from jaclang.runtimelib.utils { collect_node_connections }
+import from jaclang.runtime.archetype { EdgeAnchor, GenericEdge, Root }
+import from jaclang.runtime.graph_utils { collect_node_connections }
 
 
 """An unpopulatable EdgeAnchor stub (its backing row is unreadable/gone)."""

@@ -1,7 +1,7 @@
 # mobUI examples
 
 One source tree, two platforms: these apps are written in the portable
-[`@jac/mobui`](../../jaclang/runtimelib/client/client_mobui.cl.jac) vocabulary
+[`@jac/mobui`](../../jaclang/client/client_mobui.cl.jac) vocabulary
 (`client_kind = "mobui"` in `jac.toml`) and compile to both the web (via
 `react-native-web`) and React Native (via Expo/Metro).
 

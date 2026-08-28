@@ -1,6 +1,7 @@
 import json;
 import re;
-import from jaclang.runtimelib.serving.model { ApiModel, require_str }
+import from jaclang.comptime { fields }
+import from jaclang.server.serving.model { ApiModel, require_str }
 import from jaclang.scale.shared.enums { CredentialType }
 
 glob PROFILE_MAX_KEYS: int = 20,
@@ -155,10 +156,11 @@ obj UpdatePasswordRequest(ApiModel) {
         if not isinstance(data, dict) {
             raise ValueError('request body must be an object');
         }
-        return UpdatePasswordRequest(
-            current_password=require_str(data, 'current_password'),
-            new_password=require_str(data, 'new_password')
-        );
+        kw: dict[str, str] = {};
+        comptime for f in fields(UpdatePasswordRequest) {
+            kw[f.name] = require_str(data, f.name);
+        }
+        return UpdatePasswordRequest(**kw);
     }
 }
 
@@ -231,10 +233,11 @@ obj ResetPasswordRequest(ApiModel) {
         if not isinstance(data, dict) {
             raise ValueError('request body must be an object');
         }
-        return ResetPasswordRequest(
-            token=require_str(data, 'token'),
-            new_password=require_str(data, 'new_password')
-        );
+        kw: dict[str, str] = {};
+        comptime for f in fields(ResetPasswordRequest) {
+            kw[f.name] = require_str(data, f.name);
+        }
+        return ResetPasswordRequest(**kw);
     }
 }
 

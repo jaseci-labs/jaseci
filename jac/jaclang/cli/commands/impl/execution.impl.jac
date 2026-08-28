@@ -7,7 +7,7 @@ import from jaclang.cli.console { console, use_line_buffered_output }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 import from jaclang.project.kinds { RunPlan }
 import type from importlib.metadata { EntryPoint }
-import type from jaclang.compiler.passes.native.llvm.binding.executionengine {
+import type from jaclang.compiler.backends.native.llvm.binding.executionengine {
     ExecutionEngine
 }
 
@@ -15,7 +15,7 @@ def _discover_config_from_file(filename: str) -> None {
     import from pathlib { Path }
     import from jaclang.project.config { JacConfig, get_config, set_config }
     import from jaclang.project.pyvenv { add_venv_to_path }
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     file_path = Path(filename).resolve();
 
@@ -199,8 +199,9 @@ def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> in
         return 1;
     }
     initialize_provider_registry();
+
     kw: dict = {
-        "port": 8000,
+        "port": 0,
         "dev": False,
         "api_port": 0,
         "no_client": False,
@@ -268,7 +269,7 @@ def _show_run(plan: (RunPlan | None), filename: str, want_serve: bool) -> int {
 def _run_jab(
     filename: str, port: (int | None), args: list[str], serve_only: bool
 ) -> int {
-    import from jaclang.runtimelib.jab { materialize_jab }
+    import from jaclang.dist.jab { materialize_jab }
 
     try {
         img_root = materialize_jab(filename);
@@ -282,7 +283,7 @@ def _run_jab(
 impl run_jab_image(
     img_root: Path, port: (int | None), args: list[str], serve_only: bool, label: str
 ) -> int {
-    import from jaclang.runtimelib.jab { jab_app_meta }
+    import from jaclang.dist.jab { jab_app_meta }
 
     meta = jab_app_meta(img_root);
     kind = str(meta.get("kind") or "cli");
@@ -308,7 +309,10 @@ impl run_jab_image(
         if serve_port is None {
             import from jaclang.project.config { get_config_for_path }
             img_cfg = get_config_for_path(img_root);
-            serve_port = img_cfg.serve.port if img_cfg else 8000;
+
+            serve_port = (
+                img_cfg.serve.port if img_cfg and img_cfg.serve.port != 8000 else 0
+            );
         }
         return serve(
             filename=entry_abs,
@@ -335,9 +339,9 @@ impl run_jab_image(
 
 def _jab_native_bin(img_root: Path, entry_rel: str) -> (str | None) {
     import from jaclang.jac0core.ext_registry { base_stem }
-    import from jaclang.runtimelib.sealed_serve { NATIVE_DIR_REL }
+    import from jaclang.server.sealed_serve { NATIVE_DIR_REL }
     try {
-        import jaclang.compiler.passes.native.llvm.binding as llvm;
+        import jaclang.compiler.backends.native.llvm.binding as llvm;
         triple = str(llvm.get_default_triple());
     } except Exception {
         return None;
@@ -401,8 +405,8 @@ def _resolve_plan(filename: str) -> tuple {
 def _invoke_entrypoint(
     filename: str, entrypoint: str, args: list, main: bool, root_id: str, nd: str
 ) -> int {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
-    import from jaclang.jac0core.constructs { WalkerArchetype }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.constructs { WalkerArchetype }
 
     if not filename.endswith('.jac') {
         console.error('Not a valid file!\nOnly supports `.jac`');
@@ -558,13 +562,13 @@ impl run(
 def _exec_file(
     filename: str, main: bool, cache: bool, diagnostics: str, args: list
 ) -> int {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.project.config { get_config }
 
     _discover_config_from_file(filename);
 
     if not cache {
-        import from jaclang.jac0core.jir { scrub_cache_dirs }
+        import from jaclang.compiler.driver.jir { scrub_cache_dirs }
         scrub_cache_dirs(os.path.dirname(os.path.abspath(filename)) or ".");
     }
 
@@ -591,7 +595,7 @@ def _exec_file(
                 or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
             ) {
                 import ctypes;
-                import from jaclang.jac0core.compile_options {
+                import from jaclang.compiler.driver.compile_options {
                     CompileOptions as _RunOpts
                 }
                 full_path = os.path.abspath(filename);
@@ -657,7 +661,7 @@ def _exec_file(
                     console.error(error.pretty_print());
                 }
             } else {
-                import from jaclang.jac0core.traceback_render { dump_traceback }
+                import from jaclang.runtime.traceback_render { dump_traceback }
                 console.error(dump_traceback(e));
             }
         }
@@ -686,7 +690,7 @@ def _exec_file(
 
 impl serve(
     filename: str,
-    port: int = 8000,
+    port: int = 0,
     main: bool = True,
     faux: bool = False,
     dev: bool = False,
@@ -697,14 +701,14 @@ impl serve(
     platform: str = "auto",
     takeover: bool = False
 ) -> int {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from pathlib { Path }
-    import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
+    import from jaclang.compiler.frontend.codeinfo { set_effective_default_codespace }
 
     use_line_buffered_output();
     set_effective_default_codespace('server');
 
-    import from jaclang.runtimelib.client.cli { run_client_start }
+    import from jaclang.client.cli { run_client_start }
     client_rc = run_client_start(
         filename, client, host, platform, port, api_port, dev, no_client
     );
@@ -736,7 +740,7 @@ impl serve(
     _discover_config_from_file(filename);
     if takeover {
         import os;
-        import from jaclang.runtimelib.session { takeover_project }
+        import from jaclang.server.session { takeover_project }
         tk_base = Jac.get_base_path_dir() or (os.path.split(filename)[0] or './');
         tk_target = Jac.get_full_target_path() or filename;
         evicted = takeover_project(tk_base, tk_target);
@@ -765,7 +769,7 @@ impl serve(
                 console.error(error.pretty_print());
             }
         } else {
-            import from jaclang.jac0core.traceback_render { dump_traceback }
+            import from jaclang.runtime.traceback_render { dump_traceback }
             console.error(f"Error loading {filename}: {e}");
             console.error(dump_traceback(e));
         }
@@ -777,21 +781,30 @@ impl serve(
         mach.mem.unit_exit();
     } except Exception { }
 
+    port_pinned = port > 0;
+    port = port if port_pinned else 8000;
     if dev and not no_client {
         vite_port = port;
         actual_api_port = api_port if api_port > 0 else port + 1;
+        api_port_pinned = api_port > 0;
     } else {
         actual_api_port = port;
         vite_port = 0;
+        api_port_pinned = port_pinned;
     }
 
     ServerClass = Jac.get_api_server_class();
-    server = ServerClass(module_name=mod, port=actual_api_port, base_path=base);
+    server = ServerClass(
+        module_name=mod,
+        port=actual_api_port,
+        base_path=base,
+        strict_port=api_port_pinned
+    );
     if faux {
         try {
             server.print_endpoint_docs();
         } except Exception as e {
-            import from jaclang.jac0core.traceback_render { dump_traceback }
+            import from jaclang.runtime.traceback_render { dump_traceback }
             console.error(f"Error generating endpoint documentation: {e}");
             console.error(dump_traceback(e));
             mach.close();
@@ -815,8 +828,8 @@ impl serve(
             return 1;
         }
         try {
-            import from jaclang.runtimelib.hmr { HotReloader }
-            import from jaclang.runtimelib.watcher { JacFileWatcher }
+            import from jaclang.server.hmr { HotReloader }
+            import from jaclang.server.watcher { JacFileWatcher }
 
             watcher = JacFileWatcher(watch_paths=[base]);
             client_compiler = None;
@@ -869,7 +882,9 @@ impl serve(
     def _announce_ready(actual_port: int) {
         primary_port = actual_port;
         if dev and not no_client {
-            free_vite_port = _find_free_port(vite_port, skip_port=actual_port);
+            free_vite_port = _find_free_port(
+                vite_port, skip_port=actual_port, strict=port_pinned
+            );
             (started_vite, bound_port) = _start_vite_dev_server(
                 base, free_vite_port, actual_port
             );
@@ -901,9 +916,8 @@ impl serve(
         mach.close();
         return 0;
     } except Exception as e {
-        import from jaclang.jac0core.traceback_render { dump_traceback }
-        console.error(f"Server error: {e}");
-        console.error(dump_traceback(e));
+        import from jaclang.runtime.traceback_render { dump_traceback }
+        import from jaclang.server.net { PortInUseError }
         if hot_reloader is not None {
             hot_reloader.stop();
         }
@@ -911,6 +925,11 @@ impl serve(
             started_vite.terminate();
         }
         mach.close();
+        if isinstance(e, PortInUseError) {
+            raise;
+        }
+        console.error(f"Server error: {e}");
+        console.error(dump_traceback(e));
         return 1;
     }
 }
@@ -1051,35 +1070,26 @@ def _print_startup_message(
     console.print();
 }
 
-def _find_free_port(start: int, skip_port: int = 0) -> int {
-    import socket;
-    candidate = start;
-    for _ in range(50) {
-        if candidate != skip_port {
-            try {
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe {
-                    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
-                    probe.bind(('0.0.0.0', candidate));
-                }
-                return candidate;
-            } except OSError {
-                ;
-            }
+def _find_free_port(start: int, skip_port: int = 0, strict: bool = False) -> int {
+    import from jaclang.server.net { find_available_port }
+    try {
+        return find_available_port(
+            start, max_retries=50, skip_port=skip_port, strict=strict
+        );
+    } except OSError as e {
+        if strict {
+            raise;
         }
-        candidate += 1;
+        console.warning(f"[Vite] {e}; falling back.");
+        return start if start != skip_port else start + 50;
     }
-    console.warning(
-        f"[Vite] No free port found in {start}-{start + 49}; falling back."
-    );
-
-    return start if start != skip_port else start + 50;
 }
 
 def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any {
     import from pathlib { Path }
 
     try {
-        import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+        import from jaclang.client.vite_bundler { ViteBundler }
 
         project_dir = Path(base_path);
         bundler = ViteBundler(project_dir);
@@ -1105,8 +1115,8 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
 }
 
 impl debug(filename: str, main: bool = True, cache: bool = False) -> int {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.debugger { debugger as db }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.runtime.debugger { debugger as db }
     if len(sys.argv) > 1 and sys.argv[1] == "debug" {
         console.print(
             "note: 'jac debug' is deprecated; use jac run <file> --debug", style="muted"
@@ -1255,7 +1265,7 @@ def _run_entry_point(
 def _run_node_tool(name: str, bin_path: Path, args: list[str]) -> int {
     import subprocess;
     import from jaclang.project.config { get_config }
-    import from jaclang.runtimelib.client.bun_installer { get_bun }
+    import from jaclang.client.bun_installer { get_bun }
 
     bun = get_bun();
     if bun is None {

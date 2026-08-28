@@ -22,9 +22,9 @@ compiled.
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { AccessLevel, EdgeAnchor, GenericEdge, Root }
-import from jaclang.jac0core.runtime { JacRuntime, JacRuntimeInterface }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.archetype { AccessLevel, EdgeAnchor, GenericEdge, Root }
+import from jaclang.runtime.runtime { JacRuntime, JacRuntimeInterface }
+import from jaclang.runtime.context { ExecutionContext }
 
 node Doc {
     has label: str = "";
@@ -73,7 +73,7 @@ def _seed(ctx: ExecutionContext, hub: any, owner: any, n: int, granted: int) {
         d.persistent = True;
         setattr(d, "root", owner.id);
         if i < granted {
-            d.access.all = AccessLevel.READ;
+            d.own_access().all = AccessLevel.READ;
         }
         ctx.mem.put(d);
         e = EdgeAnchor(
@@ -207,7 +207,7 @@ test "a grant to a group reaches every member without a per-root entry" {
             assert seen == ["team-doc"] , (
                 f"a group grant must reach a member; got {seen}"
             );
-            assert not d.access.roots.anchors , (
+            assert d.access is None or not d.access.roots.anchors , (
                 "a group grant must not write a per-root entry on the object"
             );
         } finally {
