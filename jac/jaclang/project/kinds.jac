@@ -225,7 +225,7 @@ def resolve_project_kind(config: JacConfig, entry_path: str) -> str {
     if explicit {
         return explicit;
     }
-    import from jaclang.jac0core.placement_facts { pinned_module_space }
+    import from jaclang.compiler.placement.placement_facts { pinned_module_space }
     entry_pin = pinned_module_space(entry_path) if entry_path else '';
     if (entry_pin == 'native') {
         return "cli-native";

@@ -4,11 +4,11 @@ winner verification, and the cost invariant (L3 fetches == |result|)."""
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { EdgeAnchor, NodeAnchor, Root }
-import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.query_planner { resolve_query }
+import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor, Root }
+import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.data.query_planner { resolve_query }
 
 def _as_any(v: any) -> any {
     return v;
@@ -65,7 +65,7 @@ def _seed(ctx: ExecutionContext) -> UUID {
     banch.edges.append(e2);
     ctx.mem.put(banch);
     ctx.mem.put(e2);
-    return ranch.id;
+    return ranch.ensure_id();
 }
 
 
@@ -230,7 +230,7 @@ test "overlay: uncommitted writes are visible, both directions" {
             )[0];
             victim: (EdgeAnchor | None) = None;
             for stub in ranch.edges {
-                loaded = ctx2.mem.get(stub.id);
+                loaded = ctx2.mem.get(stub.ensure_id());
                 if isinstance(loaded, EdgeAnchor)
                     and loaded.is_populated()
                     and loaded.target.id == two_anchor.id {

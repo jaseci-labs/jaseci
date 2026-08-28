@@ -17,8 +17,8 @@ mechanical guard behind that.
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID, uuid4 }
-import from jaclang.runtimelib.session { Session }
-import from jaclang.runtimelib.store { Store, TxnIsolation }
+import from jaclang.server.session { Session }
+import from jaclang.data.store { Store, TxnIsolation }
 
 
 def _mk_session(td: str) -> Session {
@@ -172,7 +172,7 @@ test "isolation: a pending write inside a read scope forces SERIALIZABLE" {
 
 
 test "isolation: scale context construction declares read intent" {
-    import from jaclang.jac0core.constant { Constants as Con }
+    import from jaclang.compiler.frontend.constant { Constants as Con }
     with TemporaryDirectory() as td {
         s = _mk_session(td);
         try {

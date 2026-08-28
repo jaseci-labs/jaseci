@@ -1,5 +1,6 @@
 """AI Day Planner -- single-file full-stack with composed components."""
 
+import from jaclang.comptime { fields, get_field }
 enum Category { WORK, PERSONAL, SHOPPING, HEALTH, FITNESS, OTHER }
 
 enum Unit { PIECE, LB, OZ, CUP, TBSP, TSP, BUNCH }
@@ -76,13 +77,13 @@ def:pub generate_list(meal: str) -> list[ShoppingItem] {
     }
     ingredients = generate_shopping_list(meal);
     for ing in ingredients {
-        root ++> ShoppingItem(
-            name=ing.name,
-            quantity=ing.quantity,
-            unit=str(ing.unit).split(".")[-1].lower(),
-            cost=ing.cost,
-            carby=ing.carby
-        );
+        item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+        comptime for f in fields(ShoppingItem) {
+            comptime if f.name != "unit" {
+                item[f.name] = get_field(ing, f.name);
+            }
+        }
+        root ++> ShoppingItem(**item);
     }
     return [root-->][?:ShoppingItem];
 }

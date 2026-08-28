@@ -32,7 +32,7 @@ A task-first index into the commands below. The full alphabetical list follows i
 | Manage byLLM local models | `jac model` |
 | Use Jac from an AI assistant | `jac guide` · `jac mcp` |
 | Convert between Python, Jac, and JS | `jac tool py2jac` · `jac tool jac2py` · `jac tool jac2js` |
-| Clean caches / artifacts | `jac clean` · `jac purge` |
+| Clean caches / artifacts | `jac clean` |
 
 ---
 
@@ -48,7 +48,6 @@ A task-first index into the commands below. The full alphabetical list follows i
 | `jac fmt` | Format code |
 | `jac precommit` | Run format + check using `jac.toml` lint settings (installable as a git hook) |
 | `jac clean` | Clean project build artifacts |
-| `jac purge` | Purge global bytecode cache (works even if corrupted) |
 | `jac dot` | Generate graph visualization |
 | `jac browse` | Automate a headless browser over CDP (navigate, click, snapshot, screenshot) |
 | `jac code` | Query code structure via the compiler (symbols, uses, walkers, slices) |
@@ -1059,7 +1058,7 @@ jac config [action] [key] [value] [-g GROUP] [-o FORMAT]
 
 - `project` - Project metadata (name, version, description)
 - `run` - Runtime settings (cache, session)
-- `build` - Build settings (typecheck, output directory)
+- `build` - Build settings (output directory)
 - `test` - Test settings (verbose, filters)
 - `serve` - Server settings (port, host)
 - `format` - Formatting options
@@ -1161,10 +1160,10 @@ jac scale <action> [name|file] [--target TARGET] [--component COMPONENT]
 │ Component         │ Status                 │ Pods  │
 ├───────────────────┼────────────────────────┼───────┤
 │ Jaseci App        │ ● Running              │  1/1  │
-│ Redis             │ ● Running              │  1/1  │
-│ MongoDB           │ ● Running              │  1/1  │
+│ PostgreSQL        │ ● Running              │  1/1  │
 │ Prometheus        │ ● Running              │  1/1  │
 │ Grafana           │ ● Running              │  1/1  │
+│ NGINX Ingress     │ ● Running              │  1/1  │
 └───────────────────┴────────────────────────┴───────┘
 
   Service URLs
@@ -1483,28 +1482,7 @@ jac clean --data --cache
 jac clean --all --force
 ```
 
-> **💡 Troubleshooting Tip:** If you encounter unexpected syntax errors, "NodeAnchor is not a valid reference" errors, or other strange behavior after modifying your code, try clearing the cache with `jac clean --cache` (`rm -rf .jac`) or `jac purge`. Stale bytecode can cause issues when source files change.
-
----
-
-### jac purge
-
-Purge the global bytecode cache. Works even when the cache is corrupted.
-
-```bash
-jac purge
-```
-
-**When to use:**
-
-- After upgrading Jaseci packages
-- When encountering cache-related errors (`jaclang.pycore`, `NodeAnchor`, etc.)
-- When setup stalls during first-time compilation
-
-| Command | Scope |
-|---------|-------|
-| `jac clean --cache` | Local project (`.jac/cache/`) |
-| `jac purge` | Global system cache |
+> **💡 Troubleshooting Tip:** If you encounter unexpected syntax errors, "NodeAnchor is not a valid reference" errors, or other strange behavior after modifying your code, try clearing the project cache with `jac clean --cache` (removes `.jac/cache/`). If that doesn't help -- for example after upgrading Jaseci packages -- also remove the global per-user cache with `rm -rf ~/.cache/jac`. Stale bytecode can cause issues when source files change.
 
 ---
 
@@ -1696,7 +1674,7 @@ jac tool ir sym main.jac
 jac tool ir py main.jac
 ```
 
-> **Deprecated:** `jac js` is a deprecated alias for `jac tool jac2js` and will be removed in a future release. It still works but emits a deprecation warning on stderr; update scripts to use `jac tool jac2js`.
+> **Removed:** `jac js` has been removed. Running it prints a pointer and exits with an error; use `jac tool jac2js` instead.
 
 ---
 

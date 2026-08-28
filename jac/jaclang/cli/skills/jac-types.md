@@ -107,7 +107,7 @@ obj Counter {
 
 ## Fixed-width numbers - `i8`..`u64`, `f32`, `f64`
 
-Real types with one contract on every lane (server, native, client). Widening is implicit only when value-preserving (`i8 -> i16 -> i32 -> i64 -> int`, `u8 -> u16 -> u32 -> u64 -> int`, `u8 -> i16`, `i8..u16 -> f32`, `i8..u32 -> f64`, `f32 -> f64 -> float`, `bool -> int-kind`, `int-kind -> float`); everything else is the checked cast `T(x)` (raises `OverflowError` out of range) or the modular `T.wrap(x)`. An in-range literal adopts the sized operand (`w: i32 = 1; w = w + 1` is fine); arithmetic traps on overflow; `wrapping_add/sub/mul/neg/shl` never trap; `T.MIN`/`T.MAX` are the bounds.
+Real types with one contract on every lane (server, native, client). `int` and `float` are members of the same lattice, not exceptions: `int` is the signed 64-bit machine integer and behaves exactly as `i64`, `float` is binary64 and behaves exactly as `f64` -- so `u64 -> int` needs a cast for the same reason `u64 -> i64` does. Widening is implicit only when value-preserving (`i8 -> i16 -> i32 -> i64 -> int`, `u8 -> u16 -> u32 -> u64 -> int`, `u8 -> i16`, `i8..u16 -> f32`, `i8..u32 -> f64`, `f32 -> f64 -> float`, `bool -> int-kind`, `int-kind -> float`); everything else is the checked cast `T(x)` (raises `OverflowError` out of range) or the modular `T.wrap(x)`. An in-range literal adopts the sized operand (`w: i32 = 1; w = w + 1` is fine); arithmetic traps on overflow; `wrapping_add/sub/mul/neg/shl` never trap; `T.MIN`/`T.MAX` are the bounds.
 
 | Code | Meaning | Fix |
 |---|---|---|
@@ -115,6 +115,7 @@ Real types with one contract on every lane (server, native, client). Widening is
 | **E1127** | implicit conversion that is not value-preserving (`int -> i32`, `i64 -> i8`, `u8 -> i8`, `f64 -> f32`, `i64 -> f32`) | cast at the boundary: `i32(n)`, or widen the destination; FFI call sites need the cast too |
 | **E1128** | operands with no common fixed-width type (`u8 + i8`, `u64 < i64`, `i32 == u32`, `i64 + f32`) | cast one operand explicitly so the width and sign of the operation is chosen: `i64(x) + y` |
 | **E1129** | unary minus on an unsigned operand | negate in a signed type (`-i64(x)`) or use `wrapping_neg(x)` |
+| **E1130** | float literal past the target's range (`f32 = 1e60`, `f64 = 1e400`) | it would arrive as `inf`; widen the type or write a value it can hold |
 
 `T op int` yields `int` (so `w: i32 = w + n` with `n: int` is E1127); `/` yields `float`; shifts keep the left operand's type with the count range-checked at run time.
 
@@ -136,4 +137,4 @@ The width is a compile-time fact, not a runtime wrapper: a sized value is a plai
 
 ## See also
 
-`jac-has-fields` (field rules) · `jac-core-cheatsheet` (`import type` syntax, reserved words) · `jac-python-interop` (typing the Python boundary) · `jac-walker-patterns` (typed reports)
+`jac-has-fields` (field rules) · `jac-core-cheatsheet` (`import type` syntax, reserved words) · `jac-python-interop` (typing the Python boundary) · `jac-walker-patterns` (typed reports) · `jac-comptime` (`comptime` parameters, archetype value params, compile-time reflection)
