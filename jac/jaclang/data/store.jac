@@ -129,6 +129,7 @@ obj PgStore(Store) {
         _listeners: list[ChannelListener] postinit,
         _listen_thread: (any | None) postinit,
         _listen_stop: (any | None) postinit,
+        _side_listened: bool postinit,
         _booted: bool postinit,
         _ready: bool postinit,
         _readying: (int | None) postinit;

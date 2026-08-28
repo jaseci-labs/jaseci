@@ -1,8 +1,13 @@
 import argparse;
-import from jaclang.cli.command { ArgKind, arg_consumes_value, resolve_arg_typ }
-import from jaclang.cli.manifest { ArgMeta, CommandMeta }
+import from jaclang.cli.command {
+    Arg,
+    ArgKind,
+    CommandSpec,
+    arg_consumes_value,
+    resolve_arg_typ
+}
 
-impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
+impl add_argument(parser: argparse.ArgumentParser, arg: Arg) -> None {
     kind = arg.kind;
     typ = resolve_arg_typ(arg.typ);
     kwargs: dict = {"help": arg.help};
@@ -77,7 +82,7 @@ impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
     }
 }
 
-impl build_command_parser(meta: CommandMeta) -> argparse.ArgumentParser {
+impl build_command_parser(meta: CommandSpec) -> argparse.ArgumentParser {
     description = meta.description or meta.help;
     if meta.examples {
         description += "\n\nExamples:\n";

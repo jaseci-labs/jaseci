@@ -1629,5 +1629,38 @@ impl NaIRGenCore._split_call_kwargs(nd: uni.FuncCall) -> dict {
             out[param.key.sym_name] = param.value;
         }
     }
+    for (ct_name, ct_expr) in self._ct_ctor_slots(nd.target) {
+        out[ct_name] = ct_expr;
+    }
+    return out;
+}
+
+impl NaIRGenCore._ct_ctor_slots(target: uni.UniNode) -> list[tuple] {
+    out: list[tuple] = [];
+    if not isinstance(target, uni.AtomTrailer) or target.is_attr {
+        return out;
+    }
+    if not isinstance(target.right, uni.IndexSlice) or target.right.is_range {
+        return out;
+    }
+    t = target.target.type;
+    shared = t?.shared;
+    if shared is None or not shared.ct_params {
+        return out;
+    }
+    arch = shared.symbol_table;
+    if not isinstance(arch, uni.Archetype) {
+        return out;
+    }
+    s0 = target.right.slices[0] if target.right.slices else None;
+    head = s0.start if s0 is not None else None;
+    vals: list = `list(head.values)
+        if isinstance(head, uni.TupleVal)
+        else ([head] if head else []);
+    for (i, tp) in enumerate(arch.type_params or []) {
+        if tp.is_comptime and i < len(vals) {
+            out.append((tp.name.value, vals[i], ));
+        }
+    }
     return out;
 }

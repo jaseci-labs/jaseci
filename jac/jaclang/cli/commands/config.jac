@@ -1,42 +1,45 @@
-import from jaclang.cli.command { Arg, ArgKind }
-import from jaclang.cli.registry { get_registry }
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
+import from jaclang.comptime { name as ct_name }
 
-glob registry = get_registry();
 
-@registry.command(
-    name="config",
-    help="Manage Jac configuration",
-    args=[
-        Arg.create(
-            "action",
-            kind=ArgKind.POSITIONAL,
-            `default="show",
-            help="Action: show, get, set, reset, list"
-        ),
-        Arg.create(
-            "key", kind=ArgKind.POSITIONAL, `default="", help="Configuration key"
-        ),
-        Arg.create("value", kind=ArgKind.POSITIONAL, `default="", help="Value to set"),
-        Arg.create("group", `default="", help="Config group filter", short="g"),
-        Arg.create(
-            "output",
-            `default="table",
-            help="Output format: table, json, toml",
-            short="o"
-        ),
+comptime SPEC_CONFIG: CommandSpec = CommandSpec(
+         name="config",
+         help="Manage Jac configuration",
+         args=[
+             Arg.create(
+                 "action",
+                 kind=ArgKind.POSITIONAL,
+                 `default="show",
+                 help="Action: show, get, set, reset, list"
+             ),
+             Arg.create(
+                 "key", kind=ArgKind.POSITIONAL, `default="", help="Configuration key"
+             ),
+             Arg.create(
+                 "value", kind=ArgKind.POSITIONAL, `default="", help="Value to set"
+             ),
+             Arg.create("group", `default="", help="Config group filter", short="g"),
+             Arg.create(
+                 "output",
+                 `default="table",
+                 help="Output format: table, json, toml",
+                 short="o"
+             ),
 
-    ],
-    examples=[
-        ("jac config show", "Show all configuration"),
-        ("jac config get run.cache", "Get specific setting"),
-        ("jac config set run.cache false", "Set a value"),
-        ("jac config reset run.cache", "Reset to default"),
-        ("jac config list", "List available settings"),
-        ("jac config show --group run", "Show settings in a group"),
+         ],
+         examples=[
+             ("jac config show", "Show all configuration"),
+             ("jac config get run.cache", "Get specific setting"),
+             ("jac config set run.cache false", "Set a value"),
+             ("jac config reset run.cache", "Reset to default"),
+             ("jac config list", "List available settings"),
+             ("jac config show --group run", "Show settings in a group"),
 
-    ],
-    group="config"
-)
+         ],
+         group="config",
+         handler_name=ct_name(config)
+     );
+
 def config(
     action: str = "show",
     key: str = "",

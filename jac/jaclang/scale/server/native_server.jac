@@ -145,10 +145,13 @@ obj NativeJServer {
             root_bind_error: any = None;
             if user_id {
                 root_ref: any = user_id;
+                ctx.mem.read_scope_enter();
                 try {
                     await ctx.aset_user_root(root_ref);
                 } except (ValueError, RuntimeError) as bind_err {
                     root_bind_error = bind_err;
+                } finally {
+                    ctx.mem.read_scope_exit();
                 }
             }
             try {

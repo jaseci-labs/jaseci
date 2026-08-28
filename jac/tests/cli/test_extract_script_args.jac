@@ -1,12 +1,11 @@
 """Unit tests for REMAINDER argv splitting before argparse runs."""
 
-import from jaclang.cli.command { ArgKind }
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
 import from jaclang.cli.dispatch { split_remainder_argv }
-import from jaclang.cli.manifest { ArgMeta, CommandMeta }
 
 
-def _run_meta(args: list[ArgMeta]) -> CommandMeta {
-    return CommandMeta(
+def _run_meta(args: list[Arg]) -> CommandSpec {
+    return CommandSpec(
         name="probe",
         help="probe",
         group="general",
@@ -20,7 +19,7 @@ def _run_meta(args: list[ArgMeta]) -> CommandMeta {
 
 test "split_remainder_argv returns None without a REMAINDER arg" {
     meta = _run_meta(
-        [ArgMeta(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x")]
+        [Arg(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x")]
     );
     assert split_remainder_argv(["run", "app.jac", "arg1"], meta) is None;
 }
@@ -28,8 +27,8 @@ test "split_remainder_argv returns None without a REMAINDER arg" {
 test "split_remainder_argv splits script args after the positional" {
     meta = _run_meta(
         [
-            ArgMeta(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
-            ArgMeta(name="args", kind=ArgKind.REMAINDER, help="script args"),
+            Arg(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
+            Arg(name="args", kind=ArgKind.REMAINDER, help="script args"),
 
         ]
     );
@@ -43,8 +42,8 @@ test "split_remainder_argv splits script args after the positional" {
 test "split_remainder_argv honors -- terminator" {
     meta = _run_meta(
         [
-            ArgMeta(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
-            ArgMeta(name="args", kind=ArgKind.REMAINDER, help="script args"),
+            Arg(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
+            Arg(name="args", kind=ArgKind.REMAINDER, help="script args"),
 
         ]
     );
@@ -58,9 +57,9 @@ test "split_remainder_argv honors -- terminator" {
 test "split_remainder_argv passes flags after the positional to script args" {
     meta = _run_meta(
         [
-            ArgMeta(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
-            ArgMeta(name="profile", typ="str", `default="", help="profile"),
-            ArgMeta(name="args", kind=ArgKind.REMAINDER, help="script args"),
+            Arg(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
+            Arg(name="profile", typ="str", `default="", help="profile"),
+            Arg(name="args", kind=ArgKind.REMAINDER, help="script args"),
 
         ]
     );
@@ -74,9 +73,9 @@ test "split_remainder_argv passes flags after the positional to script args" {
 test "split_remainder_argv passes attached flags after the positional to script args" {
     meta = _run_meta(
         [
-            ArgMeta(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
-            ArgMeta(name="profile", typ="str", `default="", help="profile"),
-            ArgMeta(name="args", kind=ArgKind.REMAINDER, help="script args"),
+            Arg(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
+            Arg(name="profile", typ="str", `default="", help="profile"),
+            Arg(name="args", kind=ArgKind.REMAINDER, help="script args"),
 
         ]
     );
@@ -90,9 +89,9 @@ test "split_remainder_argv passes attached flags after the positional to script 
 test "split_remainder_argv consumes value flags before the positional" {
     meta = _run_meta(
         [
-            ArgMeta(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
-            ArgMeta(name="profile", typ="str", `default="", help="profile"),
-            ArgMeta(name="args", kind=ArgKind.REMAINDER, help="script args"),
+            Arg(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
+            Arg(name="profile", typ="str", `default="", help="profile"),
+            Arg(name="args", kind=ArgKind.REMAINDER, help="script args"),
 
         ]
     );
@@ -106,9 +105,9 @@ test "split_remainder_argv consumes value flags before the positional" {
 test "split_remainder_argv consumes attached flags before the positional" {
     meta = _run_meta(
         [
-            ArgMeta(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
-            ArgMeta(name="profile", typ="str", `default="", help="profile"),
-            ArgMeta(name="args", kind=ArgKind.REMAINDER, help="script args"),
+            Arg(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
+            Arg(name="profile", typ="str", `default="", help="profile"),
+            Arg(name="args", kind=ArgKind.REMAINDER, help="script args"),
 
         ]
     );
@@ -122,9 +121,9 @@ test "split_remainder_argv consumes attached flags before the positional" {
 test "split_remainder_argv consumes short value flags before the positional" {
     meta = _run_meta(
         [
-            ArgMeta(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
-            ArgMeta(name="profile", typ="str", `default="", help="profile", short="p"),
-            ArgMeta(name="args", kind=ArgKind.REMAINDER, help="script args"),
+            Arg(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
+            Arg(name="profile", typ="str", `default="", help="profile", short="p"),
+            Arg(name="args", kind=ArgKind.REMAINDER, help="script args"),
 
         ]
     );
@@ -138,9 +137,9 @@ test "split_remainder_argv consumes short value flags before the positional" {
 test "split_remainder_argv supports multiple positionals" {
     meta = _run_meta(
         [
-            ArgMeta(name="tool", kind=ArgKind.POSITIONAL, help="tool"),
-            ArgMeta(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
-            ArgMeta(name="args", kind=ArgKind.REMAINDER, help="script args"),
+            Arg(name="tool", kind=ArgKind.POSITIONAL, help="tool"),
+            Arg(name="filename", kind=ArgKind.POSITIONAL, `default="", help="x"),
+            Arg(name="args", kind=ArgKind.REMAINDER, help="script args"),
 
         ]
     );
