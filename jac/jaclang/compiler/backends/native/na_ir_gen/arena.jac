@@ -19,7 +19,7 @@ obj NaIRGenArena(NaIRGenState) {
     def _register_region_handle_var(nd: uni.Assignment, var_name: str) -> None;
     def _region_alloc(size: ir.Value, name: str = "region.alloc") -> ir.Value;
     def _region_log_dtor_if_needed(obj_i8: ir.Value, type_name: str) -> None;
-    def _emit_region_handle_drop(alloca: object, var_name: str) -> None;
+    def _emit_region_handle_drop(alloca: ir.Value, var_name: str) -> None;
     def _open_anon_region(gidx: int) -> None;
     def _close_anon_region(gidx: int) -> None;
 }

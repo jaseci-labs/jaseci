@@ -213,6 +213,9 @@ impl NaIRGenClibAbi._codegen_clib_call(
                 call_args.append(self._coerce_type(_cv, pp["type"]));
             }
         } elif kind == "struct_mem" {
+            if jac_val is None {
+                return None;
+            }
             c_ptr = self._clib_materialize_c_ptr(jac_val, pp["sname"]);
             if pp["byval"] {
                 byval_aa = ir.ArgumentAttributes();
@@ -231,6 +234,9 @@ impl NaIRGenClibAbi._codegen_clib_call(
                 call_args.append(_copy);
             }
         } else {
+            if jac_val is None {
+                return None;
+            }
             c_ptr = self._clib_materialize_c_ptr(jac_val, pp["sname"]);
             coerce = pp["coerce"];
             ct = ir.LiteralStructType(coerce);
@@ -262,6 +268,7 @@ impl NaIRGenClibAbi._codegen_clib_call(
     );
     rkind = ret_plan["kind"];
     if rkind == "sret" {
+        assert sret_buf is not None , "the sret buffer is allocated whenever the plan asks for one";
         return self._clib_box_c_ptr(sret_buf, ret_plan["sname"]);
     }
     if rkind == "struct_reg" {

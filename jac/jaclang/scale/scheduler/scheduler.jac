@@ -2,6 +2,7 @@ import json;
 import logging;
 import datetime;
 import from uuid { uuid4 }
+import from jaclang.comptime { fields, get_field }
 import from jaclang.scale._optdeps.apscheduler {
     BackgroundScheduler,
     CronTrigger,
