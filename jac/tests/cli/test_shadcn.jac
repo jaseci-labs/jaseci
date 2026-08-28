@@ -438,3 +438,61 @@ test "component with a peer resolves to a matching underscored import" {
         assert 'import from ".input-group"' not in combobox_src;
     }
 }
+
+
+# ── AI-chat primitives synced from upstream (issue #8702) ──
+test "message component installs with no npm deps" {
+    with tempfile.TemporaryDirectory() as tmpdir {
+        toml_path = Path(tmpdir) / "jac.toml";
+        toml_path.write_text(
+            '[project]\nname = "test"\n\n[jac-shadcn]\nstyle = "nova"\n\n[dependencies.npm]\nclsx = "^2.1.1"\n'
+        );
+        config = MockConfig(
+            project_root=tmpdir, _raw_data={"jac-shadcn": {"style": "nova"}}
+        );
+        result = add_shadcn_components(config, ["message"]);
+        assert result == True;
+        ui_dir = Path(tmpdir) / "components" / "ui";
+        assert (ui_dir / "message.jac").exists();
+    }
+}
+
+test "bubble resolves every cn- token against the nova style" {
+    # bubble.tsx is token-only (no inline utilities on its variants), so an
+    # unresolved cn-bubble-* token means the style CSS drifted and the
+    # component would ship unstyled.
+    data = resolve_single_component("bubble", "nova");
+    assert "error" not in data;
+    assert "cn-" not in data["content"];
+}
+
+test "attachment pulls in the button peer and pins its deps" {
+    with tempfile.TemporaryDirectory() as tmpdir {
+        toml_path = Path(tmpdir) / "jac.toml";
+        toml_path.write_text(
+            '[project]\nname = "test"\n\n[jac-shadcn]\nstyle = "nova"\n\n[dependencies.npm]\nclsx = "^2.1.1"\n'
+        );
+        config = MockConfig(
+            project_root=tmpdir, _raw_data={"jac-shadcn": {"style": "nova"}}
+        );
+        result = add_shadcn_components(config, ["attachment"]);
+        assert result == True;
+        ui_dir = Path(tmpdir) / "components" / "ui";
+        assert (ui_dir / "attachment.jac").exists();
+        assert (ui_dir / "button.jac").exists();
+        attachment_src = (ui_dir / "attachment.jac").read_text();
+        assert "import from .button {" in attachment_src;
+        assert "-" not in (ui_dir / "attachment.jac").name;
+        toml_after = toml_path.read_text();
+        assert "class-variance-authority" in toml_after;
+        assert "radix-ui" in toml_after;
+    }
+}
+
+test "styles synced from upstream all parse to a token map" {
+    for style in ["lyra", "maia", "mira", "nova", "vega", "luma", "rhea", "sera"] {
+        resolution_map = parse_style_css(style);
+        assert len(resolution_map) > 0 , f"style {style} produced no tokens";
+        assert "cn-bubble" in str(list(resolution_map.keys())) , f"style {style} is missing the new cn-bubble tokens";
+    }
+}
