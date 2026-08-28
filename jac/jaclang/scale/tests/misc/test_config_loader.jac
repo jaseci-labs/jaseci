@@ -344,3 +344,33 @@ test "a rewritten monitoring namespace warns, so the metric rename is not silent
         f"no warning that the configured namespace was rewritten:\n{combined}"
     );
 }
+
+
+"""Load a project with the given monitoring namespace and return what was logged."""
+def _namespace_load_logs(configured: str) -> str {
+    import io;
+    import logging;
+    stream = io.StringIO();
+    handler = logging.StreamHandler(stream);
+    root_logger = logging.getLogger();
+    previous_level = root_logger.level;
+    root_logger.addHandler(handler);
+    root_logger.setLevel(logging.WARNING);
+    try {
+        _monitoring_namespace(f'[scale.monitoring]\nnamespace = "{configured}"\n');
+    } finally {
+        root_logger.removeHandler(handler);
+        root_logger.setLevel(previous_level);
+    }
+    return stream.getvalue();
+}
+
+
+test "the namespace warning fires again for the next project in the same process" {
+    first = _namespace_load_logs("jac--shop");
+    second = _namespace_load_logs("jac--depot");
+    assert "jac--shop" in first , f"the first rewritten namespace did not warn:\n{first}";
+    assert "jac--depot" in second , (
+        f"a second project loaded in the same process was renamed silently:\n{second}"
+    );
+}

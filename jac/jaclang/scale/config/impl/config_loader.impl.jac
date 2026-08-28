@@ -294,7 +294,7 @@ impl sanitize_prometheus_namespace(name: str) -> str {
     return sanitized or 'jaclang_scale';
 }
 
-impl resolve_prometheus_namespace(configured: str | None, k8s_namespace: str) -> str {
+impl _resolve_prometheus_namespace(configured: str | None, k8s_namespace: str) -> str {
     if not configured {
         return sanitize_prometheus_namespace(k8s_namespace);
     }
@@ -331,7 +331,7 @@ impl JacScaleConfig.get_monitoring_config(self: JacScaleConfig) -> dict[str, any
     ];
 
     k8s_config = config.get('kubernetes', {});
-    namespace = resolve_prometheus_namespace(
+    namespace = _resolve_prometheus_namespace(
         monitoring_config.get('namespace'), k8s_config.get('namespace', 'default')
     );
     return {
@@ -448,6 +448,7 @@ impl peek_scale_config -> JacScaleConfig | None {
 
 impl reset_scale_config -> None {
     _scale_config_instance = None;
+    _prometheus_namespace_warned = False;
 }
 
 impl resolve_password_hash_cost(configured_cost: int) -> int {
