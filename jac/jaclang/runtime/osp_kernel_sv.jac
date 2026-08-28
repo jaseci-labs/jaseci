@@ -114,6 +114,19 @@ def _slots_from(funcs: list[ObjectSpatialFunction]) -> list[Slot] {
     return slots;
 }
 
+def _mro_funcs(cls: any, attr: str) -> list {
+    merged: dict = {};
+    for c in reversed(cls.__mro__) {
+        clsfns = c.__dict__.get(attr);
+        if clsfns {
+            for fn in clsfns {
+                merged[fn.name] = fn;
+            }
+        }
+    }
+    return `list(merged.values());
+}
+
 def desc_for(cls: any) -> WalkerDesc {
     if cls in _desc_of_cls {
         return _desc_of_cls[cls];
@@ -122,8 +135,12 @@ def desc_for(cls: any) -> WalkerDesc {
     px = cls?.__jac_post_exit__;
     desc = WalkerDesc(
         type_tag=tag_of_cls(cls),
-        `entry=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_entry_funcs_)),
-        `exit=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_exit_funcs_)),
+        `entry=_slots_from(
+            cast(list[ObjectSpatialFunction], _mro_funcs(cls, '_jac_entry_funcs_'))
+        ),
+        `exit=_slots_from(
+            cast(list[ObjectSpatialFunction], _mro_funcs(cls, '_jac_exit_funcs_'))
+        ),
         post_entry=(_wrap_ability(pe) if pe is not None else None),
         post_exit=(_wrap_ability(px) if px is not None else None)
     );
