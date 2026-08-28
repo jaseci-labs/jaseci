@@ -2921,19 +2921,40 @@ impl JcirGenPass.exit_ctrl_stmt(nd: CtrlStmt) -> None {
     }
 }
 
-impl JcirGenPass._del_ctx_target(target: Expr, ctx_cls: str) -> CgNode {
-    cgn = self.val(target);
-    return self._with_ctx(cgn, ctx_cls) if cgn.hasf('ctx') else cgn;
+impl JcirGenPass._delete_targets(nd: DeleteStmt) -> list[CgNode] {
+    if (isinstance(nd.target, TupleVal) and nd.target.values) {
+        return [self.val(i) for i in nd.target.values];
+    }
+    return [
+        i
+        for i in self.outs(nd.target)
+        if isinstance(i, CgNode)
+    ];
 }
 
-impl JcirGenPass._destroy_call(targets: list[Expr], strict: bool) -> CgNode {
-    keywords: list[CgNode] = [];
-    if strict {
-        keywords.append(
-            self.nod('keyword', ['arg', 'value'], ['strict', self.const_of(True)])
+impl JcirGenPass._delete_ctx_targets(
+    targets: list[CgNode], ctx_cls: str
+) -> list[CgNode] {
+    items: list[CgNode] = targets;
+    head = items[0] if items else None;
+    if (head is not None and head.cls in ('List', 'Tuple')) {
+        items = [
+            i
+            for i in head.get('elts')
+            if isinstance(i, CgNode)
+        ];
+    }
+    result: list[CgNode] = [];
+    for target in items {
+        result.append(
+            self._with_ctx(target, ctx_cls) if target.hasf('ctx') else target
         );
     }
-    return self.nod(
+    return result;
+}
+
+impl JcirGenPass.exit_delete_stmt(nd: DeleteStmt) -> None {
+    destroy_expr = self.nod(
         'Expr',
         ['value'],
         [
@@ -2947,35 +2968,24 @@ impl JcirGenPass._destroy_call(targets: list[Expr], strict: bool) -> CgNode {
                             'List',
                             ['elts', 'ctx'],
                             [
-                                [self._del_ctx_target(t, 'Load') for t in targets],
+                                self._delete_ctx_targets(
+                                    self._delete_targets(nd), 'Load'
+                                ),
                                 self.nod('Load', [], [])
                             ]
                         )
                     ],
-                    keywords
+                    []
                 ]
             )
         ]
     );
-}
-
-impl JcirGenPass.exit_delete_stmt(nd: DeleteStmt) -> None {
-    (names, values, locs) = nd.classify_targets();
-    stmts: list[CgItem] = [];
-    if values {
-        stmts.append(self._destroy_call(values, True));
-    }
-    if names {
-        stmts.append(self._destroy_call(names, False));
-    }
-    if locs {
-        stmts.append(
-            self.nod(
-                'Delete', ['targets'], [[self._del_ctx_target(t, 'Del') for t in locs]]
-            )
-        );
-    }
-    self.set_out(nd, stmts);
+    delete_stmt = self.nod(
+        'Delete',
+        ['targets'],
+        [self._delete_ctx_targets(self._delete_targets(nd), 'Del')]
+    );
+    self.set_out(nd, [destroy_expr, delete_stmt]);
 }
 
 impl JcirGenPass.exit_report_stmt(nd: ReportStmt) -> None {

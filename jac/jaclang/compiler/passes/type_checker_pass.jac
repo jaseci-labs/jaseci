@@ -18,7 +18,6 @@ import from jaclang.compiler.frontend.unitree {
     ExprAsItem,
     FilterCompr,
     FormattedValue,
-    FString,
     FuncCall,
     FuncSignature,
     HasVar,
@@ -31,12 +30,10 @@ import from jaclang.compiler.frontend.unitree {
     KWPair,
     LambdaExpr,
     ListVal,
-    Literal,
     Module,
     ModuleCode,
     ModuleItem,
     ModulePath,
-    MultiString,
     Name,
     Null,
     ParamVar,
@@ -125,7 +122,6 @@ import from jaclang.compiler.frontend.diagnostics {
     W1036,
     W1037,
     W1052,
-    W1053,
     W2014,
     W6008,
     E2015
@@ -197,7 +193,6 @@ class TypeCheckPass(UniPass) {
     def exit_assert_stmt(self: TypeCheckPass, nd: AssertStmt) -> None;
     def exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None;
     def exit_delete_stmt(self: TypeCheckPass, nd: DeleteStmt) -> None;
-    def _del_value_is_never_graph(self: TypeCheckPass, t: any) -> bool;
     def exit_visit_stmt(self: TypeCheckPass, nd: VisitStmt) -> None;
     def exit_report_stmt(self: TypeCheckPass, nd: ReportStmt) -> None;
     def exit_impl_def(self: TypeCheckPass, nd: ImplDef) -> None;

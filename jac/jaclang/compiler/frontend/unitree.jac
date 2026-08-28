@@ -901,13 +901,9 @@ obj DeleteStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has targets: list[Expr];
+    has target: Expr;
 
     def postinit -> None;
-    def classify_targets -> tuple[(list[Expr], list[Expr], list[Expr])];
-    static def classify_one(
-        target: Expr
-    ) -> tuple[(list[Expr], list[Expr], list[Expr])];
 }
 
 obj ReportStmt(CodeBlockStmt) {

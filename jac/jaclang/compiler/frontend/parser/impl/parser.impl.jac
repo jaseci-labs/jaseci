@@ -4905,21 +4905,12 @@ impl Parser.parse_assert_stmt -> AssertStmt {
 
 impl Parser.parse_delete_stmt -> DeleteStmt {
     del_uni = self.consume_uni(TokenKind.KW_DELETE);
-    kid: list[UniNode] = [del_uni];
-    targets: list[Expr] = [];
-    first = self.parse_expression();
-    targets.append(first);
-    kid.append(first);
-    while self.match_tok(TokenKind.COMMA) {
-        kid.append(self.make_uni_token(self.previous()));
-        nxt = self.parse_expression();
-        targets.append(nxt);
-        kid.append(nxt);
-    }
+    target = self.parse_expression();
     self._recover_misplaced_disconnect();
+    kid: list[UniNode] = [del_uni, target];
     self.expect(TokenKind.SEMI);
     kid.append(self.make_semi());
-    return DeleteStmt(targets=targets, kid=kid);
+    return DeleteStmt(target=target, kid=kid);
 }
 
 impl Parser._recover_misplaced_disconnect -> None {

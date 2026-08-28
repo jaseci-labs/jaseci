@@ -505,49 +505,6 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (c instanceof Map) return c.get(i);
       return c[i];
     },
-    delitem(c, i) {
-      // `del c[i]`. An array splices (Python removes the element rather than
-      // leaving a hole, which a raw `delete c[i]` would), a Map deletes, and
-      // any other object drops the property. Missing keys raise, as in Python.
-      if (Array.isArray(c)) {
-        const n = c.length;
-        const k = (typeof i === "number" && i < 0) ? n + i : i;
-        if (typeof k !== "number" || k < 0 || k >= n) {
-          throw new Error("list index out of range");
-        }
-        c.splice(k, 1);
-        return;
-      }
-      if (c instanceof Map) {
-        if (!c.has(i)) throw new Error("KeyError: " + String(i));
-        c.delete(i);
-        return;
-      }
-      if (c == null || !(i in Object(c))) throw new Error("KeyError: " + String(i));
-      delete c[i];
-    },
-    delslice(c, start, stop, step) {
-      // `del c[a:b:s]`. Only sequences support slice deletion; the indices
-      // that survive are compacted down in one pass so a strided delete costs
-      // the same as a contiguous one.
-      if (!Array.isArray(c)) throw new Error("object does not support slice deletion");
-      const n = c.length;
-      const st = (step === undefined || step === null) ? 1 : step;
-      if (st === 0) throw new Error("slice step cannot be zero");
-      let lo = (start === undefined || start === null) ? (st > 0 ? 0 : n - 1) : start;
-      let hi = (stop === undefined || stop === null) ? (st > 0 ? n : -n - 1) : stop;
-      if (lo < 0) lo += n;
-      if (hi < 0) hi += n;
-      const drop = new Set();
-      if (st > 0) {
-        for (let k = Math.max(lo, 0); k < Math.min(hi, n); k += st) drop.add(k);
-      } else {
-        for (let k = Math.min(lo, n - 1); k > Math.max(hi, -1); k += st) drop.add(k);
-      }
-      let w = 0;
-      for (let r = 0; r < n; r++) { if (!drop.has(r)) c[w++] = c[r]; }
-      c.length = w;
-    },
     setitem(c, i, v) {
       // Subscript assignment for a value of unknown/list static type. A
       // negative index writes the array element counted from the end (a raw
@@ -1862,7 +1819,7 @@ def build_osp_driver_js -> str {
 if (!globalThis.__jacOspCore) {
   globalThis.__jacOspCore = {
     O: [null], H: new Map(),
-    osp_conn, osp_refs, osp_refs_many, osp_wrap1, osp_destroy,
+    osp_conn, osp_refs, osp_refs_many, osp_wrap1, osp_disconnect,
     osp_disconn_between, osp_edge_peer,
     osp_spawn, osp_visit, osp_report, osp_disengage,
     WalkerDesc, NodeDesc, Slot, OspRuntime
@@ -1919,25 +1876,8 @@ function __ospRefsManyW(objs, dir, tag = -1, edgesOnly = 0, pred = null) {
   }
   return out;
 }
-function __ospDestroyW(x, strict = false) {
-  // `del` on a value target, and on a name holding graph objects: flatten and
-  // destroy every archetype the expression yielded. Matches the Python
-  // backend's `destroy`, including its strict arm for value targets.
-  if (x === null || x === undefined) return 0;
-  if (Array.isArray(x) || x instanceof Set) {
-    let n = 0;
-    for (const e of x) n += __ospDestroyW(e, strict);
-    return n;
-  }
-  if (typeof x !== "object") {
-    if (strict) {
-      throw new TypeError("cannot destroy " + typeof x
-        + ": a `del` value target must yield nodes, edges or archetypes");
-    }
-    return 0;
-  }
-  const h = __ospH.get(x);
-  return h === undefined ? 0 : __ospC.osp_destroy(h);
+function __ospDiscW(eobj) {
+  return __ospC.osp_disconnect(__ospId(eobj));
 }
 function __ospDiscBetweenW(a, b, dir, tag = -1) {
   return __ospC.osp_disconn_between(__ospId(a), __ospId(b), dir, tag);

@@ -1754,42 +1754,7 @@ impl TypeCheckPass.exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None {
 }
 
 impl TypeCheckPass.exit_delete_stmt(self: TypeCheckPass, nd: DeleteStmt) -> None {
-    for target in nd.targets {
-        self.evaluator.get_type_of_expression(target);
-    }
-    (_names, values, _locations) = nd.classify_targets();
-    for value in values {
-        if isinstance(value, (Literal, MultiString, FString)) {
-            continue;
-        }
-        value_type = self.evaluator.get_type_of_expression(value);
-        if self._del_value_is_never_graph(value_type) {
-            self.emit(W1053, node_override=value, type=str(value_type));
-        }
-    }
-}
-
-impl TypeCheckPass._del_value_is_never_graph(self: TypeCheckPass, t: any) -> bool {
-    if isinstance(t, UnionType) {
-        return all(self._del_value_is_never_graph(m) for m in t.types);
-    }
-    if not isinstance(t, ClassType) {
-        return False;
-    }
-    if t.is_any_type() or t.is_node_type() or t.is_edge_type() or not t.is_builtin() {
-        return False;
-    }
-    class_name = t.shared.class_name;
-    if class_name in ("int", "float", "complex", "str", "bytes", "bool") {
-        return True;
-    }
-    if class_name in ("list", "tuple", "set", "frozenset") {
-        type_args = t.private.type_args;
-        if type_args and len(type_args) > 0 {
-            return all(self._del_value_is_never_graph(a) for a in type_args);
-        }
-    }
-    return False;
+    self.evaluator.get_type_of_expression(nd.target);
 }
 
 impl TypeCheckPass.exit_visit_stmt(self: TypeCheckPass, nd: VisitStmt) -> None {
