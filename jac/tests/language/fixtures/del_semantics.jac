@@ -217,6 +217,13 @@ def value_targets {
     # B12: del <name> holding a plain collection is an unbind, not an error
     m1 = [1, 2, 3];
     del m1;
+    # B13: flattening terminates on a self referential container
+    n1b = fresh("n1b");
+    before = nkids();
+    cyclic: list = [n1b];
+    cyclic.append(cyclic);
+    del cyclic;
+    assert nkids() == before - 1 , "B13 cyclic container";
 }
 
 """C. Several comma separated targets."""

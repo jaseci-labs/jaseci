@@ -1243,6 +1243,7 @@ impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
 impl JacPersistence._destroy_anchors(objs: any, strict: bool) -> list[Anchor] {
     anchors: list[Anchor] = [];
     queue: list[any] = [objs];
+    seen: set[int] = set();
     idx = 0;
     while idx < len(queue) {
         item = queue[idx];
@@ -1259,7 +1260,8 @@ impl JacPersistence._destroy_anchors(objs: any, strict: bool) -> list[Anchor] {
                     "target must yield nodes, edges or archetypes"
                 );
             }
-        } else {
+        } elif id(item) not in seen {
+            seen.add(id(item));
             for sub in item {
                 queue.append(sub);
             }
