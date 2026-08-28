@@ -11,6 +11,10 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
     DEFAULT_CPU_UTILIZATION_TARGET,
     DEFAULT_MEMORY_UTILIZATION_TARGET
 }
+import from jaclang.scale.deploy.autoscale.http_activation_config {
+    build_http_activation_spec
+}
+import from enum { StrEnum }
 
 
 glob GATEWAY_NAME: str = "__gateway__",
@@ -50,6 +54,103 @@ def _is_transient_client_build_failure(output: str) -> bool {
         }
     }
     return False;
+}
+
+
+enum ScalingMode(StrEnum) {
+    NONE = "none",
+    METRIC = "metric",
+    HTTP_ACTIVATION = "http_activation"
+}
+
+
+def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
+    import re;
+    import from pathlib { Path }
+    base_prefix = str(base).replace("\\", "/").rstrip("/") + "/";
+    lines: list[str] = [];
+    seen: set[str] = set();
+    tried: set[str] = set();
+    for token in re.findall(r"[\w.\\/-]+", output) {
+        cand = token.replace("\\", "/").rstrip(".");
+        if cand.startswith(base_prefix) {
+            cand = cand[len(base_prefix):];
+        }
+        if cand in tried {
+            continue;
+        }
+        tried.add(cand);
+        variants = [cand];
+        if "/" not in cand and "." in cand and not cand.startswith(".") {
+            stem = cand.replace(".", "/");
+            variants.extend([f"{stem}.jac", f"{stem}.py", stem]);
+        }
+        for variant in variants {
+            if not variant or variant.startswith("/") or ".." in variant.split("/") {
+                continue;
+            }
+            rel = Path(variant);
+            if rel.name == "jac.toml" or rel.as_posix() in seen {
+                continue;
+            }
+            if not (base / rel).exists() or not excluded.excludes(rel) {
+                continue;
+            }
+            if excluded.is_build_tree(rel) {
+                continue;
+            }
+            seen.add(rel.as_posix());
+            lines.append(f"  - {rel.as_posix()}: {excluded.exclusion_reason(rel)}");
+            break;
+        }
+    }
+    if not lines {
+        return "";
+    }
+    shown = lines[:_MEMBERSHIP_DIAGNOSIS_SHOWN];
+    if len(lines) > _MEMBERSHIP_DIAGNOSIS_SHOWN {
+        shown.append(f"  ... and {len(lines) - _MEMBERSHIP_DIAGNOSIS_SHOWN} more");
+    }
+    return (
+        "\nThe client build ran on the bundle's staged sources, and these "
+        "files named in its output never ship:\n"
+        + "\n".join(shown)
+        + "\nDrop the exclusion or remove the reference. Values the client "
+        "needs at build time belong under [client.vite.define] in jac.toml; "
+        "secrets stay server-side in [scale.secrets] or pod env and never "
+        "reach the client."
+    );
+}
+
+
+def _vite_env_keys(base: any) -> dict[str, list[str]] {
+    import from pathlib { Path }
+    found: dict[str, list[str]] = {};
+    for name in _VITE_BUILD_ENV_FILES {
+        env_file: Path = Path(base, name);
+        if not env_file.is_file() {
+            continue;
+        }
+        keys: list[str] = [];
+        text: str = env_file.read_text(encoding="utf-8", errors="replace");
+        for raw in text.splitlines() {
+            line: str = raw.strip();
+            if line.startswith("export ") {
+                line = line[len("export "):].lstrip();
+            }
+            if not line or line.startswith("#") or "=" not in line {
+                continue;
+            }
+            key = line.split("=", 1)[0].strip();
+            if key.startswith("VITE_") and key not in keys {
+                keys.append(key);
+            }
+        }
+        if keys {
+            found[name] = keys;
+        }
+    }
+    return found;
 }
 
 
@@ -336,26 +437,26 @@ obj ManifestBuilder {
         pod_specs = self.generate_service_pod_specs(app_config, image);
         deployments: dict[str, dict[str, any]] = {};
         services: dict[str, dict[str, any]] = {};
-        autoscalers: dict[str, dict[str, any]] = {};
+        scaling: dict[str, dict[str, any]] = {};
         pdbs: dict[str, dict[str, any]] = {};
 
         for (svc_name, pod_spec) in pod_specs.items() {
             deployments[svc_name] = self._build_deployment_manifest(svc_name, pod_spec);
             services[svc_name] = self._build_service_manifest(svc_name);
-            autoscaler_cfg = self._get_autoscaler_config(svc_name);
-            if autoscaler_cfg is not None {
-                autoscalers[svc_name] = autoscaler_cfg;
-            }
-            pdb = self._build_pdb_manifest(svc_name);
+            scaling[svc_name] = self._resolve_scaling(
+                svc_name, deployments[svc_name], services[svc_name]
+            );
+            pdb = self._build_pdb_manifest(svc_name, scaling[svc_name].get("mode"));
             if pdb is not None {
                 pdbs[svc_name] = pdb;
             }
         }
+        self._validate_http_activation_rules(scaling);
 
         bundle: dict[str, any] = {
             "deployments": deployments,
             "services": services,
-            "autoscalers": autoscalers,
+            "scaling": scaling,
             "pdbs": pdbs,
             "pod_specs": pod_specs
         };
@@ -921,6 +1022,127 @@ obj ManifestBuilder {
         };
     }
 
+    def _resolve_scaling(
+        svc_name: str, deployment: dict[str, any], service: dict[str, any]
+    ) -> dict[str, any] {
+        """Resolve a service's single, mutually-exclusive scaling decision.
+
+        The one place a service's scaling mode is decided. The scale-target
+        name is read from the Deployment manifest just built (never rebuilt
+        from svc_name), so build, apply, and `jac plan` can never disagree on
+        it. The gateway is forced out of HTTP_ACTIVATION here: it is the
+        ingress entry point and must stay warm, so it must never inherit the
+        shared scale-to-zero default.
+        """;
+        scale_target: str = deployment["metadata"]["name"];
+        service_name: str = service["metadata"]["name"];
+        http: dict[str, any] | None = self._get_http_activation_config(svc_name);
+        if http is not None and svc_name == GATEWAY_NAME {
+            if self.logger {
+                self.logger.warn(
+                    "Ignoring http_activation for the gateway: it is the ingress "
+                    "entry point and must stay warm. Set http_activation "
+                    "per-service instead of relying on the shared default."
+                );
+            }
+            http = None;
+        }
+        if http is not None {
+            try {
+                build_http_activation_spec(
+                    http, scale_target, self.k8s_config.namespace, service_name
+                );
+            } except ValueError as e {
+                raise ValueError(f"[service '{svc_name}'] {e}") from e;
+            }
+            return {
+                "mode": ScalingMode.HTTP_ACTIVATION,
+                "scale_target_name": scale_target,
+                "service_name": service_name,
+                "autoscaler": {},
+                "http_activation": http
+            };
+        }
+        metric: dict[str, any] | None = self._get_autoscaler_config(svc_name);
+        if metric is not None {
+            return {
+                "mode": ScalingMode.METRIC,
+                "scale_target_name": scale_target,
+                "service_name": service_name,
+                "autoscaler": metric,
+                "http_activation": {}
+            };
+        }
+        return {
+            "mode": ScalingMode.NONE,
+            "scale_target_name": scale_target,
+            "service_name": service_name,
+            "autoscaler": {},
+            "http_activation": {}
+        };
+    }
+
+    def _canonical_rules_fingerprint(rules: list[dict[str, any]]) -> str {
+        """A rules fingerprint that ignores list ordering, so two services
+        with the same match criteria collide in _validate_http_activation_rules
+        even when `hosts`/`paths`/`headers`, or the rules themselves, are
+        written in a different order -- fields within a rule are AND'd and
+        separate rules are OR'd, so reordering never changes what a rule set
+        actually matches.
+        """;
+        import json;
+        canonical_rules = [];
+        for rule in rules {
+            headers = [
+                (str(h.get("name", "")), str(h.get("value", "")))
+                for h in rule.get("headers", [])
+            ];
+            canonical_rules.append(
+                {
+                    "hosts": sorted(str(h) for h in rule.get("hosts", [])),
+                    "paths": sorted(str(p) for p in rule.get("paths", [])),
+                    "headers": sorted(headers)
+                }
+            );
+        }
+        canonical_rules.sort(key=lambda (r) { json.dumps(r, sort_keys=True); });
+        return json.dumps(canonical_rules, sort_keys=True);
+    }
+
+    def _validate_http_activation_rules(scaling: dict[str, dict[str, any]]) {
+        """Two services sharing the top-level http_activation default with no
+        per-service override resolve to identical routing rules; the interceptor
+        then has no way to tell which target a matching request belongs to.
+        """;
+        by_rules: dict[str, list[str]] = {};
+        for (svc_name, plan) in scaling.items() {
+            if plan.get("mode") != ScalingMode.HTTP_ACTIVATION {
+                continue;
+            }
+            rules = plan.get("http_activation", {}).get("rules", []);
+            if not rules {
+                continue;
+            }
+            fingerprint = self._canonical_rules_fingerprint(rules);
+            by_rules.setdefault(fingerprint, []).append(svc_name);
+        }
+        for svc_names in by_rules.values() {
+            if len(svc_names) > 1 {
+                names = ", ".join(sorted(svc_names));
+                raise ValueError(
+                    f"[http_activation] {names} resolve to identical routing "
+                    f"rules, most likely all inheriting "
+                    f"[scale.kubernetes.http_activation]'s rules unchanged. The "
+                    f"KEDA HTTP Add-on interceptor can't tell which target a "
+                    f"matching request belongs to when two InterceptorRoutes "
+                    f"share the same match criteria. Set a distinct "
+                    f"[services.NAME.http_activation.rules] for at least all "
+                    f"but one of these services."
+                );
+            }
+        }
+    }
+
     def _get_autoscaler_config(svc_name: str) -> dict[str, any] | None {
         svc: dict[str, any] = self._service_config(svc_name);
 
@@ -943,6 +1165,17 @@ obj ManifestBuilder {
             ),
             "triggers": raw_triggers
         };
+    }
+
+    def _get_http_activation_config(svc_name: str) -> dict[str, any] | None {
+        svc: dict[str, any] = self._service_config(svc_name);
+        per_service: dict[str, any] = svc.get("http_activation", {});
+        merged: dict[str, any] = dict(self.k8s_config.http_activation);
+        merged.update(per_service);
+        if not merged.get("enabled", False) {
+            return None;
+        }
+        return merged;
     }
 
     def _build_ingress_manifest(ingress_cfg: dict[str, any]) -> dict[str, any] | None {
@@ -1025,9 +1258,52 @@ obj ManifestBuilder {
         };
     }
 
-    def _build_pdb_manifest(svc_name: str) -> dict[str, any] | None {
+    def _replica_floor(svc_name: str) -> int {
+        svc_cfg = self._service_config(svc_name);
+        hpa: dict[str, any] = dict(svc_cfg.get("hpa", {}));
+        if hpa.get("enabled", True) {
+            return int(hpa.get("min", 1));
+        }
+        return int(svc_cfg.get("replicas", 1));
+    }
+
+    def _build_pdb_manifest(
+        svc_name: str, mode: (ScalingMode | None) = None
+    ) -> dict[str, any] | None {
         cfg: dict[str, any] = self._service_config(svc_name).get("pdb", {});
         if not cfg.get("enabled", True) {
+            return None;
+        }
+        if mode == ScalingMode.HTTP_ACTIVATION {
+            if self.logger and cfg {
+                self.logger.warn(
+                    f"No PodDisruptionBudget emitted for '{svc_name}': it is "
+                    f"HTTP-activated and legitimately scales to zero replicas, "
+                    f"so a floor-based budget (pdb.max_unavailable / "
+                    f"min_available) doesn't apply. Disable it explicitly with "
+                    f"pdb.enabled = false to silence this warning."
+                );
+            }
+            return None;
+        }
+        floor = self._replica_floor(svc_name);
+        raw_min = cfg.get("min_available", None);
+        spec = pdb_spec(
+            floor,
+            int(cfg.get("max_unavailable", 1)),
+            None if raw_min is None else int(raw_min)
+        );
+        if spec is None {
+            if self.logger and cfg {
+                self.logger.warn(
+                    f"No PodDisruptionBudget emitted for '{svc_name}': "
+                    f"max_unavailable={int(cfg.get('max_unavailable', 1))} at a "
+                    f"replica floor of {floor} would permit evicting every "
+                    f"replica, so the budget would protect nothing. Raise "
+                    f"hpa.min, or set pdb.min_available to refuse voluntary "
+                    f"disruption instead."
+                );
+            }
             return None;
         }
         k8s_name = k8s_safe_name(svc_name);

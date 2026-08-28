@@ -912,6 +912,7 @@ jobs:
           helm repo update
           helm install keda kedacore/keda --namespace keda --create-namespace --wait \
             --version "${KEDA_CHART_VERSION}"
+          helm install http-add-on kedacore/keda-add-ons-http --namespace keda --wait
           kubectl get pods -n keda
 
       - name: Run K8 tests (deploy-core)
@@ -933,6 +934,20 @@ jobs:
           JAC_SCALE_BINARY_PATH: ${{ github.workspace }}/jac/zig-out/bin/jac
         run: |
           bash jac/jaclang/scale/tests/deploy/keda_gateway_correlation_real_e2e.sh
+
+      - name: Run KEDA HTTP-activation e2e
+        if: matrix.group == 'deploy-core'
+        env:
+          # Ship the jac built from this checkout to the pods (channel LOCAL),
+          # so the e2e validates the code under test rather than a published
+          # release.
+          JAC_SCALE_BINARY_PATH: ${{ github.workspace }}/jac/zig-out/bin/jac
+          # This lane's hostpath-storage addon is RWX-capable, but the bundle
+          # PVC no longer trusts a cluster default silently; name it.
+          BUNDLE_STORAGE_CLASS: microk8s-hostpath
+        run: |
+          bash jac/jaclang/scale/tests/deploy/keda_http_activation_real_e2e.sh \
+            jac/jaclang/scale/tests/fixtures/keda_http_activation_e2e
 
       - name: Run K8 tests (failure-path)
         if: matrix.group == 'failure-path'

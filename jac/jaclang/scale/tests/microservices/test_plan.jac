@@ -148,7 +148,15 @@ test "render smoke: realistic bundle prints every section" {
             "__gateway__": _dep(image="gateway:v1")
         },
         "services": {"api": {}, "__gateway__": {}},
-        "autoscalers": {"api": {"min": 2, "max": 10, "cpu_target": 70}},
+        "scaling": {
+            "api": {
+                "mode": "metric",
+                "scale_target_name": "api-deployment",
+                "service_name": "api-service",
+                "autoscaler": {"min": 2, "max": 10, "cpu_target": 70},
+                "http_activation": {}
+            }
+        },
         "pdbs": {"api": {"spec": {"maxUnavailable": 1}}},
         "ingress": {
             "spec": {"rules": [{"host": "shop.example.com", "http": {"paths": []}}]}
@@ -175,6 +183,82 @@ test "render smoke: realistic bundle prints every section" {
     assert "Cluster-wide" in out and "120/min" in out;
     assert "app-secrets" in out and "2 keys" in out;
     assert "Totals" in out;
+}
+
+
+def _rate_limit_toml(enabled: str, extra: str = "") -> str {
+    return (
+        "[scale.microservices.routes]\napi = \"/api\"\n"
+        "\n[scale.microservices.rate_limit]\n"
+        + f"enabled = {enabled}\nper_ip_rpm = 120\nper_user_rpm = 30\n"
+        + extra
+    );
+}
+
+
+test "an enabled rate limit reaches the plan from jac.toml, both tiers" {
+    (out, _) = _run_plan(
+        {"deployments": {"api": _dep()}, "services": {"api": {}}},
+        ms_toml=_rate_limit_toml("true", extra="burst_multiplier = 3.0\n")
+    );
+    assert "Cluster-wide" in out , f"no cluster-wide block in plan:\n{out}";
+    assert "120/min per IP" in out , f"per-IP limit missing from plan:\n{out}";
+    assert "30/min per user" in out , f"per-user limit missing from plan:\n{out}";
+    assert "burst x3" in out;
+}
+
+
+test "a rate limit with both tiers at 0 renders as configured-but-inert" {
+    (out, _) = _run_plan(
+        {"deployments": {"api": _dep()}, "services": {"api": {}}},
+        ms_toml=(
+            "[scale.microservices.routes]\napi = \"/api\"\n"
+            "\n[scale.microservices.rate_limit]\n"
+            "enabled = true\nper_ip_rpm = 0\nper_user_rpm = 0\n"
+        )
+    );
+    assert "rate_limit:" in out , f"an inert limit rendered nothing:\n{out}";
+    assert "no limit" in out;
+}
+
+
+test "a disabled rate limit renders no rate-limit line" {
+    (out, _) = _run_plan(
+        {"deployments": {"api": _dep()}, "services": {"api": {}}},
+        ms_toml=_rate_limit_toml("false")
+    );
+    assert "rate_limit:" not in out , f"disabled limit rendered a line:\n{out}";
+    assert "120/min" not in out;
+}
+
+
+test "render: an http_activation service shows scale-to-zero and counts in Totals" {
+    bundle: dict[str, Any] = {
+        "deployments": {"llm": _dep(image="llm:v1")},
+        "services": {"llm": {}},
+        "scaling": {
+            "llm": {
+                "mode": "http_activation",
+                "scale_target_name": "llm-deployment",
+                "service_name": "llm-service",
+                "autoscaler": {},
+                "http_activation": {
+                    "enabled": True,
+                    "min_replicas": 0,
+                    "max_replicas": 5,
+                    "concurrency_target": 10
+                }
+            }
+        },
+        "pdbs": {}
+    };
+    ms_toml = "[scale.microservices.routes]\nllm = \"/llm\"\n";
+    (out, _) = _run_plan(bundle, ms_toml=ms_toml);
+    assert "HTTP activation: 0 -> 5 on concurrency=10" in out;
+    assert "scale-to-zero via KEDA HTTP Add-on" in out;
+    assert "1 HTTP activation" in out;
+    # The metric-autoscaler HPA line must NOT appear for an activation service.
+    assert "HPA:" not in out;
 }
 
 

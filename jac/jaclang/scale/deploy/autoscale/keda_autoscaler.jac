@@ -42,8 +42,12 @@ obj KEDAAutoscaler(Autoscaler) {
     def _build_manifests(spec: AutoscalerSpec) -> dict[str, any];
     def preflight -> list[str];
     def apply(spec: AutoscalerSpec) -> bool;
-    def destroy(autoscaler_name: str, namespace: str) -> None;
-    def destroy_collection(namespace: str, label_selector: str) -> None;
+    def destroy(app_name: str, namespace: str) -> None;
+    def destroy_collection(
+        namespace: str, label_selector: str, best_effort: bool = False
+    ) -> None;
+
+
     def resource_name_for(target: str) -> str;
     def _validate_http_activation_spec(spec: HTTPActivationSpec) -> None;
     def _build_routing_rules(rules: list[HTTPRoutingRule]) -> list[dict[str, any]];

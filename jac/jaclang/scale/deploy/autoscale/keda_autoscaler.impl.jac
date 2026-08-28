@@ -288,7 +288,7 @@ impl KEDAAutoscaler.destroy{
             version="v1alpha1",
             namespace=namespace,
             plural="scaledobjects",
-            name=autoscaler_name
+            name=app_name
         );
     } except ApiException as e {
         if e.status not in [404, 422] {
@@ -304,6 +304,9 @@ impl KEDAAutoscaler.destroy_collection{
         ("keda.sh", "v1alpha1", "triggerauthentications"),
         ("http.keda.sh", "v1beta1", "interceptorroutes")
     ] {
+        tolerated = [404, 422, 403]
+            if (group == "http.keda.sh" or best_effort)
+            else [404, 422];
         try {
             items = api.list_namespaced_custom_object(
                 group=group,
@@ -323,13 +326,13 @@ impl KEDAAutoscaler.destroy_collection{
                         name=item_name
                     );
                 } except ApiException as e {
-                    if e.status not in [404, 422] {
+                    if e.status not in tolerated {
                         raise;
                     }
                 }
             }
         } except ApiException as e {
-            if e.status not in [404, 422] {
+            if e.status not in tolerated {
                 raise;
             }
         }
@@ -518,6 +521,9 @@ impl KEDAAutoscaler.apply_http_activation{
 
 impl KEDAAutoscaler.destroy_http_activation{
     api = self._custom_api or client.CustomObjectsApi();
+
+    interceptor_error: (ApiException | None) = None;
+    scaled_object_error: (ApiException | None) = None;
     try {
         api.delete_namespaced_custom_object(
             group="http.keda.sh",
@@ -528,7 +534,7 @@ impl KEDAAutoscaler.destroy_http_activation{
         );
     } except ApiException as e {
         if e.status not in [404, 422] {
-            raise;
+            interceptor_error = e;
         }
     }
     try {
@@ -541,8 +547,19 @@ impl KEDAAutoscaler.destroy_http_activation{
         );
     } except ApiException as e {
         if e.status not in [404, 422] {
-            raise;
+            scaled_object_error = e;
         }
+    }
+
+    if interceptor_error is not None and interceptor_error.status != 403 {
+        raise interceptor_error;
+    }
+    if scaled_object_error is not None and scaled_object_error.status != 403 {
+        raise scaled_object_error;
+    }
+    pending_error = interceptor_error or scaled_object_error;
+    if pending_error is not None {
+        raise pending_error;
     }
 }
 
@@ -592,7 +609,7 @@ impl KEDAAutoscaler._build_interceptor_route{
     } elif spec.request_rate is not None {
         scaling_metric["requestRate"] = {
             "targetValue": spec.request_rate.target_value,
-            "window": spec.request_rate.window,
+            "window": spec.request_rate.rate_window,
             "granularity": spec.request_rate.granularity
         };
     }
@@ -679,7 +696,7 @@ impl KEDAAutoscaler._build_http_scaled_object{
         trigger_metadata["targetValue"] = str(spec.concurrency.target_value);
     } elif spec.request_rate is not None {
         trigger_metadata["targetValue"] = str(spec.request_rate.target_value);
-        trigger_metadata["window"] = spec.request_rate.window;
+        trigger_metadata["window"] = spec.request_rate.rate_window;
         trigger_metadata["granularity"] = spec.request_rate.granularity;
     }
 
