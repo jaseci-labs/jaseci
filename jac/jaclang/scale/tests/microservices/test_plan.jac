@@ -372,48 +372,94 @@ test "validate: HPA bounds (min < 1, min > max, cpu_target out of 1-100)" {
 }
 
 
-test "validate: KEDA min=0 with a real trigger is not an error" {
-    diags = _validate(
-        {
-            "deployments": {"a": _dep(requests={"cpu": "100m"})},
-            "autoscalers": {
-                "a": {
-                    "min": 0,
-                    "max": 5,
-                    "triggers": [{"type": "cron", "metadata": {}}]
-                }
-            }
-        },
-        {"routes": {"a": "/a"}},
-        {"a": {"hpa": {"min": 0, "max": 5}}},
-        autoscaler_engine="keda"
+def _keda_dry_run_plan(hpa_toml: str, engine: str = "keda") -> tuple[int, str] {
+    # Real `jac scale deploy --dry-run` subprocess against a real project,
+    # no cluster and no network (test_dry_run_purity.jac holds that
+    # contract) -- same shape as test_dry_run_plan_rate_limit.jac. Unlike
+    # _validate() above, this drives Plan.from_target for real, so it
+    # actually exercises the plumbing that reads autoscaler_engine off the
+    # target and threads it into PlanValidator, not a hand-supplied string.
+    import os;
+    import shutil;
+    import subprocess;
+    import tempfile;
+    import from jaclang.scale.runtime.context.util { jac_executable }
+    project_dir = Path(tempfile.mkdtemp(prefix="jac-plan-keda-"));
+    (project_dir / "jac.toml").write_text(
+        '[project]\n'
+        'name = "plankeda"\n'
+        'entry-point = "main.jac"\n'
+        '\n'
+        '[scale.kubernetes]\n'
+        'app_name = "plankeda"\n'
+        'namespace = "plankeda"\n'
+        # Without a storage class the RWX bundle PVC raises before the plan
+        # is rendered (see test_dry_run_plan_rate_limit.jac).
+        'bundle_storage_class = "standard"\n'
+            + f'autoscaler_engine = "{engine}"\n'
+            + '\n' '[scale.microservices.routes]\n' 'orders = "/orders"\n' '\n'
+            + hpa_toml,
+        encoding="utf-8"
     );
-    assert not any(d.severity == "error" and "HPA min=0" in d.message for d in diags);
+    (project_dir / "main.jac").write_text("with entry {}\n", encoding="utf-8");
+    (project_dir / "orders.jac").write_text("with entry {}\n", encoding="utf-8");
+    env = os.environ.copy();
+    for key in ["JAC_SV_SIBLING", "JAC_SV_NAME", "JAC_SV_ROUTES"] {
+        env.pop(key, None);
+    }
+    try {
+        result = subprocess.run(
+            [jac_executable(), "scale", "deploy", "main.jac", "--dry-run"],
+            capture_output=True,
+            text=True,
+            cwd=str(project_dir),
+            env=env,
+            timeout=300
+        );
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+    return (result.returncode, result.stdout + result.stderr);
 }
 
 
-test "validate: plain HPA engine with min=0 still errors" {
-    diags = _validate(
-        {"deployments": {"a": _dep(requests={"cpu": "100m"})}, "autoscalers": {}},
-        {"routes": {"a": "/a"}},
-        {"a": {"hpa": {"min": 0, "max": 5}}},
-        autoscaler_engine="hpa"
+test "dry run: KEDA min=0 with a real trigger is a clean plan" {
+    (rc, out) = _keda_dry_run_plan(
+        '[scale.microservices.services.orders.hpa]\n'
+        'min = 0\n'
+        'max = 5\n'
+        '\n[[scale.microservices.services.orders.triggers]]\n'
+        'type = "cron"\n'
     );
-    assert any(d.severity == "error" and "HPA min=0" in d.message for d in diags);
+    assert rc == 0 , f"dry run exited {rc}, expected a clean plan:\n{out}";
+    assert "HPA min=0" not in out , (
+        f"a real non-cpu/memory trigger under keda must not be flagged:\n{out}"
+    );
 }
 
 
-test "validate: KEDA min=0 with no triggers still errors" {
-    diags = _validate(
-        {
-            "deployments": {"a": _dep(requests={"cpu": "100m"})},
-            "autoscalers": {"a": {"min": 0, "max": 5, "triggers": []}}
-        },
-        {"routes": {"a": "/a"}},
-        {"a": {"hpa": {"min": 0, "max": 5}}},
-        autoscaler_engine="keda"
+test "dry run: HPA min=0 errors under the plain HPA engine, with no trigger at all, and with a cpu-only trigger" {
+    (rc, out) = _keda_dry_run_plan(
+        '[scale.microservices.services.orders.hpa]\nmin = 0\nmax = 5\n', engine="hpa"
     );
-    assert any(d.severity == "error" and "HPA min=0" in d.message for d in diags);
+    assert rc == 2 , f"the plain HPA engine cannot scale to zero: rc={rc}\n{out}";
+    assert "HPA min=0" in out , f"expected the HPA min=0 error, got:\n{out}";
+
+    (rc, out) = _keda_dry_run_plan(
+        '[scale.microservices.services.orders.hpa]\nmin = 0\nmax = 5\n'
+    );
+    assert rc == 2 , f"keda with no trigger at all cannot scale to zero: rc={rc}\n{out}";
+    assert "HPA min=0" in out , f"expected the HPA min=0 error, got:\n{out}";
+
+    (rc, out) = _keda_dry_run_plan(
+        '[scale.microservices.services.orders.hpa]\n'
+        'min = 0\n'
+        'max = 5\n'
+        '\n[[scale.microservices.services.orders.triggers]]\n'
+        'type = "cpu"\n'
+    );
+    assert rc == 2 , f"a cpu-only trigger can never reach zero: rc={rc}\n{out}";
+    assert "HPA min=0" in out , f"expected the HPA min=0 error, got:\n{out}";
 }
 
 
