@@ -370,34 +370,41 @@ test "distinct rules, both-empty rules, and a lone HTTP_ACTIVATION peer never co
 
 test "generate_manifests raises when two services inherit the shared catch-all rule unchanged" {
     import from jaclang.scale.config.app_config { AppConfig }
+    import tempfile;
+    import from pathlib { Path }
     services = {"billing_ops": {"http_activation": {"enabled": True}}, "worker": {}};
-    b = ManifestBuilder(
-        k8s_config=KubernetesConfig(
-            app_name="t",
-            namespace="t-ns",
-            bundle_storage_class="standard",
-            http_activation={
-                "enabled": True,
-                "target_port": 8080,
-                "concurrency_target": 10,
-                "rules": [{"hosts": ["*"]}]
-            }
-        ),
-        microservices_config={
-            "routes": {name: f"/{name}" for name in services},
-            "services": services
-        },
-        dry_run=True
-    );
-    raised = False;
-    try {
-        b.generate_manifests(AppConfig(code_folder=".", app_name="t"), "");
-    } except ValueError as e {
-        raised = True;
-        assert "billing_ops" in str(e);
-        assert "worker" in str(e);
+    with tempfile.TemporaryDirectory() as project {
+        for name in list(services.keys()) + ["main"] {
+            (Path(project) / f"{name}.jac").write_text("");
+        }
+        b = ManifestBuilder(
+            k8s_config=KubernetesConfig(
+                app_name="t",
+                namespace="t-ns",
+                bundle_storage_class="standard",
+                http_activation={
+                    "enabled": True,
+                    "target_port": 8080,
+                    "concurrency_target": 10,
+                    "rules": [{"hosts": ["*"]}]
+                }
+            ),
+            microservices_config={
+                "routes": {name: f"/{name}" for name in services},
+                "services": services
+            },
+            dry_run=True
+        );
+        raised = False;
+        try {
+            b.generate_manifests(AppConfig(code_folder=project, app_name="t"), "");
+        } except ValueError as e {
+            raised = True;
+            assert "billing_ops" in str(e);
+            assert "worker" in str(e);
+        }
+        assert raised;
     }
-    assert raised;
 }
 
 
