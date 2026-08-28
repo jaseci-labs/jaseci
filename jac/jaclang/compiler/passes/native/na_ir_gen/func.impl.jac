@@ -96,13 +96,30 @@ impl NaIRGenFunc._maybe_declare_ability(nd: uni.ElementStmt) -> None {
         self.decorated_fns[name] = (func, slot_gv, _dec_names, fnty);
     } else {
         _emit_name = name;
+        _def_m = nd.find_parent_of_type(uni.Module);
         if nd.access
             and nd.access.tag.name == Tok.KW_PRIV
             and nd.find_parent_of_type(uni.Archetype) is None {
             import from jaclang.jac0core.codeinfo { native_safe_sym }
-            _def_m = nd.find_parent_of_type(uni.Module);
             if _def_m is not None {
                 _emit_name = f"{name}.__jacp_{native_safe_sym(_def_m.name)}";
+            }
+        }
+        if _emit_name == name {
+            for gv in self.llvm_module.global_values {
+                if (
+                    isinstance(gv, ir.Function)
+                    and gv.name == name
+                    and (
+                        gv.is_declaration or name in self.clib_extern_names
+                    )
+                ) {
+                    if _def_m is not None {
+                        import from jaclang.jac0core.codeinfo { native_safe_sym }
+                        _emit_name = f"{name}.__jacp_{native_safe_sym(_def_m.name)}";
+                    }
+                    break;
+                }
             }
         }
         func = ir.Function(self.llvm_module, fnty, name=_emit_name);

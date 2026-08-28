@@ -4,8 +4,34 @@ def:pub loads(s: str) -> any {
 }
 
 
-def:pub dumps(value: any) -> str {
-    return _dump_value(value);
+def:pub dumps(value: any, indent: any = None) -> str {
+    # indent: int (spaces per level), str (literal indent) or None (compact).
+    ind: str = "";
+    if isinstance(indent, int) {
+        n_indent: int = indent;
+        if n_indent < 0 {
+            n_indent = 0;
+        }
+        k: int = 0;
+        while k < n_indent {
+            ind += " ";
+            k += 1;
+        }
+    } elif isinstance(indent, str) {
+        ind = indent;
+    }
+    return _dump_value(value, "", ind);
+}
+
+
+def:pub load(fh: any) -> any {
+    data: str = fh.read();
+    return loads(data);
+}
+
+
+def:pub dump(value: any, fh: any, indent: any = None) -> None {
+    fh.write(dumps(value, indent));
 }
 
 
@@ -267,7 +293,7 @@ def _dump_str(s: str) -> str {
 }
 
 
-def _dump_value(value: any) -> str {
+def _dump_value(value: any, cur_ind: str, ind: str) -> str {
     if isinstance(value, bool) {
         flag: int = value;
         if flag != 0 {
@@ -289,14 +315,33 @@ def _dump_value(value: any) -> str {
     }
     if isinstance(value, list) {
         arr: list[any] = value;
-        out: str = "[";
+        out: str = "";
+        if len(ind) > 0 and len(arr) == 0 {
+            return "[]";
+        }
+        if len(ind) > 0 {
+            inner: str = cur_ind + ind;
+            out = "[\n";
+            n2: int = len(arr);
+            i: int = 0;
+            while i < n2 {
+                if i > 0 {
+                    out += ",\n";
+                }
+                out += inner + _dump_value(arr[i], inner, ind);
+                i += 1;
+            }
+            out += "\n" + cur_ind + "]";
+            return out;
+        }
+        out = "[";
         n: int = len(arr);
         i: int = 0;
         while i < n {
             if i > 0 {
                 out += ", ";
             }
-            out += _dump_value(arr[i]);
+            out += _dump_value(arr[i], "", "");
             i += 1;
         }
         out += "]";
@@ -304,17 +349,35 @@ def _dump_value(value: any) -> str {
     }
     if isinstance(value, dict) {
         d: dict[str, any] = value;
-        out: str = "{";
+        if len(ind) > 0 and len(d) == 0 {
+            return "{}";
+        }
+        out_d: str = "{";
         first: int = 1;
+        if len(ind) > 0 {
+            inner: str = cur_ind + ind;
+            out_d = "{\n";
+            for k in d {
+                if first == 0 {
+                    out_d += ",\n";
+                }
+                first = 0;
+                out_d += (
+                    inner + _dump_str(k) + ": " + _dump_value(d[k], inner, ind)
+                );
+            }
+            out_d += "\n" + cur_ind + "}";
+            return out_d;
+        }
         for k in d {
             if first == 0 {
-                out += ", ";
+                out_d += ", ";
             }
             first = 0;
-            out += _dump_str(k) + ": " + _dump_value(d[k]);
+            out_d += _dump_str(k) + ": " + _dump_value(d[k], "", "");
         }
-        out += "}";
-        return out;
+        out_d += "}";
+        return out_d;
     }
     return "null";
 }

@@ -1926,6 +1926,12 @@ impl NaIRGenExpr._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
             }
 
+            _mref = self._codegen_method_reference_value(
+                nd, target_name, right_name
+            );
+            if _mref is not None {
+                return _mref;
+            }
             _fa_type_name = self._struct_name_of(nd.target);
             if _fa_type_name is not None {
                 type_name = _fa_type_name;

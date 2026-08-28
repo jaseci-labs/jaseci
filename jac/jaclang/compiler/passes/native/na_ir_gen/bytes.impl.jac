@@ -120,6 +120,34 @@ impl NaIRGenBytes._codegen_bytes_index(
     return self.builder.zext(byte, i64, name="by.byte.i64");
 }
 
+impl NaIRGenBytes._codegen_bytes_index_set(
+    bv: ir.Value, idx: ir.Value, value: ir.Value
+) -> None {
+    i8 = ir.IntType(8);
+    i64 = ir.IntType(64);
+    idx = self._coerce_type(idx, i64);
+    value = self._coerce_type(value, i64);
+    byte_val = self.builder.trunc(value, i8, name="by.set.byte");
+    length = self._bytes_len_val(bv);
+    is_neg = self.builder.icmp_signed(
+        "<", idx, ir.Constant(i64, 0), name="by.set.neg"
+    );
+    adj = self.builder.add(idx, length, name="by.set.adj");
+    real_idx = self.builder.select(is_neg, adj, idx, name="by.set.idx");
+
+    lo_bad = self.builder.icmp_signed(
+        "<", real_idx, ir.Constant(i64, 0), name="by.set.lo"
+    );
+    hi_bad = self.builder.icmp_signed(
+        ">=", real_idx, length, name="by.set.hi"
+    );
+    oob = self.builder.or_(lo_bad, hi_bad, name="by.set.oob");
+    self._emit_runtime_raise(oob, "IndexError", "index out of range");
+    data = self._bytes_data_ptr(bv);
+    bptr = self.builder.gep(data, [real_idx], name="by.set.bptr");
+    self.builder.store(byte_val, bptr);
+}
+
 impl NaIRGenBytes._codegen_bytes_slice(
     bv: ir.Value, slice_node: object
 ) -> (ir.Value | None) {

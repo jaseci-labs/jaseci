@@ -356,6 +356,61 @@ bundled one. A bundled module links through the existing cross-module machinery
   links are created via libc `link`/`symlink` when trivial. Native-host only.
   Pinned sv<->na congruent by `test_tarfile_equivalence.jac`.
 
+- **`unicodedata.jac`** (Mechanism B) -- `east_asian_width(ch)` and
+  `category(ch)` answered from compact sorted range tables generated from
+  CPython 3.14 `unicodedata` (Unicode 16.0.0) by a generator script; exact for
+  every code point against that Unicode version, silent drift when CPython
+  adopts a newer one (same trade-off as any vendored table). Binary search over
+  boundary lists of plain ints; no FFI. SCOPE: single-character strings only
+  (other lengths answer `""` where CPython raises TypeError); `name`,
+  `lookup`, `normalize`, `combining` are not provided.
+- **`codecs.jac`** (Mechanism B) -- incremental UTF-8 decoding with CPython's
+  `errors='replace'` semantics: split multibyte sequences stay buffered across
+  feeds, structurally invalid bytes become U+FFFD, and a truncated-but-valid
+  tail becomes U+FFFD only on the final-flush call (`decode(b"", final=True)`),
+  mirroring CPython's incrementaldecoder contract. Overlong/surrogate forms
+  rejected per the UTF-8 DFA ranges. DIVERGENCES: `getincrementaldecoder(name)`
+  returns the decoder instance directly instead of a factory callable (the
+  native pathway has no first-class factories) -- use
+  `getincrementaldecoder("utf-8", errors="replace")`; strict-mode failures
+  raise ValueError (UnicodeDecodeError is a ValueError subclass, so
+  `except ValueError` behaves identically); UTF-8 only, other encodings raise.
+- **`termios.jac` + `_termios_native.jac`** (Mechanism F over libc,
+  POSIX host only) -- `tcgetattr(fd)` / `tcsetattr(fd, when, attrs)` in
+  CPython's shape (`[iflag, oflag, cflag, lflag, ispeed, ospeed, cc]`, cc as
+  32 ints on Linux). The raw 60-byte glibc `struct termios` travels opaquely
+  through an FFI bytes buffer, so save/restore round-trips are byte-exact.
+  Errors raise ValueError where CPython raises `termios.error`.
+- **`tty.jac`** (Mechanism F, POSIX host only) -- `setraw(fd, when=TCSADRAIN)` /
+  `setcbreak`, a direct port of CPython's `tty.py` over the `termios` floor
+  (flag masks and VMIN/VTIME included).
+- **`select.jac`** (Mechanism F over libc, POSIX host only) --
+  `select(rlist, wlist, xlist, timeout=-1.0)` implemented over `poll(2)`
+  (poll's -1 "block forever" sidesteps needing a NULL timeval pointer through
+  the bytes-buffer ABI). fd >= FD_SETSIZE raise ValueError like CPython;
+  POLLERR/POLLHUP map into readable AND writable results (CPython reports them
+  readable only); POLLPRI is never requested so the exceptional list stays
+  empty; "block forever" is the `-1.0` sentinel rather than `None`.
+- **`fcntl.jac` + `_fcntl_native.jac`** (Mechanism F over libc, POSIX host
+  only) -- `ioctl(fd, request, arg)` returning the (updated) arg buffer --
+  which fills a packed winsize struct in place for `TIOCGWINSZ` -- plus
+  `fcntl(fd, cmd, arg=0)` covering F_GETFL/F_SETFL/O_NONBLOCK. The clib decls
+  live in the floor because the Python-shaped surface names would collide with
+  the C symbol names. CPython returns None for an immutable bytes ioctl arg;
+  here any bytes arg is answered back. Errors raise ValueError where CPython
+  raises OSError.
+- **`signal.jac` + `_signal_native.jac`** (Mechanism F over libc, POSIX host
+  only) -- the signal constants plus `signal(sig, handler)` / `getsignal(sig)`.
+  The floor turns a Jac handler into a C signal handler by assigning it into a
+  clib-struct `Callable[[i32], None]` field (the established callback
+  trampoline path) and passing the struct to `sigaction(2)`; SIG_DFL / SIG_IGN
+  install raw through `bsd_signal`. DELIVERED SEMANTICS: the installed Jac
+  dispatcher runs on the C signal stack, where general Jac code cannot run
+  safely, so it only records receipt in per-signum counters; the host loop
+  drains events with `pending(sig)` / `consume(sig)`. `getsignal` answers what
+  this module last installed (it does not read kernel state). This is the one
+  deliberate semantic break in the set -- see the module docstring.
+
 The syscall-backed `os` / `os.path` entry points (`makedirs`, `realpath`,
 `mkdir`, `exists`, `getmtime`, `normcase`, ...) are Mechanism-A/H compiler
 intercepts, reached via the flat `import os`, not bundled here (see

@@ -1,6 +1,15 @@
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
+def _callable_type_annotation(type_node: UniNode) -> bool {
+    return (
+        isinstance(type_node, AtomTrailer)
+        and not type_node.is_attr
+        and isinstance(type_node.target, Name)
+        and type_node.target.value == "Callable"
+    );
+}
+
 impl LayoutPass.postinit -> None {
     self.registry = LayoutRegistry();
     self.isinstance_targets = set();
@@ -345,7 +354,10 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
             type_node = var.type_tag.tag;
             type_tag = unparse_node(type_node) or str(type_node);
         }
-        is_fn_ptr = type_node is not None and isinstance(type_node, FuncSignature);
+        is_fn_ptr = type_node is not None and (
+            isinstance(type_node, FuncSignature)
+            or _callable_type_annotation(type_node)
+        );
         new_field = FieldInfo(
             name=fname,
             index=current_idx,
@@ -830,6 +842,9 @@ impl LayoutPass._is_layout_compatible_type(
         }
 
         if target_name == "type" {
+            return True;
+        }
+        if target_name == "Callable" {
             return True;
         }
         if target_name in {"list", "dict", "set", "frozenset", "tuple"} {

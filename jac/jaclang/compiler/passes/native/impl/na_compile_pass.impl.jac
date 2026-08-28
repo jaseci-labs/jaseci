@@ -339,6 +339,12 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
                 }
             }
         }
+        import os as _dump_os;
+        if _dump_os.environ.get("JAC_DUMP_IR") {
+            with open(_dump_os.environ["JAC_DUMP_IR"], "w") as _df {
+                _df.write(llvm_ir_str);
+            }
+        }
         mod = llvm.parse_assembly(llvm_ir_str);
         mod.verify();
 

@@ -533,6 +533,52 @@ test "difflib bundled" {
     );
 }
 
+test "termios bundled" {
+    run_with_both(
+        "prim_termios.jac", "termios_py", "termios_cl", "termios_na", require=["na"]
+    );
+}
+
+test "fcntl bundled" {
+    run_with_both(
+        "prim_fcntl.jac", "fcntl_py", "fcntl_cl", "fcntl_na", require=["na"]
+    );
+}
+
+test "select bundled" {
+    run_with_both(
+        "prim_select.jac", "select_py", "select_cl", "select_na", require=["na"]
+    );
+}
+
+test "signal bundled" {
+    run_with_both(
+        "prim_signal.jac", "signal_py", "signal_cl", "signal_na", require=["na"]
+    );
+}
+
+test "tty bundled" {
+    run_with_both(
+        "prim_tty.jac", "tty_py", "tty_cl", "tty_na", require=["na"]
+    );
+}
+
+test "codecs bundled" {
+    run_with_both(
+        "prim_codecs.jac", "codecs_py", "codecs_cl", "codecs_na", require=["na"]
+    );
+}
+
+test "unicodedata bundled" {
+    run_with_both(
+        "prim_unicodedata.jac",
+        "unicodedata_py",
+        "unicodedata_cl",
+        "unicodedata_na",
+        require=["na"]
+    );
+}
+
 test "native call resolves bundled stdlib signature, not typeshed (#7037)" {
     (eng, _) = compile_native("bundled_stdlib_sig.jac");
     pos = get_func(eng, "dumps_pos_len", ctypes.c_int64);

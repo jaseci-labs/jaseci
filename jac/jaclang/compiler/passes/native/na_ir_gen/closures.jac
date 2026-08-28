@@ -22,4 +22,10 @@ obj NaIRGenClosures(NaIRGenState) {
     def _codegen_closure_call(
         nd: uni.FuncCall, clos_val: ir.Value, struct_name: str
     ) -> (ir.Value | None);
+    def _emit_callable_trampoline(real_fn: ir.Function, bound: bool) -> ir.Function;
+    def _make_bound_callable(real_fn: ir.Function, recv: ir.Value) -> ir.Value;
+    def _emit_bare_callable_call(nd: uni.FuncCall, pair: ir.Value) -> ir.Value;
+    def _codegen_method_reference_value(
+        nd: uni.UniNode, target_name: (str | None), right_name: (str | None)
+    ) -> (ir.Value | None);
 }

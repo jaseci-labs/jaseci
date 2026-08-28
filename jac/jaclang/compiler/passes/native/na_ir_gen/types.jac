@@ -21,6 +21,8 @@ obj NaIRGenTypes(NaIRGenState) {
 
     def _apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Value;
     def _lower_function_type_raw(t: any) -> ir.Type;
+    def _frontend_type_is_any(t: any) -> bool;
+    def _bare_callable_type() -> ir.Type;
     def _stack_entry_alloca(var_type: ir.Type, name: str) -> ir.Value;
     def _abi_sizeof(t: ir.Type) -> int;
     def _resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type;

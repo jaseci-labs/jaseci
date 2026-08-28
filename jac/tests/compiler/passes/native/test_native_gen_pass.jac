@@ -4301,6 +4301,23 @@ test "callable field slot resets to null via int 0 (issue #6569)" {
     assert reset(5) == 0;
 }
 
+test "clib Callable struct field lowers without W5032" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=str(os.path.join(FIXTURES, "clib_callable_struct_field.jac")),
+        options=native_force_opts()
+    );
+    codes = [
+        e.code.code
+        for e in (prog.warnings_had or [])
+        if e.code is not None
+    ];
+    assert "W5032" not in codes , f"Callable clib field drew W5032: {codes}";
+    assert not prog.errors_had , f"Errors: {prog.errors_had}";
+    assert ir.gen.native_engine is not None;
+    assert ir.gen.native_engine.get_function_address("install_dispatcher") != 0;
+}
+
 # --- C→Jac callback trampolines for clib vtable structs (issue #6570) ---
 test "clib vtable slot store emits C-ABI trampoline (issue #6570)" {
     (_, ir) = compile_native("clib_vtable_trampoline.jac");
@@ -4846,6 +4863,50 @@ test "dup clib: user-declared strlen returns 0 for empty string" {
     f = get_func(eng, "test_strlen_empty", ctypes.c_int64);
     result = f();
     assert result == 0 , f"Expected strlen('')=0, got {result}";
+}
+
+# ─── FIX: Jac function name collides with transitive clib extern ─────────────
+# When an imported dep module declares `import from c { def ioctl ... }` and the
+# entry module defines a Python-shaped `def ioctl`, NaIRGen walked the dep's
+# clib decl into the same LLVM module then tried `ir.Function(..., name="ioctl")`
+# for the surface def → DuplicatedNameError ICE (fcntl.jac / prim_fcntl).
+# Fix: mangle the Jac symbol (__jacp_<mod>) when a clib extern already owns the
+# bare C name, mirroring the existing private-fn mangling path.
+test "clib fn collision: surface def ioctl compiles when dep declares libc ioctl" {
+    prog = JacProgram();
+    ir = prog.compile(
+        str(os.path.join(FIXTURES, "fix_clib_fn_collision_entry.jac")),
+        options=native_force_opts()
+    );
+    assert not prog.errors_had , f"Errors (expected none, DuplicatedNameError before fix): {prog.errors_had}";
+    assert ir.gen.native_engine is not None , "No native engine created";
+}
+
+# ─── FIX: bytes subscript assignment (store) ─────────────────────────────────
+# Read path existed; `buf[i] = v` on bytes raised E5092. Needed for termios
+# struct packing (_put_u32) and select pollfd buffers.
+test "bytes subscript store: compiles without E5092" {
+    prog = JacProgram();
+    ir = prog.compile(
+        str(os.path.join(FIXTURES, "fix_bytes_subscript_store.jac")),
+        options=native_force_opts()
+    );
+    e5092 = [
+        e.code.code
+        for e in (prog.errors_had or [])
+        if e.code and e.code.code == "E5092"
+    ];
+    assert not e5092 , f"Unexpected E5092 errors: {e5092}";
+    assert ir.gen.native_engine is not None , "No native engine created";
+}
+
+test "bytes subscript store: pack_u32_le writes little-endian bytes" {
+    (eng, _) = compile_native("fix_bytes_subscript_store.jac");
+    entry_fn = get_func(eng, "jac_entry", None);
+    entry_fn();
+    pack = get_func(eng, "pack_u32_le", ctypes.c_int64);
+    read = get_func(eng, "read_byte", ctypes.c_int64, ctypes.c_int64);
+    assert pack is not None and read is not None;
 }
 
 # ─── FIX: Argument type coercion at C call boundaries ────────────────────────

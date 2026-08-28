@@ -131,6 +131,24 @@ test "obj with enum field produces layout" {
     assert "color" in names;
 }
 
+test "clib Callable field is layout-compatible" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=str(os.path.join(FIXTURES, "valid_clib_callable.jac"))
+    );
+    get_layout_registry(ir, prog);
+    codes = [
+        e.code.code
+        for e in (prog.warnings_had or [])
+        if e.code is not None
+    ];
+    assert "W5032" not in codes , f"Callable fn-pointer field drew W5032: {codes}";
+    layout = get_layout_registry(ir, prog).get_layout("_SigAction");
+    assert layout is not None;
+    handler = [f for f in layout.fields if f.name == "handler"][0];
+    assert handler.is_func_ptr == True;
+}
+
 # ── Layout registry: inheritance ─────────────────────────────
 test "child obj inherits parent fields in MRO order" {
     reg = get_registry("valid_inheritance.jac");

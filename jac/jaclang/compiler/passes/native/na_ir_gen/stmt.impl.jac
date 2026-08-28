@@ -1806,6 +1806,11 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                                     _idx_stored = True;
                                 }
                             }
+                        } elif self._is_bytes_value(target_val) and nd.aug_op is None {
+                            self._codegen_bytes_index_set(
+                                target_val, idx_val, value
+                            );
+                            _idx_stored = True;
                         } else {
                             elem_type_name: (str | None) = (
                                 self._infer_list_elem_type(target_val)

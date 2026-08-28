@@ -1,3 +1,4 @@
+import from jaclang.jac0core.constant { Tokens as Tok }
 impl NaIRGenClosures._scan_closure_escapes(
     nd: uni.UniNode, body: (list | tuple)
 ) -> None {
@@ -314,6 +315,9 @@ impl NaIRGenClosures._codegen_closure_call(
     nd: uni.FuncCall, clos_val: ir.Value, struct_name: str
 ) -> (ir.Value | None) {
     (_st, fnty_env) = self.closure_sig_registry[struct_name];
+    if struct_name == self._bare_callable_sname {
+        return self._emit_bare_callable_call(nd, clos_val);
+    }
     i32 = ir.IntType(32);
     declared = list(fnty_env.args)[:-1];
     raw_args: list = [];
@@ -358,4 +362,258 @@ impl NaIRGenClosures._codegen_closure_call(
         self._emit_rc_release_simple(clos_val, op="ccall_target", loc="");
     }
     return result;
+}
+
+impl NaIRGenClosures._emit_callable_trampoline(real_fn: ir.Function, bound: bool) -> ir.Function {
+    """Emit (once per callee) the uniform dynamic entry of a bare `Callable`.
+
+    Signature: `%JacVal (ptr args_list, ptr env)`. Arguments arrive as a
+    jacval list; each is unboxed into the callee's declared parameter type.
+    A bound trampoline passes `env` as the receiver (`self`) first. The
+    result is boxed back into a jacval (void returns box as none).
+    """;
+    _key = f"{real_fn.name}::{bound}";
+    _hit = self._callable_trampolines.get(_key);
+    if _hit is not None {
+        return _hit;
+    }
+    if not self._bare_callable_sname {
+        self._bare_callable_type();
+    }
+    if self?.jacval_type is None or "jacval" not in self.list_helpers {
+        return real_fn;
+    }
+    _argsl = self.list_types["jacval"].as_pointer();
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    fnty = ir.FunctionType(self.jacval_type, [_argsl, ir.IntType(8).as_pointer()]);
+    _safe = real_fn.name.replace(".", "_").replace("-", "_");
+    _tname = f"__ucl_{_safe}";
+    if bound {
+        _tname += "_b";
+    }
+    tf = ir.Function(self.llvm_module, fnty, name=_tname);
+    tf.linkage = "private";
+    bb = tf.append_basic_block("entry");
+    _saved_builder = self._builder;
+    self._builder = ir.IRBuilder(bb);
+    b = self.builder;
+    argsl = tf.args[0];
+    env = tf.args[1];
+    sig_args = list(real_fn.function_type.args);
+    start: int = 0;
+    if bound {
+        start = 1;
+    }
+    call_args: list[ir.Value] = [];
+    if bound and sig_args {
+        _self_ty = sig_args[0];
+        if env.type != _self_ty {
+            call_args.append(b.bitcast(env, _self_ty, name="recv.cast"));
+        } else {
+            call_args.append(env);
+        }
+    }
+    for (i, P) in enumerate(sig_args[start:]) {
+        jv = b.call(
+            self.list_helpers["jacval"]["get"],
+            [argsl, ir.Constant(i64, i)],
+            name=f"uarg.{i}"
+        );
+        call_args.append(self._unbox_from_jacval(jv, P));
+    }
+    r = b.call(real_fn, call_args);
+    if isinstance(real_fn.function_type.return_type, ir.VoidType) {
+        b.ret(ir.Constant(self.jacval_type, None));
+    } else {
+        jv = self._box_to_jacval(r);
+        b.ret(jv);
+    }
+    self._builder = _saved_builder;
+    self._callable_trampolines[_key] = tf;
+    return tf;
+}
+
+impl NaIRGenClosures._make_bound_callable(real_fn: ir.Function, recv: ir.Value) -> ir.Value {
+    """Heap-allocate a callable pair binding `real_fn` to receiver `recv`.""";
+    if not self._bare_callable_sname {
+        self._bare_callable_type();
+    }
+    tramp = self._emit_callable_trampoline(real_fn, True);
+    i8p = ir.IntType(8).as_pointer();
+    recv_i8 = recv;
+    if recv.type != i8p {
+        recv_i8 = self.builder.bitcast(recv, i8p, name="bind.recv");
+    }
+    if self.rc_alloc_fn is None {
+        self._emit_rc_helpers();
+    }
+    self._emit_rc_retain(recv_i8, op="bind.env", loc="");
+    pair = self._alloc_iter_struct(self._bare_callable_sname);
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    fn_slot = self.builder.gep(pair, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="bind.fn.slot");
+    self.builder.store(self.builder.ptrtoint(tramp, i64, name="bind.fn.i64"), fn_slot);
+    env_slot = self.builder.gep(pair, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="bind.env.slot");
+    self.builder.store(recv_i8, env_slot);
+    return pair;
+}
+
+impl NaIRGenClosures._emit_bare_callable_call(nd: uni.FuncCall, pair: ir.Value) -> ir.Value {
+    """Call through a bare-`Callable` value.
+
+    Null pair raises AttributeError. Arguments (fixed expressions and/or one
+    `*list` spread) are boxed into a jacval list; the trampoline does the
+    rest. Returns the callee's boxed result.
+    """;
+    (_st, fnty_env) = self.closure_sig_registry[self._bare_callable_sname];
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    b = self.builder;
+    _is_null = b.icmp_unsigned(
+        "==", pair, ir.Constant(pair.type, None), name="call.null"
+    );
+    self._emit_runtime_raise(
+        _is_null, "AttributeError", "'None' Callable object is not callable"
+    );
+    if self?.jacval_type is None or "jacval" not in self.list_helpers {
+        self._emit_list_helpers("jacval", self.jacval_type);
+    }
+    _h = self.list_helpers["jacval"];
+    fn_i64 = b.load(
+        b.gep(pair, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="call.fn.slot"),
+        name="call.fn.i64"
+    );
+    fnp = b.inttoptr(fn_i64, fnty_env.as_pointer(), name="call.tramp");
+    env = b.load(
+        b.gep(pair, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="call.env.slot"),
+        name="call.env"
+    );
+    dst = self._rc_call_with_ctx(_h["new"], [], op="new", loc="", name="call.args");
+    for p in (nd.params or []) {
+        if isinstance(p, uni.KWPair) {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="call argument",
+                name="keyword argument through a bare Callable",
+                help_text=(
+                    "A bare `Callable` value carries no parameter names, so "
+                    "keyword arguments cannot be matched at the call site. "
+                    "Pass positionally, or type the slot `Callable[[P], R]`."
+                )
+            );
+            continue;
+        }
+        if (
+            isinstance(p, uni.UnaryExpr)
+            and isinstance(p.op, uni.Token)
+            and p.op.name in (Tok.STAR_MUL, Tok.STAR_POW)
+        ) {
+            src = self._codegen_expr(p.operand);
+            if src is None {
+                continue;
+            }
+            _src_spec: (str | None) = None;
+            for (_nm, _lt) in self.list_types.items() {
+                if _lt.as_pointer() == src.type {
+                    _src_spec = _nm;
+                    break;
+                }
+            }
+            if _src_spec is None {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="call argument unpacking",
+                    name="*",
+                    help_text=(
+                        "Only `*list` spreads lower through a bare `Callable`;"
+                        " spread a tuple explicitly instead."
+                    )
+                );
+                continue;
+            }
+            _sh = self.list_helpers[_src_spec];
+            n = b.call(_sh["len"], [src], name="spread.len");
+            loop_bb = b.function.append_basic_block("spread.loop");
+            body_bb = b.function.append_basic_block("spread.body");
+            done_bb = b.function.append_basic_block("spread.done");
+            i_slot = self._entry_alloca(i64, "spread.i");
+            b.store(ir.Constant(i64, 0), i_slot);
+            b.branch(loop_bb);
+            b.position_at_end(loop_bb);
+            i_v = b.load(i_slot, name="spread.i.v");
+            more = b.icmp_signed("<", i_v, n, name="spread.more");
+            b.cbranch(more, body_bb, done_bb);
+            b.position_at_end(body_bb);
+            e = b.call(_sh["get"], [src, i_v], name="spread.e");
+            jv = self._box_to_jacval(e);
+            b.call(_h["append"], [dst, jv]);
+            i_n = b.add(i_v, ir.Constant(i64, 1), name="spread.next");
+            b.store(i_n, i_slot);
+            b.branch(loop_bb);
+            b.position_at_end(done_bb);
+            continue;
+        }
+        v = self._codegen_expr(p);
+        if v is None {
+            self.emit(E5092, node_override=nd, kind="call argument", name="?");
+            continue;
+        }
+        jv = self._box_to_jacval(v);
+        b.call(_h["append"], [dst, jv]);
+    }
+    res = b.call(fnp, [dst, env], name="callable.call");
+    _rel = self.list_release_fns.get("jacval");
+    if _rel is not None {
+        b.call(_rel, [dst]);
+    }
+    return res;
+}
+
+impl NaIRGenClosures._codegen_method_reference_value(
+    nd: uni.UniNode, target_name: (str | None), right_name: (str | None)
+) -> (ir.Value | None) {
+    """Lower `instance.method` used as a VALUE into a bound callable pair.
+
+    Only fires when the attribute names a natively-lowered method of a
+    struct-typed receiver and is not shadowed by a field or property; every
+    other read falls through to the field-access paths.
+    """;
+    if right_name is None or target_name is None {
+        return None;
+    }
+    if right_name in ("init", "__init__", "postinit", "__post_init__") {
+        return None;
+    }
+    _recv_ty = self._struct_name_of(nd.target);
+    if _recv_ty is None or _recv_ty not in self.struct_types {
+        return None;
+    }
+    if right_name in self.struct_field_indices.get(_recv_ty, {}) {
+        return None;
+    }
+    if self._accessor_slot_of(_recv_ty, right_name, "property") is not None {
+        return None;
+    }
+    _hit: (ir.Function | None) = None;
+    for _cn in self._mro_of(_recv_ty) {
+        _cand = f"{_cn}.{right_name}";
+        if (
+            _cand in self.method_funcs
+            and _cand not in self._native_skipped_methods
+        ) {
+            _hit = self.method_funcs[_cand];
+            break;
+        }
+    }
+    if _hit is None {
+        return None;
+    }
+    _recv = self._codegen_expr(nd.target);
+    if _recv is None {
+        return None;
+    }
+    return self._make_bound_callable(_hit, _recv);
 }

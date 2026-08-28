@@ -754,11 +754,57 @@ impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
 
 impl NaIRGenTypes._lower_function_type(t: any) -> ir.Type {
     raw = self._lower_function_type_raw(t);
+    _already = self._closure_struct_of(raw);
+    if _already is not None {
+        return raw;
+    }
     (_sig_name, sig_st, _fnty_env) = self._closure_sig_struct(raw.pointee);
     return sig_st.as_pointer();
 }
 
+impl NaIRGenTypes._frontend_type_is_any(t: any) -> bool {
+    """Whether a frontend type is the erased `any`/`Any`.""";
+    if t is None {
+        return False;
+    }
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _CT }
+        if isinstance(t, _CT) {
+            return t.shared.class_name in ("any", "Any", "object");
+        }
+    } except ImportError { }
+    return str(t) in ("<any>", "any", "Any");
+}
+
+impl NaIRGenTypes._bare_callable_type() -> ir.Type {
+    """Canonical repr for a bare/erased `Callable` value.
+
+    A bare `Callable` carries no static signature, so a raw function pointer
+    can neither capture a bound receiver nor be invoked with runtime-arity
+    arguments. Lower it to the closure-pair shape instead: a pointer to
+    `{ i64 code; ptr env }` where `code` is a per-callee trampoline with the
+    uniform signature `%JacVal (ptr args_list, ptr env)` and `env` is the
+    captured receiver (null for plain functions). Calls build a jacval list
+    of the arguments and go through the trampoline.
+    """;
+    if self._bare_callable_sname {
+        return self.struct_types[self._bare_callable_sname].as_pointer();
+    }
+    if self?.jacval_type is None {
+        return ir.IntType(8).as_pointer();
+    }
+    self._emit_list_helpers("jacval", self.jacval_type);
+    _argsl = self.list_types["jacval"].as_pointer();
+    _fnty = ir.FunctionType(self.jacval_type, [_argsl]);
+    (_name, _st, _fe) = self._closure_sig_struct(_fnty);
+    self._bare_callable_sname = _name;
+    return _st.as_pointer();
+}
+
 impl NaIRGenTypes._lower_function_type_raw(t: any) -> ir.Type {
+    if not (t.parameters or []) and self._frontend_type_is_any(t.return_type) {
+        return self._bare_callable_type();
+    }
     ret_type: ir.Type = ir.VoidType();
     if t.return_type is not None {
         _r = self._lower_type(t.return_type);
@@ -2041,6 +2087,9 @@ impl NaIRGenTypes._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.
                 _wfn = self.builder.bitcast(
                     _wfn, _wfn.type.as_pointer(), name="clos.wrap.fnp"
                 );
+            }
+            if _clos_tgt == self._bare_callable_sname and isinstance(val, ir.Function) {
+                _wfn = self._emit_callable_trampoline(val, False);
             }
             _wclos = self._alloc_iter_struct(_clos_tgt);
             _wfn_slot = self.builder.gep(

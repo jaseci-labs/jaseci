@@ -1,0 +1,1 @@
+- **Fix: native bytes subscript assignment (`buf[i] = v`)**: the read path lowered via `_codegen_bytes_index`, but stores hit E5092 and demoted — blocking `na_stdlib` POSIX floors that pack structs into `bytes` (`_termios_native._put_u32`, `select._add_entry`). NaIRGen now emits bounds-checked u8 stores through `_codegen_bytes_index_set`, mirroring the read emitter.

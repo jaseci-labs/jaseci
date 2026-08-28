@@ -10,6 +10,7 @@ obj NaIRGenBytes(NaIRGenState) {
     def _make_global_bytes(data: bytes) -> ir.Value;
     def _is_bytes_value(v: ir.Value) -> bool;
     def _codegen_bytes_index(bv: ir.Value, idx: ir.Value) -> (ir.Value | None);
+    def _codegen_bytes_index_set(bv: ir.Value, idx: ir.Value, value: ir.Value) -> None;
     def _codegen_bytes_slice(bv: ir.Value, slice_node: object) -> (ir.Value | None);
     def _emit_bytes_eq(left: ir.Value, right: ir.Value, negate: bool) -> ir.Value;
     def _is_bytes_type(t: ir.Type) -> bool;

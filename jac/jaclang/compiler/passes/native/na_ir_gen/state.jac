@@ -243,6 +243,8 @@ obj NaIRGenState(ModuleCodegenPass) {
         _closure_cell_structs: dict[str, str] = {},
         closure_thunks: dict[str, ir.Function] = {},
         _closure_uid: int = 0,
+        _bare_callable_sname: str = "",
+        _callable_trampolines: dict[str, ir.Function] = {},
         _opt_struct_types: dict[str, ir.Type] = {},
         _loop_rebind_memo: dict[tuple, bool] = {};
 
