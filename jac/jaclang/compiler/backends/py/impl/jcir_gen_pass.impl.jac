@@ -3988,7 +3988,7 @@ impl JcirGenPass.exit_atom_trailer with AtomTrailer exit {
     } elif isinstance(here.right, FilterCompr) {
         if self._is_edge_ref_target(here.target) {
             target_py = self.val(here.target);
-            narrow_kws = self._query_filter_kws(here.right, 'here', 'preds');
+            narrow_kws = self._query_filter_kws(here.right, 'nd', 'preds');
             target_py.get('args')[0] = self.nod(
                 'Call',
                 ['func', 'args', 'keywords'],
@@ -4879,7 +4879,7 @@ impl JcirGenPass.exit_edge_ref_trailer with EdgeRefTrailer exit {
             filt = chomp.pop(0);
             if isinstance(filt, FilterCompr) {
                 (nkws, _nord) = self._query_filter_kws_ord(
-                    filt, 'here', 'preds', False, hop_order
+                    filt, 'nd', 'preds', False, hop_order
                 );
                 keywords.extend(nkws);
             } else {
