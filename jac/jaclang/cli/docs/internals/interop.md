@@ -297,7 +297,7 @@ materialization for every real consumer.
 No whole-value crossing ships today. The worked example used to be the
 compiler's own sealed parser, whose generated materializer root returned
 fully Python-owned trees, envelopes and all; it went with the native seal in
-#8735 (#8732). What crosses now is narrower: scalars, through the ctypes
+# 8735 (#8732). What crosses now is narrower: scalars, through the ctypes
 trampolines above, or -- on the `na → C host` path (row 13 below) -- opaque
 `void*` handles the host reference-counts with `@jac_retain` /
 `@jac_release` and must never dereference. The rule above is the contract
