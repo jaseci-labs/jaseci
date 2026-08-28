@@ -159,9 +159,15 @@ impl JacAccessValidation.check_access_level(
         return AccessLevel.WRITE;
     }
     caller_aware = (not no_custom)
-        and (type(to.archetype).__jac_access_for__ is not Archetype.__jac_access_for__);
+        and (
+            getattr(type(to.archetype), '__jac_access_for__', None)
+            is not Archetype.__jac_access_for__
+        );
     if caller_aware
-        and ((custom_level := to.archetype.__jac_access_for__(jroot.id)) is not None) {
+        and (
+            (custom_level := to.archetype.__jac_access_for__(jroot.ensure_id()))
+            is not None
+        ) {
         return access_level_cast(custom_level);
     }
     if (jroot.id == to.root) {
