@@ -7,6 +7,7 @@ import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ScalingMode }
 
 def _cs(
     name: str,
@@ -101,7 +102,9 @@ def _dep_zero -> object {
 
 def _bundle_with_autoscaler(deploy_name: str, app: str, autoscaler_cfg: dict) -> dict {
     bundle = _bundle(deploy_name, app);
-    bundle["autoscalers"] = {app: autoscaler_cfg};
+    bundle["scaling"] = {
+        app: {"mode": ScalingMode.METRIC, "autoscaler": autoscaler_cfg}
+    };
     return bundle;
 }
 
