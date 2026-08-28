@@ -160,8 +160,7 @@ impl JacAccessValidation.check_access_level(
     }
     caller_aware = (not no_custom)
         and (
-            getattr(type(to.archetype), '__jac_access_for__', None)
-            is not Archetype.__jac_access_for__
+            type(to.archetype)?.__jac_access_for__ is not Archetype.__jac_access_for__
         );
     if caller_aware
         and (
