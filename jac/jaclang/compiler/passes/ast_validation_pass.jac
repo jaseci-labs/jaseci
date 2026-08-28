@@ -84,17 +84,17 @@ import from jaclang.compiler.frontend.diagnostics {
 }
 
 walker ASTValidationPass(UniPass) {
-    def enter_try_stmt(nd: TryStmt) -> None;
-    def enter_match_stmt(nd: MatchStmt) -> None;
-    def enter_module_code(nd: ModuleCode) -> None;
-    def enter_binary_expr(nd: BinaryExpr) -> None;
-    def enter_name(nd: Name) -> None;
-    def enter_func_signature(nd: FuncSignature) -> None;
-    def enter_iter_for_stmt(nd: IterForStmt) -> None;
-    def enter_import(nd: Import) -> None;
-    def enter_enum(nd: Enum) -> None;
-    def enter_switch_stmt(nd: SwitchStmt) -> None;
-    def enter_assignment(nd: Assignment) -> None;
+    can enter_try_stmt with TryStmt entry;
+    can enter_match_stmt with MatchStmt entry;
+    can enter_module_code with ModuleCode entry;
+    can enter_binary_expr with BinaryExpr entry;
+    can enter_name with Name entry;
+    can enter_func_signature with FuncSignature entry;
+    can enter_iter_for_stmt with IterForStmt entry;
+    can enter_import with Import entry;
+    can enter_enum with Enum entry;
+    can enter_switch_stmt with SwitchStmt entry;
+    can enter_assignment with Assignment entry;
     def _check_render_phase_state_write(nd: Assignment
     ) -> None;
 
@@ -102,20 +102,20 @@ walker ASTValidationPass(UniPass) {
     ) -> bool;
 
     def _returns_jsx(scope: (Ability | ImplDef)) -> bool;
-    def enter_in_for_stmt(nd: InForStmt) -> None;
-    def enter_inner_compr(nd: InnerCompr) -> None;
-    def enter_has_var(nd: HasVar) -> None;
-    def enter_expr_as_item(nd: ExprAsItem) -> None;
-    def enter_delete_stmt(nd: DeleteStmt) -> None;
+    can enter_in_for_stmt with InForStmt entry;
+    can enter_inner_compr with InnerCompr entry;
+    can enter_has_var with HasVar entry;
+    can enter_expr_as_item with ExprAsItem entry;
+    can enter_delete_stmt with DeleteStmt entry;
     def _reject_non_bindable(target: object) -> None;
-    def enter_param_var(nd: ParamVar) -> None;
-    def enter_yield_expr(nd: YieldExpr) -> None;
-    def enter_ctrl_stmt(nd: CtrlStmt) -> None;
-    def enter_global_vars(nd: GlobalVars) -> None;
-    def enter_func_call(nd: FuncCall) -> None;
-    def enter_archetype(nd: Archetype) -> None;
-    def enter_jsx_slot(nd: JsxSlot) -> None;
-    def enter_expr_stmt(nd: ExprStmt) -> None;
+    can enter_param_var with ParamVar entry;
+    can enter_yield_expr with YieldExpr entry;
+    can enter_ctrl_stmt with CtrlStmt entry;
+    can enter_global_vars with GlobalVars entry;
+    can enter_func_call with FuncCall entry;
+    can enter_archetype with Archetype entry;
+    can enter_jsx_slot with JsxSlot entry;
+    can enter_expr_stmt with ExprStmt entry;
     def _check_slot_body(stmts: list[UniNode], in_loop: bool, loop_kw: str
     ) -> None;
 

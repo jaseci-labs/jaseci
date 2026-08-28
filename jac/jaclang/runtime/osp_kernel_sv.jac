@@ -118,10 +118,14 @@ def desc_for(cls: any) -> WalkerDesc {
     if cls in _desc_of_cls {
         return _desc_of_cls[cls];
     }
+    pe = cls?.__jac_post_entry__;
+    px = cls?.__jac_post_exit__;
     desc = WalkerDesc(
         type_tag=tag_of_cls(cls),
         `entry=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_entry_funcs_)),
-        `exit=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_exit_funcs_))
+        `exit=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_exit_funcs_)),
+        post_entry=(_wrap_ability(pe) if pe is not None else None),
+        post_exit=(_wrap_ability(px) if px is not None else None)
     );
     _desc_of_cls[cls] = desc;
     return desc;
@@ -137,13 +141,22 @@ def _sv_is_a(tag: int, base: int) -> bool {
     return tc is not None and bc is not None and issubclass(tc, bc);
 }
 
+glob _ndesc_of_tag: dict[int, NodeDesc] = {};
+
 def _sv_node_desc(tag: int) -> NodeDesc {
+    cached = _ndesc_of_tag.get(tag);
+    if cached is not None {
+        return cached;
+    }
     cls = cls_of_tag(tag);
     if cls is None {
-        return NodeDesc(type_tag=tag, `entry=[], `exit=[]);
+        nd = NodeDesc(type_tag=tag, `entry=[], `exit=[]);
+    } else {
+        d = desc_for(cls);
+        nd = NodeDesc(type_tag=d.type_tag, `entry=d.`entry, `exit=d.`exit);
     }
-    d = desc_for(cls);
-    return NodeDesc(type_tag=d.type_tag, `entry=d.`entry, `exit=d.`exit);
+    _ndesc_of_tag[tag] = nd;
+    return nd;
 }
 
 def _sv_on_complete(scope: WalkScope, ok: bool) {
@@ -209,7 +222,8 @@ async def _run_typed_async(rt: OspRuntime, slots: list[Slot], a: any, b: any) ->
             if inspect.iscoroutine(result) {
                 await result;
             }
-            if _kernel._walk_stack and _kernel._walk_stack[-1].disengaged {
+            if _kernel._walk_stack
+                and (_kernel._walk_stack[-1].disengaged or _kernel._walk_stack[-1].skip_node) {
                 return;
             }
         }
@@ -223,7 +237,8 @@ async def _run_untyped_async(slots: list[Slot], a: any, b: any) -> None {
             if inspect.iscoroutine(result) {
                 await result;
             }
-            if _kernel._walk_stack and _kernel._walk_stack[-1].disengaged {
+            if _kernel._walk_stack
+                and (_kernel._walk_stack[-1].disengaged or _kernel._walk_stack[-1].skip_node) {
                 return;
             }
         }
@@ -248,14 +263,28 @@ async def _visit_recursive_async(
             if scope.disengaged {
                 return False;
             }
-            await _run_untyped_async(ndesc.`entry, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
+            if not scope.skip_node {
+                await _run_untyped_async(ndesc.`entry, cur, scope.wlk);
+                if scope.disengaged {
+                    return False;
+                }
             }
-            await _run_typed_async(rt, ndesc.`entry, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
+            if not scope.skip_node {
+                await _run_typed_async(rt, ndesc.`entry, cur, scope.wlk);
+                if scope.disengaged {
+                    return False;
+                }
             }
+            if (not scope.skip_node) and (wdesc.post_entry is not None) {
+                result = wdesc.post_entry(scope.wlk, cur);
+                if inspect.iscoroutine(result) {
+                    await result;
+                }
+                if scope.disengaged {
+                    return False;
+                }
+            }
+            scope.skip_node = False;
             stack.append((cur, 1, scope.pending_fence));
         } elif phase == 1 {
             child = None;
@@ -294,14 +323,28 @@ async def _visit_recursive_async(
             if scope.disengaged {
                 return False;
             }
-            await _run_untyped_async(ndesc.`exit, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
+            if not scope.skip_node {
+                await _run_untyped_async(ndesc.`exit, cur, scope.wlk);
+                if scope.disengaged {
+                    return False;
+                }
             }
-            await _run_typed_async(rt, wdesc.`exit, scope.wlk, cur);
-            if scope.disengaged {
-                return False;
+            if not scope.skip_node {
+                await _run_typed_async(rt, wdesc.`exit, scope.wlk, cur);
+                if scope.disengaged {
+                    return False;
+                }
             }
+            if (not scope.skip_node) and (wdesc.post_exit is not None) {
+                result = wdesc.post_exit(scope.wlk, cur);
+                if inspect.iscoroutine(result) {
+                    await result;
+                }
+                if scope.disengaged {
+                    return False;
+                }
+            }
+            scope.skip_node = False;
             if scope.fenced and (scope.pending_fence > 0) and stack {
                 (ploc, pph, pbud) = stack[-1];
                 stack[-1] = (ploc, pph, pbud + scope.pending_fence);

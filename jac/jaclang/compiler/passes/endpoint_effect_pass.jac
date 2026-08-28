@@ -33,30 +33,30 @@ walker EndpointEffectPass(UniPass) {
         self._visited.clear();
     }
 
-    def enter_ability(nd: Ability) {
+    can enter_ability with Ability entry {
         if (
-            not nd.is_method
-            and not nd.in_client_context()
-            and nd.access is not None
-            and nd.access.tag.name == Tok.KW_PUB
-            and isinstance(nd.name_ref, Name)
+            not here.is_method
+            and not here.in_client_context()
+            and here.access is not None
+            and here.access.tag.name == Tok.KW_PUB
+            and isinstance(here.name_ref, Name)
         ) {
             self.ir_in.gen.interop_manifest.endpoint_effects[
-                f"func:{nd.name_ref.sym_name}"
-            ] = self._classify(self._resolved_body(nd));
+                f"func:{here.name_ref.sym_name}"
+            ] = self._classify(self._resolved_body(here));
         }
     }
 
-    def enter_archetype(nd: Archetype) -> None {
-        if nd.arch_kind != "walker" {
+    can enter_archetype with Archetype entry {
+        if here.arch_kind != "walker" {
             return;
         }
-        if not isinstance(nd.name, Name) {
+        if not isinstance(here.name, Name) {
             return;
         }
         self.ir_in.gen.interop_manifest.endpoint_effects[
-            f"walker:{nd.name.sym_name}"
-        ] = self._classify(self._resolved_body(nd));
+            f"walker:{here.name.sym_name}"
+        ] = self._classify(self._resolved_body(here));
     }
 
     def _classify(body_nodes: list) -> dict {

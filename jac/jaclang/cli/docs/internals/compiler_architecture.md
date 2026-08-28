@@ -712,7 +712,9 @@ A short index, organised by the role each file plays in the pipeline.
 - [`compiler/passes/transform.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/transform.jac)
   -- `Transform[I, O]` base class for every pass
 - [`compiler/passes/uni_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/uni_pass.jac)
-  -- `UniPass`, the AST-visitor base class
+  -- `UniPass`, the walker base class every tree pass extends; passes declare
+  typed abilities (`can enter_x with IfStmt entry`) and the OSP kernel
+  dispatches them during a subtree-fenced `visit:0:` walk
 
 **Shared front end**
 

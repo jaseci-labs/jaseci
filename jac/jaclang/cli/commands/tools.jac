@@ -149,27 +149,3 @@ comptime SPEC_COMPLETIONS: CommandSpec = CommandSpec(
 
 def completions(shell: str = "bash", install: bool = False) -> int;
 
-comptime SPEC_GEN_UNI_DISPATCH: CommandSpec = CommandSpec(
-         name="gen-uni-dispatch",
-         hidden=True,
-         help="Regenerate static enter_node/exit_node dispatch for UniPass subclasses",
-         args=[
-             Arg.create(
-                 "verify",
-                 typ=bool,
-                 `default=False,
-                 help="Check that dispatch annexes are up to date; exit 1 if not",
-                 short="v"
-             ),
-
-         ],
-         examples=[
-             ("jac gen-uni-dispatch", "Regenerate all dispatch annexes"),
-             ("jac gen-uni-dispatch --verify", "Check annexes are up to date (for CI)"),
-
-         ],
-         group="tools",
-         handler_name=ct_name(gen_uni_dispatch)
-     );
-
-def gen_uni_dispatch(verify: bool = False) -> int;

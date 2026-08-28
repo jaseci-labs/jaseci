@@ -13,7 +13,7 @@ import from jaclang.compiler.passes.uni_pass { UniPass }
 walker LocalCountPass(UniPass) {
     has seen: int = 0;
 
-    def enter_name(nd: Name) {
+    can enter_name with Name entry {
         self.seen = self.seen + 1;
     }
 }

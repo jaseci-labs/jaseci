@@ -68,7 +68,7 @@ walker BoundaryAnalysisPass(UniPass) {
     ) -> (str | None);
 
     def _register_native_absorb(nd: Import) -> None;
-    def enter_import(nd: Import) -> None;
+    can enter_import with Import entry;
     def _register_sv_import(
         nd: Import,
         module_name: str,
@@ -85,8 +85,8 @@ walker BoundaryAnalysisPass(UniPass) {
     def _find_archetype(nd: UniNode, target: str
     ) -> (Archetype | Enum | None);
 
-    def enter_ability(nd: Ability) -> None;
-    def enter_func_call(nd: FuncCall) -> None;
+    can enter_ability with Ability entry;
+    can enter_func_call with FuncCall entry;
     def _extract_subscript_inner(expr: (UniNode | None)
     ) -> str;
 

@@ -8,17 +8,16 @@ impl inform_from_walker(nd: UniNode) -> None {
     }
 }
 
-impl SemanticAnalysisPass.enter_archetype(nd: Archetype
-) -> None {
-    if (nd.arch_kind == "walker") {
-        inform_from_walker(nd);
-        for i in nd.get_all_sub_nodes(Ability) {
+impl SemanticAnalysisPass.enter_archetype with Archetype entry {
+    if (here.arch_kind == "walker") {
+        inform_from_walker(here);
+        for i in here.get_all_sub_nodes(Ability) {
             if isinstance(i.body, ImplDef) {
                 inform_from_walker(i.body);
             }
         }
     }
-    self._check_archetype(nd);
+    self._check_archetype(here);
 }
 
 impl SemanticAnalysisPass._check_archetype(nd: Archetype
@@ -148,42 +147,36 @@ impl SemanticAnalysisPass._update_ctx(nd: UniNode) -> None {
     }
 }
 
-impl SemanticAnalysisPass.enter_has_var(nd: HasVar
-) -> None {
-    if isinstance(nd.parent, ArchHas) {
-        nd.sym_tab.update_expr_ctx_for_def(nd);
+impl SemanticAnalysisPass.enter_has_var with HasVar entry {
+    if isinstance(here.parent, ArchHas) {
+        here.sym_tab.update_expr_ctx_for_def(here);
     } else {
         self.ice('HasVar should be under ArchHas');
     }
 }
 
-impl SemanticAnalysisPass.enter_param_var(nd: ParamVar
-) -> None {
-    nd.sym_tab.update_expr_ctx_for_def(nd);
+impl SemanticAnalysisPass.enter_param_var with ParamVar entry {
+    here.sym_tab.update_expr_ctx_for_def(here);
 }
 
-impl SemanticAnalysisPass.enter_assignment(nd: Assignment
-) -> None {
-    for target in nd.target {
+impl SemanticAnalysisPass.enter_assignment with Assignment entry {
+    for target in here.target {
         self._update_ctx(target);
     }
 }
 
-impl SemanticAnalysisPass.enter_in_for_stmt(nd: InForStmt
-) -> None {
-    self._update_ctx(nd.target);
+impl SemanticAnalysisPass.enter_in_for_stmt with InForStmt entry {
+    self._update_ctx(here.target);
 }
 
-impl SemanticAnalysisPass.enter_expr_as_item(nd: ExprAsItem
-) -> None {
-    if nd.alias {
-        self._update_ctx(nd.alias);
+impl SemanticAnalysisPass.enter_expr_as_item with ExprAsItem entry {
+    if here.alias {
+        self._update_ctx(here.alias);
     }
 }
 
-impl SemanticAnalysisPass.enter_inner_compr(nd: InnerCompr
-) -> None {
-    self._update_ctx(nd.target);
+impl SemanticAnalysisPass.enter_inner_compr with InnerCompr entry {
+    self._update_ctx(here.target);
 }
 
 impl SemanticAnalysisPass._change_atom_trailer_ctx(nd: AtomTrailer

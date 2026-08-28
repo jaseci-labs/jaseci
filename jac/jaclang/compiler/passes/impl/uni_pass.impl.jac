@@ -6,19 +6,6 @@ impl UniPass.before_pass -> None { }
 
 impl UniPass.after_pass -> None { }
 
-impl UniPass.enter_node(nd: UniNode) -> None {
-    nd.accept_enter(self);
-}
-
-impl UniPass.exit_node(nd: UniNode) -> None {
-    nd.accept_exit(self);
-}
-
-
-impl UniPass.default_enter(nd: UniNode) -> None { }
-
-impl UniPass.default_exit(nd: UniNode) -> None { }
-
 impl UniPass.prune -> None {
     self.prune_signal = True;
 }
@@ -53,23 +40,27 @@ impl UniPass.traverse(nd: UniNode) -> UniNode {
 
 impl UniPass.enter_walk with UniNode entry {
     if self.is_canceled() or here.ct_pruned {
+        osp_skip_rest();
         return;
     }
     self.cur_node = here;
-    self.enter_node(here);
+}
+
+impl UniPass.__jac_post_entry__(nd: UniNode) -> None {
     if self.prune_signal {
         self.prune_signal = False;
     } elif not self.is_canceled() {
-        visit:0: [k for k in here.kid if k and not k.ct_pruned];
+        visit:0: [k for k in nd.kid if k and not k.ct_pruned];
     }
 }
 
 impl UniPass.exit_walk with UniNode exit {
     if here.ct_pruned {
+        osp_skip_rest();
         return;
     }
     self.cur_node = here;
-    if not self.is_canceled() {
-        self.exit_node(here);
+    if self.is_canceled() {
+        osp_skip_rest();
     }
 }

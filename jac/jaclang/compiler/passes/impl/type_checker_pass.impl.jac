@@ -1,57 +1,57 @@
-impl TypeCheckPass.exit_special_var_ref(nd: SpecialVarRef
-) -> None {
-    self.evaluator.get_type_of_expression(nd);
+impl TypeCheckPass.exit_special_var_ref with SpecialVarRef exit {
+    self.evaluator.get_type_of_expression(here);
 }
 
-impl TypeCheckPass.exit_name(nd: Name) -> None {
-    if nd.sym is None {
-        if isinstance(nd.parent, AtomTrailer) and nd.parent.right is nd {
+impl TypeCheckPass.exit_name with Name exit {
+    if here.__class__ is not Name {
+        return;
+    }
+    if here.sym is None {
+        if isinstance(here.parent, AtomTrailer) and here.parent.right is here {
             return;
         }
-        if isinstance(nd.parent, HasVar)
-            and nd.parent.defer
-            and nd is not nd.parent.name {
+        if isinstance(here.parent, HasVar)
+            and here.parent.defer
+            and here is not here.parent.name {
             return;
         }
-        if isinstance(nd.parent, KWPair) and nd.parent.key is nd {
+        if isinstance(here.parent, KWPair) and here.parent.key is here {
             return;
         }
-        if isinstance(nd.parent, SubTag) {
+        if isinstance(here.parent, SubTag) {
             return;
         }
 
-        if isinstance(nd.parent, ModulePath) {
+        if isinstance(here.parent, ModulePath) {
             return;
         }
-        if isinstance(nd.parent, JsxElementName) {
+        if isinstance(here.parent, JsxElementName) {
             return;
         }
-        if isinstance(nd.parent, ModuleCode) and nd.parent.name is nd {
+        if isinstance(here.parent, ModuleCode) and here.parent.name is here {
             return;
         }
-        self.evaluator.get_type_of_expression(nd);
+        self.evaluator.get_type_of_expression(here);
     }
-    if nd.sym is not None {
-        self._check_comptime_only_use(nd);
+    if here.sym is not None {
+        self._check_comptime_only_use(here);
     }
 }
 
-impl TypeCheckPass.exit_edge_ref_trailer(nd: EdgeRefTrailer
-) -> None {
-    for chain in nd.chain {
+impl TypeCheckPass.exit_edge_ref_trailer with EdgeRefTrailer exit {
+    for chain in here.chain {
         if isinstance(chain, FilterCompr) {
             self.evaluator.get_type_of_expression(chain);
         }
     }
 }
 
-impl TypeCheckPass.exit_formatted_value(nd: FormattedValue
-) -> None {
-    self.evaluator.get_type_of_expression(nd.format_part);
+impl TypeCheckPass.exit_formatted_value with FormattedValue exit {
+    self.evaluator.get_type_of_expression(here.format_part);
 }
 
-impl TypeCheckPass.exit_return_stmt(nd: ReturnStmt) -> None {
-    scope = self.evaluator._get_enclosing_return_scope(nd);
+impl TypeCheckPass.exit_return_stmt with ReturnStmt exit {
+    scope = self.evaluator._get_enclosing_return_scope(here);
     if scope is None {
         return;
     }
@@ -59,16 +59,16 @@ impl TypeCheckPass.exit_return_stmt(nd: ReturnStmt) -> None {
     if isinstance(scope, Ability) {
         if (
             isinstance(scope.signature, EventSignature)
-            and nd.expr
-            and not isinstance(nd.expr, Null)
+            and here.expr
+            and not isinstance(here.expr, Null)
         ) {
-            self.emit(W2014, node_override=nd);
+            self.emit(W2014, node_override=here);
             return;
         }
 
         if (
-            nd.expr
-            and not isinstance(nd.expr, Null)
+            here.expr
+            and not isinstance(here.expr, Null)
             and isinstance(scope.parent, (Module, Archetype, Enum, ImplDef))
         ) {
             has_annotation = (
@@ -76,7 +76,7 @@ impl TypeCheckPass.exit_return_stmt(nd: ReturnStmt) -> None {
                 and scope.signature.return_type is not None
             );
             if not has_annotation {
-                self.emit(E1003, node_override=nd);
+                self.emit(E1003, node_override=here);
                 return;
             }
         }
@@ -99,21 +99,21 @@ impl TypeCheckPass.exit_return_stmt(nd: ReturnStmt) -> None {
     returning_type = self.evaluator._convert_to_instance(
         self.evaluator.get_none_type()
     );
-    if nd.expr {
+    if here.expr {
         returning_type = self.evaluator.get_type_of_expression(
-            nd.expr, expected_type=return_type
+            here.expr, expected_type=return_type
         );
     }
 
     verdict = self.evaluator.assign_expr(
-        nd.expr, returning_type, return_type, strict=self.evaluator._is_strict_site(nd)
+        here.expr, returning_type, return_type, strict=self.evaluator._is_strict_site(here)
     );
     if not verdict.ok and not verdict.diagnosed {
         if self.evaluator._is_awaitable_type(returning_type)
             and not self.evaluator._is_awaitable_type(return_type) {
             self.emit(
                 E1042,
-                node_override=nd,
+                node_override=here,
                 actual=str(returning_type),
                 expected=str(return_type)
             );
@@ -121,25 +121,25 @@ impl TypeCheckPass.exit_return_stmt(nd: ReturnStmt) -> None {
         }
         self.emit(
             E1002,
-            node_override=nd,
+            node_override=here,
             actual=str(returning_type),
             expected=str(return_type)
         );
     }
 }
 
-impl TypeCheckPass.exit_filter_compr(nd: FilterCompr) -> None {
-    self.evaluator.get_type_of_expression(nd);
+impl TypeCheckPass.exit_filter_compr with FilterCompr exit {
+    self.evaluator.get_type_of_expression(here);
 }
 
-impl TypeCheckPass.enter_lambda_expr(nd: LambdaExpr) -> None {
-    if (isinstance(nd.body, Expr) or nd.tail_return_expr() is not None) {
+impl TypeCheckPass.enter_lambda_expr with LambdaExpr entry {
+    if (isinstance(here.body, Expr) or here.tail_return_expr() is not None) {
         self._lambda_depth += 1;
     }
 }
 
-impl TypeCheckPass.exit_lambda_expr(nd: LambdaExpr) -> None {
-    if (isinstance(nd.body, Expr) or nd.tail_return_expr() is not None) {
+impl TypeCheckPass.exit_lambda_expr with LambdaExpr exit {
+    if (isinstance(here.body, Expr) or here.tail_return_expr() is not None) {
         self._lambda_depth -= 1;
     }
 }
@@ -166,7 +166,7 @@ def _chunks_receiver_type(nd: FuncCall) -> (str | None) {
     }
 }
 
-impl TypeCheckPass.exit_func_call(nd: FuncCall) -> None {
+impl TypeCheckPass.exit_func_call with FuncCall exit {
     import from jaclang.compiler.symbol_utils {
         CallKind,
         classify_call,
@@ -175,38 +175,38 @@ impl TypeCheckPass.exit_func_call(nd: FuncCall) -> None {
     }
 
     if self._lambda_depth > 0 {
-        nd.call_kind = classify_call(nd).value;
-        nd.chunks_recv_type = _chunks_receiver_type(nd);
-        nd.callee_decl = ability_of_symbol(resolve_expr_symbol(nd.target));
+        here.call_kind = classify_call(here).value;
+        here.chunks_recv_type = _chunks_receiver_type(here);
+        here.callee_decl = ability_of_symbol(resolve_expr_symbol(here.target));
         return;
     }
-    self.evaluator.get_type_of_expression(nd);
+    self.evaluator.get_type_of_expression(here);
 
-    nd.call_kind = classify_call(nd).value;
+    here.call_kind = classify_call(here).value;
 
-    nd.chunks_recv_type = _chunks_receiver_type(nd);
+    here.chunks_recv_type = _chunks_receiver_type(here);
 
-    nd.callee_decl = ability_of_symbol(resolve_expr_symbol(nd.target));
+    here.callee_decl = ability_of_symbol(resolve_expr_symbol(here.target));
 
-    if nd.call_kind == CallKind.INTRINSIC.value {
-        self._check_intrinsic_call(nd);
+    if here.call_kind == CallKind.INTRINSIC.value {
+        self._check_intrinsic_call(here);
     }
 
     if (
-        nd.callee_decl is not None
-        and nd.callee_decl.is_comptime
-        and not self._in_comptime_context(nd)
+        here.callee_decl is not None
+        and here.callee_decl.is_comptime
+        and not self._in_comptime_context(here)
     ) {
-        cname = nd.callee_decl.name_ref.sym_name if nd.callee_decl.name_ref else "?";
+        cname = here.callee_decl.name_ref.sym_name if here.callee_decl.name_ref else "?";
         self.evaluator.ct_site_error(
-            nd,
+            here,
             f"call to comptime def '{cname}' at runtime",
-            self.evaluator.ct_demand(nd),
+            self.evaluator.ct_demand(here),
             allow_deferred=False
         );
     }
 
-    tgt_t = nd.target.type;
+    tgt_t = here.target.type;
     if (
         isinstance(tgt_t, ClassType)
         and not tgt_t.is_instance()
@@ -216,14 +216,14 @@ impl TypeCheckPass.exit_func_call(nd: FuncCall) -> None {
     ) {
         self.emit(
             E0033,
-            node_override=nd,
+            node_override=here,
             what=f"instantiation of '{tgt_t.shared.class_name}'",
             reason=f": comptime parameters {tgt_t.shared.ct_params} must be given as {tgt_t.shared.class_name}[...]"
         );
     }
-    if isinstance(nd.target, AtomTrailer) and not nd.target.is_attr {
-        if isinstance(nd.target.right, IndexSlice) {
-            idx_slice: IndexSlice = nd.target.right;
+    if isinstance(here.target, AtomTrailer) and not here.target.is_attr {
+        if isinstance(here.target.right, IndexSlice) {
+            idx_slice: IndexSlice = here.target.right;
             for slice in idx_slice.slices {
                 slice_item: Slice = slice;
                 if slice_item.start {
@@ -321,27 +321,27 @@ impl TypeCheckPass._check_intrinsic_collision(nd: Ability
     self.emit(W6008, node_override=nd, name=name);
 }
 
-impl TypeCheckPass.exit_jsx_element(nd: JsxElement) -> None {
-    self.evaluator.get_type_of_expression(nd);
+impl TypeCheckPass.exit_jsx_element with JsxElement exit {
+    self.evaluator.get_type_of_expression(here);
 }
 
-impl TypeCheckPass.exit_compare_expr(nd: CompareExpr) -> None {
+impl TypeCheckPass.exit_compare_expr with CompareExpr exit {
     if self._lambda_depth > 0 {
         return;
     }
-    _cmp_mod = nd.find_parent_of_type(Module);
+    _cmp_mod = here.find_parent_of_type(Module);
     if _cmp_mod is None or _cmp_mod.is_raised_from_py {
         return;
     }
     _ord_ops = (Tok.LT, Tok.LTE, Tok.GT, Tok.GTE);
     _mem_ops = (Tok.KW_IN, Tok.KW_NIN);
-    operands: list = [nd.left];
-    operands.extend(nd.rights);
-    for (i, op) in enumerate(nd.ops) {
+    operands: list = [here.left];
+    operands.extend(here.rights);
+    for (i, op) in enumerate(here.ops) {
         _opname = op.name if isinstance(op, Token) else str(op);
         if _opname in _mem_ops {
             _optext = op.value if isinstance(op, Token) else str(op);
-            self._diag_erased_membership(nd, operands[i + 1], _optext);
+            self._diag_erased_membership(here, operands[i + 1], _optext);
             continue;
         }
         if _opname not in _ord_ops {
@@ -349,7 +349,7 @@ impl TypeCheckPass.exit_compare_expr(nd: CompareExpr) -> None {
         }
         for side in (operands[i], operands[i + 1]) {
             _side_t = self.evaluator.get_type_of_expression(side);
-            self.evaluator._diag_unnarrowed_optional(nd, _side_t, "an ordered operand");
+            self.evaluator._diag_unnarrowed_optional(here, _side_t, "an ordered operand");
         }
     }
 }
@@ -375,32 +375,32 @@ impl TypeCheckPass._diag_erased_membership(nd: CompareExpr, hay: Expr, op_text: 
     }
 }
 
-impl TypeCheckPass.exit_binary_expr(nd: BinaryExpr) -> None {
+impl TypeCheckPass.exit_binary_expr with BinaryExpr exit {
     if self._lambda_depth > 0 {
         return;
     }
-    self.evaluator.get_type_of_expression(nd);
+    self.evaluator.get_type_of_expression(here);
 }
 
-impl TypeCheckPass.exit_atom_trailer(nd: AtomTrailer) -> None {
+impl TypeCheckPass.exit_atom_trailer with AtomTrailer exit {
     if self._lambda_depth > 0 {
         return;
     }
-    self.evaluator.get_type_of_expression(nd);
-    _at_mod = nd.find_parent_of_type(Module);
+    self.evaluator.get_type_of_expression(here);
+    _at_mod = here.find_parent_of_type(Module);
     if (
-        not nd.is_attr
+        not here.is_attr
         and _at_mod is not None
         and not _at_mod.is_raised_from_py
-        and isinstance(nd.right, IndexSlice)
-        and not nd.right.is_range
-        and nd.right.slices
-        and nd.right.slices[0].start is not None
+        and isinstance(here.right, IndexSlice)
+        and not here.right.is_range
+        and here.right.slices
+        and here.right.slices[0].start is not None
     ) {
-        _idx_expr = nd.right.slices[0].start;
+        _idx_expr = here.right.slices[0].start;
         _idx_t = self.evaluator.get_type_of_expression(_idx_expr);
         if isinstance(_idx_t, UnionType) {
-            _base_t = self.evaluator.get_type_of_expression(nd.target);
+            _base_t = self.evaluator.get_type_of_expression(here.target);
             if isinstance(_base_t, ClassType)
                 and _base_t.is_class_instance()
                 and not _base_t.is_any_type()
@@ -409,28 +409,28 @@ impl TypeCheckPass.exit_atom_trailer(nd: AtomTrailer) -> None {
                 )
                     is None {
                 self.evaluator._diag_unnarrowed_optional(
-                    nd, _idx_t, "a subscript index"
+                    here, _idx_t, "a subscript index"
                 );
             }
         }
     }
 }
 
-impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
-    if nd.is_enum_stmt {
+impl TypeCheckPass.exit_assignment with Assignment exit {
+    if here.is_enum_stmt {
         return;
     }
-    if nd.is_comptime and nd.value is not None {
-        first = nd.target[0] if nd.target else None;
+    if here.is_comptime and here.value is not None {
+        first = here.target[0] if here.target else None;
         label = first.value if isinstance(first, Name) else "binding";
         self.evaluator.ct_site_error(
-            nd.value,
+            here.value,
             f"initializer of comptime binding '{label}'",
-            self.evaluator.ct_demand(nd.value)
+            self.evaluator.ct_demand(here.value)
         );
     }
-    if ((len(nd.target) == 1) and (nd.value is not None)) {
-        target = nd.target[0];
+    if ((len(here.target) == 1) and (here.value is not None)) {
+        target = here.target[0];
 
         is_unannotated_reassign = False;
 
@@ -462,29 +462,29 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
                 target.type = left_type;
             }
 
-            if nd.type_tag and nd.type_tag.tag {
-                self._check_bare_generic(nd.type_tag.tag, left_type);
-                self._check_explicit_any(nd.type_tag.tag);
+            if here.type_tag and here.type_tag.tag {
+                self._check_bare_generic(here.type_tag.tag, left_type);
+                self._check_explicit_any(here.type_tag.tag);
             }
         } elif isinstance(target, (TupleVal, ListVal)) {
             self._eval_unpacking_names(target);
-            right_type = self.evaluator.get_type_of_expression(nd.value);
+            right_type = self.evaluator.get_type_of_expression(here.value);
             if not isinstance(right_type, UnknownType)
                 and not right_type.is_any_instance() {
                 iter_result = self.evaluator.get_type_of_magic_method_call(
-                    right_type, "__iter__", [], nd.value
+                    right_type, "__iter__", [], here.value
                 );
                 if iter_result is None {
-                    self.emit(E1020, node_override=nd, type=str(right_type));
+                    self.emit(E1020, node_override=here, type=str(right_type));
                 }
             }
             return;
         } else {
-            if nd.type_tag and nd.type_tag.tag {
-                declared_type = self.evaluator.get_type_of_expression(nd.type_tag.tag);
+            if here.type_tag and here.type_tag.tag {
+                declared_type = self.evaluator.get_type_of_expression(here.type_tag.tag);
 
-                self._check_bare_generic(nd.type_tag.tag, declared_type);
-                self._check_explicit_any(nd.type_tag.tag);
+                self._check_bare_generic(here.type_tag.tag, declared_type);
+                self._check_explicit_any(here.type_tag.tag);
 
                 declared_inst = self.evaluator._convert_to_instance(declared_type);
                 target.type = declared_inst;
@@ -563,11 +563,11 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
         }
 
         right_type = self.evaluator.get_type_of_expression(
-            nd.value, expected_type=left_type
+            here.value, expected_type=left_type
         );
 
-        if isinstance(right_type, TypeVarType) and isinstance(nd.value, FuncCall) {
-            caller_type = self.evaluator.get_type_of_expression(nd.value.target);
+        if isinstance(right_type, TypeVarType) and isinstance(here.value, FuncCall) {
+            caller_type = self.evaluator.get_type_of_expression(here.value.target);
             is_typevar_call = self.evaluator.is_typevar_class(caller_type);
             if is_typevar_call {
                 if not isinstance(target, Name) {
@@ -586,21 +586,21 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
             }
         }
 
-        if nd.aug_op and isinstance(left_type, TypeVarType) {
-            op_name = AUG_OPERATOR_MAP.get(nd.aug_op.name);
+        if here.aug_op and isinstance(left_type, TypeVarType) {
+            op_name = AUG_OPERATOR_MAP.get(here.aug_op.name);
 
             if left_type.constraints {
                 for constraint_type in left_type.constraints {
                     if isinstance(constraint_type, ClassType) {
                         if op_name {
                             result = self.evaluator.get_type_of_magic_method_call(
-                                constraint_type, op_name, [nd.value], None
+                                constraint_type, op_name, [here.value], None
                             );
                             if result is None {
                                 self.emit(
                                     E1010,
-                                    node_override=nd,
-                                    op=nd.aug_op.name,
+                                    node_override=here,
+                                    op=here.aug_op.name,
                                     type=str(constraint_type)
                                 );
                             }
@@ -610,27 +610,27 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
             } elif left_type.bound and isinstance(left_type.bound, ClassType) {
                 if op_name {
                     result = self.evaluator.get_type_of_magic_method_call(
-                        left_type.bound, op_name, [nd.value], nd.value
+                        left_type.bound, op_name, [here.value], here.value
                     );
                     if result is None {
                         self.emit(
                             E1010,
-                            node_override=nd,
-                            op=nd.aug_op.name,
+                            node_override=here,
+                            op=here.aug_op.name,
                             type=str(left_type.bound)
                         );
                     }
                 } else {
                     self.emit(
                         E1010,
-                        node_override=nd,
-                        op=nd.aug_op.name,
+                        node_override=here,
+                        op=here.aug_op.name,
                         type=str(left_type.bound)
                     );
                 }
             } else {
                 self.emit(
-                    E1010, node_override=nd, op=nd.aug_op.name, type=left_type.name
+                    E1010, node_override=here, op=here.aug_op.name, type=left_type.name
                 );
             }
         } else {
@@ -649,20 +649,20 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
                 )
             );
             if (
-                nd.aug_op is None
+                here.aug_op is None
                 and not is_evolving_reassign
                 and not is_module_fallback_rebind
             ) {
                 verdict = self.evaluator.assign_expr(
-                    nd.value,
+                    here.value,
                     right_type,
                     left_type,
-                    strict=self.evaluator._is_strict_site(nd)
+                    strict=self.evaluator._is_strict_site(here)
                 );
                 if (
                     not verdict.ok
                     and not verdict.diagnosed
-                    and not self.evaluator.slice_assignment_is_valid(target, nd.value)
+                    and not self.evaluator.slice_assignment_is_valid(target, here.value)
                 ) {
                     if self.evaluator._is_awaitable_type(right_type) {
                         self.emit(
@@ -677,7 +677,7 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
             }
         }
 
-        aug_op = nd.aug_op;
+        aug_op = here.aug_op;
         if aug_op is not None {
             if (
                 not isinstance(left_type, (UnknownType, AnyType))
@@ -688,7 +688,7 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
                 aug_magic = AUG_OPERATOR_MAP.get(aug_op.name);
                 if aug_magic is not None {
                     result = self.evaluator.get_type_of_magic_method_call(
-                        left_type, aug_magic, [nd.value], nd.value
+                        left_type, aug_magic, [here.value], here.value
                     );
                     if result is None {
                         base_op = AUG_TO_BINARY_MAP.get(aug_op.name);
@@ -701,9 +701,9 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
                                         self.evaluator,
                                         left_type,
                                         right_type,
-                                        nd.value,
+                                        here.value,
                                         target,
-                                        nd
+                                        here
                                     );
                                 } else {
                                     promoted = get_numeric_promotion_type(
@@ -712,8 +712,8 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
                                         right_type,
                                         base_op,
                                         target,
-                                        nd.value,
-                                        nd
+                                        here.value,
+                                        here
                                     );
                                 }
                                 if promoted is not None {
@@ -725,11 +725,11 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
                                 if binary_methods is not None {
                                     (magic, rmagic) = binary_methods;
                                     result = self.evaluator.get_type_of_magic_method_call(
-                                        left_type, magic, [nd.value], nd.value
+                                        left_type, magic, [here.value], here.value
                                     );
                                     if result is None {
                                         result = self.evaluator.get_type_of_magic_method_call(
-                                            right_type, rmagic, [nd.value], nd.value
+                                            right_type, rmagic, [here.value], here.value
                                         );
                                     }
                                 }
@@ -738,7 +738,7 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
                         if result is None {
                             self.emit(
                                 E1011,
-                                node_override=nd,
+                                node_override=here,
                                 op=aug_op.value,
                                 left=str(left_type),
                                 right=str(right_type)
@@ -747,7 +747,7 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
                     }
                     if result is not None and not isinstance(result, UnknownType) {
                         verdict = self.evaluator.assign_expr(
-                            nd.value, result, left_type
+                            here.value, result, left_type
                         );
                         if not verdict.ok and not verdict.diagnosed {
                             self.emit(
@@ -759,7 +759,7 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
             }
         }
     } else {
-        for target in nd.target {
+        for target in here.target {
             if isinstance(target, Name) and target.sym {
                 target_type = self.evaluator.get_type_of_symbol(target.sym);
                 if not (
@@ -776,19 +776,19 @@ impl TypeCheckPass.exit_assignment(nd: Assignment) -> None {
     }
 }
 
-impl TypeCheckPass.exit_import(nd: Import) -> None {
-    if nd.clib_decls {
+impl TypeCheckPass.exit_import with Import exit {
+    if here.clib_decls {
         return;
     }
-    if nd.from_loc {
-        self.evaluator.get_type_of_module(nd.from_loc);
-        for item in nd.items {
+    if here.from_loc {
+        self.evaluator.get_type_of_module(here.from_loc);
+        for item in here.items {
             if isinstance(item, ModuleItem) {
                 self.evaluator.get_type_of_module_item(item);
             }
         }
     } else {
-        for item in nd.items {
+        for item in here.items {
             if isinstance(item, ModulePath) {
                 self.evaluator.get_type_of_module(item);
             }
@@ -796,32 +796,32 @@ impl TypeCheckPass.exit_import(nd: Import) -> None {
     }
 }
 
-impl TypeCheckPass.enter_ability(nd: Ability) -> None {
-    for decor in (nd.decorators or []) {
+impl TypeCheckPass.enter_ability with Ability entry {
+    for decor in (here.decorators or []) {
         ty = self.evaluator.get_type_of_expression(decor);
         if (isinstance(ty, ClassType) and ty.is_builtin('staticmethod')) {
-            nd.is_static = True;
+            here.is_static = True;
             break;
         }
     }
 }
 
-impl TypeCheckPass.exit_ability(nd: Ability) -> None {
-    self.evaluator.validate_typevar_variance(nd);
+impl TypeCheckPass.exit_ability with Ability exit {
+    self.evaluator.validate_typevar_variance(here);
 
-    self._check_intrinsic_collision(nd);
+    self._check_intrinsic_collision(here);
 
     if (
-        isinstance(nd.signature, FuncSignature)
-        and not nd.is_static
-        and not nd.is_classmethod
+        isinstance(here.signature, FuncSignature)
+        and not here.is_static
+        and not here.is_classmethod
     ) {
-        owner = nd.method_owner;
+        owner = here.method_owner;
         if (
             isinstance(owner, Archetype)
             and owner.arch_type.value in ("obj", "node", "edge", "walker")
         ) {
-            all_params = nd.signature.get_parameters();
+            all_params = here.signature.get_parameters();
             if (
                 len(all_params) > 0
                 and isinstance(all_params[0].name, Name)
@@ -831,55 +831,55 @@ impl TypeCheckPass.exit_ability(nd: Ability) -> None {
                     E2015,
                     node_override=all_params[0],
                     arch_type=owner.arch_type.value,
-                    name=nd.name_spec.sym_name
+                    name=here.name_spec.sym_name
                 );
             }
         }
     }
 
     if (
-        isinstance(nd.body, ImplDef)
-        and nd.body.find_parent_of_type(Module) is not self.ir_in
+        isinstance(here.body, ImplDef)
+        and here.body.find_parent_of_type(Module) is not self.ir_in
     ) {
-        self.traverse(nd.body);
+        self.traverse(here.body);
     }
 
     if (
-        isinstance(nd.signature, FuncSignature)
-        and nd.signature.return_type is not None
-        and nd.find_parent_of_type(ImplDef) is None
+        isinstance(here.signature, FuncSignature)
+        and here.signature.return_type is not None
+        and here.find_parent_of_type(ImplDef) is None
     ) {
-        ret_ann_type = self.evaluator.get_type_of_expression(nd.signature.return_type);
-        self._check_bare_generic(nd.signature.return_type, ret_ann_type);
-        self._check_explicit_any(nd.signature.return_type);
+        ret_ann_type = self.evaluator.get_type_of_expression(here.signature.return_type);
+        self._check_bare_generic(here.signature.return_type, ret_ann_type);
+        self._check_explicit_any(here.signature.return_type);
     }
 
     if (
-        isinstance(nd.signature, FuncSignature)
-        and nd.signature.return_type is not None
-        and not isinstance(nd.body, ImplDef)
-        and isinstance(nd.body, list)
-        and len(nd.body) > 0
-        and not nd.is_abstract
+        isinstance(here.signature, FuncSignature)
+        and here.signature.return_type is not None
+        and not isinstance(here.body, ImplDef)
+        and isinstance(here.body, list)
+        and len(here.body) > 0
+        and not here.is_abstract
     ) {
         is_overload = False;
-        for decor in (nd.decorators or []) {
+        for decor in (here.decorators or []) {
             if isinstance(decor, Name) and decor.value == "overload" {
                 is_overload = True;
                 break;
             }
         }
 
-        is_generator = len(nd.get_all_sub_nodes(YieldExpr)) > 0;
+        is_generator = len(here.get_all_sub_nodes(YieldExpr)) > 0;
 
         body_stmts: list[CodeBlockStmt] = [
             stmt
-            for stmt in nd.body
+            for stmt in here.body
             if isinstance(stmt, CodeBlockStmt)
         ];
         is_stub = self.evaluator._is_ellipsis_only_body(body_stmts);
         if not is_overload and not is_generator and not is_stub {
-            ret_type = self.evaluator.get_type_of_expression(nd.signature.return_type);
+            ret_type = self.evaluator.get_type_of_expression(here.signature.return_type);
             ret_inst = self.evaluator._convert_to_instance(ret_type);
             none_type = self.evaluator._convert_to_instance(
                 self.evaluator.get_none_type()
@@ -888,8 +888,8 @@ impl TypeCheckPass.exit_ability(nd: Ability) -> None {
                 if not self._body_always_returns(body_stmts) {
                     self.emit(
                         E1004,
-                        node_override=nd,
-                        name=nd.name_spec.sym_name,
+                        node_override=here,
+                        name=here.name_spec.sym_name,
                         ret_type=str(ret_type)
                     );
                 }
@@ -898,20 +898,20 @@ impl TypeCheckPass.exit_ability(nd: Ability) -> None {
     }
 
     if (
-        isinstance(nd.signature, EventSignature)
-        and nd.signature.arch_tag_info is not None
+        isinstance(here.signature, EventSignature)
+        and here.signature.arch_tag_info is not None
     ) {
-        self._check_event_trigger_archetype(nd);
+        self._check_event_trigger_archetype(here);
     }
 
     if (
-        isinstance(nd.signature, FuncSignature)
-        and nd.signature.return_type is not None
-        and nd.find_parent_of_type(ImplDef) is None
+        isinstance(here.signature, FuncSignature)
+        and here.signature.return_type is not None
+        and here.find_parent_of_type(ImplDef) is None
     ) {
         comp_params = [
             p
-            for p in nd.signature.get_parameters()
+            for p in here.signature.get_parameters()
             if isinstance(p.name, Name) and p.name.value not in ("self", "cls")
         ];
         if (
@@ -936,7 +936,7 @@ impl TypeCheckPass.exit_ability(nd: Ability) -> None {
             jsx_cls = self.evaluator.prefetch.jsx_element_class
                 if self.evaluator.prefetch
                 else None;
-            ret_type = self.evaluator.get_type_of_expression(nd.signature.return_type);
+            ret_type = self.evaluator.get_type_of_expression(here.signature.return_type);
             is_jsx_component = (
                 jsx_cls is not None
                 and isinstance(ret_type, ClassType)
@@ -944,7 +944,7 @@ impl TypeCheckPass.exit_ability(nd: Ability) -> None {
             );
             if is_untyped_bag and is_jsx_component {
                 self.emit(
-                    W1052, node_override=props_param, component=nd.name_spec.sym_name
+                    W1052, node_override=props_param, component=here.name_spec.sym_name
                 );
             }
         }
@@ -1104,23 +1104,23 @@ impl TypeCheckPass._check_explicit_any(ann_node: UniNode) -> None {
     }
 }
 
-impl TypeCheckPass.exit_type_alias(nd: TypeAlias) -> None {
+impl TypeCheckPass.exit_type_alias with TypeAlias exit {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
-    if not nd.is_distinct {
+    if not here.is_distinct {
         return;
     }
-    resolved = self.evaluator._resolve_type_alias_rhs(nd.value);
+    resolved = self.evaluator._resolve_type_alias_rhs(here.value);
     if not isinstance(resolved, ClassType)
         or not JAC_TYPE_REGISTRY.is_primitive(resolved.shared.class_name) {
-        self.emit(E1107, node_override=nd.value, base=str(resolved));
+        self.emit(E1107, node_override=here.value, base=str(resolved));
     }
 }
 
-impl TypeCheckPass.exit_archetype(nd: Archetype) -> None {
+impl TypeCheckPass.exit_archetype with Archetype exit {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
-    cls_type = self.evaluator.get_type_of_class(nd);
+    cls_type = self.evaluator.get_type_of_class(here);
     if isinstance(cls_type, ClassType)
-        and nd.arch_type.name == Tok.KW_OBJECT
+        and here.arch_type.name == Tok.KW_OBJECT
         and not cls_type.shared.is_from_stdlib_stub
         and cls_type.shared.base_classes {
         for base in cls_type.shared.base_classes {
@@ -1129,25 +1129,25 @@ impl TypeCheckPass.exit_archetype(nd: Archetype) -> None {
                 and JAC_TYPE_REGISTRY.is_primitive(base.shared.class_name) {
                 self.emit(
                     E1106,
-                    node_override=nd.name,
-                    name=nd.name.value,
+                    node_override=here.name,
+                    name=here.name.value,
                     base=base.shared.class_name
                 );
             }
         }
     }
     if (
-        isinstance(nd.body, ImplDef)
-        and nd.body.find_parent_of_type(Module) is not self.ir_in
+        isinstance(here.body, ImplDef)
+        and here.body.find_parent_of_type(Module) is not self.ir_in
     ) {
-        self.traverse(nd.body);
+        self.traverse(here.body);
     }
 }
 
-impl TypeCheckPass.exit_enum(nd: Enum) -> None {
-    cls_type = self.evaluator.get_type_of_enum(nd);
+impl TypeCheckPass.exit_enum with Enum exit {
+    cls_type = self.evaluator.get_type_of_enum(here);
 
-    for child in nd.kid {
+    for child in here.kid {
         if isinstance(child, Assignment) {
             for target in child.target {
                 self.evaluator.get_type_of_expression(target);
@@ -1155,10 +1155,10 @@ impl TypeCheckPass.exit_enum(nd: Enum) -> None {
         }
     }
     if (
-        isinstance(nd.body, ImplDef)
-        and nd.body.find_parent_of_type(Module) is not self.ir_in
+        isinstance(here.body, ImplDef)
+        and here.body.find_parent_of_type(Module) is not self.ir_in
     ) {
-        self.traverse(nd.body);
+        self.traverse(here.body);
     }
 }
 
@@ -1263,31 +1263,31 @@ impl TypeCheckPass.after_pass() -> None {
     }
 }
 
-impl TypeCheckPass.exit_param_var(nd: ParamVar) -> None {
-    if (sym := nd.sym) {
+impl TypeCheckPass.exit_param_var with ParamVar exit {
+    if (sym := here.sym) {
         declared_type = self.evaluator.get_type_of_symbol(sym);
-        nd.type = declared_type;
+        here.type = declared_type;
 
         if (
-            nd.type_tag and nd.type_tag.tag and nd.find_parent_of_type(ImplDef) is None
+            here.type_tag and here.type_tag.tag and here.find_parent_of_type(ImplDef) is None
         ) {
-            self._check_bare_generic(nd.type_tag.tag, declared_type);
-            self._check_explicit_any(nd.type_tag.tag);
+            self._check_bare_generic(here.type_tag.tag, declared_type);
+            self._check_explicit_any(here.type_tag.tag);
         }
-        if nd.value is not None and nd.type_tag and nd.type_tag.tag {
+        if here.value is not None and here.type_tag and here.type_tag.tag {
             default_type = self.evaluator.get_type_of_expression(
-                nd.value, expected_type=declared_type
+                here.value, expected_type=declared_type
             );
-            self.evaluator.assign_expr(nd.value, default_type, declared_type);
+            self.evaluator.assign_expr(here.value, default_type, declared_type);
         }
     }
 }
 
-impl TypeCheckPass.exit_has_var(nd: HasVar) -> None {
-    if (nd.defer and nd.kid and isinstance(nd.kid[-1], Name)) {
-        postinit_nd: Name = nd.kid[-1];
+impl TypeCheckPass.exit_has_var with HasVar exit {
+    if (here.defer and here.kid and isinstance(here.kid[-1], Name)) {
+        postinit_nd: Name = here.kid[-1];
         if postinit_nd.sym is None {
-            arch = nd.parent.parent if isinstance(nd.parent, ArchHas) else None;
+            arch = here.parent.parent if isinstance(here.parent, ArchHas) else None;
             if isinstance(arch, Archetype) {
                 postinit_sym = arch.names_in_scope.get("__post_init__");
                 if postinit_sym is not None {
@@ -1302,33 +1302,33 @@ impl TypeCheckPass.exit_has_var(nd: HasVar) -> None {
             }
         }
     }
-    if (sym := nd.sym) {
+    if (sym := here.sym) {
         declared_type = self.evaluator.get_type_of_symbol(sym);
-        nd.type = declared_type;
+        here.type = declared_type;
 
-        if nd.type_tag and nd.type_tag.tag {
-            self._check_bare_generic(nd.type_tag.tag, declared_type);
-            self._check_explicit_any(nd.type_tag.tag);
+        if here.type_tag and here.type_tag.tag {
+            self._check_bare_generic(here.type_tag.tag, declared_type);
+            self._check_explicit_any(here.type_tag.tag);
         }
 
-        self._check_walker_reports_shape(nd, declared_type);
+        self._check_walker_reports_shape(here, declared_type);
 
-        if nd.value is not None and nd.type is not None {
-            if nd.find_parent_of_type(Import) is not None {
+        if here.value is not None and here.type is not None {
+            if here.find_parent_of_type(Import) is not None {
                 return;
             }
             right_type = self.evaluator.get_type_of_expression(
-                nd.value, expected_type=nd.type
+                here.value, expected_type=here.type
             );
             verdict = self.evaluator.assign_expr(
-                nd.value, right_type, nd.type, strict=self.evaluator._is_strict_site(nd)
+                here.value, right_type, here.type, strict=self.evaluator._is_strict_site(here)
             );
             if not verdict.ok and not verdict.diagnosed {
                 self.emit(
                     E1001,
-                    node_override=nd,
+                    node_override=here,
                     actual=str(right_type),
-                    expected=str(nd.type)
+                    expected=str(here.type)
                 );
             }
         }
@@ -1396,19 +1396,19 @@ impl TypeCheckPass._enclosing_walker_report_elem_type(nd: UniNode
     return None;
 }
 
-impl TypeCheckPass.exit_in_for_stmt(nd: InForStmt) -> None {
-    if isinstance(nd.target, Name) {
-        self.evaluator.get_type_of_expression(nd.target);
-    } elif isinstance(nd.target, (TupleVal, ListVal)) {
-        self._eval_unpacking_names(nd.target);
+impl TypeCheckPass.exit_in_for_stmt with InForStmt exit {
+    if isinstance(here.target, Name) {
+        self.evaluator.get_type_of_expression(here.target);
+    } elif isinstance(here.target, (TupleVal, ListVal)) {
+        self._eval_unpacking_names(here.target);
     }
 
-    collection_type = self.evaluator.get_type_of_expression(nd.collection);
+    collection_type = self.evaluator.get_type_of_expression(here.collection);
 
-    if nd.is_comptime {
-        cv = self.evaluator.ct_demand(nd.collection);
+    if here.is_comptime {
+        cv = self.evaluator.ct_demand(here.collection);
         if not self.evaluator.ct_site_error(
-            nd.collection, "comptime for collection", cv
+            here.collection, "comptime for collection", cv
         )
             and cv is not None
             and not cv.is_deferred
@@ -1416,7 +1416,7 @@ impl TypeCheckPass.exit_in_for_stmt(nd: InForStmt) -> None {
             and not hasattr(cv.v, "__iter__") {
             self.emit(
                 E0108,
-                node_override=nd.collection,
+                node_override=here.collection,
                 reason=f"comptime for needs a sequence, got {type(cv.v).__name__}"
             );
         }
@@ -1430,19 +1430,19 @@ impl TypeCheckPass.exit_in_for_stmt(nd: InForStmt) -> None {
                         constraint_type, "__iter__", [], None
                     );
                     if iter_result is None {
-                        self.emit(E1021, node_override=nd, type=str(constraint_type));
+                        self.emit(E1021, node_override=here, type=str(constraint_type));
                     }
                 }
             }
         } elif collection_type.bound and isinstance(collection_type.bound, ClassType) {
             iter_result = self.evaluator.get_type_of_magic_method_call(
-                collection_type.bound, "__iter__", [], nd.collection
+                collection_type.bound, "__iter__", [], here.collection
             );
             if iter_result is None {
-                self.emit(E1021, node_override=nd, type=str(collection_type.bound));
+                self.emit(E1021, node_override=here, type=str(collection_type.bound));
             }
         } else {
-            self.emit(E1021, node_override=nd, type=collection_type.name);
+            self.emit(E1021, node_override=here, type=collection_type.name);
         }
     } elif not isinstance(collection_type, UnknownType)
         and not self.evaluator.is_any_type(collection_type) {
@@ -1451,18 +1451,18 @@ impl TypeCheckPass.exit_in_for_stmt(nd: InForStmt) -> None {
         );
         if not is_enum {
             iter_result = self.evaluator.get_type_of_magic_method_call(
-                collection_type, "__iter__", [], nd.collection
+                collection_type, "__iter__", [], here.collection
             );
             if iter_result is None {
-                self.emit(E1022, node_override=nd, type=str(collection_type));
+                self.emit(E1022, node_override=here, type=str(collection_type));
             }
         }
     }
 }
 
-impl TypeCheckPass.exit_raise_stmt(nd: RaiseStmt) -> None {
-    if nd.cause {
-        cause_type = self.evaluator.get_type_of_expression(nd.cause);
+impl TypeCheckPass.exit_raise_stmt with RaiseStmt exit {
+    if here.cause {
+        cause_type = self.evaluator.get_type_of_expression(here.cause);
         if isinstance(cause_type, ClassType)
             and not isinstance(cause_type, UnknownType) {
             is_exception = False;
@@ -1476,15 +1476,15 @@ impl TypeCheckPass.exit_raise_stmt(nd: RaiseStmt) -> None {
                 }
             }
             if not is_exception {
-                self.emit(E1090, node_override=nd, type=str(cause_type));
+                self.emit(E1090, node_override=here, type=str(cause_type));
             }
         }
     }
 }
 
-impl TypeCheckPass.enter_with_stmt(nd: WithStmt) -> None {
-    enter_method = "__aenter__" if nd.is_async else "__enter__";
-    for item in nd.exprs {
+impl TypeCheckPass.enter_with_stmt with WithStmt entry {
+    enter_method = "__aenter__" if here.is_async else "__enter__";
+    for item in here.exprs {
         ctx_item: ExprAsItem = item;
         expr_type = self.evaluator.get_type_of_expression(ctx_item.expr);
         if ctx_item.alias is None
@@ -1497,7 +1497,7 @@ impl TypeCheckPass.enter_with_stmt(nd: WithStmt) -> None {
             expr_type, enter_method, [], ctx_item.expr
         );
         if enter_ret is not None {
-            if nd.is_async {
+            if here.is_async {
                 enter_ret = self.evaluator._unwrap_awaitable_type(
                     enter_ret, ctx_item.expr
                 );
@@ -1509,15 +1509,18 @@ impl TypeCheckPass.enter_with_stmt(nd: WithStmt) -> None {
     }
 }
 
-impl TypeCheckPass.enter_if_stmt(nd: IfStmt) -> None {
-    if nd.is_comptime {
-        self._resolve_comptime_if(nd);
+impl TypeCheckPass.enter_if_stmt with IfStmt entry {
+    if here.__class__ is not IfStmt {
+        return;
+    }
+    if here.is_comptime {
+        self._resolve_comptime_if(here);
     }
 }
 
-impl TypeCheckPass.enter_else_if(nd: ElseIf) -> None {
-    if nd.is_comptime {
-        self._resolve_comptime_if(nd);
+impl TypeCheckPass.enter_else_if with ElseIf entry {
+    if here.is_comptime {
+        self._resolve_comptime_if(here);
     }
 }
 
@@ -1628,18 +1631,21 @@ impl TypeCheckPass._check_comptime_only_use(nd: Name) -> None {
     self.emit(E0033, node_override=nd, what=what, reason="");
 }
 
-impl TypeCheckPass.exit_if_stmt(nd: IfStmt) -> None {
-    self.evaluator.get_type_of_expression(nd.condition);
+impl TypeCheckPass.exit_if_stmt with IfStmt exit {
+    if here.__class__ is not IfStmt {
+        return;
+    }
+    self.evaluator.get_type_of_expression(here.condition);
 }
 
-impl TypeCheckPass.exit_else_if(nd: ElseIf) -> None {
-    self.evaluator.get_type_of_expression(nd.condition);
+impl TypeCheckPass.exit_else_if with ElseIf exit {
+    self.evaluator.get_type_of_expression(here.condition);
 }
 
-impl TypeCheckPass.exit_with_stmt(nd: WithStmt) -> None {
-    enter_method = "__aenter__" if nd.is_async else "__enter__";
-    exit_method = "__aexit__" if nd.is_async else "__exit__";
-    for item in nd.exprs {
+impl TypeCheckPass.exit_with_stmt with WithStmt exit {
+    enter_method = "__aenter__" if here.is_async else "__enter__";
+    exit_method = "__aexit__" if here.is_async else "__exit__";
+    for item in here.exprs {
         ctx_item: ExprAsItem = item;
         expr_type = self.evaluator.get_type_of_expression(ctx_item.expr);
         if not isinstance(expr_type, UnknownType) and not expr_type.is_any_instance() {
@@ -1647,7 +1653,7 @@ impl TypeCheckPass.exit_with_stmt(nd: WithStmt) -> None {
                 expr_type, enter_method, [], ctx_item.expr
             );
             if enter_result is None {
-                self.emit(E1091, node_override=nd, type=str(expr_type));
+                self.emit(E1091, node_override=here, type=str(expr_type));
             }
 
             if isinstance(expr_type, ClassType) {
@@ -1658,48 +1664,48 @@ impl TypeCheckPass.exit_with_stmt(nd: WithStmt) -> None {
                         is not None
                 );
                 if not has_exit and not expr_type.is_any_type() {
-                    self.emit(E1092, node_override=nd, type=str(expr_type));
+                    self.emit(E1092, node_override=here, type=str(expr_type));
                 }
             }
         }
     }
 }
 
-impl TypeCheckPass.exit_while_stmt(nd: WhileStmt) -> None {
-    self.evaluator.get_type_of_expression(nd.condition);
+impl TypeCheckPass.exit_while_stmt with WhileStmt exit {
+    self.evaluator.get_type_of_expression(here.condition);
 }
 
-impl TypeCheckPass.exit_assert_stmt(nd: AssertStmt) -> None {
-    self.evaluator.get_type_of_expression(nd.condition);
-    if nd.error_msg is not None {
-        self.evaluator.get_type_of_expression(nd.error_msg);
+impl TypeCheckPass.exit_assert_stmt with AssertStmt exit {
+    self.evaluator.get_type_of_expression(here.condition);
+    if here.error_msg is not None {
+        self.evaluator.get_type_of_expression(here.error_msg);
     }
-    if not nd.is_comptime {
+    if not here.is_comptime {
         return;
     }
-    cv = self.evaluator.ct_demand(nd.condition);
-    if self.evaluator.ct_site_error(nd.condition, "comptime assert condition", cv) {
+    cv = self.evaluator.ct_demand(here.condition);
+    if self.evaluator.ct_site_error(here.condition, "comptime assert condition", cv) {
         return;
     }
     if cv is None or cv.is_deferred or bool(cv.v) or self.evaluator.ct_quiet {
         return;
     }
     message = "";
-    if nd.error_msg is not None {
-        mv = self.evaluator.ct_demand(nd.error_msg);
+    if here.error_msg is not None {
+        mv = self.evaluator.ct_demand(here.error_msg);
         if mv is not None and not mv.is_deferred {
             message = f": {mv.v}";
         }
     }
-    self.emit(E0109, node_override=nd, message=message);
+    self.emit(E0109, node_override=here, message=message);
 }
 
-impl TypeCheckPass.exit_yield_expr(nd: YieldExpr) -> None {
-    if nd.expr is None {
+impl TypeCheckPass.exit_yield_expr with YieldExpr exit {
+    if here.expr is None {
         return;
     }
-    yielded_type = self.evaluator.get_type_of_expression(nd.expr);
-    scope = self.evaluator._get_enclosing_return_scope(nd);
+    yielded_type = self.evaluator.get_type_of_expression(here.expr);
+    scope = self.evaluator._get_enclosing_return_scope(here);
     if scope is None {
         return;
     }
@@ -1733,13 +1739,13 @@ impl TypeCheckPass.exit_yield_expr(nd: YieldExpr) -> None {
             else return_type
     );
 
-    if not nd.with_from {
+    if not here.with_from {
         if not self.evaluator.assign_type(
-            yielded_type, expected_yield, strict=self.evaluator._is_strict_site(nd)
+            yielded_type, expected_yield, strict=self.evaluator._is_strict_site(here)
         ) {
             self.emit(
                 E1093,
-                node_override=nd,
+                node_override=here,
                 actual=str(yielded_type),
                 expected=str(expected_yield)
             );
@@ -1747,12 +1753,12 @@ impl TypeCheckPass.exit_yield_expr(nd: YieldExpr) -> None {
     }
 }
 
-impl TypeCheckPass.exit_delete_stmt(nd: DeleteStmt) -> None {
-    self.evaluator.get_type_of_expression(nd.target);
+impl TypeCheckPass.exit_delete_stmt with DeleteStmt exit {
+    self.evaluator.get_type_of_expression(here.target);
 }
 
-impl TypeCheckPass.exit_visit_stmt(nd: VisitStmt) -> None {
-    target_type = self.evaluator.get_type_of_expression(nd.target);
+impl TypeCheckPass.exit_visit_stmt with VisitStmt exit {
+    target_type = self.evaluator.get_type_of_expression(here.target);
     path_class = self.evaluator.prefetch.path_class;
 
     def is_valid_visit_target(t: TypeBase) -> bool {
@@ -1784,36 +1790,36 @@ impl TypeCheckPass.exit_visit_stmt(nd: VisitStmt) -> None {
     }
 
     if not is_valid_visit_target(target_type) {
-        self.emit(E1094, node_override=nd, type=str(target_type));
+        self.emit(E1094, node_override=here, type=str(target_type));
     }
 }
 
-impl TypeCheckPass.exit_report_stmt(nd: ReportStmt) -> None {
-    expr_type = self.evaluator.get_type_of_expression(nd.expr);
-    elem_type = self._enclosing_walker_report_elem_type(nd);
+impl TypeCheckPass.exit_report_stmt with ReportStmt exit {
+    expr_type = self.evaluator.get_type_of_expression(here.expr);
+    elem_type = self._enclosing_walker_report_elem_type(here);
     if elem_type is None {
         return;
     }
     if not self.evaluator.assign_type(expr_type, elem_type) {
         self.emit(
-            E1113, node_override=nd, actual=str(expr_type), expected=str(elem_type)
+            E1113, node_override=here, actual=str(expr_type), expected=str(elem_type)
         );
     }
 }
 
-impl TypeCheckPass.exit_impl_def(nd: ImplDef) -> None {
+impl TypeCheckPass.exit_impl_def with ImplDef exit {
     import from jaclang.compiler.frontend.constant { Tokens as Tok }
 
     if not (
-        nd.decl_link
-        and isinstance(nd.decl_link, Ability)
-        and isinstance(nd.decl_link.name_ref, SpecialVarRef)
-        and nd.decl_link.name_ref.name == Tok.KW_POST_INIT
+        here.decl_link
+        and isinstance(here.decl_link, Ability)
+        and isinstance(here.decl_link.name_ref, SpecialVarRef)
+        and here.decl_link.name_ref.name == Tok.KW_POST_INIT
     ) {
         return;
     }
 
-    archetype = nd.decl_link.find_parent_of_type(Archetype);
+    archetype = here.decl_link.find_parent_of_type(Archetype);
     if not archetype {
         return;
     }
@@ -1831,7 +1837,7 @@ impl TypeCheckPass.exit_impl_def(nd: ImplDef) -> None {
     }
 
     assigned: set[str] = set();
-    for trailer in nd.get_all_sub_nodes(AtomTrailer) {
+    for trailer in here.get_all_sub_nodes(AtomTrailer) {
         atom_trailer: AtomTrailer = trailer;
         if not (atom_trailer.parent and isinstance(atom_trailer.parent, Assignment)) {
             continue;
@@ -1848,18 +1854,18 @@ impl TypeCheckPass.exit_impl_def(nd: ImplDef) -> None {
     for (field_name, field_node) in deferred_fields.items() {
         if field_name not in assigned {
             self.emit(
-                E1095, node_override=nd, field=field_name, arch=arch.name_spec.sym_name
+                E1095, node_override=here, field=field_name, arch=arch.name_spec.sym_name
             );
         }
     }
 }
 
-impl TypeCheckPass.exit_sub_tag(nd: SubTag) -> None {
-    if isinstance(nd.tag, Expr) {
-        self.evaluator.validate_typevar_in_type_expr(nd.tag);
+impl TypeCheckPass.exit_sub_tag with SubTag exit {
+    if isinstance(here.tag, Expr) {
+        self.evaluator.validate_typevar_in_type_expr(here.tag);
 
-        if nd.tag?.type is None {
-            self.evaluator.get_type_of_expression(nd.tag);
+        if here.tag?.type is None {
+            self.evaluator.get_type_of_expression(here.tag);
         }
     }
 }

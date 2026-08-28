@@ -150,7 +150,7 @@ walker GrammarExtractPass(UniPass) {
         _helper_bodies: dict = {};
 
     def before_pass -> None;
-    def enter_impl_def(nd: uni.ImplDef) -> None;
+    can enter_impl_def with uni.ImplDef entry;
     def after_pass -> None;
     def _interpret_all -> list;
     def _compute_rule_firsts(rules: list) -> dict;

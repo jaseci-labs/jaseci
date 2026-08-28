@@ -266,22 +266,3 @@ def _install_completion(shell: str, code: str) -> int {
     }
 }
 
-impl gen_uni_dispatch(verify: bool = False) -> int {
-    import from jaclang.compiler.frontend.gen_uni_dispatch { write_all, verify_all }
-    if verify {
-        stale = verify_all();
-        for rel in stale {
-            console.error(f"Dispatch annex OUT OF DATE: {rel}");
-        }
-        if stale {
-            console.error("Run `jac gen-uni-dispatch` to update.");
-            return 1;
-        }
-        console.print("All dispatch annexes are up to date.");
-        return 0;
-    }
-    for msg in write_all() {
-        console.print(msg);
-    }
-    return 0;
-}

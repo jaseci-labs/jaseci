@@ -1,7 +1,6 @@
 import os;
 import type from collections.abc { Sequence }
 import from enum { IntEnum }
-import type from jaclang.compiler.passes.uni_pass { UniPass }
 import type from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
 import from jaclang.compiler.frontend.srcloc { CodeLocInfo }
 import from jaclang.compiler.frontend.constant {
@@ -156,8 +155,6 @@ node UniNode {
         ct_pruned: bool postinit;
 
     def postinit -> None;
-    def accept_enter(v: UniPass) -> None;
-    def accept_exit(v: UniPass) -> None;
 
     has kid: list[UniNode] { getter; }
 
@@ -486,8 +483,6 @@ node Expr(UniNode) {
 }
 
 node CfgExpr(Expr, ConditionalNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has expr: Expr { getter; }
     def init(*, sc_true_target: (UniCFGNode | None) = None, sc_false_target: (UniCFGNode | None) = None, expr: Expr, kid: Sequence[UniNode] = []) -> None;
@@ -570,8 +565,6 @@ node ArchSpec(ElementStmt, CodeBlockStmt, AstSymbolNode, AstAsyncNode, AstDocNod
 node MatchPattern(UniNode) {}
 
 node SubTag[T](UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has tag: T,
 
@@ -583,8 +576,6 @@ node SubTag[T](UniNode) {
 }
 
 node Module(AstDocNode, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has name: str,
 
@@ -661,8 +652,6 @@ node ProgramModule(UniNode) {
 }
 
 node TypeParam(AstSymbolNode, UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has name: Name { getter; }
 
@@ -679,8 +668,6 @@ node TypeParam(AstSymbolNode, UniNode) {
 }
 
 node TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_distinct: bool = False;
 
@@ -697,8 +684,6 @@ node TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniS
 }
 
 node GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode, ArchBlockStmt, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_frozen: bool;
 
@@ -711,8 +696,6 @@ node GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode, ArchBlockStmt, Cod
 }
 
 node Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has name: Name { getter; }
 
@@ -729,8 +712,6 @@ node Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeN
 }
 
 node ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has name: (Name | None) { getter; }
 
@@ -743,8 +724,6 @@ node ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt, Cod
 }
 
 node PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has code: Token { getter; }
     def init(*, is_enum_stmt: bool = False, doc: (String | None) = None, code: Token, kid: Sequence[UniNode] = []) -> None;
@@ -770,8 +749,6 @@ obj ImportBoundaryFacts {
 }
 
 node Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_absorb: bool,
         is_typed: bool = False,
@@ -815,8 +792,6 @@ node Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
 }
 
 node ModulePath(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has level: int,
 
@@ -845,8 +820,6 @@ node ModulePath(UniNode) {
 }
 
 node ModuleItem(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has abs_path: (str | None) postinit;
 
@@ -869,8 +842,6 @@ node ModuleItem(UniNode) {
 }
 
 node Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImplNeedingNode, UniScopeNode, UniCFGNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has name: Name { getter; }
 
@@ -901,8 +872,6 @@ node Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImpl
 }
 
 node ImplDef(ContextAwareNode, CodeBlockStmt, ElementStmt, ArchBlockStmt, AstSymbolNode, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has decorators: (Sequence[Expr] | None) { getter; }
 
@@ -922,8 +891,6 @@ node ImplDef(ContextAwareNode, CodeBlockStmt, ElementStmt, ArchBlockStmt, AstSym
 }
 
 node SemDef(ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has target: Sequence[NameAtom] { getter; }
 
@@ -937,8 +904,6 @@ node SemDef(ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
 }
 
 node Enum(ContextAwareNode, ArchSpec, AstAccessNode, AstImplNeedingNode, ArchBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has name: Name { getter; }
 
@@ -953,8 +918,6 @@ node Enum(ContextAwareNode, ArchSpec, AstAccessNode, AstImplNeedingNode, ArchBlo
 }
 
 node Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBlockStmt, CodeBlockStmt, AstImplNeedingNode, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_override: bool,
 
@@ -997,8 +960,6 @@ node Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBlo
 }
 
 node FuncSignature(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has posonly_params: Sequence[ParamVar] { getter; }
 
@@ -1024,8 +985,6 @@ node FuncSignature(UniNode) {
 }
 
 node EventSignature(WalkerStmtOnlyNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has event: Token { getter; }
 
@@ -1038,8 +997,6 @@ node EventSignature(WalkerStmtOnlyNode) {
 }
 
 node ParamVar(AstSymbolNode, AstTypedVarNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has param_kind: ParamKind postinit,
         is_comptime: bool = False;
@@ -1061,8 +1018,6 @@ node ParamVar(AstSymbolNode, AstTypedVarNode) {
 }
 
 node ArchHas(AstAccessNode, AstDocNode, ArchBlockStmt, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_static: bool,
 
@@ -1077,8 +1032,6 @@ node ArchHas(AstAccessNode, AstDocNode, ArchBlockStmt, CodeBlockStmt) {
 }
 
 node HasVar(AstSymbolNode, AstTypedVarNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has defer: bool;
 
@@ -1095,8 +1048,6 @@ node HasVar(AstSymbolNode, AstTypedVarNode) {
 }
 
 node TypedCtxBlock(CodeBlockStmt, WalkerStmtOnlyNode, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has type_ctx: Expr { getter; }
 
@@ -1109,8 +1060,6 @@ node TypedCtxBlock(CodeBlockStmt, WalkerStmtOnlyNode, UniScopeNode) {
 }
 
 node OpenStmt(CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has target: Expr { getter; }
 
@@ -1123,8 +1072,6 @@ node OpenStmt(CodeBlockStmt, UniScopeNode) {
 }
 
 node IfStmt(CodeBlockStmt, AstElseBodyNode, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_comptime: bool = False,
         ct_taken: (bool | None) = None;
@@ -1140,15 +1087,11 @@ node IfStmt(CodeBlockStmt, AstElseBodyNode, UniScopeNode) {
 }
 
 node ElseIf(IfStmt) {
-    def accept_enter(v: UniPass) -> None;
-    def accept_exit(v: UniPass) -> None;
     def init(*, else_body: (ElseStmt | ElseIf | None) = None, condition: Expr, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
     def __repr__ -> str;
 }
 
 node ElseStmt(UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has body: Sequence[CodeBlockStmt] { getter; }
     def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
@@ -1159,8 +1102,6 @@ node ElseStmt(UniScopeNode) {
 }
 
 node ExprStmt(CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has in_fstring: bool,
 
@@ -1175,8 +1116,6 @@ node ExprStmt(CodeBlockStmt) {
 }
 
 node TryStmt(AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has body: Sequence[CodeBlockStmt] { getter; }
 
@@ -1193,8 +1132,6 @@ node TryStmt(AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
 }
 
 node AwaitingClause(CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has body: Sequence[CodeBlockStmt] { getter; }
     def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
@@ -1205,8 +1142,6 @@ node AwaitingClause(CodeBlockStmt, UniScopeNode) {
 }
 
 node Except(CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has ex_type: Expr { getter; }
 
@@ -1221,8 +1156,6 @@ node Except(CodeBlockStmt, UniScopeNode) {
 }
 
 node FinallyStmt(CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has body: Sequence[CodeBlockStmt] { getter; }
     def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
@@ -1233,8 +1166,6 @@ node FinallyStmt(CodeBlockStmt, UniScopeNode) {
 }
 
 node IterForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has iter: Assignment { getter; }
 
@@ -1251,8 +1182,6 @@ node IterForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
 }
 
 node InForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_comptime: bool = False;
 
@@ -1269,8 +1198,6 @@ node InForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
 }
 
 node WhileStmt(AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has condition: Expr { getter; }
 
@@ -1283,8 +1210,6 @@ node WhileStmt(AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
 }
 
 node ForeverStmt(CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has body: Sequence[CodeBlockStmt] { getter; }
     def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
@@ -1295,8 +1220,6 @@ node ForeverStmt(CodeBlockStmt, UniScopeNode) {
 }
 
 node WithStmt(AstAsyncNode, CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has exprs: Sequence[ExprAsItem] { getter; }
 
@@ -1309,8 +1232,6 @@ node WithStmt(AstAsyncNode, CodeBlockStmt, UniScopeNode) {
 }
 
 node ExprAsItem(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has expr: Expr { getter; }
 
@@ -1323,8 +1244,6 @@ node ExprAsItem(UniNode) {
 }
 
 node RaiseStmt(CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has cause: (Expr | None) { getter; }
 
@@ -1337,8 +1256,6 @@ node RaiseStmt(CodeBlockStmt) {
 }
 
 node AssertStmt(ElementStmt, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_comptime: bool = False;
 
@@ -1353,8 +1270,6 @@ node AssertStmt(ElementStmt, CodeBlockStmt) {
 }
 
 node CtrlStmt(CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has ctrl: Token { getter; }
     def init(*, ctrl: Token, kid: Sequence[UniNode] = []) -> None;
@@ -1365,8 +1280,6 @@ node CtrlStmt(CodeBlockStmt) {
 }
 
 node DeleteStmt(CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has target: Expr { getter; }
     def init(*, target: Expr, kid: Sequence[UniNode] = []) -> None;
@@ -1377,8 +1290,6 @@ node DeleteStmt(CodeBlockStmt) {
 }
 
 node ReportStmt(CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has expr: Expr { getter; }
     def init(*, expr: Expr, kid: Sequence[UniNode] = []) -> None;
@@ -1389,8 +1300,6 @@ node ReportStmt(CodeBlockStmt) {
 }
 
 node ReturnStmt(CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_implicit: bool = False;
 
@@ -1403,8 +1312,6 @@ node ReturnStmt(CodeBlockStmt) {
 }
 
 node VisitStmt(WalkerStmtOnlyNode, AstElseBodyNode, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has insert_loc: (Expr | None) { getter; }
 
@@ -1417,16 +1324,12 @@ node VisitStmt(WalkerStmtOnlyNode, AstElseBodyNode, CodeBlockStmt) {
 }
 
 node DisengageStmt(WalkerStmtOnlyNode, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
     def init(*, kid: Sequence[UniNode] = []) -> None;
     def postinit -> None;
     def __repr__ -> str;
 }
 
 node AwaitExpr(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has target: Expr { getter; }
     def init(*, target: Expr, kid: Sequence[UniNode] = []) -> None;
@@ -1437,8 +1340,6 @@ node AwaitExpr(Expr) {
 }
 
 node CastExpr(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has value: Expr { getter; }
 
@@ -1451,8 +1352,6 @@ node CastExpr(Expr) {
 }
 
 node Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has mutable: bool = True,
 
@@ -1476,8 +1375,6 @@ node Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt) {
 }
 
 node ConcurrentExpr(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has tok: (Token | None) { getter; }
 
@@ -1490,8 +1387,6 @@ node ConcurrentExpr(Expr) {
 }
 
 node BinaryExpr(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has left: Expr { getter; }
 
@@ -1506,8 +1401,6 @@ node BinaryExpr(Expr) {
 }
 
 node CompareExpr(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has left: Expr { getter; }
 
@@ -1522,8 +1415,6 @@ node CompareExpr(Expr) {
 }
 
 node BoolExpr(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has op: Token { getter; }
 
@@ -1536,8 +1427,6 @@ node BoolExpr(Expr) {
 }
 
 node LambdaExpr(Expr, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has body: (Expr | Sequence[CodeBlockStmt]) { getter; }
 
@@ -1553,8 +1442,6 @@ node LambdaExpr(Expr, UniScopeNode) {
 }
 
 node UnaryExpr(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has ownership: OwnershipKind = OwnershipKind.NONE;
 
@@ -1569,8 +1456,6 @@ node UnaryExpr(Expr) {
 }
 
 node IfElseExpr(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has condition: CfgExpr { getter; }
 
@@ -1585,8 +1470,6 @@ node IfElseExpr(Expr) {
 }
 
 node MultiString(AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has strings: Sequence[(String | FString)] { getter; }
     def init(*, strings: Sequence[(String | FString)], kid: Sequence[UniNode] = []) -> None;
@@ -1599,8 +1482,6 @@ node MultiString(AtomExpr) {
 }
 
 node FString(AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has start: (Token | None) { getter; }
 
@@ -1615,8 +1496,6 @@ node FString(AtomExpr) {
 }
 
 node FormattedValue(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has conversion: int;
 
@@ -1631,8 +1510,6 @@ node FormattedValue(Expr) {
 }
 
 node ListVal(AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has values: Sequence[Expr] { getter; }
     def init(*, values: Sequence[Expr], kid: Sequence[UniNode] = []) -> None;
@@ -1643,8 +1520,6 @@ node ListVal(AtomExpr) {
 }
 
 node SetVal(AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has values: (Sequence[Expr] | None) { getter; }
     def init(*, values: (Sequence[Expr] | None), kid: Sequence[UniNode] = []) -> None;
@@ -1655,8 +1530,6 @@ node SetVal(AtomExpr) {
 }
 
 node TupleVal(AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has values: Sequence[(Expr | KWPair)] { getter; }
     def init(*, values: Sequence[(Expr | KWPair)], kid: Sequence[UniNode] = []) -> None;
@@ -1667,8 +1540,6 @@ node TupleVal(AtomExpr) {
 }
 
 node DictVal(AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has kv_pairs: Sequence[KVPair] { getter; }
     def init(*, kv_pairs: Sequence[KVPair], kid: Sequence[UniNode] = []) -> None;
@@ -1679,8 +1550,6 @@ node DictVal(AtomExpr) {
 }
 
 node KVPair(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has key: (Expr | None) { getter; }
 
@@ -1693,8 +1562,6 @@ node KVPair(UniNode) {
 }
 
 node KWPair(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has key: (NameAtom | None) { getter; }
 
@@ -1707,8 +1574,6 @@ node KWPair(UniNode) {
 }
 
 node InnerCompr(AstAsyncNode, UniScopeNode, UniCFGNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has target: Expr { getter; }
 
@@ -1723,8 +1588,6 @@ node InnerCompr(AstAsyncNode, UniScopeNode, UniCFGNode) {
 }
 
 node ListCompr(AtomExpr, UniScopeNode, UniCFGNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has out_expr: Expr { getter; }
 
@@ -1737,22 +1600,16 @@ node ListCompr(AtomExpr, UniScopeNode, UniCFGNode) {
 }
 
 node GenCompr(ListCompr) {
-    def accept_enter(v: UniPass) -> None;
-    def accept_exit(v: UniPass) -> None;
     def init(*, out_expr: Expr, compr: list[InnerCompr], kid: Sequence[UniNode] = []) -> None;
     def __repr__ -> str;
 }
 
 node SetCompr(ListCompr) {
-    def accept_enter(v: UniPass) -> None;
-    def accept_exit(v: UniPass) -> None;
     def init(*, out_expr: Expr, compr: list[InnerCompr], kid: Sequence[UniNode] = []) -> None;
     def __repr__ -> str;
 }
 
 node DictCompr(AtomExpr, UniScopeNode, UniCFGNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has kv_pair: KVPair { getter; }
 
@@ -1765,8 +1622,6 @@ node DictCompr(AtomExpr, UniScopeNode, UniCFGNode) {
 }
 
 node AtomTrailer(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_attr: bool,
 
@@ -1787,8 +1642,6 @@ node AtomTrailer(Expr) {
 }
 
 node AtomUnit(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has value: Expr | YieldExpr | Ability { getter; }
     def init(*, value: Expr | YieldExpr | Ability, kid: Sequence[UniNode] = []) -> None;
@@ -1799,8 +1652,6 @@ node AtomUnit(Expr) {
 }
 
 node YieldExpr(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has with_from: bool;
 
@@ -1813,8 +1664,6 @@ node YieldExpr(Expr) {
 }
 
 node FuncCall(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has genai_call: (Expr | None),
 
@@ -1835,8 +1684,6 @@ node FuncCall(Expr) {
 }
 
 node Slice(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has start: (Expr | None) { getter; }
 
@@ -1851,8 +1698,6 @@ node Slice(UniNode) {
 }
 
 node IndexSlice(AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_range: bool;
 
@@ -1865,8 +1710,6 @@ node IndexSlice(AtomExpr) {
 }
 
 node EdgeRefTrailer(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has edges_only: bool,
 
@@ -1881,8 +1724,6 @@ node EdgeRefTrailer(Expr) {
 }
 
 node EdgeOpRef(WalkerStmtOnlyNode, AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has edge_dir: EdgeDir;
 
@@ -1895,8 +1736,6 @@ node EdgeOpRef(WalkerStmtOnlyNode, AtomExpr) {
 }
 
 node DisconnectOp(WalkerStmtOnlyNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has edge_spec: EdgeOpRef { getter; }
     def init(*, edge_spec: EdgeOpRef, kid: Sequence[UniNode] = []) -> None;
@@ -1907,8 +1746,6 @@ node DisconnectOp(WalkerStmtOnlyNode) {
 }
 
 node ConnectOp(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has edge_dir: EdgeDir;
 
@@ -1923,8 +1760,6 @@ node ConnectOp(UniNode) {
 }
 
 node FilterCompr(AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has f_type: (Expr | None) { getter; }
 
@@ -1937,8 +1772,6 @@ node FilterCompr(AtomExpr) {
 }
 
 node AssignCompr(AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has assigns: Sequence[KWPair] { getter; }
     def init(*, assigns: Sequence[KWPair], kid: Sequence[UniNode] = []) -> None;
@@ -1949,8 +1782,6 @@ node AssignCompr(AtomExpr) {
 }
 
 node JsxElement(AtomExpr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_self_closing: bool,
 
@@ -1973,8 +1804,6 @@ node JsxElement(AtomExpr) {
 }
 
 node JsxElementName(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has parts: Sequence[(Name | Token)] { getter; }
     def init(*, parts: Sequence[(Name | Token)], kid: Sequence[UniNode] = []) -> None;
@@ -1985,16 +1814,12 @@ node JsxElementName(UniNode) {
 }
 
 node JsxAttribute(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
     def init(*, kid: Sequence[UniNode] = []) -> None;
     def postinit -> None;
     def __repr__ -> str;
 }
 
 node JsxSpreadAttribute(JsxAttribute) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has expr: Expr { getter; }
     def init(*, expr: Expr, kid: Sequence[UniNode] = []) -> None;
@@ -2005,8 +1830,6 @@ node JsxSpreadAttribute(JsxAttribute) {
 }
 
 node JsxNormalAttribute(JsxAttribute) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_shorthand: bool = False;
 
@@ -2021,16 +1844,12 @@ node JsxNormalAttribute(JsxAttribute) {
 }
 
 node JsxChild(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
     def init(*, kid: Sequence[UniNode] = []) -> None;
     def postinit -> None;
     def __repr__ -> str;
 }
 
 node JsxText(JsxChild) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has value: (str | Token);
     def init(*, value: (str | Token), kid: Sequence[UniNode] = []) -> None;
@@ -2041,8 +1860,6 @@ node JsxText(JsxChild) {
 }
 
 node JsxExpression(JsxChild) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has expr: Expr { getter; }
     def init(*, expr: Expr, kid: Sequence[UniNode] = []) -> None;
@@ -2053,8 +1870,6 @@ node JsxExpression(JsxChild) {
 }
 
 node JsxSlot(JsxChild) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has body: list[UniNode] { getter; }
     def init(*, body: list[UniNode], kid: Sequence[UniNode] = []) -> None;
@@ -2065,8 +1880,6 @@ node JsxSlot(JsxChild) {
 }
 
 node JsxComment(JsxChild) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has value: Token { getter; }
     def init(*, value: Token, kid: Sequence[UniNode] = []) -> None;
@@ -2077,8 +1890,6 @@ node JsxComment(JsxChild) {
 }
 
 node MatchStmt(CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has target: Expr { getter; }
 
@@ -2091,8 +1902,6 @@ node MatchStmt(CodeBlockStmt) {
 }
 
 node MatchCase(CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has pattern: MatchPattern { getter; }
 
@@ -2107,8 +1916,6 @@ node MatchCase(CodeBlockStmt, UniScopeNode) {
 }
 
 node SwitchStmt(CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has target: Expr { getter; }
 
@@ -2121,8 +1928,6 @@ node SwitchStmt(CodeBlockStmt) {
 }
 
 node SwitchCase(CodeBlockStmt, UniScopeNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has pattern: (MatchPattern | None) { getter; }
 
@@ -2135,8 +1940,6 @@ node SwitchCase(CodeBlockStmt, UniScopeNode) {
 }
 
 node MatchOr(MatchPattern) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has patterns: list[MatchPattern] { getter; }
     def init(*, patterns: list[MatchPattern], kid: Sequence[UniNode] = []) -> None;
@@ -2147,8 +1950,6 @@ node MatchOr(MatchPattern) {
 }
 
 node MatchAs(MatchPattern) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has name: NameAtom { getter; }
 
@@ -2161,15 +1962,11 @@ node MatchAs(MatchPattern) {
 }
 
 node MatchWild(MatchPattern) {
-    def accept_enter(v: UniPass) -> None;
-    def accept_exit(v: UniPass) -> None;
     def init(*, kid: Sequence[UniNode] = []) -> None;
     def __repr__ -> str;
 }
 
 node MatchValue(MatchPattern) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has value: Expr { getter; }
     def init(*, value: Expr, kid: Sequence[UniNode] = []) -> None;
@@ -2180,8 +1977,6 @@ node MatchValue(MatchPattern) {
 }
 
 node MatchSingleton(MatchPattern) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has value: (Bool | Null) { getter; }
     def init(*, value: (Bool | Null), kid: Sequence[UniNode] = []) -> None;
@@ -2192,8 +1987,6 @@ node MatchSingleton(MatchPattern) {
 }
 
 node MatchSequence(MatchPattern) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has values: list[MatchPattern] { getter; }
     def init(*, values: list[MatchPattern], kid: Sequence[UniNode] = []) -> None;
@@ -2204,8 +1997,6 @@ node MatchSequence(MatchPattern) {
 }
 
 node MatchMapping(MatchPattern) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has values: list[(MatchKVPair | MatchStar)] { getter; }
     def init(*, values: list[(MatchKVPair | MatchStar)], kid: Sequence[UniNode] = []) -> None;
@@ -2216,8 +2007,6 @@ node MatchMapping(MatchPattern) {
 }
 
 node MatchKVPair(MatchPattern) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has key: MatchPattern | NameAtom | AtomExpr { getter; }
 
@@ -2230,8 +2019,6 @@ node MatchKVPair(MatchPattern) {
 }
 
 node MatchStar(MatchPattern) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_list: bool;
 
@@ -2244,8 +2031,6 @@ node MatchStar(MatchPattern) {
 }
 
 node MatchArch(MatchPattern) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has name: (AtomTrailer | NameAtom) { getter; }
 
@@ -2260,8 +2045,6 @@ node MatchArch(MatchPattern) {
 }
 
 node Token(UniNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has orig_src: Source postinit,
 
@@ -2299,8 +2082,6 @@ node Token(UniNode) {
 }
 
 node Name(Token, NameAtom) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has is_kwesc: bool postinit,
 
@@ -2344,8 +2125,6 @@ node Name(Token, NameAtom) {
 }
 
 node SpecialVarRef(Name) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     has orig: Name postinit;
 
@@ -2388,8 +2167,6 @@ node Literal(Token, AtomExpr) {
 }
 
 node BuiltinType(Name, Literal) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     with entry {
         SYMBOL_TYPE = SymbolType.VAR;
@@ -2400,7 +2177,6 @@ node BuiltinType(Name, Literal) {
 }
 
 node Float(Literal) {
-    def accept_exit(v: UniPass) -> None;
 
     with entry {
         SYMBOL_TYPE = SymbolType.NUMBER;
@@ -2411,7 +2187,6 @@ node Float(Literal) {
 }
 
 node Int(Literal) {
-    def accept_exit(v: UniPass) -> None;
 
     with entry {
         SYMBOL_TYPE = SymbolType.NUMBER;
@@ -2422,8 +2197,6 @@ node Int(Literal) {
 }
 
 node String(Literal) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
 
     with entry {
         SYMBOL_TYPE = SymbolType.STRING;
@@ -2434,7 +2207,6 @@ node String(Literal) {
 }
 
 node Bool(Literal) {
-    def accept_exit(v: UniPass) -> None;
 
     with entry {
         SYMBOL_TYPE = SymbolType.BOOL;
@@ -2445,7 +2217,6 @@ node Bool(Literal) {
 }
 
 node Null(Literal) {
-    def accept_exit(v: UniPass) -> None;
 
     with entry {
         SYMBOL_TYPE = SymbolType.NULL;
@@ -2456,7 +2227,6 @@ node Null(Literal) {
 }
 
 node Ellipsis(Literal) {
-    def accept_exit(v: UniPass) -> None;
 
     with entry {
         SYMBOL_TYPE = SymbolType.NULL;
@@ -2472,7 +2242,6 @@ node EmptyToken(Token) {
 }
 
 node Semi(Token, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
     def init(
         orig_src: Source,
         name: str,
@@ -2488,7 +2257,6 @@ node Semi(Token, CodeBlockStmt) {
 }
 
 node CommentToken(Token) {
-    def accept_exit(v: UniPass) -> None;
     def init(
         orig_src: Source,
         name: str,

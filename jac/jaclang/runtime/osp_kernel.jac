@@ -8,7 +8,9 @@ obj Slot {
 obj WalkerDesc {
     has type_tag: int,
         `entry: list[Slot],
-        `exit: list[Slot];
+        `exit: list[Slot],
+        post_entry: any = None,
+        post_exit: any = None;
 }
 
 obj NodeDesc {
@@ -27,7 +29,8 @@ obj WalkScope {
         next_head: int = 0,
         nested: bool = False,
         fenced: bool = False,
-        pending_fence: int = 0;
+        pending_fence: int = 0,
+        skip_node: bool = False;
 }
 
 obj OspRuntime {
@@ -95,6 +98,13 @@ def osp_disengage {
     }
 }
 
+def osp_skip_rest {
+    scope = _current_scope();
+    if scope is not None {
+        scope.skip_node = True;
+    }
+}
+
 def osp_report(val: any) {
     scope = _current_scope();
     if scope is not None {
@@ -102,15 +112,32 @@ def osp_report(val: any) {
     }
 }
 
+glob _match_slots: dict[int, list[Slot]] = {};
+glob _match_by_tag: dict[int, dict[int, list[Slot]]] = {};
+
 def run_typed(rt: OspRuntime, slots: list[Slot], a: any, b: any) -> None {
     btag: int = rt.tag_of(b);
-    for s in slots {
-        if (s.trig_tag != UNTYPED) and rt.is_a(btag, s.trig_tag) {
-            s.fn(a, b);
-            sc = _current_scope();
-            if (sc is not None) and sc.disengaged {
-                return;
+    key: int = id(slots);
+    if _match_slots.get(key) is not slots {
+        _match_slots[key] = slots;
+        _match_by_tag[key] = {};
+    }
+    per_tag: dict[int, list[Slot]] = _match_by_tag[key];
+    matched: (list[Slot] | None) = per_tag.get(btag);
+    if matched is None {
+        matched = [];
+        for s in slots {
+            if (s.trig_tag != UNTYPED) and rt.is_a(btag, s.trig_tag) {
+                matched.append(s);
             }
+        }
+        per_tag[btag] = matched;
+    }
+    for s in matched {
+        s.fn(a, b);
+        sc = _current_scope();
+        if (sc is not None) and (sc.disengaged or sc.skip_node) {
+            return;
         }
     }
 }
@@ -120,7 +147,7 @@ def run_untyped(slots: list[Slot], a: any, b: any) -> None {
         if s.trig_tag == UNTYPED {
             s.fn(a, b);
             sc = _current_scope();
-            if (sc is not None) and sc.disengaged {
+            if (sc is not None) and (sc.disengaged or sc.skip_node) {
                 return;
             }
         }
@@ -164,14 +191,25 @@ def _visit_recursive(
             if scope.disengaged {
                 return False;
             }
-            run_untyped(ndesc.`entry, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
+            if not scope.skip_node {
+                run_untyped(ndesc.`entry, cur, scope.wlk);
+                if scope.disengaged {
+                    return False;
+                }
             }
-            run_typed(rt, ndesc.`entry, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
+            if not scope.skip_node {
+                run_typed(rt, ndesc.`entry, cur, scope.wlk);
+                if scope.disengaged {
+                    return False;
+                }
             }
+            if (not scope.skip_node) and (wdesc.post_entry is not None) {
+                wdesc.post_entry(scope.wlk, cur);
+                if scope.disengaged {
+                    return False;
+                }
+            }
+            scope.skip_node = False;
 
             stack_loc.append(cur);
             stack_ph.append(1);
@@ -215,14 +253,25 @@ def _visit_recursive(
             if scope.disengaged {
                 return False;
             }
-            run_untyped(ndesc.`exit, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
+            if not scope.skip_node {
+                run_untyped(ndesc.`exit, cur, scope.wlk);
+                if scope.disengaged {
+                    return False;
+                }
             }
-            run_typed(rt, wdesc.`exit, scope.wlk, cur);
-            if scope.disengaged {
-                return False;
+            if not scope.skip_node {
+                run_typed(rt, wdesc.`exit, scope.wlk, cur);
+                if scope.disengaged {
+                    return False;
+                }
             }
+            if (not scope.skip_node) and (wdesc.post_exit is not None) {
+                wdesc.post_exit(scope.wlk, cur);
+                if scope.disengaged {
+                    return False;
+                }
+            }
+            scope.skip_node = False;
             if scope.fenced and (scope.pending_fence > 0) and stack_bud {
                 stack_bud[-1] += scope.pending_fence;
             }

@@ -174,11 +174,11 @@ impl BoundaryAnalysisPass._register_native_absorb(nd: Import
     }
 }
 
-impl BoundaryAnalysisPass.enter_import(nd: Import) -> None {
-    import_context = self._get_context(nd);
-    facts = nd.boundary_facts;
-    if (nd.from_loc and isinstance(nd.from_loc, ModulePath)) {
-        from_loc = nd.from_loc;
+impl BoundaryAnalysisPass.enter_import with Import entry {
+    import_context = self._get_context(here);
+    facts = here.boundary_facts;
+    if (here.from_loc and isinstance(here.from_loc, ModulePath)) {
+        from_loc = here.from_loc;
         module_name = from_loc.dot_path_str;
         if (not module_name and from_loc.path) {
             module_name = '.'.join(p.value for p in from_loc.path);
@@ -189,24 +189,24 @@ impl BoundaryAnalysisPass.enter_import(nd: Import) -> None {
             if (is_sv and not native_path) {
                 sv_module_name = from_loc.base_module_name;
                 caller_ctx = InteropContext.CLIENT
-                    if nd.in_client_context()
+                    if here.in_client_context()
                     else InteropContext.SERVER;
-                self._register_sv_import(nd, sv_module_name, caller_ctx);
+                self._register_sv_import(here, sv_module_name, caller_ctx);
             }
-            if nd.items and not is_sv {
+            if here.items and not is_sv {
                 if (facts and facts.pinned_server) {
                     self._register_sv_import(
-                        nd, from_loc.base_module_name, InteropContext.CLIENT
+                        here, from_loc.base_module_name, InteropContext.CLIENT
                     );
                 } elif (facts and facts.client_native_edge) {
-                    self._register_na_client_import(nd);
+                    self._register_na_client_import(here);
                 } else {
-                    self._register_client_bridged_import(nd);
+                    self._register_client_bridged_import(here);
                 }
             }
-            if (native_path and nd.items) {
+            if (native_path and here.items) {
                 manifest = self.ir_in.gen.interop_manifest;
-                for item in nd.items {
+                for item in here.items {
                     if isinstance(item, ModuleItem) {
                         func_name = item.name.value;
                         _item_sym = item.name.sym
@@ -245,13 +245,13 @@ impl BoundaryAnalysisPass.enter_import(nd: Import) -> None {
         }
     }
 
-    if (not nd.from_loc) and nd.is_absorb and nd.items and (not nd.clib_decls) {
-        self._register_native_absorb(nd);
+    if (not here.from_loc) and here.is_absorb and here.items and (not here.clib_decls) {
+        self._register_native_absorb(here);
         return;
     }
 
-    if (not nd.from_loc) and nd.items and (not nd.clib_decls) {
-        for item in nd.items {
+    if (not here.from_loc) and here.items and (not here.clib_decls) {
+        for item in here.items {
             if isinstance(item, ModulePath) and item.path {
                 whole_name = '.'.join(p.value for p in item.path);
                 item_path = facts.native_item_paths.get(whole_name) if facts else None;
@@ -446,35 +446,33 @@ impl BoundaryAnalysisPass._find_archetype(nd: UniNode, target: str
     return None;
 }
 
-impl BoundaryAnalysisPass.enter_ability(nd: Ability
-) -> None {
+impl BoundaryAnalysisPass.enter_ability with Ability entry {
     if (
-        nd.sym_name
-        and isinstance(nd.signature, FuncSignature)
-        and nd.find_parent_of_type(Ability) is None
-        and nd.find_parent_of_type(LambdaExpr) is None
+        here.sym_name
+        and isinstance(here.signature, FuncSignature)
+        and here.find_parent_of_type(Ability) is None
+        and here.find_parent_of_type(LambdaExpr) is None
     ) {
-        nd_cc = nd.code_context;
+        nd_cc = here.code_context;
         ctx: InteropContext = InteropContext.SERVER;
         if nd_cc == CodeContext.NATIVE {
             ctx = InteropContext.NATIVE;
         } elif nd_cc == CodeContext.CLIENT {
             ctx = InteropContext.CLIENT;
         } else {
-            ctx = self._get_context(nd);
+            ctx = self._get_context(here);
         }
-        self._func_defs[nd.sym_name] = (ctx, nd);
+        self._func_defs[here.sym_name] = (ctx, here);
     }
 }
 
-impl BoundaryAnalysisPass.enter_func_call(nd: FuncCall
-) -> None {
+impl BoundaryAnalysisPass.enter_func_call with FuncCall entry {
     if (
-        isinstance(nd.target, Name)
-        and nd.target.sym is not None
-        and nd.target.sym.decl is not None
+        isinstance(here.target, Name)
+        and here.target.sym is not None
+        and here.target.sym.decl is not None
     ) {
-        _decl_ab = nd.target.sym.decl.find_parent_of_type(Ability);
+        _decl_ab = here.target.sym.decl.find_parent_of_type(Ability);
         if (
             _decl_ab is not None and _decl_ab.find_parent_of_type(Ability) is not None
         ) {
@@ -482,12 +480,12 @@ impl BoundaryAnalysisPass.enter_func_call(nd: FuncCall
         }
     }
     func_name = None;
-    if isinstance(nd.target, Name) {
-        func_name = nd.target.value;
-    } elif isinstance(nd.target, NameAtom) {
-        func_name = nd.target.sym_name;
-    } elif isinstance(nd.target, AtomTrailer) and nd.target.is_attr {
-        base = nd.target.target;
+    if isinstance(here.target, Name) {
+        func_name = here.target.value;
+    } elif isinstance(here.target, NameAtom) {
+        func_name = here.target.sym_name;
+    } elif isinstance(here.target, AtomTrailer) and here.target.is_attr {
+        base = here.target.target;
         base_name = None;
         if isinstance(base, Name) {
             base_name = base.value;
@@ -495,7 +493,7 @@ impl BoundaryAnalysisPass.enter_func_call(nd: FuncCall
             base_name = base.sym_name;
         }
         if base_name is not None and base_name in self._imported_native_modules {
-            right = nd.target.right;
+            right = here.target.right;
             right_name: (str | None) = None;
             if isinstance(right, AstSymbolNode) {
                 right_name = right.sym_name;
@@ -505,14 +503,14 @@ impl BoundaryAnalysisPass.enter_func_call(nd: FuncCall
             }
 
             _is_native_ctx = (
-                self._get_context(nd) == InteropContext.NATIVE
+                self._get_context(here) == InteropContext.NATIVE
                 or self._in_native_module()
             );
             if isinstance(right_name, str) and right_name and _is_native_ctx {
                 (mod_path, _ctx) = self._imported_native_modules[base_name];
                 _mfst = self.ir_in.gen.interop_manifest;
                 if right_name not in _mfst.bindings {
-                    _decl = self._resolved_native_decl(nd.target.right);
+                    _decl = self._resolved_native_decl(here.target.right);
                     (_rt, _pts, _pns) = self._signature_of_decl(_decl);
                     _mfst.bindings[right_name] = InteropBinding(
                         name=right_name,
@@ -535,13 +533,13 @@ impl BoundaryAnalysisPass.enter_func_call(nd: FuncCall
     if not func_name {
         return;
     }
-    caller_ctx = self._get_context(nd);
+    caller_ctx = self._get_context(here);
     manifest = self.ir_in.gen.interop_manifest;
     if (func_name in self._imported_native_funcs) {
         (source_module, import_ctx) = self._imported_native_funcs[func_name];
         if (caller_ctx == InteropContext.NATIVE or self._in_native_module()) {
             if (func_name not in manifest.bindings) {
-                _decl = self._resolved_native_decl(nd.target);
+                _decl = self._resolved_native_decl(here.target);
                 (_rt, _pts, _pns) = self._signature_of_decl(_decl);
                 binding = InteropBinding(
                     name=func_name,

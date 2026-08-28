@@ -35,17 +35,17 @@ walker JsxIntrinsicGuardPass(UniPass) {
         self._exempt_paths.clear();
     }
 
-    def enter_module(nd: Module) {
+    can enter_module with Module entry {
         if self._enforced_root is None {
             self.prune();
         }
     }
 
-    def enter_jsx_element(nd: JsxElement) -> None {
-        if isinstance(nd.parent, JsxElement) {
+    can enter_jsx_element with JsxElement entry {
+        if isinstance(here.parent, JsxElement) {
             return;
         }
-        self._check_element(nd);
+        self._check_element(here);
     }
 
     def _check_element(el: JsxElement) {
