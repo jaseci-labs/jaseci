@@ -169,6 +169,7 @@ node UniNode {
     def _link(kid: Sequence[UniNode], roles: dict[type, any]) -> None;
     def detached_copy -> UniNode;
     def sever_external_edges -> None;
+    def _conn_light(tgt: any, e: any) -> None;
     def _assert_thawed -> None;
     def freeze_structure -> None;
     def thaw_structure -> None;

@@ -260,6 +260,12 @@ impl JacProgram.release_compile_closure(
     self.type_evaluator = None;
     self.diags.clear();
     self.scratch = BuildScratch();
+    import os;
+    if os.environ.get("JAC_GC_FREEZE_ON_RELEASE") {
+        import gc;
+        gc.collect();
+        gc.freeze();
+    }
 }
 
 impl JacProgram._search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]] {

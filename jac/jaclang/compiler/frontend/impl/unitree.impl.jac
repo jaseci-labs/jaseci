@@ -1033,6 +1033,15 @@ impl AstAccessNode.public_access.getter -> bool {
 
 impl ContextAwareNode.postinit -> None { }
 
+impl UniNode._conn_light(tgt: any, e: any) -> None {
+    import from jaclang.runtime.archetype { EdgeAnchor }
+    sa = getattr(self, "__jac__");
+    ta = getattr(tgt, "__jac__");
+    ea = EdgeAnchor(archetype=e, source=sa, target=ta, is_undirected=False);
+    e.__jac__ = ea;
+    sa.edges.append(ea);
+}
+
 impl ContextAwareNode.code_context.getter -> CodeContext {
     found = [self->:PlacedIn:->];
     return CodeContext(found[0].kind) if found else CodeContext.SERVER;
@@ -1042,7 +1051,7 @@ impl ContextAwareNode.code_context.setter(code_context: CodeContext) {
     for e in [edge self->:PlacedIn:->] {
         del e;
     }
-    self +>:PlacedIn:+> codespace_node(code_context.value);
+    self._conn_light(codespace_node(code_context.value), PlacedIn());
 }
 
 impl Module.decided_codespace.getter -> str {
@@ -1055,7 +1064,7 @@ impl Module.decided_codespace.setter(decided_codespace: str) {
         del e;
     }
     if decided_codespace {
-        self +>:DecidedCodespace:+> codespace_node(decided_codespace);
+        self._conn_light(codespace_node(decided_codespace), DecidedCodespace());
     }
 }
 
@@ -3301,7 +3310,7 @@ impl Expr.type.setter(type: (TypeBase | None)) -> None {
         del e;
     }
     if type is not None {
-        self +>:TypeOf:+> type;
+        self._conn_light(type, TypeOf());
     }
     self._type_cache = type;
     self._type_cache_ok = True;
@@ -3317,7 +3326,7 @@ impl Expr.narrowed_type.setter(narrowed_type: (TypeBase | None)) -> None {
         del e;
     }
     if narrowed_type is not None {
-        self +>:NarrowedTypeOf:+> narrowed_type;
+        self._conn_light(narrowed_type, NarrowedTypeOf());
     }
 }
 
@@ -3331,7 +3340,7 @@ impl AstTypedVarNode.type.setter(type: (TypeBase | None)) -> None {
         del e;
     }
     if type is not None {
-        self +>:TypeOf:+> type;
+        self._conn_light(type, TypeOf());
     }
 }
 
@@ -3347,6 +3356,6 @@ impl Ability.event_triggers.setter(event_triggers: (list[TypeBase] | None)) -> N
         del e;
     }
     for t in (event_triggers or []) {
-        self +>:EventTriggerOf:+> t;
+        self._conn_light(t, EventTriggerOf());
     }
 }

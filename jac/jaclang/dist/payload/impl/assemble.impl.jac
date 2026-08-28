@@ -206,6 +206,7 @@ impl precompile_env(pbs_py_dir: str, site: str) -> dict[str, str] {
     env["HOME"] = scratch_home;
     env["PATH"] = "/usr/bin:/bin";
     env["JAC_NO_DEV_SOURCE"] = "1";
+    env["JAC_GC_FREEZE_ON_RELEASE"] = "1";
     return env;
 }
 
