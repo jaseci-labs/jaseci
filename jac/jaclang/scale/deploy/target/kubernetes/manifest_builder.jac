@@ -318,7 +318,30 @@ obj ManifestBuilder {
                 self.microservices_config, env_routes_fallback=False
             );
         }
-        return load_microservices_config();
+        return self._with_implicit_solo_route(load_microservices_config());
+    }
+
+    def _with_implicit_solo_route(ms_cfg: dict[str, any]) -> dict[str, any] {
+        import from jaclang.scale.runtime.routing {
+            resolve_routes,
+            guard_route_name,
+            derive_route_prefix
+        }
+        try {
+            if resolve_routes(ms_cfg) {
+                return ms_cfg;
+            }
+            name = str(self.k8s_config.app_name or "");
+            if not name {
+                return ms_cfg;
+            }
+            guard_route_name(name);
+            synthesized = dict(ms_cfg);
+            synthesized["routes"] = {name: derive_route_prefix(name)};
+            return synthesized;
+        } except Exception {
+            return ms_cfg;
+        }
     }
 
     def _injector_object_key -> str {
