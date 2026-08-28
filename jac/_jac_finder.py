@@ -22,7 +22,7 @@ def _find_project_toml() -> str | None:
     """Walk up from the cwd to the nearest ``jac.toml``; return its path or None.
 
     Deliberate plain-Python MIRROR of the single canonical resolver
-    ``jaclang.jac0core.helpers.find_project_root``. It cannot import that one
+    ``jaclang.compiler.frontend.helpers.find_project_root``. It cannot import that one
     because this module runs during ``sitecustomize``/launcher boot, BEFORE
     ``import jaclang`` is possible -- it is what sets jaclang up. Keep the walk
     semantics (nearest jac.toml, cwd-anchored at boot) in lockstep with the
@@ -46,7 +46,7 @@ def _baked_source_dir() -> str | None:
 
     ``zig build -Ddev`` / ``-Djaclang-dir=PATH`` ships a payload WITHOUT a
     bundled ``jaclang`` and writes the absolute compiler path into a
-    ``jac_linked_source`` file beside this module (see ``jaclang.payload``
+    ``jac_linked_source`` file beside this module (see ``jaclang.dist.payload``
     ``mkPayload``). Reading it here makes such a binary reroute to live source
     from ANY directory, with no ``[dev]`` ``jac.toml`` stanza in scope. The file
     is one line of plain text; absent on a normal (self-contained) binary.

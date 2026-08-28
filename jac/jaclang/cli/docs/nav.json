@@ -118,6 +118,7 @@
             { "title": "Comprehensions & Filters", "page": "reference/language/advanced.md" },
             { "title": "Walker Patterns", "page": "reference/language/walker-responses.md" },
             { "title": "Gradual Borrow Checking", "page": "reference/language/ownership-borrowing.md" },
+            { "title": "Compile-Time Evaluation", "page": "reference/language/comptime.md" },
             { "title": "Syntax Cheatsheet", "page": "reference/language/syntax-cheatsheet.md" }
           ]
         },

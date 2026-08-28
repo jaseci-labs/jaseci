@@ -10,9 +10,9 @@ server signals and closure poison opt modules back out).
 import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob FIXTURE_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "codespace"
@@ -180,7 +180,7 @@ test "plain client import of a server-only helper is a codegen error" {
 }
 
 test "jac check flags a dead client import without codegen" {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "pinned_dead", "infer_import_dead_client.jac"),
@@ -205,7 +205,7 @@ test "locals shadowing client names do not pull" {
 }
 
 test "pure modules infer native under the shipped default" {
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.frontend.codeinfo {
         set_effective_default_codespace,
         get_effective_default_codespace_override
     }
@@ -267,8 +267,8 @@ test "two colors infer independently and conflicts stay server" {
 """Compile a fixture under an explicit default codespace; resets the
 process-wide effective default afterwards so later tests are unaffected."""
 def compile_with_default(name: str, dcs: str, cgen: bool = False) -> any {
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.frontend.codeinfo {
         set_effective_default_codespace,
         get_effective_default_codespace_override
     }
@@ -408,7 +408,7 @@ test "cascade: importer of a demoted module demotes with it" {
 test "closure cap exceeded skips native inference with a note" {
     import io;
     import sys;
-    import from jaclang.jac0core.codeinfo { set_native_closure_cap }
+    import from jaclang.compiler.frontend.codeinfo { set_native_closure_cap }
     set_native_closure_cap(1);
     buf = io.StringIO();
     old_stderr = sys.stderr;
@@ -441,7 +441,10 @@ test "transitive import chain infers native under native default" {
 }
 
 test "coverage records demotion with first error code" {
-    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage {
+        na_coverage_begin,
+        na_coverage_end
+    }
     na_coverage_begin();
     try {
         compile_with_default("nadefault_nolower.jac", "native", cgen=True);
@@ -457,7 +460,10 @@ test "coverage records demotion with first error code" {
 }
 
 test "coverage records native and server outcomes" {
-    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+    import from jaclang.compiler.driver.na_coverage {
+        na_coverage_begin,
+        na_coverage_end
+    }
     na_coverage_begin();
     try {
         compile_with_default("nadefault_pure.jac", "native", cgen=True);
@@ -556,8 +562,9 @@ test "client import pulls a pure markerless module cross-module" {
 }
 
 test "cross-module pulled elements dual-emit for the server side" {
-    import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
-    import from jaclang.jac0core.passes { JcirBytecodeGenPass, JcirGenPass }
+    import from jaclang.client.client_bundle { _ensure_js_generated }
+    import from jaclang.compiler.backends.py.jcir_bc_gen_pass { JcirBytecodeGenPass }
+    import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"), no_cgen=False);
     util = hub_module(prog, "infer_xmod_util.jac");
@@ -614,9 +621,9 @@ test "unpullable closure bridges as a wire type instead of pulling" {
 }
 
 test "codespace stamps invalidate stale module codegen" {
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
-    import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
+    import from jaclang.client.client_bundle { _ensure_js_generated }
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"),
@@ -639,10 +646,7 @@ test "codespace stamps invalidate stale module codegen" {
 }
 
 test "a client-pulled module that will not lower fails loudly (#8375)" {
-    import from jaclang.runtimelib.client_bundle {
-        ClientBundleError,
-        _ensure_js_generated
-    }
+    import from jaclang.client.client_bundle { ClientBundleError, _ensure_js_generated }
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURE_DIR, "infer_unlowerable_app.jac"), no_cgen=False);
     util = hub_module(prog, "infer_unlowerable_util.jac");
@@ -677,7 +681,7 @@ test "client call to endpoint with function-typed param warns W6005" {
 }
 
 test "aot native mandate still fails loudly" {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "nadefault_mandate.jac"),
@@ -693,7 +697,7 @@ the import server-side, the ES backend dropped it, and the page died with
 E5084 must name the symbol and the module at compile time. (Bare npm names
 like `react` resolve through the client npm world and never fire this.)"""
 test "client value use of a bare python import is E5084" {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_client.jac"),
@@ -713,7 +717,7 @@ test "client value use of a bare python import is E5084" {
 }
 
 test "annotation-only use of a bare python import stays silent" {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_annotation.jac"),
@@ -731,7 +735,7 @@ test "annotation-only use of a bare python import stays silent" {
 }
 
 test "server-side use of a bare python import stays silent" {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_server_use.jac"),
@@ -749,7 +753,7 @@ test "server-side use of a bare python import stays silent" {
 }
 
 test "unresolvable relative bare import stays silent" {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_relative_template.jac"),

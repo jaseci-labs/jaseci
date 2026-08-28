@@ -1,5 +1,5 @@
 import ctypes;
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 import from jaclang.compiler.tests.xbackend_equiv {
     run_with_both,
     run_py_fixture,

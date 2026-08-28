@@ -11,8 +11,8 @@ import from unittest.mock { MagicMock }
 
 import watchdog;
 
-import from jaclang.runtimelib.hmr { HotReloader, get_build_status }
-import from jaclang.runtimelib.watcher { ChangeType, FileChangeEvent, JacFileWatcher }
+import from jaclang.server.hmr { HotReloader, get_build_status }
+import from jaclang.server.watcher { ChangeType, FileChangeEvent, JacFileWatcher }
 
 def _as_any(v: any) -> any {
     return v;
@@ -427,7 +427,7 @@ test "recompile signals a full reload only when the export set changes" {
 }
 
 test "reloading a broken module reports its errors once per reload" {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.meta_importer { _module_scoped_alerts }
     with tempfile.TemporaryDirectory() as tmp {
         temp_dir = Path(tmp);
