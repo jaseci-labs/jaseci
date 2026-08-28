@@ -32,9 +32,9 @@ fi
 echo "=== preflight: KEDA core CRDs ==="
 if ! kubectl get crd scaledobjects.keda.sh >/dev/null 2>&1; then
     echo "FAIL: scaledobjects.keda.sh CRD not found on cluster." >&2
-    echo "Install KEDA core first, e.g.:" >&2
+    echo "Install KEDA core first, e.g. (version pinned to match CI):" >&2
     echo "  helm repo add kedacore https://kedacore.github.io/charts && helm repo update" >&2
-    echo "  helm install keda kedacore/keda -n keda --create-namespace --wait" >&2
+    echo "  helm install keda kedacore/keda -n keda --create-namespace --wait --version 2.20.2" >&2
     exit 1
 fi
 
