@@ -13,8 +13,8 @@ Typeshed writes exactly this shape -- `class MIMEBase(email.message.Message)`
 and `class TextTestResult(unittest.result.TestResult, ...)`.
 """
 
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 def check_src(src: str) -> list[str] {
     prog = JacProgram();

@@ -12,12 +12,12 @@ import tarfile;
 import tempfile;
 import zipfile;
 
-import jaclang.payload.fetch as fetch_mod;
+import jaclang.dist.payload.fetch as fetch_mod;
 import from compression.zstd { compress }
-import from jaclang.payload.cli { main }
-import from jaclang.payload.fetch { BUN_VERSION, BUN_BASE, TYPESHED_TARBALL_BASE }
-import from jaclang.payload.fsutil { PayloadDie, extract_tar }
-import from jaclang.payload.pins { pins }
+import from jaclang.dist.payload.cli { main }
+import from jaclang.dist.payload.fetch { BUN_VERSION, BUN_BASE, TYPESHED_TARBALL_BASE }
+import from jaclang.dist.payload.fsutil { PayloadDie, extract_tar }
+import from jaclang.dist.payload.pins { pins }
 
 # tarfile/zipfile constants are `Final` in typeshed, which the checker cannot
 # assign from; spell them as the values they are (pinned by the first test).

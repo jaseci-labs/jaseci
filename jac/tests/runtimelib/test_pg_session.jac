@@ -10,11 +10,11 @@ import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
-import from jaclang.jac0core.graph_query { GraphQuery, QHop }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.query_planner { resolve_query }
+import from jaclang.runtime.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
+import from jaclang.runtime.graph_query { GraphQuery, QHop }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.data.query_planner { resolve_query }
 
 def _as_any(v: any) -> any {
     return v;
@@ -79,7 +79,7 @@ test "rywr: committed edge, uncommitted detach invisible to traversal (#7937)" {
             for e in list(ranch.edges) {
                 ranch.edges.remove(e);
                 it.edges.remove(e);
-                ctx.mem.delete(e.id);
+                ctx.mem.delete(e.ensure_id());
             }
             assert len(_out_items(ctx, ranch)) == 0 , (
                 "#7937: uncommitted detach must be invisible to traversal"
@@ -108,13 +108,13 @@ test "rywr: uncommitted node destroy invisible to traversal" {
 
             for e in list(ranch.edges) {
                 ranch.edges.remove(e);
-                ctx.mem.delete(e.id);
+                ctx.mem.delete(e.ensure_id());
             }
-            ctx.mem.delete(it.id);
+            ctx.mem.delete(it.ensure_id());
             assert len(_out_items(ctx, ranch)) == 0 , (
                 "uncommitted destroy must be invisible to traversal"
             );
-            assert ctx.mem.get(it.id) is None , (
+            assert ctx.mem.get(it.ensure_id()) is None , (
                 "get-after-delete must not resurrect from the store"
             );
 
@@ -159,9 +159,9 @@ test "get-after-delete does not resurrect from the store" {
             it = _attach(ctx, ranch, "x");
             ctx.mem.commit();
 
-            ctx.mem.delete(it.id);
-            assert ctx.mem.get(it.id) is None;
-            assert ctx.mem.batch_get([it.id]) == {};
+            ctx.mem.delete(it.ensure_id());
+            assert ctx.mem.get(it.ensure_id()) is None;
+            assert ctx.mem.batch_get([it.ensure_id()]) == {};
         } finally {
             JacRuntime.exec_ctx = old;
             ctx.close();
@@ -180,7 +180,7 @@ test "persistence across sessions: same base path reopens the graph" {
             ranch = _root(ctx);
             _attach(ctx, ranch, "kept");
             ctx.mem.commit();
-            rid = ranch.id;
+            rid = ranch.ensure_id();
         } finally {
             JacRuntime.exec_ctx = old;
             ctx.close();
@@ -226,12 +226,11 @@ test "field mutation lands in the dirty set without a full-session sweep" {
 
 
 test "read barrier hashes only dirty anchors, not the whole session" {
-    import jaclang.runtimelib.session;
+    import jaclang.server.session as smod;
     with TemporaryDirectory() as td {
         old = JacRuntime.exec_ctx;
         ctx = _make_ctx(td);
         JacRuntime.exec_ctx = ctx;
-        smod = jaclang.runtimelib.session;
         orig = smod._persist_hash;
         calls: list = [];
         def counting_hash(anchor: Anchor) -> int {

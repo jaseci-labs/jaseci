@@ -88,16 +88,18 @@ obj BundleSourceFilter {
     has ignore_patterns: list[str];
 
     def parks(rel: Path) -> bool {
-        import from jaclang.jac0core.helpers { path_matches_exclude }
+        import from jaclang.compiler.frontend.helpers { path_matches_exclude }
 
         return path_matches_exclude(rel.as_posix(), self.ignore_patterns);
     }
 
+    def is_build_tree(rel: Path) -> bool {
+        return _exclude_dir_root(rel) is not None;
+    }
+
     def excludes_tree(rel: Path) -> bool {
-        for part in rel.parts {
-            if part in _EXCLUDE_DIRS {
-                return True;
-            }
+        if self.is_build_tree(rel) {
+            return True;
         }
         return self.parks(rel);
     }
@@ -120,7 +122,7 @@ obj BundleSourceFilter {
     }
 
     def matching_ignore_pattern(rel: Path) -> str {
-        import from jaclang.jac0core.helpers { path_matches_exclude }
+        import from jaclang.compiler.frontend.helpers { path_matches_exclude }
 
         for pattern in self.ignore_patterns {
             if path_matches_exclude(rel.as_posix(), [pattern]) {
@@ -133,7 +135,7 @@ obj BundleSourceFilter {
     def exclusion_reason(rel: Path) -> str {
         for part in rel.parts {
             if part in _EXCLUDE_DIRS {
-                return f"'{part}/' is a build or cache tree the bundle never ships";
+                return f"'{part}/' is a build or cache tree the deploy never ships";
             }
         }
         pattern = self.matching_ignore_pattern(rel);
@@ -142,13 +144,19 @@ obj BundleSourceFilter {
         }
         name = rel.name;
         if name == "jac.toml" {
-            return "jac.toml ships only as its sanitized copy";
+            return (
+                "the deploy ships a sanitized jac.toml with [scale.secrets] "
+                "and [dev] stripped"
+            );
         }
         if name == ".env" or name.startswith(".env.") {
-            return ".env files never ship";
+            return (
+                "'.env' files never ship; move deploy values to "
+                "[scale.secrets] or pod env"
+            );
         }
         if name in _EXCLUDE_FILES or name.endswith(_EXCLUDE_SUFFIXES) {
-            return "key material never ships";
+            return f"'{name}' is key material the deploy never ships";
         }
         return "excluded from the bundle";
     }
@@ -156,7 +164,7 @@ obj BundleSourceFilter {
 
 
 def source_filter_for(base: Path) -> BundleSourceFilter {
-    import from jaclang.jac0core.helpers { read_jacignore_patterns }
+    import from jaclang.compiler.frontend.helpers { read_jacignore_patterns }
 
     return BundleSourceFilter(ignore_patterns=read_jacignore_patterns(str(base)));
 }
@@ -683,7 +691,7 @@ def _remove_stage_roots {
 
 
 def seal_step_env -> dict[str, str] {
-    import from jaclang.runtimelib.session { SCRATCH_ENV }
+    import from jaclang.server.session { SCRATCH_ENV }
     env = release_binary_env();
     env[SCRATCH_ENV] = "1";
     return env;
@@ -737,6 +745,60 @@ def release_binary_env -> dict[str, str] {
 }
 
 
+def _child_tree_script(
+    jac_path: Path,
+    work_dir: Path,
+    timeout_s: int,
+    rel_candidates: tuple[str, ...],
+    fallback: Path
+) -> Path {
+    probe = work_dir / "_seal_probe.jac";
+    try {
+        probe.write_text('import jaclang;\nwith entry { print(jaclang.__file__); }\n');
+        result = subprocess.run(
+            [str(jac_path), "run", str(probe)],
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            env=seal_step_env(),
+            cwd=str(work_dir)
+        );
+    } except Exception {
+        return fallback;
+    } finally {
+        probe.unlink(missing_ok=True);
+    }
+    if result.returncode != 0 {
+        return fallback;
+    }
+    for line in reversed((result.stdout or "").splitlines()) {
+        candidate = line.strip();
+        if not candidate.endswith("__init__.py") {
+            continue;
+        }
+        pkg_dir = Path(candidate).parent;
+        for rel in rel_candidates {
+            script = pkg_dir / rel;
+            if script.is_file() {
+                return script;
+            }
+        }
+    }
+    return fallback;
+}
+
+
+def _sealer_script_for(jac_path: Path, stage_root: Path, timeout_s: int) -> Path {
+    return _child_tree_script(
+        jac_path,
+        stage_root,
+        timeout_s,
+        ("dist/precompile_bytecode.jac", "utils/precompile_bytecode.jac"),
+        Path(str(__file__)).parent.parent.parent / "dist" / "precompile_bytecode.jac"
+    );
+}
+
+
 def _precompile_app(
     base: Path, seal_binary: bytes, sanitized_toml: (str | None), timeout_s: int
 ) -> Path {
@@ -746,9 +808,8 @@ def _precompile_app(
         jac_path = stage_root / ".seal-jac";
         jac_path.write_bytes(seal_binary);
         jac_path.chmod(0o755);
-        script = Path(str(__file__)).parent.parent.parent
-            / "utils"
-            / "precompile_bytecode.jac";
+
+        script = _sealer_script_for(jac_path, stage_root, timeout_s);
 
         result = subprocess.run(
             [str(jac_path), "run", str(script), str(stage_root), "--seal"],
@@ -763,6 +824,13 @@ def _precompile_app(
             result.returncode != 0
             or not (stage / "_precompiled" / "MANIFEST.json").is_file()
         ) {
+            for stream_line in (
+                (result.stderr or "") + "\n" + (result.stdout or "")
+            ).splitlines() {
+                if stream_line.strip() {
+                    logger.error(f"seal stderr: {stream_line.rstrip()}");
+                }
+            }
             raise RuntimeError(
                 f"App seal did not complete, so the deploy cannot produce a "
                 f".jab: {(result.stderr or result.stdout).strip()[-2000:]}"
@@ -845,7 +913,13 @@ def _vendor_stage(stage: Path, seal_binary: bytes, platform_tag: str = "") {
     jac_path = stage.parent / ".seal-jac";
     jac_path.write_bytes(seal_binary);
     jac_path.chmod(0o755);
-    script = Path(str(__file__)).parent.parent / "utils" / "vendor_wheels.jac";
+    script = _child_tree_script(
+        jac_path,
+        stage.parent,
+        900,
+        ("scale/utils/vendor_wheels.jac", ),
+        Path(str(__file__)).parent.parent / "utils" / "vendor_wheels.jac"
+    );
     cmd = [str(jac_path), "run", str(script), str(stage)];
     if platform_tag {
         cmd.append(platform_tag);

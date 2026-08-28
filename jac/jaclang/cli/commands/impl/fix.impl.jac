@@ -1,6 +1,6 @@
 import os;
 import from jaclang.cli.console { console }
-import from jaclang.jac0core.parser.tokens { LexToken }
+import from jaclang.compiler.frontend.parser.tokens { LexToken }
 
 glob _ELEMENT_KEYWORDS: tuple = (
          'import',
@@ -146,7 +146,7 @@ def _collect_block_claims(
 
 
 def _strip_markers(src: str, file_path: str) -> StripResult {
-    import from jaclang.jac0core.parser.lexer { tokenize }
+    import from jaclang.compiler.frontend.parser.lexer { tokenize }
     res = StripResult(text=src);
     try {
         (tokens, err_count) = tokenize(src, file_path);
@@ -388,7 +388,7 @@ def _project_entry_stem(toml_path: str) -> str {
 
 
 def _parses_clean(src: str, file_path: str) -> bool {
-    import from jaclang.jac0core.parser { parse as rd_parse }
+    import from jaclang.compiler.frontend.parser { parse as rd_parse }
     try {
         (_mod, had_error) = rd_parse(src, file_path);
         return not had_error;
@@ -399,7 +399,7 @@ def _parses_clean(src: str, file_path: str) -> bool {
 
 
 def _format_source(src: str, file_path: str) -> (str | None) {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     try {
         prog = JacProgram.jac_str_formatter(
             source_str=src, file_path=file_path, auto_lint=False
@@ -421,10 +421,10 @@ def _verify_claims(
     pins: dict[str, str],
     unverified: list[str]
 ) {
-    import from jaclang.jac0core.placement { element_display_name }
-    import from jaclang.jac0core.placement_pins { _module_dot_path }
-    import from jaclang.jac0core.modresolver { find_jac_project_root }
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.placement.placement { element_display_name }
+    import from jaclang.compiler.placement.placement_pins { _module_dot_path }
+    import from jaclang.compiler.driver.modresolver { find_jac_project_root }
+    import from jaclang.compiler.driver.program { JacProgram }
     proj_root = find_jac_project_root(file_path);
     if not proj_root {
         unverified.append(f"{file_path} (no jac.toml found)");
@@ -563,7 +563,7 @@ impl fix(
         }
     }
 
-    import from jaclang.jac0core.modresolver { find_jac_project_root }
+    import from jaclang.compiler.driver.modresolver { find_jac_project_root }
     pins_by_root: dict[str, dict[str, str]] = {};
     unverified: list[str] = [];
     if strip_only {

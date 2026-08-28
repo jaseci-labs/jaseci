@@ -15,11 +15,11 @@ ACL-gated, and is applied in object space otherwise.
 
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.graph_query { GraphQuery, QHop, QOrder }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.query_planner { resolve_query }
-import from jaclang.runtimelib.sqlcompile { compile_query }
+import from jaclang.runtime.graph_query { GraphQuery, QHop, QOrder }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.data.query_planner { resolve_query }
+import from jaclang.data.sqlcompile { compile_query }
 
 node OBoard {
     has name: str = "";
