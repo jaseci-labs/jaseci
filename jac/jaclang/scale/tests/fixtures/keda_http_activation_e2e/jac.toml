@@ -10,8 +10,8 @@ base_route_app = "app"
 [dev]
 
 [scale.kubernetes]
+bundle_storage_class = "jac-http-e2e-rwx"
 namespace = "jac-http-e2e"
-database_mode = "none"
 
 [scale.kubernetes.http_activation]
 enabled = true

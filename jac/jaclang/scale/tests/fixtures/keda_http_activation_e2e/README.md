@@ -91,14 +91,14 @@ kubectl apply -f - <<YAML
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: jac-sdk-rwx
+  name: jac-http-e2e-rwx
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: Immediate
 ---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: jac-rwx-bundle-pv
+  name: jac-http-e2e-rwx-bundle-pv
   labels:
     managed: jac-scale-e2e
 spec:
@@ -106,16 +106,16 @@ spec:
     storage: 20Gi
   accessModes: ["ReadWriteMany"]
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: jac-sdk-rwx
+  storageClassName: jac-http-e2e-rwx
   hostPath:
-    path: /var/jac-rwx-bundle
+    path: /var/jac-http-e2e-rwx-bundle
     type: DirectoryOrCreate
 YAML
 ```
 
-Then add `bundle_storage_class = "jac-sdk-rwx"` under `[scale.kubernetes]`
-in `jac.toml`. Clusters with a working default `StorageClass` (microk8s,
-minikube, EKS, ...) need no such override.
+`jac.toml` already sets `bundle_storage_class = "jac-http-e2e-rwx"` under
+`[scale.kubernetes]` to match. Clusters with a working default
+`StorageClass` (microk8s, minikube, EKS, ...) need no such override.
 
 ## Run
 
