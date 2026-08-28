@@ -1,11 +1,11 @@
 """Pins the three ambient-builtin registries to each other.
 
 An ambient builtin is declared three times by design:
-`jaclang/runtimelib/builtin.jac` carries the runtime behaviour and its
-`__all__` is the public list; `jaclang/compiler/type_system/jac_builtins.pyi`
+`jaclang/runtime/builtin.jac` carries the runtime behaviour and its
+`__all__` is the public list; `jaclang/compiler/types/jac_builtins.pyi`
 carries the signatures the type checker merges into `builtins_module`; and
-`JCIR_BUILTIN_NAMES` in `jac0core/jcir_facts.jac` is what the emitter reads to
-decide which bare names become `from jaclang.runtimelib.builtin import <name>`
+`JCIR_BUILTIN_NAMES` in `compiler/backends/py/jcir_facts.jac` is what the emitter reads to
+decide which bare names become `from jaclang.runtime.builtin import <name>`
 in the emitted preamble.
 
 Nothing connected them, so they drifted, twice. The runtime-versus-checker
@@ -25,15 +25,13 @@ import ast;
 import os;
 import re;
 
-import from jaclang.jac0core.jcir_facts { JCIR_BUILTIN_NAMES }
+import from jaclang.compiler.backends.py.jcir_facts { JCIR_BUILTIN_NAMES }
 import from tests.support { JAC_ROOT }
 
 glob _PYI_PATH: str = os.path.join(
-         JAC_ROOT, "jaclang", "compiler", "type_system", "jac_builtins.pyi"
+         JAC_ROOT, "jaclang", "compiler", "types", "jac_builtins.pyi"
      ),
-     _BUILTIN_PATH: str = os.path.join(
-         JAC_ROOT, "jaclang", "runtimelib", "builtin.jac"
-     );
+     _BUILTIN_PATH: str = os.path.join(JAC_ROOT, "jaclang", "runtime", "builtin.jac");
 
 
 """Names exported by the checker-side stub, and names it actually declares."""
@@ -77,7 +75,7 @@ def _pyi_surface -> tuple[set[str], set[str]] {
 """Public names in the runtime module's `__all__` (underscore names are internal
 codegen helpers that the checker never resolves by name)."""
 def _runtime_public_names -> set[str] {
-    import jaclang.runtimelib.builtin as builtin_mod;
+    import jaclang.runtime.builtin as builtin_mod;
     return {
         name
         for name in builtin_mod.__all__
@@ -115,7 +113,7 @@ test "builtin.jac __all__ parses and matches the imported module" {
     block = re.search(r"glob __all__ = \[(.*?)\];", source, re.S);
     assert block is not None , "could not find `glob __all__` in builtin.jac";
     from_source = set(re.findall(r"'([^']+)'", block.group(1)));
-    import jaclang.runtimelib.builtin as builtin_mod;
+    import jaclang.runtime.builtin as builtin_mod;
     assert from_source == set(builtin_mod.__all__);
 }
 
@@ -140,7 +138,7 @@ test "the test builtins are ambient in all three registries" {
 
 `JCIR_BUILTIN_NAMES` is the third copy of this list, read by
 `JcirGenPass.exit_name` to decide which names become
-`from jaclang.runtimelib.builtin import <name>` in the emitted preamble. It is
+`from jaclang.runtime.builtin import <name>` in the emitted preamble. It is
 a literal rather than a read of `__all__` because the emitter is a sealed unit
 and cannot import the runtime module, which is exactly the condition under
 which two lists drift -- and they did: the four test builtins were in

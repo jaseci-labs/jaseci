@@ -2,6 +2,7 @@ import os;
 import tempfile;
 import unittest.mock;
 import from jaclang.project.capabilities { CAPABILITY_SPECS }
+import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.deploy.target.factory { DeploymentTargetFactory }
 import from jaclang.scale.deploy.target.kubernetes { ingress as ingress_mod }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
@@ -9,6 +10,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
 import from jaclang.scale.runtime.realizer.kubernetes_realizer { KubernetesRealizer }
+import from jaclang.scale.injector.binary_injector { BinaryInjector }
 import jaclang.scale.injector.binary as binary_mod;
 import jaclang.scale.injector.binary_injector as binary_injector_mod;
 import jaclang.scale.runtime.realizer.kubernetes_realizer as realizer_mod;
@@ -148,6 +150,9 @@ test "--dry-run reads no cluster state, downloads nothing, and builds nothing" {
     # flag that promises to touch nothing.
     with tempfile.TemporaryDirectory() as tmpdir {
         app = _write_app(tmpdir);
+        with open(os.path.join(tmpdir, "svc.jac"), "w") as f {
+            f.write("with entry {\n    print(\"svc\");\n}\n");
+        }
         cfg = _fake_scale_config(bundle_storage_class="standard");
         with unittest.mock.patch.object(
             realizer_mod, "get_scale_config", return_value=cfg
@@ -199,6 +204,50 @@ test "selecting an injector for a dry run neither downloads nor probes the clust
         assert binary_injector_mod.DRY_RUN_DIGEST in injector._object_key;
         assert binary_injector_mod.DRY_RUN_DIGEST in toolchain_key;
         assert injector.extra_manifests("app", "ns");
+    }
+}
+
+
+test "the deploy hands the config it resolves pods for to the injector" {
+    with tempfile.TemporaryDirectory() as tmpdir {
+        _write_app(tmpdir);
+        builder = ManifestBuilder(
+            k8s_config=KubernetesConfig.from_dict(
+                KubernetesConfig, {"app_name": "test-app", "namespace": "default"}
+            ),
+            project_dir=tmpdir,
+            microservices_config={"routes": {"svc": "/svc"}},
+            dry_run=True
+        );
+        injector = builder._prepare_injector(AppConfig(code_folder=tmpdir));
+        assert injector._ms_config == builder._ms_cfg();
+        assert injector._ms_config;
+    }
+}
+
+
+glob _PREP_SEEN: list[dict[str, any] | None] = [];
+
+
+def _spy_prepare(
+    inj: BinaryInjector, _app_name: str, _namespace: str, _project_dir: str
+) {
+    _PREP_SEEN.append(inj._ms_config);
+}
+
+
+test "the packing config is on the injector before prepare runs" {
+    with tempfile.TemporaryDirectory() as tmpdir {
+        cfg = {"routes": {"svc": "/svc"}};
+        with unittest.mock.patch.object(
+            binary_injector_mod.BinaryInjector, "prepare", new=_spy_prepare
+        ) {
+            (injector, _) = binary_injector_mod.select_injector(
+                "standard", "app", "ns", tmpdir, ms_config=cfg
+            );
+        }
+        assert _PREP_SEEN == [cfg] , _PREP_SEEN;
+        assert injector._ms_config == cfg;
     }
 }
 

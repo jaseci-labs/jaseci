@@ -39,9 +39,29 @@ jaclang_source = "jac"   # dir CONTAINING jaclang/, relative to this file
 test_jobs = "8"
 
 # `jac test` discovers the suite here (mirrors pytest's testpaths); relative to
-# this file, so a bare `jac test` works from any directory in the repo.
+# this file, so a bare `jac test` works from any directory in the repo. The
+# in-package suites are part of the standard plan on purpose: enumerating them
+# in workflow YAML let files rot out of coverage silently. Their optional deps
+# (litellm, kubernetes, ...) turn into per-file skips where absent; CI lanes
+# that install them set JAC_TEST_STRICT=1 so those skips fail there instead.
 [test]
-directory = "jac/tests"
+directories = [
+    "jac/tests",
+    "jac/jaclang/compiler/tests",
+    "jac/jaclang/byllm/tests",
+    "jac/jaclang/scale/tests",
+]
+# The scale suite relies on per-file process isolation (servers, sockets,
+# module-level config); each of these files gets a dedicated worker.
+isolate = ["jac/jaclang/scale/tests/*"]
+# These share one shelf_db_path SQLite file, so they additionally run one at
+# a time after the parallel phase.
+serial = [
+    "jac/jaclang/scale/tests/test_gcs_storage.jac",
+    "jac/jaclang/scale/tests/test_firebase_auth_sso.jac",
+    "jac/jaclang/scale/tests/test_identity_password.jac",
+    "jac/jaclang/scale/tests/test_firebase_env.jac",
+]
 
 [check.lint]
 # "all" enables every autolint rule; the two strip-* entries are the opt-in

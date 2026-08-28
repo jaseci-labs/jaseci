@@ -25,8 +25,9 @@ nineteen files exist, CI runs them, and what they run is the container.
 
 import os;
 import from tests.support { JAC_ROOT }
-import from jaclang.jac0core.compiler { get_py_code_gen }
-import from jaclang.jac0core.passes { JcirBytecodeGenPass, JcirGenPass }
+import from jaclang.compiler.driver.schedules { get_py_code_gen }
+import from jaclang.compiler.backends.py.jcir_bc_gen_pass { JcirBytecodeGenPass }
+import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
 
 glob CANARY_SUITES: tuple = (
          "tests/compiler/test_compilation.jac",

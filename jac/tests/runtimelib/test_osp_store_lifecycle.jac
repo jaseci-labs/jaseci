@@ -9,14 +9,14 @@ retracting one context's region leaves another context's live topology and
 anchor identity untouched.
 """
 
-import jaclang.jac0core.osp_graph as _g;
-import jaclang.jac0core.osp_graph_sv as _sv;
+import jaclang.runtime.osp_graph as _g;
+import jaclang.runtime.osp_graph_sv as _sv;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.archetype { EdgeAnchor }
-import from jaclang.jac0core.osp_graph_sv { handle_of, sv_conn, sv_live_edges }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.archetype { EdgeAnchor }
+import from jaclang.runtime.osp_graph_sv { handle_of, sv_conn, sv_live_edges }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
 
 def _as_any(v: any) -> any {
     return v;
