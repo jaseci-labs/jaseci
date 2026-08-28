@@ -168,6 +168,7 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
     }
 
     import from jaclang.runtime.runtime { JacRuntime, _request_context }
+    ctx = None;
     try {
         ctx = _request_context.get() or JacRuntime.exec_ctx;
         if ctx is None {
@@ -182,9 +183,9 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
     } except Exception {
         ;
     }
-    if ok {
+    if ok and (ctx is not None) {
         try {
-            JacRuntimeInterface.get_context().mem.commit();
+            ctx.mem.commit();
         } except Exception {
             ;
         }
@@ -232,9 +233,9 @@ async def _run_untyped_async(slots: list[Slot], a: any, b: any) -> None {
 async def _visit_recursive_async(
     rt: OspRuntime, scope: WalkScope, wdesc: WalkerDesc, loc: any
 ) -> bool {
-    stack: list = [(loc, 0)];
+    stack: list = [(loc, 0, 0)];
     while stack {
-        (cur, phase) = stack.pop();
+        (cur, phase, budget) = stack.pop();
         if scope.disengaged {
             return False;
         }
@@ -242,6 +243,7 @@ async def _visit_recursive_async(
             scope.path.append(cur);
             loc_tag: int = rt.tag_of(cur);
             ndesc = rt.node_desc(loc_tag);
+            scope.pending_fence = 0;
             await _run_typed_async(rt, wdesc.`entry, scope.wlk, cur);
             if scope.disengaged {
                 return False;
@@ -254,25 +256,40 @@ async def _visit_recursive_async(
             if scope.disengaged {
                 return False;
             }
-            stack.append((cur, 1));
+            stack.append((cur, 1, scope.pending_fence));
         } elif phase == 1 {
             child = None;
-            while scope.next {
-                candidate = scope.next.pop(0);
-                if candidate not in scope.ignores {
-                    child = candidate;
-                    break;
+            if scope.fenced {
+                while (budget > 0) and (child is None) {
+                    if scope.next {
+                        candidate = scope.next.pop(0);
+                        budget -= 1;
+                        if candidate not in scope.ignores {
+                            child = candidate;
+                        }
+                    } else {
+                        budget = 0;
+                    }
+                }
+            } else {
+                while scope.next {
+                    candidate = scope.next.pop(0);
+                    if candidate not in scope.ignores {
+                        child = candidate;
+                        break;
+                    }
                 }
             }
             if child is not None {
-                stack.append((cur, 1));
-                stack.append((child, 0));
+                stack.append((cur, 1, budget));
+                stack.append((child, 0, 0));
             } else {
-                stack.append((cur, 2));
+                stack.append((cur, 2, 0));
             }
         } else {
             loc_tag: int = rt.tag_of(cur);
             ndesc = rt.node_desc(loc_tag);
+            scope.pending_fence = 0;
             await _run_typed_async(rt, ndesc.`exit, cur, scope.wlk);
             if scope.disengaged {
                 return False;
@@ -284,6 +301,10 @@ async def _visit_recursive_async(
             await _run_typed_async(rt, wdesc.`exit, scope.wlk, cur);
             if scope.disengaged {
                 return False;
+            }
+            if scope.fenced and (scope.pending_fence > 0) and stack {
+                (ploc, pph, pbud) = stack[-1];
+                stack[-1] = (ploc, pph, pbud + scope.pending_fence);
             }
         }
     }

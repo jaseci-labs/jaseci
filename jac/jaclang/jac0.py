@@ -574,6 +574,7 @@ class SwitchStmt:
 @dataclass
 class VisitStmt:
     expr: str = ""
+    insert_loc: str | None = None
 
 
 @dataclass
@@ -1498,9 +1499,14 @@ class Parser:
                 return self._parse_delete()
             if v == "visit":
                 self._advance()
+                insert_loc = None
+                if self._at(TT.COLON):
+                    self._advance()
+                    insert_loc = self._collect_until(TT.COLON)
+                    self._match(TT.COLON)
                 expr = self._collect_until(TT.SEMI)
                 self._match(TT.SEMI)
-                return VisitStmt(expr=expr)
+                return VisitStmt(expr=expr, insert_loc=insert_loc)
             if v == "disengage":
                 self._advance()
                 self._match(TT.SEMI)
@@ -2315,7 +2321,10 @@ class CodeGen:
             self._line(f"_jac_osp.destroy0({node.expr})")
             self._line(f"del {node.expr}")
         elif isinstance(node, VisitStmt):
-            self._line(f"_jac_osp.visit0(self, {node.expr})")
+            if node.insert_loc is not None:
+                self._line(f"_jac_osp.visit0(self, {node.expr}, {node.insert_loc})")
+            else:
+                self._line(f"_jac_osp.visit0(self, {node.expr})")
         elif isinstance(node, DisengageStmt):
             self._line("_jac_osp.disengage0(self)")
             self._line("return")

@@ -59,12 +59,8 @@ impl UniPass.enter_walk with UniNode entry {
     self.enter_node(here);
     if self.prune_signal {
         self.prune_signal = False;
-    } else {
-        for k in here.kid {
-            if k and not k.ct_pruned and not self.is_canceled() {
-                k spawn self;
-            }
-        }
+    } elif not self.is_canceled() {
+        visit:0: [k for k in here.kid if k and not k.ct_pruned];
     }
 }
 

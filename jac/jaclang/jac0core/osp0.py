@@ -160,8 +160,8 @@ def spawn0(op1: Any, op2: Any) -> Any:
     return _rt().spawn(op1, op2)
 
 
-def visit0(walker: Any, expr: Any) -> bool:
-    return _rt().visit(walker, expr)
+def visit0(walker: Any, expr: Any, insert_loc: int = -1) -> bool:
+    return _rt().visit(walker, expr, insert_loc)
 
 
 def disengage0(walker: Any) -> bool:

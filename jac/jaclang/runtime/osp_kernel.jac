@@ -25,7 +25,9 @@ obj WalkScope {
         reports: list[any],
         disengaged: bool = False,
         next_head: int = 0,
-        nested: bool = False;
+        nested: bool = False,
+        fenced: bool = False,
+        pending_fence: int = 0;
 }
 
 obj OspRuntime {
@@ -79,6 +81,10 @@ def osp_visit(targets: list[int], insert_loc: int = -1) -> bool {
         pos = pos + len(scope.next) + 1;
     }
     scope.next = scope.next[:pos] + filtered + scope.next[pos:];
+    if insert_loc == 0 {
+        scope.fenced = True;
+        scope.pending_fence += len(filtered);
+    }
     return True;
 }
 
@@ -141,9 +147,11 @@ def _visit_recursive(
 ) -> bool {
     stack_loc: list[int] = [loc];
     stack_ph: list[int] = [0];
+    stack_bud: list[int] = [0];
     while stack_loc {
         cur = stack_loc.pop();
         phase = stack_ph.pop();
+        budget = stack_bud.pop();
         if scope.disengaged {
             return False;
         }
@@ -151,6 +159,7 @@ def _visit_recursive(
             scope.path.append(cur);
             loc_tag: int = rt.tag_of(cur);
             ndesc = rt.node_desc(loc_tag);
+            scope.pending_fence = 0;
             run_typed(rt, wdesc.`entry, scope.wlk, cur);
             if scope.disengaged {
                 return False;
@@ -166,21 +175,42 @@ def _visit_recursive(
 
             stack_loc.append(cur);
             stack_ph.append(1);
+            stack_bud.append(scope.pending_fence);
         } elif phase == 1 {
-            child = _dequeue(scope);
+            child: (int | None) = None;
+            if scope.fenced {
+                while (budget > 0) and (child is None) {
+                    if scope.next_head < len(scope.next) {
+                        candidate = scope.next[scope.next_head];
+                        scope.next_head += 1;
+                        budget -= 1;
+                        if (not scope.ignores) or (candidate not in scope.ignores) {
+                            child = candidate;
+                        }
+                    } else {
+                        budget = 0;
+                    }
+                }
+            } else {
+                child = _dequeue(scope);
+            }
             if child is not None {
                 stack_loc.append(cur);
                 stack_ph.append(1);
+                stack_bud.append(budget);
 
                 stack_loc.append(child);
                 stack_ph.append(0);
+                stack_bud.append(0);
             } else {
                 stack_loc.append(cur);
                 stack_ph.append(2);
+                stack_bud.append(0);
             }
         } else {
             loc_tag: int = rt.tag_of(cur);
             ndesc = rt.node_desc(loc_tag);
+            scope.pending_fence = 0;
             run_typed(rt, ndesc.`exit, cur, scope.wlk);
             if scope.disengaged {
                 return False;
@@ -192,6 +222,9 @@ def _visit_recursive(
             run_typed(rt, wdesc.`exit, scope.wlk, cur);
             if scope.disengaged {
                 return False;
+            }
+            if scope.fenced and (scope.pending_fence > 0) and stack_bud {
+                stack_bud[-1] += scope.pending_fence;
             }
         }
     }
