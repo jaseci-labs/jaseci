@@ -1,625 +1,417 @@
-import from typing { ClassVar }
-
 edge Role {
-    with entry {
-        NAME: ClassVar[str] = "";
-    }
+    static has NAME: str = "";
 
     has in_kid: bool = True;
 }
 
 edge KidRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "kid";
-    }
+    static has NAME: str = "kid";
 }
 
 edge ImplOf {}
 
 edge AccessRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "access";
-    }
+    static has NAME: str = "access";
 }
 
 edge AccessorsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "accessors";
-    }
+    static has NAME: str = "accessors";
 }
 
 edge AliasRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "alias";
-    }
+    static has NAME: str = "alias";
 }
 
 edge ArchTagInfoRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "arch_tag_info";
-    }
+    static has NAME: str = "arch_tag_info";
 }
 
 edge ArchTypeRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "arch_type";
-    }
+    static has NAME: str = "arch_type";
 }
 
 edge ArgPatternsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "arg_patterns";
-    }
+    static has NAME: str = "arg_patterns";
 }
 
 edge AssignmentsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "assignments";
-    }
+    static has NAME: str = "assignments";
 }
 
 edge AssignsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "assigns";
-    }
+    static has NAME: str = "assigns";
 }
 
 edge AttributesRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "attributes";
-    }
+    static has NAME: str = "attributes";
 }
 
 edge AugOpRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "aug_op";
-    }
+    static has NAME: str = "aug_op";
 }
 
 edge AwaitingBodyRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "awaiting_body";
-    }
+    static has NAME: str = "awaiting_body";
 }
 
 edge BaseClassesRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "base_classes";
-    }
+    static has NAME: str = "base_classes";
 }
 
 edge BodyRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "body";
-    }
+    static has NAME: str = "body";
 }
 
 edge BoundRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "bound";
-    }
+    static has NAME: str = "bound";
 }
 
 edge CasesRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "cases";
-    }
+    static has NAME: str = "cases";
 }
 
 edge CastTypeRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "cast_type";
-    }
+    static has NAME: str = "cast_type";
 }
 
 edge CauseRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "cause";
-    }
+    static has NAME: str = "cause";
 }
 
 edge ChainRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "chain";
-    }
+    static has NAME: str = "chain";
 }
 
 edge ChildrenRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "children";
-    }
+    static has NAME: str = "children";
 }
 
 edge ClibDeclsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "clib_decls";
-    }
+    static has NAME: str = "clib_decls";
 }
 
 edge CodeRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "code";
-    }
+    static has NAME: str = "code";
 }
 
 edge CollectionRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "collection";
-    }
+    static has NAME: str = "collection";
 }
 
 edge ComparesRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "compares";
-    }
+    static has NAME: str = "compares";
 }
 
 edge ComprRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "compr";
-    }
+    static has NAME: str = "compr";
 }
 
 edge ConditionRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "condition";
-    }
+    static has NAME: str = "condition";
 }
 
 edge ConditionalRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "conditional";
-    }
+    static has NAME: str = "conditional";
 }
 
 edge ConnAssignRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "conn_assign";
-    }
+    static has NAME: str = "conn_assign";
 }
 
 edge ConnTypeRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "conn_type";
-    }
+    static has NAME: str = "conn_type";
 }
 
 edge CountByRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "count_by";
-    }
+    static has NAME: str = "count_by";
 }
 
 edge CtrlRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "ctrl";
-    }
+    static has NAME: str = "ctrl";
 }
 
 edge DecoratorsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "decorators";
-    }
+    static has NAME: str = "decorators";
 }
 
 edge DefaultValRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "default_val";
-    }
+    static has NAME: str = "default_val";
 }
 
 edge DescriptionRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "description";
-    }
+    static has NAME: str = "description";
 }
 
 edge DocRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "doc";
-    }
+    static has NAME: str = "doc";
 }
 
 edge DynamicTagRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "dynamic_tag";
-    }
+    static has NAME: str = "dynamic_tag";
 }
 
 edge EdgeSpecRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "edge_spec";
-    }
+    static has NAME: str = "edge_spec";
 }
 
 edge ElseBodyRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "else_body";
-    }
+    static has NAME: str = "else_body";
 }
 
 edge ElseValueRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "else_value";
-    }
+    static has NAME: str = "else_value";
 }
 
 edge EndRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "end";
-    }
+    static has NAME: str = "end";
 }
 
 edge ErrorMsgRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "error_msg";
-    }
+    static has NAME: str = "error_msg";
 }
 
 edge EventRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "event";
-    }
+    static has NAME: str = "event";
 }
 
 edge ExTypeRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "ex_type";
-    }
+    static has NAME: str = "ex_type";
 }
 
 edge ExceptsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "excepts";
-    }
+    static has NAME: str = "excepts";
 }
 
 edge ExprRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "expr";
-    }
+    static has NAME: str = "expr";
 }
 
 edge ExprsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "exprs";
-    }
+    static has NAME: str = "exprs";
 }
 
 edge FTypeRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "f_type";
-    }
+    static has NAME: str = "f_type";
 }
 
 edge FilterCondRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "filter_cond";
-    }
+    static has NAME: str = "filter_cond";
 }
 
 edge FinallyBodyRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "finally_body";
-    }
+    static has NAME: str = "finally_body";
 }
 
 edge FormatPartRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "format_part";
-    }
+    static has NAME: str = "format_part";
 }
 
 edge FormatSpecRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "format_spec";
-    }
+    static has NAME: str = "format_spec";
 }
 
 edge FromLocRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "from_loc";
-    }
+    static has NAME: str = "from_loc";
 }
 
 edge FromTargetRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "from_target";
-    }
+    static has NAME: str = "from_target";
 }
 
 edge GuardRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "guard";
-    }
+    static has NAME: str = "guard";
 }
 
 edge HintRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "hint";
-    }
+    static has NAME: str = "hint";
 }
 
 edge InsertLocRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "insert_loc";
-    }
+    static has NAME: str = "insert_loc";
 }
 
 edge ItemsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "items";
-    }
+    static has NAME: str = "items";
 }
 
 edge IterRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "iter";
-    }
+    static has NAME: str = "iter";
 }
 
 edge KeyRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "key";
-    }
+    static has NAME: str = "key";
 }
 
 edge KeywordsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "keywords";
-    }
+    static has NAME: str = "keywords";
 }
 
 edge KvPairRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "kv_pair";
-    }
+    static has NAME: str = "kv_pair";
 }
 
 edge KvPairsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "kv_pairs";
-    }
+    static has NAME: str = "kv_pairs";
 }
 
 edge KwPatternsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "kw_patterns";
-    }
+    static has NAME: str = "kw_patterns";
 }
 
 edge KwargsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "kwargs";
-    }
+    static has NAME: str = "kwargs";
 }
 
 edge KwonlyargsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "kwonlyargs";
-    }
+    static has NAME: str = "kwonlyargs";
 }
 
 edge LeftRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "left";
-    }
+    static has NAME: str = "left";
 }
 
 edge MainRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "main";
-    }
+    static has NAME: str = "main";
 }
 
 edge NameRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "name";
-    }
+    static has NAME: str = "name";
 }
 
 edge NameRefRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "name_ref";
-    }
+    static has NAME: str = "name_ref";
 }
 
 edge OpRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "op";
-    }
+    static has NAME: str = "op";
 }
 
 edge OperandRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "operand";
-    }
+    static has NAME: str = "operand";
 }
 
 edge OpsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "ops";
-    }
+    static has NAME: str = "ops";
 }
 
 edge OutExprRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "out_expr";
-    }
+    static has NAME: str = "out_expr";
 }
 
 edge ParamsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "params";
-    }
+    static has NAME: str = "params";
 }
 
 edge PartsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "parts";
-    }
+    static has NAME: str = "parts";
 }
 
 edge PathRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "path";
-    }
+    static has NAME: str = "path";
 }
 
 edge PatternRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "pattern";
-    }
+    static has NAME: str = "pattern";
 }
 
 edge PatternsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "patterns";
-    }
+    static has NAME: str = "patterns";
 }
 
 edge PosonlyParamsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "posonly_params";
-    }
+    static has NAME: str = "posonly_params";
 }
 
 edge ReturnTypeRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "return_type";
-    }
+    static has NAME: str = "return_type";
 }
 
 edge RightRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "right";
-    }
+    static has NAME: str = "right";
 }
 
 edge RightsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "rights";
-    }
+    static has NAME: str = "rights";
 }
 
 edge SignatureRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "signature";
-    }
+    static has NAME: str = "signature";
 }
 
 edge SlicesRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "slices";
-    }
+    static has NAME: str = "slices";
 }
 
 edge SpecRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "spec";
-    }
+    static has NAME: str = "spec";
 }
 
 edge SrcEndpointRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "src_endpoint";
-    }
+    static has NAME: str = "src_endpoint";
 }
 
 edge StartRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "start";
-    }
+    static has NAME: str = "start";
 }
 
 edge StepRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "step";
-    }
+    static has NAME: str = "step";
 }
 
 edge StopRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "stop";
-    }
+    static has NAME: str = "stop";
 }
 
 edge StringsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "strings";
-    }
+    static has NAME: str = "strings";
 }
 
 edge TargetRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "target";
-    }
+    static has NAME: str = "target";
 }
 
 edge TgtEndpointRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "tgt_endpoint";
-    }
+    static has NAME: str = "tgt_endpoint";
 }
 
 edge TokRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "tok";
-    }
+    static has NAME: str = "tok";
 }
 
 edge TypeCtxRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "type_ctx";
-    }
+    static has NAME: str = "type_ctx";
 }
 
 edge TypeParamsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "type_params";
-    }
+    static has NAME: str = "type_params";
 }
 
 edge TypeTagRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "type_tag";
-    }
+    static has NAME: str = "type_tag";
 }
 
 edge UnpackRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "unpack";
-    }
+    static has NAME: str = "unpack";
 }
 
 edge ValueRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "value";
-    }
+    static has NAME: str = "value";
 }
 
 edge ValueTypeRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "value_type";
-    }
+    static has NAME: str = "value_type";
 }
 
 edge ValuesRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "values";
-    }
+    static has NAME: str = "values";
 }
 
 edge VarargsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "varargs";
-    }
+    static has NAME: str = "varargs";
 }
 
 edge VarsRole(Role) {
-    with entry {
-        NAME: ClassVar[str] = "vars";
-    }
+    static has NAME: str = "vars";
 }
 
 glob ROLE_SLOTS: tuple[tuple[str, str, str], ...] = (

@@ -477,6 +477,7 @@ class HasVar:
 @dataclass
 class HasDecl:
     vars: list = field(default_factory=list)
+    is_static: bool = False
 
 
 @dataclass
@@ -1453,7 +1454,7 @@ class Parser:
             if v == "static":
                 if self._peek(1).type == TT.NAME and self._peek(1).value == "has":
                     self._advance()  # consume "static"
-                    return self._parse_has()
+                    return self._parse_has(is_static=True)
                 return self._parse_funcdef([])
             if v == "async":
                 nxt = self._peek(1)
@@ -1689,7 +1690,7 @@ class Parser:
                 if v == "static":
                     if self._peek(1).type == TT.NAME and self._peek(1).value == "has":
                         self._advance()  # consume "static"
-                        body.append(self._parse_has())
+                        body.append(self._parse_has(is_static=True))
                     else:
                         body.append(self._parse_funcdef([]))
                     continue
@@ -1833,7 +1834,7 @@ class Parser:
 
     # ── Has Declarations ──────────────────────────────────────────────────
 
-    def _parse_has(self) -> HasDecl:
+    def _parse_has(self, is_static: bool = False) -> HasDecl:
         self._expect(TT.NAME, "has")
         # Optional access modifier :pub, :priv, :prot
         if (
@@ -1883,7 +1884,7 @@ class Parser:
             ):
                 self._advance()
                 self._advance()
-        return HasDecl(vars=vars_list)
+        return HasDecl(vars=vars_list, is_static=is_static)
 
     def _parse_accessors(self) -> list[Accessor]:
         """Parse a `{ getter; setter(v: T); deleter; }` property accessor block."""
@@ -2257,6 +2258,8 @@ class CodeGen:
             self._emit(node)
         if any("_jac_osp." in ln for ln in self.lines[header_len:]):
             self.lines.insert(1, "import jaclang.jac0core.osp0 as _jac_osp")
+        if any("ClassVar[" in ln for ln in self.lines[header_len:]):
+            self.lines.insert(1, "from typing import ClassVar")
         return "\n".join(self.lines) + "\n"
 
     def _scan_needs(self, body: list) -> None:
@@ -2619,6 +2622,13 @@ class CodeGen:
         self._line()
 
     def _emit_has(self, node: HasDecl) -> None:
+        if node.is_static:
+            for var in node.vars:
+                if var.default:
+                    self._line(f"{var.name}: ClassVar[{var.type_ann}] = {var.default}")
+                else:
+                    self._line(f"{var.name}: ClassVar[{var.type_ann}]")
+            return
         for var in node.vars:
             if var.accessors:
                 # Native property: not a dataclass field. Inline-bodied accessors
