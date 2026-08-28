@@ -25,6 +25,24 @@ impl PermissionDenied.message -> str {
     );
 }
 
+impl Anchor.ensure_id -> UUID {
+    aid = self.id;
+    if aid is None {
+        aid = uuid4();
+        self.id = aid;
+    }
+    return aid;
+}
+
+impl Anchor.own_access -> Permission {
+    perm = self.access;
+    if perm is None {
+        perm = Permission();
+        self.access = perm;
+    }
+    return perm;
+}
+
 impl Anchor.is_populated -> bool {
     return ('archetype' in self.__dict__);
 }
@@ -32,16 +50,20 @@ impl Anchor.is_populated -> bool {
 impl Anchor.make_stub -> TANCH {
     if self.is_populated() {
         unloaded = object.__new__(self.__class__);
-        unloaded.id = self.id;
+        unloaded.id = self.ensure_id();
         return unloaded;
     }
     return self;
 }
 
 impl Anchor.populate -> None {
+    aid = self.id;
+    if aid is None {
+        return;
+    }
     import from jaclang { JacRuntimeInterface as Jac }
     ctx = Jac.get_context();
-    anchor = ctx.mem.get(self.id);
+    anchor = ctx.mem.get(aid);
     if anchor {
         self.__dict__.update(anchor.__dict__);
     }
@@ -68,14 +90,14 @@ impl Anchor.__getstate__ -> dict[(str, any)] {
         unlinked.__dict__.update(self.archetype.__dict__);
         unlinked.__dict__.pop('__jac__', None);
         return {
-            'id': self.id,
+            'id': self.ensure_id(),
             'archetype': unlinked,
             'root': self.root,
             'access': self.access,
             'persistent': self.persistent
         };
     } else {
-        return {'id': self.id};
+        return {'id': self.ensure_id()};
     }
 }
 
@@ -88,7 +110,7 @@ impl Anchor.__setstate__(state: dict[(str, any)]) -> None {
 
     if isinstance(self, NodeAnchor) {
         self.__dict__['_initial_edge_ids'] = frozenset(
-            e.id for e in self.__dict__.get('edges', [])
+            e.ensure_id() for e in self.__dict__.get('edges', [])
         );
     }
 }
@@ -110,7 +132,7 @@ impl Anchor.__repr__ -> str {
 
 impl Anchor.`report -> AnchorReport {
     return AnchorReport(
-        id=self.id.hex,
+        id=self.ensure_id().hex,
         context=asdict(self.archetype)
             if (is_dataclass(self.archetype) and not isinstance(self.archetype, `type))
             else {}
@@ -118,12 +140,17 @@ impl Anchor.`report -> AnchorReport {
 }
 
 impl Anchor.__hash__ -> int {
-    return hash(self.id);
+    aid = self.id;
+    return hash(aid) if aid is not None else id(self);
 }
 
 impl Anchor.__eq__(other: object) -> bool {
-    if isinstance(other, Anchor) {
-        return ((self.__class__ is other.__class__) and (self.id == other.id));
+    if self is other {
+        return True;
+    }
+    if isinstance(other, Anchor) and (self.__class__ is other.__class__) {
+        aid = self.id;
+        return aid is not None and aid == other.id;
     }
     return False;
 }
@@ -152,7 +179,7 @@ impl NodeAnchor.edge_delta -> (tuple[(set[UUID], set[UUID])] | None) {
         return None;
     }
     initial: set[UUID] = set(initial_fs);
-    current: set[UUID] = set(e.id for e in self.edges);
+    current: set[UUID] = set(e.ensure_id() for e in self.edges);
     return (current - initial, initial - current);
 }
 
@@ -172,7 +199,7 @@ impl EdgeAnchor.__getstate__ -> dict[(str, object)] {
 
 impl NodeAnchor.remove_edge(`edge: EdgeAnchor) -> None {
     for (idx, ed) in enumerate(self.edges) {
-        if (ed.id == `edge.id) {
+        if same_anchor(ed, `edge) {
             self.edges.pop(idx);
             break;
         }
@@ -187,8 +214,9 @@ impl EdgeAnchor.detach -> None {
 
     import from jaclang.runtime.runtime { JacRuntime }
     ctx = JacRuntime.exec_ctx;
-    if ctx is not None {
-        ctx.mem.delete(self.id);
+    aid = self.id;
+    if ctx is not None and aid is not None {
+        ctx.mem.delete(aid);
     }
 }
 
@@ -291,7 +319,10 @@ impl GenericEdge.__repr__ -> str {
 
 @cached_property
 impl Root.__jac__ -> NodeAnchor {
-    return NodeAnchor(archetype=self, persistent=True, edges=[]);
+    anchor = NodeAnchor(archetype=self, edges=[]);
+    anchor.persistent = True;
+    anchor.ensure_id();
+    return anchor;
 }
 
 impl Root.__getattr__(name: str) -> Root {

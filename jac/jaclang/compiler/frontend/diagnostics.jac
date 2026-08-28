@@ -213,6 +213,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "Unexpected '{token}' -- must follow its parent statement (if/try/match/switch)"
      ),
+     E0033 = _err(
+         "E0033",
+         Category.SEMANTIC,
+         "{what} is not known at compile time{reason}",
+         help="A comptime site needs a value the compiler can compute: a literal, a comptime binding, a comptime parameter, an enum member, a type, or a call to an evaluable function whose arguments are all comptime-known. Plain 'glob' bindings and runtime values do not qualify.",
+         blocks_codegen=True
+     ),
      E0034 = _err(
          "E0034",
          Category.SYNTAX,
@@ -340,6 +347,19 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E0106 = _err("E0106", Category.SYNTAX, "Unexpected character in JSX tag: '{ch}'"),
      E0107 = _err(
          "E0107", Category.SYNTAX, "Lexer stuck at EOF in mode {mode} (pos={pos})"
+     ),
+     E0108 = _err(
+         "E0108",
+         Category.SEMANTIC,
+         "Compile-time evaluation failed: {reason}",
+         help="Comptime code runs inside the compiler on a pure subset of Jac: no I/O, no foreign calls, no walkers, no module-level side effects, and a bounded amount of work ([build] comptime_fuel in jac.toml raises the budget).",
+         blocks_codegen=True
+     ),
+     E0109 = _err(
+         "E0109",
+         Category.SEMANTIC,
+         "Compile-time assertion failed{message}",
+         blocks_codegen=True
      ),
      E0110 = _err(
          "E0110",

@@ -90,6 +90,7 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     def handle_metrics -> Response;
     async def handle_openapi -> Response;
     def handle_docs -> Response;
+    def has_client_bundle -> bool;
     def build_forward_headers(request: Request) -> dict[str, str];
     def serve_static(file_path: str) -> Response | None;
     def serve_extra_static(local_dir: str, file_path: str) -> Response | None;

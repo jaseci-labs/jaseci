@@ -3,9 +3,11 @@ impl JacAccessValidation._resolve_anchor(
 ) -> tuple[Anchor, ExecutionContext] {
     anchor = archetype.__jac__;
     jctx = JacRuntimeInterface.get_context();
-    mem_anchor = jctx.mem.get(anchor.id);
-    if (mem_anchor and (mem_anchor is not anchor)) {
-        anchor = mem_anchor;
+    if anchor.id is not None {
+        mem_anchor = jctx.mem.get(anchor.id);
+        if (mem_anchor and (mem_anchor is not anchor)) {
+            anchor = mem_anchor;
+        }
     }
     return (anchor, jctx);
 }
@@ -60,7 +62,7 @@ impl JacAccessValidation.allow_root(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
-    access = anchor.access.roots;
+    access = anchor.own_access().roots;
     _root_id = str(root_id);
     if (level != access.anchors.get(_root_id, AccessLevel.NO_ACCESS)) {
         access.anchors[_root_id] = level;
@@ -76,7 +78,7 @@ impl JacAccessValidation.allow_group(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
-    access = anchor.access.groups;
+    access = anchor.own_access().groups;
     _group_id = str(group_id);
     if (level != access.anchors.get(_group_id, AccessLevel.NO_ACCESS)) {
         access.anchors[_group_id] = level;
@@ -86,7 +88,7 @@ impl JacAccessValidation.allow_group(
 
 impl JacAccessValidation.disallow_group(archetype: Archetype, group_id: UUID) -> None {
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
-    anchor.access.groups.anchors.pop(str(group_id), None);
+    anchor.own_access().groups.anchors.pop(str(group_id), None);
     jctx.mem.put(anchor);
 }
 
@@ -98,7 +100,7 @@ impl JacAccessValidation.disallow_root(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
-    access = anchor.access.roots;
+    access = anchor.own_access().roots;
     access.anchors.pop(str(root_id), None);
     jctx.mem.put(anchor);
 }
@@ -111,16 +113,16 @@ impl JacAccessValidation.perm_grant(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
-    if (level != anchor.access.all) {
-        anchor.access.all = level;
+    if (level != _all_grant(anchor)) {
+        anchor.own_access().all = level;
         jctx.mem.put(anchor);
     }
 }
 
 impl JacAccessValidation.perm_revoke(archetype: Archetype) -> None {
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
-    if (anchor.access.all.value > AccessLevel.NO_ACCESS.value) {
-        anchor.access.all = AccessLevel.NO_ACCESS;
+    if (_all_grant(anchor).value > AccessLevel.NO_ACCESS.value) {
+        anchor.own_access().all = AccessLevel.NO_ACCESS;
         jctx.mem.put(anchor);
     }
 }
@@ -162,16 +164,24 @@ impl JacAccessValidation.check_access_level(
         return access_level_cast(custom_level);
     }
     access_level: AccessLevel = AccessLevel.NO_ACCESS;
-    if ((to_access := to.access).all.value > AccessLevel.NO_ACCESS.value) {
+
+    to_access = to.access;
+    if to_access is not None and to_access.all.value > AccessLevel.NO_ACCESS.value {
         access_level = to_access.all;
     }
     if (to.root and isinstance((to_root := jctx.mem.get(to.root)), Anchor)) {
-        if (to_root.access.all.value > access_level.value) {
-            access_level = to_root.access.all;
+        root_access = to_root.access;
+        if root_access is not None {
+            if (root_access.all.value > access_level.value) {
+                access_level = root_access.all;
+            }
+            if ((level := root_access.roots.check(str(jroot.id))) is not None) {
+                access_level = level;
+            }
         }
-        if ((level := to_root.access.roots.check(str(jroot.id))) is not None) {
-            access_level = level;
-        }
+    }
+    if to_access is None {
+        return access_level;
     }
     if ((level := to_access.roots.check(str(jroot.id))) is not None) {
         access_level = level;
@@ -193,7 +203,10 @@ impl JacAccessValidation._groups_of(jroot: NodeAnchor) -> list[str] {
     sv_register_hydrated(jroot, fetch_stubs=True);
     out: list[str] = [];
     for grp in sv_live_edges(jroot, EdgeDir.OUT.value, None, False) {
-        out.append(str(grp.id));
+        gid = grp.id;
+        if gid is not None {
+            out.append(str(gid));
+        }
     }
     return out;
 }
@@ -470,7 +483,9 @@ impl JacContext.reset_graph(root_node: (Root | None) = None) -> int {
         }
     }
     for anchor in mem.get_mem().values() {
-        cand_map[anchor.id] = str(anchor.root) if anchor.root else None;
+        if anchor.id is not None {
+            cand_map[anchor.id] = str(anchor.root) if anchor.root else None;
+        }
     }
     candidates = list(cand_map.items());
     import from jaclang.runtime.osp_graph_sv { sv_forget_by_id }
@@ -527,7 +542,7 @@ impl JacPersistence.object_ref(`obj: Archetype) -> str {
             logger.warning(f"object_ref: failed to register anchor in memory: {e}");
         }
     }
-    return anchor.id.hex;
+    return anchor.ensure_id().hex;
 }
 
 impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
@@ -1102,26 +1117,23 @@ impl JacGraph.refs(
     slc: (slice | None) = None,
     lazy: bool = False
 ) -> list[NodeArchetype] | list[EdgeArchetype] | list[(NodeArchetype | EdgeArchetype)] {
+    import from jaclang.runtime.graph_walk {
+        access_gated,
+        needs_store,
+        origin_anchors,
+        walk_edges,
+        walk_nodes
+    }
     if not isinstance(path, GraphQuery) {
         path = GraphQuery(path, hops=[QHop(dir=EdgeDir.OUT.value)]);
     }
-    import from jaclang.data.query_planner {
-        LazyRefs,
-        resolve_query,
-        resolve_query_edges
-    }
-    ctx = JacRuntimeInterface.get_context();
-    ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
     if slc is not None and path.slc is None {
         path.slc = slc;
     }
+    ctx = JacRuntimeInterface.get_context();
+    origins = origin_anchors(path);
 
-    def _run(q: GraphQuery) -> list {
-        planned = (
-            resolve_query_edges(ctx.mem, q)
-                if q.edges_only
-                else resolve_query(ctx.mem, q)
-        );
+    def _archetypes(planned: list) -> list {
         out: list[(NodeArchetype | EdgeArchetype)] = [];
         for a in planned {
             arch = a.archetype;
@@ -1131,7 +1143,30 @@ impl JacGraph.refs(
         }
         return out;
     }
-    if lazy and path.slc is None and ctx.mem?.store is not None {
+
+    if not needs_store(ctx.mem, origins) {
+        gated = access_gated();
+        return _archetypes(
+            walk_edges(origins, path, gated)
+                if path.edges_only
+                else walk_nodes(origins, path, gated)
+        );
+    }
+    import from jaclang.data.query_planner {
+        LazyRefs,
+        resolve_query,
+        resolve_query_edges
+    }
+    ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
+
+    def _run(q: GraphQuery) -> list {
+        return _archetypes(
+            resolve_query_edges(ctx.mem, q)
+                if q.edges_only
+                else resolve_query(ctx.mem, q)
+        );
+    }
+    if lazy and path.slc is None {
         return LazyRefs(_run, path);
     }
     return _run(path);
@@ -1216,10 +1251,11 @@ impl JacGraph.disconnect(
         handled: set = set();
         for j in right {
             for anchor in sv_candidate_edges_between(nd, j.__jac__, dir.value) {
-                if anchor.id in handled {
+                akey = anchor_key(anchor);
+                if akey in handled {
                     continue;
                 }
-                handled.add(anchor.id);
+                handled.add(akey);
                 if (
                     (source := anchor.source)
                     and (target := anchor.target)
@@ -1227,7 +1263,7 @@ impl JacGraph.disconnect(
                     and source.archetype
                     and target.archetype
                 ) {
-                    other = target if source.id == nd.id else source;
+                    other = target if same_anchor(source, nd) else source;
                     if JacRuntimeInterface.check_connect_access(
                         other, op_hint="edge_delete"
                     ) {
@@ -1307,6 +1343,7 @@ impl JacGraph.build_edge(
 impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
     anchor = `obj.__jac__ if isinstance(`obj, Archetype) else `obj;
     jctx = JacRuntimeInterface.get_context();
+    anchor.ensure_id();
     if (not anchor.persistent and not anchor.root) {
         anchor.persistent = True;
         anchor.`root = jctx.user_root.id;
@@ -1347,8 +1384,11 @@ impl JacPersistence.destroy(
             match anchor {
                 case NodeAnchor():
                     for `edge in anchor.edges[:] {
+                        eid = `edge.id;
                         `edge.detach();
-                        JacRuntimeInterface.get_context().mem.delete(`edge.id);
+                        if eid is not None {
+                            JacRuntimeInterface.get_context().mem.delete(eid);
+                        }
                     }
 
                 case EdgeAnchor():
@@ -1358,7 +1398,10 @@ impl JacPersistence.destroy(
                     ;
 
             }
-            JacRuntimeInterface.get_context().mem.delete(anchor.id);
+            aid = anchor.id;
+            if aid is not None {
+                JacRuntimeInterface.get_context().mem.delete(aid);
+            }
         }
     }
 }
@@ -2089,7 +2132,7 @@ impl JacRuntime.get_shared_root -> Root {
         );
     }
 
-    if shared.__jac__.access.all == AccessLevel.NO_ACCESS {
+    if _all_grant(shared.__jac__) == AccessLevel.NO_ACCESS {
         JacRuntimeInterface.perm_grant(shared, AccessLevel.CONNECT);
     }
     return shared;

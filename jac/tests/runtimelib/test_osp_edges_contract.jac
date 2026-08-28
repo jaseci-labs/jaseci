@@ -57,11 +57,13 @@ glob SCAN_ROOTS: list[str] = [
              "persistence record into the store is the one sanctioned live "
              "read"
          ),
-         "data/impl/query_planner.impl.jac": (
+         "runtime/graph_walk.jac": (
              1,
-             "_walk_memory's volatile arm enumerates live anchor objects "
-             "directly; detach keeps node.edges and the sv store in step, "
-             "and the persistent arm is pure SQL (epic #7945)"
+             "the in-memory traversal primitive enumerates live anchor "
+             "objects directly; detach keeps node.edges and the sv store in "
+             "step, and the store-backed arm in data/query_planner is pure "
+             "SQL (epic #7945). Moved here from that planner in #8743: "
+             "walking a graph is not a persistence concern"
          ),
          "data/impl/serializer.impl.jac": (
              3,

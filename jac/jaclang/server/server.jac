@@ -74,9 +74,12 @@ obj UserManager {
     async def aget_root_id(username: str) -> (str | None);
 }
 
+def observe_read_tier_retry(metrics: any, unit_key: str) -> None;
+
 obj ExecutionManager {
     has base_path: str,
-        user_manager: UserManager;
+        user_manager: UserManager,
+        metrics: any = None;
 
     async def execute_function(
         func: Callable[(..., any)], args: dict[(str, any)], username: str

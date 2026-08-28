@@ -1756,7 +1756,8 @@ impl DocIRGenPass.exit_assignment(nd: uni.Assignment) -> None {
                 lhs_parts.append(self.space());
             }
             lhs_parts.append(i.gen.doc_ir);
-            if (i == nd.aug_op) {
+            if (i == nd.aug_op)
+                or (isinstance(i, uni.Token) and (i.name == Tok.KW_COMPTIME)) {
                 lhs_parts.append(self.space());
             }
         }
@@ -1783,6 +1784,9 @@ impl DocIRGenPass.exit_param_var(nd: uni.ParamVar) -> None {
     for i in nd.kid {
         if (isinstance(i, uni.Token) and (i.name == Tok.EQ)) {
             parts.append(self.space());
+            parts.append(i.gen.doc_ir);
+            parts.append(self.space());
+        } elif (isinstance(i, uni.Token) and (i.name == Tok.KW_COMPTIME)) {
             parts.append(i.gen.doc_ir);
             parts.append(self.space());
         } else {
@@ -2003,6 +2007,9 @@ impl DocIRGenPass.exit_type_param(nd: uni.TypeParam) -> None {
     parts: list[doc.DocType] = [];
     for i in nd.kid {
         if (isinstance(i, uni.Token) and (i.name == Tok.COLON)) {
+            parts.append(i.gen.doc_ir);
+            parts.append(self.space());
+        } elif (isinstance(i, uni.Token) and (i.name == Tok.KW_COMPTIME)) {
             parts.append(i.gen.doc_ir);
             parts.append(self.space());
         } elif (isinstance(i, uni.Token) and (i.name == Tok.EQ)) {

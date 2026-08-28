@@ -2,7 +2,7 @@ import from jaclang.cli.console { console }
 import from jaclang.cli.banners { JAC_DISCORD_URL }
 import from jaclang.data.serializer { Serializer }
 import from jaclang.client.client_bundle { MissingBunError, _ensure_js_generated }
-import from jaclang.runtime.exceptions { WriteConflict }
+import from jaclang.runtime.exceptions { ReadOnlyRetry, WriteConflict }
 import from jaclang.server.auth_types {
     IdentityInput,
     IdentityType,
@@ -70,7 +70,7 @@ impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
         root_anchor = user_root.__jac__;
         Jac.save(root_anchor);
         Jac.commit(root_anchor);
-        root_id = root_anchor.id.hex;
+        root_id = root_anchor.ensure_id().hex;
         token = secrets.token_urlsafe(32);
         password_hash = hashlib.sha256(password.encode()).hexdigest();
         self._conn.execute(
@@ -97,7 +97,7 @@ impl UserManager.reset_root(username: str) -> (str | None) {
         root_anchor = user_root.__jac__;
         Jac.save(root_anchor);
         Jac.commit(root_anchor);
-        root_id = root_anchor.id.hex;
+        root_id = root_anchor.ensure_id().hex;
         self._conn.execute(
             "UPDATE users SET root_id = ? WHERE username = ?", (root_id, username)
         );
@@ -334,6 +334,34 @@ def _deserialize_wire_args(args: dict[(str, any)]) {
     }
 }
 
+impl observe_read_tier_retry(metrics: any, unit_key: str) -> None {
+    import logging;
+    logging.getLogger("jaclang.serve").info(
+        f"read tier: unit {unit_key or '<anonymous>'} wrote inside a read-only "
+        "snapshot; re-running at SERIALIZABLE and recording it as a writer"
+    );
+    if metrics is not None {
+        try {
+            metrics.record_read_tier_retry(unit_key);
+        } except Exception as e {
+            logging.getLogger("jaclang.serve").debug(
+                f"read tier retry metric not recorded: {type(e).__name__}: {e}"
+            );
+        }
+    }
+}
+
+
+def _unit_key_for(target: any) -> (str | None) {
+    mod = str(getattr(target, '__module__', '') or '');
+    name = str(getattr(target, '__name__', '') or '');
+    if not name {
+        return None;
+    }
+    return f"{mod}.{name}";
+}
+
+
 def _occ_policy -> tuple[str, int, int] {
     mode = "retry";
     max_attempts = 5;
@@ -398,14 +426,15 @@ async def _run_function_with_occ(
     username: str,
     run_attempt: Callable,
     deserialize_args: bool = True,
-    include_traceback: bool = False
+    include_traceback: bool = False,
+    unit_key: (str | None) = None
 ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
     resolved = await _abegin_user_request_context(mgr.user_manager, username);
     if isinstance(resolved, dict) {
         return resolved;
     }
     (ctx, req_token, root_id) = resolved;
-    ctx.mem.unit_enter();
+    ctx.mem.unit_enter(unit_key);
     settled = False;
     try {
         if deserialize_args {
@@ -414,6 +443,7 @@ async def _run_function_with_occ(
         (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
         max_attempts = 1 if occ_mode == "fail" else max(1, occ_max);
         attempt = 0;
+        ro_retries = 0;
         while attempt < max_attempts {
             attempt += 1;
             call_token = ctx.call_state.set(CallState());
@@ -423,9 +453,26 @@ async def _run_function_with_occ(
                 ctx.mem.unit_exit();
                 settled = True;
                 return outcome;
+            } except ReadOnlyRetry as rr {
+                settled = False;
+                if ctx.mem.unit_depth() == 0 {
+                    ctx.mem.unit_enter(unit_key);
+                }
+                ctx.mem.abort();
+                ctx.pending_effects.clear();
+                ctx.read_versions.clear();
+                ctx.diagnostics.clear();
+                ro_retries += 1;
+                observe_read_tier_retry(mgr.metrics, rr.unit_key or unit_key or "");
+                if ro_retries <= 2 {
+                    attempt -= 1;
+                }
+                await ctx.aset_user_root(root_id);
             } except WriteConflict as wc {
                 settled = False;
-                ctx.mem.unit_enter();
+                if ctx.mem.unit_depth() == 0 {
+                    ctx.mem.unit_enter(unit_key);
+                }
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
                 ctx.read_versions.clear();
@@ -498,7 +545,9 @@ impl ExecutionManager.execute_function_sync(
         }
         return await self._finalize_call_response(call_state, result);
     }
-    return await _run_function_with_occ(self, args, username, run_attempt);
+    return await _run_function_with_occ(
+        self, args, username, run_attempt, unit_key=_unit_key_for(func)
+    );
 }
 
 impl ExecutionManager.execute_function_async(
@@ -510,7 +559,9 @@ impl ExecutionManager.execute_function_async(
         result = await func(**args);
         return await self._finalize_call_response(call_state, result);
     }
-    return await _run_function_with_occ(self, args, username, run_attempt);
+    return await _run_function_with_occ(
+        self, args, username, run_attempt, unit_key=_unit_key_for(func)
+    );
 }
 
 impl ExecutionManager.spawn_walker(
@@ -554,7 +605,8 @@ impl ExecutionManager.spawn_walker_sync(
         username,
         run_attempt,
         deserialize_args=False,
-        include_traceback=True
+        include_traceback=True,
+        unit_key=_unit_key_for(walker_cls)
     );
 }
 
@@ -591,7 +643,8 @@ impl ExecutionManager.spawn_walker_async(
         username,
         run_attempt,
         deserialize_args=False,
-        include_traceback=True
+        include_traceback=True,
+        unit_key=_unit_key_for(walker_cls)
     );
 }
 

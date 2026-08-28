@@ -127,8 +127,23 @@ obj KubernetesTargetBase(DeploymentTarget) {
             return;
         }
         if pg_result['mode'] == 'external' {
+            external_secret_name = f"{app_name}-external-db";
+            create_k8s_secret(
+                core_v1,
+                namespace,
+                external_secret_name,
+                {'connection-string': pg_result['connection_string']}
+            );
             self.env_list.append(
-                {'name': 'JAC_DB_URL', 'value': pg_result['connection_string']}
+                {
+                    'name': 'JAC_DB_URL',
+                    'valueFrom': {
+                        'secretKeyRef': {
+                            'name': external_secret_name,
+                            'key': 'connection-string'
+                        }
+                    }
+                }
             );
             return;
         }
@@ -373,7 +388,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
         autoscaler = AutoscalerFactory.create(
             self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), self.logger
         );
-        autoscaler.destroy(autoscaler.resource_name_for(app_name), namespace);
+        autoscaler.destroy(app_name, namespace);
         delete_if_exists(
             apps_v1.delete_namespaced_deployment, app_name, namespace, 'Deployment'
         );

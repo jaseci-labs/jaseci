@@ -129,6 +129,10 @@ def get_ir_gen_sched(
         }
         passes.append(JsxIntrinsicGuardPass);
         passes.append(PlacementApplyPass);
+        import from jaclang.compiler.passes.comptime_resolve_pass {
+            ComptimeResolvePass
+        }
+        passes.append(ComptimeResolvePass);
         return validate_schedule(passes, origin='ir-gen schedule');
     } except ImportError as e {
         fail_loud_on_compiler_source(e);

@@ -400,6 +400,7 @@ class Tokens(StrEnum) {
         KW_ABSTRACT = 'KW_ABSTRACT';
         KW_OBJECT = 'KW_OBJECT';
         KW_CLASS = 'KW_CLASS';
+        KW_COMPTIME = 'KW_COMPTIME';
         KW_ENUM = 'KW_ENUM';
         KW_NODE = 'KW_NODE';
         KW_VISIT = 'KW_VISIT';
@@ -651,6 +652,7 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_CAN': 'can',
          'KW_CASE': 'case',
          'KW_CLASS': 'class',
+         'KW_COMPTIME': 'comptime',
          'KW_CONTINUE': 'continue',
          'KW_DEF': 'def',
          'KW_DEFAULT': 'default',

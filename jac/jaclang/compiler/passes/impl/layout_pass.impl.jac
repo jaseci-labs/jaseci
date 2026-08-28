@@ -361,6 +361,33 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
         current_idx += 1;
     }
 
+    for tp in (arch.type_params or []) {
+        if not tp.is_comptime {
+            continue;
+        }
+        pname = tp.name.value;
+        if pname in seen_fields {
+            continue;
+        }
+        seen_fields.add(pname);
+        tnode = tp.bound;
+        ptag = (unparse_node(tnode) or str(tnode)) if tnode is not None else "int";
+        fields.append(
+            FieldInfo(
+                name=pname,
+                index=current_idx,
+                type_tag=ptag,
+                type_node=tnode,
+                default_expr=None,
+                owner=aname,
+                is_func_ptr=False,
+                decl_node=tp
+            )
+        );
+        field_index[pname] = current_idx;
+        current_idx += 1;
+    }
+
     import os as _lay_os;
     _decl_mod = arch.find_parent_of_type(Module);
     _decl_path = _decl_mod.loc.mod_path if _decl_mod is not None else None;

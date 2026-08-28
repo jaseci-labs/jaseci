@@ -298,8 +298,13 @@ impl JacCompiler._get_bytecode_variant(
                     ;
                 }
                 import from jaclang.compiler.driver.jir {
+                    SEC_CTDEPS,
                     SEC_GM_NOOP,
+                    ct_deps_section,
                     write_module_cache
+                }
+                if result.ct_file_deps {
+                    sections[SEC_CTDEPS] = ct_deps_section(result.ct_file_deps);
                 }
                 cache_bc: any = result.gen?.py_bytecode;
                 if cache_bc is not None and not result.parse_failed {
