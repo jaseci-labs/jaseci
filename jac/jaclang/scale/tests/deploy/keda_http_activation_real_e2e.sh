@@ -3,7 +3,7 @@
 # deployed through the jac.toml [scale.kubernetes.http_activation] wiring
 # (#7475) instead of calling KEDAAutoscaler.apply_http_activation directly.
 #
-# Deploys the fixture app via `jac start --scale`, confirms the resulting
+# Deploys the fixture app via `jac scale deploy`, confirms the resulting
 # InterceptorRoute + ScaledObject reconcile to Ready, sends an HTTP request
 # through the KEDA HTTP Add-on interceptor (should block on cold start, then
 # respond), waits for the target to scale 0 -> 1 and become Available, then
@@ -135,8 +135,8 @@ wait_for_ready() {
 }
 
 _t "deploy start"
-echo "=== deploy via jac start --scale (jac.toml [scale.kubernetes.http_activation] wiring) ==="
-if ! (cd "${FIXTURE_DIR}" && jac start app.jac --scale); then
+echo "=== deploy via jac scale deploy (jac.toml [scale.kubernetes.http_activation] wiring) ==="
+if ! (cd "${FIXTURE_DIR}" && jac scale deploy app.jac); then
     echo "FAIL: deploy failed" >&2
     dump_state
     exit 1
@@ -144,7 +144,7 @@ fi
 
 _t "redeploy (idempotency check)"
 echo "=== redeploy: confirms InterceptorRoute + ScaledObject reconcile is idempotent (get-then-patch, not create-or-duplicate) ==="
-if ! (cd "${FIXTURE_DIR}" && jac start app.jac --scale); then
+if ! (cd "${FIXTURE_DIR}" && jac scale deploy app.jac); then
     echo "FAIL: redeploy failed" >&2
     dump_state
     exit 1

@@ -1,6 +1,6 @@
 # KEDA HTTP Add-on activation e2e fixture
 
-A minimal Jac app (`app.jac`) deployed via `jac start --scale`, with
+A minimal Jac app (`app.jac`) deployed via `jac scale deploy`, with
 `[scale.kubernetes.http_activation]` enabled in `jac.toml` so the deploy
 wires up the KEDA HTTP Add-on's `InterceptorRoute` + `ScaledObject` for real
 scale-to-zero activation (#7475).
@@ -12,7 +12,7 @@ keda_http_activation_e2e/
 ```
 
 This fixture is a real Jac app deployed through the normal CLI path, not a
-raw manifest -- `jac start --scale` builds the Deployment/Service and, from
+raw manifest -- `jac scale deploy` builds the Deployment/Service and, from
 the `http_activation` config, the `InterceptorRoute`/`ScaledObject` too. See
 `../http_activation_toml_e2e/` for the sibling fixture this one follows the
 same pattern as.
@@ -23,7 +23,7 @@ same pattern as.
 drives the deploy against whatever cluster the current kubeconfig points at.
 No mocking. The flow:
 
-1. Deploy via `jac start app.jac --scale` from this directory.
+1. Deploy via `jac scale deploy app.jac` from this directory.
 2. Redeploy once more, to confirm the `InterceptorRoute`/`ScaledObject`
    reconcile is idempotent (get-then-patch, not create-or-duplicate) against
    a real API server.
