@@ -85,13 +85,21 @@ reach it. Then create content under it with `save(obj, owner=...)`, and one
 grant on that root covers all of it:
 
 ```jac
-org = Root();
-Jac.save(org);
-Jac.allow_root(org, jid(root), AccessLevel.WRITE);   # member #1 is the creator
+node Item { has label: str; }
 
-item = Item(label="x");
-Jac.save(item, owner=org.__jac__.id);    # owned by the org, not by the caller
-Jac.allow_root(org, member_root_id, AccessLevel.READ);   # one entry, all content
+import from jaclang { JacRuntime as Jac }
+import from uuid { UUID }
+
+def make_org_item(member_root_id: UUID) -> Item {
+    org = Root();
+    Jac.save(org);
+    Jac.allow_root(org, UUID(jid(root)), AccessLevel.WRITE);   # jac:ignore[E1053]
+
+    item = Item(label="x");
+    Jac.save(item, owner=UUID(jid(org)));   # owned by the org, not by the caller
+    Jac.allow_root(org, member_root_id, AccessLevel.READ);   # jac:ignore[E1053]
+    return item;
+}
 ```
 
 `save(obj, owner=r)` requires `WRITE` on `r` and raises otherwise; it never
