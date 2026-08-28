@@ -621,7 +621,11 @@ test "a build referencing more parked files than fit says how many are left" {
             [f"cannot import docsite/m{n}.jac: no such module" for n in range(6)]
         );
         diagnosis = _membership_diagnosis(output, base, filt);
-        named = [n for n in range(6) if f"docsite/m{n}.jac" in diagnosis];
+        named = [
+            n
+            for n in range(6)
+            if f"docsite/m{n}.jac" in diagnosis
+        ];
         assert len(named) == 3 , (
             f"the diagnosis should name three files, named {named}: {diagnosis}"
         );

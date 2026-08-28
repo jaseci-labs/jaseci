@@ -73,8 +73,6 @@ def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
         if cand.startswith(base_prefix) {
             cand = cand[len(base_prefix):];
         }
-        # A build log names the same path on hundreds of lines, and every
-        # candidate costs a stat per variant, so examine each one once.
         if cand in tried {
             continue;
         }
@@ -108,9 +106,7 @@ def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
     }
     shown = lines[:_MEMBERSHIP_DIAGNOSIS_SHOWN];
     if len(lines) > _MEMBERSHIP_DIAGNOSIS_SHOWN {
-        shown.append(
-            f"  ... and {len(lines) - _MEMBERSHIP_DIAGNOSIS_SHOWN} more"
-        );
+        shown.append(f"  ... and {len(lines) - _MEMBERSHIP_DIAGNOSIS_SHOWN} more");
     }
     return (
         "\nThe client build ran on the bundle's staged sources, and these "
