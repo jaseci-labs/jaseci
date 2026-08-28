@@ -45,7 +45,11 @@ impl NormalizePass.enter_module(nd: uni.Module) -> None {
 }
 
 impl NormalizePass.enter_type_param(nd: uni.TypeParam) -> None {
-    new_kid: list[uni.UniNode] = [nd.name];
+    new_kid: list[uni.UniNode] = [];
+    if nd.is_comptime {
+        new_kid.append(nd.gen_token(Tok.KW_COMPTIME));
+    }
+    new_kid.append(nd.name);
     if nd.bound {
         new_kid.append(nd.gen_token(Tok.COLON));
         new_kid.append(nd.bound);
@@ -90,7 +94,9 @@ impl NormalizePass.enter_global_vars(nd: uni.GlobalVars) -> None {
     if nd.doc {
         new_kid.append(nd.doc);
     }
-    new_kid.append(nd.gen_token(Tok.KW_GLOBAL));
+    new_kid.append(
+        nd.gen_token(Tok.KW_COMPTIME) if nd.is_frozen else nd.gen_token(Tok.KW_GLOBAL)
+    );
     if nd.access {
         new_kid.append(nd.access);
     }
@@ -164,6 +170,9 @@ impl NormalizePass.enter_import(nd: uni.Import) -> None {
     new_kid: list[uni.UniNode] = [];
     if nd.doc {
         new_kid.append(nd.doc);
+    }
+    if nd.is_comptime {
+        new_kid.append(nd.gen_token(Tok.KW_COMPTIME));
     }
     if nd.is_absorb {
         new_kid.append(nd.gen_token(Tok.KW_INCLUDE));
@@ -424,6 +433,9 @@ impl NormalizePass.enter_ability(nd: uni.Ability) -> None {
         }
         new_kid.append(nd.gen_token(Tok.WS));
     }
+    if nd.is_comptime {
+        new_kid.append(nd.gen_token(Tok.KW_COMPTIME));
+    }
     if nd.is_async {
         new_kid.append(nd.gen_token(Tok.KW_ASYNC));
     }
@@ -525,6 +537,9 @@ impl NormalizePass.enter_event_signature(nd: uni.EventSignature) -> None {
 
 impl NormalizePass.enter_param_var(nd: uni.ParamVar) -> None {
     new_kid: list[uni.UniNode] = [];
+    if nd.is_comptime {
+        new_kid.append(nd.gen_token(Tok.KW_COMPTIME));
+    }
     if nd.unpack {
         new_kid.append(nd.unpack);
     }
@@ -593,12 +608,13 @@ impl NormalizePass.enter_typed_ctx_block(nd: uni.TypedCtxBlock) -> None {
 impl NormalizePass._normalize_cond_block(
     nd: (uni.IfStmt | uni.WhileStmt), kw: Tok
 ) -> None {
-    new_kid: list[uni.UniNode] = [
-        nd.gen_token(kw),
-        nd.condition,
-        nd.gen_token(Tok.LBRACE),
-
-    ];
+    new_kid: list[uni.UniNode] = [];
+    if isinstance(nd, uni.IfStmt)
+        and not isinstance(nd, uni.ElseIf)
+        and nd.is_comptime {
+        new_kid.append(nd.gen_token(Tok.KW_COMPTIME));
+    }
+    new_kid.extend([nd.gen_token(kw), nd.condition, nd.gen_token(Tok.LBRACE), ]);
     for stmt in nd.body {
         new_kid.append(stmt);
     }
@@ -740,6 +756,9 @@ impl NormalizePass.enter_iter_for_stmt(nd: uni.IterForStmt) -> None {
 
 impl NormalizePass.enter_in_for_stmt(nd: uni.InForStmt) -> None {
     new_kid: list[uni.UniNode] = [];
+    if nd.is_comptime {
+        new_kid.append(nd.gen_token(Tok.KW_COMPTIME));
+    }
     if nd.is_async {
         new_kid.append(nd.gen_token(Tok.KW_ASYNC));
     }
@@ -832,7 +851,11 @@ impl NormalizePass.enter_raise_stmt(nd: uni.RaiseStmt) -> None {
 }
 
 impl NormalizePass.enter_assert_stmt(nd: uni.AssertStmt) -> None {
-    new_kid: list[uni.UniNode] = [nd.gen_token(Tok.KW_ASSERT), nd.condition, ];
+    new_kid: list[uni.UniNode] = [];
+    if nd.is_comptime {
+        new_kid.append(nd.gen_token(Tok.KW_COMPTIME));
+    }
+    new_kid.extend([nd.gen_token(Tok.KW_ASSERT), nd.condition, ]);
     if nd.error_msg {
         new_kid.append(nd.gen_token(Tok.COMMA));
         new_kid.append(nd.error_msg);
@@ -917,6 +940,9 @@ impl NormalizePass.enter_cast_expr(nd: uni.CastExpr) -> None {
 
 impl NormalizePass.enter_assignment(nd: uni.Assignment) -> None {
     new_kid: list[uni.UniNode] = [];
+    if nd.is_comptime and not isinstance(nd.parent, uni.GlobalVars) {
+        new_kid.append(nd.gen_token(Tok.KW_COMPTIME));
+    }
     for idx in range(len(nd.target)) {
         new_kid.append(nd.target[idx]);
         if idx < len(nd.target) - 1 {

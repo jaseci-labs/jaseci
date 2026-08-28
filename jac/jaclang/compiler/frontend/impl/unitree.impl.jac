@@ -4,6 +4,7 @@ impl UniNode.postinit -> None {
     self.__sub_node_tab = None;
     self._in_mod_nodes = [];
     self._gen = None;
+    self.ct_pruned = False;
     (first_tok, last_tok) = self.resolve_tok_range();
     self.loc = CodeLocInfo(first_tok, last_tok);
 }
@@ -19,7 +20,7 @@ impl UniNode._sub_node_tab.getter -> dict[(type, list[UniNode])] {
 
 impl UniNode._construct_sub_node_tab -> None {
     for i in self.kid {
-        if not i {
+        if not i or i.ct_pruned {
             continue;
         }
         for (k, v) in i._sub_node_tab.items() {
@@ -226,6 +227,9 @@ impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
 impl UniNode.flatten -> list[UniNode] {
     ret: list[UniNode] = [self];
     for k in self.kid {
+        if k.ct_pruned {
+            continue;
+        }
         ret += k.flatten();
     }
     return ret;
@@ -782,6 +786,7 @@ impl Expr.postinit -> None {
     self._type_sym_tab = None;
     self.type = None;
     self.narrowed_type = None;
+    self.ct_value = None;
     self.coerce_to = None;
     self.fw = None;
     self.fw_safe = False;
@@ -893,6 +898,7 @@ impl SubTag.postinit -> None {
 
 impl Module.postinit -> None {
     self.src_terminals = self.terminals;
+    self.ct_file_deps = [];
     self.rc_last_use = {};
     _rc_move_in: set[int] = set();
     self.rc_move_in = _rc_move_in;

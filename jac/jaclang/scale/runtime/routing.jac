@@ -20,6 +20,7 @@ glob GATEWAY_API_SEGMENTS: tuple = (
          "openapi.json",
          "docs"
      ),
+     GATEWAY_PAGE_SEGMENTS: tuple = ("docs", ),
      GATEWAY_DISCOVERY_SEGMENTS: tuple = ("jobs", GATEWAY_CLIENT_SEGMENT),
      GATEWAY_REPLICATED_SEGMENTS: tuple = ("user", "sso", "api-key", "graph"),
      _RESERVED_SEGMENTS: set[str] = (
