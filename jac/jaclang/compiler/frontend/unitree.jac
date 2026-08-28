@@ -129,6 +129,9 @@ import from jaclang.compiler.frontend.roles {
 import from jaclang.compiler.frontend.relations {
     Absorbs,
     CalleeDecl,
+    EventTriggerOf,
+    NarrowedTypeOf,
+    TypeOf,
     CfgFalse,
     CfgSucc,
     CfgTrue,
@@ -418,7 +421,8 @@ node AstElseBodyNode(UniNode) {
 }
 
 node AstTypedVarNode(UniNode) {
-    has type: (TypeBase | None) = None;
+    has type: (TypeBase | None) { getter; setter(type: (TypeBase | None)); }
+
     has type_tag: (SubTag[Expr] | None) { getter; }
     def init(*, type_tag: (SubTag[Expr] | None) = None, type: (TypeBase | None) = None, kid: Sequence[UniNode] = []) -> None;
     def __repr__ -> str;
@@ -459,9 +463,13 @@ node ConditionalNode(UniCFGNode) {
 }
 
 node Expr(UniNode) {
+    has type: (TypeBase | None) { getter; setter(type: (TypeBase | None)); }
+
+    has narrowed_type: (TypeBase | None) { getter; setter(narrowed_type: (TypeBase | None)); }
+
     has _type_sym_tab: (UniScopeNode | None) postinit,
-        type: (TypeBase | None) postinit,
-        narrowed_type: (TypeBase | None) postinit,
+        _type_cache: (TypeBase | None) postinit,
+        _type_cache_ok: bool postinit,
         ct_value: any postinit,
         coerce_to: (str | None) postinit,
         fw: (str | None) postinit,
@@ -906,9 +914,9 @@ node Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBlo
         is_abstract: bool,
 
         accessor_kind: str = "",
-        is_comptime: bool = False,
+        is_comptime: bool = False;
 
-        event_triggers: (list[TypeBase] | None) = None;
+    has event_triggers: (list[TypeBase] | None) { getter; setter(event_triggers: (list[TypeBase] | None)); }
 
     has name_ref: (NameAtom | None) { getter; }
 

@@ -6158,3 +6158,20 @@ impl TypeEvaluator._enum_member_attr_type(
     }
     return None;
 }
+
+impl TypeEvaluator.eval_expr with Expr entry {
+    self.get_type_of_expression(here);
+}
+
+impl TypeEvaluator._intern_shared(shared: ClassDetailsShared) -> ClassDetailsShared {
+    key = shared.canonical_key();
+    if key is None {
+        return shared;
+    }
+    found = self._shared_intern.get(key);
+    if found is not None {
+        return found;
+    }
+    self._shared_intern[key] = shared;
+    return shared;
+}

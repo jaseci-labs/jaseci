@@ -47,3 +47,55 @@ def codespace_node(kind: str) -> Codespace {
     }
     return found;
 }
+
+edge TypeOf {}
+
+edge NarrowedTypeOf {}
+
+edge EventTriggerOf {}
+
+edge SharedOf {}
+
+edge PrivOf {}
+
+edge BaseOf {}
+
+edge MroOf {}
+
+edge TypeParamOf {}
+
+edge TypeArgOf {}
+
+edge ParamOf {}
+
+edge ReturnsOf {}
+
+edge GuardOf {}
+
+edge ParamTypeOf {}
+
+edge ParamDefaultOf {}
+
+edge UnionMemberOf {}
+
+edge BoundOf {}
+
+edge ConstraintOf {}
+
+edge OverloadOf {}
+
+edge EnumClassOf {}
+
+edge ValueTypeOf {}
+
+edge MemberInfoOf {}
+
+edge TypeMemberOf {
+    has name: str = "";
+}
+
+edge EnumMemberOf {
+    has name: str = "";
+}
+
+edge DeclScopeOf {}

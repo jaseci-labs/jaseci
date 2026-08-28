@@ -1095,8 +1095,8 @@ impl UniCFGNode.get_tail -> UniCFGNode {
 
 impl Expr.postinit -> None {
     self._type_sym_tab = None;
-    self.type = None;
-    self.narrowed_type = None;
+    self._type_cache = None;
+    self._type_cache_ok = False;
     self.ct_value = None;
     self.coerce_to = None;
     self.fw = None;
@@ -3180,5 +3180,68 @@ impl bind_assignment_targets(nd: Assignment) -> None {
                 find_typed_decl_scope_of(i).def_insert(i, single_decl='local var');
             }
         }
+    }
+}
+
+impl Expr.type.getter -> (TypeBase | None) {
+    if self._type_cache_ok {
+        return self._type_cache;
+    }
+    found = [self ->:TypeOf:->];
+    self._type_cache = found[0] if found else None;
+    self._type_cache_ok = True;
+    return self._type_cache;
+}
+
+impl Expr.type.setter(type: (TypeBase | None)) -> None {
+    for e in [edge self ->:TypeOf:->] {
+        del e;
+    }
+    if type is not None {
+        self +>:TypeOf:+> type;
+    }
+    self._type_cache = type;
+    self._type_cache_ok = True;
+}
+
+impl Expr.narrowed_type.getter -> (TypeBase | None) {
+    found = [self ->:NarrowedTypeOf:->];
+    return found[0] if found else None;
+}
+
+impl Expr.narrowed_type.setter(narrowed_type: (TypeBase | None)) -> None {
+    for e in [edge self ->:NarrowedTypeOf:->] {
+        del e;
+    }
+    if narrowed_type is not None {
+        self +>:NarrowedTypeOf:+> narrowed_type;
+    }
+}
+
+impl AstTypedVarNode.type.getter -> (TypeBase | None) {
+    found = [self ->:TypeOf:->];
+    return found[0] if found else None;
+}
+
+impl AstTypedVarNode.type.setter(type: (TypeBase | None)) -> None {
+    for e in [edge self ->:TypeOf:->] {
+        del e;
+    }
+    if type is not None {
+        self +>:TypeOf:+> type;
+    }
+}
+
+impl Ability.event_triggers.getter -> (list[TypeBase] | None) {
+    found = [getattr(e, "__jac__").target.archetype for e in [edge self ->:EventTriggerOf:->]];
+    return found if found else None;
+}
+
+impl Ability.event_triggers.setter(event_triggers: (list[TypeBase] | None)) -> None {
+    for e in [edge self ->:EventTriggerOf:->] {
+        del e;
+    }
+    for t in (event_triggers or []) {
+        self +>:EventTriggerOf:+> t;
     }
 }

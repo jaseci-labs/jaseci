@@ -325,8 +325,13 @@ obj ConditionInfo {
 
 glob _stub_module_memo: dict[str, tuple[float, Module]] = {};
 
-obj TypeEvaluator {
+walker TypeEvaluator {
+    can eval_expr with Expr entry;
+
+    def _intern_shared(shared: ClassDetailsShared) -> ClassDetailsShared;
+
     has program: JacProgram,
+        _shared_intern: dict[tuple, ClassDetailsShared] = {},
         _BUILTINS_STUB_FILE_PATH: str postinit,
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
