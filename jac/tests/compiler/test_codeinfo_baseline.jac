@@ -36,12 +36,9 @@ from 13 members to 19: `codeinfo`'s admissibility flips
 `logging` join every unit that reaches `unitree` -- whose `import type`
 edges to `UniPass` and `CodeGenTarget` are real unit edges, the same kind
 that pulled `types.jac` in. The 21 seams the old measurement predicted
-arrived exactly (13 here, 3 in `transform`, 5 in `uni_pass`), every one
-waived by name in `NATIVE_SEAL_DEMOTION_WAIVERS` and pinned reachable-dead
-by `test_sealed_seam_reachability.jac`; `UniNode.gen.__get__` and
-`SymTabBuildPass.exit_global_vars` *cleared* in exchange, and
-`capability_check_pass` dropped from five own seams to one. The sealed
-censuses carry the per-root accounting.
+arrived exactly (13 here, 3 in `transform`, 5 in `uni_pass`);
+`UniNode.gen.__get__` and `SymTabBuildPass.exit_global_vars` *cleared* in
+exchange, and `capability_check_pass` dropped from five own seams to one.
 
 One coverage run, one test, deliberately: see the note in
 `test_expr_keys_baseline.jac` on what a file of N tests over one root costs
@@ -53,7 +50,6 @@ import from pathlib { Path }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.na_coverage { na_coverage_begin, na_coverage_end }
 import from jaclang.compiler.driver.program { JacProgram }
-import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
      CODEINFO: str = "compiler/frontend/codeinfo.jac";
@@ -76,8 +72,6 @@ glob CODEINFO_CLOSURE: tuple = (
          "compiler/frontend/helpers.jac",
          "compiler/frontend/srcloc.jac",
          "compiler/frontend/unitree.jac",
-         "compiler/passes/pass_rim.jac",
-         "compiler/passes/pass_serve.jac",
          "compiler/passes/transform.jac",
          "compiler/passes/uni_pass.jac",
          "compiler/type_registry.jac",
@@ -109,14 +103,8 @@ glob CODEINFO_SEAMS: tuple = (
          "resolve_native_module"
      );
 
-"""Compile one root the way seal_native_artifacts does, up to the coverage."""
+"""Compile one root as a native unit, up to the coverage."""
 def _root_coverage(rel: str) -> tuple {
-    if native_artifact_for("jaclang." + rel[:-4].replace("/", ".")) is not None {
-        testskip(
-            f"{rel} is served from this runtime's native seal; the coverage "
-            "gated the build via seal_demotion_report"
-        );
-    }
     prog = JacProgram();
     na_coverage_begin();
     try {

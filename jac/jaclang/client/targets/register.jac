@@ -18,25 +18,3 @@ def register_targets {
     registry.register(CefDesktopTarget());
     registry.register(ReactNativeTarget());
 }
-
-def sync_client_target_choices -> None {
-    import from jaclang.cli.registry { get_registry }
-    import from jaclang.client.targets.registry { get_target_factory }
-    registry = get_registry();
-    factory = get_target_factory();
-    names = factory.get_available_target_names();
-    if not names {
-        return;
-    }
-    for cmd_name in ["build", "start"] {
-        spec = registry.get(cmd_name);
-        if spec is None {
-            continue;
-        }
-        for arg in spec.get_all_args() {
-            if arg.name == "client" {
-                arg.choices = list(names);
-            }
-        }
-    }
-}

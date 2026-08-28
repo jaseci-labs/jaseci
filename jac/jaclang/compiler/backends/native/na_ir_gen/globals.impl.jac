@@ -258,6 +258,13 @@ impl NaIRGenGlobals._codegen_const_expr(
     ) {
         return ir.Constant(target_type, None);
     }
+    cv = nd.ct_value if isinstance(nd, uni.Expr) else None;
+    if cv is not None and not cv.is_deferred and isinstance(cv.v, (bool, int, float)) {
+        if isinstance(cv.v, bool) {
+            return ir.Constant(target_type, 1 if cv.v else 0);
+        }
+        return ir.Constant(target_type, cv.v);
+    }
     (ok, v) = fold_const(nd);
     if not ok {
         return None;

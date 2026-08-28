@@ -9,7 +9,7 @@ The clean break holds only if it cannot silently regrow:
 Built-in features (client/scale/shadcn/byllm) are folded into core: they add
 flags to existing verbs and contribute at most one top-level verb each
 (setup / scale / retheme / model), all registered through the same
-`@registry.command` path as core.
+comptime `CommandSpec` binding path as core.
 """
 
 import from jaclang.cli.manifest { TOMBSTONED_VERBS, VERB_BUDGET, iter_command_meta }

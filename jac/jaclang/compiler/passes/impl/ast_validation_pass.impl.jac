@@ -304,6 +304,9 @@ impl ASTValidationPass.enter_global_vars(
     self: ASTValidationPass, nd: GlobalVars
 ) -> None {
     valid_parents = (Module, );
+    if nd.is_frozen and isinstance(nd.parent, Archetype) {
+        return;
+    }
     if not isinstance(nd.parent, valid_parents) {
         self.emit(E0063, node_override=nd);
     }
