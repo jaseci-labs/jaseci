@@ -42,6 +42,7 @@ import from jaclang.compiler.frontend.unitree {
     ReturnStmt,
     Slice,
     SpecialVarRef,
+    Symbol,
     SubTag,
     Token,
     UnaryExpr,
@@ -57,6 +58,8 @@ import from jaclang.compiler.frontend.unitree {
 }
 import from jaclang.compiler.passes.uni_pass { UniPass }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.diagnostics { E0033, E0108, E0109 }
+import from jaclang.compiler.types.ct_value { CT_DEFERRED, CtValue }
 import from jaclang.compiler.types.types {
     AnyType,
     ClassType,
@@ -179,6 +182,11 @@ class TypeCheckPass(UniPass) {
     def exit_raise_stmt(self: TypeCheckPass, nd: RaiseStmt) -> None;
     def enter_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None;
     def exit_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None;
+    def enter_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None;
+    def enter_else_if(self: TypeCheckPass, nd: ElseIf) -> None;
+    def _resolve_comptime_if(self: TypeCheckPass, nd: IfStmt) -> None;
+    def _in_comptime_context(self: TypeCheckPass, nd: UniNode) -> bool;
+    def _check_comptime_only_use(self: TypeCheckPass, nd: Name) -> None;
     def exit_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None;
     def exit_else_if(self: TypeCheckPass, nd: ElseIf) -> None;
     def exit_while_stmt(self: TypeCheckPass, nd: WhileStmt) -> None;

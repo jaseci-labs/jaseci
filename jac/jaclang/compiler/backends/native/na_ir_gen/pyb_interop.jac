@@ -25,7 +25,10 @@ obj NaIRGenPybInterop(NaIRGenState) {
     def _pyb_to_py(nd: (uni.UniNode | None), val: ir.Value) -> (ir.Value | None);
     def _pyb_ret_key(nd: uni.FuncCall) -> (str | None);
     def _pyb_from_py(handle: ir.Value, type_key: (str | None)) -> (ir.Value | None);
-    def _pyb_build_args(params: list, skip_kwargs: bool = False) -> (tuple | None);
+    def _pyb_build_args(
+        params: Sequence[uni.Expr | uni.KWPair], skip_kwargs: bool = False
+    ) -> (tuple | None);
+
     def _pyb_bridge_call(fn_name: str, args: list[ir.Value]) -> ir.Value;
     def _codegen_pyb_field_load(
         nd: uni.AtomTrailer, obj_val: ir.Value, field_name: str
@@ -47,7 +50,7 @@ obj NaIRGenPybInterop(NaIRGenState) {
         nd: (uni.FuncCall | uni.Name),
         type_name: str,
         obj_ptr: ir.Value,
-        params: list,
+        params: Sequence[uni.Expr | uni.KWPair],
         native_fields: dict
     ) -> bool;
 }
