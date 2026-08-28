@@ -165,93 +165,7 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
             );
         }
     } elif isinstance(nd, uni.DeleteStmt) {
-        target_expr = nd.target;
-        _del_arch = self._struct_name_of(target_expr);
-        _del_model = self.ir_in.gen.osp_model;
-        if (_del_arch is not None)
-            and (_del_model is not None)
-            and (_del_model.arch_kind.get(_del_arch) == "edge") {
-            _disc_fn = self.func_symtab.get("osp_disconnect");
-            _edge_h = self._codegen_expr(target_expr);
-            if (_disc_fn is not None) and (_edge_h is not None) {
-                _disc_argtys = _disc_fn.function_type.args;
-                self.builder.call(
-                    _disc_fn, [self._coerce_type(_edge_h, _disc_argtys[0])]
-                );
-            } elif _disc_fn is None {
-                self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
-            }
-        } elif isinstance(target_expr, uni.AtomTrailer) and target_expr.is_attr {
-            _del_cls = self._struct_name_of(target_expr.target);
-            _del_fld = self._get_name(target_expr.right);
-            _del_slot = self._accessor_slot_of(_del_cls, _del_fld, "deleter")
-                if (_del_cls is not None and _del_fld is not None)
-                else None;
-            if _del_slot is not None {
-                _del_recv = self._codegen_expr(target_expr.target);
-                if _del_recv is None
-                    or self._codegen_accessor_call(_del_recv, _del_cls, _del_slot, [])
-                        is None {
-                    self.emit(
-                        E5092, node_override=nd, kind="statement", name="DeleteStmt"
-                    );
-                }
-            }
-        } elif (
-            isinstance(target_expr, uni.AtomTrailer)
-            and not target_expr.is_attr
-            and target_expr.right?.slices
-        ) {
-            slices = target_expr.right.slices or [];
-            if slices {
-                dict_type_key = self._dict_key_of(target_expr.target);
-                if dict_type_key is None {
-                    dict_val_tmp = self._codegen_expr(target_expr.target);
-                    if dict_val_tmp is not None {
-                        dict_info = self._infer_dict_type(dict_val_tmp);
-                        if dict_info is not None {
-                            dict_type_key = f"{dict_info[0]}:{dict_info[1]}";
-                        }
-                    }
-                }
-                if dict_type_key is not None {
-                    dict_val = self._codegen_expr(target_expr.target);
-                    dict_type_key = self._dict_key_reconcile(dict_type_key, dict_val);
-                    idx_node = slices[0];
-                    idx_val = self._codegen_expr(idx_node);
-                    if idx_val is None and idx_node?.start {
-                        idx_val = self._codegen_expr(idx_node.start);
-                    }
-                    if dict_val is not None and idx_val is not None {
-                        self._dispatch_primitive_method(
-                            "dict", "remove", dict_val, [idx_val], dict_type_key
-                        );
-                    }
-                } else {
-                    list_val_tmp = self._codegen_expr(target_expr.target);
-                    if list_val_tmp is not None {
-                        elem_type_name = self._infer_list_elem_type(list_val_tmp);
-                        if elem_type_name is not None {
-                            list_val = self._codegen_expr(target_expr.target);
-                            idx_node = slices[0];
-                            idx_val = self._codegen_expr(idx_node);
-                            if idx_val is None and idx_node?.start {
-                                idx_val = self._codegen_expr(idx_node.start);
-                            }
-                            if list_val is not None and idx_val is not None {
-                                self._dispatch_primitive_method(
-                                    "list",
-                                    "del_at",
-                                    list_val,
-                                    [idx_val],
-                                    elem_type_name
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        self._codegen_delete(nd);
     } elif isinstance(nd, uni.Semi) { } elif isinstance(nd, uni.Import) { } elif isinstance(
         nd, uni.PyInlineCode
     ) { } elif isinstance(nd, uni.VisitStmt) {
@@ -263,6 +177,132 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
     } else {
         self.emit(E5092, node_override=nd, kind="statement", name=type(nd).__name__);
     }
+}
+
+impl NaIRGenStmt._codegen_delete(nd: uni.DeleteStmt) -> None {
+    (names, values, locations) = nd.classify_targets();
+    for target in names {
+        self._codegen_destroy_target(target, nd);
+    }
+    for target in values {
+        self._codegen_destroy_target(target, nd);
+    }
+    for target in locations {
+        if isinstance(target, uni.AtomTrailer) {
+            self._codegen_delete_location(target, nd);
+        }
+    }
+}
+
+impl NaIRGenStmt._codegen_destroy_target(target: uni.Expr, nd: uni.DeleteStmt) -> None {
+    if isinstance(target, uni.Name) and not self._del_target_holds_graph(target) {
+        return;
+    }
+    _destroy_fn = self.func_symtab.get("osp_destroy");
+    _destroy_all_fn = self.func_symtab.get("osp_destroy_all");
+    _val = self._codegen_expr(target)
+        if (_destroy_fn is not None and _destroy_all_fn is not None)
+        else None;
+    if _val is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    if self._infer_list_elem_type(_val) is not None {
+        _all_argtys = _destroy_all_fn.function_type.args;
+        self.builder.call(_destroy_all_fn, [self._coerce_type(_val, _all_argtys[0])]);
+        return;
+    }
+    if self._struct_name_of(target) is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    _argtys = _destroy_fn.function_type.args;
+    self.builder.call(_destroy_fn, [self._coerce_type(_val, _argtys[0])]);
+}
+
+impl NaIRGenStmt._del_target_holds_graph(target: uni.Expr) -> bool {
+    _model = self.ir_in.gen.osp_model;
+    _type_key = self._type_key_of(target);
+    if (_model is None) or (_type_key is None) {
+        return False;
+    }
+    _flat = _type_key;
+    for _ch in "[](),|" {
+        _flat = _flat.replace(_ch, " ");
+    }
+    for _part in _flat.split() {
+        if _model.arch_kind.get(_part) is not None {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl NaIRGenStmt._codegen_delete_location(
+    target: uni.AtomTrailer, nd: uni.DeleteStmt
+) -> None {
+    if target.is_attr {
+        _del_cls = self._struct_name_of(target.target);
+        _del_fld = self._get_name(target.right);
+        _del_slot = self._accessor_slot_of(_del_cls, _del_fld, "deleter")
+            if (_del_cls is not None and _del_fld is not None)
+            else None;
+        _del_recv = self._codegen_expr(target.target)
+            if _del_slot is not None
+            else None;
+        if _del_recv is None
+            or self._codegen_accessor_call(_del_recv, _del_cls, _del_slot, [])
+                is None {
+            self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        }
+        return;
+    }
+    _islice = target.right;
+    if (not isinstance(_islice, uni.IndexSlice))
+        or _islice.is_range
+        or len(_islice.slices) != 1 {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    _idx_node = _islice.slices[0];
+    _idx_val = self._codegen_expr(_idx_node);
+    if _idx_val is None and _idx_node?.start {
+        _idx_val = self._codegen_expr(_idx_node.start);
+    }
+    if _idx_val is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    _dict_type_key = self._dict_key_of(target.target);
+    if _dict_type_key is None {
+        _dict_probe = self._codegen_expr(target.target);
+        _dict_info = self._infer_dict_type(_dict_probe)
+            if _dict_probe is not None
+            else None;
+        if _dict_info is not None {
+            _dict_type_key = f"{_dict_info[0]}:{_dict_info[1]}";
+        }
+    }
+    _container = self._codegen_expr(target.target);
+    if _container is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    if _dict_type_key is not None {
+        _dict_type_key = self._dict_key_reconcile(_dict_type_key, _container);
+        self._dispatch_primitive_method(
+            "dict", "remove", _container, [_idx_val], _dict_type_key
+        );
+        return;
+    }
+    _elem_type_name = self._infer_list_elem_type(_container);
+    if _elem_type_name is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    self._dispatch_primitive_method(
+        "list", "del_at", _container, [_idx_val], _elem_type_name
+    );
 }
 
 impl NaIRGenStmt._codegen_return(nd: uni.ReturnStmt) -> None {

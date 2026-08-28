@@ -36,7 +36,7 @@ impl JacProgram.transitive_dependents(self: JacProgram, target_path: str) -> set
 impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None {
     self.hub.evict(resolved_path);
     if resolved_path in self.analysis.placement_summaries {
-        del (self.analysis.placement_summaries[resolved_path], );
+        del self.analysis.placement_summaries[resolved_path];
     }
 
     te = self.type_evaluator;

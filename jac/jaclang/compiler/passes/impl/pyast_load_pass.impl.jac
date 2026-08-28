@@ -1809,10 +1809,7 @@ impl PyastBuildPass.proc_delete(nd: py_ast.Delete) -> DeleteStmt {
     if (not len(valid_exprs) or (len(valid_exprs) != len(exprs))) {
         raise RuntimeError(self.ice('Length mismatch in delete targets'));
     }
-    target_1 = valid_exprs[0]
-        if (len(valid_exprs) > 1)
-        else TupleVal(values=valid_exprs, kid=[*valid_exprs]);
-    return DeleteStmt(target=target_1, kid=[*valid_exprs]);
+    return DeleteStmt(targets=valid_exprs, kid=[*valid_exprs]);
 }
 
 impl PyastBuildPass.proc_return(nd: py_ast.Return) -> (ReturnStmt | None) {

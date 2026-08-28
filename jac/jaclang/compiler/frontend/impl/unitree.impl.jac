@@ -1837,6 +1837,53 @@ impl DeleteStmt.postinit -> None {
 }
 
 
+impl DeleteStmt.classify_targets -> tuple[(list[Expr], list[Expr], list[Expr])] {
+    names: list[Expr] = [];
+    values: list[Expr] = [];
+    locations: list[Expr] = [];
+    for target in self.targets {
+        (t_names, t_values, t_locations) = DeleteStmt.classify_one(target);
+        names.extend(t_names);
+        values.extend(t_values);
+        locations.extend(t_locations);
+    }
+    return (names, values, locations);
+}
+
+
+impl DeleteStmt.classify_one(
+    target: Expr
+) -> tuple[(list[Expr], list[Expr], list[Expr])] {
+    inner: Expr = target;
+    while isinstance(inner, AtomUnit) and isinstance(inner.value, Expr) {
+        inner = inner.value;
+    }
+    if isinstance(inner, (TupleVal, ListVal)) {
+        names: list[Expr] = [];
+        values: list[Expr] = [];
+        locations: list[Expr] = [];
+        for el in inner.values {
+            if not isinstance(el, Expr) {
+                continue;
+            }
+            (el_names, el_values, el_locations) = DeleteStmt.classify_one(el);
+            names.extend(el_names);
+            values.extend(el_values);
+            locations.extend(el_locations);
+        }
+        return (names, values, locations);
+    }
+    if isinstance(inner, AtomTrailer)
+        and (inner.is_attr or isinstance(inner.right, IndexSlice)) {
+        return ([], [], [inner]);
+    }
+    if isinstance(inner, Name) {
+        return ([inner], [], [inner]);
+    }
+    return ([], [inner], []);
+}
+
+
 impl ReportStmt.postinit -> None {
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);

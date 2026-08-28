@@ -327,6 +327,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="Component body statements run on every render, and state writes are immediately visible, so this assignment would re-render forever. Move it into a `can` ability, an event handler, or a method.",
          blocks_codegen=True
      ),
+     E0083 = _err(
+         "E0083",
+         Category.SYNTAX,
+         "Cannot delete {what}",
+         help="`del` takes either a location to unbind -- a name, an attribute, or a subscript -- or an expression yielding graph objects to destroy. This target is neither."
+     ),
      W0060 = _warn(
          "W0060",
          Category.SYNTAX,
@@ -1008,6 +1014,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.TYPE,
          "Expression type could not be resolved (Unknown)",
          "Often fixed by adding a more specific type annotation to the relevant declaration (e.g., 'list[Task]' instead of bare 'list', or annotating an unannotated parameter or attribute). Can also indicate an unresolved import, a forward reference the checker cannot bind, or fallout from an upstream error."
+     ),
+     W1053 = _warn(
+         "W1053",
+         Category.TYPE,
+         "`del` on a value of type '{type}' destroys nothing",
+         "A `del` target that is not a name, an attribute, or a subscript is a destroy request, so it must yield nodes, edges, or archetypes. Delete the location that holds this value if you meant to drop a binding."
      ),
      W1052 = _warn(
          "W1052",
