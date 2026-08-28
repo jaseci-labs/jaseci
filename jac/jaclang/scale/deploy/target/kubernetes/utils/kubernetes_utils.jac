@@ -9,6 +9,13 @@ import from jaclang.scale._optdeps.kubernetes {
 }
 import from jaclang.scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
 
+glob _LOCAL_FALLBACK_NOTE: str = (
+         "Falling back to local provider semantics: service URLs will be "
+         "reported as localhost node ports and no load balancer endpoint will "
+         "be waited for. If this is a managed cluster, the reported URLs will "
+         "be wrong."
+     );
+
 glob PSS_ENFORCE_LABEL: str = "pod-security.kubernetes.io/enforce",
      PSS_WARN_LABEL: str = "pod-security.kubernetes.io/warn",
      PSS_SOURCE_LABEL: str = "jac-scale.jaseci.org/pss-enforce-source",
