@@ -1728,9 +1728,10 @@ test "serve sync skips write access check on unchanged anchors" {
         # Seed the session exactly as a load would: identity-mapped, flushed
         # hash recorded, not dirty -- i.e. an unchanged anchor.
         sess = cast(Session, ctx.mem);
-        sess.__mem__[sys_root.id] = sys_root;
-        sess._flushed_hash[sys_root.id] = sys_root.hash;
-        sess._dirty.pop(sys_root.id, None);
+        sys_root_id = sys_root.ensure_id();
+        sess.__mem__[sys_root_id] = sys_root;
+        sess._flushed_hash[sys_root_id] = sys_root.hash;
+        sess._dirty.pop(sys_root_id, None);
         # Capture logs
         logger = logging.getLogger("jaclang.runtime.runtime");
         cap = capture_log_start(logger);
@@ -1916,30 +1917,32 @@ test "Session async mirrors (aget/aput/adelete/ahas/acommit) work" {
     with TemporaryDirectory() as tmpdir {
         # Store-less session (pure in-memory).
         vol = Session();
-        anchor = NodeAnchor(id=uuid4(), archetype=Root(), edges=[]);
+        anchor = NodeAnchor(archetype=Root(), edges=[]);
+        aid = anchor.ensure_id();
         async def exercise_volatile -> bool {
             await vol.aput(anchor);
-            assert await vol.ahas(anchor.id);
-            got = await vol.aget(anchor.id);
+            assert await vol.ahas(aid);
+            got = await vol.aget(aid);
             assert got is anchor;
             await vol.acommit(anchor);
-            await vol.adelete(anchor.id);
-            assert not await vol.ahas(anchor.id);
+            await vol.adelete(aid);
+            assert not await vol.ahas(aid);
             return True;
         }
         assert asyncio.run(exercise_volatile());
         # Postgres-backed session on the project database.
         sess = Session(base_path=tmpdir);
-        persist_anchor = NodeAnchor(id=uuid4(), archetype=Root(), edges=[]);
+        persist_anchor = NodeAnchor(archetype=Root(), edges=[]);
         persist_anchor.persistent = True;
+        pid = persist_anchor.ensure_id();
         async def exercise_store -> bool {
             await sess.aput(persist_anchor);
-            assert await sess.ahas(persist_anchor.id);
-            got = await sess.aget(persist_anchor.id);
+            assert await sess.ahas(pid);
+            got = await sess.aget(pid);
             assert got is not None;
-            assert got.id == persist_anchor.id;
+            assert got.id == pid;
             await sess.acommit(persist_anchor);
-            await sess.adelete(persist_anchor.id);
+            await sess.adelete(pid);
             return True;
         }
         assert asyncio.run(exercise_store());
@@ -1971,7 +1974,8 @@ test "Session concurrent commits from worker threads do not race" {
         # below knows exactly what to expect.
         anchor_ids = [uuid4() for _ in range(n_threads)];
         def worker(idx: int) {
-            a = NodeAnchor(id=anchor_ids[idx], archetype=Root(), edges=[]);
+            a = NodeAnchor(archetype=Root(), edges=[]);
+            a.id = anchor_ids[idx];
             a.persistent = True;
             mem.put(a);
             mem.commit(a);

@@ -56,7 +56,8 @@ impl Parameter.clone -> Parameter {
         is_self=self.is_self,
         is_cls=self.is_cls,
         param_kind=self.param_kind,
-        has_default=self.has_default
+        has_default=self.has_default,
+        is_comptime=self.is_comptime
     );
 }
 
@@ -323,6 +324,7 @@ impl ClassType.get_class_symbol -> (Symbol | None) {
 impl ClassType.specialize_generics(type_args: list[TypeBase]) -> ClassType {
     new_private = ClassDetailsPrivate(
         type_args=type_args,
+        ct_args=self.private.ct_args,
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
         distinct_key=self.private.distinct_key
@@ -336,6 +338,7 @@ impl ClassType.clone_as_class -> ClassType {
     }
     private = ClassDetailsPrivate(
         type_args=self.private.type_args[:],
+        ct_args=self.private.ct_args,
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
         distinct_key=self.private.distinct_key
@@ -353,6 +356,7 @@ impl ClassType.clone_as_instance -> ClassType {
     }
     private = ClassDetailsPrivate(
         type_args=self.private.type_args[:],
+        ct_args=self.private.ct_args,
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
         distinct_key=self.private.distinct_key

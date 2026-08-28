@@ -19,6 +19,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import os
+import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -33,6 +34,34 @@ PY_BOOT_MODULES = {
     "jaclang.bootstrap_manifest",
     "jaclang.jac0",
 }
+
+
+_STRING_RE = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'')
+_COMPTIME_RE = re.compile(r"(?<![\w`])comptime\b")
+
+
+def _comptime_keyword_lines(source: str) -> list[tuple[int, str]]:
+    """Lines where `comptime` appears as a keyword, not inside a string.
+
+    Comments and string literals are blanked before matching; a triple-quoted
+    block spanning several lines is skipped as a whole.
+    """
+    hits: list[tuple[int, str]] = []
+    in_block = False
+    for lineno, line in enumerate(source.splitlines(), start=1):
+        if in_block:
+            if '"""' in line:
+                in_block = False
+                line = line.split('"""', 1)[1]
+            else:
+                continue
+        if line.count('"""') % 2 == 1:
+            in_block = True
+            line = line.split('"""', 1)[0]
+        code = _STRING_RE.sub('""', line).split("#", 1)[0]
+        if _COMPTIME_RE.search(code):
+            hits.append((lineno, line))
+    return hits
 
 
 def _load(name: str, path: str):
@@ -95,6 +124,17 @@ def main() -> int:
             with open(impl_path, encoding="utf-8") as f:
                 impl_sources.append((f.read(), impl_path))
         rel = os.path.relpath(src_path, JACLANG).replace(os.sep, "/")
+        # The seed tier never learns the comptime dialect: the jac0 transpiler
+        # would read the keyword as a plain name and emit wrong Python, so the
+        # gate refuses it up front instead of at the first confusing failure.
+        for ct_src, ct_path in [(source, src_path)] + impl_sources:
+            for lineno, line in _comptime_keyword_lines(ct_src):
+                ct_rel = os.path.relpath(ct_path, JACLANG).replace(os.sep, "/")
+                failures.append(
+                    f"{ct_rel}:{lineno}: 'comptime' is not available in the "
+                    "jac0 seed tier; seed modules are compiled without the "
+                    "compile-time evaluator"
+                )
         try:
             py_source = jac0.compile_jac(
                 source, src_path, impl_sources=impl_sources or None

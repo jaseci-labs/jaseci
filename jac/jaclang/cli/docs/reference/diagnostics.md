@@ -95,6 +95,18 @@ Emitted by the parser and lexer during source code parsing.
 | `E0032` | Unexpected '{token}' -- must follow its parent statement (if/try/match/switch) |
 | `E0034` | Expected 'with' after 'can' ability name (use 'def' for function-style declarations) |
 
+### Compile-Time Evaluation
+
+Emitted at `comptime` sites; see [Compile-Time Evaluation](language/comptime.md) and `jac guide jac-comptime`.
+
+| Code | Message |
+|------|---------|
+| `E0033` | {what} is not known at compile time{reason} |
+| `E0108` | Compile-time evaluation failed: {reason} |
+| `E0109` | Compile-time assertion failed{message} |
+
+All three block code generation for the module that reports them.
+
 ### Block / Body Requirements
 
 | Code | Message |

@@ -1170,11 +1170,13 @@ def:pub generate_list(meal: str) -> list[ShoppingItem] {
     # Generate new ones
     ingredients = generate_shopping_list(meal);
     for ing in ingredients {
-        root ++> ShoppingItem(
-            name=ing.name, quantity=ing.quantity,
-            unit=str(ing.unit).split(".")[-1].lower(),
-            cost=ing.cost, carby=ing.carby
-        );
+        item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+        comptime for f in fields(ShoppingItem) {
+            comptime if f.name != "unit" {
+                item[f.name] = get_field(ing, f.name);
+            }
+        }
+        root ++> ShoppingItem(**item);
     }
     return [root-->][?:ShoppingItem];
 }
@@ -1692,11 +1694,13 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
         }
         ingredients = generate_shopping_list(meal);
         for ing in ingredients {
-            root ++> ShoppingItem(
-                name=ing.name, quantity=ing.quantity,
-                unit=str(ing.unit).split(".")[-1].lower(),
-                cost=ing.cost, carby=ing.carby
-            );
+            item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+            comptime for f in fields(ShoppingItem) {
+                comptime if f.name != "unit" {
+                    item[f.name] = get_field(ing, f.name);
+                }
+            }
+            root ++> ShoppingItem(**item);
         }
         return [root-->][?:ShoppingItem];
     }
@@ -2080,6 +2084,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     ```jac
     """AI Day Planner -- authenticated, multi-file version."""
 
+    import from jaclang.comptime { fields, get_field }
     import from frontend { app as ClientApp }
 
     def:pub app -> JsxElement {
@@ -2173,11 +2178,13 @@ All the complete files are in the collapsible sections below. Create each file, 
         }
         ingredients = generate_shopping_list(meal);
         for ing in ingredients {
-            root ++> ShoppingItem(
-                name=ing.name, quantity=ing.quantity,
-                unit=str(ing.unit).split(".")[-1].lower(),
-                cost=ing.cost, carby=ing.carby
-            );
+            item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+            comptime for f in fields(ShoppingItem) {
+                comptime if f.name != "unit" {
+                    item[f.name] = get_field(ing, f.name);
+                }
+            }
+            root ++> ShoppingItem(**item);
         }
         return [root-->][?:ShoppingItem];
     }
@@ -2969,11 +2976,13 @@ walker GenerateShoppingList {
         # Generate new ingredients (runs before queued visits)
         ingredients = generate_shopping_list(self.meal_description);
         for ing in ingredients {
-            here ++> ShoppingItem(
-                name=ing.name, quantity=ing.quantity,
-                unit=str(ing.unit).split(".")[-1].lower(),
-                cost=ing.cost, carby=ing.carby
-            );
+            item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+            comptime for f in fields(ShoppingItem) {
+                comptime if f.name != "unit" {
+                    item[f.name] = get_field(ing, f.name);
+                }
+            }
+            here ++> ShoppingItem(**item);
         }
         report [here-->][?:ShoppingItem];
     }
@@ -3105,6 +3114,7 @@ The three files that change are in the collapsible sections below. Copy the unch
     ```jac
     """AI Day Planner -- walker-based version with OSP."""
 
+    import from jaclang.comptime { fields, get_field }
     import from frontend { app as ClientApp }
 
     def:pub app -> JsxElement {
@@ -3222,13 +3232,13 @@ The three files that change are in the collapsible sections below. Copy the unch
             visit [-->];
             ingredients = generate_shopping_list(self.meal_description);
             for ing in ingredients {
-                here ++> ShoppingItem(
-                    name=ing.name,
-                    quantity=ing.quantity,
-                    unit=str(ing.unit).split(".")[-1].lower(),
-                    cost=ing.cost,
-                    carby=ing.carby
-                );
+                item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+                comptime for f in fields(ShoppingItem) {
+                    comptime if f.name != "unit" {
+                        item[f.name] = get_field(ing, f.name);
+                    }
+                }
+                here ++> ShoppingItem(**item);
             }
             report [here-->][?:ShoppingItem];
         }

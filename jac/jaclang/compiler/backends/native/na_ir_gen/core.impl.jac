@@ -1239,7 +1239,10 @@ impl NaIRGenCore._imported_function_demotions(
             CompileOptions as _FdOpts
         }
         _opts_src = self.prog?.options or _FdOpts();
-        if not bool(getattr(_opts_src, "no_ir_cache", False)) {
+        import from jaclang.compiler.driver.jir {
+            native_ir_cache_suspended as _fd_suspended
+        }
+        if not (bool(getattr(_opts_src, "no_ir_cache", False)) or _fd_suspended()) {
             try {
                 import from jaclang.compiler.backends.native.na_compile_pass {
                     native_dep_cache_paths
@@ -1624,6 +1627,39 @@ impl NaIRGenCore._split_call_kwargs(nd: uni.FuncCall) -> dict {
     for param in (nd.params or []) {
         if isinstance(param, uni.KWPair) and param.key is not None {
             out[param.key.sym_name] = param.value;
+        }
+    }
+    for (ct_name, ct_expr) in self._ct_ctor_slots(nd.target) {
+        out[ct_name] = ct_expr;
+    }
+    return out;
+}
+
+impl NaIRGenCore._ct_ctor_slots(target: uni.UniNode) -> list[tuple] {
+    out: list[tuple] = [];
+    if not isinstance(target, uni.AtomTrailer) or target.is_attr {
+        return out;
+    }
+    if not isinstance(target.right, uni.IndexSlice) or target.right.is_range {
+        return out;
+    }
+    t = target.target.type;
+    shared = t?.shared;
+    if shared is None or not shared.ct_params {
+        return out;
+    }
+    arch = shared.symbol_table;
+    if not isinstance(arch, uni.Archetype) {
+        return out;
+    }
+    s0 = target.right.slices[0] if target.right.slices else None;
+    head = s0.start if s0 is not None else None;
+    vals: list = `list(head.values)
+        if isinstance(head, uni.TupleVal)
+        else ([head] if head else []);
+    for (i, tp) in enumerate(arch.type_params or []) {
+        if tp.is_comptime and i < len(vals) {
+            out.append((tp.name.value, vals[i], ));
         }
     }
     return out;

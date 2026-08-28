@@ -79,7 +79,7 @@ test "rywr: committed edge, uncommitted detach invisible to traversal (#7937)" {
             for e in list(ranch.edges) {
                 ranch.edges.remove(e);
                 it.edges.remove(e);
-                ctx.mem.delete(e.id);
+                ctx.mem.delete(e.ensure_id());
             }
             assert len(_out_items(ctx, ranch)) == 0 , (
                 "#7937: uncommitted detach must be invisible to traversal"
@@ -108,13 +108,13 @@ test "rywr: uncommitted node destroy invisible to traversal" {
 
             for e in list(ranch.edges) {
                 ranch.edges.remove(e);
-                ctx.mem.delete(e.id);
+                ctx.mem.delete(e.ensure_id());
             }
-            ctx.mem.delete(it.id);
+            ctx.mem.delete(it.ensure_id());
             assert len(_out_items(ctx, ranch)) == 0 , (
                 "uncommitted destroy must be invisible to traversal"
             );
-            assert ctx.mem.get(it.id) is None , (
+            assert ctx.mem.get(it.ensure_id()) is None , (
                 "get-after-delete must not resurrect from the store"
             );
 
@@ -159,9 +159,9 @@ test "get-after-delete does not resurrect from the store" {
             it = _attach(ctx, ranch, "x");
             ctx.mem.commit();
 
-            ctx.mem.delete(it.id);
-            assert ctx.mem.get(it.id) is None;
-            assert ctx.mem.batch_get([it.id]) == {};
+            ctx.mem.delete(it.ensure_id());
+            assert ctx.mem.get(it.ensure_id()) is None;
+            assert ctx.mem.batch_get([it.ensure_id()]) == {};
         } finally {
             JacRuntime.exec_ctx = old;
             ctx.close();
@@ -180,7 +180,7 @@ test "persistence across sessions: same base path reopens the graph" {
             ranch = _root(ctx);
             _attach(ctx, ranch, "kept");
             ctx.mem.commit();
-            rid = ranch.id;
+            rid = ranch.ensure_id();
         } finally {
             JacRuntime.exec_ctx = old;
             ctx.close();

@@ -118,7 +118,7 @@ impl UnparsePass.exit_sub_tag(nd: uni.SubTag[uni.UniNode]) -> None {
 }
 
 impl UnparsePass.exit_type_param(nd: uni.TypeParam) -> None {
-    parts: list = [nd.name.gen.jac];
+    parts: list = [("comptime " if nd.is_comptime else "") + nd.name.gen.jac];
     if nd.bound {
         parts.append(": " + nd.bound.gen.jac);
     }
@@ -152,7 +152,7 @@ impl UnparsePass.exit_global_vars(nd: uni.GlobalVars) -> None {
     if nd.doc {
         parts.append(nd.doc.gen.jac);
     }
-    parts.append("glob");
+    parts.append("comptime" if nd.is_frozen else "glob");
     if nd.access {
         parts.append(nd.access.gen.jac);
     }
@@ -199,6 +199,9 @@ impl UnparsePass.exit_import(nd: uni.Import) -> None {
     parts: list = [];
     if nd.doc {
         parts.append(nd.doc.gen.jac);
+    }
+    if nd.is_comptime {
+        parts.append("comptime");
     }
     if nd.is_absorb {
         parts.append("include");
@@ -360,6 +363,9 @@ impl UnparsePass.exit_ability(nd: uni.Ability) -> None {
         decs = " @".join([d.gen.jac for d in nd.decorators]);
         parts.append("@" + decs);
     }
+    if nd.is_comptime {
+        parts.append("comptime");
+    }
     if nd.is_async {
         parts.append("async");
     }
@@ -447,7 +453,7 @@ impl UnparsePass.exit_event_signature(nd: uni.EventSignature) -> None {
 }
 
 impl UnparsePass.exit_param_var(nd: uni.ParamVar) -> None {
-    result = "";
+    result = "comptime " if nd.is_comptime else "";
     if nd.unpack {
         result = nd.unpack.gen.jac;
     }
@@ -503,7 +509,12 @@ impl UnparsePass.exit_open_stmt(nd: uni.OpenStmt) -> None {
 
 impl UnparsePass.exit_if_stmt(nd: uni.IfStmt) -> None {
     body = " ".join([s.gen.jac for s in nd.body]);
-    result = "if " + nd.condition.gen.jac + " { " + body + " }";
+    result = ("comptime " if nd.is_comptime else "")
+        + "if "
+        + nd.condition.gen.jac
+        + " { "
+        + body
+        + " }";
     if nd.else_body {
         result = result + " " + nd.else_body.gen.jac;
     }
@@ -586,7 +597,11 @@ impl UnparsePass.exit_iter_for_stmt(nd: uni.IterForStmt) -> None {
 }
 
 impl UnparsePass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
-    parts: list = ["for"];
+    parts: list = [];
+    if nd.is_comptime {
+        parts.append("comptime");
+    }
+    parts.append("for");
     if nd.is_async {
         parts.append("async");
     }
@@ -649,7 +664,11 @@ impl UnparsePass.exit_raise_stmt(nd: uni.RaiseStmt) -> None {
 }
 
 impl UnparsePass.exit_assert_stmt(nd: uni.AssertStmt) -> None {
-    parts: list = ["assert", nd.condition.gen.jac];
+    parts: list = [];
+    if nd.is_comptime {
+        parts.append("comptime");
+    }
+    parts.extend(["assert", nd.condition.gen.jac]);
     if nd.error_msg {
         parts.append(",");
         parts.append(nd.error_msg.gen.jac);
@@ -709,6 +728,9 @@ impl UnparsePass.exit_cast_expr(nd: uni.CastExpr) -> None {
 
 impl UnparsePass.exit_assignment(nd: uni.Assignment) -> None {
     parts: list = [];
+    if nd.is_comptime and not isinstance(nd.parent, uni.GlobalVars) {
+        parts.append("comptime");
+    }
     targets = " = ".join([t.gen.jac for t in nd.target]);
     parts.append(targets);
     if nd.type_tag {

@@ -50,7 +50,7 @@ impl UniPass.transform(ir_in: Module) -> Module {
 }
 
 impl UniPass.traverse(nd: UniNode) -> UniNode {
-    if self.is_canceled() {
+    if self.is_canceled() or nd.ct_pruned {
         return nd;
     }
     self.cur_node = nd;
