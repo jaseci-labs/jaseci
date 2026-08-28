@@ -139,12 +139,15 @@ obj _SetupProgress {
     has _banner_shown: bool = False,
         _compile_count: int = 0,
         _seen_files: set[str] postinit,
-        _jaclang_root: (str | None) = None;
+        _jaclang_root: (str | None) = None,
+        _first_compile_at: (float | None) = None;
 
     def postinit -> None;
     def _get_jaclang_root -> str;
     def _atexit_handler -> None;
     def on_internal_compile(file_path: str) -> None;
+    def _precompile_limit -> int;
+    def _halt_at_limit -> None;
 
     has is_active: bool { getter; }
 }
