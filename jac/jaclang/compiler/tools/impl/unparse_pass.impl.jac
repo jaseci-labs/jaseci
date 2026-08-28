@@ -681,7 +681,7 @@ impl UnparsePass.exit_ctrl_stmt(nd: uni.CtrlStmt) -> None {
 }
 
 impl UnparsePass.exit_delete_stmt(nd: uni.DeleteStmt) -> None {
-    nd.gen.jac = "delete " + ", ".join([t.gen.jac for t in nd.targets]) + ";";
+    nd.gen.jac = "delete " + nd.target.gen.jac + ";";
 }
 
 impl UnparsePass.exit_report_stmt(nd: uni.ReportStmt) -> None {

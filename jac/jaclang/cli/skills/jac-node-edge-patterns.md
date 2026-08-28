@@ -86,22 +86,19 @@ for conn in [p ->:Connected:->] { print(conn.username); }
 for conn in [p ->:Connected:->[?:UserProfile]] { print(conn.username); }
 ```
 
-- **Deleting edges:** the `del -->` disconnect operator is **untyped-only**, and `a del-->:E: b;` is a parse error. For a typed edge, `del` the `[edge ...]` query directly: `del` on any expression that is not a name, an attribute, or a subscript destroys exactly the graph objects the expression yields.
+- **Deleting edges:** the `del -->` disconnect operator is **untyped-only**. To delete a specific typed edge, query it with `[edge ...]` (single arrows) and iterate-del. `a del-->:E: b;` is a parse error; `del [a ->:E:-> b];` passes `jac check` but fails at run time (E5043) - neither deletes a typed edge.
 
 ```
 # Untyped disconnect
 a del --> b;
 
-# Typed deletion - del the edge query itself
-del [edge a ->:E:-> b];
+# Typed deletion - iterate edge objects and del each
+for e in [edge a ->:E:-> b] { del e; }
 
 # Delete a node - cascades to ALL its edges (in and out).
 # Capture jid(n) BEFORE the del if you need to report what was removed.
 gone = jid(node_var);
 del node_var;
-
-# del on a container entry removes the entry only; the node survives.
-del index["alice"];
 ```
 
 - A node needs `root` attachment (or a path from root) to be reachable later. A freshly constructed `Person(name="x")` with no incoming edge is unreachable from `[root -->]` reads - the node exists in memory but no walker or list-read can find it. Always attach: `root ++> person;`.

@@ -660,59 +660,6 @@ def osp_disconnect(edge_handle: int) -> int {
     return 1;
 }
 
-def osp_node_destroy(addr: int) -> int {
-    s = _nt_find(addr);
-    if s < 0 {
-        return 0;
-    }
-    ho = _nt_ho[s];
-    hi = _nt_hi[s];
-    _nt_del(s);
-    n = 0;
-    r = ho;
-    while r >= 0 {
-        nx = _r_nsrc[r];
-        if _r_src[r] != -1 {
-            if _nt_find(_r_tgt[r]) >= 0 {
-                _unlink_in(_r_tgt[r], r);
-            }
-            _row_retire(r);
-            n += 1;
-        }
-        r = nx;
-    }
-    r = hi;
-    while r >= 0 {
-        nx = _r_ntgt[r];
-        if _r_src[r] != -1 {
-            if _nt_find(_r_src[r]) >= 0 {
-                _unlink_out(_r_src[r], r);
-            }
-            _row_retire(r);
-            n += 1;
-        }
-        r = nx;
-    }
-    return n;
-}
-
-def osp_destroy(h: int) -> int {
-    if _et_find(h) >= 0 {
-        return osp_disconnect(h);
-    }
-    return osp_node_destroy(h);
-}
-
-def osp_destroy_all(hs: list[int]) -> int {
-    n = 0;
-    i = 0;
-    while i < len(hs) {
-        n += osp_destroy(hs[i]);
-        i += 1;
-    }
-    return n;
-}
-
 def osp_region_died(rgn: int) -> int {
     n = 0;
     if len(_rt_key) == 0 {
