@@ -1778,12 +1778,42 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _destroy_shared_volume_pvcs(app_name: str, namespace: str, core_v1: any) {
+    def _report_unowned_shared_volumes(namespace: str, core_v1: any) {
+        if not self.logger {
+            return;
+        }
+        try {
+            pvcs = core_v1.list_namespaced_persistent_volume_claim(
+                namespace=namespace,
+                label_selector="managed=jac-scale,jac-scale.role=shared-volume,"
+                "!jac-scale.owner"
+            );
+        } except ApiException {
+            return;
+        }
+        names: list[str] = [pvc.metadata.name for pvc in pvcs.items];
+        if names {
+            self.logger.warning(
+                f"Kept shared volumes that name no app: {', '.join(names)}. They "
+                f"predate volume ownership, so another app in this namespace may "
+                f"own them. Redeploy that app to label them, or delete by hand.",
+                {"namespace": namespace}
+            );
+        }
+    }
+
+    def _destroy_shared_volume_pvcs(
+        app_name: str, namespace: str, core_v1: any, sole_tenant: bool
+    ) {
         shared: str = "managed=jac-scale,jac-scale.role=shared-volume";
-        selectors: list[str] = [
-            f"{shared},jac-scale.owner={k8s_safe_name(app_name)}",
-            f"{shared},!jac-scale.owner"
-        ];
+        selectors: list[str] = [f"{shared},jac-scale.owner={k8s_safe_name(app_name)}"];
+        # An unlabelled volume predates ownership and cannot gain a label, so
+        # sweeping it is only safe where no other app could have declared it.
+        if sole_tenant {
+            selectors.append(f"{shared},!jac-scale.owner");
+        } else {
+            self._report_unowned_shared_volumes(namespace, core_v1);
+        }
         for selector in selectors {
             try {
                 core_v1.delete_collection_namespaced_persistent_volume_claim(
@@ -1870,11 +1900,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _destroy_in_shared_namespace(
-        app_name: str, namespace: str, apps_v1: any, core_v1: any
+        app_name: str, namespace: str, apps_v1: any, core_v1: any, sole_tenant: bool
     ) {
         self._destroy_app_database(app_name, namespace, apps_v1, core_v1);
         self._destroy_app_pvcs(app_name, namespace, core_v1);
-        self._destroy_shared_volume_pvcs(app_name, namespace, core_v1);
+        self._destroy_shared_volume_pvcs(app_name, namespace, core_v1, sole_tenant);
         self._destroy_ops_rbac(app_name, namespace);
         delete_k8s_secret(core_v1, namespace, f"{app_name}-secrets");
     }
@@ -1917,7 +1947,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         );
         owner: str = k8s_safe_name(app_name);
 
-        if namespace_is_owned(core_v1, namespace, owner) {
+        sole_tenant: bool = namespace_is_owned(core_v1, namespace, owner);
+
+        if sole_tenant {
             if monitoring_reclaimed {
                 self._reclaim_namespace(namespace, core_v1);
                 return;
@@ -1931,7 +1963,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 );
             }
         }
-        self._destroy_in_shared_namespace(app_name, namespace, apps_v1, core_v1);
+        self._destroy_in_shared_namespace(
+            app_name, namespace, apps_v1, core_v1, sole_tenant
+        );
     }
 
     def _destroy_named_component(

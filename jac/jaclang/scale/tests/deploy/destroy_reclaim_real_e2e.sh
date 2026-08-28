@@ -250,6 +250,7 @@ OWNER="$(ns_owner "${OWNED_NS}")"
 kubectl get statefulset "${APP}-postgres" -n "${OWNED_NS}" >/dev/null 2>&1 \
     || fail "${OWNED_NS}" "postgres was never provisioned, so this run cannot prove reclamation"
 seed_shared_volume_pvc "${OWNED_NS}" "${SHARED_VOL}" "${APP}"
+seed_shared_volume_pvc "${OWNED_NS}" "${LEGACY_VOL}"
 PVC_BEFORE=$(kubectl get pvc -n "${OWNED_NS}" --no-headers 2>/dev/null | wc -l | tr -d ' ')
 [ "${PVC_BEFORE}" -ge 1 ] \
     || fail "${OWNED_NS}" "no PVCs bound before destroy, so this run cannot prove reclamation"
@@ -318,12 +319,13 @@ require_absent "${ADOPTED_NS}" statefulset "${APP}-postgres"
 require_absent "${ADOPTED_NS}" deployment "${APP}-deployment"
 require_absent "${ADOPTED_NS}" pvc "${APP}-bundles"
 
-# D: our shared volume goes, a co-tenant's stays, and one predating the owner
-# label is still swept so it cannot leak forever with no way to attribute it.
+# D: our shared volume goes. A co-tenant's stays, and so does one that predates
+# the owner label, because in a namespace we do not own it may be the co-tenant's
+# and nothing records whose it is.
 require_absent  "${ADOPTED_NS}" pvc "${SHARED_VOL}"
 require_present "${ADOPTED_NS}" pvc "${SIBLING_VOL}"
-require_absent  "${ADOPTED_NS}" pvc "${LEGACY_VOL}"
-echo "  shared volumes: '${SHARED_VOL}' reclaimed, '${SIBLING_VOL}' left to '${SIBLING}', '${LEGACY_VOL}' swept"
+require_present "${ADOPTED_NS}" pvc "${LEGACY_VOL}"
+echo "  shared volumes: '${SHARED_VOL}' reclaimed, '${SIBLING_VOL}' and unlabelled '${LEGACY_VOL}' kept"
 
 # E: the sibling's PVC must survive. A prefix sweep would have deleted it.
 require_present "${ADOPTED_NS}" pvc "${SIBLING}-postgres-data-${SIBLING}-postgres-0"
