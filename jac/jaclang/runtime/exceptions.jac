@@ -30,3 +30,15 @@ obj WriteConflict(Exception) {
         );
     }
 }
+
+
+obj ReadOnlyRetry(WriteConflict) {
+    has unit_key: str = '';
+
+    def message -> str {
+        return (
+            f"ReadOnlyRetry: unit {self.unit_key or '<anonymous>'} wrote inside "
+            'a read-only snapshot; re-run it at SERIALIZABLE'
+        );
+    }
+}

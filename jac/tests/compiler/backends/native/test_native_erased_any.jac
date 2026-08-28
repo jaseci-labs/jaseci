@@ -18,10 +18,8 @@ keep refusing `Any`, now for a reason that cannot change back.
 `codeinfo` spells its four annotations `any` and imports nothing from
 `typing`, so the import-shaped blocker is gone. The hold that replaced the
 accident is lane-scoped now: B4 (#8323) answered what it priced for the
-compiler's own roots -- `test_codeinfo_baseline.jac` carries the 19-member
-closure, the 21 arriving seams are waived by name in
-`NATIVE_SEAL_DEMOTION_WAIVERS`, and `test_unitree_seal_baseline.jac` pins the
-sealed root that absorbs them -- so `PLACEMENT_HOLD_EXEMPT_ROOTS` exempts
+compiler's own roots -- `test_codeinfo_baseline.jac` carries the closure and
+its arriving seams -- so `PLACEMENT_HOLD_EXEMPT_ROOTS` exempts
 `jac0core/` and `compiler/` from the hold, while user-facing inference keeps
 it (admitting codeinfo there flipped byllm/scale module codespaces). The
 third test below pins that contract: exactly codeinfo is held, its reason

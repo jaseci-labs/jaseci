@@ -67,4 +67,5 @@ obj NaIRGenCore(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _split_call_kwargs(nd: uni.FuncCall) -> dict;
+    def _ct_ctor_slots(target: uni.UniNode) -> list[tuple];
 }

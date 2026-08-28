@@ -130,7 +130,8 @@ obj ClassDetailsShared {
         enum_value_type: (TypeBase | None) = None,
         enum_members: (dict[str, EnumMemberInfo] | None) = None,
         _identity_key: (tuple[str, int, int, str] | None) = None,
-        _derived_special_types: (dict[str, ClassType] | None) = None;
+        _derived_special_types: (dict[str, ClassType] | None) = None,
+        ct_params: (list[str] | None) = None;
 
     def postinit -> None;
     def canonical_key -> (tuple[str, int, int, str] | None);
@@ -139,6 +140,7 @@ obj ClassDetailsShared {
 
 obj ClassDetailsPrivate {
     has type_args: (list[TypeBase] | None) = None,
+        ct_args: (dict[str, any] | None) = None,
         alias_name: (str | None) = None,
         literal_value: (str | int | bool | None) = None,
         distinct_key: (str | None) = None;
@@ -205,7 +207,8 @@ obj Parameter {
         is_self: bool = False,
         is_cls: bool = False,
         param_kind: ParamKind = ParamKind.NORMAL,
-        has_default: bool = False;
+        has_default: bool = False,
+        is_comptime: bool = False;
 
     def clone -> Parameter;
 
