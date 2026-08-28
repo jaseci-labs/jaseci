@@ -348,9 +348,11 @@ impl Session.postinit -> None {
     import threading;
     self._lock = threading.RLock();
     self._raw_lock = threading.Lock();
+    self._topology_lock = threading.Lock();
     self._fetch_count = 0;
     self.__mem__ = {};
     self.__raw_mem__ = {};
+    self.__topology_index__ = None;
     self._prefetch_ids = set();
     self._prefetch_done = threading.Event();
     self._dirty = {};
@@ -439,6 +441,9 @@ impl Session.get(id: UUID) -> (Anchor | None) {
 impl Session.put(anchor: Anchor) -> None {
     aid = anchor.ensure_id();
     with self._lock {
+        if isinstance(anchor, (NodeAnchor, EdgeAnchor)) {
+            self.invalidate_topology_index();
+        }
         self.__mem__[aid] = anchor;
         self._dirty[aid] = None;
         self._deleted.discard(aid);
@@ -458,6 +463,7 @@ impl Session.mark_dirty(anchor: Anchor) -> None {
 
 impl Session.delete(id: UUID) -> None {
     with self._lock {
+        self.invalidate_topology_index();
         self.__mem__.pop(id, None);
         self._dirty.pop(id, None);
         self._flushed_hash.pop(id, None);
@@ -710,6 +716,27 @@ impl Session._evict_uncommitted -> None {
 
 impl Session.get_mem -> dict[UUID, Anchor] {
     return self.__mem__;
+}
+
+
+impl Session.invalidate_topology_index -> None {
+    lock = getattr(self, "_topology_lock", None);
+    if lock is not None {
+        lock.acquire();
+    }
+    try {
+        self.__topology_index__ = None;
+    } finally {
+        if lock is not None {
+            lock.release();
+        }
+    }
+}
+
+
+impl Session.warm_topology_for_nodes(ids: Iterable[UUID]) -> any {
+    import from jaclang.runtime.topology_index { warm_topology_for_nodes }
+    return warm_topology_for_nodes(self, list(ids));
 }
 
 

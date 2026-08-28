@@ -2,7 +2,9 @@
 
 import logging;
 import os;
+import sys as _sys;
 import threading;
+import time as _time;
 import from uuid { UUID }
 
 import from jaclang.runtime.archetype { NodeAnchor }
@@ -158,7 +160,6 @@ def run_prefetch_policy(ctx: any, cfg: any, warch: any, nd: NodeAnchor) -> tuple
     if not policy_name or limit <= 0 {
         return (0.0, 0.0, 0.0, 0.0);
     }
-    import time as _time;
     import from jaclang.runtime.prefetch_policy {
         get_prefetch_plan,
         normalize_prefetch_policy_name
@@ -177,7 +178,6 @@ def run_prefetch_policy(ctx: any, cfg: any, warch: any, nd: NodeAnchor) -> tuple
         workers: int = int(getattr(run_cfg, "prefetch_workers", 1) or 1);
         dispatch_prefetch(ctx, plan.ids, mode, workers);
         dispatch_ms = (_time.perf_counter() - prefetch_start) * 1000;
-        import sys as _sys;
         gil_fn = getattr(_sys, "_is_gil_enabled", None);
         gil_enabled = gil_fn() if gil_fn is not None else True;
         logger.info(

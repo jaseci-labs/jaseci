@@ -1845,9 +1845,34 @@ def _warm_persistence {
 }
 
 
+def _warm_prefetch_policy {
+    import logging;
+    log = logging.getLogger('jaclang.serve');
+    try {
+        cfg = get_config();
+        run_cfg = cfg?.run if cfg is not None else None;
+        policy = str(getattr(run_cfg, "prefetching", "")).strip().lower();
+        limit = int(getattr(run_cfg, "prefetch_limit", 0) or 0);
+        if not policy or policy in ("none", "off", "false", "0") or limit <= 0 {
+            return;
+        }
+        import from jaclang.runtime.prefetch {
+            prefetch_worker_times_reset,
+            run_prefetch_policy
+        }
+        import from jaclang.runtime.prefetch_policy { get_prefetch_plan }
+        _ = (prefetch_worker_times_reset, run_prefetch_policy, get_prefetch_plan);
+        log.debug(f"prefetch policy warmed at startup: {policy}");
+    } except Exception as e {
+        log.debug(f"prefetch policy warmup failed: {type(e).__name__}: {e}");
+    }
+}
+
+
 impl JacAPIServer.postinit -> None {
     import from jaclang.server.task_scheduler { Scheduler }
     _warm_persistence();
+    _warm_prefetch_policy();
     self.user_manager = self._make_user_manager();
 
     _um = self.user_manager;

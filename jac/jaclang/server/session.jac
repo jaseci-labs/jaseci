@@ -134,6 +134,8 @@ obj Session {
         _runtime: (any | None) postinit,
         _lock: threading.RLock postinit,
         _raw_lock: threading.Lock postinit,
+        _topology_lock: threading.Lock postinit,
+        __topology_index__: any postinit,
         _prefetch_ids: set[UUID] postinit,
         _prefetch_done: threading.Event postinit,
         _fetch_count: int postinit,
@@ -174,6 +176,8 @@ obj Session {
     def promote_raw(uid: UUID) -> (Anchor | None);
     def prefetch(ids: Iterable[UUID]) -> None;
     def batch_get(ids: list[UUID]) -> dict[UUID, Anchor];
+    def invalidate_topology_index -> None;
+    def warm_topology_for_nodes(ids: Iterable[UUID]) -> any;
     def quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None;
     def is_recoverable_quarantine(id: UUID) -> bool;
     async def aget(id: UUID) -> (Anchor | None);

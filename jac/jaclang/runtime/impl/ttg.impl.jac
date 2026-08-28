@@ -13,6 +13,7 @@ import from jaclang.runtime.archetype {
     VisitType
 }
 import from jaclang.runtime.graph_query { GraphQuery, QHop }
+import from jaclang.runtime.topology_index { TopologyIndex }
 
 glob logger = logging.getLogger(__name__),
      _runtime_type_cache: dict[str, type] = {};
@@ -525,6 +526,7 @@ impl JacTTGGenerator._arch_types_for_ids(
     missing: list[UUID] = [];
     seen: set[UUID] = set();
     raw_mem = mem?.__raw_mem__;
+    topo_idx = getattr(mem, "__topology_index__", None);
     for id in ids {
         if id in seen {
             continue;
@@ -539,6 +541,13 @@ impl JacTTGGenerator._arch_types_for_ids(
         if row is not None and getattr(row, "arch_type", "") {
             out[id] = str(row.arch_type);
             continue;
+        }
+        if isinstance(topo_idx, TopologyIndex) {
+            tname = topo_idx.node_type(id);
+            if tname is not None {
+                out[id] = tname;
+                continue;
+            }
         }
         missing.append(id);
     }
@@ -607,6 +616,92 @@ impl JacTTGGenerator._resolve_chain_ids(
     }
 }
 
+
+def _resolve_indexed_chain(
+    mem: any,
+    origins: list[UUID],
+    chain: list[tuple[str | None, str | None, int]],
+    limit: int
+) -> (list[UUID] | None) {
+    if mem is None or limit <= 0 or not origins {
+        return [];
+    }
+    try {
+        idx = mem.warm_topology_for_nodes(origins);
+        if not isinstance(idx, TopologyIndex) {
+            return None;
+        }
+        current = origins;
+        if not chain {
+            return current[:limit];
+        }
+        for (hop_idx, hop) in enumerate(chain) {
+            if not current {
+                return [];
+            }
+            idx = mem.warm_topology_for_nodes(current);
+            if not isinstance(idx, TopologyIndex) {
+                return None;
+            }
+            for cur in current {
+                if idx.node_type(cur) is None {
+                    return None;
+                }
+            }
+            is_last = hop_idx == len(chain) - 1;
+            current = idx.resolve_chain(current, [hop], limit if is_last else 0);
+            if not is_last and current {
+                idx = mem.warm_topology_for_nodes(current);
+                if not isinstance(idx, TopologyIndex) {
+                    return None;
+                }
+            }
+        }
+        return current[:limit];
+    } except Exception as e {
+        logger.debug(f"TTG indexed resolve failed: {e}");
+        return None;
+    }
+}
+
+
+def _cached_type_matches(
+    cls: type[JacTTGGenerator],
+    warch: any,
+    actual: (str | None),
+    wanted: (str | None),
+    topo_idx: (TopologyIndex | None)
+) -> bool {
+    if wanted is None {
+        return True;
+    }
+    if actual is None {
+        return False;
+    }
+    if actual == wanted {
+        return True;
+    }
+    if topo_idx is not None {
+        ancestors = topo_idx.type_ancestors.get(actual);
+        if ancestors is not None and wanted in ancestors {
+            return True;
+        }
+    }
+    try {
+        actual_cls = cls._runtime_type_for_name(warch, actual);
+        wanted_cls = cls._runtime_type_for_name(warch, wanted);
+        if actual_cls is not None
+            and wanted_cls is not None
+            and issubclass(actual_cls, wanted_cls) {
+            return True;
+        }
+    } except Exception {
+        ;
+    }
+    return False;
+}
+
+
 @classmethod
 impl JacTTGGenerator.get_ttg_prefetch_list(
     cls: type[JacTTGGenerator],
@@ -657,12 +752,33 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
         if len(prefetch) >= max_length {
             break;
         }
-        cur = queue[qpos];
-        qpos += 1;
-        if cur not in type_cache {
-            type_cache.update(cls._arch_types_for_ids(mem, [cur]));
+        frontier = queue[qpos:];
+        qpos = len(queue);
+        topo_idx: (TopologyIndex | None) = None;
+        try {
+            warmed = mem.warm_topology_for_nodes(frontier);
+            if isinstance(warmed, TopologyIndex) {
+                topo_idx = warmed;
+                for cur in frontier {
+                    if cur not in type_cache {
+                        tname = warmed.node_type(cur);
+                        if tname is not None {
+                            type_cache[cur] = tname;
+                        }
+                    }
+                }
+            }
+        } except Exception as e {
+            logger.debug(f"TTG frontier topology warm failed: {e}");
         }
-        cur_type = type_cache.get(cur);
+        missing_frontier = [
+            cur
+            for cur in frontier
+            if cur not in type_cache
+        ];
+        if missing_frontier {
+            type_cache.update(cls._arch_types_for_ids(mem, missing_frontier));
+        }
         for v in visits {
             if len(prefetch) >= max_length {
                 break;
@@ -670,10 +786,20 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
             from_type = cls._resolve_type_name(v.from_node_type)
                 if isinstance(v, VisitType)
                 else None;
-            if from_type is not None {
-                if cur_type is None or cur_type != from_type {
-                    continue;
+            origins: list[UUID] = [];
+            for cur in frontier {
+                cur_type = type_cache.get(cur);
+                if from_type is not None {
+                    if not _cached_type_matches(
+                        cls, warch, cur_type, from_type, topo_idx
+                    ) {
+                        continue;
+                    }
                 }
+                origins.append(cur);
+            }
+            if not origins {
+                continue;
             }
             if isinstance(v, VisitType) and v.edge_chain is not None {
                 chain = v.edge_chain;
@@ -685,7 +811,28 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
             }
             remaining = max_length - len(prefetch);
             rc_start = _time.perf_counter();
-            results = cls._resolve_chain_ids(mem, warch, cur, chain, remaining);
+            results = _resolve_indexed_chain(mem, origins, chain, remaining);
+            if results is None {
+                results = [];
+                batch_seen: set[UUID] = set();
+                for cur in origins {
+                    if len(results) >= remaining {
+                        break;
+                    }
+                    for tgt in cls._resolve_chain_ids(
+                        mem, warch, cur, chain, remaining - len(results)
+                    ) {
+                        if tgt in batch_seen {
+                            continue;
+                        }
+                        batch_seen.add(tgt);
+                        results.append(tgt);
+                        if len(results) >= remaining {
+                            break;
+                        }
+                    }
+                }
+            }
             resolve_ms += (_time.perf_counter() - rc_start) * 1000;
             resolve_calls += 1;
             is_visit_chain = (not isinstance(v, VisitType)) or v.is_visit;
@@ -707,9 +854,34 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
                 }
             }
             if added {
-                type_cache.update(cls._arch_types_for_ids(mem, added));
-                logger.info(
-                    f"[TTG-BFS] cur_type={cur_type} from={from_type} "
+                if topo_idx is not None {
+                    try {
+                        warmed = mem.warm_topology_for_nodes(added);
+                        if isinstance(warmed, TopologyIndex) {
+                            topo_idx = warmed;
+                        }
+                    } except Exception {
+                        ;
+                    }
+                    for tgt in added {
+                        if tgt not in type_cache {
+                            tname = topo_idx.node_type(tgt);
+                            if tname is not None {
+                                type_cache[tgt] = tname;
+                            }
+                        }
+                    }
+                }
+                missing_added = [
+                    tgt
+                    for tgt in added
+                    if tgt not in type_cache
+                ];
+                if missing_added {
+                    type_cache.update(cls._arch_types_for_ids(mem, missing_added));
+                }
+                logger.debug(
+                    f"[TTG-BFS] origins={len(origins)} from={from_type} "
                     f"is_visit={is_visit_chain} chain_results={len(results)} "
                     f"added={len(added)} enqueued={enqueued}"
                 );

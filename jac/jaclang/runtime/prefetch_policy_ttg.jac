@@ -1,15 +1,14 @@
 """TTG-backed prefetch prediction policy."""
 
+import time as _time;
+import from logging { getLogger as _getLogger }
+import from jaclang.runtime.ttg { JacTTGGenerator }
 import from jaclang.runtime.prefetch_policy_types {
     PrefetchPlanRequest,
     PrefetchPlanResult
 }
 
 def ttg_policy_plan(request: PrefetchPlanRequest) -> PrefetchPlanResult {
-    import time as _time;
-    import from logging { getLogger as _getLogger }
-    import from jaclang.runtime.ttg { JacTTGGenerator }
-
     result = PrefetchPlanResult(ids=[]);
     if request.start_anchor is None or request.start_id is None {
         return result;
