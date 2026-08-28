@@ -208,3 +208,24 @@ test "del under the native backend matches the Python backend" {
         assert fn() == NATIVE_EXPECTED[fn_name] , fn_name;
     }
 }
+
+
+# ---------------------------------------------------------------------------
+# Codegen shape: a subscript target is a reference removal and nothing else,
+# so it must not carry a `destroy()` call. Representative of the 116 subscript
+# `del` sites in the tree, every one of which used to emit one.
+# ---------------------------------------------------------------------------
+glob SUBSCRIPT_IR = os.path.join(FIXTURES, "del_subscript_ir.jac");
+
+test "a subscript del generates no destroy call" {
+    result = subprocess.run(
+        [sys.executable, "-m", "jaclang", "tool", "ir", "py", SUBSCRIPT_IR],
+        capture_output=True,
+        text=True,
+        cwd=JAC_ROOT
+    );
+    assert result.returncode == 0 , result.stderr;
+    assert "destroy" not in result.stdout , result.stdout;
+    assert "del sys.modules[key]" in result.stdout , result.stdout;
+    assert "del cache[key]" in result.stdout , result.stdout;
+}

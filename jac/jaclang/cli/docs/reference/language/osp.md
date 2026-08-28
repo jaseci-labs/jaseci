@@ -774,10 +774,8 @@ with entry {
     alice del --> bob;
 
     # Delete a specific TYPED edge: pin it by both endpoints with an
-    # [edge ...] reference, then del the edge objects
-    for e in [edge alice ->:Friend:-> bob] {
-        del e;
-    }
+    # [edge ...] reference and del the query itself
+    del [edge alice ->:Friend:-> bob];
 
     # Delete node
     del bob;
@@ -794,6 +792,51 @@ walker Cleanup {
     }
 }
 ```
+
+#### What `del` Means
+
+`del` covers two different jobs, and it decides which one from the shape of
+its target rather than from what the target holds:
+
+| Target | Effect |
+| --- | --- |
+| a name, `del n` | destroys the graph object it holds, then unbinds the name |
+| an attribute, `del o.x` | `__delattr__` only; whatever `o.x` held survives |
+| a subscript, `del d["k"]`, `del L[i]`, `del L[i:j]` | `__delitem__` only; the entry goes, the object survives |
+| a target list, `del (a, b)`, `del [a, b]` | recurses per element |
+| any other expression: a call, an `[edge ...]` query, a traversal, a comprehension, a set literal | destroys every graph object the expression yields, and unbinds nothing |
+
+Removing a reference from a container is never a destruction request, so a
+dict, list, or attribute used as an index into the graph is safe:
+
+```jac
+with entry {
+    index = {"alice": alice};
+    del index["alice"];     # the key goes; `alice` is still in the graph
+    del alice;              # now the node is destroyed
+}
+```
+
+A value target has no location to unbind, which is exactly why Python rejects
+these forms; Jac reads them as "destroy what this yields":
+
+```jac
+with entry {
+    del [edge a ->:Friend:-> b];                # those edges
+    del [a -->];                                # every successor node
+    del [e for e in [edge a -->] if e.stale];   # the ones a comprehension picks
+    del stale_edges(a);                         # whatever a call returns
+}
+```
+
+Destruction is all or nothing. Every target is flattened and checked before
+anything is destroyed, so a value target that yields something other than a
+graph object raises and leaves the graph untouched, and `del a, b;` never
+half-destroys a subgraph.
+
+On every target Python accepts, Jac now agrees with Python exactly. The one
+deliberate divergence is `del <name>` holding a graph object, which destroys
+in addition to unbinding.
 
 #### Cascade Deletion Pattern
 
