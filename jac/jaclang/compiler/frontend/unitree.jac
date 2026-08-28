@@ -904,6 +904,10 @@ obj DeleteStmt(CodeBlockStmt) {
     has targets: list[Expr];
 
     def postinit -> None;
+    def classify_targets -> tuple[(list[Expr], list[Expr], list[Expr])];
+    static def classify_one(
+        target: Expr
+    ) -> tuple[(list[Expr], list[Expr], list[Expr])];
 }
 
 obj ReportStmt(CodeBlockStmt) {

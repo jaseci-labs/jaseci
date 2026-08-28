@@ -35,6 +35,14 @@ def stale_edges(n: N) -> list[E] {
     return [edge n->:E:->];
 }
 
+def node_and_junk(n: N) -> list[N | int] {
+    return [n, 5];
+}
+
+def junk_only -> list[N | int] {
+    return [2];
+}
+
 """A. Location targets: pure Python, no destruction."""
 def location_targets {
     # A1: del d["k"]
@@ -200,7 +208,7 @@ def value_targets {
     before = nkids();
     raised = False;
     try {
-        del [l1, 5];
+        del node_and_junk(l1);
     } except TypeError {
         raised = True;
     }
@@ -228,7 +236,7 @@ def multi_targets {
     before = nkids();
     raised = False;
     try {
-        del o1c , [2];
+        del o1c , junk_only();
     } except TypeError {
         raised = True;
     }

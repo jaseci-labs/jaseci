@@ -396,7 +396,7 @@ impl TypeEvaluator._import_module_from_path(
 
 impl TypeEvaluator.forget_module(resolved_path: str) -> None {
     if resolved_path in self._module_type_cache {
-        del (self._module_type_cache[resolved_path], );
+        del self._module_type_cache[resolved_path];
     }
 }
 

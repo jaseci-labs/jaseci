@@ -163,3 +163,42 @@ test "del agrees with CPython on every Python-legal target" {
         assert out == expected , f"[{dc.name}] jac {out!r} != cpython {expected!r}\n{jac_src}";
     }
 }
+
+# ---------------------------------------------------------------------------
+# Front-end diagnostics: a malformed `del` target is caught with a location and
+# a fix hint, instead of surfacing as E5043 from bytecode generation with the
+# module's first line as its span.
+# ---------------------------------------------------------------------------
+glob BAD_TARGETS = os.path.join(FIXTURES, "del_bad_targets.jac");
+
+"""Run `jac check` on a .jac file and return its combined output."""
+def run_jac_check(path: str) -> str {
+    result = subprocess.run(
+        [sys.executable, "-m", "jaclang", "check", path],
+        capture_output=True,
+        text=True,
+        cwd=JAC_ROOT
+    );
+    return result.stdout + result.stderr;
+}
+
+test "malformed del targets are rejected by the front end" {
+    out = run_jac_check(BAD_TARGETS);
+    assert out.count("error[E0083]") == 5 , out;
+    assert "E5043" not in out , out;
+    assert "Cannot delete a literal" in out , out;
+    assert "Cannot delete an empty target list" in out , out;
+    assert "Cannot delete a null-safe access" in out , out;
+}
+
+test "a del value target that can never be a graph object warns" {
+    out = run_jac_check(BAD_TARGETS);
+    assert out.count("warning[W1053]") == 1 , out;
+    assert "destroys nothing" in out , out;
+}
+
+test "well formed del statements never reach E5043" {
+    out = run_jac_check(DEL_SEMANTICS);
+    assert "E5043" not in out , out;
+    assert "E0083" not in out , out;
+}

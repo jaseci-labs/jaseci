@@ -2921,38 +2921,6 @@ impl JcirGenPass.exit_ctrl_stmt(nd: CtrlStmt) -> None {
     }
 }
 
-impl JcirGenPass._classify_del_target(
-    target: Expr
-) -> tuple[(list[Expr], list[Expr], list[Expr])] {
-    inner: Expr = target;
-    while isinstance(inner, AtomUnit) and isinstance(inner.value, Expr) {
-        inner = inner.value;
-    }
-    if isinstance(inner, (TupleVal, ListVal)) {
-        names: list[Expr] = [];
-        values: list[Expr] = [];
-        locs: list[Expr] = [];
-        for el in inner.values {
-            if not isinstance(el, Expr) {
-                continue;
-            }
-            (el_names, el_values, el_locs) = self._classify_del_target(el);
-            names.extend(el_names);
-            values.extend(el_values);
-            locs.extend(el_locs);
-        }
-        return (names, values, locs);
-    }
-    if isinstance(inner, AtomTrailer)
-        and (inner.is_attr or isinstance(inner.right, IndexSlice)) {
-        return ([], [], [inner]);
-    }
-    if isinstance(inner, Name) {
-        return ([inner], [], [inner]);
-    }
-    return ([], [inner], []);
-}
-
 impl JcirGenPass._del_ctx_target(target: Expr, ctx_cls: str) -> CgNode {
     cgn = self.val(target);
     return self._with_ctx(cgn, ctx_cls) if cgn.hasf('ctx') else cgn;
@@ -2992,15 +2960,7 @@ impl JcirGenPass._destroy_call(targets: list[Expr], strict: bool) -> CgNode {
 }
 
 impl JcirGenPass.exit_delete_stmt(nd: DeleteStmt) -> None {
-    names: list[Expr] = [];
-    values: list[Expr] = [];
-    locs: list[Expr] = [];
-    for target in nd.targets {
-        (t_names, t_values, t_locs) = self._classify_del_target(target);
-        names.extend(t_names);
-        values.extend(t_values);
-        locs.extend(t_locs);
-    }
+    (names, values, locs) = nd.classify_targets();
     stmts: list[CgItem] = [];
     if values {
         stmts.append(self._destroy_call(values, True));

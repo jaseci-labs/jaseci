@@ -255,6 +255,33 @@ impl ASTValidationPass.enter_delete_stmt(
 ) -> None {
     for target in nd.targets {
         self._reject_non_bindable(target);
+        self._reject_undeletable(target);
+    }
+}
+
+impl ASTValidationPass._reject_undeletable(
+    self: ASTValidationPass, target: object
+) -> None {
+    inner = target;
+    while isinstance(inner, AtomUnit) {
+        inner = inner.value;
+    }
+    if isinstance(inner, (TupleVal, ListVal)) {
+        if len(inner.values) == 0 {
+            self.emit(E0083, node_override=inner, what="an empty target list");
+            return;
+        }
+        for el in inner.values {
+            self._reject_undeletable(el);
+        }
+        return;
+    }
+    if isinstance(inner, AtomTrailer) and inner.is_null_ok {
+        self.emit(E0083, node_override=inner, what="a null-safe access");
+        return;
+    }
+    if isinstance(inner, (Literal, MultiString, FString)) {
+        self.emit(E0083, node_override=inner, what="a literal");
     }
 }
 
