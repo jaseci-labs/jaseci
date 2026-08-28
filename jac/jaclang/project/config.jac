@@ -40,6 +40,7 @@ obj RunConfig {
         cache: bool = True,
         diagnostics: str = "error",
         access_log: str = "",
+        sql_log: str = "",
         prefetching: str = "",
         prefetch_oracle_file: str = "",
         prefetch_markov_file: str = "",

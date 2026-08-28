@@ -1136,6 +1136,7 @@ impl _parse_toml_data(
             cache=run_data.get("cache", True),
             diagnostics=run_data.get("diagnostics", "error"),
             access_log=run_data.get("access_log", ""),
+            sql_log=run_data.get("sql_log", ""),
             prefetching=run_data.get("prefetching", ""),
             prefetch_oracle_file=run_data.get("prefetch_oracle_file", ""),
             prefetch_markov_file=run_data.get("prefetch_markov_file", ""),

@@ -10,6 +10,8 @@ import from jaclang.project.config {
     get_explicit_config,
     set_config
 }
+import from jaclang.data.pgwire { sql_log_reset_for_tests }
+import from jaclang.data.store { PgStore }
 import from jaclang.server.session {
     Session,
     _access_log_reset_for_tests,
@@ -17,13 +19,51 @@ import from jaclang.server.session {
     hit_stats_add_checkpoint,
     hit_stats_read_checkpoints,
     hit_stats_reset,
-    hit_stats_snapshot
+    hit_stats_snapshot,
+    runtime_for_base
 }
 
 obj AccessLogDummyArch {}
 
 obj AccessLogDummyAnchor {
     has archetype: any;
+}
+
+
+test "run sql_log records pgwire sql csv" {
+    old_config = get_explicit_config();
+    try {
+        with TemporaryDirectory() as tmpdir {
+            log_path = Path(str(tmpdir)) / "sql.csv";
+            parsed = _parse_toml_data({"run": {"sql_log": str(log_path)}}, None);
+            assert parsed.run.sql_log == str(log_path);
+            set_config(parsed);
+            sql_log_reset_for_tests();
+
+            lease = runtime_for_base(tmpdir, str(Path(str(tmpdir)) / "sql_app.jac"));
+            store = PgStore(
+                conninfo=lease.runtime.ensure(), ensure_cb=lease.runtime.ensure
+            );
+            try {
+                rows = store.rows("SELECT CAST(:x AS int)", {"x": 7});
+                assert int(rows[0][0]) == 7;
+            } finally {
+                store.close();
+            }
+            sql_log_reset_for_tests();
+
+            body = log_path.read_text();
+            assert body.startswith(
+                "ts_ns,thread_id,database,application_name,elapsed_ms,row_count,"
+                "param_count,param_keys,status,error,sql\n"
+            );
+            assert "SELECT CAST(:x AS int)" in body , body;
+            assert ",ok,," in body , body;
+        }
+    } finally {
+        sql_log_reset_for_tests();
+        set_config(old_config);
+    }
 }
 
 test "run access_log writes old tier csv and hit stats" {
