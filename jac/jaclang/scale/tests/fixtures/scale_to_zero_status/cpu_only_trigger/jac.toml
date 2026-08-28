@@ -1,0 +1,22 @@
+[project]
+name = "scale-to-zero-status-e2e"
+version = "0.1.0"
+entry-point = "main.jac"
+
+[scale.kubernetes]
+namespace = "scale-to-zero-status-e2e"
+autoscaler_engine = "keda"
+
+[scale.microservices.routes]
+pingsvc = "/"
+
+[scale.microservices.services.pingsvc.hpa]
+min = 0
+max = 2
+
+# A cpu trigger cannot fire from zero pods (there is no pod to sample), so a
+# min=0 KEDA config backed only by this trigger type can never resume on its
+# own -- get_status must not report this deployment as intentionally STOPPED.
+[[scale.microservices.services.pingsvc.triggers]]
+type = "cpu"
+metadata = { value = "50" }
