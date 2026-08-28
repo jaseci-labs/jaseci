@@ -560,6 +560,37 @@ test "get_status reports FAILED, not UNKNOWN and not a raised exception, when th
     );
 }
 
+test "get_status resolves scale-to-zero eligibility for a single-app deploy with no declared routes at all" {
+    # No [scale.microservices.routes]: the project never cuts itself into
+    # microservices, so the only service is the implicit "solo" one
+    # generate_service_pod_specs names after the app itself. The app_name
+    # deliberately has an underscore: the real k8s Deployment is always
+    # named via k8s_safe_name (order-service-deployment, hyphen), so this
+    # only passes if the implicit route is resolved from the real app_name
+    # ("order_service") rather than coincidentally matching the mangled
+    # k8s name, the same real-name-mangling case
+    # autoscaler_config_for_deployment is already tested against below.
+    keda_target = DeploymentTargetFactory.create(
+        "kubernetes",
+        {"app_name": "order_service", "namespace": "ns", "autoscaler_engine": "keda"}
+    );
+    solo_toml = (
+        "[scale.microservices.services.order_service.hpa]\n"
+        "min = 0\n"
+        "max = 3\n"
+        "\n[[scale.microservices.services.order_service.triggers]]\n"
+        "type = \"cron\"\n"
+    );
+
+    info = _get_status(keda_target, solo_toml, replicas=0, ready=0);
+
+    assert info.status == ResourceStatus.STOPPED , (
+        f"a real trigger under keda must resolve through the implicit solo "
+        f"route the same way a declared route does, and park at zero, got "
+        f"{info.status}"
+    );
+}
+
 test "autoscaler_config_for_deployment resolves a service's real k8s Deployment name back to its config key" {
     mb = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="jac-shop", namespace="ns"),

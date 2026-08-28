@@ -309,9 +309,33 @@ obj ManifestBuilder {
             );
         }
         try {
-            return get_scale_config().get_microservices_config();
+            ms_cfg = get_scale_config().get_microservices_config();
         } except Exception {
             return {};
+        }
+        return self._with_implicit_solo_route(ms_cfg);
+    }
+
+    def _with_implicit_solo_route(ms_cfg: dict[str, any]) -> dict[str, any] {
+        import from jaclang.scale.runtime.routing {
+            resolve_routes,
+            guard_route_name,
+            derive_route_prefix
+        }
+        try {
+            if resolve_routes(ms_cfg) {
+                return ms_cfg;
+            }
+            name = str(self.k8s_config.app_name or "");
+            if not name {
+                return ms_cfg;
+            }
+            guard_route_name(name);
+            synthesized = dict(ms_cfg);
+            synthesized["routes"] = {name: derive_route_prefix(name)};
+            return synthesized;
+        } except Exception {
+            return ms_cfg;
         }
     }
 
