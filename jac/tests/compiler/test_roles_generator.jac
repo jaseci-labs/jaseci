@@ -17,7 +17,10 @@ test "roles.impl.jac matches scripts/gen_roles.py" {
         testskip("repo checkout only: scripts/gen_roles.py not present");
     }
     proc = subprocess.run(
-        [sys.executable, "-I", script, "--check"], capture_output=True, text=True, timeout=120,
+        [sys.executable, "-I", script, "--check"],
+        capture_output=True,
+        text=True,
+        timeout=120,
     );
     assert proc.returncode == 0 , (
         f"gen_roles.py --check failed (exit {proc.returncode}):\n{proc.stdout}\n{proc.stderr}"

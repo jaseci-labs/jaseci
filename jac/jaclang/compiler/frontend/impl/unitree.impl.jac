@@ -1,9 +1,11 @@
 impl UniNode.postinit -> None {
     self.__sub_node_tab = None;
+    self._ctx_parent = None;
+    self._struct_frozen = False;
     self._in_mod_nodes = [];
     self._gen = None;
     self.ct_pruned = False;
-    if getattr(self, "_role_shapes", None) is None {
+    if self?._role_shapes is None {
         self._role_shapes = {};
     }
     (first_tok, last_tok) = self.resolve_tok_range();
@@ -16,7 +18,7 @@ impl UniNode._attach(child: UniNode, role: type, in_kid: bool) -> None {
 }
 
 impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
-    shapes: dict[type, str] = getattr(self, "_role_shapes", None) or {};
+    shapes: dict[type, str] = self?._role_shapes or {};
     self._role_shapes = shapes;
     role_of: dict[int, type] = {};
     for (role, value) in roles.items() {
@@ -55,7 +57,7 @@ impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
 }
 
 impl UniNode._role_edges -> list[Role] {
-    return [edge self ->:Role:->];
+    return [edge self->:Role:->];
 }
 
 impl UniNode._edge_target(e: Role) -> UniNode {
@@ -67,16 +69,16 @@ impl UniNode._role_pairs -> list[tuple[type, UniNode, bool]] {
 }
 
 impl UniNode.kid.getter -> list[UniNode] {
-    return [self ->:Role:in_kid == True:->];
+    return [self->:Role:in_kid==True:->];
 }
 
 impl UniNode.parent.getter -> (UniNode | None) {
-    found = [self <-:Role:<-];
-    return found[-1] if found else None;
+    found = [self<-:Role:<-];
+    return found[-1] if found else self._ctx_parent;
 }
 
 impl UniNode._role_shaped(role: type[Role], found: list[UniNode]) -> any {
-    shape = (getattr(self, "_role_shapes", None) or {}).get(role, "none");
+    shape = (self?._role_shapes or {}).get(role, "none");
     if shape == "many" {
         return found;
     }
@@ -86,7 +88,53 @@ impl UniNode._role_shaped(role: type[Role], found: list[UniNode]) -> any {
     return None;
 }
 
+impl UniNode._assert_thawed -> None {
+    if self._struct_frozen {
+        raise RuntimeError(
+            f"structural mutation of frozen node {type(self).__name__}; "
+            "call thaw_structure() on the module first"
+        );
+    }
+}
+
+impl UniNode.freeze_structure -> None {
+    stack: list[UniNode] = [self];
+    seen: set[int] = set();
+    while stack {
+        nd = stack.pop();
+        if id(nd) in seen {
+            continue;
+        }
+        seen.add(id(nd));
+        nd._struct_frozen = True;
+        for (role, tgt, in_kid) in nd._role_pairs() {
+            if id(tgt) not in seen {
+                stack.append(tgt);
+            }
+        }
+    }
+}
+
+impl UniNode.thaw_structure -> None {
+    stack: list[UniNode] = [self];
+    seen: set[int] = set();
+    while stack {
+        nd = stack.pop();
+        if id(nd) in seen {
+            continue;
+        }
+        seen.add(id(nd));
+        nd._struct_frozen = False;
+        for (role, tgt, in_kid) in nd._role_pairs() {
+            if id(tgt) not in seen {
+                stack.append(tgt);
+            }
+        }
+    }
+}
+
 impl UniNode._reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, type]) -> None {
+    self._assert_thawed();
     role_of: dict[int, type] = {};
     for (role, n, in_kid) in self._role_pairs() {
         if role is not KidRole {
@@ -114,14 +162,19 @@ impl UniNode._reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, type]) -
 }
 
 impl UniNode._role_set(role: type[Role], value: any) -> None {
-    shapes: dict[type, str] = getattr(self, "_role_shapes", None) or {};
+    self._assert_thawed();
+    shapes: dict[type, str] = self?._role_shapes or {};
     self._role_shapes = shapes;
     if value is None {
         shapes[role] = "none";
         vals: list = [];
     } elif isinstance(value, (list, tuple)) {
         shapes[role] = "many";
-        vals = [v for v in value if isinstance(v, UniNode)];
+        vals = [
+            v
+            for v in value
+            if isinstance(v, UniNode)
+        ];
     } else {
         shapes[role] = "one";
         vals = [value];
@@ -245,7 +298,10 @@ impl UniNode.add_kids_right(
 }
 
 impl UniNode.insert_kids_at_pos(
-    nodes: Sequence[UniNode], pos: int, pos_update: bool = True, role: type[Role] = KidRole
+    nodes: Sequence[UniNode],
+    pos: int,
+    pos_update: bool = True,
+    role: type[Role] = KidRole
 ) -> UniNode {
     cur = self.kid;
     self.set_kids(
@@ -257,7 +313,9 @@ impl UniNode.insert_kids_at_pos(
 }
 
 impl UniNode.set_kids(
-    nodes: Sequence[UniNode], pos_update: bool = True, roles: (dict[int, type] | None) = None
+    nodes: Sequence[UniNode],
+    pos_update: bool = True,
+    roles: (dict[int, type] | None) = None
 ) -> UniNode {
     self._reconnect_kids(nodes, roles or {});
     if pos_update {
@@ -275,6 +333,47 @@ impl UniNode.replace_kid(old: UniNode, new: UniNode) -> UniNode {
     }
     self._reconnect_kids([new if k is old else k for k in self.kid], {id(new): role});
     return self;
+}
+
+impl UniNode.sever_external_edges -> None {
+    nodes: list[UniNode] = [];
+    seen: set[int] = set();
+    stack: list[UniNode] = [self];
+    while stack {
+        nd = stack.pop();
+        if id(nd) in seen {
+            continue;
+        }
+        seen.add(id(nd));
+        nodes.append(nd);
+        for (role, tgt, in_kid) in nd._role_pairs() {
+            if id(tgt) not in seen {
+                stack.append(tgt);
+            }
+        }
+    }
+    anchors: set[int] = set();
+    for nd in nodes {
+        anchors.add(id(getattr(nd, "__jac__")));
+    }
+    for nd in nodes {
+        me = getattr(nd, "__jac__");
+        for ea in `list(me.edges) {
+            far = ea.target if ea.source is me else ea.source;
+            if id(far) not in anchors {
+                if ea in far.edges {
+                    far.edges.remove(ea);
+                }
+                if ea in me.edges {
+                    me.edges.remove(ea);
+                }
+                far_arch = far.archetype;
+                if isinstance(far_arch, UniNode) {
+                    far_arch._invalidate_sub_node_tab();
+                }
+            }
+        }
+    }
 }
 
 impl UniNode.detached_copy -> UniNode {
@@ -303,7 +402,7 @@ impl UniNode.detached_copy -> UniNode {
 }
 
 impl UniNode.set_parent(parent: UniNode) -> UniNode {
-    parent +>:KidRole(in_kid=False):+> self;
+    self._ctx_parent = parent;
     return self;
 }
 
@@ -426,15 +525,15 @@ impl Symbol.init(
 }
 
 impl Symbol.defn.getter -> list[NameAtom] {
-    return [self ->:Defines:->];
+    return [self->:Defines:->];
 }
 
 impl Symbol.uses.getter -> list[NameAtom] {
-    return [self ->:Uses:->];
+    return [self->:Uses:->];
 }
 
 impl Symbol.parent_tab.getter -> (UniScopeNode | None) {
-    found = [self <-:InScope:<-];
+    found = [self<-:InScope:<-];
     return found[0] if found else None;
 }
 
@@ -565,12 +664,12 @@ impl UniScopeNode._init_scope(
 }
 
 impl UniScopeNode.parent_scope.getter -> (UniScopeNode | None) {
-    found = [self <-:ScopeChild:<-];
+    found = [self<-:ScopeChild:<-];
     return found[-1] if found else None;
 }
 
 impl UniScopeNode.parent_scope.setter(parent_scope: (UniScopeNode | None)) {
-    for e in [edge self <-:ScopeChild:<-] {
+    for e in [edge self<-:ScopeChild:<-] {
         del e;
     }
     if parent_scope is not None {
@@ -579,15 +678,15 @@ impl UniScopeNode.parent_scope.setter(parent_scope: (UniScopeNode | None)) {
 }
 
 impl UniScopeNode.kid_scope.getter -> list[UniScopeNode] {
-    return [self ->:ScopeChild:in_kids == True:->];
+    return [self->:ScopeChild:in_kids==True:->];
 }
 
 impl UniScopeNode.names_in_scope.getter -> dict[(str, Symbol)] {
-    return getattr(self, "_names_index", None) or {};
+    return self?._names_index or {};
 }
 
 impl UniScopeNode.names_in_scope_overload.getter -> dict[(str, list[Symbol])] {
-    return getattr(self, "_overload_index", None) or {};
+    return self?._overload_index or {};
 }
 
 impl UniScopeNode.lookup(
@@ -664,8 +763,9 @@ impl UniScopeNode.insert(
         self._overload_index.setdefault(nd.sym_name, []).append(symbol);
     }
     if (force_overwrite or (nd.sym_name not in current)) {
-        for e in [edge self ->:ScopePrimary:->] {
-            if (e.alias or getattr(e, "__jac__").target.archetype.name) == nd.sym_name {
+        for e in [edge self->:ScopePrimary:->] {
+            if (e.alias or getattr(e, "__jac__").target.archetype.name)
+                == nd.sym_name {
                 del e;
             }
         }
@@ -723,7 +823,7 @@ impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
 }
 
 impl UniScopeNode.set_primary_names(syms: dict[(str, Symbol)]) -> None {
-    for e in [edge self ->:ScopePrimary:->] {
+    for e in [edge self->:ScopePrimary:->] {
         del e;
     }
     for (key, sym) in syms.items() {
@@ -734,7 +834,7 @@ impl UniScopeNode.set_primary_names(syms: dict[(str, Symbol)]) -> None {
 
 impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
     key = alias or sym.name;
-    for e in [edge self ->:ScopePrimary:->] {
+    for e in [edge self->:ScopePrimary:->] {
         if (e.alias or getattr(e, "__jac__").target.archetype.name) == key {
             del e;
         }
@@ -744,7 +844,7 @@ impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
 }
 
 impl UniScopeNode.link_kid_scope(key_node: UniScopeNode) -> UniScopeNode {
-    for e in [edge key_node <-:ScopeChild:<-] {
+    for e in [edge key_node<-:ScopeChild:<-] {
         del e;
     }
     self +>:ScopeChild:+> key_node;
@@ -934,24 +1034,24 @@ impl AstAccessNode.public_access.getter -> bool {
 impl ContextAwareNode.postinit -> None { }
 
 impl ContextAwareNode.code_context.getter -> CodeContext {
-    found = [self ->:PlacedIn:->];
+    found = [self->:PlacedIn:->];
     return CodeContext(found[0].kind) if found else CodeContext.SERVER;
 }
 
 impl ContextAwareNode.code_context.setter(code_context: CodeContext) {
-    for e in [edge self ->:PlacedIn:->] {
+    for e in [edge self->:PlacedIn:->] {
         del e;
     }
     self +>:PlacedIn:+> codespace_node(code_context.value);
 }
 
 impl Module.decided_codespace.getter -> str {
-    found = [self ->:DecidedCodespace:->];
+    found = [self->:DecidedCodespace:->];
     return found[0].kind if found else "";
 }
 
 impl Module.decided_codespace.setter(decided_codespace: str) {
-    for e in [edge self ->:DecidedCodespace:->] {
+    for e in [edge self->:DecidedCodespace:->] {
         del e;
     }
     if decided_codespace {
@@ -971,26 +1071,26 @@ impl UniCFGNode.postinit -> None {
 }
 
 impl UniCFGNode.bb_out.getter -> list[UniCFGNode] {
-    return [self ->:CfgSucc:->];
+    return [self->:CfgSucc:->];
 }
 
 impl UniCFGNode.bb_in.getter -> list[UniCFGNode] {
-    return [self <-:CfgSucc:<-];
+    return [self<-:CfgSucc:<-];
 }
 
 impl UniCFGNode.cfg_link(target: UniCFGNode) -> None {
-    if target not in [self ->:CfgSucc:->] {
+    if target not in [self->:CfgSucc:->] {
         self +>:CfgSucc:+> target;
     }
 }
 
 impl ConditionalNode.sc_true_target.getter -> (UniCFGNode | None) {
-    found = [self ->:CfgTrue:->];
+    found = [self->:CfgTrue:->];
     return found[0] if found else None;
 }
 
 impl ConditionalNode.sc_true_target.setter(sc_true_target: (UniCFGNode | None)) {
-    for e in [edge self ->:CfgTrue:->] {
+    for e in [edge self->:CfgTrue:->] {
         del e;
     }
     if sc_true_target is not None {
@@ -999,12 +1099,12 @@ impl ConditionalNode.sc_true_target.setter(sc_true_target: (UniCFGNode | None)) 
 }
 
 impl ConditionalNode.sc_false_target.getter -> (UniCFGNode | None) {
-    found = [self ->:CfgFalse:->];
+    found = [self->:CfgFalse:->];
     return found[0] if found else None;
 }
 
 impl ConditionalNode.sc_false_target.setter(sc_false_target: (UniCFGNode | None)) {
-    for e in [edge self ->:CfgFalse:->] {
+    for e in [edge self->:CfgFalse:->] {
         del e;
     }
     if sc_false_target is not None {
@@ -1229,7 +1329,10 @@ impl Module.annexable_by.getter -> (str | None) {
 }
 
 impl ProgramModule.postinit -> None {
-    self._link([self.main_mod or Module.make_stub()], {MainRole: self.main_mod or Module.make_stub()});
+    self._link(
+        [self.main_mod or Module.make_stub()],
+        {MainRole: self.main_mod or Module.make_stub()}
+    );
     UniNode.postinit(self);
     self.hub = {self.loc.mod_path: self.main_mod} if self.main_mod else {};
 }
@@ -2915,12 +3018,12 @@ impl Expr.type_sym_tab.setter(type_sym_tab: UniScopeNode) {
 }
 
 impl FuncCall.callee_decl.getter -> (Ability | None) {
-    found = [self ->:CalleeDecl:->];
+    found = [self->:CalleeDecl:->];
     return found[0] if found else None;
 }
 
 impl FuncCall.callee_decl.setter(callee_decl: (Ability | None)) {
-    for e in [edge self ->:CalleeDecl:->] {
+    for e in [edge self->:CalleeDecl:->] {
         del e;
     }
     if callee_decl is not None {
@@ -2929,12 +3032,12 @@ impl FuncCall.callee_decl.setter(callee_decl: (Ability | None)) {
 }
 
 impl Import.absorbed_mod.getter -> (Module | None) {
-    found = [self ->:Absorbs:->];
+    found = [self->:Absorbs:->];
     return found[0] if found else None;
 }
 
 impl Import.absorbed_mod.setter(absorbed_mod: (Module | None)) {
-    for e in [edge self ->:Absorbs:->] {
+    for e in [edge self->:Absorbs:->] {
         del e;
     }
     if absorbed_mod is not None {
@@ -2943,12 +3046,12 @@ impl Import.absorbed_mod.setter(absorbed_mod: (Module | None)) {
 }
 
 impl NameAtom.sym.getter -> (Symbol | None) {
-    found = [self ->:SymOf:->];
+    found = [self->:SymOf:->];
     return found[0] if found else None;
 }
 
 impl NameAtom.sym.setter(sym: Symbol) {
-    for e in [edge self ->:SymOf:->] {
+    for e in [edge self->:SymOf:->] {
         del e;
     }
     if sym is not None {
@@ -3187,14 +3290,14 @@ impl Expr.type.getter -> (TypeBase | None) {
     if self._type_cache_ok {
         return self._type_cache;
     }
-    found = [self ->:TypeOf:->];
+    found = [self->:TypeOf:->];
     self._type_cache = found[0] if found else None;
     self._type_cache_ok = True;
     return self._type_cache;
 }
 
 impl Expr.type.setter(type: (TypeBase | None)) -> None {
-    for e in [edge self ->:TypeOf:->] {
+    for e in [edge self->:TypeOf:->] {
         del e;
     }
     if type is not None {
@@ -3205,12 +3308,12 @@ impl Expr.type.setter(type: (TypeBase | None)) -> None {
 }
 
 impl Expr.narrowed_type.getter -> (TypeBase | None) {
-    found = [self ->:NarrowedTypeOf:->];
+    found = [self->:NarrowedTypeOf:->];
     return found[0] if found else None;
 }
 
 impl Expr.narrowed_type.setter(narrowed_type: (TypeBase | None)) -> None {
-    for e in [edge self ->:NarrowedTypeOf:->] {
+    for e in [edge self->:NarrowedTypeOf:->] {
         del e;
     }
     if narrowed_type is not None {
@@ -3219,12 +3322,12 @@ impl Expr.narrowed_type.setter(narrowed_type: (TypeBase | None)) -> None {
 }
 
 impl AstTypedVarNode.type.getter -> (TypeBase | None) {
-    found = [self ->:TypeOf:->];
+    found = [self->:TypeOf:->];
     return found[0] if found else None;
 }
 
 impl AstTypedVarNode.type.setter(type: (TypeBase | None)) -> None {
-    for e in [edge self ->:TypeOf:->] {
+    for e in [edge self->:TypeOf:->] {
         del e;
     }
     if type is not None {
@@ -3233,12 +3336,14 @@ impl AstTypedVarNode.type.setter(type: (TypeBase | None)) -> None {
 }
 
 impl Ability.event_triggers.getter -> (list[TypeBase] | None) {
-    found = [getattr(e, "__jac__").target.archetype for e in [edge self ->:EventTriggerOf:->]];
-    return found if found else None;
+    found = [
+        getattr(e, "__jac__").target.archetype for e in [edge self->:EventTriggerOf:->]
+    ];
+    return found;
 }
 
 impl Ability.event_triggers.setter(event_triggers: (list[TypeBase] | None)) -> None {
-    for e in [edge self ->:EventTriggerOf:->] {
+    for e in [edge self->:EventTriggerOf:->] {
         del e;
     }
     for t in (event_triggers or []) {

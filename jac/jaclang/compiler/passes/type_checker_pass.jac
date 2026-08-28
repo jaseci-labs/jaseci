@@ -143,16 +143,16 @@ walker TypeCheckPass(UniPass) {
 
     def postinit -> None;
 
-    static has PROVIDES: tuple = ('inference', ),
+    static has PROVIDES: tuple = ('TypeOf', ),
         HOST_PASS: bool = True;
 
     def init(prog: JacProgram, **kwargs: any) -> None;
-    def before_pass() -> None;
-    def after_pass() -> None;
-    def _stamp_fixed_width() -> None;
+    def before_pass -> None;
+    def after_pass -> None;
+    def _stamp_fixed_width -> None;
     def _provably_in_range(nd: Expr, name: str) -> bool;
-    def _insert_builtin_symbols() -> None;
-    def _install_client_state_setters() -> None;
+    def _insert_builtin_symbols -> None;
+    def _install_client_state_setters -> None;
     def _client_state_field_owner(nd: HasVar) -> (Ability | None);
     can enter_ability with Ability entry;
     can exit_ability with Ability exit;
@@ -166,9 +166,7 @@ walker TypeCheckPass(UniPass) {
     can exit_atom_trailer with AtomTrailer exit;
     can exit_binary_expr with BinaryExpr exit;
     can exit_compare_expr with CompareExpr exit;
-    def _diag_erased_membership(nd: CompareExpr, hay: Expr, op_text: str
-    ) -> None;
-
+    def _diag_erased_membership(nd: CompareExpr, hay: Expr, op_text: str) -> None;
     can exit_func_call with FuncCall exit;
     def _check_intrinsic_call(nd: FuncCall) -> None;
     def _check_intrinsic_collision(nd: Ability) -> None;
@@ -202,16 +200,10 @@ walker TypeCheckPass(UniPass) {
     can exit_sub_tag with SubTag exit;
     def _eval_unpacking_names(container: Expr) -> None;
     def _body_always_returns(body: list[CodeBlockStmt]) -> bool;
-    def _check_bare_generic(ann_node: UniNode, ty: object
-    ) -> None;
-
+    def _check_bare_generic(ann_node: UniNode, ty: object) -> None;
     def _check_explicit_any(ann_node: UniNode) -> None;
-    def _check_walker_reports_shape(nd: HasVar, declared_type: object
-    ) -> None;
-
-    def _enclosing_walker_report_elem_type(nd: UniNode
-    ) -> (TypeBase | None);
-
+    def _check_walker_reports_shape(nd: HasVar, declared_type: object) -> None;
+    def _enclosing_walker_report_elem_type(nd: UniNode) -> (TypeBase | None);
     def _check_event_trigger_archetype(nd: Ability) -> None;
-    def _check_unresolved_lambda_params() -> None;
+    def _check_unresolved_lambda_params -> None;
 }

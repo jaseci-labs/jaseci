@@ -109,7 +109,7 @@ walker OwnershipCheckPass(Transform) {
         nogc_prov: (str | None) = None;
 
     static has PROVIDES: tuple = ('ownership', ),
-        REQUIRES: tuple = ('cfg', 'inference'),
+        REQUIRES: tuple = ('CfgSucc', 'TypeOf'),
         HOST_PASS: bool = True;
 
     def postinit -> None;

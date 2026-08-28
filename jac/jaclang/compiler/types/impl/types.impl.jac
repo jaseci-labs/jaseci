@@ -13,12 +13,12 @@ def _tgt(ea: any) -> any {
     return ea.target.archetype;
 }
 
-def _edel(ea: any) -> None {
+def _edel(ea: any) {
     ea.source.edges.remove(ea);
     ea.target.edges.remove(ea);
 }
 
-def _econn(src: any, tgt: any, e: any) -> None {
+def _econn(src: any, tgt: any, e: any) {
     import from jaclang.runtime.archetype { EdgeAnchor }
     sa = getattr(src, "__jac__");
     ta = getattr(tgt, "__jac__");
@@ -175,7 +175,9 @@ impl ClassDetailsShared.type_params.getter -> (list[TypeVarType] | None) {
     return val;
 }
 
-impl ClassDetailsShared.type_params.setter(type_params: (list[TypeVarType] | None)) -> None {
+impl ClassDetailsShared.type_params.setter(
+    type_params: (list[TypeVarType] | None)
+) -> None {
     for ea in _eouts(self, TypeParamOf) {
         _edel(ea);
     }
@@ -204,7 +206,9 @@ impl ClassDetailsShared.base_classes.getter -> (list[TypeBase] | None) {
     return val;
 }
 
-impl ClassDetailsShared.base_classes.setter(base_classes: (list[TypeBase] | None)) -> None {
+impl ClassDetailsShared.base_classes.setter(
+    base_classes: (list[TypeBase] | None)
+) -> None {
     for ea in _eouts(self, BaseOf) {
         _edel(ea);
     }
@@ -234,7 +238,9 @@ impl ClassDetailsShared.enum_value_type.getter -> (TypeBase | None) {
     return val;
 }
 
-impl ClassDetailsShared.enum_value_type.setter(enum_value_type: (TypeBase | None)) -> None {
+impl ClassDetailsShared.enum_value_type.setter(
+    enum_value_type: (TypeBase | None)
+) -> None {
     for ea in _eouts(self, ValueTypeOf) {
         _edel(ea);
     }
@@ -254,10 +260,12 @@ impl ClassDetailsShared.typeddict_fields.getter -> (dict[str, TypeBase] | None) 
     for ea in _eouts(self, TypeMemberOf) {
         d[ea.archetype.name] = _tgt(ea);
     }
-    return d if d else None;
+    return d;
 }
 
-impl ClassDetailsShared.typeddict_fields.setter(typeddict_fields: (dict[str, TypeBase] | None)) -> None {
+impl ClassDetailsShared.typeddict_fields.setter(
+    typeddict_fields: (dict[str, TypeBase] | None)
+) -> None {
     for ea in _eouts(self, TypeMemberOf) {
         _edel(ea);
     }
@@ -271,10 +279,12 @@ impl ClassDetailsShared.enum_members.getter -> (dict[str, EnumMemberInfo] | None
     for ea in _eouts(self, EnumMemberOf) {
         d[ea.archetype.name] = _tgt(ea);
     }
-    return d if d else None;
+    return d;
 }
 
-impl ClassDetailsShared.enum_members.setter(enum_members: (dict[str, EnumMemberInfo] | None)) -> None {
+impl ClassDetailsShared.enum_members.setter(
+    enum_members: (dict[str, EnumMemberInfo] | None)
+) -> None {
     for ea in _eouts(self, EnumMemberOf) {
         _edel(ea);
     }
@@ -283,7 +293,27 @@ impl ClassDetailsShared.enum_members.setter(enum_members: (dict[str, EnumMemberI
     }
 }
 
-impl ClassDetailsShared.init(*, class_name: str, symbol_table: SymbolTable, mro: (list[ClassType] | None) = None, type_params: (list[TypeVarType] | None) = None, base_classes: (list[TypeBase] | None) = None, is_builtin_class: bool = False, is_from_stdlib_stub: bool = False, is_data_class: bool = False, is_namedtuple: bool = False, is_typeddict: bool = False, typeddict_fields: (dict[str, TypeBase] | None) = None, is_root_class: bool = False, is_enum_class: bool = False, enum_value_type: (TypeBase | None) = None, enum_members: (dict[str, EnumMemberInfo] | None) = None, _identity_key: (tuple[str, int, int, str] | None) = None, _derived_special_types: (dict[str, ClassType] | None) = None, ct_params: (list[str] | None) = None) -> None {
+impl ClassDetailsShared.init(
+    *,
+    class_name: str,
+    symbol_table: SymbolTable,
+    mro: (list[ClassType] | None) = None,
+    type_params: (list[TypeVarType] | None) = None,
+    base_classes: (list[TypeBase] | None) = None,
+    is_builtin_class: bool = False,
+    is_from_stdlib_stub: bool = False,
+    is_data_class: bool = False,
+    is_namedtuple: bool = False,
+    is_typeddict: bool = False,
+    typeddict_fields: (dict[str, TypeBase] | None) = None,
+    is_root_class: bool = False,
+    is_enum_class: bool = False,
+    enum_value_type: (TypeBase | None) = None,
+    enum_members: (dict[str, EnumMemberInfo] | None) = None,
+    _identity_key: (tuple[str, int, int, str] | None) = None,
+    _derived_special_types: (dict[str, ClassType] | None) = None,
+    ct_params: (list[str] | None) = None
+) -> None {
     self.class_name = class_name;
     self.is_builtin_class = is_builtin_class;
     self.is_from_stdlib_stub = is_from_stdlib_stub;
@@ -304,7 +334,14 @@ impl ClassDetailsShared.init(*, class_name: str, symbol_table: SymbolTable, mro:
     self.enum_members = enum_members;
 }
 
-impl ClassDetailsPrivate.init(*, type_args: (list[TypeBase] | None) = None, ct_args: (dict[str, any] | None) = None, alias_name: (str | None) = None, literal_value: (str | int | bool | None) = None, distinct_key: (str | None) = None) -> None {
+impl ClassDetailsPrivate.init(
+    *,
+    type_args: (list[TypeBase] | None) = None,
+    ct_args: (dict[str, any] | None) = None,
+    alias_name: (str | None) = None,
+    literal_value: (str | int | bool | None) = None,
+    distinct_key: (str | None) = None
+) -> None {
     self.ct_args = ct_args;
     self.alias_name = alias_name;
     self.literal_value = literal_value;
@@ -386,13 +423,25 @@ impl ClassType.private.setter(private: ClassDetailsPrivate) -> None {
     c["private"] = private;
 }
 
-impl ClassType.init(*, _shared: (ClassDetailsShared | None) = None, private: (ClassDetailsPrivate | None) = None, flags: TypeFlags = TypeFlags.Null) -> None {
+impl ClassType.init(
+    *,
+    _shared: (ClassDetailsShared | None) = None,
+    private: (ClassDetailsPrivate | None) = None,
+    flags: TypeFlags = TypeFlags.Null
+) -> None {
     self.flags = flags;
     self._shared = _shared;
     self.private = private or ClassDetailsPrivate();
 }
 
-impl ModuleType.init(*, mod_name: str = "", file_uri: Path = Path(""), symbol_table: (SymbolTable | None) = None, is_external: bool = False, flags: TypeFlags = TypeFlags.Null) -> None {
+impl ModuleType.init(
+    *,
+    mod_name: str = "",
+    file_uri: Path = Path(""),
+    symbol_table: (SymbolTable | None) = None,
+    is_external: bool = False,
+    flags: TypeFlags = TypeFlags.Null
+) -> None {
     self.mod_name = mod_name;
     self.file_uri = file_uri;
     self.is_external = is_external;
@@ -400,7 +449,18 @@ impl ModuleType.init(*, mod_name: str = "", file_uri: Path = Path(""), symbol_ta
     self.symbol_table = symbol_table;
 }
 
-impl TypeVarType.init(*, name: str = "", is_covariant: bool = False, is_contravariant: bool = False, is_self: bool = False, is_param_spec: bool = False, is_class_type_param: bool = False, bound: (TypeBase | None) = None, constraints: (list[TypeBase] | None) = None, flags: TypeFlags = TypeFlags.Null) -> None {
+impl TypeVarType.init(
+    *,
+    name: str = "",
+    is_covariant: bool = False,
+    is_contravariant: bool = False,
+    is_self: bool = False,
+    is_param_spec: bool = False,
+    is_class_type_param: bool = False,
+    bound: (TypeBase | None) = None,
+    constraints: (list[TypeBase] | None) = None,
+    flags: TypeFlags = TypeFlags.Null
+) -> None {
     self.name = name;
     self.is_covariant = is_covariant;
     self.is_contravariant = is_contravariant;
@@ -412,7 +472,18 @@ impl TypeVarType.init(*, name: str = "", is_covariant: bool = False, is_contrava
     self.constraints = constraints;
 }
 
-impl Parameter.init(*, name: str, category: (ParameterCategory | None), param_type: (TypeBase | None), default_value: (Expr | None) = None, is_self: bool = False, is_cls: bool = False, param_kind: ParamKind = ParamKind.NORMAL, has_default: bool = False, is_comptime: bool = False) -> None {
+impl Parameter.init(
+    *,
+    name: str,
+    category: (ParameterCategory | None),
+    param_type: (TypeBase | None),
+    default_value: (Expr | None) = None,
+    is_self: bool = False,
+    is_cls: bool = False,
+    param_kind: ParamKind = ParamKind.NORMAL,
+    has_default: bool = False,
+    is_comptime: bool = False
+) -> None {
     self.name = name;
     self.category = category;
     self.is_self = is_self;
@@ -484,7 +555,18 @@ impl Parameter.default_value.setter(default_value: (Expr | None)) -> None {
     c["default_value"] = default_value;
 }
 
-impl FunctionType.init(*, func_name: str = "", return_type: (TypeBase | None) = None, parameters: (list[Parameter] | None) = None, function_flags: int = 0, type_params: (list[TypeVarType] | None) = None, is_async: bool = False, type_guard: (TypeBase | None) = None, type_guard_is_strict: bool = False, flags: TypeFlags = TypeFlags.Null) -> None {
+impl FunctionType.init(
+    *,
+    func_name: str = "",
+    return_type: (TypeBase | None) = None,
+    parameters: (list[Parameter] | None) = None,
+    function_flags: int = 0,
+    type_params: (list[TypeVarType] | None) = None,
+    is_async: bool = False,
+    type_guard: (TypeBase | None) = None,
+    type_guard_is_strict: bool = False,
+    flags: TypeFlags = TypeFlags.Null
+) -> None {
     self.func_name = func_name;
     self.function_flags = function_flags;
     self.is_async = is_async;
@@ -631,7 +713,9 @@ impl OverloadedType.overloads.setter(overloads: (list[FunctionType] | None)) -> 
     c["overloads"] = `list(overloads or []);
 }
 
-impl OverloadedType.init(*, overloads: (list[FunctionType] | None) = None, flags: TypeFlags = TypeFlags.Null) -> None {
+impl OverloadedType.init(
+    *, overloads: (list[FunctionType] | None) = None, flags: TypeFlags = TypeFlags.Null
+) -> None {
     self.flags = flags;
     self.overloads = overloads;
 }
@@ -665,7 +749,9 @@ impl UnionType.types.setter(types: (list[TypeBase] | None)) -> None {
     c["types"] = `list(types or []);
 }
 
-impl UnionType.init(*, types: (list[TypeBase] | None) = None, flags: TypeFlags = TypeFlags.Null) -> None {
+impl UnionType.init(
+    *, types: (list[TypeBase] | None) = None, flags: TypeFlags = TypeFlags.Null
+) -> None {
     self.flags = flags;
     flattened: list[TypeBase] = [];
     for ty in (types or []) {
@@ -708,7 +794,12 @@ impl EnumMemberInfo.value_type.setter(value_type: (TypeBase | None)) -> None {
     c["value_type"] = value_type;
 }
 
-impl EnumMemberInfo.init(*, member_name: str, value_type: (TypeBase | None) = None, literal_value: (int | str | None) = None) -> None {
+impl EnumMemberInfo.init(
+    *,
+    member_name: str,
+    value_type: (TypeBase | None) = None,
+    literal_value: (int | str | None) = None
+) -> None {
     self.member_name = member_name;
     self.literal_value = literal_value;
     self.value_type = value_type;
@@ -774,7 +865,12 @@ impl EnumMemberType.member_info.setter(member_info: (EnumMemberInfo | None)) -> 
     c["member_info"] = member_info;
 }
 
-impl EnumMemberType.init(*, enum_class: (ClassType | None) = None, member_info: (EnumMemberInfo | None) = None, flags: TypeFlags = TypeFlags.Null) -> None {
+impl EnumMemberType.init(
+    *,
+    enum_class: (ClassType | None) = None,
+    member_info: (EnumMemberInfo | None) = None,
+    flags: TypeFlags = TypeFlags.Null
+) -> None {
     self.flags = flags;
     self.enum_class = enum_class;
     self.member_info = member_info;

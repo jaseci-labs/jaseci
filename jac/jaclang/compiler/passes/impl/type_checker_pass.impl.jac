@@ -106,7 +106,10 @@ impl TypeCheckPass.exit_return_stmt with ReturnStmt exit {
     }
 
     verdict = self.evaluator.assign_expr(
-        here.expr, returning_type, return_type, strict=self.evaluator._is_strict_site(here)
+        here.expr,
+        returning_type,
+        return_type,
+        strict=self.evaluator._is_strict_site(here)
     );
     if not verdict.ok and not verdict.diagnosed {
         if self.evaluator._is_awaitable_type(returning_type)
@@ -197,7 +200,9 @@ impl TypeCheckPass.exit_func_call with FuncCall exit {
         and here.callee_decl.is_comptime
         and not self._in_comptime_context(here)
     ) {
-        cname = here.callee_decl.name_ref.sym_name if here.callee_decl.name_ref else "?";
+        cname = here.callee_decl.name_ref.sym_name
+            if here.callee_decl.name_ref
+            else "?";
         self.evaluator.ct_site_error(
             here,
             f"call to comptime def '{cname}' at runtime",
@@ -289,8 +294,7 @@ impl TypeCheckPass._check_intrinsic_call(nd: FuncCall) -> None {
     }
 }
 
-impl TypeCheckPass._check_intrinsic_collision(nd: Ability
-) -> None {
+impl TypeCheckPass._check_intrinsic_collision(nd: Ability) -> None {
     import from jaclang.compiler.symbol_utils { intrinsic_registry_if_ready }
 
     intrinsics = intrinsic_registry_if_ready();
@@ -349,12 +353,15 @@ impl TypeCheckPass.exit_compare_expr with CompareExpr exit {
         }
         for side in (operands[i], operands[i + 1]) {
             _side_t = self.evaluator.get_type_of_expression(side);
-            self.evaluator._diag_unnarrowed_optional(here, _side_t, "an ordered operand");
+            self.evaluator._diag_unnarrowed_optional(
+                here, _side_t, "an ordered operand"
+            );
         }
     }
 }
 
-impl TypeCheckPass._diag_erased_membership(nd: CompareExpr, hay: Expr, op_text: str
+impl TypeCheckPass._diag_erased_membership(
+    nd: CompareExpr, hay: Expr, op_text: str
 ) -> None {
     if not self.evaluator._in_native_context()
         or not self.evaluator._is_strict_site(nd) {
@@ -481,7 +488,9 @@ impl TypeCheckPass.exit_assignment with Assignment exit {
             return;
         } else {
             if here.type_tag and here.type_tag.tag {
-                declared_type = self.evaluator.get_type_of_expression(here.type_tag.tag);
+                declared_type = self.evaluator.get_type_of_expression(
+                    here.type_tag.tag
+                );
 
                 self._check_bare_generic(here.type_tag.tag, declared_type);
                 self._check_explicit_any(here.type_tag.tag);
@@ -849,7 +858,9 @@ impl TypeCheckPass.exit_ability with Ability exit {
         and here.signature.return_type is not None
         and here.find_parent_of_type(ImplDef) is None
     ) {
-        ret_ann_type = self.evaluator.get_type_of_expression(here.signature.return_type);
+        ret_ann_type = self.evaluator.get_type_of_expression(
+            here.signature.return_type
+        );
         self._check_bare_generic(here.signature.return_type, ret_ann_type);
         self._check_explicit_any(here.signature.return_type);
     }
@@ -879,7 +890,9 @@ impl TypeCheckPass.exit_ability with Ability exit {
         ];
         is_stub = self.evaluator._is_ellipsis_only_body(body_stmts);
         if not is_overload and not is_generator and not is_stub {
-            ret_type = self.evaluator.get_type_of_expression(here.signature.return_type);
+            ret_type = self.evaluator.get_type_of_expression(
+                here.signature.return_type
+            );
             ret_inst = self.evaluator._convert_to_instance(ret_type);
             none_type = self.evaluator._convert_to_instance(
                 self.evaluator.get_none_type()
@@ -936,7 +949,9 @@ impl TypeCheckPass.exit_ability with Ability exit {
             jsx_cls = self.evaluator.prefetch.jsx_element_class
                 if self.evaluator.prefetch
                 else None;
-            ret_type = self.evaluator.get_type_of_expression(here.signature.return_type);
+            ret_type = self.evaluator.get_type_of_expression(
+                here.signature.return_type
+            );
             is_jsx_component = (
                 jsx_cls is not None
                 and isinstance(ret_type, ClassType)
@@ -951,8 +966,7 @@ impl TypeCheckPass.exit_ability with Ability exit {
     }
 }
 
-impl TypeCheckPass._check_event_trigger_archetype(nd: Ability
-) -> None {
+impl TypeCheckPass._check_event_trigger_archetype(nd: Ability) -> None {
     sig = nd.signature;
     if not isinstance(sig, EventSignature) or sig.arch_tag_info is None {
         return;
@@ -1026,13 +1040,11 @@ impl TypeCheckPass._check_event_trigger_archetype(nd: Ability
     nd.event_triggers = resolved;
 }
 
-impl TypeCheckPass._body_always_returns(body: list[CodeBlockStmt]
-) -> bool {
+impl TypeCheckPass._body_always_returns(body: list[CodeBlockStmt]) -> bool {
     return self.evaluator._collect_return_types(body, []);
 }
 
-impl TypeCheckPass._check_bare_generic(ann_node: UniNode, ty: object
-) -> None {
+impl TypeCheckPass._check_bare_generic(ann_node: UniNode, ty: object) -> None {
     if isinstance(ty, UnionType) and ty.types {
         for branch in ty.types {
             self._check_bare_generic(ann_node, branch);
@@ -1049,7 +1061,7 @@ impl TypeCheckPass._check_bare_generic(ann_node: UniNode, ty: object
     }
 }
 
-impl TypeCheckPass._check_unresolved_lambda_params() -> None {
+impl TypeCheckPass._check_unresolved_lambda_params -> None {
     if self.ir_in is None {
         return;
     }
@@ -1162,7 +1174,7 @@ impl TypeCheckPass.exit_enum with Enum exit {
     }
 }
 
-impl TypeCheckPass._insert_builtin_symbols() -> None {
+impl TypeCheckPass._insert_builtin_symbols -> None {
     if (self.ir_in == self.evaluator.builtins_module) {
         return;
     }
@@ -1172,8 +1184,7 @@ impl TypeCheckPass._insert_builtin_symbols() -> None {
     self.ir_in.parent_scope = self.evaluator.builtins_module;
 }
 
-impl TypeCheckPass._client_state_field_owner(nd: HasVar
-) -> (Ability | None) {
+impl TypeCheckPass._client_state_field_owner(nd: HasVar) -> (Ability | None) {
     if not isinstance(nd.parent, ArchHas) {
         return None;
     }
@@ -1199,7 +1210,7 @@ impl TypeCheckPass._client_state_field_owner(nd: HasVar
     return owner;
 }
 
-impl TypeCheckPass._install_client_state_setters() -> None {
+impl TypeCheckPass._install_client_state_setters -> None {
     import from jaclang.compiler.backends.es.framework_backend { state_setter_name }
     import from jaclang.compiler.types.types { create_callable_type }
     mod = self.ir_in;
@@ -1243,7 +1254,7 @@ impl TypeCheckPass.postinit -> None {
     super.postinit();
 }
 
-impl TypeCheckPass.before_pass() -> None {
+impl TypeCheckPass.before_pass -> None {
     self.evaluator = self.prog.get_type_evaluator();
 
     self._prev_eval_pass = self.evaluator._pass;
@@ -1254,7 +1265,7 @@ impl TypeCheckPass.before_pass() -> None {
     self._install_client_state_setters();
 }
 
-impl TypeCheckPass.after_pass() -> None {
+impl TypeCheckPass.after_pass -> None {
     self._check_unresolved_lambda_params();
     self._stamp_fixed_width();
     self.evaluator.ct_quiet = self._prev_ct_quiet;
@@ -1269,7 +1280,9 @@ impl TypeCheckPass.exit_param_var with ParamVar exit {
         here.type = declared_type;
 
         if (
-            here.type_tag and here.type_tag.tag and here.find_parent_of_type(ImplDef) is None
+            here.type_tag
+            and here.type_tag.tag
+            and here.find_parent_of_type(ImplDef) is None
         ) {
             self._check_bare_generic(here.type_tag.tag, declared_type);
             self._check_explicit_any(here.type_tag.tag);
@@ -1321,7 +1334,10 @@ impl TypeCheckPass.exit_has_var with HasVar exit {
                 here.value, expected_type=here.type
             );
             verdict = self.evaluator.assign_expr(
-                here.value, right_type, here.type, strict=self.evaluator._is_strict_site(here)
+                here.value,
+                right_type,
+                here.type,
+                strict=self.evaluator._is_strict_site(here)
             );
             if not verdict.ok and not verdict.diagnosed {
                 self.emit(
@@ -1335,7 +1351,8 @@ impl TypeCheckPass.exit_has_var with HasVar exit {
     }
 }
 
-impl TypeCheckPass._check_walker_reports_shape(nd: HasVar, declared_type: object
+impl TypeCheckPass._check_walker_reports_shape(
+    nd: HasVar, declared_type: object
 ) -> None {
     if nd.name.value != "reports" {
         return;
@@ -1362,7 +1379,8 @@ impl TypeCheckPass._check_walker_reports_shape(nd: HasVar, declared_type: object
     self.emit(E1112, node_override=nd, type=str(declared_type));
 }
 
-impl TypeCheckPass._enclosing_walker_report_elem_type(nd: UniNode
+impl TypeCheckPass._enclosing_walker_report_elem_type(
+    nd: UniNode
 ) -> (TypeBase | None) {
     arch = nd.find_parent_of_type(Archetype);
     if arch is None {
@@ -1854,7 +1872,10 @@ impl TypeCheckPass.exit_impl_def with ImplDef exit {
     for (field_name, field_node) in deferred_fields.items() {
         if field_name not in assigned {
             self.emit(
-                E1095, node_override=here, field=field_name, arch=arch.name_spec.sym_name
+                E1095,
+                node_override=here,
+                field=field_name,
+                arch=arch.name_spec.sym_name
             );
         }
     }
@@ -1882,7 +1903,7 @@ impl TypeCheckPass._eval_unpacking_names(container: Expr) -> None {
     }
 }
 
-impl TypeCheckPass._stamp_fixed_width() -> None {
+impl TypeCheckPass._stamp_fixed_width -> None {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     import from jaclang.compiler.types.fixed_width { numeric_name_of }
     stack: list = [self.ir_in];
@@ -1901,8 +1922,7 @@ impl TypeCheckPass._stamp_fixed_width() -> None {
     }
 }
 
-impl TypeCheckPass._provably_in_range(nd: Expr, name: str
-) -> bool {
+impl TypeCheckPass._provably_in_range(nd: Expr, name: str) -> bool {
     import from jaclang.compiler.types.fixed_width { interval_of_expr, interval_of_op }
     if isinstance(nd, BinaryExpr) and isinstance(nd.op, Token) {
         op = FW_INTERVAL_OPS.get(nd.op.name);

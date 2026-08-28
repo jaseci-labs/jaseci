@@ -112,8 +112,8 @@ def osp_report(val: any) {
     }
 }
 
-glob _match_slots: dict[int, list[Slot]] = {};
-glob _match_by_tag: dict[int, dict[int, list[Slot]]] = {};
+glob _match_slots: dict[int, list[Slot]] = {},
+     _match_by_tag: dict[int, dict[int, list[Slot]]] = {};
 
 def run_typed(rt: OspRuntime, slots: list[Slot], a: any, b: any) -> None {
     btag: int = rt.tag_of(b);

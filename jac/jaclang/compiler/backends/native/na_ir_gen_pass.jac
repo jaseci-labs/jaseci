@@ -55,5 +55,5 @@ import type from jaclang.compiler.driver.program { JacProgram }
 walker NaIRGenPass(NaIRGenArena, NaIRGenBuiltins, NaIRGenBytearrayNa, NaIRGenBytes, NaIRGenCalls, NaIRGenClibAbi, NaIRGenClibVtable, NaIRGenClosures, NaIRGenComprehensions, NaIRGenContainerHelpers, NaIRGenContextMgr, NaIRGenCore, NaIRGenCycleCollector, NaIRGenDebug, NaIRGenDicts, NaIRGenEnums, NaIRGenExceptions, NaIRGenExpr, NaIRGenFileIo, NaIRGenFmt, NaIRGenFunc, NaIRGenGcDebug, NaIRGenGenerics, NaIRGenGlobals, NaIRGenHashCore, NaIRGenIterators, NaIRGenLists, NaIRGenMath, NaIRGenObjects, NaIRGenOs, NaIRGenOsp, NaIRGenPybInterop, NaIRGenRandom, NaIRGenRefcount, NaIRGenRepr, NaIRGenSets, NaIRGenSized, NaIRGenStmt, NaIRGenStruct, NaIRGenTime, NaIRGenTraceFn, NaIRGenTuples, NaIRGenTypes, NaIRGenVtable) {
     has prog: JacProgram;
     static has HOST_PASS: bool = True,
-        REQUIRES: tuple = ('inference', 'cfg', 'ownership', 'capability', 'rc-facts');
+        REQUIRES: tuple = ('TypeOf', 'CfgSucc', 'ownership', 'capability', 'rc-facts');
 }

@@ -62,7 +62,6 @@ node TypeBase {
         _acc_cache: (dict[str, any] | None) = None;
 
     static has CATEGORY: TypeCategory;
-
     has category: TypeCategory { getter; }
 
     def mangle -> str;
@@ -76,7 +75,6 @@ node TypeBase {
 
 node UnknownType(TypeBase) {
     static has CATEGORY: TypeCategory = TypeCategory.Unknown;
-
     has is_diagnosed: bool = False,
         is_incomplete: bool = False;
 
@@ -91,7 +89,6 @@ node NeverType(TypeBase) {
 
 node AnyType(TypeBase) {
     static has CATEGORY: TypeCategory = TypeCategory.Any;
-
     has is_foreign: bool = False,
         foreign_scalar: (str | None) = None;
 
@@ -104,10 +101,19 @@ node ModuleType(TypeBase) {
         is_external: bool = False;
 
     static has CATEGORY: TypeCategory = TypeCategory.Module;
+    has symbol_table: (SymbolTable | None) {
+        getter;
+        setter(symbol_table: (SymbolTable | None));
+    }
 
-    has symbol_table: (SymbolTable | None) { getter; setter(symbol_table: (SymbolTable | None)); }
-
-    def init(*, mod_name: str = "", file_uri: Path = Path(""), symbol_table: (SymbolTable | None) = None, is_external: bool = False, flags: TypeFlags = TypeFlags.Null) -> None;
+    def init(
+        *,
+        mod_name: str = "",
+        file_uri: Path = Path(""),
+        symbol_table: (SymbolTable | None) = None,
+        is_external: bool = False,
+        flags: TypeFlags = TypeFlags.Null
+    ) -> None;
 
     def __str__ -> str;
 }
@@ -121,12 +127,24 @@ node TypeVarType(TypeBase) {
         is_class_type_param: bool = False;
 
     static has CATEGORY: TypeCategory = TypeCategory.TypeVar;
-
     has bound: (TypeBase | None) { getter; setter(bound: (TypeBase | None)); }
+    has constraints: (list[TypeBase] | None) {
+        getter;
+        setter(constraints: (list[TypeBase] | None));
+    }
 
-    has constraints: (list[TypeBase] | None) { getter; setter(constraints: (list[TypeBase] | None)); }
-
-    def init(*, name: str = "", is_covariant: bool = False, is_contravariant: bool = False, is_self: bool = False, is_param_spec: bool = False, is_class_type_param: bool = False, bound: (TypeBase | None) = None, constraints: (list[TypeBase] | None) = None, flags: TypeFlags = TypeFlags.Null) -> None;
+    def init(
+        *,
+        name: str = "",
+        is_covariant: bool = False,
+        is_contravariant: bool = False,
+        is_self: bool = False,
+        is_param_spec: bool = False,
+        is_class_type_param: bool = False,
+        bound: (TypeBase | None) = None,
+        constraints: (list[TypeBase] | None) = None,
+        flags: TypeFlags = TypeFlags.Null
+    ) -> None;
 
     def __str__ -> str;
 }
@@ -147,20 +165,53 @@ node ClassDetailsShared {
         _acc_cache: (dict[str, any] | None) = None;
 
     has symbol_table: SymbolTable { getter; setter(symbol_table: SymbolTable); }
-
     has mro: list[ClassType] { getter; setter(mro: list[ClassType]); }
+    has type_params: (list[TypeVarType] | None) {
+        getter;
+        setter(type_params: (list[TypeVarType] | None));
+    }
 
-    has type_params: (list[TypeVarType] | None) { getter; setter(type_params: (list[TypeVarType] | None)); }
+    has base_classes: (list[TypeBase] | None) {
+        getter;
+        setter(base_classes: (list[TypeBase] | None));
+    }
 
-    has base_classes: (list[TypeBase] | None) { getter; setter(base_classes: (list[TypeBase] | None)); }
+    has typeddict_fields: (dict[str, TypeBase] | None) {
+        getter;
+        setter(typeddict_fields: (dict[str, TypeBase] | None));
+    }
 
-    has typeddict_fields: (dict[str, TypeBase] | None) { getter; setter(typeddict_fields: (dict[str, TypeBase] | None)); }
+    has enum_value_type: (TypeBase | None) {
+        getter;
+        setter(enum_value_type: (TypeBase | None));
+    }
 
-    has enum_value_type: (TypeBase | None) { getter; setter(enum_value_type: (TypeBase | None)); }
+    has enum_members: (dict[str, EnumMemberInfo] | None) {
+        getter;
+        setter(enum_members: (dict[str, EnumMemberInfo] | None));
+    }
 
-    has enum_members: (dict[str, EnumMemberInfo] | None) { getter; setter(enum_members: (dict[str, EnumMemberInfo] | None)); }
-
-    def init(*, class_name: str, symbol_table: SymbolTable, mro: (list[ClassType] | None) = None, type_params: (list[TypeVarType] | None) = None, base_classes: (list[TypeBase] | None) = None, is_builtin_class: bool = False, is_from_stdlib_stub: bool = False, is_data_class: bool = False, is_namedtuple: bool = False, is_typeddict: bool = False, typeddict_fields: (dict[str, TypeBase] | None) = None, is_root_class: bool = False, is_enum_class: bool = False, enum_value_type: (TypeBase | None) = None, enum_members: (dict[str, EnumMemberInfo] | None) = None, _identity_key: (tuple[str, int, int, str] | None) = None, _derived_special_types: (dict[str, ClassType] | None) = None, ct_params: (list[str] | None) = None) -> None;
+    def init(
+        *,
+        class_name: str,
+        symbol_table: SymbolTable,
+        mro: (list[ClassType] | None) = None,
+        type_params: (list[TypeVarType] | None) = None,
+        base_classes: (list[TypeBase] | None) = None,
+        is_builtin_class: bool = False,
+        is_from_stdlib_stub: bool = False,
+        is_data_class: bool = False,
+        is_namedtuple: bool = False,
+        is_typeddict: bool = False,
+        typeddict_fields: (dict[str, TypeBase] | None) = None,
+        is_root_class: bool = False,
+        is_enum_class: bool = False,
+        enum_value_type: (TypeBase | None) = None,
+        enum_members: (dict[str, EnumMemberInfo] | None) = None,
+        _identity_key: (tuple[str, int, int, str] | None) = None,
+        _derived_special_types: (dict[str, ClassType] | None) = None,
+        ct_params: (list[str] | None) = None
+    ) -> None;
 
     def canonical_key -> (tuple[str, int, int, str] | None);
     def same_class(other: ClassDetailsShared) -> bool;
@@ -174,21 +225,37 @@ node ClassDetailsPrivate {
         _targs_cache: (list[TypeBase] | None) = None,
         _acc_cache: (dict[str, any] | None) = None;
 
-    has type_args: (list[TypeBase] | None) { getter; setter(type_args: (list[TypeBase] | None)); }
+    has type_args: (list[TypeBase] | None) {
+        getter;
+        setter(type_args: (list[TypeBase] | None));
+    }
 
-    def init(*, type_args: (list[TypeBase] | None) = None, ct_args: (dict[str, any] | None) = None, alias_name: (str | None) = None, literal_value: (str | int | bool | None) = None, distinct_key: (str | None) = None) -> None;
+    def init(
+        *,
+        type_args: (list[TypeBase] | None) = None,
+        ct_args: (dict[str, any] | None) = None,
+        alias_name: (str | None) = None,
+        literal_value: (str | int | bool | None) = None,
+        distinct_key: (str | None) = None
+    ) -> None;
 }
 
 node ClassType(TypeBase) {
     static has CATEGORY: TypeCategory = TypeCategory.Class;
-
-    has _shared: (ClassDetailsShared | None) { getter; setter(_shared: (ClassDetailsShared | None)); }
+    has _shared: (ClassDetailsShared | None) {
+        getter;
+        setter(_shared: (ClassDetailsShared | None));
+    }
 
     has private: ClassDetailsPrivate { getter; setter(private: ClassDetailsPrivate); }
-
     has shared: ClassDetailsShared { getter; }
 
-    def init(*, _shared: (ClassDetailsShared | None) = None, private: (ClassDetailsPrivate | None) = None, flags: TypeFlags = TypeFlags.Null) -> None;
+    def init(
+        *,
+        _shared: (ClassDetailsShared | None) = None,
+        private: (ClassDetailsPrivate | None) = None,
+        flags: TypeFlags = TypeFlags.Null
+    ) -> None;
 
     def __str__ -> str;
     def clone_as_instance -> ClassType;
@@ -233,7 +300,6 @@ enum FunctionTypeFlags(IntEnum) {
 
 node Parameter {
     has _acc_cache: (dict[str, any] | None) = None;
-
     has name: str = "",
         category: (ParameterCategory | None) = None,
         is_self: bool = False,
@@ -242,11 +308,25 @@ node Parameter {
         has_default: bool = False,
         is_comptime: bool = False;
 
-    has param_type: (TypeBase | None) { getter; setter(param_type: (TypeBase | None)); }
+    has param_type: (TypeBase | None) {
+        getter;
+        setter(param_type: (TypeBase | None));
+    }
 
     has default_value: (Expr | None) { getter; setter(default_value: (Expr | None)); }
 
-    def init(*, name: str, category: (ParameterCategory | None), param_type: (TypeBase | None), default_value: (Expr | None) = None, is_self: bool = False, is_cls: bool = False, param_kind: ParamKind = ParamKind.NORMAL, has_default: bool = False, is_comptime: bool = False) -> None;
+    def init(
+        *,
+        name: str,
+        category: (ParameterCategory | None),
+        param_type: (TypeBase | None),
+        default_value: (Expr | None) = None,
+        is_self: bool = False,
+        is_cls: bool = False,
+        param_kind: ParamKind = ParamKind.NORMAL,
+        has_default: bool = False,
+        is_comptime: bool = False
+    ) -> None;
 
     def clone -> Parameter;
 
@@ -261,16 +341,38 @@ node FunctionType(TypeBase) {
         _params_cache: (list[Parameter] | None) = None;
 
     static has CATEGORY: TypeCategory = TypeCategory.Function;
+    has return_type: (TypeBase | None) {
+        getter;
+        setter(return_type: (TypeBase | None));
+    }
 
-    has return_type: (TypeBase | None) { getter; setter(return_type: (TypeBase | None)); }
+    has parameters: list[Parameter] {
+        getter;
+        setter(parameters: (list[Parameter] | None));
+    }
 
-    has parameters: list[Parameter] { getter; setter(parameters: (list[Parameter] | None)); }
+    has type_params: (list[TypeVarType] | None) {
+        getter;
+        setter(type_params: (list[TypeVarType] | None));
+    }
 
-    has type_params: (list[TypeVarType] | None) { getter; setter(type_params: (list[TypeVarType] | None)); }
+    has type_guard: (TypeBase | None) {
+        getter;
+        setter(type_guard: (TypeBase | None));
+    }
 
-    has type_guard: (TypeBase | None) { getter; setter(type_guard: (TypeBase | None)); }
-
-    def init(*, func_name: str = "", return_type: (TypeBase | None) = None, parameters: (list[Parameter] | None) = None, function_flags: int = 0, type_params: (list[TypeVarType] | None) = None, is_async: bool = False, type_guard: (TypeBase | None) = None, type_guard_is_strict: bool = False, flags: TypeFlags = TypeFlags.Null) -> None;
+    def init(
+        *,
+        func_name: str = "",
+        return_type: (TypeBase | None) = None,
+        parameters: (list[Parameter] | None) = None,
+        function_flags: int = 0,
+        type_params: (list[TypeVarType] | None) = None,
+        is_async: bool = False,
+        type_guard: (TypeBase | None) = None,
+        type_guard_is_strict: bool = False,
+        flags: TypeFlags = TypeFlags.Null
+    ) -> None;
 
     def __str__ -> str;
     def specialize(class_type: ClassType) -> FunctionType;
@@ -312,43 +414,70 @@ def create_callable_type(
 
 node OverloadedType(TypeBase) {
     static has CATEGORY: TypeCategory = TypeCategory.Overload;
+    has overloads: (list[FunctionType] | None) {
+        getter;
+        setter(overloads: (list[FunctionType] | None));
+    }
 
-    has overloads: (list[FunctionType] | None) { getter; setter(overloads: (list[FunctionType] | None)); }
-
-    def init(*, overloads: (list[FunctionType] | None) = None, flags: TypeFlags = TypeFlags.Null) -> None;
+    def init(
+        *,
+        overloads: (list[FunctionType] | None) = None,
+        flags: TypeFlags = TypeFlags.Null
+    ) -> None;
 
     def __str__ -> str;
 }
 
 node UnionType(TypeBase) {
     static has CATEGORY: TypeCategory = TypeCategory.Union;
+    has types: (list[TypeBase] | None) {
+        getter;
+        setter(types: (list[TypeBase] | None));
+    }
 
-    has types: (list[TypeBase] | None) { getter; setter(types: (list[TypeBase] | None)); }
-
-    def init(*, types: (list[TypeBase] | None) = None, flags: TypeFlags = TypeFlags.Null) -> None;
+    def init(
+        *, types: (list[TypeBase] | None) = None, flags: TypeFlags = TypeFlags.Null
+    ) -> None;
 
     def __str__ -> str;
 }
 
 node EnumMemberInfo {
     has _acc_cache: (dict[str, any] | None) = None;
-
     has member_name: str = "",
         literal_value: (int | str | None) = None;
 
-    has value_type: (TypeBase | None) { getter; setter(value_type: (TypeBase | None)); }
+    has value_type: (TypeBase | None) {
+        getter;
+        setter(value_type: (TypeBase | None));
+    }
 
-    def init(*, member_name: str, value_type: (TypeBase | None) = None, literal_value: (int | str | None) = None) -> None;
+    def init(
+        *,
+        member_name: str,
+        value_type: (TypeBase | None) = None,
+        literal_value: (int | str | None) = None
+    ) -> None;
 }
 
 node EnumMemberType(TypeBase) {
     static has CATEGORY: TypeCategory = TypeCategory.EnumMember;
+    has enum_class: (ClassType | None) {
+        getter;
+        setter(enum_class: (ClassType | None));
+    }
 
-    has enum_class: (ClassType | None) { getter; setter(enum_class: (ClassType | None)); }
+    has member_info: (EnumMemberInfo | None) {
+        getter;
+        setter(member_info: (EnumMemberInfo | None));
+    }
 
-    has member_info: (EnumMemberInfo | None) { getter; setter(member_info: (EnumMemberInfo | None)); }
-
-    def init(*, enum_class: (ClassType | None) = None, member_info: (EnumMemberInfo | None) = None, flags: TypeFlags = TypeFlags.Null) -> None;
+    def init(
+        *,
+        enum_class: (ClassType | None) = None,
+        member_info: (EnumMemberInfo | None) = None,
+        flags: TypeFlags = TypeFlags.Null
+    ) -> None;
 
     def __str__ -> str;
     def get_value_type -> TypeBase;

@@ -954,6 +954,9 @@ def demote_client_pulled_elements(
 }
 
 walker PlacementApplyPass(Transform) {
+    static has PROVIDES: tuple = ('PlacedIn', 'DecidedCodespace'),
+        REQUIRES: tuple = ('SymOf', );
+
     has prog: JacProgram,
         ir_in: uni.Module,
         cancel_token: any = None;

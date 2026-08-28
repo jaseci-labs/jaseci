@@ -3,8 +3,7 @@ impl JcirBytecodeGenPass._run_impl(ir_in: Module) -> Module {
     return ir_in;
 }
 
-impl JcirBytecodeGenPass.process_modules(root_module: Module
-) -> None {
+impl JcirBytecodeGenPass.process_modules(root_module: Module) -> None {
     mods = [root_module] + root_module.get_all_sub_nodes(Module);
     for mod in mods {
         self.cur_node = mod;
@@ -12,8 +11,7 @@ impl JcirBytecodeGenPass.process_modules(root_module: Module
     }
 }
 
-impl JcirBytecodeGenPass.transcribe_module(mod: Module
-) -> None {
+impl JcirBytecodeGenPass.transcribe_module(mod: Module) -> None {
     import ast as ast3;
     import from jaclang.compiler.backends.py.codegen_shim { compile_ir, transcribe }
     if not mod.gen.jcir {

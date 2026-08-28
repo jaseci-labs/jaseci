@@ -371,13 +371,15 @@ class Lexer:
                 continue
 
             # Operators
-            if c in "=+-*/%&|^~<>!":
+            if c in "=+-*/%&|^~<>!?":
                 self._advance()
                 self._emit(TT.OP, c, line, col)
                 continue
 
-            # Unknown character - skip
-            self._advance()
+            # Unknown character - refuse rather than silently drop
+            raise ParseError(
+                f"{self.filename}:{line}:{col}: unexpected character {c!r}"
+            )
 
         self._emit(TT.EOF, "", self.line, self.col)
 
@@ -934,6 +936,11 @@ def _lower_edge_refs(tokens: list[Token]) -> list[Token]:
                 raise ParseError(
                     f"line {tok.line}: only plain typed hops are admitted in the seed subset"
                 )
+            for tt_ in trailing:
+                if tt_.type == TT.OP and tt_.value.startswith("?"):
+                    raise ParseError(
+                        f"line {tok.line}: filter comprehensions are outside the seed subset"
+                    )
             args = [
                 cur,
                 [_tok(TT.NUMBER, str(direction), tok)],

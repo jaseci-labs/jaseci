@@ -154,11 +154,14 @@ def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
     ];
     filtered = len(head_kid) != len(saved_kid);
     if filtered {
-        mod._role_set(BodyRole, [
-            st
-            for st in saved_body
-            if (not st.loc.mod_path) or (st.loc.mod_path == own_path)
-        ]);
+        mod._role_set(
+            BodyRole,
+            [
+                st
+                for st in saved_body
+                if (not st.loc.mod_path) or (st.loc.mod_path == own_path)
+            ]
+        );
         mod.set_kids(nodes=head_kid or [uni.EmptyToken()]);
     }
     try {

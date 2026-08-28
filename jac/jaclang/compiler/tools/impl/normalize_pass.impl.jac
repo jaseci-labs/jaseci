@@ -14,11 +14,14 @@ impl NormalizePass.enter_module with uni.Module entry {
                 if not (isinstance(i, uni.ModuleItem) and i.name.value == "Any")
             ];
             if not _kept and imp.parent is not None and imp in here.body {
-                here._role_set(BodyRole, [
-                    st
-                    for st in here.body
-                    if st is not imp
-                ]);
+                here._role_set(
+                    BodyRole,
+                    [
+                        st
+                        for st in here.body
+                        if st is not imp
+                    ]
+                );
             } elif len(_kept) != len(imp.items) {
                 imp._role_set(ItemsRole, _kept);
                 imp.set_kids(
@@ -95,7 +98,9 @@ impl NormalizePass.enter_global_vars with uni.GlobalVars entry {
         new_kid.append(here.doc);
     }
     new_kid.append(
-        here.gen_token(Tok.KW_COMPTIME) if here.is_frozen else here.gen_token(Tok.KW_GLOBAL)
+        here.gen_token(Tok.KW_COMPTIME)
+            if here.is_frozen
+            else here.gen_token(Tok.KW_GLOBAL)
     );
     if here.access {
         new_kid.append(here.access);
@@ -675,7 +680,11 @@ impl NormalizePass.enter_expr_stmt with uni.ExprStmt entry {
 }
 
 impl NormalizePass.enter_try_stmt with uni.TryStmt entry {
-    new_kid: list[uni.UniNode] = [here.gen_token(Tok.KW_TRY), here.gen_token(Tok.LBRACE), ];
+    new_kid: list[uni.UniNode] = [
+        here.gen_token(Tok.KW_TRY),
+        here.gen_token(Tok.LBRACE),
+
+    ];
     for stmt in here.body {
         new_kid.append(stmt);
     }
@@ -937,7 +946,11 @@ impl NormalizePass.enter_await_expr with uni.AwaitExpr entry {
 }
 
 impl NormalizePass.enter_cast_expr with uni.CastExpr entry {
-    new_kid: list[uni.UniNode] = [here.value, here.gen_token(Tok.KW_AS), here.cast_type];
+    new_kid: list[uni.UniNode] = [
+        here.value,
+        here.gen_token(Tok.KW_AS),
+        here.cast_type
+    ];
     here.set_kids(nodes=new_kid);
 }
 

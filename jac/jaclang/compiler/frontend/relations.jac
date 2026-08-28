@@ -1,4 +1,3 @@
-
 edge SymOf {}
 
 edge Defines {}

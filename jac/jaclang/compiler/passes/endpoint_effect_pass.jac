@@ -27,7 +27,7 @@ walker EndpointEffectPass(UniPass) {
         _touches: set[str] = field(default_factory=`set),
         _visited: set[int] = field(default_factory=set);
 
-    def before_pass() {
+    def before_pass {
         self._is_writer = False;
         self._touches.clear();
         self._visited.clear();
@@ -146,8 +146,7 @@ walker EndpointEffectPass(UniPass) {
         }
     }
 
-    def _call_target_symbol(call: FuncCall
-    ) -> (Symbol | None) {
+    def _call_target_symbol(call: FuncCall) -> (Symbol | None) {
         if isinstance(call.target, Name) {
             sym = call.target.sym;
             if not sym and call.target.sym_tab {

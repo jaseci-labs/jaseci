@@ -51,6 +51,28 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
     self.deps.forget(resolved_path);
 }
 
+impl JacProgram.release_module(self: JacProgram, resolved_path: str) -> None {
+    released = self.hub.mod.hub.get(resolved_path) or self.find_module(resolved_path);
+    self.invalidate_module(resolved_path);
+    self.drop_module_alerts(resolved_path);
+    prog_root = self.mod;
+    main = prog_root.main_mod;
+    if (main is not None and JacProgram.hub_key(main.loc.mod_path) == resolved_path) {
+        released = released or main;
+        prog_root.main_mod = None;
+    }
+    if released is not None {
+        released.sever_external_edges();
+        if prog_root.kid {
+            (first_tok, last_tok) = prog_root.resolve_tok_range();
+            prog_root.loc.update_token_range(first_tok, last_tok);
+        } else {
+            empty_tok = uni.EmptyToken();
+            prog_root.loc.update_token_range(empty_tok, empty_tok);
+        }
+    }
+}
+
 impl JacProgram.load_dependency_module(
     self: JacProgram,
     source_path: str,

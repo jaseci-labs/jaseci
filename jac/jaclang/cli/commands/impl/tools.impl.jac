@@ -265,4 +265,3 @@ def _install_completion(shell: str, code: str) -> int {
         return 1;
     }
 }
-

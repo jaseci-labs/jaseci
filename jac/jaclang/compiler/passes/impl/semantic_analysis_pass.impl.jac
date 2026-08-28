@@ -20,8 +20,7 @@ impl SemanticAnalysisPass.enter_archetype with Archetype entry {
     self._check_archetype(here);
 }
 
-impl SemanticAnalysisPass._check_archetype(nd: Archetype
-) -> None {
+impl SemanticAnalysisPass._check_archetype(nd: Archetype) -> None {
     if ((nd.arch_type.name != Tok.KW_CLASS) and isinstance(nd.body, Sequence)) {
         found_default_init = False;
         for stmnt in nd.body {
@@ -121,7 +120,8 @@ impl SemanticAnalysisPass._check_archetype(nd: Archetype
     }
 }
 
-impl SemanticAnalysisPass._property_type_names(methods: list[Ability]
+impl SemanticAnalysisPass._property_type_names(
+    methods: list[Ability]
 ) -> dict[str, str] {
     names: dict[str, str] = {};
     for method in methods {
@@ -179,8 +179,7 @@ impl SemanticAnalysisPass.enter_inner_compr with InnerCompr entry {
     self._update_ctx(here.target);
 }
 
-impl SemanticAnalysisPass._change_atom_trailer_ctx(nd: AtomTrailer
-) -> None {
+impl SemanticAnalysisPass._change_atom_trailer_ctx(nd: AtomTrailer) -> None {
     last = nd.right;
     if isinstance(last, AtomExpr) {
         last.name_spec.expr_ctx = ExprCtx.STORE;

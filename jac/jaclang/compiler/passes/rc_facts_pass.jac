@@ -118,7 +118,7 @@ walker RcFactsPass(Transform) {
         _node_def: dict[int, set[SymId]] = {};
 
     static has PROVIDES: tuple = ('rc-facts', ),
-        REQUIRES: tuple = ('cfg', );
+        REQUIRES: tuple = ('CfgSucc', );
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;

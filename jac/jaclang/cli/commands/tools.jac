@@ -148,4 +148,3 @@ comptime SPEC_COMPLETIONS: CommandSpec = CommandSpec(
      );
 
 def completions(shell: str = "bash", install: bool = False) -> int;
-

@@ -50,7 +50,11 @@ impl UniPass.__jac_post_entry__(nd: UniNode) -> None {
     if self.prune_signal {
         self.prune_signal = False;
     } elif not self.is_canceled() {
-        visit:0: [k for k in nd.kid if k and not k.ct_pruned];
+        visit : 0 : [
+            k
+            for k in nd.kid
+            if k and not k.ct_pruned
+        ];
     }
 }
 

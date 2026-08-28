@@ -1,9 +1,8 @@
-impl SymTabBuildPass.before_pass() -> None {
+impl SymTabBuildPass.before_pass -> None {
     self.cur_sym_tab = [];
 }
 
-impl SymTabBuildPass.push_scope_and_link(key_node: UniScopeNode
-) -> None {
+impl SymTabBuildPass.push_scope_and_link(key_node: UniScopeNode) -> None {
     if not len(self.cur_sym_tab) {
         self.cur_sym_tab.append(key_node);
     } else {
@@ -11,16 +10,15 @@ impl SymTabBuildPass.push_scope_and_link(key_node: UniScopeNode
     }
 }
 
-impl SymTabBuildPass.pop_scope() -> UniScopeNode {
+impl SymTabBuildPass.pop_scope -> UniScopeNode {
     return self.cur_sym_tab.pop();
 }
 
-impl SymTabBuildPass.cur_scope.getter() -> UniScopeNode {
+impl SymTabBuildPass.cur_scope.getter -> UniScopeNode {
     return self.cur_sym_tab[-1];
 }
 
-impl SymTabBuildPass._bind_import_path_symbols(module_path: ModulePath
-) -> None {
+impl SymTabBuildPass._bind_import_path_symbols(module_path: ModulePath) -> None {
     if module_path.path {
         for n in module_path.path {
             if isinstance(n, Name) {
@@ -167,8 +165,7 @@ impl SymTabBuildPass.exit_import with Import exit {
     }
 }
 
-impl SymTabBuildPass.import_binding_scope(nd: AstSymbolNode
-) -> UniScopeNode {
+impl SymTabBuildPass.import_binding_scope(nd: AstSymbolNode) -> UniScopeNode {
     scope = nd.sym_tab;
     while (
         not isinstance(
@@ -196,7 +193,9 @@ impl SymTabBuildPass.exit_module_path with ModulePath exit {
         )
     ) {
         if isinstance(here.path[0], Name) {
-            self.import_binding_scope(here.path[0]).def_insert(here.path[0], imported=True);
+            self.import_binding_scope(here.path[0]).def_insert(
+                here.path[0], imported=True
+            );
         }
     } else {
         ;
@@ -349,8 +348,7 @@ impl SymTabBuildPass.exit_atom_trailer with AtomTrailer exit {
     }
 }
 
-impl SymTabBuildPass._is_self_member_assignment(nd: AtomTrailer
-) -> bool {
+impl SymTabBuildPass._is_self_member_assignment(nd: AtomTrailer) -> bool {
     if not (nd.parent and isinstance(nd.parent, Assignment)) {
         return False;
     }

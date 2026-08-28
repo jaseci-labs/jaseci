@@ -364,7 +364,9 @@ impl EsastGenPass.exit_if_else_expr with uni.IfElseExpr exit {
         cast(
             es.Expression,
             here.condition.gen.es_ast
-                or self.sync_loc(es.Identifier(name='condition'), jac_node=here.condition)
+                or self.sync_loc(
+                    es.Identifier(name='condition'), jac_node=here.condition
+                )
         ),
         here
     );
@@ -577,7 +579,9 @@ impl EsastGenPass.exit_dict_compr with uni.DictCompr exit {
         else None;
     val_expr = cast(es.Expression, here.kv_pair.value.gen.es_ast);
     if not key_expr or not val_expr {
-        here.gen.es_ast = self.sync_loc(es.ObjectExpression(properties=[]), jac_node=here);
+        here.gen.es_ast = self.sync_loc(
+            es.ObjectExpression(properties=[]), jac_node=here
+        );
         return;
     }
 
@@ -587,7 +591,9 @@ impl EsastGenPass.exit_dict_compr with uni.DictCompr exit {
 
     chain = self._build_compr_expr(here.compr, out_expr, here);
     if not chain {
-        here.gen.es_ast = self.sync_loc(es.ObjectExpression(properties=[]), jac_node=here);
+        here.gen.es_ast = self.sync_loc(
+            es.ObjectExpression(properties=[]), jac_node=here
+        );
         return;
     }
 
@@ -2047,7 +2053,9 @@ impl EsastGenPass.exit_func_call with uni.FuncCall exit {
                 if _result is not None and "_jac." in str(_result) {
                     self.needs_jac_runtime = True;
                 }
-                here.gen.es_ast = self.sync_loc(es.Identifier(name=_result), jac_node=here);
+                here.gen.es_ast = self.sync_loc(
+                    es.Identifier(name=_result), jac_node=here
+                );
                 return;
             }
         }
@@ -2137,7 +2145,9 @@ impl EsastGenPass.exit_func_call with uni.FuncCall exit {
                 if "_jac." in str(_result) {
                     self.needs_jac_runtime = True;
                 }
-                here.gen.es_ast = self.sync_loc(es.Identifier(name=_result), jac_node=here);
+                here.gen.es_ast = self.sync_loc(
+                    es.Identifier(name=_result), jac_node=here
+                );
                 return;
             }
         }
@@ -2162,7 +2172,9 @@ impl EsastGenPass.exit_func_call with uni.FuncCall exit {
                     args,
                     props,
                     self._param_names_from_ability(ability_node_resolved),
-                    here.target.sym_name if isinstance(here.target, uni.Name) else "func",
+                    here.target.sym_name
+                        if isinstance(here.target, uni.Name)
+                        else "func",
                     spread_read_source
                 )
             );
@@ -2216,7 +2228,9 @@ impl EsastGenPass.exit_func_call with uni.FuncCall exit {
                 jac_node=here
             );
             if use_kwargs_temp and spread_arg is not None {
-                result_expr = self._wrap_with_kwargs_temp(result_expr, spread_arg, here);
+                result_expr = self._wrap_with_kwargs_temp(
+                    result_expr, spread_arg, here
+                );
             }
         }
         here.gen.es_ast = result_expr;
@@ -2256,7 +2270,9 @@ impl EsastGenPass.exit_assignment with uni.Assignment exit {
             here.value.gen.es_ast = folded;
         }
     }
-    value_expr = here.value.gen.es_ast if (here.value and here.value.gen.es_ast) else None;
+    value_expr = here.value.gen.es_ast
+        if (here.value and here.value.gen.es_ast)
+        else None;
 
     if (
         len(here.target) == 1
@@ -2319,7 +2335,9 @@ impl EsastGenPass.exit_assignment with uni.Assignment exit {
     }
     if here.aug_op {
         (left, _, _) = self._convert_assignment_target(here.target[0]);
-        aug_tok = Tok(here.aug_op.name) if (here.aug_op.name in Tok.__members__) else None;
+        aug_tok = Tok(here.aug_op.name)
+            if (here.aug_op.name in Tok.__members__)
+            else None;
         right = cast(
             es.Expression,
             (
@@ -2336,7 +2354,10 @@ impl EsastGenPass.exit_assignment with uni.Assignment exit {
         _aug_base = AUG_TO_BINARY_TOK.get(aug_tok) if aug_tok else None;
         if _aug_base is not None and _aug_base in FW_BINARY_OPS {
             _fw_aug = self._fw_binary(
-                here.target[0], FW_BINARY_OPS[_aug_base], cast(es.Expression, left), right
+                here.target[0],
+                FW_BINARY_OPS[_aug_base],
+                cast(es.Expression, left),
+                right
             );
             if _fw_aug is not None {
                 here.gen.es_ast = self.sync_loc(
@@ -2986,7 +3007,9 @@ impl EsastGenPass.exit_compare_expr with uni.CompareExpr exit {
                         ),
                         jac_node=here
                     ),
-                    property=self.sync_loc(es.Identifier(name='contains'), jac_node=here),
+                    property=self.sync_loc(
+                        es.Identifier(name='contains'), jac_node=here
+                    ),
                     computed=False
                 ),
                 jac_node=here
@@ -3062,7 +3085,8 @@ impl EsastGenPass.exit_bool_expr with uni.BoolExpr exit {
     result: es.Expression = cast(
         es.Expression,
         self._get_ast_or_default(
-            here.values[0], default_factory=lambda (_src: any) { es.Literal(value=None); }
+            here.values[0],
+            default_factory=lambda (_src: any) { es.Literal(value=None); }
         )
     );
 
@@ -3216,7 +3240,9 @@ impl EsastGenPass.exit_delete_stmt with uni.DeleteStmt exit {
         es.ExpressionStatement(
             expression=self.sync_loc(
                 es.CallExpression(
-                    callee=self.sync_loc(es.Identifier(name='__ospDiscW'), jac_node=here),
+                    callee=self.sync_loc(
+                        es.Identifier(name='__ospDiscW'), jac_node=here
+                    ),
                     arguments=[target_es]
                 ),
                 jac_node=here
@@ -3899,7 +3925,9 @@ impl EsastGenPass.exit_assert_stmt with uni.AssertStmt exit {
             argument=self.sync_loc(
                 es.NewExpression(
                     callee=self.sync_loc(es.Identifier(name='Error'), jac_node=here),
-                    arguments=[self.sync_loc(es.Literal(value=error_msg), jac_node=here)]
+                    arguments=[
+                        self.sync_loc(es.Literal(value=error_msg), jac_node=here)
+                    ]
                 ),
                 jac_node=here
             )
@@ -3909,7 +3937,9 @@ impl EsastGenPass.exit_assert_stmt with uni.AssertStmt exit {
     if_stmt = self.sync_loc(
         es.IfStatement(
             `test=negated_test,
-            consequent=self.sync_loc(es.BlockStatement(body=[throw_stmt]), jac_node=here)
+            consequent=self.sync_loc(
+                es.BlockStatement(body=[throw_stmt]), jac_node=here
+            )
         ),
         jac_node=here
     );
@@ -3966,7 +3996,8 @@ impl EsastGenPass.exit_raise_stmt with uni.RaiseStmt exit {
         if exc_name is not None {
             exc_ref = self._jac_exc_ref(exc_name, here);
             argument = self.sync_loc(
-                es.NewExpression(callee=exc_ref, arguments=call_args or []), jac_node=here
+                es.NewExpression(callee=exc_ref, arguments=call_args or []),
+                jac_node=here
             );
         } elif callee.name == 'Error' {
             argument = self.sync_loc(
@@ -4076,7 +4107,9 @@ impl EsastGenPass.exit_try_stmt with uni.TryStmt exit {
     handler: (es.CatchClause | None) = None;
     if here.excepts and len(here.excepts) > 0 {
         catch_param_name = "__jac_e";
-        catch_param = self.sync_loc(es.Identifier(name=catch_param_name), jac_node=here);
+        catch_param = self.sync_loc(
+            es.Identifier(name=catch_param_name), jac_node=here
+        );
 
         catch_body_stmts: list[es.Statement] = [];
 
@@ -4233,7 +4266,8 @@ impl EsastGenPass.exit_try_stmt with uni.TryStmt exit {
         finalizer = here.finally_body.gen.es_ast;
     }
     try_stmt = self.sync_loc(
-        es.TryStatement(block=block, handler=handler, finalizer=finalizer), jac_node=here
+        es.TryStatement(block=block, handler=handler, finalizer=finalizer),
+        jac_node=here
     );
     here.gen.es_ast = try_stmt;
 }
@@ -4475,7 +4509,9 @@ impl EsastGenPass.exit_while_stmt with uni.WhileStmt exit {
         here
     );
     body = self._build_block_statement(here, here.body);
-    while_stmt = self.sync_loc(es.WhileStatement(`test=`test, body=body), jac_node=here);
+    while_stmt = self.sync_loc(
+        es.WhileStatement(`test=`test, body=body), jac_node=here
+    );
     here.gen.es_ast = self._view_loop_stmt(here, while_stmt);
 }
 
@@ -5008,10 +5044,14 @@ impl EsastGenPass._setter_name_taken(has_var: uni.HasVar, setter_name: str) -> b
 }
 
 impl EsastGenPass.exit_param_var with uni.ParamVar exit {
-    param_id = self.sync_loc(es.Identifier(name=here.name.sym_name), jac_node=here.name);
+    param_id = self.sync_loc(
+        es.Identifier(name=here.name.sym_name), jac_node=here.name
+    );
     self._register_declaration(param_id.name);
     if here.is_vararg or here.is_kwargs {
-        here.gen.es_ast = self.sync_loc(es.RestElement(argument=param_id), jac_node=here);
+        here.gen.es_ast = self.sync_loc(
+            es.RestElement(argument=param_id), jac_node=here
+        );
     } elif here.value and here.value.gen.es_ast {
         here.gen.es_ast = self.sync_loc(
             es.AssignmentPattern(
@@ -5166,7 +5206,9 @@ impl EsastGenPass.exit_ability with uni.Ability exit {
         } else {
             if component_call_abi == 'props_passthrough' {
                 self.emit(
-                    W5015, node_override=value_params[0], component=here.name_ref.sym_name
+                    W5015,
+                    node_override=value_params[0],
+                    component=here.name_ref.sym_name
                 );
             }
             for param in value_params {
@@ -5201,7 +5243,11 @@ impl EsastGenPass.exit_ability with uni.Ability exit {
     if here.is_method {
         func_expr = self.sync_loc(
             es.FunctionExpression(
-                id=None, params=params, body=block, generator=is_gen, async_=here.is_async
+                id=None,
+                params=params,
+                body=block,
+                generator=is_gen,
+                async_=here.is_async
             ),
             jac_node=here
         );
@@ -5240,14 +5286,17 @@ impl EsastGenPass.exit_ability with uni.Ability exit {
             jac_node=here
         );
         here.gen.es_ast = self.sync_loc(
-            es.VariableDeclaration(declarations=[declarator], kind='const'), jac_node=here
+            es.VariableDeclaration(declarations=[declarator], kind='const'),
+            jac_node=here
         );
     } else {
         pascal = self._component_pascal_name(here);
         if pascal is not None {
             func_decl = self.sync_loc(
                 es.FunctionDeclaration(
-                    id=self.sync_loc(es.Identifier(name=pascal), jac_node=here.name_ref),
+                    id=self.sync_loc(
+                        es.Identifier(name=pascal), jac_node=here.name_ref
+                    ),
                     params=params,
                     body=block,
                     generator=is_gen,
@@ -6504,7 +6553,9 @@ impl EsastGenPass.exit_archetype with uni.Archetype exit {
             }
         }
     }
-    class_id = self.sync_loc(es.Identifier(name=here.name.sym_name), jac_node=here.name);
+    class_id = self.sync_loc(
+        es.Identifier(name=here.name.sym_name), jac_node=here.name
+    );
     class_decl = self.sync_loc(
         es.ClassDeclaration(id=class_id, superClass=super_class, body=class_body),
         jac_node=here
@@ -8492,7 +8543,9 @@ impl EsastGenPass.enter_walk with uni.UniNode entry {
         self._push_scope(here);
     }
     if here.gen.es_ast {
-        if not (isinstance(here, uni.Import) and here.code_context != CodeContext.CLIENT) {
+        if not (
+            isinstance(here, uni.Import) and here.code_context != CodeContext.CLIENT
+        ) {
             osp_skip_rest();
             return;
         }

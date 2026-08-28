@@ -30,7 +30,7 @@ walker JsxIntrinsicGuardPass(UniPass) {
     has _enforced_root: (str | None) = None,
         _exempt_paths: dict[str, bool] = {};
 
-    def before_pass() {
+    def before_pass {
         self._enforced_root = self.ir_in.mobui_enforced_root;
         self._exempt_paths.clear();
     }
@@ -70,8 +70,7 @@ walker JsxIntrinsicGuardPass(UniPass) {
         }
     }
 
-    def _resolves_in_scope(el: JsxElement, first: UniNode
-    ) -> bool {
+    def _resolves_in_scope(el: JsxElement, first: UniNode) -> bool {
         if not isinstance(first, Name) or not el.sym_tab or el.name is None {
             return False;
         }

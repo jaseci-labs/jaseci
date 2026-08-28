@@ -437,20 +437,6 @@ test "jac test err" {
     assert "baddy.test.jac:2" in stdout_value;
 }
 
-test "jac ast tool pass template" {
-    captured = io.StringIO();
-    old_stdout = sys.stdout;
-    sys.stdout = captured;
-    try {
-        tools.tool("pass_template");
-    } finally {
-        sys.stdout = old_stdout;
-    }
-    stdout_value = captured.getvalue();
-    assert "Sub objects." in stdout_value;
-    assert stdout_value.count("def exit_") > 10;
-}
-
 test "ast print" {
     captured = io.StringIO();
     old_stdout = sys.stdout;

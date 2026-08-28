@@ -223,7 +223,10 @@ async def _run_typed_async(rt: OspRuntime, slots: list[Slot], a: any, b: any) ->
                 await result;
             }
             if _kernel._walk_stack
-                and (_kernel._walk_stack[-1].disengaged or _kernel._walk_stack[-1].skip_node) {
+                and (
+                    _kernel._walk_stack[-1].disengaged
+                    or _kernel._walk_stack[-1].skip_node
+                ) {
                 return;
             }
         }
@@ -238,7 +241,10 @@ async def _run_untyped_async(slots: list[Slot], a: any, b: any) -> None {
                 await result;
             }
             if _kernel._walk_stack
-                and (_kernel._walk_stack[-1].disengaged or _kernel._walk_stack[-1].skip_node) {
+                and (
+                    _kernel._walk_stack[-1].disengaged
+                    or _kernel._walk_stack[-1].skip_node
+                ) {
                 return;
             }
         }

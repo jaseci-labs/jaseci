@@ -13,8 +13,7 @@ impl DeclImplMatchPass._run_impl(ir_in: Module) -> Module {
     return ir_in;
 }
 
-impl DeclImplMatchPass.defn_lookup(lookup: Symbol
-) -> (NameAtom | None) {
+impl DeclImplMatchPass.defn_lookup(lookup: Symbol) -> (NameAtom | None) {
     for defn in range(len(lookup.defn)) {
         candidate = lookup.defn[(len(lookup.defn) - (defn + 1))];
         if (
@@ -27,8 +26,7 @@ impl DeclImplMatchPass.defn_lookup(lookup: Symbol
     return None;
 }
 
-impl DeclImplMatchPass._find_archetype_defn(lookup: Symbol
-) -> (NameAtom | None) {
+impl DeclImplMatchPass._find_archetype_defn(lookup: Symbol) -> (NameAtom | None) {
     for defn_idx in range(len(lookup.defn)) {
         candidate = lookup.defn[defn_idx];
         if (
@@ -49,7 +47,8 @@ impl DeclImplMatchPass._find_archetype_defn(lookup: Symbol
     return lookup.defn[-1] if lookup.defn else None;
 }
 
-impl DeclImplMatchPass.connect_impls(source_sym_tab: UniScopeNode, target_sym_tab: UniScopeNode
+impl DeclImplMatchPass.connect_impls(
+    source_sym_tab: UniScopeNode, target_sym_tab: UniScopeNode
 ) -> None {
     for sym in source_sym_tab.names_in_scope.values() {
         for defn in sym.defn {
@@ -74,9 +73,7 @@ impl DeclImplMatchPass.connect_impls(source_sym_tab: UniScopeNode, target_sym_ta
 }
 
 impl DeclImplMatchPass._connect_one_impl(
-    impl_node: ImplDef,
-    sym_name: str,
-    target_sym_tab: UniScopeNode
+    impl_node: ImplDef, sym_name: str, target_sym_tab: UniScopeNode
 ) -> None {
     arch_refs = sym_name.split('.')[1:];
     name_of_links: list[NameAtom] = [];
@@ -195,8 +192,7 @@ impl DeclImplMatchPass._connect_one_impl(
     }
 }
 
-impl DeclImplMatchPass._report_bare_redecls(sym_tab: UniScopeNode
-) -> None {
+impl DeclImplMatchPass._report_bare_redecls(sym_tab: UniScopeNode) -> None {
     for sym in sym_tab.names_in_scope.values() {
         stub: (UniNode | None) = None;
         bare: (UniNode | None) = None;
@@ -229,9 +225,7 @@ impl DeclImplMatchPass._report_bare_redecls(sym_tab: UniScopeNode
 }
 
 impl DeclImplMatchPass.validate_params_match(
-    impl_node: ImplDef,
-    sym_name: str,
-    valid_decl: AstSymbolNode
+    impl_node: ImplDef, sym_name: str, valid_decl: AstSymbolNode
 ) -> None {
     if (
         isinstance(valid_decl, Ability)
@@ -274,8 +268,7 @@ impl DeclImplMatchPass.validate_params_match(
     }
 }
 
-impl DeclImplMatchPass._resolve_symbols_in_subtree(root_node: UniNode
-) -> None {
+impl DeclImplMatchPass._resolve_symbols_in_subtree(root_node: UniNode) -> None {
     for name_node in root_node.get_all_sub_nodes(Name) {
         if name_node.sym is not None {
             continue;
@@ -303,7 +296,8 @@ impl DeclImplMatchPass._resolve_symbols_in_subtree(root_node: UniNode
 }
 
 
-impl DeclImplMatchPass._populate_self_member_symbols(impl_def: ImplDef, archetype: Archetype
+impl DeclImplMatchPass._populate_self_member_symbols(
+    impl_def: ImplDef, archetype: Archetype
 ) -> None {
     import from jaclang.compiler.frontend.diagnostics { W2080 }
 
@@ -350,8 +344,7 @@ impl DeclImplMatchPass._populate_self_member_symbols(impl_def: ImplDef, archetyp
     }
 }
 
-impl DeclImplMatchPass._populate_inline_init_symbols(archetype: Archetype
-) -> None {
+impl DeclImplMatchPass._populate_inline_init_symbols(archetype: Archetype) -> None {
     import from jaclang.compiler.frontend.diagnostics { W2080 }
 
     if archetype.arch_type.name == 'KW_CLASS' {

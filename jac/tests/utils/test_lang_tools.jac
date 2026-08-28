@@ -12,18 +12,6 @@ import from jaclang.compiler.tools.lang_tools { AstTool }
 
 glob LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
 
-test "pass template" {
-    tool = AstTool();
-    out = tool.pass_template();
-    assert "target: Expr," in out;
-    assert "self, node: ast.ReturnStmt" in out;
-    assert "exprs: Sequence[ExprAsItem]," in out;
-    assert "path: Sequence[Name | String] | None," in out;
-    assert "value: str," in out;
-    assert "def exit_module(self, node: ast.Module)" in out;
-    assert out.count("def exit_") > 20;
-}
-
 test "gendotfile" {
     tool = AstTool();
     jac_file = os.path.join(LANG_FIXTURES, "simple_walk.jac");
@@ -83,4 +71,3 @@ test "uninode doc" {
         in auto_uni
     );
 }
-

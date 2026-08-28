@@ -40,9 +40,7 @@ def inform_from_walker(nd: UniNode) -> None;
 walker SemanticAnalysisPass(UniPass) {
     can enter_archetype with Archetype entry;
     def _check_archetype(nd: Archetype) -> None;
-    def _property_type_names(methods: list[Ability]
-    ) -> dict[str, str];
-
+    def _property_type_names(methods: list[Ability]) -> dict[str, str];
     def _update_ctx(nd: UniNode) -> None;
     can enter_has_var with HasVar entry;
     can enter_param_var with ParamVar entry;

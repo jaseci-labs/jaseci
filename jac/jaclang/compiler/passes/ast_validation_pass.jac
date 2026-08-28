@@ -95,12 +95,8 @@ walker ASTValidationPass(UniPass) {
     can enter_enum with Enum entry;
     can enter_switch_stmt with SwitchStmt entry;
     can enter_assignment with Assignment entry;
-    def _check_render_phase_state_write(nd: Assignment
-    ) -> None;
-
-    def _scope_declares_state(scope: (Ability | ImplDef), name: str
-    ) -> bool;
-
+    def _check_render_phase_state_write(nd: Assignment) -> None;
+    def _scope_declares_state(scope: (Ability | ImplDef), name: str) -> bool;
     def _returns_jsx(scope: (Ability | ImplDef)) -> bool;
     can enter_in_for_stmt with InForStmt entry;
     can enter_inner_compr with InnerCompr entry;
@@ -116,12 +112,8 @@ walker ASTValidationPass(UniPass) {
     can enter_archetype with Archetype entry;
     can enter_jsx_slot with JsxSlot entry;
     can enter_expr_stmt with ExprStmt entry;
-    def _check_slot_body(stmts: list[UniNode], in_loop: bool, loop_kw: str
-    ) -> None;
-
-    def _check_slot_else(else_body: object, in_loop: bool, loop_kw: str
-    ) -> None;
-
+    def _check_slot_body(stmts: list[UniNode], in_loop: bool, loop_kw: str) -> None;
+    def _check_slot_else(else_body: object, in_loop: bool, loop_kw: str) -> None;
     def _slot_emits_keyless_jsx(stmts: list[UniNode]) -> bool;
     def _slot_has_key_attr(el: JsxElement) -> bool;
 }

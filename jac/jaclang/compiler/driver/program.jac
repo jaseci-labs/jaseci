@@ -51,6 +51,7 @@ class JacProgram {
 
     def transitive_dependents(self: JacProgram, target_path: str) -> set[str];
     def invalidate_module(self: JacProgram, resolved_path: str) -> None;
+    def release_module(self: JacProgram, resolved_path: str) -> None;
     def load_dependency_module(
         self: JacProgram,
         source_path: str,

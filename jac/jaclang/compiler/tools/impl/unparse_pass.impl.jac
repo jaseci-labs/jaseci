@@ -403,7 +403,8 @@ impl UnparsePass.exit_ability with uni.Ability exit {
     if here.body is not None {
         if isinstance(here.body, uni.ImplDef) {
             parts.append(";");
-        } elif isinstance(here.body, Sequence) and not isinstance(here.body, uni.Expr) {
+        } elif isinstance(here.body, Sequence)
+            and not isinstance(here.body, uni.Expr) {
             body = " ".join([s.gen.jac for s in here.body]);
             parts.append("{ " + body + " }");
         } else {
@@ -1109,7 +1110,9 @@ impl UnparsePass.exit_jsx_slot with uni.JsxSlot exit {
 }
 
 impl UnparsePass.exit_jsx_comment with uni.JsxComment exit {
-    here.gen.jac = here.value.value if isinstance(here.value, uni.Token) else str(here.value);
+    here.gen.jac = here.value.value
+        if isinstance(here.value, uni.Token)
+        else str(here.value);
 }
 
 impl UnparsePass.exit_match_stmt with uni.MatchStmt exit {
@@ -1179,7 +1182,11 @@ impl UnparsePass.exit_match_mapping with uni.MatchMapping exit {
 }
 
 impl UnparsePass.exit_match_k_v_pair with uni.MatchKVPair exit {
-    here.gen.jac = here.key.gen.jac + " " + here.kid[1].gen.jac + " " + here.value.gen.jac;
+    here.gen.jac = here.key.gen.jac
+        + " "
+        + here.kid[1].gen.jac
+        + " "
+        + here.value.gen.jac;
 }
 
 impl UnparsePass.exit_match_star with uni.MatchStar exit {

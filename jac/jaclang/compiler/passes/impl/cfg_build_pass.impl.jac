@@ -462,7 +462,9 @@ impl CFGBuildPass.exit_bool_expr with BoolExpr exit {
 
 impl CFGBuildPass.exit_if_else_expr with IfElseExpr exit {
     import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
-    here.condition.affected_symbols.update(collect_narrowing_symbols(here.condition.expr));
+    here.condition.affected_symbols.update(
+        collect_narrowing_symbols(here.condition.expr)
+    );
 
     unwrapped_cond = _unwrap_parens(here.condition.expr);
     if isinstance(unwrapped_cond, BoolExpr) and len(unwrapped_cond.values) >= 2 {
@@ -711,7 +713,9 @@ impl CFGBuildPass.exit_while_stmt with WhileStmt exit {
     true_target: (UniCFGNode | None) = here.body[0] if here.body else None;
 
     false_target: (UniCFGNode | None) = None;
-    if here.else_body and isinstance(here.else_body, ElseStmt) and here.else_body.body {
+    if here.else_body
+        and isinstance(here.else_body, ElseStmt)
+        and here.else_body.body {
         false_target = here.else_body.body[0];
     } elif here.parent {
         false_target = self._find_next_cfg_stmt_after(here.parent, here);
@@ -768,7 +772,9 @@ impl CFGBuildPass.exit_in_for_stmt with InForStmt exit {
     if here.body {
         self.link_bbs(here, here.body[0]);
     }
-    if here.else_body and isinstance(here.else_body, ElseStmt) and here.else_body.body {
+    if here.else_body
+        and isinstance(here.else_body, ElseStmt)
+        and here.else_body.body {
         self.link_bbs(here, here.else_body.body[0]);
     }
 }
@@ -778,7 +784,9 @@ impl CFGBuildPass.exit_iter_for_stmt with IterForStmt exit {
     if here.body {
         self.link_bbs(here, here.body[0]);
     }
-    if here.else_body and isinstance(here.else_body, ElseStmt) and here.else_body.body {
+    if here.else_body
+        and isinstance(here.else_body, ElseStmt)
+        and here.else_body.body {
         self.link_bbs(here, here.else_body.body[0]);
     }
 }
@@ -881,7 +889,9 @@ impl CFGBuildPass.exit_try_stmt with TryStmt exit {
         self.link_bbs(here, exc);
     }
 
-    if here.else_body and isinstance(here.else_body, ElseStmt) and here.else_body.body {
+    if here.else_body
+        and isinstance(here.else_body, ElseStmt)
+        and here.else_body.body {
         if here.body and not self._is_terminal(here.body[-1]) {
             self.link_bbs(here.body[-1], here.else_body.body[0]);
         }

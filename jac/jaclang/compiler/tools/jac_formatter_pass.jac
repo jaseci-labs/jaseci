@@ -27,9 +27,7 @@ walker JacFormatPass(Transform) {
     ) -> int;
 
     def transform(ir_in: uni.Module) -> uni.Module;
-
     def _run_impl(ir_in: uni.Module) -> uni.Module;
-
     can run_walk with uni.Module entry;
     def format_doc_ir(
         doc_node: (doc.DocType | None) = None,

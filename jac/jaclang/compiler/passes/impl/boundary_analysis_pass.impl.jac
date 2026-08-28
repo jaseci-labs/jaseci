@@ -1,10 +1,11 @@
-impl BoundaryAnalysisPass.before_pass() -> None {
+impl BoundaryAnalysisPass.before_pass -> None {
     self._func_defs = {};
     self._imported_native_funcs = {};
     self._imported_native_modules = {};
 }
 
-impl BoundaryAnalysisPass._resolved_native_decl(name_node: (UniNode | None)
+impl BoundaryAnalysisPass._resolved_native_decl(
+    name_node: (UniNode | None)
 ) -> (Ability | None) {
     if name_node is None or not isinstance(name_node, AstSymbolNode) {
         return None;
@@ -16,7 +17,8 @@ impl BoundaryAnalysisPass._resolved_native_decl(name_node: (UniNode | None)
     return None;
 }
 
-impl BoundaryAnalysisPass._signature_of_decl(decl: (Ability | None)
+impl BoundaryAnalysisPass._signature_of_decl(
+    decl: (Ability | None)
 ) -> tuple[(str, list[str], list[str])] {
     ret_type: str = 'int';
     param_types: list[str] = [];
@@ -44,8 +46,7 @@ impl BoundaryAnalysisPass._signature_of_decl(decl: (Ability | None)
     return (ret_type, param_types, param_names);
 }
 
-impl BoundaryAnalysisPass._get_context(nd: UniNode
-) -> InteropContext {
+impl BoundaryAnalysisPass._get_context(nd: UniNode) -> InteropContext {
     import from jaclang.compiler.frontend.constant { CodeContext }
     cs = nd.codespace();
     if cs == CodeContext.NATIVE {
@@ -57,8 +58,7 @@ impl BoundaryAnalysisPass._get_context(nd: UniNode
     return InteropContext.SERVER;
 }
 
-impl BoundaryAnalysisPass._extract_type_name(expr: (UniNode | None)
-) -> str {
+impl BoundaryAnalysisPass._extract_type_name(expr: (UniNode | None)) -> str {
     if (expr is None) {
         return 'int';
     }
@@ -88,14 +88,15 @@ impl BoundaryAnalysisPass._extract_type_name(expr: (UniNode | None)
     return 'int';
 }
 
-impl BoundaryAnalysisPass._in_native_module() -> bool {
+impl BoundaryAnalysisPass._in_native_module -> bool {
     if not (self.ir_in and self.ir_in.loc) {
         return False;
     }
     return self.ir_in.decided_codespace == 'native';
 }
 
-impl BoundaryAnalysisPass._native_source_module_of(mod: (Module | None)
+impl BoundaryAnalysisPass._native_source_module_of(
+    mod: (Module | None)
 ) -> (str | None) {
     import os;
     if mod is None or mod is self.ir_in or mod.loc is None or not mod.loc.mod_path {
@@ -123,8 +124,7 @@ impl BoundaryAnalysisPass._native_source_module_of(mod: (Module | None)
     return None;
 }
 
-impl BoundaryAnalysisPass._register_native_absorb(nd: Import
-) -> None {
+impl BoundaryAnalysisPass._register_native_absorb(nd: Import) -> None {
     import from jaclang.compiler.frontend.constant { SymbolAccess }
     item = nd.items[0];
     if not (isinstance(item, ModulePath) and item.path) {
@@ -245,7 +245,10 @@ impl BoundaryAnalysisPass.enter_import with Import entry {
         }
     }
 
-    if (not here.from_loc) and here.is_absorb and here.items and (not here.clib_decls) {
+    if (not here.from_loc)
+        and here.is_absorb
+        and here.items
+        and (not here.clib_decls) {
         self._register_native_absorb(here);
         return;
     }
@@ -266,7 +269,8 @@ impl BoundaryAnalysisPass.enter_import with Import entry {
     }
 }
 
-impl BoundaryAnalysisPass._register_sv_import(nd: Import, module_name: str, caller_ctx: InteropContext
+impl BoundaryAnalysisPass._register_sv_import(
+    nd: Import, module_name: str, caller_ctx: InteropContext
 ) -> None {
     facts = nd.boundary_facts;
     source_abilities: dict[(str, Ability)] = facts.sv_abilities if facts else {};
@@ -312,8 +316,7 @@ impl BoundaryAnalysisPass._register_sv_import(nd: Import, module_name: str, call
     }
 }
 
-impl BoundaryAnalysisPass._register_na_client_import(nd: Import
-) -> None {
+impl BoundaryAnalysisPass._register_na_client_import(nd: Import) -> None {
     import from jaclang.compiler.frontend.codeinfo { native_wasm_stem }
     import from jaclang.compiler.frontend.diagnostics { E5083, E5100 }
     if not nd.from_loc or not nd.items {
@@ -365,8 +368,7 @@ impl BoundaryAnalysisPass._register_na_client_import(nd: Import
     }
 }
 
-impl BoundaryAnalysisPass._register_client_bridged_import(nd: Import
-) -> None {
+impl BoundaryAnalysisPass._register_client_bridged_import(nd: Import) -> None {
     facts = nd.boundary_facts;
     if not facts or not facts.bridged_decls {
         return;
@@ -398,7 +400,8 @@ impl BoundaryAnalysisPass._register_client_bridged_import(nd: Import
     }
 }
 
-impl BoundaryAnalysisPass._extract_walker_has_fields(walker_nd: any
+impl BoundaryAnalysisPass._extract_walker_has_fields(
+    walker_nd: any
 ) -> tuple[list[str], list[str]] {
     names: list[str] = [];
     types: list[str] = [];
@@ -432,7 +435,8 @@ impl BoundaryAnalysisPass._extract_walker_has_fields(walker_nd: any
     return (names, types);
 }
 
-impl BoundaryAnalysisPass._find_archetype(nd: UniNode, target: str
+impl BoundaryAnalysisPass._find_archetype(
+    nd: UniNode, target: str
 ) -> (Archetype | Enum | None) {
     if (isinstance(nd, (Archetype, Enum)) and nd.sym_name == target) {
         return nd;
@@ -582,8 +586,7 @@ impl BoundaryAnalysisPass.enter_func_call with FuncCall entry {
     }
 }
 
-impl BoundaryAnalysisPass._extract_subscript_inner(expr: (UniNode | None)
-) -> str {
+impl BoundaryAnalysisPass._extract_subscript_inner(expr: (UniNode | None)) -> str {
     if expr is None {
         return '';
     }
@@ -626,7 +629,8 @@ impl BoundaryAnalysisPass._extract_subscript_inner(expr: (UniNode | None)
     return '';
 }
 
-impl BoundaryAnalysisPass._extract_all_subscript_types(expr: (UniNode | None)
+impl BoundaryAnalysisPass._extract_all_subscript_types(
+    expr: (UniNode | None)
 ) -> list[str] {
     if expr is None {
         return [];
@@ -649,8 +653,7 @@ impl BoundaryAnalysisPass._extract_all_subscript_types(expr: (UniNode | None)
     return result;
 }
 
-impl BoundaryAnalysisPass._extract_all_type_names(expr: (UniNode | None)
-) -> list[str] {
+impl BoundaryAnalysisPass._extract_all_type_names(expr: (UniNode | None)) -> list[str] {
     prims = {
         'str',
         'int',
@@ -706,7 +709,8 @@ impl BoundaryAnalysisPass._extract_all_type_names(expr: (UniNode | None)
     return [];
 }
 
-impl BoundaryAnalysisPass._collect_boundary_type(type_name: str, source_mod: (Module | None)
+impl BoundaryAnalysisPass._collect_boundary_type(
+    type_name: str, source_mod: (Module | None)
 ) -> None {
     prims = {
         'str',
@@ -887,7 +891,8 @@ impl BoundaryAnalysisPass._collect_boundary_type(type_name: str, source_mod: (Mo
     }
 }
 
-impl BoundaryAnalysisPass._literal_default(expr: (UniNode | None)
+impl BoundaryAnalysisPass._literal_default(
+    expr: (UniNode | None)
 ) -> tuple[(bool, any)] {
     if isinstance(expr, Null) {
         return (True, None);
@@ -946,7 +951,7 @@ impl BoundaryAnalysisPass._literal_default(expr: (UniNode | None)
     return (False, None);
 }
 
-impl BoundaryAnalysisPass.after_pass() -> None {
+impl BoundaryAnalysisPass.after_pass -> None {
     import from jaclang.compiler.frontend.diagnostics { E5093 }
     import from jaclang.runtime.scalars { sized_scalar_names }
     manifest = self.ir_in.gen.interop_manifest;
@@ -1069,8 +1074,7 @@ impl BoundaryAnalysisPass.after_pass() -> None {
     self._record_access_levels(manifest);
 }
 
-impl BoundaryAnalysisPass._record_access_levels(manifest: any
-) -> None {
+impl BoundaryAnalysisPass._record_access_levels(manifest: any) -> None {
     if not (self.ir_in and self.ir_in.body) {
         return;
     }

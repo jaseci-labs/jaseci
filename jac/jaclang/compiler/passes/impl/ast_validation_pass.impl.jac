@@ -16,8 +16,11 @@ impl ASTValidationPass.enter_module_code with ModuleCode entry {
 }
 
 impl ASTValidationPass.enter_binary_expr with BinaryExpr entry {
-    if here.op is not None and isinstance(here.op, Token) and here.op.name == Tok.WALRUS_EQ {
-        if not isinstance(here.left, Name) and not isinstance(here.left, SpecialVarRef) {
+    if here.op is not None
+        and isinstance(here.op, Token)
+        and here.op.name == Tok.WALRUS_EQ {
+        if not isinstance(here.left, Name)
+            and not isinstance(here.left, SpecialVarRef) {
             self.emit(E0020, node_override=here.left);
         } else {
             self._reject_non_bindable(here.left);
@@ -114,8 +117,7 @@ impl ASTValidationPass.enter_switch_stmt with SwitchStmt entry {
     }
 }
 
-impl ASTValidationPass._reject_non_bindable(target: object
-) -> None {
+impl ASTValidationPass._reject_non_bindable(target: object) -> None {
     non_bindable = {Tok.KW_ROOT, Tok.KW_SUPER};
     if isinstance(target, (TupleVal, ListVal)) {
         for el in target.values {
@@ -142,8 +144,7 @@ impl ASTValidationPass.enter_in_for_stmt with InForStmt entry {
     self._reject_non_bindable(here.target);
 }
 
-impl ASTValidationPass._check_render_phase_state_write(nd: Assignment
-) -> None {
+impl ASTValidationPass._check_render_phase_state_write(nd: Assignment) -> None {
     targets = nd.target if isinstance(nd.target, (list, tuple)) else [nd.target];
     if len(targets) != 1 or not isinstance(targets[0], Name) {
         return;
@@ -164,7 +165,8 @@ impl ASTValidationPass._check_render_phase_state_write(nd: Assignment
     }
 }
 
-impl ASTValidationPass._scope_declares_state(scope: (Ability | ImplDef), name: str
+impl ASTValidationPass._scope_declares_state(
+    scope: (Ability | ImplDef), name: str
 ) -> bool {
     body = scope.body;
     if not isinstance(body, list) {
@@ -182,8 +184,7 @@ impl ASTValidationPass._scope_declares_state(scope: (Ability | ImplDef), name: s
     return False;
 }
 
-impl ASTValidationPass._returns_jsx(scope: (Ability | ImplDef)
-) -> bool {
+impl ASTValidationPass._returns_jsx(scope: (Ability | ImplDef)) -> bool {
     sig: (FuncSignature | None) = None;
     if isinstance(scope, Ability) and isinstance(scope.signature, FuncSignature) {
         sig = scope.signature;
@@ -218,7 +219,9 @@ impl ASTValidationPass.enter_has_var with HasVar entry {
     if isinstance(here.name, Name)
         and keyword.iskeyword(here.name.value)
         and (ctx_owner is None or ctx_owner.code_context == CodeContext.SERVER) {
-        self.emit(E0067, node_override=here.name, name=here.name.value, context='field');
+        self.emit(
+            E0067, node_override=here.name, name=here.name.value, context='field'
+        );
     }
     self._reject_non_bindable(here.name);
 }
@@ -418,7 +421,9 @@ impl ASTValidationPass.enter_archetype with Archetype entry {
 }
 
 impl ASTValidationPass.enter_try_stmt with TryStmt entry {
-    if len(here.excepts) == 0 and here.finally_body is None and here.awaiting_body is None {
+    if len(here.excepts) == 0
+        and here.finally_body is None
+        and here.awaiting_body is None {
         self.emit(E0040, node_override=here);
     }
 
@@ -439,7 +444,8 @@ impl ASTValidationPass.enter_expr_stmt with ExprStmt entry {
     }
 }
 
-impl ASTValidationPass._check_slot_body(stmts: list[UniNode], in_loop: bool, loop_kw: str
+impl ASTValidationPass._check_slot_body(
+    stmts: list[UniNode], in_loop: bool, loop_kw: str
 ) -> None {
     for s in stmts {
         if isinstance(s, ReturnStmt) {
@@ -513,7 +519,8 @@ impl ASTValidationPass._check_slot_body(stmts: list[UniNode], in_loop: bool, loo
     }
 }
 
-impl ASTValidationPass._check_slot_else(else_body: object, in_loop: bool, loop_kw: str
+impl ASTValidationPass._check_slot_else(
+    else_body: object, in_loop: bool, loop_kw: str
 ) -> None {
     if else_body is None {
         return;
@@ -525,8 +532,7 @@ impl ASTValidationPass._check_slot_else(else_body: object, in_loop: bool, loop_k
     }
 }
 
-impl ASTValidationPass._slot_emits_keyless_jsx(stmts: list[UniNode]
-) -> bool {
+impl ASTValidationPass._slot_emits_keyless_jsx(stmts: list[UniNode]) -> bool {
     for s in stmts {
         if isinstance(s, ExprStmt) and isinstance(s.expr, JsxElement) {
             el = s.expr;
@@ -582,8 +588,7 @@ impl ASTValidationPass._slot_emits_keyless_jsx(stmts: list[UniNode]
     return False;
 }
 
-impl ASTValidationPass._slot_has_key_attr(el: JsxElement
-) -> bool {
+impl ASTValidationPass._slot_has_key_attr(el: JsxElement) -> bool {
     if el.attributes is None {
         return False;
     }

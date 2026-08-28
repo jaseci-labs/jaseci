@@ -101,17 +101,16 @@ glob TEST_ASSERT_METHOD_NAMES = (
      );
 
 walker SymTabBuildPass(UniPass) {
+    static has PROVIDES: tuple = ('SymOf', 'Defines', 'InScope', 'ScopeChild');
     has cur_sym_tab: list[UniScopeNode] = field(default_factory=`list);
 
-    def before_pass() -> None;
+    def before_pass -> None;
     def push_scope_and_link(key_node: UniScopeNode) -> None;
-    def pop_scope() -> UniScopeNode;
+    def pop_scope -> UniScopeNode;
 
     has cur_scope: UniScopeNode { getter; }
 
-    def _bind_import_path_symbols(module_path: ModulePath
-    ) -> None;
-
+    def _bind_import_path_symbols(module_path: ModulePath) -> None;
     can enter_module with Module entry;
     can exit_module with Module exit;
     can enter_type_alias with TypeAlias entry;

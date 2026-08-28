@@ -327,7 +327,6 @@ glob _stub_module_memo: dict[str, tuple[float, Module]] = {};
 
 walker TypeEvaluator {
     can eval_expr with Expr entry;
-
     def _intern_shared(shared: ClassDetailsShared) -> ClassDetailsShared;
 
     has program: JacProgram,

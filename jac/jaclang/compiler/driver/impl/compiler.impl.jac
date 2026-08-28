@@ -1339,7 +1339,7 @@ impl JacCompiler._compile_once(
         );
     }
 
-    _full_head = 'cfg' in providers_of(_head_sched);
+    _full_head = 'CfgSucc' in providers_of(_head_sched);
     self.run_schedule(
         mod=mod_targ,
         target_program=actual_program,
@@ -1383,7 +1383,7 @@ impl JacCompiler._compile_once(
         );
 
     if _analyze {
-        if 'inference'
+        if 'TypeOf'
             not in actual_program.analysis.analyses_run.get(id(mod_targ), set()) {
             self.run_schedule(
                 mod=mod_targ,
@@ -1416,7 +1416,7 @@ impl JacCompiler._compile_once(
         and not options.symtab_ir_only
         and not had_parse_errors
         and not had_blocking_errors
-        and 'inference' in actual_program.analysis.analyses_run.get(id(mod_targ), set())
+        and 'TypeOf' in actual_program.analysis.analyses_run.get(id(mod_targ), set())
     ) {
         import from jaclang.compiler.backends.py.module_codegen_pass {
             ModuleCodegenPass as _PtyMcp
@@ -1528,7 +1528,7 @@ impl JacCompiler._compile_once(
             or ModuleCodegenPass.has_native_context_stmts(mod_targ);
 
         if needs_native
-            and 'inference'
+            and 'TypeOf'
                 not in actual_program.analysis.analyses_run.get(id(mod_targ), set()) {
             self.run_schedule(
                 mod=mod_targ,

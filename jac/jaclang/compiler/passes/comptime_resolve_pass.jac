@@ -84,7 +84,7 @@ walker ComptimeResolvePass(TypeCheckPass) {
         super.init(prog, **kwargs);
     }
 
-    override def before_pass() {
+    override def before_pass {
         self._keep = comptime_reach(self.ir_in);
         self._armed = bool(self._keep) and not self.ir_in.ct_resolved;
         if self._armed {
@@ -92,7 +92,7 @@ walker ComptimeResolvePass(TypeCheckPass) {
         }
     }
 
-    override def after_pass() -> None {
+    override def after_pass -> None {
         if not self._armed {
             return;
         }

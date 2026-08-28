@@ -12,7 +12,7 @@ getter per role slot (an edge reference with a literal edge type) and one
 whose constructor is declared but not hand-written (scalars assigned, roles
 linked, postinit called).
 
-    python3 scripts/gen_roles.py            # rewrite the annex
+    python3 scripts/gen_roles.py            # rewrite the annex (then `jac fmt` it)
     python3 scripts/gen_roles.py --check    # exit 1 when the annex is stale
 
 Plain Python: runs with no jaclang installed.
@@ -38,7 +38,7 @@ BODY_IMPLOF = {"AstImplNeedingNode"}
 OVERRIDES = {
     ("ImplDef", "decl_link"): (
         "(UniNode | None)",
-        "found = [self <-:ImplOf:<-];\n    return found[0] if found else None;",
+        "found = [self<-:ImplOf:<-];\n    return found[0] if found else None;",
     )
 }
 
@@ -69,7 +69,7 @@ def split_top(text: str, sep: str) -> list[str]:
 
 def load_slots() -> dict[str, list[tuple[str, str]]]:
     src = open(ROLES, encoding="utf-8").read()
-    m = re.search(r"glob ROLE_SLOTS[^=]*=\s*\((.*?)\n\);", src, re.S)
+    m = re.search(r"glob ROLE_SLOTS[^=]*=\s*\((.*?)\n\s*\);", src, re.S)
     if not m:
         raise SystemExit("gen_roles: ROLE_SLOTS not found in roles.jac")
     out: dict[str, list[tuple[str, str]]] = {}
@@ -102,12 +102,10 @@ def generate() -> str:
     src = open(UNITREE, encoding="utf-8").read()
     role_names = sorted({f for rows in slots.values() for f, _ in rows})
     out = [
-        HEADER,
         "import from collections.abc { Sequence }",
         "import from jaclang.compiler.frontend.roles {\n    "
         + ",\n    ".join(["ImplOf"] + [role_cls(n) for n in role_names])
         + "\n}",
-        "",
     ]
     inits: list[str] = []
     for cname, body in class_blocks(src):
@@ -122,20 +120,20 @@ def generate() -> str:
             rc = role_cls(fname)
             if cname in BODY_IMPLOF and fname == "body":
                 lines = [
-                    "    impl_of = [self ->:ImplOf:->];",
+                    "    impl_of = [self->:ImplOf:->];",
                     "    if impl_of {",
                     "        return impl_of[0];",
                     "    }",
-                    f"    return self._role_shaped({rc}, [self ->:{rc}:->]);",
+                    f"    return self._role_shaped({rc}, [self->:{rc}:->]);",
                 ]
             elif kind == "many":
-                lines = [f"    return [self ->:{rc}:->];"]
+                lines = [f"    return [self->:{rc}:->];"]
             elif kind == "one" and _is_optional(typ):
-                lines = [f"    found = [self ->:{rc}:->];", "    return found[0] if found else None;"]
+                lines = [f"    found = [self->:{rc}:->];", "    return found[0] if found else None;"]
             elif kind == "one":
-                lines = [f"    return [self ->:{rc}:->][0];"]
+                lines = [f"    return [self->:{rc}:->][0];"]
             else:
-                lines = [f"    return self._role_shaped({rc}, [self ->:{rc}:->]);"]
+                lines = [f"    return self._role_shaped({rc}, [self->:{rc}:->]);"]
             out.append(f"impl {cname}.{fname}.getter -> {typ} {{\n" + "\n".join(lines) + "\n}")
         if cname not in hand_written_reprs():
             fwd = next((b for b in _mro_list(src, cname) if b in hand_written_reprs()), None)
@@ -272,8 +270,10 @@ def main() -> int:
     content = generate()
     if "--check" in sys.argv:
         current = open(ANNEX, encoding="utf-8").read() if os.path.exists(ANNEX) else ""
-        if current != content:
-            print("gen_roles: roles.impl.jac is stale; run python3 scripts/gen_roles.py", file=sys.stderr)
+        # `jac fmt` rewraps long generated lines after regeneration, so freshness
+        # is judged whitespace-blind: any content drift still fails.
+        if "".join(current.split()) != "".join(content.split()):
+            print("gen_roles: roles.impl.jac is stale; run python3 scripts/gen_roles.py && jac fmt on the annex", file=sys.stderr)
             return 1
         print("gen_roles: roles.impl.jac is current")
         return 0

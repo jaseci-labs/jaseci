@@ -119,7 +119,9 @@ impl DocIRGenPass.exit_jsx_element with uni.JsxElement exit {
             isinstance(first_child, uni.Token)
             and (first_child.name == Tok.JSX_CLOSE_START)
         ) {
-            here.gen.doc_ir = self.group(self.concat([kid.gen.doc_ir for kid in here.kid]));
+            here.gen.doc_ir = self.group(
+                self.concat([kid.gen.doc_ir for kid in here.kid])
+            );
             return;
         }
         start_token = here.kid[0]
@@ -129,7 +131,9 @@ impl DocIRGenPass.exit_jsx_element with uni.JsxElement exit {
             if (here.kid and isinstance(here.kid[-1], uni.Token))
             else None;
         if (not start_token or not end_token) {
-            here.gen.doc_ir = self.group(self.concat([kid.gen.doc_ir for kid in here.kid]));
+            here.gen.doc_ir = self.group(
+                self.concat([kid.gen.doc_ir for kid in here.kid])
+            );
             return;
         }
         name_kids = [
@@ -194,7 +198,9 @@ impl DocIRGenPass.exit_jsx_element with uni.JsxElement exit {
             child_parts = self.jsx_mixed_child_parts(here.children);
             inline_child_types = (uni.JsxText, uni.JsxExpression, uni.JsxComment);
             all_inline_children = bool(here.children)
-                and all(isinstance(child, inline_child_types) for child in here.children);
+                and all(
+                    isinstance(child, inline_child_types) for child in here.children
+                );
 
             if all_inline_children {
                 inline_doc = self.concat([child.gen.doc_ir for child in here.children]);
@@ -282,7 +288,10 @@ impl DocIRGenPass.exit_jsx_element with uni.JsxElement exit {
         parts.append(
             self.group(
                 self.concat(
-                    [self.indent(self.concat([lead, *child_parts]), ast_node=here), tail]
+                    [
+                        self.indent(self.concat([lead, *child_parts]), ast_node=here),
+                        tail
+                    ]
                 ),
                 break_contiguous=True,
                 ast_node=here
@@ -317,7 +326,10 @@ impl DocIRGenPass.exit_string with uni.String exit {
     );
     if is_escaped_curly {
         here.gen.doc_ir = self.concat(
-            [self.text(here.value, source_token=here), self.text(here.value, source_token=here)]
+            [
+                self.text(here.value, source_token=here),
+                self.text(here.value, source_token=here)
+            ]
         );
         return;
     }
@@ -428,7 +440,8 @@ impl DocIRGenPass.exit_impl_def with uni.ImplDef exit {
         ) {
             parts.append(i.gen.doc_ir);
         } elif (
-            in_body or (isinstance(here.body, Sequence) and here.body and (i == here.body[0]))
+            in_body
+            or (isinstance(here.body, Sequence) and here.body and (i == here.body[0]))
         ) {
             if not in_body {
                 parts.pop();
@@ -525,7 +538,10 @@ impl DocIRGenPass.exit_enum with uni.Enum exit {
     body_parts: list[doc.DocType] = [];
     in_body = False;
     for i in here.kid {
-        if ((here.doc and (i is here.doc)) or (here.decorators and (i in here.decorators))) {
+        if (
+            (here.doc and (i is here.doc))
+            or (here.decorators and (i in here.decorators))
+        ) {
             parts.append(i.gen.doc_ir);
             parts.append(self.hard_line());
         } elif (isinstance(i, uni.Token) and (i.name == Tok.SEMI)) {
@@ -858,7 +874,9 @@ impl DocIRGenPass.exit_atom_unit with uni.AtomUnit exit {
     );
     if (
         isinstance(here.parent, uni.Assignment)
-        or (isinstance(here.parent, uni.IfStmt) and isinstance(here.value, uni.BoolExpr))
+        or (
+            isinstance(here.parent, uni.IfStmt) and isinstance(here.value, uni.BoolExpr)
+        )
     ) {
         here.gen.doc_ir = self.if_break(
             flat_contents=self.group(self.concat(parts[1:-1])), break_contents=broken
@@ -977,7 +995,9 @@ impl DocIRGenPass.exit_global_vars with uni.GlobalVars exit {
     if semi_doc {
         prefix_parts.append(semi_doc);
     }
-    here.gen.doc_ir = self.group(self.concat(prefix_parts, ast_node=here), ast_node=here);
+    here.gen.doc_ir = self.group(
+        self.concat(prefix_parts, ast_node=here), ast_node=here
+    );
 }
 
 impl DocIRGenPass.exit_raise_stmt with uni.RaiseStmt exit {
@@ -1696,7 +1716,9 @@ impl DocIRGenPass.exit_if_stmt with uni.IfStmt exit {
     }
     flat_capable = (
         isinstance(here.parent, uni.LambdaExpr)
-        and not (isinstance(here.parent.body, Sequence) and len(list(here.parent.body)) > 1)
+        and not (
+            isinstance(here.parent.body, Sequence) and len(list(here.parent.body)) > 1
+        )
         and (here.else_body is None)
         and (len(here.body) == 1)
         and not self.has_gap(here, here.body[0])
@@ -1815,7 +1837,11 @@ impl DocIRGenPass.exit_func_signature with uni.FuncSignature exit {
     has_parens = False;
 
     has_any_params = (
-        here.params or here.varargs or here.kwargs or here.kwonlyargs or here.posonly_params
+        here.params
+        or here.varargs
+        or here.kwargs
+        or here.kwonlyargs
+        or here.posonly_params
     );
     for i in here.kid {
         if (isinstance(i, uni.Token) and (i.name == Tok.LPAREN) and has_any_params) {
@@ -1937,7 +1963,10 @@ impl DocIRGenPass.exit_archetype with uni.Archetype exit {
     prev_item: (uni.UniNode | None) = None;
     in_body = False;
     for i in here.kid {
-        if ((here.doc and (i is here.doc)) or (here.decorators and (i in here.decorators))) {
+        if (
+            (here.doc and (i is here.doc))
+            or (here.decorators and (i in here.decorators))
+        ) {
             parts.append(i.gen.doc_ir);
             parts.append(self.hard_line());
         } elif (i == here.name) {

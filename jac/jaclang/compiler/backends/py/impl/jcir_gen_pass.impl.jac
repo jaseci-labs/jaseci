@@ -1713,7 +1713,8 @@ impl JcirGenPass.exit_py_inline_code with PyInlineCode exit {
         self.set_out(here, [doc, CgSplice(src=here.code.value, offset=shift)]);
     } else {
         self.set_out(
-            here, [CgSplice(src=textwrap.dedent(here.code.value), offset=here.loc.first_line)]
+            here,
+            [CgSplice(src=textwrap.dedent(here.code.value), offset=here.loc.first_line)]
         );
     }
 }
@@ -1859,7 +1860,11 @@ impl JcirGenPass.exit_module_item with ModuleItem exit {
                 'alias',
                 ['name', 'asname'],
                 [
-                    (here.name.sym_name if isinstance(here.name, Name) else here.name.value),
+                    (
+                        here.name.sym_name
+                            if isinstance(here.name, Name)
+                            else here.name.value
+                    ),
                     here.alias.sym_name if here.alias else None
                 ]
             )
@@ -2023,7 +2028,9 @@ impl JcirGenPass.exit_ability with Ability exit {
             prop_owner_name = hv.name.value;
         }
     }
-    body_loc_node: (UniNode | None) = here.body if isinstance(here.body, UniNode) else None;
+    body_loc_node: (UniNode | None) = here.body
+        if isinstance(here.body, UniNode)
+        else None;
     stmt_body:
         (
             Sequence[UniNode] | Sequence[CodeBlockStmt] | Sequence[EnumBlockStmt] | None
@@ -2378,7 +2385,9 @@ impl JcirGenPass.exit_event_signature with EventSignature exit {
                 [
                     [],
                     [self.nod('arg', ['arg', 'annotation'], ['self', None]), arch_arg]
-                        if ((abl := here.find_parent_of_type(Ability)) and abl.is_method)
+                        if (
+                            (abl := here.find_parent_of_type(Ability)) and abl.is_method
+                        )
                         else [arch_arg],
                     [],
                     None,
@@ -2548,7 +2557,11 @@ impl JcirGenPass.exit_typed_ctx_block with TypedCtxBlock exit {
                     self.nod(
                         'Call',
                         ['func', 'args', 'keywords'],
-                        [self.name_load('isinstance'), [loc, self.val(here.type_ctx)], []]
+                        [
+                            self.name_load('isinstance'),
+                            [loc, self.val(here.type_ctx)],
+                            []
+                        ]
                     ),
                     self.resolve_stmt_block(here.body),
                     []
@@ -2749,7 +2762,9 @@ impl JcirGenPass.exit_concurrent_expr with ConcurrentExpr exit {
                     ['func', 'args', 'keywords'],
                     [
                         self.jaclib_obj(func),
-                        lambda_ex if (func == 'thread_run') else [self.val(here.target)],
+                        lambda_ex
+                            if (func == 'thread_run')
+                            else [self.val(here.target)],
                         []
                     ]
                 )
@@ -3032,14 +3047,16 @@ impl JcirGenPass.exit_report_stmt with ReportStmt exit {
 
 impl JcirGenPass.exit_return_stmt with ReturnStmt exit {
     self.set_out(
-        here, [self.nod('Return', ['value'], [self.val(here.expr) if here.expr else None])]
+        here,
+        [self.nod('Return', ['value'], [self.val(here.expr) if here.expr else None])]
     );
 }
 
 impl JcirGenPass.exit_yield_expr with YieldExpr exit {
     if not here.with_from {
         self.set_out(
-            here, [self.nod('Yield', ['value'], [self.val(here.expr) if here.expr else None])]
+            here,
+            [self.nod('Yield', ['value'], [self.val(here.expr) if here.expr else None])]
         );
     } else {
         self.set_out(
@@ -3606,7 +3623,9 @@ impl JcirGenPass.exit_unary_expr with UnaryExpr exit {
             here,
             [
                 self.nod(
-                    'Call', ['func', 'args', 'keywords'], [self.val(here.operand), [], []]
+                    'Call',
+                    ['func', 'args', 'keywords'],
+                    [self.val(here.operand), [], []]
                 )
             ]
         );
@@ -3615,7 +3634,8 @@ impl JcirGenPass.exit_unary_expr with UnaryExpr exit {
             if isinstance(here.operand, AstSymbolNode)
             else self.nod('Load', [], []);
         self.set_out(
-            here, [self.nod('Starred', ['value', 'ctx'], [self.val(here.operand), ctx_val])]
+            here,
+            [self.nod('Starred', ['value', 'ctx'], [self.val(here.operand), ctx_val])]
         );
     } elif (here.op.name in [Tok.STAR_POW]) {
         self.set_out(here, self.outs(here.operand));
@@ -3631,7 +3651,11 @@ impl JcirGenPass.exit_if_else_expr with IfElseExpr exit {
             self.nod(
                 'IfExp',
                 ['test', 'body', 'orelse'],
-                [self.val(here.condition), self.val(here.value), self.val(here.else_value)]
+                [
+                    self.val(here.condition),
+                    self.val(here.value),
+                    self.val(here.else_value)
+                ]
             )
         ]
     );
@@ -3764,7 +3788,9 @@ impl JcirGenPass.exit_list_val with ListVal exit {
 }
 
 impl JcirGenPass.exit_set_val with SetVal exit {
-    self.set_out(here, [self.nod('Set', ['elts'], [[self.val(i) for i in here.values]])]);
+    self.set_out(
+        here, [self.nod('Set', ['elts'], [[self.val(i) for i in here.values]])]
+    );
 }
 
 impl JcirGenPass.exit_tuple_val with TupleVal exit {
@@ -3886,7 +3912,9 @@ impl JcirGenPass.exit_dict_compr with DictCompr exit {
                 'DictComp',
                 ['key', 'value', 'generators'],
                 [
-                    self.val(here.kv_pair.key) if here.kv_pair.key else self.const_of(None),
+                    self.val(here.kv_pair.key)
+                        if here.kv_pair.key
+                        else self.const_of(None),
                     self.val(here.kv_pair.value),
                     [self.val(i) for i in here.compr]
                 ]
@@ -4503,7 +4531,8 @@ impl JcirGenPass.exit_special_var_ref with SpecialVarRef exit {
         );
     } else {
         self.set_out(
-            here, [self.nod('Name', ['id', 'ctx'], [self._py_name(here), self.py_ctx(here)])]
+            here,
+            [self.nod('Name', ['id', 'ctx'], [self._py_name(here), self.py_ctx(here)])]
         );
     }
 }
@@ -4953,7 +4982,9 @@ impl JcirGenPass.exit_edge_ref_trailer with EdgeRefTrailer exit {
 }
 
 impl JcirGenPass.exit_edge_op_ref with EdgeOpRef exit {
-    self.set_out(here, [self.name_load(Con.HERE.value if here.from_walker else 'self')]);
+    self.set_out(
+        here, [self.name_load(Con.HERE.value if here.from_walker else 'self')]
+    );
 }
 
 impl JcirGenPass.exit_disconnect_op with DisconnectOp exit {
@@ -4974,7 +5005,10 @@ impl JcirGenPass.exit_connect_op with ConnectOp exit {
                         self.nod(
                             'keyword',
                             ['arg', 'value'],
-                            ['is_undirected', self.const_of(here.edge_dir == EdgeDir.ANY)]
+                            [
+                                'is_undirected',
+                                self.const_of(here.edge_dir == EdgeDir.ANY)
+                            ]
                         ),
                         self.nod(
                             'keyword',
@@ -5142,7 +5176,8 @@ impl JcirGenPass.exit_match_case with MatchCase exit {
 
 impl JcirGenPass.exit_match_or with MatchOr exit {
     self.set_out(
-        here, [self.nod('MatchOr', ['patterns'], [[self.val(x) for x in here.patterns]])]
+        here,
+        [self.nod('MatchOr', ['patterns'], [[self.val(x) for x in here.patterns]])]
     );
 }
 
@@ -5273,7 +5308,9 @@ impl JcirGenPass.exit_name with Name exit {
         }
     }
     name_cv = here.ct_value;
-    if name_cv is not None and self._ct_concrete(here) and here.expr_ctx == ExprCtx.LOAD {
+    if name_cv is not None
+        and self._ct_concrete(here)
+        and here.expr_ctx == ExprCtx.LOAD {
         cv = name_cv.v;
         if self._is_comptime_only_name(here)
             or self._ct_kind(cv) in ("scalar", "CtEnumMember") {
@@ -5412,7 +5449,9 @@ impl JcirGenPass.exit_builtin_type with BuiltinType exit {
     if here.sym_name == "any" {
         parent = here.parent;
         is_call_func = (
-            parent is not None and isinstance(parent, FuncCall) and parent.target is here
+            parent is not None
+            and isinstance(parent, FuncCall)
+            and parent.target is here
         );
         if not is_call_func {
             self.typing_imports.add("Any");
@@ -5422,7 +5461,9 @@ impl JcirGenPass.exit_builtin_type with BuiltinType exit {
             return;
         }
     }
-    self.set_out(here, [self.nod('Name', ['id', 'ctx'], [here.sym_name, self.py_ctx(here)])]);
+    self.set_out(
+        here, [self.nod('Name', ['id', 'ctx'], [here.sym_name, self.py_ctx(here)])]
+    );
 }
 
 impl JcirGenPass.exit_null with Null exit {
@@ -5563,7 +5604,9 @@ impl JcirGenPass.exit_jsx_normal_attribute with JsxNormalAttribute exit {
 
 impl JcirGenPass.exit_jsx_text with JsxText exit {
     import from html { unescape }
-    self.set_out(here, [self.const_of(unescape(here.get_normalized_text()), jac_node=here)]);
+    self.set_out(
+        here, [self.const_of(unescape(here.get_normalized_text()), jac_node=here)]
+    );
 }
 
 impl JcirGenPass.exit_jsx_expression with JsxExpression exit {
