@@ -510,6 +510,15 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_switch_stmt(nd: uni.SwitchStmt) -> None;
     def exit_switch_case(nd: uni.SwitchCase) -> None;
     def exit_delete_stmt(nd: uni.DeleteStmt) -> None;
+    def _es_destroy_stmt(
+        target: uni.Expr, strict: bool, nd: uni.DeleteStmt
+    ) -> (es.Statement | None);
+
+    def _es_delete_location_stmt(
+        target: uni.AtomTrailer, nd: uni.DeleteStmt
+    ) -> (es.Statement | None);
+
+    def _es_slice_part(part: (uni.Expr | None), nd: uni.DeleteStmt) -> es.Expression;
     def exit_match_stmt(nd: uni.MatchStmt) -> None;
     def _lower_match_pattern(
         pat: uni.MatchPattern, subj: es.Expression

@@ -5,6 +5,7 @@ Migrated from test_js_generation.py to native Jac test format.
 
 import json;
 import os;
+import shutil;
 import subprocess;
 import sys;
 import tempfile;
@@ -3484,4 +3485,58 @@ test "a state setter handed out as a value loads without a ReferenceError" {
     assert got["kind"] == "function" , (
         f"setTheme must reach the caller as a callable, got {got}"
     );
+}
+
+
+# ---------------------------------------------------------------------------
+# `del` semantics, per issue #8756. The ES backend used to return early on any
+# AtomTrailer target, so `del d["k"]` in a client module was a silent no-op,
+# and its edge arm disconnected rather than destroying.
+# ---------------------------------------------------------------------------
+glob DEL_FIXTURE = "del_semantics_es.jac";
+
+test "del es lowering" {
+    js_code = compile_fixture_to_js(DEL_FIXTURE, FIXTURES);
+    fn_idx = js_code.find("function del_forms");
+    assert fn_idx >= 0 , "compiled function del_forms must be present";
+    body = js_code[fn_idx:js_code.find("\n}", fn_idx)];
+    # A dict key and a list index are reference removals, not destroys.
+    assert '_jac.poly.delitem(d, "k")' in body , body;
+    assert "_jac.poly.delitem(seq, 0)" in body , body;
+    # A slice carries its bounds and step through, rather than collapsing to
+    # a single index delete.
+    assert "_jac.poly.delslice(span, 0, 2, null)" in body , body;
+    assert "_jac.poly.delslice(strided, null, null, 2)" in body , body;
+    # A value target destroys, strictly, and nothing else in the statement.
+    assert "__ospDestroyW(" in body , body;
+    assert ", true)" in body , body;
+    assert "__ospDiscW(" not in body , body;
+    # Deleting the list slot that holds a node must not touch the graph.
+    assert "_jac.poly.delitem(holder, 0)" in body , body;
+    assert_balanced_syntax(js_code, DEL_FIXTURE);
+}
+
+test "del es runtime" {
+    if shutil.which("node") is None {
+        return;
+    }
+    js_code = compile_fixture_to_js_production(DEL_FIXTURE, FIXTURES);
+    wrapper = js_code + "\nconsole.log(JSON.stringify(del_forms()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "del fixture crashed in Node:\nstderr=" + result.stderr + "\njs:\n" + js_code
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    assert got["d"] == {"j": 2} , got;
+    assert got["seq"] == [2, 3] , got;
+    assert got["span"] == [3] , got;
+    assert got["strided"] == [2, 4] , got;
+    assert got["edges"] == 0 , got;
+    assert got["kept"] == 1 , got;
+    assert got["holder"] == 0 , got;
 }
