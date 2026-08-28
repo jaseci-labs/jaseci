@@ -1,8 +1,8 @@
 """Shared test helpers for jac-scale's KEDA HTTP activation tests.
 
-Canonical, copy-paste-free fixtures used by both the programmatic-API tests
-(test_keda_http_activation.jac) and the jac.toml config-translation/wiring
-tests (test_http_activation_config.jac and friends): a defaulted
+Canonical, copy-paste-free fixtures used by both the integration tests in
+test_http_activation_microservices.jac and the jac.toml config-translation/
+wiring tests (test_http_activation_config.jac): a defaulted
 HTTPActivationSpec, a defaulted jac.toml-shaped config dict, and a
 KEDAAutoscaler wired to MagicMock Kubernetes clients.
 
