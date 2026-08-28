@@ -29,6 +29,12 @@ def del_forms -> dict {
     c +>:E:+> e;
     holder = [e];
     del holder[0];
+    p = N(5);
+    q = N(6);
+    p +>:E:+> q;
+    for edg in [edge p->:E:->] {
+        del edg;
+    }
     return {
         "d": d,
         "seq": seq,
@@ -36,6 +42,7 @@ def del_forms -> dict {
         "strided": strided,
         "edges": len([edge a->:E:->]),
         "kept": len([edge c->:E:->]),
-        "holder": len(holder)
+        "holder": len(holder),
+        "named": len([edge p->:E:->])
     };
 }

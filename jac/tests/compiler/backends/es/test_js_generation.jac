@@ -3513,6 +3513,8 @@ test "del es lowering" {
     assert "__ospDiscW(" not in body , body;
     # Deleting the list slot that holds a node must not touch the graph.
     assert "_jac.poly.delitem(holder, 0)" in body , body;
+    # A name holding an edge destroys through the same helper, non-strictly.
+    assert "__ospDestroyW(edg)" in body , body;
     assert_balanced_syntax(js_code, DEL_FIXTURE);
 }
 
@@ -3539,4 +3541,5 @@ test "del es runtime" {
     assert got["edges"] == 0 , got;
     assert got["kept"] == 1 , got;
     assert got["holder"] == 0 , got;
+    assert got["named"] == 0 , got;
 }
