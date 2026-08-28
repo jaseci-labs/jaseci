@@ -280,6 +280,12 @@ impl ASTValidationPass._reject_undeletable(
         self.emit(E0083, node_override=inner, what="a null-safe access");
         return;
     }
+    if isinstance(inner, UnaryExpr)
+        and isinstance(inner.op, Token)
+        and inner.op.name in (Tok.STAR_MUL, Tok.STAR_POW) {
+        self.emit(E0083, node_override=inner, what="an unpacked target");
+        return;
+    }
     if isinstance(inner, (Literal, MultiString, FString)) {
         self.emit(E0083, node_override=inner, what="a literal");
     }

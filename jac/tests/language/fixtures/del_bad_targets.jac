@@ -14,5 +14,6 @@ def bad_targets(holder: Slot | None) {
     del ();
     del [];
     del holder?.value;
+    del *ints();
     del ints();
 }

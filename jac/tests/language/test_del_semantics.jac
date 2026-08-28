@@ -166,11 +166,12 @@ def run_jac_check(path: str) -> str {
 
 test "malformed del targets are rejected by the front end" {
     out = run_jac_check(BAD_TARGETS);
-    assert out.count("error[E0083]") == 5 , out;
+    assert out.count("error[E0083]") == 6 , out;
     assert "E5043" not in out , out;
     assert "Cannot delete a literal" in out , out;
     assert "Cannot delete an empty target list" in out , out;
     assert "Cannot delete a null-safe access" in out , out;
+    assert "Cannot delete an unpacked target" in out , out;
 }
 
 test "a del value target that can never be a graph object warns" {

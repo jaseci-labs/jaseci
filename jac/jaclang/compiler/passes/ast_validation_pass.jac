@@ -45,6 +45,7 @@ import from jaclang.compiler.frontend.unitree {
     Token,
     TryStmt,
     TupleVal,
+    UnaryExpr,
     UniNode,
     WhileStmt,
     WithStmt,
