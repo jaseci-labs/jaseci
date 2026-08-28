@@ -66,8 +66,8 @@ test "content can be owned by a group root and the cascade reaches it" {
         );
 
         # Control: without a grant, the other user reads nothing.
-        assert _line(_run("read_item", args=[item], root_id=bob), "READ:")
-            == "none" , "ungranted member could read org content";
+        ungranted = _line(_run("read_item", args=[item], root_id=bob), "READ:");
+        assert ungranted == "none" , "ungranted member could read org content";
 
         # One grant on the org root covers the org's content (the cascade).
         _run("grant_on_org", args=[org, bob, "READ"], root_id=alice);
