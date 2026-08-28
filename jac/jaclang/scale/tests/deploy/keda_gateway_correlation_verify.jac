@@ -2,12 +2,12 @@
 e2e (keda_gateway_correlation_real_e2e.sh). Deploys a real jac.toml project
 (a sanitized copy of jac/examples/todo_app, KEDA-autoscaled) through the
 SDK's one-call deploy() -- the same KubernetesTarget.deploy() path
-`jac scale deploy` drives -- instead of hand-building a Deployment manifest
+`jac scale deploy` drives, and the same path that creates the ScaledObject
+via KEDAAutoscaler.apply() -- instead of hand-building a Deployment manifest
 and calling KEDAAutoscaler.apply() directly. Then runs the real
 KubernetesAutoscalerObserver against the live cluster it just deployed, no
-mocking, to exercise the real KEDAAutoscaler.apply()/get_runtime_status and
-the real observer against a real ScaledObject, KEDA-generated HPA, and
-Deployment.
+mocking, to exercise the real observer's watch_namespace()/_target_cache
+against a real ScaledObject, KEDA-generated HPA, and Deployment.
 
 Reproduces jac-scale's actual gateway deploy shape (see
 target.jac:_autoscaler_spec and manifest_builder.jac:k8s_safe_name):
