@@ -3206,9 +3206,6 @@ impl EsastGenPass.exit_delete_stmt(nd: uni.DeleteStmt) -> None {
             }
         }
     }
-    if not stmts {
-        return;
-    }
     nd.gen.es_ast = stmts[0]
         if len(stmts) == 1
         else self.sync_loc(es.BlockStatement(body=stmts), jac_node=nd);

@@ -19,6 +19,7 @@ typed_graph_return = "/t-graph"
 separated = "/separated"
 separated_defpub = "/separated-defpub"
 [placement.pins]
+"del_plain_name_es" = "client"
 "del_semantics_es" = "client"
 "advanced_language_features" = "client"
 "any_callee_not_new" = "client"

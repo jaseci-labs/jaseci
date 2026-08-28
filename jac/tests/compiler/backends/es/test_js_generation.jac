@@ -3053,14 +3053,17 @@ test "builtin name used as a dict key lowers to that key, not the 'key' fallback
 test "unimplemented client statement is a hard error, not a silent drop (#7922)" {
     # RC-1: EsastGenPass assembled bodies by silently skipping any statement
     # that never produced an es_ast, so constructs with no ES lowering
-    # (del, with, ...) vanished from the output while `jac check` stayed
-    # green -- the function compiled but computed the wrong value at
-    # runtime. Any such statement must now be a blocks_codegen error.
+    # vanished from the output while `jac check` stayed green -- the function
+    # compiled but computed the wrong value at runtime. Any such statement
+    # must now be a blocks_codegen error. (`del` was the original example;
+    # #8756 gave it a lowering, so `with` stands in for the unlowered case.)
     jac_code = (
-        "def t_del() -> int {\n"
-        "    d: dict[str, int] = {\"a\": 1, \"b\": 2};\n"
-        "    del d[\"a\"];\n"
-        "    return len(d.keys());\n"
+        "def t_with() -> int {\n"
+        "    total = 0;\n"
+        "    with open(\"x.txt\") as f {\n"
+        "        total = 1;\n"
+        "    }\n"
+        "    return total;\n"
         "}\n"
     );
 
@@ -3078,7 +3081,7 @@ test "unimplemented client statement is a hard error, not a silent drop (#7922)"
             "Expected exactly one E5017 silent-drop diagnostic, got "
             + str([str(e) for e in prog.errors_had])
         );
-        assert "del" in str(drops[0]) , (
+        assert "with" in str(drops[0]) , (
             "E5017 must name the offending construct; got " + str(drops[0])
         );
     } finally {
@@ -3493,7 +3496,8 @@ test "a state setter handed out as a value loads without a ReferenceError" {
 # AtomTrailer target, so `del d["k"]` in a client module was a silent no-op,
 # and its edge arm disconnected rather than destroying.
 # ---------------------------------------------------------------------------
-glob DEL_FIXTURE = "del_semantics_es.jac";
+glob DEL_FIXTURE = "del_semantics_es.jac",
+     DEL_PLAIN_FIXTURE = "del_plain_name_es.jac";
 
 test "del es lowering" {
     js_code = compile_fixture_to_js(DEL_FIXTURE, FIXTURES);
@@ -3542,4 +3546,18 @@ test "del es runtime" {
     assert got["kept"] == 1 , got;
     assert got["holder"] == 0 , got;
     assert got["named"] == 0 , got;
+}
+
+
+test "del on a plain local in a graphless module is a no-op, not an error" {
+    # JavaScript has no unbind, and a module with no archetypes has nothing to
+    # destroy, so the statement lowers to an empty block. It must not report
+    # the construct as unsupported, and it must not drag in the OSP runtime.
+    js_code = compile_fixture_to_js(DEL_PLAIN_FIXTURE, FIXTURES);
+    fn_idx = js_code.find("function del_plain");
+    assert fn_idx >= 0 , "compiled function del_plain must be present";
+    body = js_code[fn_idx:js_code.find("\n}", fn_idx)];
+    assert "__ospDestroyW" not in body , body;
+    assert "_jac.poly.del" not in body , body;
+    assert_balanced_syntax(js_code, DEL_PLAIN_FIXTURE);
 }
