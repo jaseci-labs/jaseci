@@ -40,7 +40,8 @@ glob GATEWAY_NAME: str = "__gateway__",
          ".env.local",
          ".env.production",
          ".env.production.local"
-     );
+     ),
+     _MEMBERSHIP_DIAGNOSIS_SHOWN: int = 3;
 
 
 def _output_tail(result: any, lines: int = 15) -> str {
@@ -66,11 +67,18 @@ def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
     base_prefix = str(base).replace("\\", "/").rstrip("/") + "/";
     lines: list[str] = [];
     seen: set[str] = set();
+    tried: set[str] = set();
     for token in re.findall(r"[\w.\\/-]+", output) {
         cand = token.replace("\\", "/").rstrip(".");
         if cand.startswith(base_prefix) {
             cand = cand[len(base_prefix):];
         }
+        # A build log names the same path on hundreds of lines, and every
+        # candidate costs a stat per variant, so examine each one once.
+        if cand in tried {
+            continue;
+        }
+        tried.add(cand);
         variants = [cand];
         if "/" not in cand and "." in cand and not cand.startswith(".") {
             stem = cand.replace(".", "/");
@@ -94,17 +102,20 @@ def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
             lines.append(f"  - {rel.as_posix()}: {excluded.exclusion_reason(rel)}");
             break;
         }
-        if len(lines) >= 3 {
-            break;
-        }
     }
     if not lines {
         return "";
     }
+    shown = lines[:_MEMBERSHIP_DIAGNOSIS_SHOWN];
+    if len(lines) > _MEMBERSHIP_DIAGNOSIS_SHOWN {
+        shown.append(
+            f"  ... and {len(lines) - _MEMBERSHIP_DIAGNOSIS_SHOWN} more"
+        );
+    }
     return (
         "\nThe client build ran on the bundle's staged sources, and these "
         "files named in its output never ship:\n"
-        + "\n".join(lines)
+        + "\n".join(shown)
         + "\nDrop the exclusion or remove the reference. Values the client "
         "needs at build time belong under [client.vite.define] in jac.toml; "
         "secrets stay server-side in [scale.secrets] or pod env and never "

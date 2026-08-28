@@ -605,3 +605,50 @@ test "the membership diagnosis never blames a build or cache tree" {
         shutil.rmtree(project_dir, ignore_errors=True);
     }
 }
+
+
+test "a build referencing more parked files than fit says how many are left" {
+    project_dir = _app(_PARKED);
+    base = Path(project_dir);
+    for n in range(6) {
+        (base / "docsite" / f"m{n}.jac").write_text(
+            f"def h{n} -> str {{ return \"x\"; }}\n", encoding="utf-8"
+        );
+    }
+    try {
+        filt = source_filter_for(base);
+        output = "\n".join(
+            [f"cannot import docsite/m{n}.jac: no such module" for n in range(6)]
+        );
+        diagnosis = _membership_diagnosis(output, base, filt);
+        named = [n for n in range(6) if f"docsite/m{n}.jac" in diagnosis];
+        assert len(named) == 3 , (
+            f"the diagnosis should name three files, named {named}: {diagnosis}"
+        );
+        assert "... and 3 more" in diagnosis , (
+            f"an operator who fixes only the named files redeploys into the "
+            f"same error; the diagnosis must say how many it withheld: "
+            f"{diagnosis}"
+        );
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+}
+
+
+test "a diagnosis that fits says nothing about a remainder" {
+    project_dir = _app(_PARKED);
+    base = Path(project_dir);
+    try {
+        filt = source_filter_for(base);
+        diagnosis = _membership_diagnosis(
+            "cannot import docsite/util.jac: no such module", base, filt
+        );
+        assert "docsite/util.jac" in diagnosis , diagnosis;
+        assert "more" not in diagnosis , (
+            f"nothing was withheld, so nothing should be claimed: {diagnosis}"
+        );
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+}
