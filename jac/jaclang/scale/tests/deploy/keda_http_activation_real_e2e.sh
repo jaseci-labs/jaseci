@@ -14,6 +14,10 @@
 
 set -euo pipefail
 
+# shellcheck source=../../scripts/e2e_lib.sh
+source "$(cd "$(dirname "$0")/../../scripts" && pwd)/e2e_lib.sh"
+e2e_timing_init
+
 FIXTURE_DIR="${1:-$(cd "$(dirname "$0")/../fixtures/keda_http_activation_e2e" && pwd)}"
 if [ ! -f "${FIXTURE_DIR}/jac.toml" ]; then
     echo "FAIL: ${FIXTURE_DIR}/jac.toml not found" >&2
@@ -85,7 +89,7 @@ DELETE_TIMEOUT="${DELETE_TIMEOUT:-120}"
 # (right for the old fixture.yaml's http-echo image) was too tight for that;
 # 180s gives real headroom while still failing fast on an actual hang.
 READY_TIMEOUT="${READY_TIMEOUT:-180}"
-# Bound the scale-down wait comfortably above cooldown + one poll tick so a
+# Bound the scale-down wait comfortably above cooldown + three poll ticks so a
 # real hang fails loudly instead of the script exiting early on a fluke.
 SCALE_DOWN_TIMEOUT="${SCALE_DOWN_TIMEOUT:-$(( COOLDOWN_PERIOD + POLLING_INTERVAL * 3 + 30 ))}"
 
@@ -136,9 +140,6 @@ cleanup() {
     kubectl delete namespace "${NAMESPACE}" --ignore-not-found --timeout="${DELETE_TIMEOUT}s" || true
 }
 trap 'cleanup "$?"' EXIT
-
-_T0=$(date +%s)
-_t() { echo "[TIMING +$(( $(date +%s) - _T0 ))s] $1"; }
 
 # Polls a resource's status.conditions[type=Ready].status, per the HTTP
 # Add-on's own "Autoscale an App" verify step (kubectl get <kind> <name> and
