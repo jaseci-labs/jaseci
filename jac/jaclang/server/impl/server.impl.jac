@@ -9,6 +9,7 @@ import from jaclang.server.auth_types {
     LoginRequest,
     RegisterRequest
 }
+import pstats;
 
 impl JacAPIServer._make_user_manager -> UserManager {
     return UserManager(base_path=self.base_path);
@@ -383,6 +384,51 @@ def _occ_policy -> tuple[str, int, int] {
     return (mode, max_attempts, backoff_ms);
 }
 
+
+def _resolve_profile_dir -> (str | None) {
+    try {
+        cfg = get_config();
+        if cfg is None or not cfg.serve.profile {
+            return None;
+        }
+    } except Exception {
+        return None;
+    }
+    return os.environ.get("JAC_PROFILE_DIR");
+}
+
+
+def _new_profile -> any {
+    import cProfile;
+    return cProfile.Profile();
+}
+
+
+def _write_profile(profile: any, profile_dir: str) -> None {
+    try {
+        profile.disable();
+    } except Exception {
+        ;
+    }
+    try {
+        os.makedirs(profile_dir, exist_ok=True);
+        prof_path = os.path.join(profile_dir, "jac_server.prof");
+        profile.dump_stats(prof_path);
+        txt_path = os.path.join(profile_dir, "jac_server.txt");
+        with open(txt_path, "w") as f {
+            stats = pstats.Stats(prof_path);
+            setattr(stats, "stream", f);
+            stats.sort_stats("cumulative");
+            stats.print_stats();
+        }
+    } except Exception as e {
+        import logging;
+        logging.getLogger("jaclang.serve").debug(
+            f"cProfile output not written: {type(e).__name__}: {e}"
+        );
+    }
+}
+
 async def _acall_function(
     handler: ExecutionHandler, name: str, args: dict[(str, any)], username: str
 ) -> TransportResponse {
@@ -583,6 +629,8 @@ impl ExecutionManager.spawn_walker_sync(
     async def run_attempt(
         call_state: CallState, ctx: ExecutionContext
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
+        _profile_dir = _resolve_profile_dir();
+        _profiler = _new_profile() if _profile_dir else None;
         `walker = walker_cls(**fields);
         if target_node_id {
             target_node = await Jac.aget_object(target_node_id);
@@ -592,7 +640,27 @@ impl ExecutionManager.spawn_walker_sync(
         } else {
             target_node = ctx.get_root();
         }
-        result = await asyncio.to_thread(Jac.`spawn, `walker, target_node);
+
+        def _spawn_with_profile -> any {
+            if _profiler is not None {
+                _profiler.enable();
+            }
+            try {
+                return Jac.`spawn(`walker, target_node);
+            } finally {
+                if _profiler is not None {
+                    _profiler.disable();
+                }
+            }
+        }
+
+        try {
+            result = await asyncio.to_thread(_spawn_with_profile);
+        } finally {
+            if _profiler is not None and _profile_dir is not None {
+                _write_profile(_profiler, _profile_dir);
+            }
+        }
 
         if iscoroutine(result) {
             result = await result;
@@ -620,6 +688,8 @@ impl ExecutionManager.spawn_walker_async(
     async def run_attempt(
         call_state: CallState, ctx: ExecutionContext
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
+        _profile_dir = _resolve_profile_dir();
+        _profiler = _new_profile() if _profile_dir else None;
         `walker = walker_cls(**fields);
         if target_node_id {
             target_node = await Jac.aget_object(target_node_id);
@@ -629,11 +699,23 @@ impl ExecutionManager.spawn_walker_async(
         } else {
             target_node = ctx.get_root();
         }
-        spawn_result = Jac.`spawn(`walker, target_node);
-        if iscoroutine(spawn_result) {
-            result = await spawn_result;
-        } else {
-            result = spawn_result;
+        if _profiler is not None {
+            _profiler.enable();
+        }
+        try {
+            spawn_result = Jac.`spawn(`walker, target_node);
+            if iscoroutine(spawn_result) {
+                result = await spawn_result;
+            } else {
+                result = spawn_result;
+            }
+        } finally {
+            if _profiler is not None {
+                _profiler.disable();
+            }
+            if _profiler is not None and _profile_dir is not None {
+                _write_profile(_profiler, _profile_dir);
+            }
         }
         return await self._finalize_call_response(call_state, result);
     }

@@ -38,7 +38,15 @@ obj RunConfig {
     has session: str = "",
         main: bool = True,
         cache: bool = True,
-        diagnostics: str = "error";
+        diagnostics: str = "error",
+        access_log: str = "",
+        prefetching: str = "",
+        prefetch_oracle_file: str = "",
+        prefetch_markov_file: str = "",
+        prefetch_coaccess_file: str = "",
+        prefetch_limit: int = 200,
+        async_prefetch: str = "",
+        prefetch_workers: int = 1;
 }
 
 obj NativeBuildConfig {
@@ -83,6 +91,7 @@ obj ServeConfig {
         main: bool = True,
         cl_route_prefix: str = "cl",
         base_route_app: str = "",
+        profile: bool = False,
         on_conflict: str = "retry",
         conflict_max_attempts: int = 5,
         conflict_backoff_ms: int = 0;
