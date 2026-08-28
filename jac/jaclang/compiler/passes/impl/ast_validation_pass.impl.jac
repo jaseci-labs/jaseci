@@ -253,7 +253,9 @@ impl ASTValidationPass.enter_expr_as_item(
 impl ASTValidationPass.enter_delete_stmt(
     self: ASTValidationPass, nd: DeleteStmt
 ) -> None {
-    self._reject_non_bindable(nd.target);
+    for target in nd.targets {
+        self._reject_non_bindable(target);
+    }
 }
 
 impl ASTValidationPass.enter_import(self: ASTValidationPass, nd: Import) -> None {

@@ -1240,15 +1240,36 @@ impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
     }
 }
 
-impl JacPersistence.destroy(
-    objs: Archetype | Anchor | list[(Archetype | Anchor)]
-) -> None {
-    obj_list = objs if isinstance(objs, `list) else [objs];
-    for `obj in obj_list {
-        if not isinstance(`obj, (Archetype, Anchor)) {
-            return;
+impl JacPersistence._destroy_anchors(objs: any, strict: bool) -> list[Anchor] {
+    anchors: list[Anchor] = [];
+    queue: list[any] = [objs];
+    idx = 0;
+    while idx < len(queue) {
+        item = queue[idx];
+        idx += 1;
+        if isinstance(item, Archetype) {
+            anchors.append(item.__jac__);
+        } elif isinstance(item, Anchor) {
+            anchors.append(item);
+        } elif isinstance(item, (str, bytes, bytearray, `dict))
+            or not isinstance(item, Iterable) {
+            if strict {
+                raise TypeError(
+                    f"cannot destroy {type(item).__name__!r}: a `del` value "
+                    "target must yield nodes, edges or archetypes"
+                );
+            }
+        } else {
+            for sub in item {
+                queue.append(sub);
+            }
         }
-        anchor = `obj.__jac__ if isinstance(`obj, Archetype) else `obj;
+    }
+    return anchors;
+}
+
+impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
+    for anchor in JacPersistence._destroy_anchors(objs, strict) {
         if JacRuntimeInterface.check_write_access(anchor, op_hint="delete") {
             match anchor {
                 case NodeAnchor():

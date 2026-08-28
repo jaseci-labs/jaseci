@@ -3184,7 +3184,10 @@ impl EsastGenPass.exit_binary_expr(nd: uni.BinaryExpr) -> None {
 }
 
 impl EsastGenPass.exit_delete_stmt(nd: uni.DeleteStmt) -> None {
-    target = nd.target;
+    if len(nd.targets) != 1 {
+        return;
+    }
+    target = nd.targets[0];
     if isinstance(target, uni.AtomTrailer) {
         return;
     }

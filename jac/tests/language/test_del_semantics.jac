@@ -61,9 +61,7 @@ obj DelCase {
         # Non-empty while Jac still disagrees with CPython on this case. DS0
         # pins the disagreement so the fix shows up as a diff here; the entry
         # is deleted by the tracker item that closes it.
-        today: str = "",
-        # Set while the form does not parse at all.
-        today_rejects: bool = False;
+        today: str = "";
 }
 
 glob NS_PY = "from types import SimpleNamespace",
@@ -124,9 +122,7 @@ glob DEL_CASES: list[DelCase] = [
              'del o.x, d["k"], a;',
              probe='(sorted(vars(o).items()), sorted(d.items()), "a" in globals())',
              py_prelude=NS_PY,
-             jac_prelude=NS_JAC,
-             # DS6: `del a, b;` is a syntax error today.
-             today_rejects=True
+             jac_prelude=NS_JAC
          ),
          DelCase(
              name="mixed list target",
@@ -158,10 +154,6 @@ test "del agrees with CPython on every Python-legal target" {
         f"print({dc.probe});\n}}\n";
         expected = run_py_src(py_src);
         (out, err, rc) = run_jac_src(jac_src);
-        if dc.today_rejects {
-            assert rc != 0 , f"[{dc.name}] now parses; drop today_rejects";
-            continue;
-        }
         assert rc == 0 , f"[{dc.name}] jac run failed:\n{jac_src}\n{err}";
         if dc.today {
             assert out == dc.today , f"[{dc.name}] jac {out!r} != pinned {dc.today!r}\n{jac_src}";

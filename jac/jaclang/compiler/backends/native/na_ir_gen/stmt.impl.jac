@@ -165,7 +165,7 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
             );
         }
     } elif isinstance(nd, uni.DeleteStmt) {
-        target_expr = nd.target;
+        target_expr = nd.targets[0] if len(nd.targets) == 1 else None;
         _del_arch = self._struct_name_of(target_expr);
         _del_model = self.ir_in.gen.osp_model;
         if (_del_arch is not None)

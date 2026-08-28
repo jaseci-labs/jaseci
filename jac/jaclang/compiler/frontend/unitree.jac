@@ -901,7 +901,7 @@ obj DeleteStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Expr;
+    has targets: list[Expr];
 
     def postinit -> None;
 }

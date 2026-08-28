@@ -1754,7 +1754,9 @@ impl TypeCheckPass.exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None {
 }
 
 impl TypeCheckPass.exit_delete_stmt(self: TypeCheckPass, nd: DeleteStmt) -> None {
-    self.evaluator.get_type_of_expression(nd.target);
+    for target in nd.targets {
+        self.evaluator.get_type_of_expression(target);
+    }
 }
 
 impl TypeCheckPass.exit_visit_stmt(self: TypeCheckPass, nd: VisitStmt) -> None {
