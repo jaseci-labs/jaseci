@@ -131,6 +131,25 @@ A no-dot import is depth-independent: moving a file between directories never ch
 
 **Server modules should prefer the no-dot form, and a `..` that climbs out of a package is a bug waiting to happen.** `import from ..shared.github { fetch }` resolves fine under `jac run` but fails `jac test <file>` with `attempted relative import beyond top-level package`, because the test runner roots the package at the target file's own directory. `import from shared.github { fetch }` works in both. Client modules keep the dotted form - that is what the bundler resolves.
 
+## Compile-time values (comptime)
+
+```jac
+comptime import from jaclang.comptime { members }
+
+enum Kind { A, B }
+
+comptime KINDS: int = len(members(Kind));   # evaluated by the compiler, folded to 2
+comptime assert KINDS == 2, "two kinds";     # fails the build, not the run
+
+def repeat(comptime n: int, msg: str) -> str {
+    out = "";
+    comptime for _ in range(n) { out += msg; }   # unrolled per call site value
+    return out;
+}
+```
+
+`comptime` is a reserved word. A comptime site needs a literal-derived value (E0033 otherwise); comptime code is pure (E0108 on I/O, raise, or runaway work). See `jac-comptime`.
+
 ## Also available (Python semantics, brace bodies)
 
 Generators (`yield` / `yield from`), decorators (`@deco` above `def`), walrus `(n := len(items))`, context managers (`with open(f) as fh { ... }`), C-style loops `for i = 0 while i < 10 with i += 1 { }`, null-safe access `user?.profile?.name`, `cfg?["key"]` (returns `None` instead of raising - even for missing keys/out-of-range indices), and the default idiom `name = user?.name or "Anonymous";`.

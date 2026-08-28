@@ -215,6 +215,7 @@ Jac keywords are reserved and cannot be used as identifiers:
 | **Exception** | `try`, `except`, `finally`, `raise`, `assert` |
 | **OSP** | `visit`, `disengage`, `spawn`, `here`, `root`, `visitor` |
 | **Module** | `import`, `include`, `from`, `as`, `glob` |
+| **Compile time** | `comptime` (see [Compile-Time Evaluation](comptime.md)) |
 | **Blocks** | `cl` (client), `sv` (server), `na` (native) |
 | **Other** | `with`, `test`, `impl`, `sem`, `by`, `del`, `in`, `is`, `and`, `or`, `not`, `async`, `await`, `flow`, `wait`, `lambda`, `props` |
 

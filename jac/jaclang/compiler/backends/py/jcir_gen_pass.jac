@@ -335,6 +335,7 @@ def module_container_bytes(mod_path: str, root_node: CgNode) -> bytes {
 
 obj JcirGenPass(BaseAstGenPass[CgItem]) {
     has already_added: list[str] = [],
+        _ct_only_names: (set[str] | None) = None,
         jaclib_imports: set[str] postinit,
         builtin_imports: set[str] postinit,
         sized_imports: set[str] postinit,
@@ -383,6 +384,21 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def _fw_aug_assign(nd: Assignment, target: any, value: any) -> (CgNode | None);
     def val(nd: UniNode) -> CgNode;
     def const_of(value: any, jac_node: (UniNode | None) = None) -> CgNode;
+    def _ct_kind(v: any) -> str;
+    def _ct_materializable(v: any) -> bool;
+    def _ct_concrete(nd: Expr) -> bool;
+    def _is_comptime_only_name(nd: Name) -> bool;
+    def _comptime_only_names -> set[str];
+    def _record_bypasses_init(v: any) -> bool;
+    def _is_ct_type_param(nd: Name) -> bool;
+    def _ct_param_decls(cls_expr: Expr) -> (list[TypeParam] | None);
+    def _ct_ctor_slots(nd: AtomTrailer) -> (list[tuple] | None);
+    def _trailer_reaches_ct_class(nd: AtomTrailer) -> bool;
+    def _ct_param_fields(nd: Archetype) -> list[CgNode];
+    def _import_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
+    def _class_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
+    def _materialize(v: any, jac_node: UniNode) -> (CgNode | None);
+    def _comptime_if_out(nd: IfStmt) -> bool;
     def name_load(name_id: str, jac_node: (UniNode | None) = None) -> CgNode;
     def _with_ctx(cgn: CgNode, ctx_cls: str) -> CgNode;
     def jaclib_obj(obj_name: str) -> CgNode;

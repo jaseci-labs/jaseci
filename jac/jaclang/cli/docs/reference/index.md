@@ -29,6 +29,7 @@ The core language -- syntax, types, objects, graphs, concurrency, and native com
 - **[Comprehensions & Filters](language/advanced.md)** -- filter/assign comprehensions, typed filters
 - **[Walker Patterns](language/walker-responses.md)** -- the `.reports` array, response patterns, nested spawning
 - **[Gradual Borrow Checking](language/ownership-borrowing.md)** -- `own`/`imm`/`&`/`&mut` bindings, move checking, `Region` arenas (`in <handle> { }` opens), `def drop` ([checker spec](../internals/ownership-checker-spec.md))
+- **[Compile-Time Evaluation](language/comptime.md)** -- `comptime` bindings, `if`/`for`/`assert`, comptime defs, imports and parameters, archetype value params, the `jaclang.comptime` intrinsics
 - **[Syntax Cheatsheet](language/syntax-cheatsheet.md)** -- one-page lookup
 - **[Native Compilation](language/native-pathway.md)** -- compiling to native binaries and C-ABI shared libraries; gc modes and zero-RC ownership builds
 

@@ -234,7 +234,14 @@ impl JacCompiler.get_bytecode(
                 } except Exception {
                     ;
                 }
-                import from jaclang.compiler.driver.jir { write_module_cache }
+                import from jaclang.compiler.driver.jir {
+                    SEC_CTDEPS,
+                    ct_deps_section,
+                    write_module_cache
+                }
+                if result.ct_file_deps {
+                    sections[SEC_CTDEPS] = ct_deps_section(result.ct_file_deps);
+                }
                 cache_bc: any = result.gen?.py_bytecode;
                 if cache_bc is not None and not result.parse_failed {
                     write_module_cache(full_target, cache_bc, extra_sections=sections);
