@@ -145,6 +145,7 @@ obj NativeJServer {
             root_bind_error: (str | None) = None;
             if user_id {
                 root_ref: any = user_id;
+                ctx.mem.read_scope_enter();
                 try {
                     await ctx.aset_user_root(root_ref);
                 } except ValueError as bind_err {
@@ -153,6 +154,8 @@ obj NativeJServer {
                         f"{type(bind_err).__name__}: {bind_err}"
                     );
                     root_bind_error = str(bind_err);
+                } finally {
+                    ctx.mem.read_scope_exit();
                 }
             }
             try {

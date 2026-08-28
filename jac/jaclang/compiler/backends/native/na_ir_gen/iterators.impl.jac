@@ -104,7 +104,8 @@ impl NaIRGenIterators._emit_iter_advance(
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     i1 = ir.IntType(1);
-    jptr_type = self._jac_iter_type.as_pointer();
+    self._ensure_iter_types();
+    jptr_type = self.struct_types["JacIter"].as_pointer();
     jptr = iter_val;
     if iter_val.type != jptr_type {
         jptr = b.bitcast(iter_val, jptr_type, name="adv.ji");
@@ -963,7 +964,7 @@ impl NaIRGenIterators._make_enumerate_iter(up: tuple) -> (tuple | None) {
     b.cbranch(got, emit, stop);
     b.position_at_end(emit);
     tval = b.load(tmp, name="enm.tval");
-    tup = ir.Constant(tuple_type, ir.Undefined);
+    tup: ir.Value = ir.Constant(tuple_type, ir.Undefined);
     tup = b.insert_value(tup, idx, 0, name="enm.tup0");
     tup = b.insert_value(tup, tval, 1, name="enm.tup1");
     out_t = b.bitcast(nfn.args[1], tuple_type.as_pointer(), name="enm.out");
@@ -1024,7 +1025,7 @@ impl NaIRGenIterators._make_zip_iter(up_a: tuple, up_b: tuple) -> (tuple | None)
     bld.position_at_end(emit);
     av = bld.load(ta, name="zip.av");
     bv = bld.load(tb, name="zip.bv");
-    tup = ir.Constant(tuple_type, ir.Undefined);
+    tup: ir.Value = ir.Constant(tuple_type, ir.Undefined);
     tup = bld.insert_value(tup, av, 0, name="zip.tup0");
     tup = bld.insert_value(tup, bv, 1, name="zip.tup1");
     out_t = bld.bitcast(nfn.args[1], tuple_type.as_pointer(), name="zip.out");
@@ -1223,9 +1224,9 @@ impl NaIRGenIterators._make_user_iter_from_obj(
     it_obj = self.builder.call(iter_fn, [obj_val], name="usr.iter");
     self._mark_owned(it_obj);
 
-    iter_struct = self._infer_type_name(it_obj);
-    built = self._make_user_iter(it_obj, iter_struct)
-        if iter_struct is not None
+    inferred_struct = self._infer_type_name(it_obj);
+    built = self._make_user_iter(it_obj, inferred_struct)
+        if inferred_struct is not None
         else None;
     if built is None {
         self._emit_rc_release_simple(it_obj, op="user_iter_unresolved");
