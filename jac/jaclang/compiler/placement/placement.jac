@@ -512,6 +512,9 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
         if imp.has_clib_decls or imp.is_virtual_jac or imp.has_string_path {
             continue;
         }
+        if imp.is_comptime {
+            continue;
+        }
         if imp.from_loc is None {
             reasons.append('plain python import');
             break;
@@ -621,7 +624,7 @@ def scan_native_blockers(
         if imp.has_clib_decls {
             continue;
         }
-        if imp.is_typed {
+        if imp.is_typed or imp.is_comptime {
             continue;
         }
         if imp.find_parent_of_type(uni.Ability) is not None

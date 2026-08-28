@@ -72,12 +72,14 @@ obj AnchorReport {
 
 obj Anchor {
     has archetype: Archetype,
-        id: UUID = field(default_factory=uuid4),
-        `root: (UUID | None) = None,
-        access: Permission = field(default_factory=Permission),
-        persistent: bool = False,
-        hash: int = 0;
+        id: (UUID | None) = field(`init=False, `default=None),
+        `root: (UUID | None) = field(`init=False, `default=None),
+        access: (Permission | None) = field(`init=False, `default=None),
+        persistent: bool = field(`init=False, `default=False),
+        hash: int = field(`init=False, `default=0);
 
+    def ensure_id -> UUID;
+    def own_access -> Permission;
     def is_populated -> bool;
     def make_stub -> TANCH;
     def populate -> None;
@@ -93,7 +95,7 @@ obj Anchor {
 obj NodeAnchor(Anchor) {
     has archetype: NodeArchetype,
         edges: list[EdgeAnchor],
-        version: int = 0;
+        version: int = field(`init=False, `default=0);
 
     def __getstate__ -> dict[(str, object)];
     def is_populated -> bool;
@@ -122,6 +124,22 @@ obj WalkerAnchor(Anchor) {
 
 obj ObjectAnchor(Anchor) {
     has archetype: ObjectArchetype;
+}
+
+def same_anchor(a: (Anchor | None), b: (Anchor | None)) -> bool {
+    if a is b {
+        return True;
+    }
+    if a is None or b is None {
+        return False;
+    }
+    aid = a.id;
+    return aid is not None and aid == b.id;
+}
+
+def anchor_key(anchor: Anchor) -> any {
+    aid = anchor.id;
+    return aid if aid is not None else id(anchor);
 }
 
 obj Archetype {

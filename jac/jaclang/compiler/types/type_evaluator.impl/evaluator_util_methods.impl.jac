@@ -51,13 +51,8 @@ impl TypeEvaluator._type_from_union_annotation_arg(val: Expr) -> TypeBase {
 impl TypeEvaluator._build_field_params(
     class_type: ClassType, skip_deferred: bool = True
 ) -> dict[str, Parameter] {
-    import from jaclang.compiler.frontend.codeinfo { NATIVE_ERASED_RIM_BASES }
     param_map: dict[str, Parameter] = {};
-    _erase_rim = self._in_native_context();
     for cls in class_type.shared.mro[::-1] {
-        if _erase_rim and cls.shared.class_name in NATIVE_ERASED_RIM_BASES {
-            continue;
-        }
         for has_var in cls.shared.symbol_table.get_has_vars() {
             if skip_deferred and has_var.defer {
                 param_map.pop(has_var.name.value, None);
@@ -1010,11 +1005,55 @@ impl TypeEvaluator._set_module_item_symbol_and_type(
     return sym_type;
 }
 
+impl TypeEvaluator._ct_args_for_class(
+    base_type: ClassType, slot_vals: list[Expr]
+) -> (tuple | None) {
+    if not base_type.shared.ct_params {
+        return None;
+    }
+    arch = base_type.shared.symbol_table;
+    if not isinstance(arch, Archetype) {
+        return None;
+    }
+    ct_args: dict[str, any] = {};
+    ct_slots: set[int] = set();
+    for (i, tp) in enumerate(arch.type_params or []) {
+        if not tp.is_comptime {
+            continue;
+        }
+        ct_slots.add(i);
+        pname = tp.name.value;
+        if i >= len(slot_vals) {
+            continue;
+        }
+        val = slot_vals[i];
+        cv = self.ct_demand(val);
+        self.ct_site_error(val, f"argument for comptime parameter '{pname}'", cv);
+        if cv is not None {
+            ct_args[pname] = cv.v;
+        }
+    }
+    return (ct_args, ct_slots, );
+}
+
+impl TypeEvaluator._extract_ct_params(node_: Archetype) -> (list[str] | None) {
+    names: list[str] = [];
+    for tp in (node_.type_params or []) {
+        if tp.is_comptime {
+            names.append(tp.sym_name);
+        }
+    }
+    return names;
+}
+
 impl TypeEvaluator._extract_type_params(node_: Archetype) -> list[TypeVarType] {
     type_params: list[TypeVarType] = [];
 
     if node_.type_params {
         for tp in node_.type_params {
+            if tp.is_comptime {
+                continue;
+            }
             tv = TypeVarType(name=tp.sym_name, is_class_type_param=True);
             type_params.append(tv);
         }
@@ -1151,6 +1190,7 @@ impl TypeEvaluator.emit_diag(
 impl TypeEvaluator._invalidate_expr_type_cache(node_: UniNode) -> None {
     if isinstance(node_, Expr) {
         node_.type = None;
+        node_.ct_value = None;
     }
     for kid in node_.kid {
         self._invalidate_expr_type_cache(kid);

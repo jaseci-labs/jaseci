@@ -112,10 +112,11 @@ graph TD
         FE7[MTIRGenPass]
         FE8[JsxIntrinsicGuardPass]
         FE9[PlacementApplyPass]
+        FE10[ComptimeResolvePass]
     end
 
-    FRONTEND --> FE1 --> FE2 --> FE3 --> FE4 --> FE5 --> FE6 --> FE7 --> FE8 --> FE9
-    FE9 --> TYPECK["Analysis (unconditional)<br/>TypeCheckPass / StaticAnalysisPass / AccessCheckPass / OwnershipCheckPass /<br/>NativeCapabilityCheckPass / ClientCapabilityCheckPass / PortabilityWarnPass / JacLintCheckPass"]
+    FRONTEND --> FE1 --> FE2 --> FE3 --> FE4 --> FE5 --> FE6 --> FE7 --> FE8 --> FE9 --> FE10
+    FE10 --> TYPECK["Analysis (unconditional)<br/>TypeCheckPass / StaticAnalysisPass / AccessCheckPass / OwnershipCheckPass /<br/>NativeCapabilityCheckPass / ClientCapabilityCheckPass / PortabilityWarnPass / JacLintCheckPass"]
     TYPECK --> INTEROP["BoundaryAnalysisPass<br/>(boundary discovery)"]
     INTEROP --> SV[JcirGenPass + JcirBytecodeGenPass]
     INTEROP --> CL[EsastGenPass]
@@ -148,32 +149,13 @@ The bootstrap compiler (`jac0.py`) and the full compiler share this front end
 verbatim -- see [Abstractions Inventory](abstractions.md) for the full keyword
 table.
 
-### The sealed native front end (the default route)
+### The front end
 
-On a sealed image the front end does not run as staged bytecode passes:
-`parse_with_prefix`
-([`compiler/placement/prefix_flip.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/placement/prefix_flip.jac))
-crosses into the **natively compiled** parser-and-early-passes artifact and
-is the **default** compile route. The crossing covers parsing plus the head
-of the ir-gen schedule -- `ASTValidationPass`, `SymTabBuildPass`,
-`DeclImplMatchPass`, `SemanticAnalysisPass`, `SemDefMatchPass`,
-`CFGBuildPass`, and `JsxIntrinsicGuardPass` for no-codegen shapes -- and the
-driver then **trims the executed head off the staged schedule**, so each
-pass still runs exactly once.
-
-The flip is per-module and fails soft: a module the prefix cannot serve
-falls back to the staged route under one of the named decline clauses in
-`PREFIX_CLAUSES` (`disabled-by-env`, `image-unsealed`,
-`prefix-entry-absent`, `artifact-bind-failure`, `source-kind-unsupported`,
-`option-shape-unsupported`, `annex-present`, `codespace-pinned`,
-`absorbed-mod-present`, `prefix-declined`, `crossing-error`,
-`parity-guard-trip`). Environment surfaces: `JAC_PREFIX=off` forces the
-staged route for the whole process, `JAC_PREFIX_REPORT=1` prints a
-per-module admit/fallback report with the clause for each fallback, and
-`JAC_PREFIX_STRICT=1` turns loud fallbacks into failures. Analysis and
-codegen always stay staged -- the prefix only replaces the parse-and-early
-head. Dev trees without a seal always take the staged route (which is also
-the bootstrap that builds the seal).
+Every module parses through the staged front end: the lexer and parser in
+`compiler/frontend/parser/`, then the ir-gen schedule pass by pass. The
+native scope (`compiler/native_scope.jac`) names the compiler modules
+served from `libjac_compiler`; it is empty until a native pass can share
+the tree with a bytecode pass.
 
 ---
 
@@ -277,6 +259,7 @@ The ir-gen schedule (`get_ir_gen_sched`):
 | `MTIRGenPass` | [`compiler/passes/mtir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/mtir_gen_pass.jac) | Generates Meaning-Typed IR for `by llm` calls (scheduled unless MTIR generation is off) |
 | `JsxIntrinsicGuardPass` | [`compiler/passes/jsx_intrinsic_guard_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/jsx_intrinsic_guard_pass.jac) | Rejects raw HTML host tags per the project's client kind (`E1105`) |
 | `PlacementApplyPass` | [`compiler/placement/placement_solver.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/placement/placement_solver.jac) | Applies the placement solver's per-module stage: summary-driven seeding plus the CLIENT/NATIVE reference fixpoint (see Stage 2) |
+| `ComptimeResolvePass` | [`compiler/passes/comptime_resolve_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/comptime_resolve_pass.jac) | Settles every `comptime` site (bindings, `if`/`for`/`assert`, comptime-parameter arguments) through the shared `TypeEvaluator` and its `CtEvaluator`, visiting only subtrees that contain a comptime construct; marks the module `ct_resolved` so a later `TypeCheckPass` does not report the same site twice. Runs here, not in the analysis schedule, so modules compiled on import fold identically to `jac check` |
 
 The analysis schedule (`get_analysis_sched`) -- **unconditional**, appended
 on every compile:
