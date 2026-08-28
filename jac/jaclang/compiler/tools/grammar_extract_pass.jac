@@ -1,6 +1,7 @@
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes { UniPass }
 import from jaclang.compiler.frontend.parser.tokens { TokenKind }
+import from jaclang.runtime.osp_kernel { osp_skip_rest }
 
 def is_nil_expr(nd: object) -> bool {
     if isinstance(nd, uni.CfgExpr) {

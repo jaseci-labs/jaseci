@@ -269,7 +269,6 @@ walker EsastGenPass(BaseAstGenPass[es.Statement]) {
     def before_pass -> None;
     can enter_walk with uni.UniNode entry;
     can exit_walk with uni.UniNode exit;
-    def __jac_post_exit__(nd: uni.UniNode) -> None;
     def _fw_call(
         name: str, args: list[es.Expression], jac_node: uni.UniNode
     ) -> es.Expression;
@@ -697,5 +696,7 @@ walker EsastGenPass(BaseAstGenPass[es.Statement]) {
     can exit_test with uni.Test exit;
     can exit_token with uni.Token exit;
     can exit_semi with uni.Semi exit;
+    can finish_expr with uni.Expr exit;
+    can finish_scope with uni.UniScopeNode exit;
     def _literal_value(expr: (uni.UniNode | None)) -> (object | None);
 }

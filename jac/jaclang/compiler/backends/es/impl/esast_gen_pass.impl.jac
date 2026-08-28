@@ -8362,15 +8362,15 @@ impl EsastGenPass.exit_walk with uni.UniNode exit {
     }
 }
 
-impl EsastGenPass.__jac_post_exit__(nd: uni.UniNode) -> None {
-    if isinstance(nd, uni.Expr) and nd.coerce_to is not None {
-        self._apply_fw_coercion(nd);
+impl EsastGenPass.finish_expr with uni.Expr exit {
+    if here.coerce_to is not None {
+        self._apply_fw_coercion(here);
     }
-    if isinstance(nd, uni.UniScopeNode) {
-        self._pop_scope(nd);
+}
 
-        self.scope_map.pop(nd, None);
-    }
+impl EsastGenPass.finish_scope with uni.UniScopeNode exit {
+    self._pop_scope(here);
+    self.scope_map.pop(here, None);
 }
 
 impl EsastGenPass._fw_call(

@@ -12,6 +12,14 @@ impl UniNode.postinit -> None {
     self.loc = CodeLocInfo(first_tok, last_tok);
 }
 
+impl UniNode.walk_kids with TreeWalker entry {
+    visit : 0 : [
+        k
+        for k in self.kid
+        if k and not k.ct_pruned
+    ];
+}
+
 impl UniNode._attach(child: UniNode, role: type, in_kid: bool) -> None {
     e: Role = role(in_kid=in_kid);
     self +>:(e):+> child;

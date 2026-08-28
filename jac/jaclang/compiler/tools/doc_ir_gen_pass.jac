@@ -38,7 +38,6 @@ walker DocIRGenPass(UniPass) {
     def align(contents: doc.DocType, n: (int | None) = None) -> doc.Align;
     def line_suffix(contents: doc.DocType) -> doc.LineSuffix;
     def break_parent -> doc.BreakParent;
-    def __jac_post_exit__(nd: uni.UniNode) -> None;
     def _wrap_doc_comments(nd: uni.UniNode) -> None;
     def effective_first_line(nd: uni.UniNode) -> int;
     def join(separator: doc.DocType, parts: list[doc.DocType]) -> doc.DocType;
@@ -189,4 +188,5 @@ walker DocIRGenPass(UniPass) {
     can exit_jsx_expression with uni.JsxExpression exit;
     can exit_jsx_slot with uni.JsxSlot exit;
     can exit_jsx_comment with uni.JsxComment exit;
+    can finish_doc_comments with uni.UniNode exit;
 }

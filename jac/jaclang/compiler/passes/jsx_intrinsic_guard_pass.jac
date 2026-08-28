@@ -7,6 +7,7 @@ import from jaclang.compiler.frontend.unitree {
 }
 import from jaclang.compiler.frontend.diagnostics { E1105 }
 import from jaclang.compiler.passes.uni_pass { UniPass }
+import from jaclang.runtime.osp_kernel { osp_skip_rest }
 import from jaclang.project.client_kind_paths { mobui_module_exempt }
 
 glob _GENERIC_SUGGESTION: str = "an @jac/mobui component",
@@ -37,7 +38,7 @@ walker JsxIntrinsicGuardPass(UniPass) {
 
     can enter_module with Module entry {
         if self._enforced_root is None {
-            self.prune();
+            osp_skip_rest();
         }
     }
 

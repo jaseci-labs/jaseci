@@ -166,14 +166,12 @@ impl JcirGenPass.exit_walk with UniNode exit {
     }
 }
 
-impl JcirGenPass.__jac_post_exit__(nd: UniNode) -> None {
-    if isinstance(nd, Expr) {
-        if nd.fw is not None or isinstance(nd, FuncCall) {
-            self._apply_fw(nd);
-        }
-        if nd.coerce_to is not None {
-            self._apply_coercion(nd);
-        }
+impl JcirGenPass.finish_expr with Expr exit {
+    if here.fw is not None or isinstance(here, FuncCall) {
+        self._apply_fw(here);
+    }
+    if here.coerce_to is not None {
+        self._apply_coercion(here);
     }
 }
 

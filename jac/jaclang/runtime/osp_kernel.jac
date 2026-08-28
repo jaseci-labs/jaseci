@@ -8,9 +8,7 @@ obj Slot {
 obj WalkerDesc {
     has type_tag: int,
         `entry: list[Slot],
-        `exit: list[Slot],
-        post_entry: any = None,
-        post_exit: any = None;
+        `exit: list[Slot];
 }
 
 obj NodeDesc {
@@ -203,12 +201,6 @@ def _visit_recursive(
                     return False;
                 }
             }
-            if (not scope.skip_node) and (wdesc.post_entry is not None) {
-                wdesc.post_entry(scope.wlk, cur);
-                if scope.disengaged {
-                    return False;
-                }
-            }
             scope.skip_node = False;
 
             stack_loc.append(cur);
@@ -261,12 +253,6 @@ def _visit_recursive(
             }
             if not scope.skip_node {
                 run_typed(rt, wdesc.`exit, scope.wlk, cur);
-                if scope.disengaged {
-                    return False;
-                }
-            }
-            if (not scope.skip_node) and (wdesc.post_exit is not None) {
-                wdesc.post_exit(scope.wlk, cur);
                 if scope.disengaged {
                     return False;
                 }

@@ -2650,9 +2650,9 @@ impl DocIRGenPass.break_parent -> doc.BreakParent {
     return doc.BreakParent();
 }
 
-impl DocIRGenPass.__jac_post_exit__(nd: uni.UniNode) -> None {
-    if nd.gen.doc_comments is not None {
-        self._wrap_doc_comments(nd);
+impl DocIRGenPass.finish_doc_comments with uni.UniNode exit {
+    if here.gen.doc_comments is not None {
+        self._wrap_doc_comments(here);
     }
 }
 

@@ -2361,12 +2361,13 @@ class CodeGen:
             self._line(f"_jac_osp.destroy0({node.expr})")
             self._line(f"del {node.expr}")
         elif isinstance(node, VisitStmt):
+            wlk = self._walker_receiver()
             if node.insert_loc is not None:
-                self._line(f"_jac_osp.visit0(self, {node.expr}, {node.insert_loc})")
+                self._line(f"_jac_osp.visit0({wlk}, {node.expr}, {node.insert_loc})")
             else:
-                self._line(f"_jac_osp.visit0(self, {node.expr})")
+                self._line(f"_jac_osp.visit0({wlk}, {node.expr})")
         elif isinstance(node, DisengageStmt):
-            self._line("_jac_osp.disengage0(self)")
+            self._line(f"_jac_osp.disengage0({self._walker_receiver()})")
             self._line("return")
         elif isinstance(node, ExprStmt):
             if node.expr:
@@ -2549,6 +2550,15 @@ class CodeGen:
 
     def _event_param_name(self) -> str:
         return "here" if self._arch_kind == "walker" else "visitor"
+
+    def _walker_receiver(self) -> str:
+        """The walker object inside an ability body.
+
+        In a walker ability `self` is the walker. In a node or edge ability
+        `self` is the node and the walker arrives as the `visitor` parameter,
+        so `visit`/`disengage` must address `visitor` instead.
+        """
+        return "visitor" if self._arch_kind in ("node", "edge") else "self"
 
     def _emit_event_decorators(self, event: str, trigger: str) -> None:
         if not event:

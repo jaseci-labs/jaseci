@@ -149,6 +149,8 @@ import from jaclang.compiler.frontend.relations {
 }
 
 
+walker TreeWalker {}
+
 node UniNode {
     has _ctx_parent: (UniNode | None) postinit,
         _struct_frozen: bool postinit,
@@ -160,6 +162,7 @@ node UniNode {
         ct_pruned: bool postinit;
 
     def postinit -> None;
+    can walk_kids with TreeWalker entry;
 
     has kid: list[UniNode] { getter; }
     has parent: (UniNode | None) { getter; }

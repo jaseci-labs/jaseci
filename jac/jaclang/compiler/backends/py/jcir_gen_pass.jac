@@ -356,7 +356,6 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     def postinit -> None;
     can enter_walk with UniNode entry;
     can exit_walk with UniNode exit;
-    def __jac_post_exit__(nd: UniNode) -> None;
     def _is_native_ext_module -> bool;
     def _refuse(nd: (UniNode | None), construct: str) -> None;
     def nod(
@@ -617,4 +616,5 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     can exit_jsx_comment with JsxComment exit;
     can exit_semi with Semi exit;
     can exit_comment_token with CommentToken exit;
+    can finish_expr with Expr exit;
 }

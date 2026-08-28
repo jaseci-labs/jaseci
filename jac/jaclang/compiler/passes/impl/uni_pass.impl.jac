@@ -6,10 +6,6 @@ impl UniPass.before_pass -> None { }
 
 impl UniPass.after_pass -> None { }
 
-impl UniPass.prune -> None {
-    self.prune_signal = True;
-}
-
 impl UniPass.recalculate_parents(nd: UniNode) -> None {
     if nd {
         nd._invalidate_sub_node_tab();
@@ -44,18 +40,6 @@ impl UniPass.enter_walk with UniNode entry {
         return;
     }
     self.cur_node = here;
-}
-
-impl UniPass.__jac_post_entry__(nd: UniNode) -> None {
-    if self.prune_signal {
-        self.prune_signal = False;
-    } elif not self.is_canceled() {
-        visit : 0 : [
-            k
-            for k in nd.kid
-            if k and not k.ct_pruned
-        ];
-    }
 }
 
 impl UniPass.exit_walk with UniNode exit {
