@@ -1,13 +1,13 @@
 import from pathlib { Path }
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes {
     FileResponse,
     HTMLResponse,
     JSONResponse,
     Response
 }
-import from jaclang.runtimelib.transport { TransportResponse }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.transport { TransportResponse }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,

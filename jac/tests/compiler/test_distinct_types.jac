@@ -12,8 +12,8 @@ import from tests.support { JAC_ROOT }
 import from jaclang { JacRuntime as Jac }
 import from jaclang { JacRuntimeInterface }
 import from jaclang.jac0 { compile_jac }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.parser.frontend { parse_diags }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.parser.frontend { parse_diags }
 
 glob FIXTURE_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "distinct"
