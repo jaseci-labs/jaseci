@@ -21,6 +21,36 @@ if [ ! -f "${FIXTURE_DIR}/jac.toml" ]; then
     exit 1
 fi
 
+# The manifest builder refuses to guess a RWX-capable StorageClass for the
+# bundle PVC (see manifest_builder.jac): most cloud defaults are
+# ReadWriteOnce-only, so it now requires bundle_storage_class set explicitly
+# rather than trusting the cluster default. Local/kind runs edit jac.toml by
+# hand per the fixture README; a CI lane on a different cluster type sets
+# BUNDLE_STORAGE_CLASS instead, applied here so the file itself stays
+# cluster-agnostic.
+if [ -n "${BUNDLE_STORAGE_CLASS:-}" ]; then
+    python3 - "${FIXTURE_DIR}/jac.toml" "${BUNDLE_STORAGE_CLASS}" <<'PYEOF'
+import sys
+
+path, storage_class = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    lines = f.readlines()
+out, in_k8s, done = [], False, False
+for line in lines:
+    stripped = line.strip()
+    if stripped.startswith("["):
+        in_k8s = stripped == "[scale.kubernetes]"
+    if in_k8s and stripped.startswith("bundle_storage_class"):
+        continue
+    out.append(line)
+    if in_k8s and not done and stripped == "[scale.kubernetes]":
+        out.append(f'bundle_storage_class = "{storage_class}"\n')
+        done = True
+with open(path, "w") as f:
+    f.writelines(out)
+PYEOF
+fi
+
 CFG=$(cd "${FIXTURE_DIR}" && jac -c "
 import tomllib
 with open('jac.toml', 'rb') as f:
