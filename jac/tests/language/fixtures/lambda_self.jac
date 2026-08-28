@@ -1,3 +1,9 @@
+node City {
+    has name: str = "";
+}
+
+glob users: list[dict] = [];
+
 walker Tourist {
     can travel with City entry {
         def foo(a: int) { }

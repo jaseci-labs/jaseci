@@ -8,13 +8,13 @@ import contextlib;
 
 import from tests.support { JAC_ROOT }
 
-import jaclang.lsp.types as lspt;
+import jaclang.lsp.protocol.types as lspt;
 
 import jaclang;
-import from jaclang.langserve.rwlock { ReadWriteLock }
-import from jaclang.langserve.engine { JacLangServer }
-import from jaclang.lsp { uris }
-import from jaclang.lsp.server { Workspace }
+import from jaclang.lsp.server.rwlock { ReadWriteLock }
+import from jaclang.lsp.server.engine { JacLangServer }
+import from jaclang.lsp.protocol { uris }
+import from jaclang.lsp.protocol.server { Workspace }
 
 glob FIXTURE_DIR = os.path.join(
          os.path.dirname(os.path.abspath(__file__)), "fixtures"
@@ -43,7 +43,7 @@ def teardown_test {
         with contextlib.suppress(Exception) as _s {
             server.shutdown();
         }
-        server.clear_type_system(clear_hub=True);
+        server.program.clear_type_system(clear_hub=True);
     }
     _active_servers.clear();
     _clear_jac_modules();
@@ -185,7 +185,9 @@ test "concurrent queries during type checking" {
     try {
         lsp = create_server();
         circle_file = os.path.join(FIXTURE_DIR, "circle.jac");
-        circle_uri = uris.from_fs_path(circle_file);
+        circle_uri_maybe = uris.from_fs_path(circle_file);
+        assert circle_uri_maybe is not None;
+        circle_uri: str = circle_uri_maybe;
 
         # First, type check the file so hub is populated
         lsp.type_check_file(circle_uri);
@@ -279,7 +281,9 @@ test "shutdown under active dispatch" {
     try {
         lsp = create_server();
         circle_file = os.path.join(FIXTURE_DIR, "circle.jac");
-        circle_uri = uris.from_fs_path(circle_file);
+        circle_uri_maybe = uris.from_fs_path(circle_file);
+        assert circle_uri_maybe is not None;
+        circle_uri: str = circle_uri_maybe;
 
         # Kick off a type check via the dispatcher
         lsp.type_check_file(circle_uri);

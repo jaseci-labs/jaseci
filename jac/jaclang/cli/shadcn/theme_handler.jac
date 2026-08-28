@@ -105,7 +105,7 @@ glob _SHADCN_TAILWIND_CSS: str = """/* Vendored from shadcn v3.8.5 dist/tailwind
   }
 }""";
 
-glob _DEFAULTS: dict = {
+glob _DEFAULTS: dict[str, str] = {
          "style": "nova",
          "baseColor": "neutral",
          "theme": "neutral",
@@ -114,7 +114,7 @@ glob _DEFAULTS: dict = {
          "menuAccent": "subtle",
          "menuColor": "default"
      },
-     _SHADCN_KEYS: list = [
+     _SHADCN_KEYS: list[str] = [
          "style",
          "baseColor",
          "theme",
@@ -123,13 +123,13 @@ glob _DEFAULTS: dict = {
          "menuAccent",
          "menuColor"
      ],
-     RADII_MAP: dict = {
+     RADII_MAP: dict[str, str] = {
          "none": "0",
          "small": "0.45rem",
          "medium": "0.625rem",
          "large": "0.875rem"
      },
-     FONT_DATA: dict = {
+     FONT_DATA: dict[str, dict[str, str]] = {
          "geist": {
              "family": "'Geist Variable', sans-serif",
              "npm": "@fontsource-variable/geist"
@@ -179,7 +179,7 @@ glob _DEFAULTS: dict = {
              "npm": "@fontsource-variable/geist-mono"
          }
      },
-     THEME_INLINE_COLORS: list = [
+     THEME_INLINE_COLORS: list[str] = [
          "sidebar-ring",
          "sidebar-border",
          "sidebar-accent-foreground",
@@ -214,13 +214,13 @@ glob _DEFAULTS: dict = {
      ],
      _UTILS_CONTENT: str = 'import from "clsx" { clsx }\nimport from "tailwind-merge" { twMerge }\n\ndef:pub cn(*inputs: any) -> str {\n    return twMerge(clsx(inputs));\n}\n';
 
-def normalize_shadcn_config(raw: (dict | None)) -> dict {
-    cfg: dict = {};
+def normalize_shadcn_config(raw: (dict | None)) -> dict[str, str] {
+    cfg: dict[str, str] = {};
     cfg.update(_DEFAULTS);
     if raw {
         for key in _SHADCN_KEYS {
             if raw.get(key) {
-                cfg[key] = raw[key];
+                cfg[key] = str(raw[key]);
             }
         }
     }
@@ -228,7 +228,8 @@ def normalize_shadcn_config(raw: (dict | None)) -> dict {
 }
 
 def load_themes -> list {
-    themes_path = _registry_dir() / "themes.json";
+    registry_dir: Path = _registry_dir();
+    themes_path = registry_dir / "themes.json";
     if themes_path.is_file() {
         with open(themes_path, "r") as f {
             return json_mod.load(f);
@@ -467,7 +468,7 @@ def _install_component(ui_dir: any, name: str, style: str) -> list {
 }
 
 def materialize_themed_starter(
-    project_root: any, project_name: str, shadcn_config: dict
+    project_root: any, project_name: str, shadcn_config: dict[str, str]
 ) -> bool {
     pr = Path(str(project_root));
     style = shadcn_config.get("style", "nova");
@@ -544,11 +545,11 @@ def retheme_project(config: any, overrides: dict) -> bool {
     current = normalize_shadcn_config(raw);
     old_style = current.get("style", "nova");
 
-    merged: dict = {};
+    merged: dict[str, str] = {};
     merged.update(current);
     for key in _SHADCN_KEYS {
         if overrides.get(key) is not None {
-            merged[key] = overrides[key];
+            merged[key] = str(overrides[key]);
         }
     }
     new_style = merged.get("style", "nova");

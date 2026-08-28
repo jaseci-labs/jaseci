@@ -80,54 +80,15 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '17 8 * * *' }}
     uses: ./.github/workflows/_installer.yml
 
-  # PR CI runs the suite chunked across runners; this is the unchunked
-  # single-process full-suite run (materializer-leak watchdog) against a
-  # cold sealed build.
-  sealed-suite:
+  # The darwin native lane: sealed macOS kit + the Mach-O / wasm-floor /
+  # libSystem-equivalence tests that consume it. Off the PR critical path
+  # (44-68 min, and 60 runs of evidence that it duplicated the Linux seal
+  # refusal); see _macos-native.yml. ci.yml still runs it on a `macos` label.
+  # This is also the only caller that runs on main, so it is what seeds the
+  # shared macOS caches -- setup-jac gates every cache save to main.
+  macos-native:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '0 3 * * *' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    env:
-      JAC_NO_DEV_SOURCE: "1"
-    steps:
-    - uses: actions/checkout@v5
-      with:
-        submodules: true
-
-    - name: Set up jac (sealed binary)
-      uses: ./.github/actions/setup-jac
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: "20"
-
-    - name: Set up Bun
-      uses: oven-sh/setup-bun@v2
-
-    - name: Set up Zig 0.16.0 (vendor static-musl runtime)
-      uses: mlugg/setup-zig@v2
-      with:
-        version: 0.16.0
-        use-cache: false
-
-    - name: Vendor static-musl runtime
-      working-directory: jac
-      run: zig build -Dno-ninja vendor-musl --summary all
-
-    - name: Full suite against the sealed binary
-      working-directory: jac
-      run: |
-        set -uxo pipefail
-        WORK="$(mktemp -d)"
-        HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/ | tee /tmp/sealed.log
-        rc=${PIPESTATUS[0]}
-        {
-          echo "## sealed full-suite result"
-          echo '```'
-          grep -E '^(FAILED|ERROR)|passed|failed' /tmp/sealed.log | tail -40 || true
-          echo '```'
-        } >> "$GITHUB_STEP_SUMMARY"
-        exit "$rc"
+    uses: ./.github/workflows/_macos-native.yml
 
   # Real-app microservice e2e on kind. Two pod-base legs: `slim` = the plain
   # python default; `official-image` = an image built from this checkout's

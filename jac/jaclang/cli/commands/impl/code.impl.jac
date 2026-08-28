@@ -2,7 +2,7 @@ import json;
 import os;
 import sys;
 import from jaclang.cli.console { console }
-import from jaclang.compiler.code_intel { CodeIntelligence }
+import from jaclang.compiler.tools.code_intel { CodeIntelligence }
 import from jaclang.project.config { find_project_root }
 
 glob _SCHEMA_VERSION = 1,
@@ -31,12 +31,10 @@ def _fail(command: str, message: str, text: bool) -> int {
 }
 
 
-def _load_ci(type_check: bool, structural: bool = False) -> CodeIntelligence {
+def _load_ci -> CodeIntelligence {
     found = find_project_root();
     proj_dir = str(found[0]) if found is not None else os.getcwd();
-    ci = CodeIntelligence(
-        proj_dir=proj_dir, type_check=type_check, structural=structural
-    );
+    ci = CodeIntelligence(proj_dir=proj_dir);
     ci.load();
     return ci;
 }
@@ -249,10 +247,8 @@ impl code(
         return _fail(action, f"`jac code {action}` needs a name argument.", text);
     }
 
-    structural = action in ["map", "walkers"];
-    wants_types = not structural;
     try {
-        ci = _load_ci(wants_types, structural);
+        ci = _load_ci();
     } except Exception as e {
         return _fail(action, f"Failed to load the project: {e}", text);
     }

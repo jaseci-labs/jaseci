@@ -262,9 +262,14 @@ test "a METRIC service has its stale HTTP activation resources reaped, autoscale
 }
 
 test "an HTTP_ACTIVATION service has its stale metric autoscaler destroyed, activation left alone" {
+    # destroy() resolves its own resource name internally (resource_name_for
+    # is called inside KEDAAutoscaler.destroy / HPAAutoscaler.destroy), so
+    # the reap call site must pass the plain k8s-safe service name, not a
+    # pre-resolved one -- a MagicMock with a canned resource_name_for return
+    # would stay green even if the call site started double-wrapping it, so
+    # this pins the literal argument destroy() receives instead.
     (keda, custom_api, _, _) = _mocked_keda();
     autoscaler = unittest.mock.MagicMock();
-    autoscaler.resource_name_for.return_value = "billing-ops-deployment-scaledobject";
     bundle = {
         "scaling": {
             "billing_ops": {
@@ -277,9 +282,7 @@ test "an HTTP_ACTIVATION service has its stale metric autoscaler destroyed, acti
         }
     };
     reap_stale_scaling_resources_for_bundle(bundle, "t-ns", autoscaler, keda);
-    autoscaler.destroy.assert_called_once_with(
-        "billing-ops-deployment-scaledobject", "t-ns"
-    );
+    autoscaler.destroy.assert_called_once_with("billing-ops", "t-ns");
     custom_api.delete_namespaced_custom_object.assert_not_called();
 }
 

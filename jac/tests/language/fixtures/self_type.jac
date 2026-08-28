@@ -172,8 +172,8 @@ obj Derived(Base) {
 
 with entry:__main__ {
     # set_val returns Derived, not Base
-    d = Derived().set_val(99);
-    print(f"4.5: {type(d).__name__} {d.val} {d.extra}");  # Derived 99 derived
+    d4 = Derived().set_val(99);
+    print(f"4.5: {type(d4).__name__} {d4.val} {d4.extra}");  # Derived 99 derived
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -217,11 +217,11 @@ obj ColoredCircle(Circle) {
 
 with entry:__main__ {
     # --- Section 5: multi-level inheritance ---
-    s = Shape.at(1.0, 2.0);
-    print(f"5.1: {type(s).__name__} {s.pos()}");  # Shape (1.0, 2.0)
+    s5 = Shape.at(1.0, 2.0);
+    print(f"5.1: {type(s5).__name__} {s5.pos()}");  # Shape (1.0, 2.0)
 
-    c = Circle.at(3.0, 4.0);
-    print(f"5.2: {type(c).__name__} {c.pos()}");  # Circle (3.0, 4.0)
+    c5 = Circle.at(3.0, 4.0);
+    print(f"5.2: {type(c5).__name__} {c5.pos()}");  # Circle (3.0, 4.0)
 
     cc = ColoredCircle.at_origin().move(5.0, 6.0);
     print(f"5.3: {type(cc).__name__} {cc.pos()} {cc.color}");  # ColoredCircle (5.0, 6.0) red
@@ -268,7 +268,7 @@ node TreeNode {
     has label: str,
         depth: int = 0;
 
-    class def root(label: str) -> Self {
+    class def make_root(label: str) -> Self {
         return Self(label=label, depth=0);
     }
 
@@ -310,7 +310,7 @@ walker DepthWalker {
 
 with entry:__main__ {
     # --- Section 7: node/edge/walker ---
-    root_node = TreeNode.root("root");
+    root_node = TreeNode.make_root("root");
     child = TreeNode.child("leaf", 2);
     print(f"7.1: {root_node.describe()}");  # root@d0
     print(f"7.2: {child.describe()}");  # leaf@d2
@@ -353,9 +353,9 @@ obj Stack[T] {
 
 with entry:__main__ {
     # --- Section 8: generics ---
-    s = Stack[int].empty().push(1).push(2).push(3);
-    print(f"8.1: {s.size()}");  # 3
-    print(f"8.2: {s.peek()}");  # 3
+    s8 = Stack[int].empty().push(1).push(2).push(3);
+    print(f"8.1: {s8.size()}");  # 3
+    print(f"8.2: {s8.peek()}");  # 3
 
     ss = Stack[str].empty().push("hello").push("world");
     print(f"8.3: {ss.peek()}");  # world
@@ -554,10 +554,10 @@ obj Wrapper {
 
 with entry:__main__ {
     # --- Section 14: Self vs self coexistence ---
-    w = Wrapper.from_str("hello");
-    w2 = w.copy();
-    w3 = w.transform(str.upper);
-    print(f"14.1: {w.data}");   # hello
+    w11 = Wrapper.from_str("hello");
+    w2 = w11.copy();
+    w3 = w11.transform(str.upper);
+    print(f"14.1: {w11.data}");   # hello
     print(f"14.2: {w2.data}");  # hello
     print(f"14.3: {w3.data}");  # HELLO
     print(f"14.4: {w is not w2}");  # True

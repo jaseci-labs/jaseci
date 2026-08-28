@@ -17,7 +17,7 @@ import tempfile;
 
 import from pathlib { Path }
 
-import from jaclang.lsp.types {
+import from jaclang.lsp.protocol.types {
     DidChangeTextDocumentParams,
     DidOpenTextDocumentParams,
     DidSaveTextDocumentParams,
@@ -26,10 +26,10 @@ import from jaclang.lsp.types {
     VersionedTextDocumentIdentifier
 }
 
-import from jaclang.langserve.engine { JacLangServer }
-import from jaclang.langserve.server { did_change, did_open, did_save }
-import from jaclang.lsp.server { Workspace }
-import from jaclang.lsp.uris { from_fs_path }
+import from jaclang.lsp.server.engine { JacLangServer }
+import from jaclang.lsp.server.server { did_change, did_open, did_save }
+import from jaclang.lsp.protocol.server { Workspace }
+import from jaclang.lsp.protocol.uris { from_fs_path }
 
 # Library and consumer source pairs. APP_SRC instantiates Foo with field
 # `x`; LIB_BREAK renames the field to `y` so any cached LIB_OK lets APP_SRC
@@ -43,6 +43,11 @@ glob LIB_OK = "obj Foo { has x: int; }\n",
          "    print(f.x);\n"
          "}\n"
      );
+
+"""Identity helper that erases static type info for checker-safe casts."""
+def _as_any(v: any) -> any {
+    return v;
+}
 
 """Force the file's mtime to advance past any cache fingerprint, with no real-time wait."""
 def _bump_mtime(path: str) {
@@ -100,8 +105,10 @@ test "stale dep refreshed on consumer save" {
         asyncio.run(
             did_save(
                 ls,
-                DidSaveTextDocumentParams(
-                    text_document=TextDocumentIdentifier(uri=app_uri), text=APP_SRC
+                _as_any(
+                    DidSaveTextDocumentParams(
+                        text_document=TextDocumentIdentifier(uri=app_uri), text=APP_SRC
+                    )
                 )
             )
         );
@@ -158,7 +165,7 @@ test "consumer auto-rechecked when dep receives did_change" {
                     text_document=VersionedTextDocumentIdentifier(
                         uri=lib_uri, version=2
                     ),
-                    content_changes=[{"text": LIB_BREAK}]
+                    content_changes=_as_any([{"text": LIB_BREAK}])
                 )
             )
         );

@@ -12,14 +12,14 @@ glob FORMAT_CACHE_SCHEMA_VERSION: str = "v1",
      ENTRY_TTL_SECONDS: float = 2592000.0,
      MAX_ENTRIES: int = 20000,
      _FORMATTER_PIPELINE_MODULES: tuple[str, ...] = (
-         "jaclang.compiler.passes.tool.jac_formatter_pass",
-         "jaclang.compiler.passes.tool.jac_auto_lint_pass",
-         "jaclang.compiler.passes.tool.doc_ir_gen_pass",
-         "jaclang.compiler.passes.tool.comment_injection_pass",
-         "jaclang.compiler.passes.tool.normalize_pass",
-         "jaclang.compiler.passes.tool.unparse_pass",
-         "jaclang.compiler.passes.tool.doc_ir",
-         "jaclang.jac0core.passes.transform",
+         "jaclang.compiler.tools.jac_formatter_pass",
+         "jaclang.compiler.tools.jac_auto_lint_pass",
+         "jaclang.compiler.tools.doc_ir_gen_pass",
+         "jaclang.compiler.tools.comment_injection_pass",
+         "jaclang.compiler.tools.normalize_pass",
+         "jaclang.compiler.tools.unparse_pass",
+         "jaclang.compiler.tools.doc_ir",
+         "jaclang.compiler.passes.transform",
 
      );
 

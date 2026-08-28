@@ -1,9 +1,9 @@
 import os;
 import logging;
 import time;
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { JSONResponse }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -66,7 +66,7 @@ def _build_traceql(service: str, status: str, min_duration_ms: int) -> str {
 
 
 async def _tempo_request(path: str, params: dict, accept_json: bool = False) -> dict {
-    import from jaclang.runtimelib.serving.client { ClientConnectionError, arequest }
+    import from jaclang.server.serving.client { ClientConnectionError, arequest }
     base = _tempo_base_url();
     url = base + path;
     headers: dict = {};
@@ -120,7 +120,7 @@ def _flatten_tempo_trace(payload: dict) -> dict {
     max_end: int = 0;
     batches = payload.get("batches", []) or [];
     for batch in batches {
-        resource = batch.get("resource", {}) or {};
+        resource: dict[str, any] = batch.get("resource", {}) or {};
         res_attrs = _otlp_attrs(resource.get("attributes", []));
         service = str(res_attrs.get("service.name", "unknown"));
         scope_spans = batch.get("scopeSpans", []) or [];
@@ -166,6 +166,11 @@ def _flatten_tempo_trace(payload: dict) -> dict {
 
 
 impl JacAPIServerTraces.register_traces_endpoints -> None {
+    server = self.server;
+    if server is None {
+        return;
+    }
+
     async def services_handler(request: Request) -> JSONResponse {
         guard = self.require_admin_json(request.headers.get("Authorization"));
         if guard {
@@ -175,7 +180,7 @@ impl JacAPIServerTraces.register_traces_endpoints -> None {
             content={"ok": True, "data": {"services": _trace_services()}}
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/traces/services",
@@ -271,7 +276,7 @@ impl JacAPIServerTraces.register_traces_endpoints -> None {
             }
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/traces",
@@ -316,7 +321,7 @@ impl JacAPIServerTraces.register_traces_endpoints -> None {
         flat["trace_id"] = norm;
         return JSONResponse(content={"ok": True, "data": flat});
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/traces/{trace_id}",

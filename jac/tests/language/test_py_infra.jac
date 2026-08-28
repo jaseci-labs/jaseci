@@ -17,15 +17,15 @@ import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import from unittest.mock { patch }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution, transform }
-import from jaclang.jac0core.jir { get_jir_cache_dir, get_module_cache_path }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
-import from jaclang.jac0core.helpers { read_file_with_encoding }
-import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+import from jaclang.compiler.driver.jir { get_jir_cache_dir, get_module_cache_path }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
+import from jaclang.compiler.tools.unparse_pass { unparse_module }
+import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+import from jaclang.project.tomlio { read_toml_with_encoding }
 import tomllib;
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures"),
@@ -55,12 +55,11 @@ test "pyfunc 1" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
-    assert "def greet2(**kwargs: Any) -> None {" in output;
+    assert "def greet2(**kwargs: any) -> None {" in output;
     assert output.count("with entry {") == 14;
     assert 'assert (x == 5) , "x should be equal to 5";' in output;
     assert "if not (x == y) {" in output;
@@ -78,8 +77,7 @@ test "pyfunc 2" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -99,8 +97,7 @@ test "pyfunc 3" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -120,8 +117,7 @@ test "pyfunc binop" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -157,8 +153,7 @@ test "py2jac" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -178,8 +173,7 @@ test "py2jac metaclass" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -198,8 +192,7 @@ test "py2jac params" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -221,8 +214,7 @@ test "py2jac empty file" {
         converted_ast = PyastBuildPass(
             ir_in=uni.PythonModuleAst(
                 py_ast.parse(file_source), orig_src=uni.Source(file_source, py_out_path)
-            ),
-            prog=JacProgram()
+            )
         ).ir_out;
     }
     assert isinstance(converted_ast, uni.Module);
@@ -238,8 +230,7 @@ test "py2jac augassign and doc" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -257,8 +248,7 @@ test "py2jac reassign semantics" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -300,8 +290,7 @@ test "py namedexpr" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -318,8 +307,7 @@ test "py bool parentheses" {
                 ir_in=uni.PythonModuleAst(
                     py_ast.parse(file_source),
                     orig_src=uni.Source(file_source, py_out_path)
-                ),
-                prog=JacProgram()
+                )
             ).ir_out
         );
     }
@@ -358,7 +346,7 @@ test "deep imports interp mode" {
     # Delete JIR cache files to force recompilation
     cache_dir = get_jir_cache_dir() / "modules";
     if cache_dir.exists() {
-        for cache_file in cache_dir.`glob("*deep_import*") {
+        for cache_file in cache_dir.rglob("*deep_import*") {
             cache_file.unlink();
         }
     }
@@ -411,10 +399,7 @@ test "deep outer imports from loc" {
     }
     stdout_value = captured.getvalue();
     assert "one level deeperslHello World!" in stdout_value;
-    assert (
-        "module 'jaclang.tests.fixtures.pyfunc' from " in stdout_value
-        or "module 'pyfunc' from " in stdout_value
-    );
+    assert "module 'pyfunc' from " in stdout_value;
 }
 
 test "list methods" {
@@ -445,7 +430,7 @@ test "introspection lists archetypes" {
     # Guards JacIntrospection._list_members_of, which calls inspect.getmembers:
     # runtime.jac must keep `import inspect` (a bare `from inspect import getfile`
     # does not bind the module) or list_walkers/nodes/edges raise NameError.
-    import from jaclang.jac0core.archetype {
+    import from jaclang.runtime.archetype {
         WalkerArchetype,
         NodeArchetype,
         EdgeArchetype
@@ -481,7 +466,7 @@ test "walker dynamic update" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        execution.enter(filename=bar_file_path, entrypoint="bar_walk", args=[]);
+        execution.run(filename=bar_file_path, entry_name="bar_walk", args=[]);
     } finally {
         sys.stdout = old_stdout;
     }

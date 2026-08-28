@@ -41,7 +41,7 @@ glob FORBIDDEN: dict[str, str] = {
      # they are reads of central APIs or of the declaration surface itself,
      # at sites where the declaration IS the fact.
      SANCTIONED: dict[tuple, tuple] = {
-         ("ecmascript/impl/esast_gen_pass.impl.jac", "symbol_utils"): (
+         ("es/impl/esast_gen_pass.impl.jac", "symbol_utils"): (
              6,
              "collect_field_names/symbol_owner_archetype - symbol-FACT "
              "readers over an already-resolved walker symbol. "
@@ -78,7 +78,7 @@ glob FORBIDDEN: dict[str, str] = {
              "StaticAnalysisPass, which is the point - the emit path and "
              "the check path must not disagree about what is bound"
          ),
-         ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): (
+         ("es/impl/esast_gen_pass.impl.jac", ".lookup("): (
              2,
              "declaration-surface reads: (1) cross-module archetype kind "
              "for OSP lowering (#7948) - _arch_kind_by_name resolves an "
@@ -92,7 +92,15 @@ glob FORBIDDEN: dict[str, str] = {
              "stub lookup is deleted (#7760): signatures come from the "
              "recorded InteropBinding"
          ),
-         ("ecmascript/impl/esast_gen_pass.impl.jac", "type_tag.tag"): (
+         ("native/foreign.jac", "type_tag.tag"): (
+             4,
+             "declared-annotation name reads for the foreign (clib) ABI "
+             "surface: declared_type_name over field and param annotations "
+             "where the declaration IS the wire fact. Formerly outside this "
+             "audit at compiler/targets/; absorbed into backends/native by "
+             "the #8681 reorg with its consumption unchanged"
+         ),
+         ("es/impl/esast_gen_pass.impl.jac", "type_tag.tag"): (
              9,
              "declaration-surface name reads: param/field type-name maps "
              "for interop payloads, Ref[...] head detection, and the W6005 "
@@ -100,7 +108,7 @@ glob FORBIDDEN: dict[str, str] = {
              "annotation is the consumed fact, not a resolved type"
          ),
          ("native/na_ir_gen/generics.impl.jac", "type_tag.tag"): (
-             3,
+             5,
              "generic-template declared-annotation reads where the "
              "declaration IS the fact: (1) the _solve_generic_call fallback "
              "(a bundled/imported template compiled symtab_ir_only has no "
@@ -111,6 +119,16 @@ glob FORBIDDEN: dict[str, str] = {
              "binding's concrete Callable annotation to derive the "
              "monomorphization solution - the template is uninstantiated, "
              "so the declared annotations are the only TypeVar surface"
+         ),
+         ("native/na_ir_gen/generics.impl.jac", "type_evaluator"): (
+             1,
+             "_ct_eval reads the program's CtEvaluator, the central "
+             "compile-time evaluation service, to evaluate expressions that "
+             "depend on a comptime parameter under one instantiation's "
+             "bindings. The bindings exist only while that instantiation "
+             "is being stamped, so no earlier pass can precompute them; "
+             "every binding-free comptime value is consumed from the "
+             "stamped Expr.ct_value"
          ),
          ("native/na_ir_gen/calls.impl.jac", "symbol_utils"): (
              2,
@@ -129,7 +147,7 @@ glob FORBIDDEN: dict[str, str] = {
              "The is_builtin_region_name read (#7491) is gone from here and "
              "from stmt.impl.jac, whose entry left this table entirely: the "
              "predicate is pure unitree syntax that was marooned in "
-             "symbol_utils, whose own imports reach jac0core/compiler.jac, so "
+             "symbol_utils, whose own imports reach compiler/driver/compiler.jac, so "
              "sealing wave 3 hoisted it to the leaf expr_keys.jac. The "
              "backend stopped reaching into the analysis module for it rather "
              "than merely renaming the reach"
@@ -148,12 +166,22 @@ glob FORBIDDEN: dict[str, str] = {
              "declared annotation the adjacent _resolve_jac_type consumes"
          ),
          ("native/na_ir_gen/calls.impl.jac", "type_tag.tag"): (
-             1,
+             2,
              "declaration-surface read of foreign extern signatures: the "
              "clib membrane needs the DECLARED str params/returns of a "
              "foreign call to route them through the JacStr wrap/unwrap "
              "shims (#7870 strings step 2) - the C membrane always "
-             "trafficks NUL-terminated char*"
+             "trafficks NUL-terminated char*. Plus the mono isinstance "
+             "substitution: inside a stamped monomorph body a type[X] "
+             "parameter names its concrete mangle through its own declared "
+             "tag - the declaration is the binding surface"
+         ),
+         ("native/na_ir_gen/types.impl.jac", "type_tag.tag"): (
+             2,
+             "declared-annotation resolution for has/param vars: "
+             "_resolve_jac_type maps the declared tag to its IR type - the "
+             "annotation is the input to layout resolution, not a re-run "
+             "of analysis"
          ),
          ("native/na_ir_gen/func.impl.jac", "type_tag.tag"): (
              4,
@@ -195,10 +223,10 @@ glob FORBIDDEN: dict[str, str] = {
 
 """Count matching lines per (file, pattern) across both backends."""
 def scan_backends -> dict {
-    passes_root = Path(jaclang.__file__).parent / "compiler" / "passes";
+    passes_root = Path(jaclang.__file__).parent / "compiler" / "backends";
     compiled = {name: re.compile(pat) for (name, pat) in FORBIDDEN.items()};
     counts: dict = {};
-    for backend in ("ecmascript", "native") {
+    for backend in ("es", "native") {
         for src in sorted((passes_root / backend).rglob("*.jac")) {
             if not src.is_file() {
                 continue;

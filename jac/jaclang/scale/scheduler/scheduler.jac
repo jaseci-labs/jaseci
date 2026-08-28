@@ -2,6 +2,7 @@ import json;
 import logging;
 import datetime;
 import from uuid { uuid4 }
+import from jaclang.comptime { fields, get_field }
 import from jaclang.scale._optdeps.apscheduler {
     BackgroundScheduler,
     CronTrigger,
@@ -9,7 +10,7 @@ import from jaclang.scale._optdeps.apscheduler {
     HAS_APSCHEDULER
 }
 import from jaclang.scale.config.config_loader { get_scale_config }
-import from jaclang.runtimelib.scheduler { Scheduler, ScheduleTrigger }
+import from jaclang.server.task_scheduler { Scheduler, ScheduleTrigger }
 import from jaclang.scale.persistence.pg { open_docs_store }
 
 glob _jaclang_scale_scheduler: (JacScaleScheduler | None) = None,
@@ -50,7 +51,7 @@ obj PgJobStore(JobStore) {
 }
 
 obj MemoryJobStore(JobStore) {
-    has _jobs: dict[str, dict] | None = None;
+    has _jobs: dict[str, dict] postinit;
 
     def postinit -> None;
     def insert(job: dict) -> str;
@@ -90,7 +91,7 @@ obj JacScaleScheduler {
         _system_user_id: str = '__system__',
         _store: JobStore | None = None,
         _server: any | None = None,
-        _user_exists_cache: dict[str, float] | None = None,
+        _user_exists_cache: dict[str, float] postinit,
         _user_exists_ttl: float = 30.0;
 
     def postinit -> None;

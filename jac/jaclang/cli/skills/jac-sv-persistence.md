@@ -60,7 +60,38 @@ todo = root ++> Todo(title=t);             # untyped edge; returns the connected
 user +>:Wrote(at="..."):+> existing_post;  # attach an existing node
 ```
 
-Edge-type filter / creation / deletion syntax: see `jac-node-edge-patterns`.
+**Ask the store, not the process.** A predicate, an ordering term and a bound inside the reference all compile into one SQL statement, so the query answers the question instead of the neighbourhood being loaded and filtered in Python:
+
+```
+[u ->:Wrote:-> [?:Post, published, -at]][:20]   # WHERE + ORDER BY + LIMIT, one query
+len([u ->:Wrote:-> [?:Post]])                   # a COUNT; deserializes nothing
+if [u ->:Wrote:-> [?:Post, published]] { ... }  # stops at the first row
+```
+
+The cost only lands in the query when the traversal is read on the spot. Bind it to a name first and it materialises there, because a reference holds the graph as of the line it was written on.
+
+**Promote the fields you filter and order by.** Field predicates and orderings read a jsonb path, which is a scan unless the field has an index. Declare them and the compiler names the promoted column instead:
+
+```toml
+[scale.database]
+indexes = { Post = ["at", "published"], Msg = ["at", "seq"] }
+```
+
+Without this a `[?:Post, -at]` still returns the right rows -- correctness never depends on the declaration -- it just sorts the whole set to do it.
+
+**Sharing: name a group, not every grantee.** `allow_root(obj, root_id)` writes one entry per grantee into the object's own permission map, so sharing with an audience of N costs N entries on that object -- re-serialised on every write to it. `allow_group(obj, group_id, level)` is one entry, and membership is an edge:
+
+```
+node Team { has name: str; }
+edge MemberOf {}
+
+user +>:MemberOf():+> team;                  # joining costs one edge
+allow_group(doc, jid(team), AccessLevel.READ);   # sharing costs one entry
+```
+
+Both forms compose -- an existing per-root grant still applies, and a group grant only raises the level. The permission test compiles into the query for the standard model (owner, granted-to-all, granted-to-you, granted-to-your-group), so a gated read costs the rows you may see rather than every candidate. An archetype that overrides `__jac_access__` decides access with arbitrary Jac, which has no SQL form: those keep the object-space filter, correctly but at full cost.
+
+Edge-type filter / creation / deletion syntax, and the ordering-term rules: see `jac-node-edge-patterns`.
 
 ## View models: report views, not raw nodes
 
@@ -121,7 +152,7 @@ impl Person.__jac_schema__ -> None {
 }
 ```
 
-`schema_was`, `schema_alias`, `schema_drop`, `schema_upgrade` are ambient builtins, only callable inside `__jac_schema__`. Rules are shape-matched (no version numbers), idempotent, validated at startup, and run identically on SQLite and Mongo. `JAC_SCHEMA_REPAIR=repair|detect|off` is the kill switch (default `repair`).
+`schema_was`, `schema_alias`, `schema_drop`, `schema_upgrade` are ambient builtins, only callable inside `__jac_schema__`. Rules are shape-matched (no version numbers), idempotent, validated at startup, and run identically against the embedded Postgres locally and a managed Postgres at scale. `JAC_SCHEMA_REPAIR=repair|detect|off` is the kill switch (default `repair`).
 
 Operator workflow when rows do quarantine:
 

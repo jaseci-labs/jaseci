@@ -27,6 +27,11 @@ glob FIXTURE_BASE = str(Path(__file__).parent / "fixtures"),
      PROD_TOML = "[serve]\nport = 80\n\n[client]\nminify = true\n\n[byllm]\ndefault_model = \"gpt-4\"\n",
      LOCAL_TOML = "[serve]\nport = 9000\n\n[run]\ncache = false\n";
 
+"""Identity helper: routes duck-typed values past the checker."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
 """Create a temporary project directory with jac.toml."""
 def make_temp_project(temp_dir: Path) -> Path {
     project_dir = temp_dir / "test_project";
@@ -111,8 +116,8 @@ test "interpolate multiple env vars" {
 
 test "interpolate non string passthrough" {
     config_mod._config = None;
-    assert interpolate_env_vars(123) == 123;
-    assert interpolate_env_vars(None) is None;
+    assert interpolate_env_vars(_as_any(123)) == 123;
+    assert interpolate_env_vars(_as_any(None)) is None;
 }
 
 # ===========================================================================
@@ -199,7 +204,9 @@ test "get_config_for_path is cwd-independent (file-anchored)" {
             config_mod._config_by_root = {};
             cfg = get_config_for_path(main_jac);
             assert cfg is not None;
-            assert cfg.project_root.resolve() == temp_project.resolve();
+            proj_root = cfg.project_root;
+            assert proj_root is not None;
+            assert proj_root.resolve() == temp_project.resolve();
         } finally {
             os.chdir(original_cwd);
         }
@@ -225,7 +232,9 @@ test "get_config_for_path uses nearest jac.toml, never merges ancestors" {
         child_file.write_text(MAIN_JAC_CONTENT);
         cfg = get_config_for_path(child_file);
         assert cfg is not None;
-        assert cfg.project_root.resolve() == child.resolve();
+        proj_root = cfg.project_root;
+        assert proj_root is not None;
+        assert proj_root.resolve() == child.resolve();
         # Absent [check.lint] in child => built-in default, NOT parent's ["all"].
         assert cfg.check.lint.select == ["default"];
     }
@@ -470,7 +479,7 @@ test "parse build native_closure_cap" {
     assert cfg.build.native_closure_cap == 8;
 
     config_mod._config = None;
-    base = JacConfig.from_toml_str("\n[build]\ntypecheck = true\n");
+    base = JacConfig.from_toml_str("\n[build]\ndir = \".jac\"\n");
     assert base.build.native_closure_cap == 256;
 
     config_mod._config = None;
@@ -479,7 +488,7 @@ test "parse build native_closure_cap" {
 }
 
 test "closure cap override resolves through effective_native_closure_cap" {
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.frontend.codeinfo {
         set_native_closure_cap,
         effective_native_closure_cap
     }
@@ -494,7 +503,7 @@ test "closure cap override resolves through effective_native_closure_cap" {
 
 test "parse full config" {
     config_mod._config = None;
-    toml_str = "\n[project]\nname = \"full-project\"\nversion = \"1.2.3\"\ndescription = \"A full project\"\nauthors = [\"Jane Doe <jane@example.com>\"]\nlicense = \"MIT\"\nentry-point = \"app.jac\"\n\n[dependencies]\nnumpy = \">=1.24.0\"\npandas = \">=2.0.0\"\n\n[run]\nsession = \"my_session\"\nmain = false\ncache = false\n\n[build]\ntypecheck = true\n\n[test]\ndirectory = \"tests\"\nverbose = true\nfail_fast = true\nmax_failures = 5\n\n[serve]\nport = 9000\n\n[cache]\nenabled = false\ndir = \".cache\"\n\n[scripts]\nstart = \"jac run app.jac\"\nlint = \"jac lint . --fix\"\n\n[byllm]\ndefault_model = \"gpt-4\"\ntemperature = 0.7\n\n[environments.development]\n[environments.development.serve]\nport = 3000\n\n[environments.production]\n[environments.production.serve]\nport = 8000\n";
+    toml_str = "\n[project]\nname = \"full-project\"\nversion = \"1.2.3\"\ndescription = \"A full project\"\nauthors = [\"Jane Doe <jane@example.com>\"]\nlicense = \"MIT\"\nentry-point = \"app.jac\"\n\n[dependencies]\nnumpy = \">=1.24.0\"\npandas = \">=2.0.0\"\n\n[run]\nsession = \"my_session\"\nmain = false\ncache = false\n\n[build]\ndir = \".jac\"\n\n[test]\ndirectory = \"tests\"\nverbose = true\nfail_fast = true\nmax_failures = 5\n\n[serve]\nport = 9000\n\n[cache]\nenabled = false\ndir = \".cache\"\n\n[scripts]\nstart = \"jac run app.jac\"\nlint = \"jac lint . --fix\"\n\n[byllm]\ndefault_model = \"gpt-4\"\ntemperature = 0.7\n\n[environments.development]\n[environments.development.serve]\nport = 3000\n\n[environments.production]\n[environments.production.serve]\nport = 8000\n";
     cfg = JacConfig.from_toml_str(toml_str);
 
     # Project
@@ -514,7 +523,7 @@ test "parse full config" {
     assert cfg.run.cache is False;
 
     # Build config
-    assert cfg.build.typecheck is True;
+    assert cfg.build.dir == ".jac";
 
     # Test config
     assert cfg.`test.directory == "tests";
@@ -806,7 +815,9 @@ test "get config with start path" {
             cfg = get_config(start_path=project1, force_discover=True);
             assert cfg is not None , "Should discover config from project1";
             assert cfg.project.name == "project-one";
-            assert cfg.project_root.resolve() == project1.resolve();
+            proj_root = cfg.project_root;
+            assert proj_root is not None;
+            assert proj_root.resolve() == project1.resolve();
 
             # 2. start_path finds jac.toml in parent directories
             cfg = get_config(start_path=nested_dir, force_discover=True);
@@ -820,6 +831,7 @@ test "get config with start path" {
 
             # 4. Without force_discover, returns cached config
             cfg_cached = get_config(start_path=project1);
+            assert cfg_cached is not None;
             assert cfg_cached.project.name == "project-two" , "Should return cached config";
 
             # 5. Returns None when no jac.toml exists
@@ -829,6 +841,7 @@ test "get config with start path" {
             # 6. start_path overrides cwd
             os.chdir(project1);
             cfg = get_config(start_path=project2, force_discover=True);
+            assert cfg is not None;
             assert cfg.project.name == "project-two" , "start_path should override cwd";
         } finally {
             os.chdir(original_cwd);
@@ -844,8 +857,10 @@ test "load initializes config files" {
     with TemporaryDirectory() as tmpdir {
         temp_project = make_temp_project(Path(tmpdir));
         cfg = JacConfig.load(temp_project / "jac.toml");
-        assert len(cfg.config_files) == 1;
-        assert cfg.config_files[0] == temp_project / "jac.toml";
+        files = cfg.config_files;
+        assert files is not None;
+        assert len(files) == 1;
+        assert files[0] == temp_project / "jac.toml";
     }
 }
 
@@ -855,7 +870,9 @@ test "discover initializes config files" {
         temp_project = make_temp_project(Path(tmpdir));
         cfg = JacConfig.discover(temp_project);
         assert cfg is not None;
-        assert len(cfg.config_files) == 1;
+        files = cfg.config_files;
+        assert files is not None;
+        assert len(files) == 1;
     }
 }
 
@@ -1094,12 +1111,16 @@ test "merge tracks config file" {
     with TemporaryDirectory() as tmpdir {
         temp_project = make_temp_project(Path(tmpdir));
         cfg = JacConfig.load(temp_project / "jac.toml");
-        assert len(cfg.config_files) == 1;
+        files = cfg.config_files;
+        assert files is not None;
+        assert len(files) == 1;
         overlay = temp_project / "overlay.toml";
         overlay.write_text("[run]\ncache = false\n");
         cfg.merge_from_toml_file(overlay);
-        assert len(cfg.config_files) == 2;
-        assert overlay in cfg.config_files;
+        files = cfg.config_files;
+        assert files is not None;
+        assert len(files) == 2;
+        assert overlay in files;
     }
 }
 
@@ -1112,7 +1133,9 @@ test "merge no duplicate tracking" {
         overlay.write_text("[run]\ncache = false\n");
         cfg.merge_from_toml_file(overlay);
         cfg.merge_from_toml_file(overlay);
-        assert cfg.config_files.count(overlay) == 1;
+        files = cfg.config_files;
+        assert files is not None;
+        assert files.count(overlay) == 1;
     }
 }
 
@@ -1136,10 +1159,14 @@ test "merge nonexistent file" {
         temp_project = make_temp_project(Path(tmpdir));
         cfg = JacConfig.load(temp_project / "jac.toml");
         original_port = cfg.serve.port;
-        original_files = len(cfg.config_files);
+        files = cfg.config_files;
+        assert files is not None;
+        original_files = len(files);
         cfg.merge_from_toml_file(temp_project / "nonexistent.toml");
         assert cfg.serve.port == original_port;
-        assert len(cfg.config_files) == original_files;
+        files = cfg.config_files;
+        assert files is not None;
+        assert len(files) == original_files;
     }
 }
 
@@ -1221,10 +1248,10 @@ test "profile merges file and infile" {
             "[project]\nname = \"test-project\"\n\n[serve]\nport = 8000\n\n[environments.prod]\n[environments.prod.serve]\nport = 443\n"
         );
         prod_toml = temp_project / "jac.prod.toml";
-        prod_toml.write_text("[build]\ntypecheck = true\n");
+        prod_toml.write_text("[build]\ndir = \"prod-out\"\n");
         cfg = JacConfig.load(jac_toml);
         cfg.apply_profile_overlay("prod");
-        assert cfg.build.typecheck is True;
+        assert cfg.build.dir == "prod-out";
         assert cfg.serve.port == 443;
         assert cfg.active_profile == "prod";
     }
@@ -1293,10 +1320,12 @@ test "overlay tracks all config files" {
         local_toml.write_text("[run]\ncache = false\n");
         cfg = JacConfig.load(jac_toml);
         cfg.apply_profile_overlay("prod");
-        assert len(cfg.config_files) == 3;
-        assert cfg.config_files[0] == jac_toml;
-        assert cfg.config_files[1] == prod_toml;
-        assert cfg.config_files[2] == local_toml;
+        files = cfg.config_files;
+        assert files is not None;
+        assert len(files) == 3;
+        assert files[0] == jac_toml;
+        assert files[1] == prod_toml;
+        assert files[2] == local_toml;
     }
 }
 
@@ -1369,11 +1398,11 @@ test "merge plugins deep nested" {
 test "apply profile build section" {
     config_mod._config = None;
     cfg = JacConfig.from_toml_str(
-        "[project]\nname = \"test\"\n\n[build]\ntypecheck = false\n\n[environments.prod]\n[environments.prod.build]\ntypecheck = true\n"
+        "[project]\nname = \"test\"\n\n[build]\ndir = \"base-out\"\n\n[environments.prod]\n[environments.prod.build]\ndir = \"prod-out\"\n"
     );
-    assert cfg.build.typecheck is False;
+    assert cfg.build.dir == "base-out";
     cfg.apply_profile("prod");
-    assert cfg.build.typecheck is True;
+    assert cfg.build.dir == "prod-out";
 }
 
 test "apply profile format section" {
@@ -1435,12 +1464,12 @@ test "apply profile project kebab case" {
 test "apply profile dependencies and scripts" {
     config_mod._config = None;
     cfg = JacConfig.from_toml_str(
-        "[project]\nname = \"test\"\n\n[dependencies]\nrequests = \">=2.0\"\n\n[scripts]\ntest = \"jac test\"\n\n[environments.prod]\n[environments.prod.dependencies]\ngunicorn = \">=21.0\"\n\n[environments.prod.scripts]\nstart = \"jac start --port 80\"\n"
+        "[project]\nname = \"test\"\n\n[dependencies]\nrequests = \">=2.0\"\n\n[scripts]\ntest = \"jac test\"\n\n[environments.prod]\n[environments.prod.dependencies]\ngunicorn = \">=21.0\"\n\n[environments.prod.scripts]\nstart = \"jac run --port 80\"\n"
     );
     cfg.apply_profile("prod");
     assert cfg.dependencies.get("gunicorn") == ">=21.0";
     assert cfg.dependencies.get("requests") == ">=2.0";
-    assert cfg.scripts.get("start") == "jac start --port 80";
+    assert cfg.scripts.get("start") == "jac run --port 80";
     assert cfg.scripts.get("test") == "jac test";
 }
 
@@ -1579,7 +1608,9 @@ test "load base only" {
         assert cfg.serve.base_route_app == "app";
         assert cfg.serve.port == 8090;
         assert cfg.active_profile == "";
-        assert len(cfg.config_files) == 1;
+        files = cfg.config_files;
+        assert files is not None;
+        assert len(files) == 1;
     }
 }
 
@@ -1642,10 +1673,12 @@ test "config files tracked in order" {
         write_multi_profile(temp_project);
         cfg = JacConfig.discover(temp_project, profile="prod");
         assert cfg is not None;
-        assert len(cfg.config_files) == 3;
-        assert cfg.config_files[0].name == "jac.toml";
-        assert cfg.config_files[1].name == "jac.prod.toml";
-        assert cfg.config_files[2].name == "jac.local.toml";
+        files = cfg.config_files;
+        assert files is not None;
+        assert len(files) == 3;
+        assert files[0].name == "jac.toml";
+        assert files[1].name == "jac.prod.toml";
+        assert files[2].name == "jac.local.toml";
     }
 }
 

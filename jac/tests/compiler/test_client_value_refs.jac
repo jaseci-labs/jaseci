@@ -15,9 +15,9 @@ unbound identifier.
 
 import os;
 import from tests.support { JAC_ROOT }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURE_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "codespace"
@@ -42,10 +42,7 @@ def build_fixture(rel: str) -> tuple[JacProgram, uni.Module] {
 """Compile a codespace fixture for analysis only (the `jac check` path)."""
 def check_fixture(rel: str) -> JacProgram {
     prog = JacProgram();
-    prog.compile(
-        os.path.join(FIXTURE_DIR, rel),
-        options=CompileOptions(no_cgen=True, type_check=True)
-    );
+    prog.compile(os.path.join(FIXTURE_DIR, rel), options=CompileOptions(no_cgen=True));
     return prog;
 }
 

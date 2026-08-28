@@ -1,4 +1,4 @@
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.config.config_loader {
     get_scale_config,
@@ -908,6 +908,7 @@ obj ManifestBuilder {
             },
             "spec": {
                 "replicas": replicas,
+                "revisionHistoryLimit": self.k8s_config.revision_history_limit,
                 "strategy": {
                     "type": "RollingUpdate",
                     "rollingUpdate": {"maxSurge": 1, "maxUnavailable": 0}
@@ -1294,7 +1295,7 @@ obj ManifestBuilder {
                 '  if [ -z "$SV_FILE" ]; then '
                 '    SV_FILE="$(find . -name "${JAC_SV_NAME}.jac" -not -path "*/.*" -print 2>/dev/null | head -n1)"; '
                 '  fi; '
-                '  exec jac start "${SV_FILE:-${JAC_SV_NAME}.jac}"; '
+                '  exec jac run --serve "${SV_FILE:-${JAC_SV_NAME}.jac}"; '
                 "fi"
             ]
         };

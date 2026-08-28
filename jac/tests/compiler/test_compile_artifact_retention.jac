@@ -10,7 +10,7 @@ Three of them had no owner and no lifecycle:
     import pinned a second module for the process lifetime -- and, because
     the hub probe used an un-normalized path, a private parsed copy rather
     than the hub's.
-  - `JacProgram._na_dep_units` memoized dependency units compiled purely to
+  - `JacProgram.scratch.na_dep_units` memoized dependency units compiled purely to
     read a demotion verdict. The verdict is a set of names; the unit is a
     module tree plus a live LLVM `ModuleRef`. Nothing ever released one.
   - The `TypeEvaluator` flow-narrowing caches are keyed by `id()` and were
@@ -33,9 +33,9 @@ seam that releases it.
 import gc;
 import os;
 import tempfile;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.program { JacProgram }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
 
 """Write a throwaway project and answer its directory."""
 def write_mods(mods: dict[(str, str)]) -> str {
@@ -222,7 +222,9 @@ test "a hub lookup finds the module however the path is spelled" {
 }
 
 test "a verdict query's dep units do not outlive the compile that asked" {
-    import from jaclang.compiler.passes.native.na_compile_pass { native_unit_demotions }
+    import from jaclang.compiler.backends.native.na_compile_pass {
+        native_unit_demotions
+    }
     tmp = write_mods(
         {
             "jac.toml": "[project]\nname = \"retention_na\"\n",
@@ -246,7 +248,7 @@ test "a verdict query's dep units do not outlive the compile that asked" {
     assert verdict == {"bad_fmt"} , (
         f"the fixture must produce a real demotion verdict, got {verdict!r}"
     );
-    assert prog._na_dep_units , (
+    assert prog.scratch.na_dep_units , (
         "the verdict resolver is expected to memoize the unit it compiled; "
         "without that this test measures nothing"
     );
@@ -260,7 +262,7 @@ test "a verdict query's dep units do not outlive the compile that asked" {
         )
     );
     stranded: list[str] = [];
-    for (path, unit) in prog._na_dep_units.items() {
+    for (path, unit) in prog.scratch.na_dep_units.items() {
         if isinstance(unit, str) {
             continue;
         }
@@ -291,7 +293,9 @@ can trip the verdict blast guard. Releasing has to evict the entry, so the
 next query recompiles instead of reading a hollowed one.
 """
 test "a released dep unit still answers its real verdict" {
-    import from jaclang.compiler.passes.native.na_compile_pass { native_unit_demotions }
+    import from jaclang.compiler.backends.native.na_compile_pass {
+        native_unit_demotions
+    }
     tmp = write_mods(
         {
             "jac.toml": "[project]\nname = \"retention_na2\"\n",
@@ -309,6 +313,7 @@ test "a released dep unit still answers its real verdict" {
     opts = CompileOptions(aot_mode=True, no_ir_cache=True);
     prog = JacProgram();
     first = native_unit_demotions(prog, leaf, opts);
+    assert first is not None;
     assert first == {"bad_fmt"} , f"fixture verdict changed: {first!r}";
     prog.release_native_dep_units();
     second = native_unit_demotions(prog, leaf, opts);
@@ -318,8 +323,8 @@ test "a released dep unit still answers its real verdict" {
         "A stripped hub entry answers 'no IR', which the resolver reads as "
         "'demote everything'; the release must evict the entry, not hollow it"
     );
-    assert prog._na_verdict_misses == 0 , (
-        f"{prog._na_verdict_misses} fail-closed verdict misses after a "
+    assert prog.scratch.na_verdict_misses == 0 , (
+        f"{prog.scratch.na_verdict_misses} fail-closed verdict misses after a "
         "release; the second query took the no-IR path instead of recompiling"
     );
 }
@@ -360,7 +365,7 @@ test "the flow-narrowing caches do not survive the compile" {
         }
     );
     prog = JacProgram();
-    prog.compile(os.path.join(tmp, "main.jac"), type_check=True);
+    prog.compile(os.path.join(tmp, "main.jac"));
     ev = prog.type_evaluator;
     if ev is None {
         testskip("no type evaluator: this runtime has no typeshed stubs");
@@ -404,7 +409,7 @@ test "clear_type_system actually releases expression types" {
         }
     );
     prog = JacProgram();
-    prog.compile(os.path.join(tmp, "one.jac"), type_check=True);
+    prog.compile(os.path.join(tmp, "one.jac"));
     if prog.type_evaluator is None {
         testskip("no type evaluator: this runtime has no typeshed stubs");
     }
@@ -444,9 +449,7 @@ test "a code-intel compile keeps the types its callers read" {
         }
     );
     prog = JacProgram();
-    mod = prog.compile(
-        os.path.join(tmp, "hoverable.jac"), type_check=True, no_cgen=True
-    );
+    mod = prog.compile(os.path.join(tmp, "hoverable.jac"), no_cgen=True);
     if prog.type_evaluator is None {
         testskip("no type evaluator: this runtime has no typeshed stubs");
     }

@@ -3,7 +3,7 @@ import tempfile;
 import from pathlib { Path }
 import from jaclang.scale.injector.bundle { pack_jab, content_address }
 import from jaclang.scale.injector.binary { pack_binary_bytes }
-import from jaclang.jac0core.jir {
+import from jaclang.compiler.driver.jir {
     FLAG_PRECOMPILED,
     compiler_source_digest,
     compiler_source_files,
@@ -47,23 +47,22 @@ def _stage_compiler_tree(where: str, codegen_body: str) -> str {
     pkg = Path(where, "jaclang");
     for rel in [
         "jac0.py",
-        "jac0core/jir.jac",
-        "jac0core/passes/jcir_gen_pass.jac",
-        "compiler/native_materialize.jac",
-        "compiler/passes/native/llvm/libjacllvm.so",
-        "utils/precompile_bytecode.jac",
-        "runtimelib/machine.jac",
+        "compiler/driver/jir.jac",
+        "compiler/backends/py/jcir_gen_pass.jac",
+        "compiler/backends/native/llvm/libjacllvm.so",
+        "dist/precompile_bytecode.jac",
+        "server/machine.jac",
         "compiler/__pycache__/stale.py",
         "compiler/.jac/cache/hidden.jac",
         "compiler/tests/test_lowering.jac",
         "compiler/tests/fixtures/corpus.jac",
-        "jac0core/passes/jcir_gen_pass.test.jac"
+        "compiler/backends/py/jcir_gen_pass.test.jac"
     ] {
         f = pkg / rel;
         f.parent.mkdir(parents=True, exist_ok=True);
         f.write_text(f"stub for {rel}\n");
     }
-    (pkg / "jac0core/passes/jcir_gen_pass.jac").write_text(codegen_body);
+    (pkg / "compiler/backends/py/jcir_gen_pass.jac").write_text(codegen_body);
     return str(pkg);
 }
 
@@ -97,14 +96,13 @@ test "the compiler digest ignores build artifacts and non-compiler modules" {
         a = _stage_compiler_tree(os.path.join(tmp, "base"), "emit(1);\n");
         base = compiler_source_digest(a);
         for (rel, text) in [
-            ("compiler/native_materialize.jac", "generated at seal time\n"),
-            ("compiler/passes/native/llvm/libjacllvm.so", "relinked shim\n"),
-            ("runtimelib/machine.jac", "runtime edit\n"),
+            ("compiler/backends/native/llvm/libjacllvm.so", "relinked shim\n"),
+            ("server/machine.jac", "runtime edit\n"),
             ("compiler/__pycache__/stale.py", "byte cache\n"),
             ("compiler/.jac/cache/hidden.jac", "cache droppings\n"),
             ("compiler/tests/test_lowering.jac", "new compiler test\n"),
             ("compiler/tests/fixtures/corpus.jac", "new fixture\n"),
-            ("jac0core/passes/jcir_gen_pass.test.jac", "new annex test\n")
+            ("compiler/backends/py/jcir_gen_pass.test.jac", "new annex test\n")
         ] {
             Path(a, rel).write_text(text);
             assert compiler_source_digest(a) == base , f"{rel} must not participate in the compiler digest";
@@ -158,19 +156,18 @@ test "the running compiler digest covers the real compiler tree" {
     rels = compiler_source_files(pkg);
     for expected in [
         "jac0.py",
-        "jac0core/jir.jac",
-        "jac0core/unitree.jac",
-        "jac0core/passes/jcir_gen_pass.jac",
-        "jac0core/passes/impl/jcir_gen_pass.impl.jac",
-        "compiler/passes/main/type_checker_pass.jac",
-        "utils/precompile_bytecode.jac"
+        "compiler/driver/jir.jac",
+        "compiler/frontend/unitree.jac",
+        "compiler/backends/py/jcir_gen_pass.jac",
+        "compiler/backends/py/impl/jcir_gen_pass.impl.jac",
+        "compiler/passes/type_checker_pass.jac",
+        "dist/precompile_bytecode.jac"
     ] {
         assert expected in rels , f"{expected} is outside the compiler digest";
     }
     assert len(rels) > 250;
     assert len(rels) == len(set(rels));
     assert rels == sorted(rels);
-    assert "compiler/native_materialize.jac" not in rels;
     for rel in rels {
         assert "/tests/" not in rel and not rel.startswith("tests/") , f"{rel} is test material and must not gate the seed";
         assert rel.endswith(".jac") or rel.endswith(".py");
@@ -181,7 +178,7 @@ test "the running compiler digest covers the real compiler tree" {
 
 
 test "the per-module JIR cache key stays compiler-agnostic" {
-    import jaclang.jac0core.jir as jir;
+    import jaclang.compiler.driver.jir as jir;
     with tempfile.TemporaryDirectory() as tmp {
         src = os.path.join(tmp, "probe.jac");
         Path(src).write_text("with entry { print(1); }\n");

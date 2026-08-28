@@ -5,7 +5,7 @@ import threading;
 import time;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.runtimelib.scheduler { Scheduler, ScheduleSpec, ScheduledTask }
+import from jaclang.server.task_scheduler { Scheduler, ScheduleSpec, ScheduledTask }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -173,7 +173,7 @@ test "compute next run and schedule decorator" {
 }
 
 test "fixture loading registration and api exclusion" {
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
     (module, ) = Jac.jac_import("scheduled_tasks", FIXTURES);
 
     # All scheduled items have schedule_spec

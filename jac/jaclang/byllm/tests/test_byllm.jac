@@ -28,6 +28,11 @@ import from jaclang { JacRuntimeInterface as Jac }
 glob jac_import = Jac.jac_import,
      FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures");
 
+"""Identity cast that keeps duck-typed test payloads out of nominal checks."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
 test "llm mail summerize" {
     captured_output = io.StringIO();
     sys.stdout = captured_output;
@@ -443,8 +448,8 @@ test "visit by for routing" {
 
 test "streaming visit by routes and streams tokens to handler" {
     # `visit [-->] by model(stream=True, stream_handler=fn)` streams the routing
-    # decision token-by-token to the handler (the jac ai --ui firehose path)
-    # while the structured choice still selects the successor edge.
+    # decision token-by-token to the handler (the path a live token feed
+    # consumes) while the structured choice still selects the successor edge.
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     jac_import("streaming_visit_by", base_path=FIXTURE_DIR + "/");
@@ -604,8 +609,9 @@ test "api key empty when none provided" {
 
 test "api key not overwritten on dispatch" {
     model = Model(model_name="gpt-4o-mini", api_key="sk-test-key");
+    _no_mt: any = None;
     with contextlib.suppress(Exception) {
-        model(temperature=0.5).invoke(None);
+        model(temperature=0.5).invoke(_no_mt);
     }
     assert model.api_key == "sk-test-key";
 }
@@ -683,7 +689,7 @@ test "resolved api_base reaches the litellm call" {
             "usage": {}
         };
     }
-    def _dispatched_api_base(model: Model) -> object {
+    def _dispatched_api_base(model: Model) -> any {
         with unittest.mock.patch.object(
             _byllm_llm_mod.litellm, "completion", _fake_completion
         ) {
@@ -762,7 +768,7 @@ test "builtin llm compiles without glob" {
 
 import from pathlib { Path }
 import from jaclang.byllm.config_loader { get_byllm_config, reset_byllm_config }
-import from jaclang.jac0core.runtime { JacRuntime }
+import from jaclang.runtime.runtime { JacRuntime }
 
 glob GEMINI_FIXTURE = os.path.join(FIXTURE_DIR, "jac_toml_gemini");
 
@@ -1111,7 +1117,7 @@ def _finish_env(arguments: str) -> tuple {
 }
 
 
-def _dispatch_finish_call(arguments: str) -> object {
+def _dispatch_finish_call(arguments: str) -> any {
     (model, mt_run, fake_response) = _finish_env(arguments);
     with unittest.mock.patch.object(
         model, "model_call_no_stream", return_value=fake_response
@@ -1144,7 +1150,7 @@ test "async dispatch heals a misnamed finish argument" {
         '{"output": {"name": "Eli", "age": 44}}'
     );
 
-    async def _fake_async_call(params: dict) -> object {
+    async def _fake_async_call(params: dict) -> any {
         return fake_response;
     }
 
@@ -1690,6 +1696,210 @@ test "prompt caching disabled via config" {
     }
 }
 
+"""Tool-call deltas are read by dict subscript; content deltas by attribute."""
+def _tc_chunk(delta: dict, finish: str | None = None) -> dict {
+    return {
+        "id": "c1",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "m",
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]
+    };
+}
+
+def _text_chunks(text: str) -> list {
+    return [
+        types.SimpleNamespace(
+            usage=None,
+            choices=[
+                types.SimpleNamespace(delta=types.SimpleNamespace(content=w + " "))
+            ]
+        ) for w in text.split(" ")
+    ];
+}
+
+def _mk_run(tools: list) -> MTRuntime {
+    return MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are an agent."),
+            Message(role=MessageRole.USER, content="Do the thing.")
+        ],
+        resp_type=str,
+        stream=True,
+        tools=[*tools, Tool.make_finish_tool(str)],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+}
+
+# Regression guard for jac#8381: tools serialize ahead of messages in Anthropic's
+# wire format, so shrinking mt_run.tools here broke the cached prefix.
+test "_stream_final_answer keeps the tools array intact" {
+    def tool_a(x: str) -> str {
+        return x;
+    }
+    def tool_b(y: str) -> str {
+        return y;
+    }
+
+    model = Model(model_name="anthropic/claude-test");
+    mt_run = _mk_run([Tool(func=tool_a), Tool(func=tool_b)]);
+    expected = [t.get_name() for t in mt_run.tools];
+
+    seen: list = [];
+    def _serve(params: dict) -> list {
+        seen.append(params);
+        return _text_chunks("Done.");
+    }
+    with unittest.mock.patch.object(
+        model, "model_call_with_stream", side_effect=_serve
+    ) {
+        list(model._stream_final_answer(mt_run));
+    }
+
+    assert len(seen) == 1;
+    assert [t["function"]["name"] for t in seen[0]["tools"]] == expected , (
+        "the narration call must send the same tools as the rest of the "
+        "conversation, or Anthropic's cache prefix breaks"
+    );
+    assert seen[0]["tool_choice"] == "none" , "must still forbid tool calls";
+    assert [t.get_name() for t in mt_run.tools] == expected , "mt_run.tools was mutated";
+}
+
+test "finish_tool exit sends an identical tools payload on the narration call" {
+    def search_files(query: str) -> str {
+        return f"found: {query}";
+    }
+
+    model = Model(model_name="anthropic/claude-test");
+    mt_run = _mk_run([Tool(func=search_files)]);
+
+    finish_chunks = [
+        _tc_chunk(
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "c_f",
+                        "type": "function",
+                        "function": {"name": "finish_tool", "arguments": ""}
+                    }
+                ]
+            }
+        ),
+        _tc_chunk(
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "function": {"arguments": '{"final_output": "Fixed it."}'}
+                    }
+                ]
+            }
+        ),
+        _tc_chunk({}, "tool_calls")
+    ];
+
+    calls: list = [];
+    def _serve(params: dict) -> list {
+        calls.append(params.get("tools"));
+        return finish_chunks if len(calls) == 1 else _text_chunks("Fixed it.");
+    }
+    with unittest.mock.patch.object(
+        model, "model_call_with_stream", side_effect=_serve
+    ) {
+        list(model._invoke_streaming(mt_run));
+    }
+
+    assert len(calls) == 2 , f"expected exactly 2 LLM calls, got {len(calls)}";
+    assert calls[0] == calls[1] , (
+        f"the narration call must send a byte-identical tools payload "
+        f"(cache_control included); got {calls[1]} vs {calls[0]}"
+    );
+}
+
+def _mk_forced_run -> tuple {
+    def extra_tool(x: str) -> str {
+        return x;
+    }
+
+    model = Model(model_name="anthropic/claude-test");
+    mt_run = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are an agent."),
+            Message(role=MessageRole.USER, content="Who?")
+        ],
+        resp_type=_TestPerson,
+        stream=False,
+        tools=[Tool(func=extra_tool), Tool.make_finish_tool(_TestPerson)],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+    fake_fn = types.SimpleNamespace(
+        name="finish_tool", arguments='{"final_output": {"name": "Amy", "age": 30}}'
+    );
+    fake_response = {
+        "choices": [
+            {
+                "message": {
+                    "content": None,
+                    "tool_calls": [types.SimpleNamespace(id="call_1", function=fake_fn)]
+                }
+            }
+        ]
+    };
+    return (model, mt_run, fake_response);
+}
+
+def _assert_forces_finish(expected: list, captured: list) {
+    assert len(captured) == 1;
+    sent_names = [t.get("function", {}).get("name") for t in captured[0]["tools"]];
+    assert sent_names == expected , f"got {sent_names}, expected {expected}";
+    assert captured[0]["tool_choice"]
+        == {"type": "function", "function": {"name": "finish_tool"}} , "must force finish_tool specifically, not just narrow the tools list";
+}
+
+# Same bug, but a structured resp_type still needs finish_tool callable, so this
+# forces it via tool_choice instead of tool_choice="none".
+test "_force_final_answer keeps the tools array intact and forces finish_tool" {
+    (model, mt_run, fake_response) = _mk_forced_run();
+    expected = [t.get_name() for t in mt_run.tools];
+
+    captured: list = [];
+    def _serve(params: dict) -> dict {
+        captured.append(params);
+        return fake_response;
+    }
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", side_effect=_serve
+    ) {
+        out = model._force_final_answer(mt_run);
+    }
+
+    _assert_forces_finish(expected, captured);
+    assert out.name == "Amy" , f"expected the healed typed output, got: {out}";
+}
+
+test "_attempt_recovery keeps the tools array intact and forces finish_tool" {
+    (model, mt_run, fake_response) = _mk_forced_run();
+    expected = [t.get_name() for t in mt_run.tools];
+
+    captured: list = [];
+    def _serve(params: dict) -> dict {
+        captured.append(params);
+        return fake_response;
+    }
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", side_effect=_serve
+    ) {
+        recovery = model._attempt_recovery(mt_run);
+    }
+
+    _assert_forces_finish(expected, captured);
+    assert recovery.tool_calls[0].is_finish_call();
+}
+
 import asyncio;
 import inspect;
 
@@ -1782,7 +1992,7 @@ test "model_call_with_stream_async raises and logs RateLimitError" {
 test "model_call_http_async returns json response" {
     mock_response = unittest.mock.MagicMock();
     mock_response.json.return_value = {"choices": [{"message": {"content": "ok"}}]};
-    async def _run_http_async {
+    async def _run_http_async -> any {
         mock_client = unittest.mock.AsyncMock();
         mock_client.__aenter__.return_value = mock_client;
         mock_client.post.return_value = mock_response;
@@ -1802,7 +2012,7 @@ test "model_call_http_async returns json response" {
 }
 
 import ast as ast3;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 test "async by llm() codegen emits await Jac.acall_llm not call_llm" {
     # Compile the fixture that has both an async and a sync by llm() function.
@@ -1882,12 +2092,12 @@ test "async by llm() end-to-end with mocked acall_llm" {
 
     async def _run_end_to_end -> str {
         # Patch acall_llm so no real API call is made.
-        async def _fake_acall_llm(**kwargs: object) -> object {
+        async def _fake_acall_llm(**kwargs: object) -> any {
             return "summary";
         }
-        # acall_llm is imported directly from jaclang.jac0core.jaclib into the
+        # acall_llm is imported directly from jaclang.lib.jaclib into the
         # compiled module's namespace, so we patch it there.
-        import jaclang.jac0core.jaclib as _jaclib;
+        import jaclang.lib.jaclib as _jaclib;
         with unittest.mock.patch.object(_jaclib, "acall_llm", _fake_acall_llm) {
             exec(compiled, module.__dict__);
             result = await module.__dict__["get_summary"](text="hello world");
@@ -1992,7 +2202,7 @@ test "gemma models default to the text tool protocol" {
 # (not reloaded, so exception classes stay identical to the test's) and every
 # fixture function is invoked by exactly one test, so the mock outputs are
 # consumed exactly once.
-def _load_retry_fixture -> object {
+def _load_retry_fixture -> any {
     return jac_import("llm_typed_retry", base_path=FIXTURE_DIR + "/")[0];
 }
 
@@ -2171,11 +2381,11 @@ test "a tool call cut off mid-arguments is reported to the model (issue #7657)" 
         ],
         "content": ""
     };
-    damaged = _byllm_llm_mod._sanitize_tool_calls(message);
+    damaged = _byllm_llm_mod._sanitize_tool_calls(_as_any(message));
     assert "call_1" in damaged , f"damaged call must be reported, got {damaged!r}";
     # finish_reason is "tool_calls" for a corrupted batch, so the truncation
     # guard cannot be what reports it.
-    assert not _byllm_llm_mod._truncated_call_ids(message, "tool_calls") , "the truncation guard must not be the thing catching this";
+    assert not _byllm_llm_mod._truncated_call_ids(_as_any(message), "tool_calls") , "the truncation guard must not be the thing catching this";
 
     # A tool that genuinely takes no arguments is normal, not damage.
     blank = {
@@ -2188,7 +2398,7 @@ test "a tool call cut off mid-arguments is reported to the model (issue #7657)" 
         ],
         "content": ""
     };
-    assert not _byllm_llm_mod._sanitize_tool_calls(blank) , "an argument-less call must not be reported as truncated";
+    assert not _byllm_llm_mod._sanitize_tool_calls(_as_any(blank)) , "an argument-less call must not be reported as truncated";
 }
 
 
@@ -2201,10 +2411,10 @@ def _writer_tool(file_path: str, content: str) -> str {
 test "damaged and truncated calls get the advice that fits the cause (issue #7657)" {
     tool = Tool(func=_writer_tool);
 
-    def _get_tool(name: str) -> object {
+    def _get_tool(name: str) -> any {
         return tool;
     }
-    mt_run = types.SimpleNamespace(get_tool=_get_tool);
+    mt_run: any = types.SimpleNamespace(get_tool=_get_tool);
     fn = types.SimpleNamespace(name="_writer_tool", arguments='{"file_path"');
     call = types.SimpleNamespace(id="call_1", function=fn, type="function");
 
@@ -2212,7 +2422,8 @@ test "damaged and truncated calls get the advice that fits the cause (issue #765
     truncated = _byllm_llm_mod._parse_tool_calls(
         mt_run, [call], `set(["call_1"]), `set()
     );
-    truncated_msg = str(truncated[0].tool.func());
+    _trunc_tool: any = truncated[0].tool;
+    truncated_msg = str(_trunc_tool.func());
     assert "smaller payload" in truncated_msg , f"a truncated call should be told to split: {truncated_msg!r}";
 
     # A call corrupted in transit was never too large; telling it to split would
@@ -2220,7 +2431,8 @@ test "damaged and truncated calls get the advice that fits the cause (issue #765
     damaged = _byllm_llm_mod._parse_tool_calls(
         mt_run, [call], `set(), `set(["call_1"])
     );
-    damaged_msg = str(damaged[0].tool.func());
+    _dmg_tool: any = damaged[0].tool;
+    damaged_msg = str(_dmg_tool.func());
     assert "same call again unchanged" in damaged_msg , f"a damaged call should be told to re-send: {damaged_msg!r}";
     assert "smaller payload" not in damaged_msg , f"a damaged call must not be told to split: {damaged_msg!r}";
 }

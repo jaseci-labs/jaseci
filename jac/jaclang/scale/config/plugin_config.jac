@@ -327,6 +327,11 @@ class JacScalePluginConfig {
                             "default": 3,
                             "description": "Maximum pod replicas for the autoscaler."
                         },
+                        "revision_history_limit": {
+                            "type": "int",
+                            "default": 10,
+                            "description": "How many superseded ReplicaSets Kubernetes keeps per Deployment, which is how far back a rollback can reach. 0 keeps no history and makes a rollback impossible."
+                        },
                         "cpu_utilization_target": {
                             "type": "int",
                             "default": 50,
@@ -867,6 +872,11 @@ class JacScalePluginConfig {
                                     "type": "list",
                                     "default": ["/health", "/healthz", "/metrics"],
                                     "description": "Paths that bypass rate limiting entirely (monitoring + probes)."
+                                },
+                                "trusted_proxies": {
+                                    "type": "list",
+                                    "default": [],
+                                    "description": "IPs/CIDRs of proxies fronting the gateway (e.g. the k8s Ingress pods or a load balancer). X-Forwarded-For is honored only when the TCP peer is in this list, and the per-IP key is the rightmost forwarded entry not itself listed here, so clients cannot mint buckets by forging the header. Empty (default) means the header is never trusted and the per-IP key is the TCP peer address; set this when the gateway runs behind an ingress, or all traffic will share the ingress address's bucket."
                                 }
                             }
                         },
