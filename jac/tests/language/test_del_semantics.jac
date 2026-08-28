@@ -5,12 +5,13 @@ effect, a differential harness that replays the Python-legal forms through
 CPython and asserts Jac agrees, and the backend-parity checks.
 """
 
+import ctypes;
 import io;
 import os;
 import subprocess;
 import sys;
 import tempfile;
-import from tests.support { JAC_ROOT }
+import from tests.support { JAC_ROOT, compile_native, get_func }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures"),
      DEL_SEMANTICS = os.path.join(FIXTURES, "del_semantics.jac");
@@ -57,11 +58,7 @@ obj DelCase {
         body: str,
         probe: str,
         py_prelude: str = "",
-        jac_prelude: str = "",
-        # Non-empty while Jac still disagrees with CPython on this case. DS0
-        # pins the disagreement so the fix shows up as a diff here; the entry
-        # is deleted by the tracker item that closes it.
-        today: str = "";
+        jac_prelude: str = "";
 }
 
 glob NS_PY = "from types import SimpleNamespace",
@@ -74,19 +71,11 @@ glob DEL_CASES: list[DelCase] = [
              probe="sorted(d.items())"
          ),
          DelCase(name="list delitem", body="L = [1, 2, 3];\ndel L[0];", probe="L"),
-         # DS3: native lowers `del L[i:j]` to a single `del_at(i)`.
-         DelCase(
-             name="list slice",
-             body="L = [1, 2, 3];\ndel L[0:2];",
-             probe="L",
-             today="[2, 3]\n"
-         ),
-         # DS3: native drops `del L[::2]` on the floor.
+         DelCase(name="list slice", body="L = [1, 2, 3];\ndel L[0:2];", probe="L"),
          DelCase(
              name="list strided slice",
              body="L = [1, 2, 3, 4, 5];\ndel L[::2];",
-             probe="L",
-             today="[1, 2, 3, 4, 5]\n"
+             probe="L"
          ),
          DelCase(
              name="nested delitem", body="L = [[1, 2, 3]];\ndel L[0][1];", probe="L"
@@ -109,12 +98,10 @@ glob DEL_CASES: list[DelCase] = [
              probe='("a" in globals(), "b" in globals())'
          ),
          DelCase(name="bare name", body="x = 1;\ndel x;", probe='"x" in globals()'),
-         # DS3: native has no arm for a tuple target, so the statement vanishes.
          DelCase(
              name="single element tuple target",
              body='d = {"k": 1, "j": 2};\ndel (d["k"], );',
-             probe="sorted(d.items())",
-             today="[('k', 1), ('j', 2)]\n"
+             probe="sorted(d.items())"
          ),
          DelCase(
              name="mixed comma targets",
@@ -155,11 +142,6 @@ test "del agrees with CPython on every Python-legal target" {
         expected = run_py_src(py_src);
         (out, err, rc) = run_jac_src(jac_src);
         assert rc == 0 , f"[{dc.name}] jac run failed:\n{jac_src}\n{err}";
-        if dc.today {
-            assert out == dc.today , f"[{dc.name}] jac {out!r} != pinned {dc.today!r}\n{jac_src}";
-            assert out != expected , f"[{dc.name}] now agrees; drop today";
-            continue;
-        }
         assert out == expected , f"[{dc.name}] jac {out!r} != cpython {expected!r}\n{jac_src}";
     }
 }
@@ -201,4 +183,28 @@ test "well formed del statements never reach E5043" {
     out = run_jac_check(DEL_SEMANTICS);
     assert "E5043" not in out , out;
     assert "E0083" not in out , out;
+}
+
+
+# ---------------------------------------------------------------------------
+# Backend parity: the same program, restricted to constructs the native
+# backend lowers, must produce the same counts there as under the Python
+# backend.
+# ---------------------------------------------------------------------------
+glob NATIVE_FIXTURE = "del_semantics_native.jac",
+     NATIVE_EXPECTED = {
+         "del_edge_ref": 0,
+         "del_edge_name": 0,
+         "del_node_name": 0,
+         "del_traversal": 0,
+         "del_subscript_keeps_node": 10,
+         "del_dict_key_keeps_node": 10
+     };
+
+test "del under the native backend matches the Python backend" {
+    (eng, _ir) = compile_native(NATIVE_FIXTURE, fixture_dir=FIXTURES);
+    for fn_name in NATIVE_EXPECTED {
+        fn = get_func(eng, fn_name, ctypes.c_int64);
+        assert fn() == NATIVE_EXPECTED[fn_name] , fn_name;
+    }
 }
