@@ -637,6 +637,32 @@ test "get_status resolves zero-replica eligibility through a real ManifestBuilde
     );
 }
 
+test "get_status reports FAILED, not UNKNOWN and not a raised exception, when the real hpa config cannot be parsed" {
+    keda_target = DeploymentTargetFactory.create(
+        "kubernetes",
+        {"app_name": "order-service", "namespace": "ns", "autoscaler_engine": "keda"}
+    );
+    # hpa.min must be int()-able; a real project can absolutely get this
+    # wrong (a stray quoted value, an env-var placeholder left unresolved).
+    # autoscaler_config_for_deployment must not be allowed to take a
+    # read-only status check down over it.
+    malformed_toml = (
+        "[scale.microservices.routes]\n"
+        "order-service = \"/orders\"\n"
+        "\n[scale.microservices.services.order-service.hpa]\n"
+        "min = \"banana\"\n"
+        "max = 3\n"
+    );
+
+    info = _get_status(keda_target, malformed_toml, replicas=0, ready=0);
+
+    assert info.status == ResourceStatus.FAILED , (
+        f"a config the real chain cannot parse must resolve to the same "
+        f"FAILED verdict as any other non-eligible zero-replica deployment, "
+        f"not UNKNOWN: {info.status}"
+    );
+}
+
 test "autoscaler_config_for_deployment resolves a service's real k8s Deployment name back to its config key" {
     mb = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="jac-shop", namespace="ns"),
