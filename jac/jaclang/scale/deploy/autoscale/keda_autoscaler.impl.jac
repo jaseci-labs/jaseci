@@ -1000,7 +1000,7 @@ impl KEDAAutoscaler.get_runtime_status{
             namespace=namespace,
             plural="scaledobjects",
             name=autoscaler_name
-        );
+        ) as dict[str, any];
     } except ApiException as e {
         if e.status in [404, 422] {
             return self._normalize_keda_status(None, None, None);
@@ -1009,14 +1009,14 @@ impl KEDAAutoscaler.get_runtime_status{
     }
 
     hpa_name = scaled_object.get("status", {}).get("hpaName");
-    hpa_dict = None;
+    hpa_dict: (dict[str, any] | None) = None;
     if hpa_name {
         v2_api = self._v2_api or AutoscalingV2Api();
         try {
             hpa = v2_api.read_namespaced_horizontal_pod_autoscaler(
                 name=hpa_name, namespace=namespace
-            );
-            hpa_dict = hpa.to_dict();
+            ) as any;
+            hpa_dict = hpa.to_dict() as dict[str, any];
         } except ApiException as e {
             if e.status not in [404, 422] {
                 raise;
@@ -1025,12 +1025,12 @@ impl KEDAAutoscaler.get_runtime_status{
     }
 
     apps_api = self._apps_api or client.AppsV1Api();
-    deployment_dict = None;
+    deployment_dict: (dict[str, any] | None) = None;
     try {
         deployment = apps_api.read_namespaced_deployment(
             name=scale_target_name, namespace=namespace
-        );
-        deployment_dict = deployment.to_dict();
+        ) as any;
+        deployment_dict = deployment.to_dict() as dict[str, any];
     } except ApiException as e {
         if e.status not in [404, 422] {
             raise;
