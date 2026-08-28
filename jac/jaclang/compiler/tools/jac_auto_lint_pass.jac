@@ -36,6 +36,7 @@ import from jaclang.compiler.frontend.diagnostics {
     W3051
 }
 import type from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.roles { AssignmentsRole, BodyRole, ConditionRole, DecoratorsRole, DocRole, ElseValueRole, ExprRole, ItemsRole, LeftRole, NameRefRole, OperandRole, ParamsRole, ReturnTypeRole, RightRole, RightsRole, SignatureRole, SpecRole, TargetRole, ValueRole, ValuesRole, VarsRole }
 
 walker JacAutoLintPass(UniPass) {
     has prog: JacProgram,

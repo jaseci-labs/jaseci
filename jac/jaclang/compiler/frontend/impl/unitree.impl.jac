@@ -10,43 +10,44 @@ impl UniNode.postinit -> None {
     self.loc = CodeLocInfo(first_tok, last_tok);
 }
 
-impl UniNode._attach(child: UniNode, role: str, in_kid: bool) -> None {
-    self +>:KidRole(in_kid=in_kid):+> child;
+impl UniNode._attach(child: UniNode, role: type, in_kid: bool) -> None {
+    e: Role = role(in_kid=in_kid);
+    self +>:(e):+> child;
 }
 
-impl UniNode._link(kid: Sequence[UniNode], roles: dict[str, any]) -> None {
-    shapes: dict[str, str] = getattr(self, "_role_shapes", None) or {};
+impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
+    shapes: dict[type, str] = getattr(self, "_role_shapes", None) or {};
     self._role_shapes = shapes;
-    role_of: dict[int, str] = {};
-    for (name, value) in roles.items() {
+    role_of: dict[int, type] = {};
+    for (role, value) in roles.items() {
         if value is None {
-            shapes[name] = "none";
+            shapes[role] = "none";
         } elif isinstance(value, (list, tuple)) {
-            shapes[name] = "many";
+            shapes[role] = "many";
             for v in value {
                 if isinstance(v, UniNode) {
-                    role_of[id(v)] = name;
+                    role_of[id(v)] = role;
                 }
             }
         } elif isinstance(value, UniNode) {
-            shapes[name] = "one";
-            role_of[id(value)] = name;
+            shapes[role] = "one";
+            role_of[id(value)] = role;
         } else {
-            shapes[name] = "none";
+            shapes[role] = "none";
         }
     }
     attached: set[int] = set();
     for k in kid {
         if k is not None {
-            self._attach(k, role_of.get(id(k), "kid"), True);
+            self._attach(k, role_of.get(id(k), KidRole), True);
             attached.add(id(k));
         }
     }
-    for (name, value) in roles.items() {
+    for (role, value) in roles.items() {
         vals = value if isinstance(value, (list, tuple)) else [value];
         for v in vals {
             if isinstance(v, UniNode) and id(v) not in attached {
-                self._attach(v, name, False);
+                self._attach(v, role, False);
                 attached.add(id(v));
             }
         }
@@ -61,8 +62,8 @@ impl UniNode._edge_target(e: Role) -> UniNode {
     return getattr(e, "__jac__").target.archetype;
 }
 
-impl UniNode._role_pairs -> list[tuple[str, UniNode, bool]] {
-    return [(getattr(`type(e), "NAME", "kid"), self._edge_target(e), e.in_kid) for e in self._role_edges()];
+impl UniNode._role_pairs -> list[tuple[type, UniNode, bool]] {
+    return [(`type(e), self._edge_target(e), e.in_kid) for e in self._role_edges()];
 }
 
 impl UniNode.kid.getter -> list[UniNode] {
@@ -74,8 +75,8 @@ impl UniNode.parent.getter -> (UniNode | None) {
     return found[-1] if found else None;
 }
 
-impl UniNode._role_shaped(name: str, found: list[UniNode]) -> any {
-    shape = (getattr(self, "_role_shapes", None) or {}).get(name, "none");
+impl UniNode._role_shaped(role: type[Role], found: list[UniNode]) -> any {
+    shape = (getattr(self, "_role_shapes", None) or {}).get(role, "none");
     if shape == "many" {
         return found;
     }
@@ -85,11 +86,11 @@ impl UniNode._role_shaped(name: str, found: list[UniNode]) -> any {
     return None;
 }
 
-impl UniNode._reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, str]) -> None {
-    role_of: dict[int, str] = {};
-    for (name, n, in_kid) in self._role_pairs() {
-        if name != "kid" {
-            role_of[id(n)] = name;
+impl UniNode._reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, type]) -> None {
+    role_of: dict[int, type] = {};
+    for (role, n, in_kid) in self._role_pairs() {
+        if role is not KidRole {
+            role_of[id(n)] = role;
         }
     }
     role_of.update(roles);
@@ -106,23 +107,23 @@ impl UniNode._reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, str]) ->
     }
     for n in nodes {
         if n is not None {
-            self._attach(n, role_of.get(id(n), "kid"), True);
+            self._attach(n, role_of.get(id(n), KidRole), True);
         }
     }
     self._invalidate_sub_node_tab();
 }
 
-impl UniNode._role_set(name: str, value: any) -> None {
-    shapes: dict[str, str] = getattr(self, "_role_shapes", None) or {};
+impl UniNode._role_set(role: type[Role], value: any) -> None {
+    shapes: dict[type, str] = getattr(self, "_role_shapes", None) or {};
     self._role_shapes = shapes;
     if value is None {
-        shapes[name] = "none";
+        shapes[role] = "none";
         vals: list = [];
     } elif isinstance(value, (list, tuple)) {
-        shapes[name] = "many";
+        shapes[role] = "many";
         vals = [v for v in value if isinstance(v, UniNode)];
     } else {
-        shapes[name] = "one";
+        shapes[role] = "one";
         vals = [value];
     }
     keep: set[int] = set();
@@ -130,11 +131,11 @@ impl UniNode._role_set(name: str, value: any) -> None {
         keep.add(id(v));
     }
     kids_before = self.kid;
-    demoted: dict[int, str] = {};
+    demoted: dict[int, type] = {};
     already: set[int] = set();
     for e in self._role_edges() {
         tgt = self._edge_target(e);
-        if getattr(`type(e), "NAME", "kid") != name {
+        if `type(e) is not role {
             continue;
         }
         if id(tgt) in keep {
@@ -142,7 +143,7 @@ impl UniNode._role_set(name: str, value: any) -> None {
             continue;
         }
         if e.in_kid {
-            demoted[id(tgt)] = "kid";
+            demoted[id(tgt)] = KidRole;
         }
         del e;
     }
@@ -151,7 +152,7 @@ impl UniNode._role_set(name: str, value: any) -> None {
     }
     for v in vals {
         if id(v) not in already {
-            self._attach(v, name, False);
+            self._attach(v, role, False);
         }
     }
     self._invalidate_sub_node_tab();
@@ -219,12 +220,12 @@ impl UniNode.add_kids_left(
     nodes: Sequence[UniNode],
     pos_update: bool = True,
     parent_update: bool = False,
-    role: str = "kid"
+    role: type[Role] = KidRole
 ) -> UniNode {
     self.set_kids(
         [*nodes, *self.kid],
         pos_update=pos_update,
-        roles={id(n): role for n in nodes} if role != "kid" else None
+        roles={id(n): role for n in nodes} if role is not KidRole else None
     );
     return self;
 }
@@ -233,30 +234,30 @@ impl UniNode.add_kids_right(
     nodes: Sequence[UniNode],
     pos_update: bool = True,
     parent_update: bool = False,
-    role: str = "kid"
+    role: type[Role] = KidRole
 ) -> UniNode {
     self.set_kids(
         [*self.kid, *nodes],
         pos_update=pos_update,
-        roles={id(n): role for n in nodes} if role != "kid" else None
+        roles={id(n): role for n in nodes} if role is not KidRole else None
     );
     return self;
 }
 
 impl UniNode.insert_kids_at_pos(
-    nodes: Sequence[UniNode], pos: int, pos_update: bool = True, role: str = "kid"
+    nodes: Sequence[UniNode], pos: int, pos_update: bool = True, role: type[Role] = KidRole
 ) -> UniNode {
     cur = self.kid;
     self.set_kids(
         [*cur[:pos], *nodes, *cur[pos:]],
         pos_update=pos_update,
-        roles={id(n): role for n in nodes} if role != "kid" else None
+        roles={id(n): role for n in nodes} if role is not KidRole else None
     );
     return self;
 }
 
 impl UniNode.set_kids(
-    nodes: Sequence[UniNode], pos_update: bool = True, roles: (dict[int, str] | None) = None
+    nodes: Sequence[UniNode], pos_update: bool = True, roles: (dict[int, type] | None) = None
 ) -> UniNode {
     self._reconnect_kids(nodes, roles or {});
     if pos_update {
@@ -266,10 +267,10 @@ impl UniNode.set_kids(
 }
 
 impl UniNode.replace_kid(old: UniNode, new: UniNode) -> UniNode {
-    role = "kid";
-    for (name, n, in_kid) in self._role_pairs() {
+    role: type = KidRole;
+    for (rcls, n, in_kid) in self._role_pairs() {
         if n is old {
-            role = name;
+            role = rcls;
         }
     }
     self._reconnect_kids([new if k is old else k for k in self.kid], {id(new): role});
@@ -866,7 +867,7 @@ impl UniScopeNode.__repr__ -> str {
 }
 
 impl AstDocNode.set_doc(elem_doc: (String | None)) -> None {
-    self._role_set("doc", elem_doc);
+    self._role_set(DocRole, elem_doc);
 }
 
 
@@ -1228,7 +1229,7 @@ impl Module.annexable_by.getter -> (str | None) {
 }
 
 impl ProgramModule.postinit -> None {
-    self._link([self.main_mod or Module.make_stub()], {"main": self.main_mod or Module.make_stub()});
+    self._link([self.main_mod or Module.make_stub()], {MainRole: self.main_mod or Module.make_stub()});
     UniNode.postinit(self);
     self.hub = {self.loc.mod_path: self.main_mod} if self.main_mod else {};
 }
@@ -1753,7 +1754,7 @@ impl Ability.postinit -> None {
             is_enum_stmt=False
         );
         name_spec_for_init: (Name | NameAtom) = synthetic_name_ref;
-        self._role_set("name_ref", synthetic_name_ref);
+        self._role_set(NameRefRole, synthetic_name_ref);
     } else {
         name_spec_for_init = self.name_ref;
     }

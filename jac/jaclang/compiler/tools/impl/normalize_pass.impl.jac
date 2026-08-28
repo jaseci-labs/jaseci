@@ -14,13 +14,13 @@ impl NormalizePass.enter_module with uni.Module entry {
                 if not (isinstance(i, uni.ModuleItem) and i.name.value == "Any")
             ];
             if not _kept and imp.parent is not None and imp in here.body {
-                here._role_set("body", [
+                here._role_set(BodyRole, [
                     st
                     for st in here.body
                     if st is not imp
                 ]);
             } elif len(_kept) != len(imp.items) {
-                imp._role_set("items", _kept);
+                imp._role_set(ItemsRole, _kept);
                 imp.set_kids(
                     nodes=[
                         k

@@ -1,6 +1,7 @@
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes { UniPass }
 import from jaclang.compiler.frontend.constant { OwnershipKind, is_mut_kind }
+import from jaclang.compiler.frontend.roles { BodyRole }
 
 walker UnparsePass(UniPass) {
     def _comma_sep(nodes: Sequence[uni.UniNode]) -> str;
@@ -153,7 +154,7 @@ def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
     ];
     filtered = len(head_kid) != len(saved_kid);
     if filtered {
-        mod._role_set("body", [
+        mod._role_set(BodyRole, [
             st
             for st in saved_body
             if (not st.loc.mod_path) or (st.loc.mod_path == own_path)
@@ -170,7 +171,7 @@ def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
         return mod.gen.jac;
     } finally {
         if filtered {
-            mod._role_set("body", saved_body);
+            mod._role_set(BodyRole, saved_body);
             mod.set_kids(nodes=saved_kid);
         }
     }

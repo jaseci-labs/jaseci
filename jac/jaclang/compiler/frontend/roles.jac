@@ -1,418 +1,212 @@
 edge Role {
-    static has NAME: str = "";
-
     has in_kid: bool = True;
 }
 
-edge KidRole(Role) {
-    static has NAME: str = "kid";
-}
+edge KidRole(Role) {}
 
 edge ImplOf {}
 
-edge AccessRole(Role) {
-    static has NAME: str = "access";
-}
-
-edge AccessorsRole(Role) {
-    static has NAME: str = "accessors";
-}
-
-edge AliasRole(Role) {
-    static has NAME: str = "alias";
-}
-
-edge ArchTagInfoRole(Role) {
-    static has NAME: str = "arch_tag_info";
-}
-
-edge ArchTypeRole(Role) {
-    static has NAME: str = "arch_type";
-}
-
-edge ArgPatternsRole(Role) {
-    static has NAME: str = "arg_patterns";
-}
-
-edge AssignmentsRole(Role) {
-    static has NAME: str = "assignments";
-}
-
-edge AssignsRole(Role) {
-    static has NAME: str = "assigns";
-}
-
-edge AttributesRole(Role) {
-    static has NAME: str = "attributes";
-}
-
-edge AugOpRole(Role) {
-    static has NAME: str = "aug_op";
-}
-
-edge AwaitingBodyRole(Role) {
-    static has NAME: str = "awaiting_body";
-}
-
-edge BaseClassesRole(Role) {
-    static has NAME: str = "base_classes";
-}
-
-edge BodyRole(Role) {
-    static has NAME: str = "body";
-}
-
-edge BoundRole(Role) {
-    static has NAME: str = "bound";
-}
-
-edge CasesRole(Role) {
-    static has NAME: str = "cases";
-}
-
-edge CastTypeRole(Role) {
-    static has NAME: str = "cast_type";
-}
-
-edge CauseRole(Role) {
-    static has NAME: str = "cause";
-}
-
-edge ChainRole(Role) {
-    static has NAME: str = "chain";
-}
-
-edge ChildrenRole(Role) {
-    static has NAME: str = "children";
-}
-
-edge ClibDeclsRole(Role) {
-    static has NAME: str = "clib_decls";
-}
-
-edge CodeRole(Role) {
-    static has NAME: str = "code";
-}
-
-edge CollectionRole(Role) {
-    static has NAME: str = "collection";
-}
-
-edge ComparesRole(Role) {
-    static has NAME: str = "compares";
-}
-
-edge ComprRole(Role) {
-    static has NAME: str = "compr";
-}
-
-edge ConditionRole(Role) {
-    static has NAME: str = "condition";
-}
-
-edge ConditionalRole(Role) {
-    static has NAME: str = "conditional";
-}
-
-edge ConnAssignRole(Role) {
-    static has NAME: str = "conn_assign";
-}
-
-edge ConnTypeRole(Role) {
-    static has NAME: str = "conn_type";
-}
-
-edge CountByRole(Role) {
-    static has NAME: str = "count_by";
-}
-
-edge CtrlRole(Role) {
-    static has NAME: str = "ctrl";
-}
-
-edge DecoratorsRole(Role) {
-    static has NAME: str = "decorators";
-}
-
-edge DefaultValRole(Role) {
-    static has NAME: str = "default_val";
-}
-
-edge DescriptionRole(Role) {
-    static has NAME: str = "description";
-}
-
-edge DocRole(Role) {
-    static has NAME: str = "doc";
-}
-
-edge DynamicTagRole(Role) {
-    static has NAME: str = "dynamic_tag";
-}
-
-edge EdgeSpecRole(Role) {
-    static has NAME: str = "edge_spec";
-}
-
-edge ElseBodyRole(Role) {
-    static has NAME: str = "else_body";
-}
-
-edge ElseValueRole(Role) {
-    static has NAME: str = "else_value";
-}
-
-edge EndRole(Role) {
-    static has NAME: str = "end";
-}
-
-edge ErrorMsgRole(Role) {
-    static has NAME: str = "error_msg";
-}
-
-edge EventRole(Role) {
-    static has NAME: str = "event";
-}
-
-edge ExTypeRole(Role) {
-    static has NAME: str = "ex_type";
-}
-
-edge ExceptsRole(Role) {
-    static has NAME: str = "excepts";
-}
-
-edge ExprRole(Role) {
-    static has NAME: str = "expr";
-}
-
-edge ExprsRole(Role) {
-    static has NAME: str = "exprs";
-}
-
-edge FTypeRole(Role) {
-    static has NAME: str = "f_type";
-}
-
-edge FilterCondRole(Role) {
-    static has NAME: str = "filter_cond";
-}
-
-edge FinallyBodyRole(Role) {
-    static has NAME: str = "finally_body";
-}
-
-edge FormatPartRole(Role) {
-    static has NAME: str = "format_part";
-}
-
-edge FormatSpecRole(Role) {
-    static has NAME: str = "format_spec";
-}
-
-edge FromLocRole(Role) {
-    static has NAME: str = "from_loc";
-}
-
-edge FromTargetRole(Role) {
-    static has NAME: str = "from_target";
-}
-
-edge GuardRole(Role) {
-    static has NAME: str = "guard";
-}
-
-edge HintRole(Role) {
-    static has NAME: str = "hint";
-}
-
-edge InsertLocRole(Role) {
-    static has NAME: str = "insert_loc";
-}
-
-edge ItemsRole(Role) {
-    static has NAME: str = "items";
-}
-
-edge IterRole(Role) {
-    static has NAME: str = "iter";
-}
-
-edge KeyRole(Role) {
-    static has NAME: str = "key";
-}
-
-edge KeywordsRole(Role) {
-    static has NAME: str = "keywords";
-}
-
-edge KvPairRole(Role) {
-    static has NAME: str = "kv_pair";
-}
-
-edge KvPairsRole(Role) {
-    static has NAME: str = "kv_pairs";
-}
-
-edge KwPatternsRole(Role) {
-    static has NAME: str = "kw_patterns";
-}
-
-edge KwargsRole(Role) {
-    static has NAME: str = "kwargs";
-}
-
-edge KwonlyargsRole(Role) {
-    static has NAME: str = "kwonlyargs";
-}
-
-edge LeftRole(Role) {
-    static has NAME: str = "left";
-}
-
-edge MainRole(Role) {
-    static has NAME: str = "main";
-}
-
-edge NameRole(Role) {
-    static has NAME: str = "name";
-}
-
-edge NameRefRole(Role) {
-    static has NAME: str = "name_ref";
-}
-
-edge OpRole(Role) {
-    static has NAME: str = "op";
-}
-
-edge OperandRole(Role) {
-    static has NAME: str = "operand";
-}
-
-edge OpsRole(Role) {
-    static has NAME: str = "ops";
-}
-
-edge OutExprRole(Role) {
-    static has NAME: str = "out_expr";
-}
-
-edge ParamsRole(Role) {
-    static has NAME: str = "params";
-}
-
-edge PartsRole(Role) {
-    static has NAME: str = "parts";
-}
-
-edge PathRole(Role) {
-    static has NAME: str = "path";
-}
-
-edge PatternRole(Role) {
-    static has NAME: str = "pattern";
-}
-
-edge PatternsRole(Role) {
-    static has NAME: str = "patterns";
-}
-
-edge PosonlyParamsRole(Role) {
-    static has NAME: str = "posonly_params";
-}
-
-edge ReturnTypeRole(Role) {
-    static has NAME: str = "return_type";
-}
-
-edge RightRole(Role) {
-    static has NAME: str = "right";
-}
-
-edge RightsRole(Role) {
-    static has NAME: str = "rights";
-}
-
-edge SignatureRole(Role) {
-    static has NAME: str = "signature";
-}
-
-edge SlicesRole(Role) {
-    static has NAME: str = "slices";
-}
-
-edge SpecRole(Role) {
-    static has NAME: str = "spec";
-}
-
-edge SrcEndpointRole(Role) {
-    static has NAME: str = "src_endpoint";
-}
-
-edge StartRole(Role) {
-    static has NAME: str = "start";
-}
-
-edge StepRole(Role) {
-    static has NAME: str = "step";
-}
-
-edge StopRole(Role) {
-    static has NAME: str = "stop";
-}
-
-edge StringsRole(Role) {
-    static has NAME: str = "strings";
-}
-
-edge TargetRole(Role) {
-    static has NAME: str = "target";
-}
-
-edge TgtEndpointRole(Role) {
-    static has NAME: str = "tgt_endpoint";
-}
-
-edge TokRole(Role) {
-    static has NAME: str = "tok";
-}
-
-edge TypeCtxRole(Role) {
-    static has NAME: str = "type_ctx";
-}
-
-edge TypeParamsRole(Role) {
-    static has NAME: str = "type_params";
-}
-
-edge TypeTagRole(Role) {
-    static has NAME: str = "type_tag";
-}
-
-edge UnpackRole(Role) {
-    static has NAME: str = "unpack";
-}
-
-edge ValueRole(Role) {
-    static has NAME: str = "value";
-}
-
-edge ValueTypeRole(Role) {
-    static has NAME: str = "value_type";
-}
-
-edge ValuesRole(Role) {
-    static has NAME: str = "values";
-}
-
-edge VarargsRole(Role) {
-    static has NAME: str = "varargs";
-}
-
-edge VarsRole(Role) {
-    static has NAME: str = "vars";
-}
+edge AccessRole(Role) {}
+
+edge AccessorsRole(Role) {}
+
+edge AliasRole(Role) {}
+
+edge ArchTagInfoRole(Role) {}
+
+edge ArchTypeRole(Role) {}
+
+edge ArgPatternsRole(Role) {}
+
+edge AssignmentsRole(Role) {}
+
+edge AssignsRole(Role) {}
+
+edge AttributesRole(Role) {}
+
+edge AugOpRole(Role) {}
+
+edge AwaitingBodyRole(Role) {}
+
+edge BaseClassesRole(Role) {}
+
+edge BodyRole(Role) {}
+
+edge BoundRole(Role) {}
+
+edge CasesRole(Role) {}
+
+edge CastTypeRole(Role) {}
+
+edge CauseRole(Role) {}
+
+edge ChainRole(Role) {}
+
+edge ChildrenRole(Role) {}
+
+edge ClibDeclsRole(Role) {}
+
+edge CodeRole(Role) {}
+
+edge CollectionRole(Role) {}
+
+edge ComparesRole(Role) {}
+
+edge ComprRole(Role) {}
+
+edge ConditionRole(Role) {}
+
+edge ConditionalRole(Role) {}
+
+edge ConnAssignRole(Role) {}
+
+edge ConnTypeRole(Role) {}
+
+edge CountByRole(Role) {}
+
+edge CtrlRole(Role) {}
+
+edge DecoratorsRole(Role) {}
+
+edge DefaultValRole(Role) {}
+
+edge DescriptionRole(Role) {}
+
+edge DocRole(Role) {}
+
+edge DynamicTagRole(Role) {}
+
+edge EdgeSpecRole(Role) {}
+
+edge ElseBodyRole(Role) {}
+
+edge ElseValueRole(Role) {}
+
+edge EndRole(Role) {}
+
+edge ErrorMsgRole(Role) {}
+
+edge EventRole(Role) {}
+
+edge ExTypeRole(Role) {}
+
+edge ExceptsRole(Role) {}
+
+edge ExprRole(Role) {}
+
+edge ExprsRole(Role) {}
+
+edge FTypeRole(Role) {}
+
+edge FilterCondRole(Role) {}
+
+edge FinallyBodyRole(Role) {}
+
+edge FormatPartRole(Role) {}
+
+edge FormatSpecRole(Role) {}
+
+edge FromLocRole(Role) {}
+
+edge FromTargetRole(Role) {}
+
+edge GuardRole(Role) {}
+
+edge HintRole(Role) {}
+
+edge InsertLocRole(Role) {}
+
+edge ItemsRole(Role) {}
+
+edge IterRole(Role) {}
+
+edge KeyRole(Role) {}
+
+edge KeywordsRole(Role) {}
+
+edge KvPairRole(Role) {}
+
+edge KvPairsRole(Role) {}
+
+edge KwPatternsRole(Role) {}
+
+edge KwargsRole(Role) {}
+
+edge KwonlyargsRole(Role) {}
+
+edge LeftRole(Role) {}
+
+edge MainRole(Role) {}
+
+edge NameRole(Role) {}
+
+edge NameRefRole(Role) {}
+
+edge OpRole(Role) {}
+
+edge OperandRole(Role) {}
+
+edge OpsRole(Role) {}
+
+edge OutExprRole(Role) {}
+
+edge ParamsRole(Role) {}
+
+edge PartsRole(Role) {}
+
+edge PathRole(Role) {}
+
+edge PatternRole(Role) {}
+
+edge PatternsRole(Role) {}
+
+edge PosonlyParamsRole(Role) {}
+
+edge ReturnTypeRole(Role) {}
+
+edge RightRole(Role) {}
+
+edge RightsRole(Role) {}
+
+edge SignatureRole(Role) {}
+
+edge SlicesRole(Role) {}
+
+edge SpecRole(Role) {}
+
+edge SrcEndpointRole(Role) {}
+
+edge StartRole(Role) {}
+
+edge StepRole(Role) {}
+
+edge StopRole(Role) {}
+
+edge StringsRole(Role) {}
+
+edge TargetRole(Role) {}
+
+edge TgtEndpointRole(Role) {}
+
+edge TokRole(Role) {}
+
+edge TypeCtxRole(Role) {}
+
+edge TypeParamsRole(Role) {}
+
+edge TypeTagRole(Role) {}
+
+edge UnpackRole(Role) {}
+
+edge ValueRole(Role) {}
+
+edge ValueTypeRole(Role) {}
+
+edge ValuesRole(Role) {}
+
+edge VarargsRole(Role) {}
+
+edge VarsRole(Role) {}
 
 glob ROLE_SLOTS: tuple[tuple[str, str, str], ...] = (
     ("Ability", "name_ref", "one"),

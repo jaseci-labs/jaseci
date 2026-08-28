@@ -150,7 +150,7 @@ node UniNode {
     has _in_mod_nodes: list[UniNode] postinit,
         _gen: (CodeGenTarget | None) postinit,
         loc: CodeLocInfo postinit,
-        _role_shapes: (dict[str, str] | None) postinit,
+        _role_shapes: (dict[type, str] | None) postinit,
         __sub_node_tab: (dict[(type, list[UniNode])] | None) postinit,
         ct_pruned: bool postinit;
 
@@ -164,15 +164,15 @@ node UniNode {
 
     has _sub_node_tab: dict[(type, list[UniNode])] { getter; }
 
-    def _link(kid: Sequence[UniNode], roles: dict[str, any]) -> None;
+    def _link(kid: Sequence[UniNode], roles: dict[type, any]) -> None;
     def detached_copy -> UniNode;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
+    def _attach(child: UniNode, role: type, in_kid: bool) -> None;
     def _role_edges -> list[Role];
     def _edge_target(e: Role) -> UniNode;
-    def _role_pairs -> list[tuple[str, UniNode, bool]];
-    def _role_shaped(name: str, found: list[UniNode]) -> any;
-    def _role_set(name: str, value: any) -> None;
-    def _reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, str]) -> None;
+    def _role_pairs -> list[tuple[type, UniNode, bool]];
+    def _role_shaped(role: type[Role], found: list[UniNode]) -> any;
+    def _role_set(role: type[Role], value: any) -> None;
+    def _reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, type]) -> None;
     def link_impl(impl_node: UniNode) -> None;
     def _construct_sub_node_tab -> None;
     def _invalidate_sub_node_tab -> None;
@@ -183,22 +183,22 @@ node UniNode {
         nodes: Sequence[UniNode],
         pos_update: bool = True,
         parent_update: bool = False,
-        role: str = "kid"
+        role: type[Role] = KidRole
     ) -> UniNode;
 
     def add_kids_right(
         nodes: Sequence[UniNode],
         pos_update: bool = True,
         parent_update: bool = False,
-        role: str = "kid"
+        role: type[Role] = KidRole
     ) -> UniNode;
 
     def insert_kids_at_pos(
-        nodes: Sequence[UniNode], pos: int, pos_update: bool = True, role: str = "kid"
+        nodes: Sequence[UniNode], pos: int, pos_update: bool = True, role: type[Role] = KidRole
     ) -> UniNode;
 
     def set_kids(
-        nodes: Sequence[UniNode], pos_update: bool = True, roles: (dict[int, str] | None) = None
+        nodes: Sequence[UniNode], pos_update: bool = True, roles: (dict[int, type] | None) = None
     ) -> UniNode;
     def replace_kid(old: UniNode, new: UniNode) -> UniNode;
     def set_parent(parent: UniNode) -> UniNode;
@@ -384,7 +384,6 @@ node AstAccessNode(UniNode) {
 
     has public_access: bool { getter; }
     def init(*, access: (SubTag[Token] | None) = None, kid: Sequence[UniNode] = []) -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -403,7 +402,6 @@ node AstDocNode(UniNode) {
 
     def set_doc(elem_doc: (String | None)) -> None;
     def init(*, doc: (String | None) = None, kid: Sequence[UniNode] = []) -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -416,7 +414,6 @@ node AstAsyncNode(UniNode) {
 node AstElseBodyNode(UniNode) {
     has else_body: (ElseStmt | ElseIf | None) { getter; }
     def init(*, else_body: (ElseStmt | ElseIf | None) = None, kid: Sequence[UniNode] = []) -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -424,7 +421,6 @@ node AstTypedVarNode(UniNode) {
     has type: (TypeBase | None) = None;
     has type_tag: (SubTag[Expr] | None) { getter; }
     def init(*, type_tag: (SubTag[Expr] | None) = None, type: (TypeBase | None) = None, kid: Sequence[UniNode] = []) -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -488,7 +484,6 @@ node CfgExpr(Expr, ConditionalNode) {
     def init(*, sc_true_target: (UniCFGNode | None) = None, sc_false_target: (UniCFGNode | None) = None, expr: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -515,7 +510,6 @@ node AstImplNeedingNode(AstSymbolNode) {
 
     has needs_impl: bool { getter; }
     def init(*, body: (Sequence[UniNode] | UniNode | None), kid: Sequence[UniNode] = []) -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -558,7 +552,6 @@ node ArchSpec(ElementStmt, CodeBlockStmt, AstSymbolNode, AstAsyncNode, AstDocNod
     def init(*, doc: (String | None) = None, is_async: bool = False, decorators: (Sequence[Expr] | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -636,7 +629,6 @@ node Module(AstDocNode, UniScopeNode) {
             kid=[EmptyToken()]
         );
     }
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -647,7 +639,6 @@ node ProgramModule(UniNode) {
     def init(*, main_mod: (Module | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -663,7 +654,6 @@ node TypeParam(AstSymbolNode, UniNode) {
     def init(*, name: Name, bound: (Expr | None), default_val: (Expr | None), is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -679,7 +669,6 @@ node TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniS
     def init(*, doc: (String | None) = None, access: (SubTag[Token] | None) = None, codespace_dual: bool = False, name: Name, type_params: (Sequence[TypeParam] | None), value: Expr, is_distinct: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -691,7 +680,6 @@ node GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode, ArchBlockStmt, Cod
     def init(*, access: (SubTag[Token] | None) = None, doc: (String | None) = None, codespace_dual: bool = False, assignments: Sequence[Assignment], is_frozen: bool, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -707,7 +695,6 @@ node Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeN
     def init(*, doc: (String | None) = None, codespace_dual: bool = False, name: Name, body: Sequence[CodeBlockStmt], description: (String | None) = None, decorators: (Sequence[Expr] | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -719,7 +706,6 @@ node ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt, Cod
     def init(*, is_enum_stmt: bool = False, doc: (String | None) = None, codespace_dual: bool = False, name: (Name | None), body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -729,7 +715,6 @@ node PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def init(*, is_enum_stmt: bool = False, doc: (String | None) = None, code: Token, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -787,7 +772,6 @@ node Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     has is_virtual_jac: bool { getter; }
 
     has ecosystem: str { getter; }
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -815,7 +799,6 @@ node ModulePath(UniNode) {
     def resolve_relative_path(target_item: (str | None) = None) -> str;
     def resolve_relative_path_list -> list[str];
     def native_bundled_path -> (str | None);
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -837,7 +820,6 @@ node ModuleItem(UniNode) {
     has binding_name: (Name | None) { getter; }
 
     def resolve_relative_path -> str;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -867,7 +849,6 @@ node Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImpl
 
     def get_has_vars -> list[HasVar];
     def get_methods -> list[Ability];
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -886,7 +867,6 @@ node ImplDef(ContextAwareNode, CodeBlockStmt, ElementStmt, ArchBlockStmt, AstSym
 
     def postinit -> None;
     def create_impl_name_node -> Name;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -899,7 +879,6 @@ node SemDef(ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
 
     def postinit -> None;
     def create_sem_name_node -> Name;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -913,7 +892,6 @@ node Enum(ContextAwareNode, ArchSpec, AstAccessNode, AstImplNeedingNode, ArchBlo
     def init(*, doc: (String | None) = None, is_async: bool = False, body: (Sequence[UniNode] | UniNode | None), access: (SubTag[Token] | None) = None, decorators: (Sequence[Expr] | None), codespace_dual: bool = False, name: Name, value_type: (Expr | None), base_classes: (Sequence[Expr] | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -955,7 +933,6 @@ node Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBlo
 
     def py_resolve_name -> str;
     def event_trigger_type_names -> (list[str] | None);
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -980,7 +957,6 @@ node FuncSignature(UniNode) {
     has is_static: bool { getter; }
 
     has is_in_py_class: bool { getter; }
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -992,7 +968,6 @@ node EventSignature(WalkerStmtOnlyNode) {
     def init(*, event: Token, arch_tag_info: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1013,7 +988,6 @@ node ParamVar(AstSymbolNode, AstTypedVarNode) {
     has is_vararg: bool { getter; }
 
     has is_kwargs: bool { getter; }
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1027,7 +1001,6 @@ node ArchHas(AstAccessNode, AstDocNode, ArchBlockStmt, CodeBlockStmt) {
     def init(*, doc: (String | None) = None, access: (SubTag[Token] | None) = None, is_static: bool, vars: Sequence[HasVar], is_frozen: bool, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1043,7 +1016,6 @@ node HasVar(AstSymbolNode, AstTypedVarNode) {
     def init(*, type_tag: (SubTag[Expr] | None) = None, type: (TypeBase | None) = None, name: Name, value: (Expr | None), defer: bool, accessors: (Sequence[Ability] | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1055,7 +1027,6 @@ node TypedCtxBlock(CodeBlockStmt, WalkerStmtOnlyNode, UniScopeNode) {
     def init(*, type_ctx: Expr, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1067,7 +1038,6 @@ node OpenStmt(CodeBlockStmt, UniScopeNode) {
     def init(*, target: Expr, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1082,7 +1052,6 @@ node IfStmt(CodeBlockStmt, AstElseBodyNode, UniScopeNode) {
     def init(*, else_body: (ElseStmt | ElseIf | None) = None, condition: Expr, body: Sequence[CodeBlockStmt], is_comptime: bool = False, ct_taken: (bool | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1097,7 +1066,6 @@ node ElseStmt(UniScopeNode) {
     def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1111,7 +1079,6 @@ node ExprStmt(CodeBlockStmt) {
     def init(*, expr: Expr, in_fstring: bool, has_semi: bool = True, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1127,7 +1094,6 @@ node TryStmt(AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
     def init(*, else_body: (ElseStmt | ElseIf | None) = None, body: Sequence[CodeBlockStmt], excepts: Sequence[Except], awaiting_body: (AwaitingClause | None), finally_body: (FinallyStmt | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1137,7 +1103,6 @@ node AwaitingClause(CodeBlockStmt, UniScopeNode) {
     def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1151,7 +1116,6 @@ node Except(CodeBlockStmt, UniScopeNode) {
     def init(*, ex_type: Expr, name: (Name | None), body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1161,7 +1125,6 @@ node FinallyStmt(CodeBlockStmt, UniScopeNode) {
     def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1177,7 +1140,6 @@ node IterForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
     def init(*, else_body: (ElseStmt | ElseIf | None) = None, is_async: bool = False, iter: Assignment, condition: Expr, count_by: Assignment, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1193,7 +1155,6 @@ node InForStmt(AstAsyncNode, AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
     def init(*, else_body: (ElseStmt | ElseIf | None) = None, is_async: bool = False, target: Expr, collection: Expr, body: Sequence[CodeBlockStmt], is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1205,7 +1166,6 @@ node WhileStmt(AstElseBodyNode, CodeBlockStmt, UniScopeNode) {
     def init(*, else_body: (ElseStmt | ElseIf | None) = None, condition: Expr, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1215,7 +1175,6 @@ node ForeverStmt(CodeBlockStmt, UniScopeNode) {
     def init(*, body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1227,7 +1186,6 @@ node WithStmt(AstAsyncNode, CodeBlockStmt, UniScopeNode) {
     def init(*, is_async: bool = False, exprs: Sequence[ExprAsItem], body: Sequence[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1239,7 +1197,6 @@ node ExprAsItem(UniNode) {
     def init(*, expr: Expr, alias: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1251,7 +1208,6 @@ node RaiseStmt(CodeBlockStmt) {
     def init(*, cause: (Expr | None), from_target: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1265,7 +1221,6 @@ node AssertStmt(ElementStmt, CodeBlockStmt) {
     def init(*, condition: Expr, error_msg: (Expr | None), is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1275,7 +1230,6 @@ node CtrlStmt(CodeBlockStmt) {
     def init(*, ctrl: Token, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1285,7 +1239,6 @@ node DeleteStmt(CodeBlockStmt) {
     def init(*, target: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1295,7 +1248,6 @@ node ReportStmt(CodeBlockStmt) {
     def init(*, expr: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1307,7 +1259,6 @@ node ReturnStmt(CodeBlockStmt) {
     def init(*, expr: (Expr | None), is_implicit: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1319,7 +1270,6 @@ node VisitStmt(WalkerStmtOnlyNode, AstElseBodyNode, CodeBlockStmt) {
     def init(*, else_body: (ElseStmt | ElseIf | None) = None, insert_loc: (Expr | None), target: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1335,7 +1285,6 @@ node AwaitExpr(Expr) {
     def init(*, target: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1347,7 +1296,6 @@ node CastExpr(Expr) {
     def init(*, value: Expr, cast_type: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1370,7 +1318,6 @@ node Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt) {
     def init(*, is_enum_stmt: bool = False, type_tag: (SubTag[Expr] | None) = None, type: (TypeBase | None) = None, target: Sequence[Expr], value: Expr | YieldExpr | None, mutable: bool = True, aug_op: (Token | None) = None, na_move_lowerable: bool = False, na_overwrite_consumed: bool = False, na_flow_reduce: str = "", is_comptime: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1382,7 +1329,6 @@ node ConcurrentExpr(Expr) {
     def init(*, tok: (Token | None), target: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1396,7 +1342,6 @@ node BinaryExpr(Expr) {
     def init(*, left: Expr, right: Expr, op: Token | DisconnectOp | ConnectOp, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1410,7 +1355,6 @@ node CompareExpr(Expr) {
     def init(*, left: Expr, rights: list[Expr], ops: list[Token], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1422,7 +1366,6 @@ node BoolExpr(Expr) {
     def init(*, op: Token, values: list[CfgExpr], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1437,7 +1380,6 @@ node LambdaExpr(Expr, UniScopeNode) {
     def tail_return_expr -> Expr | None;
 
     has captures: list[Symbol] { getter; }
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1451,7 +1393,6 @@ node UnaryExpr(Expr) {
     def init(*, operand: Expr, op: Token, ownership: OwnershipKind = OwnershipKind.NONE, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1465,7 +1406,6 @@ node IfElseExpr(Expr) {
     def init(*, condition: CfgExpr, value: CfgExpr, else_value: CfgExpr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1477,7 +1417,6 @@ node MultiString(AtomExpr) {
     def postinit -> None;
 
     has lit_value: str | bytes { getter; }
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1491,7 +1430,6 @@ node FString(AtomExpr) {
     def init(*, start: (Token | None), parts: Sequence[(String | FormattedValue)], end: (Token | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1505,7 +1443,6 @@ node FormattedValue(Expr) {
     def init(*, format_part: Expr, conversion: int, format_spec: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1515,7 +1452,6 @@ node ListVal(AtomExpr) {
     def init(*, values: Sequence[Expr], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1525,7 +1461,6 @@ node SetVal(AtomExpr) {
     def init(*, values: (Sequence[Expr] | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1535,7 +1470,6 @@ node TupleVal(AtomExpr) {
     def init(*, values: Sequence[(Expr | KWPair)], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1545,7 +1479,6 @@ node DictVal(AtomExpr) {
     def init(*, kv_pairs: Sequence[KVPair], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1557,7 +1490,6 @@ node KVPair(UniNode) {
     def init(*, key: (Expr | None), value: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1569,7 +1501,6 @@ node KWPair(UniNode) {
     def init(*, key: (NameAtom | None), value: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1583,7 +1514,6 @@ node InnerCompr(AstAsyncNode, UniScopeNode, UniCFGNode) {
     def init(*, is_async: bool = False, target: Expr, collection: Expr, conditional: (list[Expr] | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1595,7 +1525,6 @@ node ListCompr(AtomExpr, UniScopeNode, UniCFGNode) {
     def init(*, out_expr: Expr, compr: list[InnerCompr], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1617,7 +1546,6 @@ node DictCompr(AtomExpr, UniScopeNode, UniCFGNode) {
     def init(*, kv_pair: KVPair, compr: list[InnerCompr], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1637,7 +1565,6 @@ node AtomTrailer(Expr) {
     def postinit -> None;
 
     has as_attr_list: list[AstSymbolNode] { getter; }
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1647,7 +1574,6 @@ node AtomUnit(Expr) {
     def init(*, value: Expr | YieldExpr | Ability, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1659,7 +1585,6 @@ node YieldExpr(Expr) {
     def init(*, expr: (Expr | None), with_from: bool, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1679,7 +1604,6 @@ node FuncCall(Expr) {
     def init(*, target: Expr, params: (Sequence[(Expr | KWPair)] | None), genai_call: (Expr | None), call_kind: (str | None) = None, chunks_recv_type: (str | None) = None, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1693,7 +1617,6 @@ node Slice(UniNode) {
     def init(*, start: (Expr | None), stop: (Expr | None), step: (Expr | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1705,7 +1628,6 @@ node IndexSlice(AtomExpr) {
     def init(*, slices: list[Slice], is_range: bool, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1719,7 +1641,6 @@ node EdgeRefTrailer(Expr) {
     def init(*, chain: list[(Expr | FilterCompr)], edges_only: bool, is_async: bool, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1731,7 +1652,6 @@ node EdgeOpRef(WalkerStmtOnlyNode, AtomExpr) {
     def init(*, filter_cond: (FilterCompr | None), edge_dir: EdgeDir, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1741,7 +1661,6 @@ node DisconnectOp(WalkerStmtOnlyNode) {
     def init(*, edge_spec: EdgeOpRef, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1755,7 +1674,6 @@ node ConnectOp(UniNode) {
     def init(*, conn_type: (Expr | None), conn_assign: (AssignCompr | None), edge_dir: EdgeDir, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1767,7 +1685,6 @@ node FilterCompr(AtomExpr) {
     def init(*, f_type: (Expr | None), compares: Sequence[Expr], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1777,7 +1694,6 @@ node AssignCompr(AtomExpr) {
     def init(*, assigns: Sequence[KWPair], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1799,7 +1715,6 @@ node JsxElement(AtomExpr) {
     def postinit -> None;
     def get_body_start_line -> (int | None);
     def get_body_end_line -> (int | None);
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1809,7 +1724,6 @@ node JsxElementName(UniNode) {
     def init(*, parts: Sequence[(Name | Token)], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1825,7 +1739,6 @@ node JsxSpreadAttribute(JsxAttribute) {
     def init(*, expr: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1839,7 +1752,6 @@ node JsxNormalAttribute(JsxAttribute) {
     def init(*, name: (Name | Token), value: String | Expr | None, is_shorthand: bool = False, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1865,7 +1777,6 @@ node JsxExpression(JsxChild) {
     def init(*, expr: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1875,7 +1786,6 @@ node JsxSlot(JsxChild) {
     def init(*, body: list[UniNode], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1885,7 +1795,6 @@ node JsxComment(JsxChild) {
     def init(*, value: Token, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1897,7 +1806,6 @@ node MatchStmt(CodeBlockStmt) {
     def init(*, target: Expr, cases: list[MatchCase], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1911,7 +1819,6 @@ node MatchCase(CodeBlockStmt, UniScopeNode) {
     def init(*, pattern: MatchPattern, guard: (Expr | None), body: list[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1923,7 +1830,6 @@ node SwitchStmt(CodeBlockStmt) {
     def init(*, target: Expr, cases: list[SwitchCase], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1935,7 +1841,6 @@ node SwitchCase(CodeBlockStmt, UniScopeNode) {
     def init(*, pattern: (MatchPattern | None), body: list[CodeBlockStmt], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1945,7 +1850,6 @@ node MatchOr(MatchPattern) {
     def init(*, patterns: list[MatchPattern], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1957,7 +1861,6 @@ node MatchAs(MatchPattern) {
     def init(*, name: NameAtom, pattern: (MatchPattern | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1972,7 +1875,6 @@ node MatchValue(MatchPattern) {
     def init(*, value: Expr, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1982,7 +1884,6 @@ node MatchSingleton(MatchPattern) {
     def init(*, value: (Bool | Null), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -1992,7 +1893,6 @@ node MatchSequence(MatchPattern) {
     def init(*, values: list[MatchPattern], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -2002,7 +1902,6 @@ node MatchMapping(MatchPattern) {
     def init(*, values: list[(MatchKVPair | MatchStar)], kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -2014,7 +1913,6 @@ node MatchKVPair(MatchPattern) {
     def init(*, key: MatchPattern | NameAtom | AtomExpr, value: MatchPattern, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -2026,7 +1924,6 @@ node MatchStar(MatchPattern) {
     def init(*, name: NameAtom, is_list: bool, kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 
@@ -2040,7 +1937,6 @@ node MatchArch(MatchPattern) {
     def init(*, name: (AtomTrailer | NameAtom), arg_patterns: (Sequence[MatchPattern] | None), kw_patterns: (Sequence[MatchKVPair] | None), kid: Sequence[UniNode] = []) -> None;
 
     def postinit -> None;
-    def _attach(child: UniNode, role: str, in_kid: bool) -> None;
     def __repr__ -> str;
 }
 

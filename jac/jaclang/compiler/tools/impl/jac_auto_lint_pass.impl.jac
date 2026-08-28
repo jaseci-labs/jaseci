@@ -135,7 +135,7 @@ impl JacAutoLintPass.enter_ability with uni.Ability entry {
                 for dec in here.decorators
                 if not (isinstance(dec, uni.Name) and dec.value == "staticmethod")
             ];
-            here._role_set("decorators", new_decorators or None);
+            here._role_set(DecoratorsRole, new_decorators or None);
         }
     }
     if not self._is_suppressed(W3001) and here.is_static {
@@ -168,7 +168,7 @@ impl JacAutoLintPass.enter_ability with uni.Ability entry {
         old_ref.name = new_tok_name;
         old_ref.value = new_tok_name;
         special_ref = uni.SpecialVarRef(var=old_ref);
-        here._role_set("name_ref", special_ref);
+        here._role_set(NameRefRole, special_ref);
         here.name_spec = special_ref;
         for (idx, kid) in enumerate(here.kid) {
             if kid is old_ref {
@@ -198,7 +198,7 @@ impl JacAutoLintPass.enter_impl_def with uni.ImplDef entry {
         new_body = self.combine_consecutive_has(list(impl_node.body));
         if len(new_body) != len(impl_node.body)
             and self.emit(W3002, node_override=impl_node) {
-            impl_node._role_set("body", new_body);
+            impl_node._role_set(BodyRole, new_body);
             self.recalculate_parents(impl_node);
         }
     }
@@ -291,7 +291,7 @@ impl JacAutoLintPass.combine_consecutive_glob(body: list) -> list {
                     new_kid.append(assign);
                 }
                 new_kid.append(base_glob.gen_token(Tok.SEMI));
-                base_glob._role_set("assignments", combined_assignments);
+                base_glob._role_set(AssignmentsRole, combined_assignments);
                 base_glob.set_kids(nodes=new_kid);
                 new_body.append(base_glob);
             } else {
@@ -351,7 +351,7 @@ impl JacAutoLintPass.combine_consecutive_has(body: list) -> list {
                     new_kid.append(var);
                 }
                 new_kid.append(base_has.gen_token(Tok.SEMI));
-                base_has._role_set("vars", combined_vars);
+                base_has._role_set(VarsRole, combined_vars);
                 base_has.set_kids(nodes=new_kid);
                 new_body.append(base_has);
             } else {
@@ -373,7 +373,7 @@ impl JacAutoLintPass._combine_has_in_node(
         old_body = list(nd.body);
         new_body = self.combine_consecutive_has(old_body);
         if len(new_body) != len(old_body) and self.emit(W3002, node_override=nd) {
-            nd._role_set("body", new_body);
+            nd._role_set(BodyRole, new_body);
             self.recalculate_parents(nd);
             new_body_set = set(id(s) for s in new_body);
             new_kid: list[uni.UniNode] = [];
@@ -605,7 +605,7 @@ impl JacAutoLintPass.enter_module with uni.Module entry {
     if not self._is_suppressed(W3003) {
         new_body = self.combine_consecutive_glob(new_body);
     }
-    module._role_set("body", new_body);
+    module._role_set(BodyRole, new_body);
     self.recalculate_parents(module);
     new_kid: list[uni.UniNode] = [];
     if module.doc {
@@ -789,66 +789,66 @@ impl JacAutoLintPass._replace_child_in_parent(
     parent._invalidate_sub_node_tab();
     if isinstance(parent, uni.CfgExpr) {
         if parent.expr is old {
-            parent._role_set("expr", new);
+            parent._role_set(ExprRole, new);
         }
     } elif isinstance(parent, uni.Assignment) {
         if parent.value is old {
-            parent._role_set("value", new);
+            parent._role_set(ValueRole, new);
         }
         new_targets: list[uni.Expr] = [];
         for t in parent.target {
             new_targets.append(new if t is old else t);
         }
-        parent._role_set("target", new_targets);
+        parent._role_set(TargetRole, new_targets);
     } elif isinstance(parent, uni.ExprStmt) {
         if parent.expr is old {
-            parent._role_set("expr", new);
+            parent._role_set(ExprRole, new);
         }
     } elif isinstance(parent, uni.ReturnStmt) {
         if parent.expr is old {
-            parent._role_set("expr", new);
+            parent._role_set(ExprRole, new);
         }
     } elif isinstance(parent, uni.BinaryExpr) {
         if parent.left is old {
-            parent._role_set("left", new);
+            parent._role_set(LeftRole, new);
         }
         if parent.right is old {
-            parent._role_set("right", new);
+            parent._role_set(RightRole, new);
         }
     } elif isinstance(parent, uni.UnaryExpr) {
         if parent.operand is old {
-            parent._role_set("operand", new);
+            parent._role_set(OperandRole, new);
         }
     } elif isinstance(parent, uni.CompareExpr) {
         if parent.left is old {
-            parent._role_set("left", new);
+            parent._role_set(LeftRole, new);
         }
         new_rights: list[uni.Expr] = [];
         for r in parent.rights {
             new_rights.append(new if r is old else r);
         }
-        parent._role_set("rights", new_rights);
+        parent._role_set(RightsRole, new_rights);
     } elif isinstance(parent, uni.AtomTrailer) {
         if parent.target is old {
-            parent._role_set("target", new);
+            parent._role_set(TargetRole, new);
         }
         if parent.right is old {
-            parent._role_set("right", new);
+            parent._role_set(RightRole, new);
         }
     } elif isinstance(parent, uni.FuncCall) {
         if parent.target is old {
-            parent._role_set("target", new);
+            parent._role_set(TargetRole, new);
         }
         if parent.params is not None {
             new_params: list[(uni.Expr | uni.KWPair)] = [];
             for p in parent.params {
                 new_params.append(new if p is old else p);
             }
-            parent._role_set("params", new_params);
+            parent._role_set(ParamsRole, new_params);
         }
     } elif isinstance(parent, uni.KWPair) {
         if parent.value is old {
-            parent._role_set("value", new);
+            parent._role_set(ValueRole, new);
         }
     }
 }
@@ -902,7 +902,7 @@ impl JacAutoLintPass.exit_func_call with uni.FuncCall exit {
             }
             if cfg_wrapper is not None {
                 replacement.set_parent(cfg_wrapper);
-                cfg_wrapper._role_set("expr", replacement);
+                cfg_wrapper._role_set(ExprRole, replacement);
                 cfg_wrapper.set_kids([replacement]);
                 cfg_wrapper._invalidate_sub_node_tab();
                 if isinstance(parent, uni.IfElseExpr)
@@ -920,7 +920,7 @@ impl JacAutoLintPass.exit_func_call with uni.FuncCall exit {
             if isinstance(parent, uni.IfElseExpr) {
                 repl_cfg = uni.CfgExpr(expr=replacement, kid=[replacement]);
                 if parent.condition is here {
-                    parent._role_set("condition", repl_cfg);
+                    parent._role_set(ConditionRole, repl_cfg);
                     if attr_name is not None
                         and isinstance(parent.value, uni.AtomTrailer) {
                         if self._is_matching_attr_access(
@@ -930,9 +930,9 @@ impl JacAutoLintPass.exit_func_call with uni.FuncCall exit {
                         }
                     }
                 } elif parent.value is here {
-                    parent._role_set("value", repl_cfg);
+                    parent._role_set(ValueRole, repl_cfg);
                 } elif parent.else_value is here {
-                    parent._role_set("else_value", repl_cfg);
+                    parent._role_set(ElseValueRole, repl_cfg);
                 }
             } elif isinstance(parent, uni.BoolExpr) {
                 new_values: list[uni.CfgExpr] = [];
@@ -945,7 +945,7 @@ impl JacAutoLintPass.exit_func_call with uni.FuncCall exit {
                         new_values.append(val);
                     }
                 }
-                parent._role_set("values", new_values);
+                parent._role_set(ValuesRole, new_values);
             }
             new_kids: list[uni.UniNode] = [];
             for kid in parent.kid {
@@ -1138,15 +1138,15 @@ impl JacAutoLintPass._convert_ternary_to_or(if_else_node: uni.IfElseExpr) -> boo
     }
     if isinstance(parent, uni.Assignment) {
         if parent.value is if_else_node {
-            parent._role_set("value", replacement);
+            parent._role_set(ValueRole, replacement);
         }
     } elif isinstance(parent, uni.IfElseExpr) {
         if parent.value.expr is if_else_node {
-            parent._role_set("value", uni.CfgExpr(expr=replacement, kid=[replacement]));
+            parent._role_set(ValueRole, uni.CfgExpr(expr=replacement, kid=[replacement]));
         } elif parent.condition.expr is if_else_node {
-            parent._role_set("condition", uni.CfgExpr(expr=replacement, kid=[replacement]));
+            parent._role_set(ConditionRole, uni.CfgExpr(expr=replacement, kid=[replacement]));
         } elif parent.else_value.expr is if_else_node {
-            parent._role_set("else_value", uni.CfgExpr(expr=replacement, kid=[replacement]));
+            parent._role_set(ElseValueRole, uni.CfgExpr(expr=replacement, kid=[replacement]));
         }
     } elif isinstance(parent, uni.BoolExpr) {
         new_values: list[uni.CfgExpr] = [];
@@ -1157,7 +1157,7 @@ impl JacAutoLintPass._convert_ternary_to_or(if_else_node: uni.IfElseExpr) -> boo
                 new_values.append(val);
             }
         }
-        parent._role_set("values", new_values);
+        parent._role_set(ValuesRole, new_values);
     }
     return True;
 }
@@ -1326,7 +1326,7 @@ impl JacAutoLintPass._fix_impl_signature_mismatch(impl_node: uni.ImplDef) -> Non
         }
     }
     _fix_token_positions(new_sig);
-    impl_node._role_set("spec", new_sig);
+    impl_node._role_set(SpecRole, new_sig);
     new_kids: list[uni.UniNode] = [];
     for kid in impl_node.kid {
         if kid is old_spec {
@@ -2099,7 +2099,7 @@ impl JacAutoLintPass._check_unnecessary_none_return(
             return;
         }
 
-        sig._role_set("return_type", None);
+        sig._role_set(ReturnTypeRole, None);
         new_kid: list[uni.UniNode] = [];
         skip_next = False;
         for kid in sig.kid {
@@ -2117,9 +2117,9 @@ impl JacAutoLintPass._check_unnecessary_none_return(
             sig.set_kids(nodes=new_kid);
         } else {
             if isinstance(nd, uni.LambdaExpr) {
-                nd._role_set("signature", None);
+                nd._role_set(SignatureRole, None);
             } elif isinstance(nd, uni.Ability) {
-                nd._role_set("signature", None);
+                nd._role_set(SignatureRole, None);
             }
             nd.set_kids([
                 k
@@ -2355,7 +2355,7 @@ impl JacAutoLintPass._convert_usestate_vars(ability_node: uni.Ability) -> None {
     }
     if replaced {
         self._did_convert_usestate = True;
-        ability_node._role_set("body", new_body);
+        ability_node._role_set(BodyRole, new_body);
         self.recalculate_parents(ability_node);
         ability_node.set_kids([replaced.get(id(k), k) for k in ability_node.kid]);
         ability_node._invalidate_sub_node_tab();
@@ -2455,7 +2455,7 @@ impl JacAutoLintPass._strip_usestate_imports(nd: uni.Module) -> None {
             new_body.append(stmt);
             continue;
         }
-        stmt._role_set("items", [
+        stmt._role_set(ItemsRole, [
             item
             for item in stmt.items
             if item not in usestate_items
@@ -2500,7 +2500,7 @@ impl JacAutoLintPass._strip_usestate_imports(nd: uni.Module) -> None {
     if len(new_body) == len(nd.body) {
         return;
     }
-    nd._role_set("body", new_body);
+    nd._role_set(BodyRole, new_body);
     if removed {
         nd.set_kids(
             nodes=[
@@ -2560,7 +2560,7 @@ impl JacAutoLintPass._strip_docstrings(start: uni.UniNode) -> None {
         if self.report_only {
             continue;
         }
-        `node._role_set("doc", None);
+        `node._role_set(DocRole, None);
         new_kid: list[uni.UniNode] = [
             k
             for k in `node.kid
@@ -2762,11 +2762,11 @@ impl JacAutoLintPass._convert_map_to_comprehension(nd: uni.FuncCall) -> bool {
 
     list_compr.set_parent(parent);
     if isinstance(parent, (uni.JsxExpression, uni.ExprStmt, uni.CfgExpr)) {
-        parent._role_set("expr", list_compr);
+        parent._role_set(ExprRole, list_compr);
     } elif isinstance(parent, uni.Assignment) {
-        parent._role_set("value", list_compr);
+        parent._role_set(ValueRole, list_compr);
     } else {
-        parent._role_set("expr", list_compr);
+        parent._role_set(ExprRole, list_compr);
     }
     parent.set_kids([list_compr if k is nd else k for k in parent.kid]);
     parent._invalidate_sub_node_tab();
@@ -2973,7 +2973,7 @@ impl JacAutoLintPass._convert_properties(container: uni.Archetype) -> None {
             new_body.append(item);
         }
     }
-    container._role_set("body", new_body);
+    container._role_set(BodyRole, new_body);
     new_kid: list[uni.UniNode] = [];
     for k in container.kid {
         if id(k) in first_map {
@@ -3124,7 +3124,7 @@ impl JacAutoLintPass._convert_property_impl(nd: uni.ImplDef) -> None {
     dot_tok.c_end = end_col;
     acc_name.c_start = end_col;
     acc_name.c_end = end_col;
-    nd._role_set("target", list(nd.target) + [acc_name]);
+    nd._role_set(TargetRole, list(nd.target) + [acc_name]);
     new_kid: list[uni.UniNode] = [];
     for k in nd.kid {
         new_kid.append(k);
@@ -3154,7 +3154,7 @@ impl JacAutoLintPass._convert_property_impl(nd: uni.ImplDef) -> None {
             }
         }
         if drop_ids {
-            nd._role_set("decorators", [
+            nd._role_set(DecoratorsRole, [
                 d
                 for d in nd.decorators
                 if id(d) not in drop_ids

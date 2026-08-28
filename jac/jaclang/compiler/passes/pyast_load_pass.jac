@@ -99,6 +99,7 @@ import from jaclang.compiler.frontend.unitree {
 import from jaclang.compiler.frontend.constant { Tokens as Tok, RESERVED_IDENT_NAMES }
 import from jaclang.compiler.frontend.diagnostics { E5041, E5042 }
 import from jaclang.compiler.passes.transform { Transform }
+import from jaclang.compiler.frontend.roles { NameRefRole, ReturnTypeRole, UnpackRole, ValueRole }
 
 glob T = TypeVar('T', bound=UniNode),
      _reserved_keywords = RESERVED_IDENT_NAMES;

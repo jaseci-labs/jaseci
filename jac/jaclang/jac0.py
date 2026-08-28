@@ -979,13 +979,43 @@ def _lower_connect(tokens: list[Token]) -> list[Token]:
         if not left:
             raise ParseError(f"line {t.line}: connect needs a left operand")
         etype = ""
+        etype_toks: list[Token] = []
         assigns: list[Token] = [_tok(TT.NAME, "None", t)]
         if t.value == "++>":
             rest = tokens[k + 1 :]
         else:
             m = k + 1
-            if not (m + 1 < len(tokens) and tokens[m].type == TT.COLON and tokens[m + 1].type == TT.NAME):
+            if not (m + 1 < len(tokens) and tokens[m].type == TT.COLON):
                 raise ParseError(f"line {t.line}: expected `+>:T:+>`")
+            if tokens[m + 1].type == TT.LPAREN:
+                dd = 0
+                q = m + 1
+                while q < len(tokens):
+                    if tokens[q].type == TT.LPAREN:
+                        dd += 1
+                    elif tokens[q].type == TT.RPAREN:
+                        dd -= 1
+                        if dd == 0:
+                            break
+                    q += 1
+                etype_toks = tokens[m + 1 : q + 1]
+                m = q + 1
+                if not (m + 1 < len(tokens) and tokens[m].type == TT.COLON and tokens[m + 1].type == TT.OP and tokens[m + 1].value == "+>"):
+                    raise ParseError(f"line {t.line}: expected closing `:+>`")
+                rest = tokens[m + 2 :]
+                for r in rest:
+                    if r.type == TT.OP and r.value in ("+>", "++>"):
+                        raise ParseError(f"line {t.line}: chained connects are outside the seed subset")
+                if not rest:
+                    raise ParseError(f"line {t.line}: connect needs a right operand")
+                call = _osp_call(
+                    "connect0",
+                    [left, rest, etype_toks, assigns],
+                    t,
+                )
+                return before + call
+            if tokens[m + 1].type != TT.NAME:
+                raise ParseError(f"line {t.line}: expected `+>:T:+>` or `+>:(expr):+>`")
             etype = tokens[m + 1].value
             m += 2
             if m < len(tokens) and tokens[m].type == TT.LPAREN:

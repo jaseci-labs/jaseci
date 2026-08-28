@@ -7,9 +7,8 @@ declarations) and jac/jaclang/compiler/frontend/roles.jac (ROLE_SLOTS: which
 accessor of which class is a role edge, and its shape).
 
 Output: jac/jaclang/compiler/frontend/unitree.impl/roles.impl.jac, holding one
-getter per role slot (an edge reference with a literal edge type), one
-`_attach` per class that owns roles (a match over the role name, connecting
-with the literal edge type, delegating up the MRO), and one `init` per class
+getter per role slot (an edge reference with a literal edge type) and one
+`init` per class
 whose constructor is declared but not hand-written (scalars assigned, roles
 linked, postinit called).
 
@@ -127,7 +126,7 @@ def generate() -> str:
                     "    if impl_of {",
                     "        return impl_of[0];",
                     "    }",
-                    f'    return self._role_shaped("{fname}", [self ->:{rc}:->]);',
+                    f"    return self._role_shaped({rc}, [self ->:{rc}:->]);",
                 ]
             elif kind == "many":
                 lines = [f"    return [self ->:{rc}:->];"]
@@ -136,19 +135,8 @@ def generate() -> str:
             elif kind == "one":
                 lines = [f"    return [self ->:{rc}:->][0];"]
             else:
-                lines = [f'    return self._role_shaped("{fname}", [self ->:{rc}:->]);']
+                lines = [f"    return self._role_shaped({rc}, [self ->:{rc}:->]);"]
             out.append(f"impl {cname}.{fname}.getter -> {typ} {{\n" + "\n".join(lines) + "\n}")
-        if own:
-            lines = [
-                f"impl {cname}._attach(child: UniNode, role: str, in_kid: bool) -> None {{",
-                "    match role {",
-            ]
-            for fname, _ in own:
-                lines.append(
-                    f'        case "{fname}": self +>:{role_cls(fname)}(in_kid=in_kid):+> child;'
-                )
-            lines += ["        case _: super._attach(child, role, in_kid);", "    }", "}"]
-            out.append("\n".join(lines))
         if cname not in hand_written_reprs():
             fwd = next((b for b in _mro_list(src, cname) if b in hand_written_reprs()), None)
             body_line = (
@@ -186,7 +174,7 @@ def generate() -> str:
             else:
                 lines.append(f"    self.{n} = {n};")
         lines.append(
-            "    self._link(kid, {" + ", ".join(f'"{n}": {n}' for n in role_args) + "});"
+            "    self._link(kid, {" + ", ".join(f"{role_cls(n)}: {n}" for n in role_args) + "});"
         )
         lines.append("    self.postinit();")
         lines.append("}")
