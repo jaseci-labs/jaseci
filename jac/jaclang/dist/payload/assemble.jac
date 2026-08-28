@@ -67,6 +67,7 @@ obj TarEntry {
 def mk_payload(pbs_py_dir: str, repo_root: str, out: str, opts: MkPayloadOpts);
 def resolve_python(pbs_py_dir: str) -> str;
 def assemble_site(repo_root: str, site: str, opts: MkPayloadOpts);
+def bundle_shim(site: str, so: str);
 def write_dist_info(repo_root: str, site: str);
 def run_precompile_stage(py: str, pbs_py_dir: str, site: str, opts: MkPayloadOpts);
 def precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool);

@@ -132,10 +132,7 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             " build can compile + statically link the LLVMPY_* shim."
         );
     }
-    dst_dir = os.path.join(site, "jaclang", "compiler", "backends", "native", "llvm");
-    make_dirs(dst_dir);
-    log(f"==> bundling Zig-built LLVMPY_* shim ({so})");
-    copy_file(so, os.path.join(dst_dir, os.path.basename(so)));
+    bundle_shim(site, so);
 
     bb = opts.bun_bin;
     if bb is not None {
@@ -144,6 +141,22 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
         log(f"==> bundling contained bun runtime ({bb})");
         copy_file(bb, os.path.join(bun_dir, os.path.basename(bb)));
     }
+}
+
+impl bundle_shim(site: str, so: str) {
+    canonical = shim_file_name();
+    ext = os.path.splitext(so)[1];
+    want = os.path.splitext(canonical)[1];
+    if ext != want {
+        raise PayloadDie(
+            f"mkpayload: shim '{os.path.basename(so)}' has extension '{ext}' but"
+            f" this host bundles '{canonical}'; it was built for another platform."
+        );
+    }
+    dst_dir = os.path.join(site, "jaclang", "compiler", "backends", "native", "llvm");
+    make_dirs(dst_dir);
+    log(f"==> bundling Zig-built LLVMPY_* shim ({so} -> {canonical})");
+    copy_file(so, os.path.join(dst_dir, canonical));
 }
 
 impl write_dist_info(repo_root: str, site: str) {

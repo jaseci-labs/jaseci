@@ -1,6 +1,7 @@
 """mkpayload's tar + zstd stage: deterministic tar bytes, the deps/jac frame
 split, the content-addressed layer cache with decompress-and-compare
-verification, and the floor staging allow-list."""
+verification, the floor staging allow-list, and the canonical shim bundle
+name."""
 
 import io;
 import os;
@@ -19,13 +20,15 @@ import from jaclang.dist.payload.assemble {
     TAR_DIRTYPE,
     TAR_PAX_FORMAT,
     TAR_REGTYPE,
+    bundle_shim,
     collect_stage_entries,
     is_volatile_path,
+    shim_file_name,
     stage_floor,
     tar_stage,
     tar_zst_dir
 }
-import from jaclang.dist.payload.fsutil { host_os_arch }
+import from jaclang.dist.payload.fsutil { PayloadDie, host_os_arch }
 import from jaclang.dist.payload.pins { py_ver }
 
 def wf(stage: str, rel: str, data: bytes, mode: int = 0o644) {
@@ -298,6 +301,71 @@ test "layer cache: verified reuse, corruption falls back, deps edit rolls the ke
     } finally {
         shutil.rmtree(base, ignore_errors=True);
     }
+}
+
+test "bundle_shim ships the shim under its canonical name, whatever --shim was called" {
+    base = tempfile.mkdtemp(prefix="jac-payload-shim-");
+    try {
+        canonical = shim_file_name();
+        (stem, ext) = os.path.splitext(canonical);
+
+        # The release channel hands mkpayload the deps-release asset, whose
+        # basename is content-addressed (#8729).
+        addressed = f"{stem}-linux-x86_64-0f84238b15a4673c{ext}";
+        wf(base, addressed, b"fetched-shim-bytes");
+        site_a = os.path.join(base, "site_a");
+        bundle_shim(site_a, os.path.join(base, addressed));
+        dst_a = os.path.join(
+            site_a, "jaclang", "compiler", "backends", "native", "llvm"
+        );
+        assert rf(os.path.join(dst_a, canonical)) == b"fetched-shim-bytes";
+        assert os.listdir(dst_a) == [canonical] , "only the canonical name ships";
+
+        # The dev channel and a from-source zig build already pass it canonical.
+        wf(base, canonical, b"built-shim-bytes");
+        site_b = os.path.join(base, "site_b");
+        bundle_shim(site_b, os.path.join(base, canonical));
+        dst_b = os.path.join(
+            site_b, "jaclang", "compiler", "backends", "native", "llvm"
+        );
+        assert rf(os.path.join(dst_b, canonical)) == b"built-shim-bytes";
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}
+
+test "bundle_shim refuses a shim built for another platform" {
+    base = tempfile.mkdtemp(prefix="jac-payload-shim-x-");
+    try {
+        foreign = ".so" if shim_file_name().endswith(".dylib") else ".dylib";
+        wf(base, "libjacllvm" + foreign, b"foreign-shim-bytes");
+        site = os.path.join(base, "site");
+        raised = False;
+        try {
+            bundle_shim(site, os.path.join(base, "libjacllvm" + foreign));
+        } except PayloadDie {
+            raised = True;
+        }
+        assert raised , "a cross-platform shim must fail the build, not ship renamed";
+        assert not os.path.exists(
+            os.path.join(
+                site,
+                "jaclang",
+                "compiler",
+                "backends",
+                "native",
+                "llvm",
+                shim_file_name()
+            )
+        );
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}
+
+test "the bundled shim name is the name the runtime locator resolves" {
+    import from jaclang.compiler.backends.native.llvm.binding.ffi { _shim_name }
+    assert shim_file_name() == _shim_name();
 }
 
 test "stage_floor stages the floor allow-list + CA bundle, skips non-floor archives" {
