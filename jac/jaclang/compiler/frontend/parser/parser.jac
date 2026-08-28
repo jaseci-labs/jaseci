@@ -194,6 +194,7 @@ glob TOKEN_KIND_TO_TOK: dict[TokenKind, str] = {
          TokenKind.KW_DEF: Tok.KW_DEF.value,
          TokenKind.KW_STATIC: Tok.KW_STATIC.value,
          TokenKind.KW_OVERRIDE: Tok.KW_OVERRIDE.value,
+         TokenKind.KW_COMPTIME: Tok.KW_COMPTIME.value,
          TokenKind.KW_IMPL: Tok.KW_IMPL.value,
          TokenKind.KW_SEM: Tok.KW_SEM.value,
          TokenKind.KW_TEST: Tok.KW_TEST.value,
@@ -585,6 +586,9 @@ obj Parser {
     def parse_test -> Test;
     def parse_global_var -> GlobalVars;
     def parse_global_var_assignment -> Assignment;
+    def parse_comptime_element -> ElementStmt | EmptyToken | None;
+    def parse_comptime_global -> GlobalVars;
+    def parse_comptime_stmt -> CodeBlockStmt | None;
     def parse_impl_def -> ImplDef;
     def _is_impl_enum_body -> bool;
     def parse_impl_target_name -> NameAtom;

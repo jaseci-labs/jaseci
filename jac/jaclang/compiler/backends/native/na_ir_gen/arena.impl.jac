@@ -1138,7 +1138,9 @@ impl NaIRGenArena._emit_region_handle_drop(alloca: object, var_name: str) -> Non
     _i8p = ir.IntType(8).as_pointer();
     _cast = self.builder.bitcast(_val, _i8p, name=f"region.drop.{var_name}.i8");
     self.builder.call(self.region_drop_fn, [_cast]);
-    self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
+    _slot_ty = alloca.type;
+    assert isinstance(_slot_ty, ir.PointerType) , "a region handle slot is always a pointer";
+    self.builder.store(ir.Constant(_slot_ty.pointee, None), alloca);
 }
 
 impl NaIRGenArena._emit_struct_drop_fields_fn(type_name: str) -> (ir.Function | None) {
@@ -1212,7 +1214,9 @@ impl NaIRGenArena._emit_struct_drop_fields_fn(type_name: str) -> (ir.Function | 
             continue;
         }
         fv = b.load(fp, name=f"dropf.{fname}");
-        if isinstance(fv.type.pointee, ir.FunctionType) {
+        _fv_ty = fv.type;
+        if isinstance(_fv_ty, ir.PointerType)
+            and isinstance(_fv_ty.pointee, ir.FunctionType) {
             continue;
         }
         fv_i8 = b.bitcast(fv, i8p, name=f"dropf.{fname}.i8");

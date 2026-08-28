@@ -247,6 +247,10 @@ resolves. If you ever need to override the checker's inference, the
     If you need to use the built-in function to check if any item is truthy, use `` `any ``:
     ``if `any([True, False]) { ... }``
 
+### Value Parameters
+
+An archetype's `[]` list may also carry `comptime` value parameters (`obj Matrix[T, comptime rows: int, comptime cols: int]`), instantiated as `Matrix[float, 3, 4](...)`. They erase to constructor-bound fields; see [Compile-Time Evaluation](comptime.md#archetype-value-parameters).
+
 ## 4 The `Self` Type
 
 `Self` (capital S) is a special type that, in instance-method positions, refers to the enclosing archetype. It is distinct from `self` (lowercase), which refers to the current instance. `Self` is most useful for fluent/builder methods that return the receiver:

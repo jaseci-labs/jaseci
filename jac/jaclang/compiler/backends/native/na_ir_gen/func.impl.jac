@@ -40,8 +40,11 @@ impl NaIRGenFunc._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     if nd.signature is None or not isinstance(nd.signature, uni.FuncSignature) {
         return;
     }
+    if nd.is_comptime {
+        return;
+    }
     name = nd.name_ref.sym_name if nd.name_ref else "unnamed";
-    if nd.type_params {
+    if nd.type_params or self._ability_has_ct_params(nd) {
         self.generic_fns[name] = nd;
         self.has_native_code = True;
         return;
@@ -380,7 +383,11 @@ impl NaIRGenFunc._declare_clib_ability(nd: uni.Ability) -> None {
 
 impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
     name = (nd).name_ref.sym_name if (nd).name_ref else "unnamed";
-    if nd.type_params and self._mono_solution is None {
+    if nd.is_comptime {
+        return;
+    }
+    if (nd.type_params or self._ability_has_ct_params(nd))
+        and self._mono_solution is None {
         return;
     }
     func = self.func_symtab.get(name);
