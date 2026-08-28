@@ -34,7 +34,7 @@ Install the scheduler dependencies (this pulls `apscheduler` into the project's 
 
 ```bash
 jac install
-jac start
+jac run --serve main.jac
 ```
 
 The startup log confirms the subsystem is live and `heartbeat` begins firing every 5 seconds:
@@ -47,7 +47,7 @@ INFO - Scheduler subsystem ready
 ```
 
 !!! note
-    Scheduled tasks run inside the server process. They execute under `jac start`; a plain `jac run` executes your entry point once and exits without firing any schedules.
+    Scheduled tasks run inside the server process. They execute under `jac run --serve`; a plain `jac run` executes your entry point once and exits without firing any schedules.
 
 ## The `@schedule` Decorator
 
@@ -67,7 +67,7 @@ walker SyncInventory {
 | `trigger` | `ScheduleTrigger.STATIC` or `ScheduleTrigger.DYNAMIC` | `STATIC` starts running as soon as the server boots. `DYNAMIC` marks the target as schedulable through the `/jobs` REST API. |
 | `interval` | `float` | Seconds between runs. |
 | `cron` | `str` | 5-field cron expression, evaluated in UTC. |
-| `date` | `str` | One-shot fire time, `"YYYY-MM-DD HH:MM:SS"` in UTC. |
+| `date` | `str` | One-shot fire time. A bare `"YYYY-MM-DD HH:MM:SS"` is read in the **server's local timezone** here, not UTC. Append an offset, `"2026-12-31 09:00:00+00:00"`, to pin it. |
 
 A `STATIC` schedule needs exactly one of `interval`, `cron`, or `date`. A `DYNAMIC` target takes no timing arguments in code; the timing arrives later with each API call.
 
@@ -92,12 +92,16 @@ walker DailyReport {
     }
 }
 
-# Once, at a specific moment (UTC)
-@schedule(trigger=ScheduleTrigger.STATIC, date="2026-12-31 09:00:00")
+# Once, at a specific moment. The offset is explicit because a bare
+# timestamp is read in the server's local timezone, not UTC.
+@schedule(trigger=ScheduleTrigger.STATIC, date="2026-12-31 09:00:00+00:00")
 def year_end_cleanup -> None {
     print("cleanup fired");
 }
 ```
+
+!!! warning
+    A static `date` that has already passed by the time the server boots is dropped without an error: the task is simply never registered, and the startup log counts one fewer static task. Since a bare timestamp is read in the server's local timezone, a time meant as UTC can land in the past on a server running east of UTC. Pin the offset to avoid this.
 
 Static tasks run as the system user. Use them for app-wide work such as cache warming, digests, and cleanup, not for per-user logic.
 
@@ -342,7 +346,7 @@ shutdown_timeout = 10
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `enabled` | `None` | Install-time capability flag: declares that the project uses the scheduler so `jac install` resolves its dependencies (`apscheduler`). It is not a runtime switch; the server always starts the scheduler subsystem and registers `/jobs` and any static schedules, though cron, date, and dynamic scheduling fail without `apscheduler` installed |
+| `enabled` | `None` | Install-time capability flag: declares that the project uses the scheduler so `jac install` resolves its dependencies (`apscheduler`). It is not a runtime switch; the server always starts the scheduler subsystem and registers `/jobs` and any static schedules. Static schedules run on the built-in scheduler and need no extra packages; dynamic jobs created through `/jobs` require `apscheduler` |
 | `collection` | `"scheduled_jobs"` | Collection name for jobs in the database-backed job store |
 | `thread_pool_size` | `10` | Worker threads available for concurrently firing jobs |
 | `misfire_grace_time` | `60` | Seconds a late job may still fire after its scheduled time (for example after a restart) before the run is skipped |
@@ -352,7 +356,7 @@ shutdown_timeout = 10
 
 ## Behavior Notes
 
-- All schedule times are UTC: cron fields, date triggers, and stored timestamps.
+- Cron fields, dynamic job triggers, and stored timestamps are all UTC. The one exception is a bare `date` string on `@schedule`, which is read in the server's local timezone; pin an offset there.
 - A job never overlaps itself. If a run is still going when the next fire time arrives, the new run waits (`max_instances=1`).
 - Missed fires within `misfire_grace_time` execute once on recovery; older misses are dropped rather than replayed in a burst.
 - Keep scheduled work idempotent where possible. Interval and cron jobs will run many times, and a restart near a fire time can produce a make-up run.
