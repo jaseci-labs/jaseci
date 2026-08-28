@@ -639,7 +639,8 @@ obj CodeGenTarget {
         _clib_paths: list[str] = field(default_factory=`list),
         _clib_symbol_lib: dict[(str, str)] = field(default_factory=`dict),
         _exported_symbols: list[str] = field(default_factory=`list),
-        doc_comments: (NodeComments | None) = None;
+        doc_comments: (NodeComments | None) = None,
+        graphmend_facts: any = None;
 
     has doc_ir: Doc { getter; setter(value: Doc); }
     has client_manifest: ClientManifest { getter; setter(value: ClientManifest); }

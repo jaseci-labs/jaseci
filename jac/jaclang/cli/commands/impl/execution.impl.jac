@@ -41,6 +41,49 @@ def _discover_config_from_file(filename: str) -> None {
     }
 }
 
+def _configured_graphmend -> bool {
+    import from jaclang.project.config { get_config }
+    cfg = get_config();
+    return bool(cfg.run.graphmend) if cfg is not None else True;
+}
+
+def _graphmend_may_engage(graphmend: bool, filename: str) -> bool {
+    if not graphmend {
+        return False;
+    }
+    import from jaclang.compiler.passes.graphmend.auto_detect { file_imports_torch }
+    return file_imports_torch(filename);
+}
+
+def _apply_graphmend(graphmend_disable: str = "") -> bool {
+    import from jaclang.project.config { get_config }
+    gm_disable: list[str] = [];
+    for part in graphmend_disable.split(',') {
+        stripped = part.strip().lower();
+        if not stripped {
+            continue;
+        }
+        if stripped not in ('trap', 'where', 'defer') {
+            console.warning(
+                f"--graphmend-disable ignores unknown transform '{stripped}' "
+                f"(valid: trap, where, defer)."
+            );
+            continue;
+        }
+        gm_disable.append(stripped);
+    }
+    cfg = get_config();
+    if gm_disable and cfg is not None {
+        cfg.run.graphmend_disable = ",".join(gm_disable);
+    }
+    gm_on = _configured_graphmend();
+    if gm_on and 'torch' in sys.modules {
+        import from jaclang.meta_importer { install_graphmend_loader_hook_for_torch }
+        install_graphmend_loader_hook_for_torch();
+    }
+    return gm_on;
+}
+
 def _default_codespace_is_native -> bool {
     import from jaclang.project.config { get_config, BuildConfig }
     cfg = get_config();
@@ -448,6 +491,7 @@ impl run(
     show: bool = False,
     main: bool = True,
     cache: bool = True,
+    graphmend_disable: str = "",
     diagnostics: str = "",
     entry_name: str = "",
     nd: str = "",
@@ -556,11 +600,18 @@ impl run(
     if entry_name {
         return _invoke_entrypoint(target, entry_name, args, main, root_id, nd);
     }
-    return _exec_file(target, main, cache, diagnostics, args);
+    return _exec_file(
+        target, main, cache, diagnostics, args, graphmend_disable=graphmend_disable
+    );
 }
 
 def _exec_file(
-    filename: str, main: bool, cache: bool, diagnostics: str, args: list
+    filename: str,
+    main: bool,
+    cache: bool,
+    diagnostics: str,
+    args: list,
+    graphmend_disable: str = ""
 ) -> int {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.project.config { get_config }
@@ -581,6 +632,7 @@ def _exec_file(
     sys.argv = [filename] + list(args);
     (base, mod, mach) = _proc_file(filename);
     lng = filename.split('.')[-1];
+    graphmend = _apply_graphmend(graphmend_disable);
     try {
         if filename.endswith('.jac') {
             native_executed = False;
@@ -591,8 +643,11 @@ def _exec_file(
                 and (_cfg_kind.project.kind or '').strip() == 'cli-native'
             );
             if (
-                _kind_forced
-                or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
+                (not _graphmend_may_engage(graphmend, filename))
+                and (
+                    _kind_forced
+                    or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
+                )
             ) {
                 import ctypes;
                 import from jaclang.compiler.driver.compile_options {
@@ -705,7 +760,10 @@ impl serve(
     import from pathlib { Path }
     import from jaclang.compiler.frontend.codeinfo { set_effective_default_codespace }
 
+    import from jaclang.compiler.driver.compile_options { mark_process_serving }
+
     use_line_buffered_output();
+    mark_process_serving();
     set_effective_default_codespace('server');
 
     import from jaclang.client.cli { run_client_start }

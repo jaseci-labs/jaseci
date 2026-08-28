@@ -13,6 +13,9 @@ impl JacProgram.init(
     self.mtir_map: dict[(str, Info)] = self.analysis.mtir_map;
     self.type_evaluator: (TypeEvaluator | None) = None;
     self._compiler: (JacCompiler | None) = None;
+    self.graphmend_claimed: set[str] = set();
+    self.graphmend_claim_walked: set[str] = set();
+    self.graphmend_claim_parent: dict[str, str] = {};
 }
 
 impl JacProgram.hub_cache_stamp(self: JacProgram, resolved_path: str) -> None {

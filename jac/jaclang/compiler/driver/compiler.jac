@@ -16,6 +16,8 @@ import from jaclang.compiler.driver.jir {
     FLAG_PRECOMPILED,
     get_module_cache_path,
     is_module_cache_valid,
+    is_module_cache_valid_gm_noop,
+    swap_graphmend_cache_variant,
     precompiled_jir_matches_source,
     cache_mode,
     read_bytecode_only,
@@ -95,7 +97,16 @@ obj JacCompiler {
 
     static def _check_native_abi(layout: any, full_target: str) -> None;
     def get_bytecode(
-        full_target: str, target_program: JacProgram
+        full_target: str,
+        target_program: JacProgram,
+        options: (CompileOptions | None) = None
+    ) -> (types.CodeType | None);
+
+    def _get_bytecode_variant(
+        full_target: str,
+        target_program: JacProgram,
+        actual_program: JacProgram,
+        gm_active: bool
     ) -> (types.CodeType | None);
 
     def _load_native_from_cache(

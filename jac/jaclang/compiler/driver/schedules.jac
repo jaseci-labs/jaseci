@@ -269,7 +269,7 @@ def _py_codegen_tail -> list[type[Transform]] {
 }
 
 def get_py_code_gen(
-    native: bool = True, provided: (set[str] | None) = None
+    native: bool = True, provided: (set[str] | None) = None, graphmend: bool = True
 ) -> list[type[Transform]] {
     if _codegen_sched_loading.get() or _ir_sched_loading.get() {
         return _py_codegen_tail();
@@ -287,6 +287,28 @@ def get_py_code_gen(
             }
             passes.extend([RcFactsPass, NaIRGenPass, NativeCompilePass]);
             _note_native_schedule_failure(None);
+        }
+        if graphmend {
+            import from jaclang.compiler.passes.graphmend.graph_break_detect_pass {
+                GraphBreakDetectPass
+            }
+            import from jaclang.compiler.passes.graphmend.trap_lowering_pass {
+                TrapLoweringPass
+            }
+            import from jaclang.compiler.passes.graphmend.predicate_ctrl_flow_pass {
+                PredicateCtrlFlowPass
+            }
+            import from jaclang.compiler.passes.graphmend.defer_side_effect_pass {
+                DeferSideEffectPass
+            }
+            passes.extend(
+                [
+                    GraphBreakDetectPass,
+                    TrapLoweringPass,
+                    PredicateCtrlFlowPass,
+                    DeferSideEffectPass
+                ]
+            );
         }
         passes.extend(_py_codegen_tail());
         return validate_schedule(

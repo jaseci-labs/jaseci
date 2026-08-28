@@ -262,11 +262,20 @@ def precompile_unit(
 ) -> bytes | None {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
 
     compiler = Jac.get_compiler();
 
     program = JacProgram();
-    code = compiler.get_bytecode(full_target=jac_path, target_program=program);
+    options_kw: dict = {};
+    probe = CompileOptions();
+    if hasattr(probe, 'graphmend') {
+        setattr(probe, 'graphmend', False);
+        options_kw['options'] = probe;
+    }
+    code = compiler.get_bytecode(
+        full_target=jac_path, target_program=program, **options_kw
+    );
     if code is None {
         _emit_unit_diagnostics(jac_path, [program, compiler.selfhost.program]);
     }
