@@ -63,6 +63,71 @@ def fake(obs: AutoscalerObserver) -> FakeObserver {
 }
 
 
+obj FailingObserver(AutoscalerObserver) {
+    # Exercises get_or_create's error path: watch_namespace raises after
+    # start() has already succeeded, so a started-but-unpublished observer
+    # must be stopped rather than leaked.
+    has stop_calls: list = [];
+
+    def start { }
+    def watch_namespace(namespace: str) {
+        raise RuntimeError("watch_namespace failed");
+    }
+
+    def stop(drain: bool = True) {
+        self.stop_calls.append(drain);
+    }
+
+    def subscribe(
+        autoscaler_name: (str | None) = None,
+        scale_target_name: (str | None) = None,
+        max_queue: int = 100,
+        backpressure: str = "drop_oldest"
+    ) -> AutoscalerSubscription {
+        return AutoscalerSubscription();
+    }
+}
+
+
+obj SlowStoppingObserver(AutoscalerObserver) {
+    # Exercises the release()/get_or_create() eviction race: stop() sleeps
+    # long enough that a concurrent get_or_create for the same key would
+    # observe the overlap (a second observer created and watching before
+    # this one has finished stopping) if the "stopping" gate regressed.
+    has watch_calls: list = [],
+        stop_calls: list = [],
+        stop_finished_at: (float | None) = None,
+        watch_started_at: (float | None) = None;
+
+    def start { }
+    def stop(drain: bool = True) {
+        time.sleep(0.05);
+        self.stop_calls.append(drain);
+        self.stop_finished_at = time.monotonic();
+    }
+
+    def watch_namespace(namespace: str) {
+        self.watch_started_at = time.monotonic();
+        self.watch_calls.append(namespace);
+    }
+
+    def subscribe(
+        autoscaler_name: (str | None) = None,
+        scale_target_name: (str | None) = None,
+        max_queue: int = 100,
+        backpressure: str = "drop_oldest"
+    ) -> AutoscalerSubscription {
+        return AutoscalerSubscription();
+    }
+}
+
+
+def slow(obs: AutoscalerObserver) -> SlowStoppingObserver {
+    assert isinstance(obs, SlowStoppingObserver);
+    return obs;
+}
+
+
 test "get_or_create returns the identical instance for the same namespace and cluster" {
     AutoscalerObserverRegistry._instances = {};
 
@@ -334,4 +399,77 @@ test "the default construction path (no observer_factory) builds a real Kubernet
     assert isinstance(obs, KubernetesAutoscalerObserver);
 
     AutoscalerObserverRegistry.shutdown_all();
+}
+
+test "get_or_create stops and does not leak an observer whose watch_namespace fails" {
+    AutoscalerObserverRegistry._instances = {};
+    AutoscalerObserverRegistry._refcounts = {};
+    AutoscalerObserverRegistry._stopping = {};
+
+    created_instances: list = [];
+
+    def failing_factory -> AutoscalerObserver {
+        obs = FailingObserver();
+        created_instances.append(obs);
+        return obs;
+    }
+
+    threw = False;
+    try {
+        AutoscalerObserverRegistry.get_or_create(
+            "ns-fail", observer_factory=failing_factory
+        );
+    } except RuntimeError {
+        threw = True;
+    }
+    assert threw;
+
+    assert len(created_instances) == 1;
+    assert created_instances[0].stop_calls == [False];
+
+    key = f"{default_cluster_key()}::ns-fail";
+    assert key not in AutoscalerObserverRegistry._instances;
+    assert key not in AutoscalerObserverRegistry._refcounts;
+
+    # The failed key must not block subsequent creation.
+    fresh = fake(
+        AutoscalerObserverRegistry.get_or_create(
+            "ns-fail", observer_factory=FakeObserver
+        )
+    );
+    assert fresh.watch_calls == ["ns-fail"];
+}
+
+test "get_or_create waits for an in-flight release before creating a new observer for the same key" {
+    AutoscalerObserverRegistry._instances = {};
+    AutoscalerObserverRegistry._refcounts = {};
+    AutoscalerObserverRegistry._stopping = {};
+
+    first = slow(
+        AutoscalerObserverRegistry.get_or_create(
+            "ns-evict-race", observer_factory=SlowStoppingObserver
+        )
+    );
+
+    def releaser {
+        AutoscalerObserverRegistry.release("ns-evict-race");
+    }
+
+    release_thread = Thread(target=releaser);
+    release_thread.start();
+    # Give release() time to pop the instance, mark it stopping, and enter
+    # its (slow) stop() call before this thread races in behind it.
+    time.sleep(0.01);
+
+    second = slow(
+        AutoscalerObserverRegistry.get_or_create(
+            "ns-evict-race", observer_factory=SlowStoppingObserver
+        )
+    );
+    release_thread.join();
+
+    assert second is not first;
+    assert first.stop_finished_at is not None;
+    assert second.watch_started_at is not None;
+    assert first.stop_finished_at <= second.watch_started_at;
 }
