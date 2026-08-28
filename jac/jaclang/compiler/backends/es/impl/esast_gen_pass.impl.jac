@@ -2413,7 +2413,7 @@ impl EsastGenPass.exit_assignment with uni.Assignment exit {
         pattern_names = self._collect_pattern_names(target_node);
         targets_info.append(
             AssignmentTargetInfo(
-                here=target_node,
+                nd=target_node,
                 left=left,
                 reference=reference,
                 decl_name=decl_name,
@@ -2433,7 +2433,7 @@ impl EsastGenPass.exit_assignment with uni.Assignment exit {
         )
     );
     for info in reversed(targets_info) {
-        target_node = info.here;
+        target_node = info.nd;
         left = info.left;
         decl_name = info.decl_name;
         pattern_names = info.pattern_names;

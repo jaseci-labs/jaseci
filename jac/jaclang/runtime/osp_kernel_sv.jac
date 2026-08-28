@@ -141,21 +141,20 @@ def _sv_is_a(tag: int, base: int) -> bool {
     return tc is not None and bc is not None and issubclass(tc, bc);
 }
 
-glob _ndesc_of_tag: dict[int, NodeDesc] = {};
+glob _ndesc_of_cls: dict[type, NodeDesc] = {};
 
 def _sv_node_desc(tag: int) -> NodeDesc {
-    cached = _ndesc_of_tag.get(tag);
+    cls = cls_of_tag(tag);
+    if cls is None {
+        return NodeDesc(type_tag=tag, `entry=[], `exit=[]);
+    }
+    cached = _ndesc_of_cls.get(cls);
     if cached is not None {
         return cached;
     }
-    cls = cls_of_tag(tag);
-    if cls is None {
-        nd = NodeDesc(type_tag=tag, `entry=[], `exit=[]);
-    } else {
-        d = desc_for(cls);
-        nd = NodeDesc(type_tag=d.type_tag, `entry=d.`entry, `exit=d.`exit);
-    }
-    _ndesc_of_tag[tag] = nd;
+    d = desc_for(cls);
+    nd = NodeDesc(type_tag=d.type_tag, `entry=d.`entry, `exit=d.`exit);
+    _ndesc_of_cls[cls] = nd;
     return nd;
 }
 
