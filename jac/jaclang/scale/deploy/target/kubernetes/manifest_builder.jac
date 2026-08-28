@@ -9,7 +9,8 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.autoscale.autoscaler {
     DEFAULT_CPU_UTILIZATION_TARGET,
-    DEFAULT_MEMORY_UTILIZATION_TARGET
+    DEFAULT_MEMORY_UTILIZATION_TARGET,
+    RESOURCE_ONLY_TRIGGER_TYPES
 }
 import from jaclang.scale.deploy.autoscale.http_activation_config {
     build_http_activation_spec
@@ -205,7 +206,15 @@ def is_scale_to_zero_eligible(
         return False;
     }
     triggers = autoscaler_cfg.get("triggers", []);
-    return isinstance(triggers, list) and len(triggers) > 0;
+    if not isinstance(triggers, list) {
+        return False;
+    }
+
+    return any(
+        str(dict(t).get("type", "")) not in RESOURCE_ONLY_TRIGGER_TYPES
+        for t in triggers
+        if isinstance(t, dict)
+    );
 }
 
 

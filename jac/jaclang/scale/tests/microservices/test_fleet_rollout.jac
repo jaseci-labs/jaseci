@@ -449,6 +449,29 @@ test "a KEDA min=0 deployment settled at zero completes without timing out" {
 }
 
 
+test "a KEDA min=0 deployment with only a cpu trigger is not exempted from the timeout" {
+    target = KubernetesTarget(
+        config=KubernetesConfig(
+            app_name="jac-shop", namespace="ns", autoscaler_engine="keda"
+        )
+    );
+    (apps, core) = _apis(0, []);
+    apps.read_namespaced_deployment.return_value = _dep_zero();
+    bundle = _bundle_with_autoscaler(
+        "order-service-deployment",
+        "order-service",
+        {"min": 0, "max": 3, "triggers": [{"type": "cpu", "metadata": {}}]}
+    );
+
+    err = _run(target, bundle, apps, core, 15);
+
+    assert err is not None and "timed out" in str(err) , (
+        f"a cpu-only trigger can never reach zero, so the rollout wait must "
+        f"not exempt it from the timeout: {err}"
+    );
+}
+
+
 test "a KEDA min=0 deployment that is actually crash-looping still fails" {
     target = KubernetesTarget(
         config=KubernetesConfig(

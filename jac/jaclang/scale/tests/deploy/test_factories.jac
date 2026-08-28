@@ -17,6 +17,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes { kubernetes_target as kt_module }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
+import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 
 test "deployment target factory creates kubernetes target" {
     config = {"app_name": "test-app", "namespace": "default", "container_port": 8000};
@@ -437,80 +438,99 @@ def _status_apis(replicas: int, ready: int) -> tuple {
     return (apps, core);
 }
 
-def _get_status(
-    target: any, autoscaler_cfg: dict | None, replicas: int, ready: int
-) -> any {
+def _seed_ms_config(ms_toml: str) -> str {
+    # get_status's own call site builds ManifestBuilder(k8s_config=..., logger=...)
+    # with no microservices_config kwarg, so _ms_cfg() always falls back to
+    # get_scale_config().get_microservices_config(). Point that at a real
+    # seeded jac.toml -- the same pattern test_plan.jac uses -- so get_status
+    # drives a real ManifestBuilder end to end instead of one told what to
+    # answer. That seam (autoscaler_config_for_deployment mocked outright) is
+    # what let a broken _service_key_for_deployment or a type-blind
+    # is_scale_to_zero_eligible through with every test green.
+    import tempfile;
+    import from pathlib { Path }
+    project_dir = tempfile.mkdtemp(prefix="jac-status-test-");
+    toml_body = (
+        "[project]\nname = \"status-test\"\nentry-point = \"main.jac\"\n" + ms_toml
+    );
+    (Path(project_dir) / "jac.toml").write_text(toml_body);
+    reset_scale_config();
+    get_scale_config(project_dir=Path(project_dir));
+    return project_dir;
+}
+
+def _teardown_ms_config(project_dir: str) {
+    import shutil;
+    reset_scale_config();
+    shutil.rmtree(project_dir, ignore_errors=True);
+}
+
+def _get_status(target: any, ms_toml: str, replicas: int, ready: int) -> any {
     (apps, core) = _status_apis(replicas, ready);
-    with unittest.mock.patch.object(
-        kubernetes.client, "AppsV1Api", return_value=apps
-    ) {
+    project_dir = _seed_ms_config(ms_toml);
+    try {
         with unittest.mock.patch.object(
-            kubernetes.client, "CoreV1Api", return_value=core
+            kubernetes.client, "AppsV1Api", return_value=apps
         ) {
-            with unittest.mock.patch.object(target, "_load_cluster_config") {
-                with unittest.mock.patch.object(
-                    kt_module, "ManifestBuilder"
-                ) as mock_builder_cls {
-                    mock_builder_cls.return_value.autoscaler_config_for_deployment.return_value = autoscaler_cfg;
+            with unittest.mock.patch.object(
+                kubernetes.client, "CoreV1Api", return_value=core
+            ) {
+                with unittest.mock.patch.object(target, "_load_cluster_config") {
                     return target.get_status("order-service-deployment");
                 }
             }
         }
+    } finally {
+        _teardown_ms_config(project_dir);
     }
 }
 
-test "get_status reports STOPPED for a KEDA min=0 deployment settled at zero" {
-    config = {
-        "app_name": "order-service",
-        "namespace": "ns",
-        "autoscaler_engine": "keda"
-    };
-    target = DeploymentTargetFactory.create("kubernetes", config);
-
-    info = _get_status(
-        target,
-        {"min": 0, "max": 3, "triggers": [{"type": "cron", "metadata": {}}]},
-        replicas=0,
-        ready=0
+def _hpa_toml(trigger_type: str | None) -> str {
+    triggers = (
+        f"\n[[scale.microservices.services.order-service.triggers]]\ntype = \"{trigger_type}\"\n"
+    )
+        if trigger_type
+        else "";
+    return (
+        "[scale.microservices.routes]\n"
+        "order-service = \"/orders\"\n"
+        "\n[scale.microservices.services.order-service.hpa]\n"
+        "min = 0\n"
+        "max = 3\n"
+        + triggers
     );
-
-    assert info.status == ResourceStatus.STOPPED , (
-        f"expected STOPPED for a scale-to-zero-eligible deployment, got {info.status}"
-    );
-    assert not info.is_ready() , "a parked-at-zero deployment is not ready to serve";
 }
 
-test "get_status still reports FAILED at zero replicas under the plain HPA engine" {
-    config = {"app_name": "order-service", "namespace": "ns"};
-    target = DeploymentTargetFactory.create("kubernetes", config);
-
-    info = _get_status(
-        target,
-        {"min": 0, "max": 3, "triggers": [{"type": "cron", "metadata": {}}]},
-        replicas=0,
-        ready=0
+test "get_status resolves zero-replica eligibility through a real ManifestBuilder: a real trigger parks under keda, a cpu-only or missing trigger still fails, and the plain HPA engine never parks" {
+    keda_target = DeploymentTargetFactory.create(
+        "kubernetes",
+        {"app_name": "order-service", "namespace": "ns", "autoscaler_engine": "keda"}
+    );
+    hpa_target = DeploymentTargetFactory.create(
+        "kubernetes", {"app_name": "order-service", "namespace": "ns"}
     );
 
+    info = _get_status(keda_target, _hpa_toml("cron"), replicas=0, ready=0);
+    assert info.status == ResourceStatus.STOPPED , (
+        f"a real non-cpu/memory trigger under keda must resolve through the "
+        f"real service-key lookup and park at zero, got {info.status}"
+    );
+    assert not info.is_ready() , "a parked-at-zero deployment is not ready to serve";
+
+    info = _get_status(hpa_target, _hpa_toml("cron"), replicas=0, ready=0);
     assert info.status == ResourceStatus.FAILED , (
         f"the plain HPA engine cannot scale to zero by design: {info.status}"
     );
-}
 
-test "get_status still reports FAILED at zero replicas when KEDA has no real trigger" {
-    config = {
-        "app_name": "order-service",
-        "namespace": "ns",
-        "autoscaler_engine": "keda"
-    };
-    target = DeploymentTargetFactory.create("kubernetes", config);
-
-    info = _get_status(
-        target, {"min": 0, "max": 3, "triggers": []}, replicas=0, ready=0
+    info = _get_status(keda_target, _hpa_toml("cpu"), replicas=0, ready=0);
+    assert info.status == ResourceStatus.FAILED , (
+        f"a cpu-only trigger can never reach zero, so this must still be a "
+        f"real failure, not STOPPED: {info.status}"
     );
 
+    info = _get_status(keda_target, _hpa_toml(None), replicas=0, ready=0);
     assert info.status == ResourceStatus.FAILED , (
-        f"CPU/memory-only triggers can't reach zero, so this is a real failure: "
-        f"{info.status}"
+        f"no configured trigger at all must still be a real failure: {info.status}"
     );
 }
 
