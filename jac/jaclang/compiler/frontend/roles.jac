@@ -1,8 +1,6 @@
-edge Role {
-    has in_kid: bool = True;
-}
+edge Role {}
 
-edge KidRole(Role) {}
+edge Kid {}
 
 edge ImplOf {}
 

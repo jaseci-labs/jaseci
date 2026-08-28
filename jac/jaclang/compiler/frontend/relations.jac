@@ -12,9 +12,9 @@ edge ScopePrimary {
 
 edge ScopeOverload {}
 
-edge ScopeChild {
-    has in_kids: bool = True;
-}
+edge ScopeChild {}
+
+edge ScopeOwner {}
 
 edge CfgSucc {}
 

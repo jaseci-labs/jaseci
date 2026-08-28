@@ -20,8 +20,8 @@ impl UniNode.walk_kids with TreeWalker entry {
     ];
 }
 
-impl UniNode._attach(child: UniNode, role: type, in_kid: bool) -> None {
-    e: Role = role(in_kid=in_kid);
+impl UniNode._attach(child: UniNode, role: type) -> None {
+    e: Role = role();
     self +>:(e):+> child;
 }
 
@@ -49,15 +49,19 @@ impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
     attached: set[int] = set();
     for k in kid {
         if k is not None {
-            self._attach(k, role_of.get(id(k), KidRole), True);
-            attached.add(id(k));
+            self +>:Kid:+> k;
+            role = role_of.get(id(k));
+            if role is not None and id(k) not in attached {
+                self._attach(k, role);
+                attached.add(id(k));
+            }
         }
     }
     for (role, value) in roles.items() {
         vals = value if isinstance(value, (list, tuple)) else [value];
         for v in vals {
             if isinstance(v, UniNode) and id(v) not in attached {
-                self._attach(v, role, False);
+                self._attach(v, role);
                 attached.add(id(v));
             }
         }
@@ -72,17 +76,29 @@ impl UniNode._edge_target(e: Role) -> UniNode {
     return getattr(e, "__jac__").target.archetype;
 }
 
-impl UniNode._role_pairs -> list[tuple[type, UniNode, bool]] {
-    return [(`type(e), self._edge_target(e), e.in_kid) for e in self._role_edges()];
+impl UniNode._children -> list[UniNode] {
+    out: list[UniNode] = self.kid;
+    seen: set[int] = {id(k) for k in out};
+    for tgt in [self->:Role:->] {
+        if id(tgt) not in seen {
+            seen.add(id(tgt));
+            out.append(tgt);
+        }
+    }
+    return out;
 }
 
 impl UniNode.kid.getter -> list[UniNode] {
-    return [self->:Role:in_kid==True:->];
+    return [self->:Kid:->];
 }
 
 impl UniNode.parent.getter -> (UniNode | None) {
-    found = [self<-:Role:<-];
-    return found[-1] if found else self._ctx_parent;
+    found = [self<-:Kid:<-];
+    if found {
+        return found[-1];
+    }
+    holders = [self<-:Role:<-];
+    return holders[-1] if holders else self._ctx_parent;
 }
 
 impl UniNode._role_shaped(role: type[Role], found: list[UniNode]) -> any {
@@ -115,7 +131,7 @@ impl UniNode.freeze_structure -> None {
         }
         seen.add(id(nd));
         nd._struct_frozen = True;
-        for (role, tgt, in_kid) in nd._role_pairs() {
+        for tgt in nd._children() {
             if id(tgt) not in seen {
                 stack.append(tgt);
             }
@@ -133,40 +149,12 @@ impl UniNode.thaw_structure -> None {
         }
         seen.add(id(nd));
         nd._struct_frozen = False;
-        for (role, tgt, in_kid) in nd._role_pairs() {
+        for tgt in nd._children() {
             if id(tgt) not in seen {
                 stack.append(tgt);
             }
         }
     }
-}
-
-impl UniNode._reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, type]) -> None {
-    self._assert_thawed();
-    role_of: dict[int, type] = {};
-    for (role, n, in_kid) in self._role_pairs() {
-        if role is not KidRole {
-            role_of[id(n)] = role;
-        }
-    }
-    role_of.update(roles);
-    wanted: set[int] = set();
-    for n in nodes {
-        if n is not None {
-            wanted.add(id(n));
-        }
-    }
-    for e in self._role_edges() {
-        if e.in_kid or id(self._edge_target(e)) in wanted {
-            del e;
-        }
-    }
-    for n in nodes {
-        if n is not None {
-            self._attach(n, role_of.get(id(n), KidRole), True);
-        }
-    }
-    self._invalidate_sub_node_tab();
 }
 
 impl UniNode._role_set(role: type[Role], value: any) -> None {
@@ -191,29 +179,21 @@ impl UniNode._role_set(role: type[Role], value: any) -> None {
     for v in vals {
         keep.add(id(v));
     }
-    kids_before = self.kid;
-    demoted: dict[int, type] = {};
     already: set[int] = set();
     for e in self._role_edges() {
-        tgt = self._edge_target(e);
         if `type(e) is not role {
             continue;
         }
+        tgt = self._edge_target(e);
         if id(tgt) in keep {
             already.add(id(tgt));
             continue;
         }
-        if e.in_kid {
-            demoted[id(tgt)] = KidRole;
-        }
         del e;
-    }
-    if demoted {
-        self._reconnect_kids(kids_before, demoted);
     }
     for v in vals {
         if id(v) not in already {
-            self._attach(v, role, False);
+            self._attach(v, role);
         }
     }
     self._invalidate_sub_node_tab();
@@ -281,13 +261,14 @@ impl UniNode.add_kids_left(
     nodes: Sequence[UniNode],
     pos_update: bool = True,
     parent_update: bool = False,
-    role: type[Role] = KidRole
+    role: (type[Role] | None) = None
 ) -> UniNode {
-    self.set_kids(
-        [*nodes, *self.kid],
-        pos_update=pos_update,
-        roles={id(n): role for n in nodes} if role is not KidRole else None
-    );
+    self.set_kids([*nodes, *self.kid], pos_update=pos_update);
+    if role is not None {
+        for n in nodes {
+            self._attach(n, role);
+        }
+    }
     return self;
 }
 
@@ -295,13 +276,14 @@ impl UniNode.add_kids_right(
     nodes: Sequence[UniNode],
     pos_update: bool = True,
     parent_update: bool = False,
-    role: type[Role] = KidRole
+    role: (type[Role] | None) = None
 ) -> UniNode {
-    self.set_kids(
-        [*self.kid, *nodes],
-        pos_update=pos_update,
-        roles={id(n): role for n in nodes} if role is not KidRole else None
-    );
+    self.set_kids([*self.kid, *nodes], pos_update=pos_update);
+    if role is not None {
+        for n in nodes {
+            self._attach(n, role);
+        }
+    }
     return self;
 }
 
@@ -309,23 +291,29 @@ impl UniNode.insert_kids_at_pos(
     nodes: Sequence[UniNode],
     pos: int,
     pos_update: bool = True,
-    role: type[Role] = KidRole
+    role: (type[Role] | None) = None
 ) -> UniNode {
     cur = self.kid;
-    self.set_kids(
-        [*cur[:pos], *nodes, *cur[pos:]],
-        pos_update=pos_update,
-        roles={id(n): role for n in nodes} if role is not KidRole else None
-    );
+    self.set_kids([*cur[:pos], *nodes, *cur[pos:]], pos_update=pos_update);
+    if role is not None {
+        for n in nodes {
+            self._attach(n, role);
+        }
+    }
     return self;
 }
 
-impl UniNode.set_kids(
-    nodes: Sequence[UniNode],
-    pos_update: bool = True,
-    roles: (dict[int, type] | None) = None
-) -> UniNode {
-    self._reconnect_kids(nodes, roles or {});
+impl UniNode.set_kids(nodes: Sequence[UniNode], pos_update: bool = True) -> UniNode {
+    self._assert_thawed();
+    for e in [edge self->:Kid:->] {
+        del e;
+    }
+    for n in nodes {
+        if n is not None {
+            self +>:Kid:+> n;
+        }
+    }
+    self._invalidate_sub_node_tab();
     if pos_update {
         self.loc.update_token_range(*self.resolve_tok_range());
     }
@@ -333,13 +321,27 @@ impl UniNode.set_kids(
 }
 
 impl UniNode.replace_kid(old: UniNode, new: UniNode) -> UniNode {
-    role: type = KidRole;
-    for (rcls, n, in_kid) in self._role_pairs() {
-        if n is old {
-            role = rcls;
+    self._assert_thawed();
+    roles: list[type] = [];
+    for e in self._role_edges() {
+        if self._edge_target(e) is old and `type(e) not in roles {
+            roles.append(`type(e));
         }
     }
-    self._reconnect_kids([new if k is old else k for k in self.kid], {id(new): role});
+    for role in roles {
+        targets: list[UniNode] = [];
+        for e in self._role_edges() {
+            if `type(e) is role {
+                tgt = self._edge_target(e);
+                targets.append(new if tgt is old else tgt);
+                del e;
+            }
+        }
+        for t in targets {
+            self._attach(t, role);
+        }
+    }
+    self.set_kids([new if k is old else k for k in self.kid], pos_update=False);
     return self;
 }
 
@@ -354,7 +356,7 @@ impl UniNode.sever_external_edges -> None {
         }
         seen.add(id(nd));
         nodes.append(nd);
-        for (role, tgt, in_kid) in nd._role_pairs() {
+        for tgt in nd._children() {
             if id(tgt) not in seen {
                 stack.append(tgt);
             }
@@ -389,7 +391,7 @@ impl UniNode.detached_copy -> UniNode {
     me = getattr(self, "__jac__");
     saved: list = [];
     for ea in `list(me.edges) {
-        if ea.target is me and isinstance(ea.archetype, Role) {
+        if ea.target is me and isinstance(ea.archetype, (Role, Kid)) {
             src = ea.source;
             saved.append((ea, src, src.edges.index(ea), me.edges.index(ea)));
         }
@@ -673,20 +675,27 @@ impl UniScopeNode._init_scope(
 
 impl UniScopeNode.parent_scope.getter -> (UniScopeNode | None) {
     found = [self<-:ScopeChild:<-];
-    return found[-1] if found else None;
+    if found {
+        return found[-1];
+    }
+    owners = [self<-:ScopeOwner:<-];
+    return owners[-1] if owners else None;
 }
 
 impl UniScopeNode.parent_scope.setter(parent_scope: (UniScopeNode | None)) {
     for e in [edge self<-:ScopeChild:<-] {
         del e;
     }
+    for e in [edge self<-:ScopeOwner:<-] {
+        del e;
+    }
     if parent_scope is not None {
-        parent_scope +>:ScopeChild(in_kids=False):+> self;
+        parent_scope +>:ScopeOwner:+> self;
     }
 }
 
 impl UniScopeNode.kid_scope.getter -> list[UniScopeNode] {
-    return [self->:ScopeChild:in_kids==True:->];
+    return [self->:ScopeChild:->];
 }
 
 impl UniScopeNode.names_in_scope.getter -> dict[(str, Symbol)] {
@@ -853,6 +862,9 @@ impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
 
 impl UniScopeNode.link_kid_scope(key_node: UniScopeNode) -> UniScopeNode {
     for e in [edge key_node<-:ScopeChild:<-] {
+        del e;
+    }
+    for e in [edge key_node<-:ScopeOwner:<-] {
         del e;
     }
     self +>:ScopeChild:+> key_node;

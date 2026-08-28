@@ -22,7 +22,7 @@ import from jaclang.compiler.frontend.constant { ParamKind }
 import type from jaclang.compiler.types.types { TypeBase }
 import from jaclang.compiler.frontend.roles {
     Role,
-    KidRole,
+    Kid,
     ImplOf,
     AccessRole,
     AccessorsRole,
@@ -141,6 +141,7 @@ import from jaclang.compiler.frontend.relations {
     InScope,
     PlacedIn,
     ScopeChild,
+    ScopeOwner,
     ScopeOverload,
     ScopePrimary,
     SymOf,
@@ -176,13 +177,12 @@ node UniNode {
     def _assert_thawed -> None;
     def freeze_structure -> None;
     def thaw_structure -> None;
-    def _attach(child: UniNode, role: type, in_kid: bool) -> None;
+    def _attach(child: UniNode, role: type) -> None;
     def _role_edges -> list[Role];
     def _edge_target(e: Role) -> UniNode;
-    def _role_pairs -> list[tuple[type, UniNode, bool]];
+    def _children -> list[UniNode];
     def _role_shaped(role: type[Role], found: list[UniNode]) -> any;
     def _role_set(role: type[Role], value: any) -> None;
-    def _reconnect_kids(nodes: Sequence[UniNode], roles: dict[int, type]) -> None;
     def link_impl(impl_node: UniNode) -> None;
     def _construct_sub_node_tab -> None;
     def _invalidate_sub_node_tab -> None;
@@ -193,28 +193,24 @@ node UniNode {
         nodes: Sequence[UniNode],
         pos_update: bool = True,
         parent_update: bool = False,
-        role: type[Role] = KidRole
+        role: (type[Role] | None) = None
     ) -> UniNode;
 
     def add_kids_right(
         nodes: Sequence[UniNode],
         pos_update: bool = True,
         parent_update: bool = False,
-        role: type[Role] = KidRole
+        role: (type[Role] | None) = None
     ) -> UniNode;
 
     def insert_kids_at_pos(
         nodes: Sequence[UniNode],
         pos: int,
         pos_update: bool = True,
-        role: type[Role] = KidRole
+        role: (type[Role] | None) = None
     ) -> UniNode;
 
-    def set_kids(
-        nodes: Sequence[UniNode],
-        pos_update: bool = True,
-        roles: (dict[int, type] | None) = None
-    ) -> UniNode;
+    def set_kids(nodes: Sequence[UniNode], pos_update: bool = True) -> UniNode;
 
     def replace_kid(old: UniNode, new: UniNode) -> UniNode;
     def set_parent(parent: UniNode) -> UniNode;
