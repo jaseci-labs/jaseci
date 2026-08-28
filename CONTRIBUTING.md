@@ -148,8 +148,12 @@ Every PR that changes package code must include a release note fragment file:
 1. Create a file at `release_notes/unreleased/<package>/<PR#>.<category>.md`
    - **Packages**: `jaclang`, `byllm`
    - **Note**: The Jac client and desktop runtimes, the `scale` deployment subsystem, and the MCP server are now part of `jaclang` core (under `jac/jaclang/client/`, `jac/jaclang/scale/`, and `jac/jaclang/cli/mcp/`); changes to them use the `jaclang` package fragment.
-   - **Categories**: `feature`, `bugfix`, `breaking`, `refactor`, or `docs`
+   - **Categories**: `feature`, `bugfix`, or `breaking`
    - **Example**: `release_notes/unreleased/jaclang/1234.bugfix.md`
+   - `refactor` and `docs` fragments are rejected by CI: release notes
+     carry user-facing changes only. A PR that is a pure internal
+     refactor or a docs-only edit files no fragment and takes the
+     `skip-release-notes-check` label instead.
 
 2. Add one or more bullet points:
 
@@ -211,7 +215,7 @@ Every generated file that is tracked in git must carry the standard marker as it
 # DO NOT EDIT MANUALLY - regenerate with `<command>`.
 ```
 
-Generated artifacts that are not meant to be tracked must be written to a cache or build-output directory (or be reliably cleaned up), never left in the source tree. If CI can cheaply verify the file is in sync (like `jac gen-cli-manifest --verify`), wire that up; otherwise guard it with a snapshot test.
+Generated artifacts that are not meant to be tracked must be written to a cache or build-output directory (or be reliably cleaned up), never left in the source tree. If CI can cheaply verify the file is in sync (like `jac gen-uni-dispatch --verify`), wire that up; otherwise guard it with a snapshot test. Better still, derive the table at compile time with `comptime` so there is no generated file to keep in sync at all, as the CLI manifest does.
 
 **Issue Assignment**
 

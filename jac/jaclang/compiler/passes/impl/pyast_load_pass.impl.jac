@@ -2075,7 +2075,8 @@ impl PyastBuildPass.extract_with_entry(
     extracted: list[(T | ModuleCode)] = [];
     with_entry_body: list[CodeBlockStmt] = [];
     for i in body {
-        if isinstance(i, exclude_types) {
+        if isinstance(i, exclude_types)
+            and not (isinstance(i, AssertStmt) and not i.is_comptime) {
             if len(with_entry_body) {
                 extracted.append(gen_mod_code(with_entry_body));
                 with_entry_body = [];

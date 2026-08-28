@@ -12,8 +12,7 @@ import re;
 import unicodedata;
 import from pathlib { Path }
 import from jaclang.cli.guide_store { docs_dir }
-import from jaclang.cli.registry { get_registry }
-import jaclang.cli.commands.execution;
+import from jaclang.cli.manifest { get_command_meta }
 
 """Retrieve all Markdown files in the bundled corpus."""
 def get_md_files -> list[str] {
@@ -37,7 +36,7 @@ def get_current_md_files -> list[str] {
 
 """Every flag `jac run` actually accepts, as it would be spelled in the docs."""
 def run_flags -> set[str] {
-    spec = get_registry().get("run");
+    spec = get_command_meta("run");
     assert spec is not None , "the 'run' command is not registered";
     flags: set[str] = set();
     for arg in spec.get_all_args() {

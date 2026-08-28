@@ -13,6 +13,7 @@ import from jaclang.server.serving.datatypes {
     parse_query_string
 }
 import from jaclang.server.serving.ws { WebSocket, compute_accept_key }
+import from jaclang.server.net { PortInUseError }
 
 
 glob ACCESS_LOGGER_NAME: str = "jaclang.serving.access";
@@ -89,10 +90,14 @@ obj ServingServer {
                 );
                 break;
             } except OSError as e {
-                if e.errno in ERRNO_ADDR_IN_USE and attempt < port_retries {
-                    attempt += 1;
-                    chosen += 1;
-                    continue;
+                if e.errno in ERRNO_ADDR_IN_USE {
+                    if attempt < port_retries {
+                        attempt += 1;
+                        chosen += 1;
+                        continue;
+                    }
+
+                    raise PortInUseError(chosen) from None;
                 }
                 raise;
             }

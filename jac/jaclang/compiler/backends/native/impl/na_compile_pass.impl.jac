@@ -72,7 +72,8 @@ impl DepClibMeta.to_meta -> dict {
         "demoted_symbols": self.demoted_symbols,
         "transitive_deps": self.transitive_deps,
         "options_fingerprint": self.options_fingerprint,
-        "unverified_live_calls": self.unverified_live_calls
+        "unverified_live_calls": self.unverified_live_calls,
+        "coverage": self.coverage
     };
 }
 
@@ -86,7 +87,8 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
         demoted_symbols=meta.get("demoted_symbols", []),
         transitive_deps=meta.get("transitive_deps", []),
         options_fingerprint=meta.get("options_fingerprint", ""),
-        unverified_live_calls=meta.get("unverified_live_calls", {})
+        unverified_live_calls=meta.get("unverified_live_calls", {}),
+        coverage=meta.get("coverage", {})
     );
 }
 
@@ -192,7 +194,10 @@ impl native_unit_demotions(
         and real_path not in prog.scratch.na_verdict_resolving
         and _ud_os.path.isfile(real_path)
     ) {
-        if not getattr(options, "no_ir_cache", False) {
+        import from jaclang.compiler.driver.jir {
+            native_ir_cache_suspended as _ud_suspended
+        }
+        if not (getattr(options, "no_ir_cache", False) or _ud_suspended()) {
             try {
                 import json as _ud_json;
                 (_, _ud_meta_path) = native_dep_cache_paths(real_path, options);
@@ -714,7 +719,11 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 real_path, _link_opts
             );
 
-            _no_ir_cache = bool(getattr(_link_opts, "no_ir_cache", False));
+            import from jaclang.compiler.driver.jir { native_ir_cache_suspended }
+            _no_ir_cache = (
+                bool(getattr(_link_opts, "no_ir_cache", False))
+                or native_ir_cache_suspended()
+            );
             if (
                 not _no_ir_cache
                 and os.path.exists(_cache_ir_path)
@@ -767,6 +776,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
         }
 
         if _cache_hit {
+            import from jaclang.compiler.driver.na_coverage { na_coverage_replay }
+            na_coverage_replay(real_path, meta.coverage);
             dep_base = os.path.dirname(full_path);
             for dep_mod_path in meta.transitive_deps {
                 work_queue.append((_DepBinding(dep_mod_path), dep_base));
@@ -899,6 +910,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
             meta.owned_symbols = sorted(_owned_seen);
             imported_llvm_str_raw = str(imported_ir.gen.llvm_ir);
             meta.demoted_symbols = native_demoted_ir_symbols(imported_llvm_str_raw);
+            import from jaclang.compiler.driver.na_coverage { na_coverage_capture }
+            meta.coverage = na_coverage_capture(real_path);
             meta.clib_paths = imported_ir.gen._clib_paths or [];
             meta.clib_symbol_lib = imported_ir.gen._clib_symbol_lib or {};
             meta.exported_symbols = imported_ir.gen._exported_symbols or [];

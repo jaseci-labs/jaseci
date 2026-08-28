@@ -137,4 +137,4 @@ The width is a compile-time fact, not a runtime wrapper: a sized value is a plai
 
 ## See also
 
-`jac-has-fields` (field rules) · `jac-core-cheatsheet` (`import type` syntax, reserved words) · `jac-python-interop` (typing the Python boundary) · `jac-walker-patterns` (typed reports)
+`jac-has-fields` (field rules) · `jac-core-cheatsheet` (`import type` syntax, reserved words) · `jac-python-interop` (typing the Python boundary) · `jac-walker-patterns` (typed reports) · `jac-comptime` (`comptime` parameters, archetype value params, compile-time reflection)
