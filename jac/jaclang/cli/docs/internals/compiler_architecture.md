@@ -506,30 +506,6 @@ allocation header with reference counts (see `HDR_*` globals in
 `na_ir_gen_pass.jac`). Cross-codespace calls between Python and native
 flow through the interop bridge generated from `BoundaryAnalysisPass`.
 
-**Sealed AOT native artifacts.** The compiler dogfoods this backend for its
-own hot path: sealing a release AOT-compiles
-`compiler/native_materialize.jac` -- the materializer root, whose native
-closure carries the parser, lexer and `unitree` -- and
-`compiler/frontend/unitree.jac` into per-platform shared libraries at
-`_precompiled/native/<triple>/libjac_native_materialize.*` /
-`libjac_unitree.*`, alongside persisted `NativeModuleLayout` JSON. The
-materializer is native jac, generated at seal time from the unitree
-layout by `jaclang/dist/gen_native_materialize.jac` (never checked in),
-with per-class emitters that rebuild the parsed tree as
-real Python `unitree` objects through CPython C-API clib externs resolved
-from the host process (ELF lazy PLT / Mach-O flat lookup), feeding the
-unchanged downstream pipeline. Everything is recorded in `MANIFEST.json`
-(format 6): `native_artifacts` carries per-file sha256 digests that fail
-closed on mismatch, and the `native` record ({roots, skip_reason}) is the
-build's own statement of what it sealed, which `load_image` enforces at
-startup -- a jaclang image that cannot serve its declared roots on this
-host refuses to load. A sealed runtime binds the library with plain ctypes
-(`compiler/driver/native_dylib.jac`) at startup -- no LLVM on the boot path, the
-materializer entries GIL-held via PYFUNCTYPE -- and `parse()` serves
-natively with no bytecode fallback: artifact damage raises rather than
-degrading. Dev trees without a seal parse on the bytecode tier, which is
-also the bootstrap that builds the seal.
-
 ---
 
 ## Primitive Emitter Contract

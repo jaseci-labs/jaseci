@@ -510,11 +510,8 @@ jobs:
           - chunk: passes-main
             paths: tests/compiler/passes tests/compiler/backends/es
             sealed: "1"
-          # The two native-coverage baselines compile compiler roots from
-          # jaclang.__file__ and measure their source-lane closure, which
-          # only holds in the checkout: they run in the equivalence chunk.
           - chunk: toplevel
-            paths: tests/compiler/test_*.jac --ignore tests/compiler/test_codeinfo_baseline.jac tests/compiler/test_expr_keys_baseline.jac
+            paths: tests/compiler/test_*.jac
             sealed: "1"
           - chunk: passes-native
             paths: tests/compiler/backends/native tests/compiler/tools
@@ -523,7 +520,7 @@ jobs:
           # which only resolve in the checkout: it runs through the reroute,
           # over the kit's shim and floors ("" clears JAC_NO_DEV_SOURCE).
           - chunk: equivalence
-            paths: jaclang/compiler/tests tests/compiler/test_codeinfo_baseline.jac tests/compiler/test_expr_keys_baseline.jac
+            paths: jaclang/compiler/tests
             sealed: ""
     steps:
       - uses: actions/checkout@v5
