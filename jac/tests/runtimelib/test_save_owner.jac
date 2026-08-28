@@ -32,10 +32,10 @@ def capture_get(captured: io.StringIO) -> str {
     return captured.getvalue();
 }
 
-def _run(entrypoint: str, args: list = [], root_id: str = "") -> str {
+def _run(entrypoint: str, args: (list | None) = None, root_id: str = "") -> str {
     captured = capture_start();
     execution.run(
-        filename=FIXTURE, entry_name=entrypoint, args=args, root_id=root_id
+        filename=FIXTURE, entry_name=entrypoint, args=args or [], root_id=root_id
     );
     return capture_get(captured).strip();
 }
