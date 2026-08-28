@@ -1807,8 +1807,6 @@ obj KubernetesTarget(KubernetesTargetBase) {
     ) {
         shared: str = "managed=jac-scale,jac-scale.role=shared-volume";
         selectors: list[str] = [f"{shared},jac-scale.owner={k8s_safe_name(app_name)}"];
-        # An unlabelled volume predates ownership and cannot gain a label, so
-        # sweeping it is only safe where no other app could have declared it.
         if sole_tenant {
             selectors.append(f"{shared},!jac-scale.owner");
         } else {
