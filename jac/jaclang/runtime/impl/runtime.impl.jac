@@ -588,6 +588,9 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
     }
     _own_anns: dict[str, object] = cls.__dict__.get('__annotations__', {});
     if _own_anns {
+        if not cls.__doc__ {
+            cls.__doc__ = cls.__name__;
+        }
         _pre_attrs = dict(cls.__dict__);
         try {
             dataclass(eq=False)(cls);

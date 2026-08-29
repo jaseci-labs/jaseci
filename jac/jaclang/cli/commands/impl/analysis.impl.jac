@@ -59,7 +59,7 @@ impl check(
     def process_file_result(file_path: str, idx: int, total: int) {
         total_files += 1;
         (success, errs, warns, errors_list, warnings_list) = check_single_file(
-            prog, file_path
+            prog, file_path, idx == total
         );
         total_errors += errs;
         total_warnings += warns;
@@ -79,7 +79,7 @@ impl check(
     failed_results: list[dict] = [];
     placement_report: dict = {};
     def check_single_file(
-        prog: JacProgram, file_path: str
+        prog: JacProgram, file_path: str, last: bool = False
     ) -> tuple[bool, int, int, list, list] {
         import os;
         import from jaclang.compiler.driver.bccache { discover_base_file }
@@ -183,7 +183,7 @@ impl check(
             console.error(f"Error checking '{file_path}': {e}");
             return (False, 1, 0, [], []);
         } finally {
-            prog.release_compile_closure(keep_stubs=True);
+            prog.release_compile_closure(keep_stubs=True, collect=not last);
         }
     }
     prog = JacProgram();

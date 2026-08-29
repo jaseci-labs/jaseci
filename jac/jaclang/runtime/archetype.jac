@@ -411,6 +411,9 @@ def light_clear_matching(
     if not d {
         return False;
     }
+    if cls is not None and len(_edge_subtypes.get(cls) or edge_subtypes(cls)) == 1 {
+        return light_clear(anchor, cls, outgoing);
+    }
     hit = False;
     for k in `list(d.keys()) {
         if cls is None or issubclass(k, cls) {
@@ -481,21 +484,26 @@ def light_hop(
         return out;
     }
     if cls is not None and len(_edge_subtypes.get(cls) or edge_subtypes(cls)) == 1 {
-        found: list = [];
-        if dir != 1 {
+        if dir == 2 {
             d = anchor.out_light;
             lst = d.get(cls) if d else None;
-            if lst {
-                found = lst if dir == 2 else `list(lst);
-            }
+            return `list(lst) if lst else [];
         }
-        if dir != 2 {
+        if dir == 1 {
             d = anchor.in_light;
             lst = d.get(cls) if d else None;
-            if lst {
-                hits = _deref(lst);
-                found = hits if dir == 1 else found + hits;
-            }
+            return _deref(lst) if lst else [];
+        }
+        found: list = [];
+        d = anchor.out_light;
+        lst = d.get(cls) if d else None;
+        if lst {
+            found = `list(lst);
+        }
+        d = anchor.in_light;
+        lst = d.get(cls) if d else None;
+        if lst {
+            found = found + _deref(lst);
         }
     } elif dir == 2 {
         found = light_out(anchor, cls);

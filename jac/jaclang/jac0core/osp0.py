@@ -25,6 +25,9 @@ from jaclang.runtime.archetype import (
     GenericEdge,
     NodeArchetype as Node,
     WalkerArchetype as Walker,
+    _edge_subtypes,
+    _light_edge_types,
+    edge_subtypes,
     is_light_edge_type,
     light_clear_hop,
     light_connect,
@@ -75,6 +78,22 @@ def connect0(
     anchors' edge lists. Nothing here pins an anchor in a registry, so a
     released module is collectable.
     """
+    if (
+        conn_assign is None
+        and isinstance(edge, type)
+        and not isinstance(left, list)
+        and not isinstance(right, list)
+    ):
+        # One node to one node over a light class: the adjacency write alone.
+        light = _light_edge_types.get(edge)
+        if light is None:
+            light = is_light_edge_type(edge)
+        if light:
+            src = left.__jac__
+            tgt = right.__jac__
+            if not (src.persistent or tgt.persistent):
+                light_connect(src, edge, tgt)
+                return right
     lefts = left if isinstance(left, list) else [left]
     rights = right if isinstance(right, list) else [right]
     ct = edge or GenericEdge
@@ -222,7 +241,34 @@ def hop0(origin: Any, dir: int, edge: Any = None, edges_only: bool = False) -> l
     transient node is answered from the light tier; an untyped hop, a heavy
     type, a node holding a light class as an EdgeAnchor or a persistent
     origin takes `refs0`.
+
+    The one-node, one-direction, single-class read (every `kid` and `parent`
+    of the compiler's tree) is answered here in one frame: a copy of the
+    adjacency list, connection order kept, one entry per edge.
     """
+    if edge is not None and dir != 3 and not edges_only and not isinstance(origin, list):
+        me = origin.__jac__
+        if not me.persistent and (
+            not me.edges or (not me.mixed and _light_edge_types.get(edge))
+        ):
+            subs = _edge_subtypes.get(edge)
+            if subs is None:
+                subs = edge_subtypes(edge)
+            if len(subs) == 1:
+                if dir == 2:
+                    d = me.out_light
+                    lst = d.get(edge) if d else None
+                    return list(lst) if lst else []
+                d = me.in_light
+                lst = d.get(edge) if d else None
+                if not lst:
+                    return []
+                out: list = []
+                for ref in lst:
+                    arch = ref()
+                    if arch is not None:
+                        out.append(arch)
+                return out
     if isinstance(origin, list):
         return refs0(origin, dir, edge, edges_only)
     me = origin.__jac__
@@ -259,7 +305,27 @@ def spawn0(op1: Any, op2: Any) -> Any:
     return _rt().spawn(op1, op2)
 
 
+_osp_visit: Callable | None = None
+
+
 def visit0(walker: Any, expr: Any, insert_loc: int = -1) -> bool:
+    """`visit expr;` from a walker or a node ability.
+
+    A list of node/edge archetypes (the compiler's `visit :0: [k for k in
+    self.kid ...]`) goes straight to the kernel queue; anything else (a
+    GraphQuery, a single archetype, a foreign object) takes the runtime's
+    checked path.
+    """
+    if isinstance(expr, list) and isinstance(walker, Walker):
+        for item in expr:
+            if not isinstance(item, (Node, Edge)):
+                return _rt().visit(walker, expr, insert_loc)
+        global _osp_visit
+        if _osp_visit is None:
+            from jaclang.runtime.osp_kernel import osp_visit
+
+            _osp_visit = osp_visit
+        return _osp_visit(expr, insert_loc)
     return _rt().visit(walker, expr, insert_loc)
 
 

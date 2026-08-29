@@ -6,9 +6,7 @@ edge Uses {}
 
 edge InScope {}
 
-edge ScopePrimary {
-    has alias: str = "";
-}
+edge ScopePrimary {}
 
 edge ScopeOverload {}
 

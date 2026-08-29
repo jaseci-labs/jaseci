@@ -27,6 +27,14 @@ impl UniNode._attach(child: UniNode, role: type) -> None {
 }
 
 impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
+    if not roles {
+        for k in kid {
+            if k is not None {
+                self +>:Kid:+> k;
+            }
+        }
+        return;
+    }
     role_of: dict[int, type] = {};
     if roles {
         shapes: dict[type, str] = self?._role_shapes or {};
@@ -328,8 +336,9 @@ impl UniNode.set_parent(parent: UniNode) -> UniNode {
 }
 
 impl UniNode.resolve_tok_range -> tuple[(Token, Token)] {
-    if len(self.kid) {
-        return (self.kid[0].loc.first_tok, self.kid[-1].loc.last_tok);
+    kids = self.kid;
+    if kids {
+        return (kids[0].loc.first_tok, kids[-1].loc.last_tok);
     } elif isinstance(self, Token) {
         return (self, self);
     } else {
@@ -687,20 +696,15 @@ impl UniScopeNode.insert(
         self._overload_index.setdefault(nd.sym_name, []).append(symbol);
     }
     if (force_overwrite or (nd.sym_name not in current)) {
-        for e in [edge self->:ScopePrimary:->] {
-            if (e.alias or getattr(e, "__jac__").target.archetype.name)
-                == nd.sym_name {
-                del e;
-            }
+        prev = current.get(nd.sym_name);
+        if prev is not None {
+            self._drop_primary(prev);
         }
         self +>:ScopePrimary:+> symbol;
         self._names_index[nd.sym_name] = symbol;
-        winner = symbol;
     } else {
-        winner = current[nd.sym_name];
-        winner.add_defn(nd.name_spec);
+        current[nd.sym_name].add_defn(nd.name_spec);
     }
-    nd.name_spec.sym = winner;
     return collision;
 }
 
@@ -749,20 +753,28 @@ impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
 impl UniScopeNode.set_primary_names(syms: dict[(str, Symbol)]) -> None {
     del [edge self->:ScopePrimary:->];
     for (key, sym) in syms.items() {
-        self +>:ScopePrimary(alias=(key if key != sym.name else "")):+> sym;
+        self +>:ScopePrimary:+> sym;
     }
     self._names_index = dict(syms);
 }
 
 impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
     key = alias or sym.name;
+    prev = self._names_index.get(key);
+    if prev is not None {
+        self._drop_primary(prev);
+    }
+    self +>:ScopePrimary:+> sym;
+    self._names_index[key] = sym;
+}
+
+impl UniScopeNode._drop_primary(sym: Symbol) -> None {
     for e in [edge self->:ScopePrimary:->] {
-        if (e.alias or getattr(e, "__jac__").target.archetype.name) == key {
+        if getattr(e, "__jac__").target.archetype is sym {
             del e;
+            break;
         }
     }
-    self +>:ScopePrimary(alias=(key if key != sym.name else "")):+> sym;
-    self._names_index[key] = sym;
 }
 
 impl UniScopeNode.link_kid_scope(key_node: UniScopeNode) -> UniScopeNode {

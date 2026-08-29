@@ -130,9 +130,16 @@ glob _match_slots: dict[int, list[Slot]] = {},
      _match_by_tag: dict[int, dict[int, list[Slot]]] = {};
 
 def run_typed(
-    rt: OspRuntime, scope: WalkScope, slots: list[Slot], a: any, b: any
+    rt: OspRuntime,
+    scope: WalkScope,
+    slots: list[Slot],
+    a: any,
+    b: any,
+    btag: int
 ) -> None {
-    btag: int = rt.tag_of(b);
+    if not slots {
+        return;
+    }
     key: int = id(slots);
     if _match_slots.get(key) is not slots {
         _match_slots[key] = slots;
@@ -192,13 +199,17 @@ def _dequeue(scope: WalkScope) -> (int | None) {
 def _visit_recursive(
     rt: OspRuntime, scope: WalkScope, wdesc: WalkerDesc, loc: int
 ) -> bool {
+    wtag: int = wdesc.type_tag;
+    wlk = scope.wlk;
     stack_loc: list[int] = [loc];
     stack_ph: list[int] = [0];
     stack_bud: list[int] = [0];
+    stack_nd: list = [None];
     while stack_loc {
         cur = stack_loc.pop();
         phase = stack_ph.pop();
         budget = stack_bud.pop();
+        ndesc = stack_nd.pop();
         if scope.disengaged {
             return False;
         }
@@ -206,18 +217,18 @@ def _visit_recursive(
             scope.path.append(cur);
             ndesc = rt.node_desc(rt.tag_of(cur));
             scope.pending_fence = 0;
-            run_typed(rt, scope, wdesc.`entry, scope.wlk, cur);
+            run_typed(rt, scope, wdesc.`entry, wlk, cur, ndesc.type_tag);
             if scope.disengaged {
                 return False;
             }
             if not scope.skip_node {
-                run_untyped(scope, ndesc.`entry, cur, scope.wlk);
+                run_untyped(scope, ndesc.`entry, cur, wlk);
                 if scope.disengaged {
                     return False;
                 }
             }
             if not scope.skip_node {
-                run_typed(rt, scope, ndesc.`entry, cur, scope.wlk);
+                run_typed(rt, scope, ndesc.`entry, cur, wlk, wtag);
                 if scope.disengaged {
                     return False;
                 }
@@ -227,6 +238,7 @@ def _visit_recursive(
             stack_loc.append(cur);
             stack_ph.append(1);
             stack_bud.append(scope.pending_fence);
+            stack_nd.append(ndesc);
         } elif phase == 1 {
             child: (int | None) = None;
             if scope.fenced {
@@ -248,30 +260,32 @@ def _visit_recursive(
                 stack_loc.append(cur);
                 stack_ph.append(1);
                 stack_bud.append(budget);
+                stack_nd.append(ndesc);
 
                 stack_loc.append(child);
                 stack_ph.append(0);
                 stack_bud.append(0);
+                stack_nd.append(None);
             } else {
                 stack_loc.append(cur);
                 stack_ph.append(2);
                 stack_bud.append(0);
+                stack_nd.append(ndesc);
             }
         } else {
-            ndesc = rt.node_desc(rt.tag_of(cur));
             scope.pending_fence = 0;
-            run_typed(rt, scope, ndesc.`exit, cur, scope.wlk);
+            run_typed(rt, scope, ndesc.`exit, cur, wlk, wtag);
             if scope.disengaged {
                 return False;
             }
             if not scope.skip_node {
-                run_untyped(scope, ndesc.`exit, cur, scope.wlk);
+                run_untyped(scope, ndesc.`exit, cur, wlk);
                 if scope.disengaged {
                     return False;
                 }
             }
             if not scope.skip_node {
-                run_typed(rt, scope, wdesc.`exit, scope.wlk, cur);
+                run_typed(rt, scope, wdesc.`exit, wlk, cur, ndesc.type_tag);
                 if scope.disengaged {
                     return False;
                 }
