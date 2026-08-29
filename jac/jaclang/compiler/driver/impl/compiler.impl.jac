@@ -81,7 +81,12 @@ impl JacCompiler.get_bytecode(
         and (full_target in actual_program.mod.hub)
         and actual_program.mod.hub[full_target].gen.py_bytecode
     ) {
-        codeobj = actual_program.mod.hub[full_target].gen.py_bytecode;
+        hit_mod = actual_program.mod.hub[full_target];
+        codeobj = hit_mod.gen.py_bytecode;
+        if isinstance(codeobj, `bytes)
+            and not self.selfhost.is_selfhost(actual_program) {
+            self._persist_module_cache(full_target, hit_mod, actual_program);
+        }
         return marshal.loads(codeobj) if isinstance(codeobj, `bytes) else None;
     }
 
@@ -190,65 +195,7 @@ impl JacCompiler.get_bytecode(
         );
         if result.gen.py_bytecode {
             actual_program.hub_cache_stamp(full_target);
-            try {
-                import pickle;
-                import json;
-                import zlib;
-                sections: dict[int, bytes] = {};
-                sections[SEC_BYTECODE] = result.gen.py_bytecode;
-                if actual_program.mtir_map {
-                    sections[SEC_MTIR] = pickle.dumps(
-                        actual_program.mtir_map, int(pickle.HIGHEST_PROTOCOL)
-                    );
-                }
-
-                native_bc = result.gen.native_bitcode;
-                if native_bc is not None {
-                    import struct as _struct;
-                    import jaclang.compiler.backends.native.llvm.binding as _llvm;
-                    triple_text = _llvm.get_default_triple();
-                    assert isinstance(triple_text, str);
-                    triple = triple_text.encode('utf-8');
-                    hdr = _struct.pack('<H', len(triple)) + triple;
-                    sections[SEC_NATIVE_OBJ] = hdr + native_bc;
-                } else {
-                    llvm_ir = result.gen.llvm_ir;
-                    if llvm_ir is not None {
-                        sections[SEC_LLVM_IR] = zlib.compress(
-                            str(llvm_ir).encode('utf-8'), 6
-                        );
-                    }
-                }
-                interop_dict = self._build_interop_dict(result);
-                if interop_dict {
-                    sections[SEC_INTEROP] = json.dumps(interop_dict).encode('utf-8');
-                }
-                try {
-                    import from jaclang.compiler.placement.placement {
-                        get_module_summary,
-                        summary_to_bytes
-                    }
-                    sections[SEC_PLACEMENT] = summary_to_bytes(
-                        get_module_summary(result, actual_program)
-                    );
-                } except Exception {
-                    ;
-                }
-                import from jaclang.compiler.driver.jir {
-                    SEC_CTDEPS,
-                    ct_deps_section,
-                    write_module_cache
-                }
-                if result.ct_file_deps {
-                    sections[SEC_CTDEPS] = ct_deps_section(result.ct_file_deps);
-                }
-                cache_bc: any = result.gen?.py_bytecode;
-                if cache_bc is not None and not result.parse_failed {
-                    write_module_cache(full_target, cache_bc, extra_sections=sections);
-                }
-            } except Exception {
-                ;
-            }
+            self._persist_module_cache(full_target, result, actual_program);
             if is_internal {
                 note_compiler_source_failure(full_target, '');
             }
@@ -740,6 +687,16 @@ impl JacCompiler.parse_str(
             if _na_ok {
                 _coerce_native_module(mod);
                 na_coverage_record(mod.loc.mod_path, 'native');
+            } elif _na_why == 'previously-demoted' {
+                import from jaclang.compiler.placement.placement_pins {
+                    _demoted_native_code
+                }
+                na_coverage_record(
+                    mod.loc.mod_path,
+                    'demoted',
+                    _demoted_native_code(os.path.realpath(mod.loc.mod_path)),
+                    _na_why
+                );
             } else {
                 na_coverage_record(mod.loc.mod_path, 'server', '', _na_why);
             }
@@ -1216,7 +1173,7 @@ impl JacCompiler.compile(
             _resolved, 'ice' if _is_ice else 'demoted', _demote_code, _first_err
         );
         import from jaclang.compiler.placement.placement_pins { _mark_demoted_native }
-        _mark_demoted_native(_resolved);
+        _mark_demoted_native(_resolved, _demote_code);
         del _wrap_prog.errors_had[_pre_errs:];
         del _wrap_prog.warnings_had[_pre_warns:];
         try {
@@ -1265,6 +1222,80 @@ impl JacCompiler.compile(
                 self._release_compile_scratch(_scratch_prog);
             }
         }
+    }
+}
+
+impl JacCompiler._persist_module_cache(
+    full_target: str, result: uni.Module, actual_program: JacProgram
+) -> None {
+    import from jaclang.compiler.driver.jir {
+        get_module_cache_path,
+        is_module_cache_valid
+    }
+    try {
+        if is_module_cache_valid(full_target, get_module_cache_path(full_target)) {
+            return;
+        }
+    } except Exception {
+        return;
+    }
+    cache_bc = result.gen.py_bytecode;
+    if cache_bc is None or result.parse_failed {
+        return;
+    }
+    try {
+        import pickle;
+        import json;
+        import zlib;
+        sections: dict[int, bytes] = {};
+        sections[SEC_BYTECODE] = cache_bc;
+        if actual_program.mtir_map {
+            sections[SEC_MTIR] = pickle.dumps(
+                actual_program.mtir_map, int(pickle.HIGHEST_PROTOCOL)
+            );
+        }
+
+        native_bc = result.gen.native_bitcode;
+        if native_bc is not None {
+            import struct as _struct;
+            import jaclang.compiler.backends.native.llvm.binding as _llvm;
+            triple_text = _llvm.get_default_triple();
+            assert isinstance(triple_text, str);
+            triple = triple_text.encode('utf-8');
+            hdr = _struct.pack('<H', len(triple)) + triple;
+            sections[SEC_NATIVE_OBJ] = hdr + native_bc;
+        } else {
+            llvm_ir = result.gen.llvm_ir;
+            if llvm_ir is not None {
+                sections[SEC_LLVM_IR] = zlib.compress(str(llvm_ir).encode('utf-8'), 6);
+            }
+        }
+        interop_dict = self._build_interop_dict(result);
+        if interop_dict {
+            sections[SEC_INTEROP] = json.dumps(interop_dict).encode('utf-8');
+        }
+        try {
+            import from jaclang.compiler.placement.placement {
+                get_module_summary,
+                summary_to_bytes
+            }
+            sections[SEC_PLACEMENT] = summary_to_bytes(
+                get_module_summary(result, actual_program)
+            );
+        } except Exception {
+            ;
+        }
+        import from jaclang.compiler.driver.jir {
+            SEC_CTDEPS,
+            ct_deps_section,
+            write_module_cache
+        }
+        if result.ct_file_deps {
+            sections[SEC_CTDEPS] = ct_deps_section(result.ct_file_deps);
+        }
+        write_module_cache(full_target, cache_bc, extra_sections=sections);
+    } except Exception {
+        ;
     }
 }
 
