@@ -24,7 +24,7 @@ def restore(cache_dir: str, venv_dir: str) -> None {
         os.makedirs(os.path.dirname(venv_dir), exist_ok=True);
         shutil.copytree(cache_dir, venv_dir, dirs_exist_ok=True);
     } except Exception {
-        _ = 0;
+        shutil.rmtree(venv_dir, ignore_errors=True);
     }
 }
 
