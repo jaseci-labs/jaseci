@@ -923,6 +923,11 @@ jobs:
           jac test jac/jaclang/scale/tests/test_pod_env.jac -x
           jac test jac/jaclang/scale/tests/test_k8s_utils.jac -x
           jac test jac/jaclang/scale/tests/test_deploy_k8s.jac -x -f "not (early and exit)"
+          # get_status()'s scale-to-zero verdict against a genuine zero-replica
+          # Deployment -- the real status.replicas/readyReplicas shape at zero
+          # is what's under test, not a hand-built fake of it. No KEDA
+          # controller involved: it only ever creates a plain Deployment.
+          jac test jac/jaclang/scale/tests/deploy/test_scale_to_zero_status_e2e.jac -x
 
       - name: Run KEDA gateway correlation e2e
         if: matrix.group == 'deploy-core'
