@@ -11,13 +11,9 @@ import from jaclang.scale.injector.pvc_injector {
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-
-
-def venv_cache_key(specs: list[str], base_image: str) -> str {
-    import hashlib;
-    return hashlib.sha256(
-        (base_image + "\n" + "\n".join(sorted(specs))).encode()
-    ).hexdigest();
+import from jaclang.scale.deploy.target.kubernetes.venv_cache {
+    venv_cache_key,
+    is_cache_eligible
 }
 
 
@@ -171,36 +167,26 @@ def build_bootstrap_init_container(
         'offline"; fi'
     );
 
-    if resolved_specs {
-        venv_cache_dir = (
-            f"{BUNDLE_MOUNT_PATH}/.cache/venv/"
-            f"{venv_cache_key(resolved_specs, base_image)}"
-        );
+    cache_eligible = False;
+    venv_cache_dir = "";
+    venv_cache_root = f"{BUNDLE_MOUNT_PATH}/.cache/venv";
+    if resolved_specs and is_cache_eligible(base_image) {
+        cache_eligible = True;
+        venv_cache_dir = f"{venv_cache_root}/{venv_cache_key(
+            resolved_specs, base_image
+        )}";
         commands.append(
-            f'if [ -d "{venv_cache_dir}" ]; then mkdir -p "{APP_MOUNT_PATH}/.jac" '
-            f'&& cp -a "{venv_cache_dir}" "{venv_dir}" 2>/dev/null || true; fi'
+            f'JAC_VENV_CACHE_DIR="{venv_cache_dir}" JAC_VENV_DIR="{venv_dir}" '
+            'jac scale venv-cache-restore'
         );
     }
 
     commands.append("jac install");
 
-    if resolved_specs {
-        venv_cache_root = f"{BUNDLE_MOUNT_PATH}/.cache/venv";
-        staging_dir = f"{venv_cache_dir}.tmp.$$";
+    if cache_eligible {
         commands.append(
-            f'if mkdir -p {venv_cache_root} 2>/dev/null; then '
-            f'chmod 0777 {venv_cache_root} 2>/dev/null || true; '
-            f'if [ "$(du -sm {venv_cache_root} 2>/dev/null | cut -f1)" -gt 2048 ] '
-            f'2>/dev/null; then '
-            f'rm -rf {venv_cache_root} && mkdir -p {venv_cache_root} && '
-            f'chmod 0777 {venv_cache_root} 2>/dev/null || true; fi; '
-            f'if [ ! -e "{venv_cache_dir}" ]; then '
-            f'rm -rf "{staging_dir}" 2>/dev/null; '
-            f'cp -a "{venv_dir}" "{staging_dir}" 2>/dev/null '
-            f'&& mv -T "{staging_dir}" "{venv_cache_dir}" 2>/dev/null; '
-            f'rm -rf "{staging_dir}" 2>/dev/null; '
-            f'fi; '
-            f'fi; true'
+            f'JAC_VENV_DIR="{venv_dir}" JAC_VENV_CACHE_DIR="{venv_cache_dir}" '
+            f'JAC_VENV_CACHE_ROOT="{venv_cache_root}" jac scale venv-cache-publish'
         );
     }
 
