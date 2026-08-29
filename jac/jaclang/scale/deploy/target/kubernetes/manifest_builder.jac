@@ -1589,6 +1589,9 @@ obj ManifestBuilder {
         if sa_name {
             spec["serviceAccountName"] = sa_name;
         }
+
+        import from jaclang.scale.injector.pvc_injector { LOADER_GID }
+        spec["securityContext"] = {"fsGroup": LOADER_GID};
         spec["volumes"] = list(shared_vols);
         spec["initContainers"] = list(self.deploy_context.init_containers);
 
