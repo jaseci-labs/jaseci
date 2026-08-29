@@ -275,8 +275,8 @@ def precompile_unit(
     if code is None {
         _emit_unit_diagnostics(jac_path, [program, compiler.selfhost.program]);
     }
-    program.release_compile_closure();
-    compiler.selfhost.program.release_compile_closure();
+    program.release_compile_closure(keep_stubs=True);
+    compiler.selfhost.program.release_compile_closure(keep_stubs=True);
     if code is None {
         return None;
     }

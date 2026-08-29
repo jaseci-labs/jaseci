@@ -257,7 +257,7 @@ impl JacProgram.release_check_caches(self: JacProgram) -> None {
 }
 
 impl JacProgram.release_compile_closure(
-    self: JacProgram, keep_stubs: bool = False, collect: bool = True
+    self: JacProgram, keep_stubs: bool = True, collect: bool = True
 ) -> None {
     import os;
     if os.environ.get("JAC_NO_UNIT_EVICT") {

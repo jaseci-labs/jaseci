@@ -42,7 +42,7 @@ class JacProgram {
     def get_type_evaluator(self: JacProgram) -> TypeEvaluator;
     def clear_type_system(self: JacProgram, clear_hub: bool = False) -> None;
     def release_compile_closure(
-        self: JacProgram, keep_stubs: bool = False, collect: bool = True
+        self: JacProgram, keep_stubs: bool = True, collect: bool = True
     ) -> None;
 
     def release_native_dep_units(self: JacProgram) -> None;
