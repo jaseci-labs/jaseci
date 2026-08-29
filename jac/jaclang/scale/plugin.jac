@@ -368,6 +368,22 @@ def scale_cmd(
         }
         return deploy_destroy(service_name, target, component);
     }
+    if action == "venv-cache-restore" {
+        import from .deploy.target.kubernetes.venv_cache { restore }
+        restore(
+            os.environ.get("JAC_VENV_CACHE_DIR", ""), os.environ.get("JAC_VENV_DIR", "")
+        );
+        return 0;
+    }
+    if action == "venv-cache-publish" {
+        import from .deploy.target.kubernetes.venv_cache { publish }
+        publish(
+            os.environ.get("JAC_VENV_DIR", ""),
+            os.environ.get("JAC_VENV_CACHE_DIR", ""),
+            os.environ.get("JAC_VENV_CACHE_ROOT", "")
+        );
+        return 0;
+    }
     import from jaclang.scale.runtime.orchestrator.orchestrator {
         ServiceRegistry,
         build_registry
