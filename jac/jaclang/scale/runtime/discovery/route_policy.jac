@@ -48,6 +48,24 @@ def guard_route_name(module_name: str) {
 }
 
 
+def resolve_routes(ms_config: dict[str, any]) -> dict[str, str] {
+    routes_cfg = dict(ms_config.get("routes", {}) or {});
+    routes: dict[str, str] = {};
+    for (name, prefix) in routes_cfg.items() {
+        name_str: str = str(name);
+        guard_route_name(name_str);
+        prefix_str: str = str(prefix or "");
+        if not prefix_str {
+            prefix_str = derive_route_prefix(name_str);
+        } elif not prefix_str.startswith("/") {
+            prefix_str = "/" + prefix_str;
+        }
+        routes[name_str] = prefix_str;
+    }
+    return routes;
+}
+
+
 def format_route_origin_lines(
     routes: dict[str, str], explicit_routes: dict[str, str]
 ) -> list[str] {

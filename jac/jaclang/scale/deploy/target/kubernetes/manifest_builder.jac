@@ -300,7 +300,15 @@ obj ManifestBuilder {
         _bundle_object_key: str = "",
         _toolchain_object_key: str = "",
         microservices_config: (dict[str, any] | None) = None,
-        dry_run: bool = False;
+        dry_run: bool = False,
+        _bundle_services_cache: (dict[str, str] | None) = None;
+
+    def _bundle_services -> dict[str, str] {
+        if self._bundle_services_cache is None {
+            self._bundle_services_cache = {};
+        }
+        return self._bundle_services_cache;
+    }
 
     def _ms_cfg -> dict[str, any] {
         if self.microservices_config is not None {
@@ -317,7 +325,7 @@ obj ManifestBuilder {
     }
 
     def _with_implicit_solo_route(ms_cfg: dict[str, any]) -> dict[str, any] {
-        import from jaclang.scale.runtime.routing {
+        import from jaclang.scale.runtime.discovery.route_policy {
             resolve_routes,
             guard_route_name,
             derive_route_prefix
@@ -515,6 +523,8 @@ obj ManifestBuilder {
 
     def generate_manifests(app_config: AppConfig, image: str) -> dict[str, any] {
         self.project_dir = self.project_dir or app_config.code_folder;
+        self._prime_solo_route(app_config);
+        self._bundle_services();
         injector = self._prepare_injector(app_config);
         self._bundle_object_key = injector._object_key;
 
@@ -654,6 +664,37 @@ obj ManifestBuilder {
         }
         guard_route_name(name);
         return {name: derive_route_prefix(name)};
+    }
+
+    def _prime_solo_route(app_config: AppConfig) -> None {
+        import from jaclang.scale.runtime.discovery.route_policy { resolve_routes }
+        if self.microservices_config is not None {
+            return;
+        }
+
+        try {
+            ms_cfg = dict(get_scale_config().get_microservices_config());
+        } except Exception {
+            return;
+        }
+        if resolve_routes(ms_cfg) {
+            return;
+        }
+        routes = self._solo_route(app_config);
+        services = dict(ms_cfg.get("services", {}));
+        solo_name = list(routes.keys())[0];
+        solo_cfg = dict(services.get(solo_name, {}));
+        solo_cfg["file"] = app_config.file_name;
+        services[solo_name] = solo_cfg;
+
+        main_cfg = dict(services.get("main", {}));
+        if not main_cfg.get("file") {
+            main_cfg["file"] = app_config.file_name;
+            services["main"] = main_cfg;
+        }
+        ms_cfg["services"] = services;
+        ms_cfg["routes"] = routes;
+        self.microservices_config = ms_cfg;
     }
 
     def _drain_timeout -> int {
