@@ -578,6 +578,12 @@ def resolve_pod_base_image(
             f"https://hub.docker.com/v2/repositories/{OFFICIAL_IMAGE}/tags/{tag}"
         );
     } except Exception {
+        if channel == Channel.EXPERIMENTAL {
+            logger.info(
+                f"Could not look up a digest for {image}; pods use the tag " "unpinned."
+            );
+            return image;
+        }
         logger.info(
             f"Official base image {image} is not published or not reachable; "
             f"pods use {fallback}."
@@ -585,9 +591,6 @@ def resolve_pod_base_image(
         return fallback;
     }
 
-    if channel == Channel.EXPERIMENTAL {
-        return image;
-    }
     try {
         digest = str(json.loads(raw.decode("utf-8")).get("digest", "") or "");
     } except Exception {
