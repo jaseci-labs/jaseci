@@ -9,7 +9,11 @@ import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.runtime.context { ExecutionContext }
 import from jaclang.data.store { PgStore }
-import from jaclang.data.query_planner { resolve_query, resolve_query_count }
+import from jaclang.data.query_planner {
+    resolve_query,
+    resolve_query_count,
+    resolve_query_prefix
+}
 
 def _as_any(v: any) -> any {
     return v;
@@ -406,6 +410,68 @@ test "runtime uses warmed topology index for simple graph resolves" {
             assert len(pred_hits) == 1;
             assert counting.rows_calls == after_warm , (
                 "warmed topology should evaluate node predicates without SQL"
+            );
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx2.close();
+        }
+    }
+}
+
+
+test "runtime uses filtered hop topology without root completeness" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx1 = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx1;
+        root_id: UUID;
+        try {
+            root_id = _seed(ctx1);
+            ctx1.mem.commit();
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx1.close();
+        }
+        ctx2 = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx2;
+        try {
+            ranch = ctx2.mem.get(root_id);
+            assert isinstance(ranch, NodeAnchor) and ranch.archetype is not None;
+            base = ctx2.mem.store;
+            assert isinstance(base, PgStore);
+            counting = _QueryCountingStore(
+                conninfo=base.conninfo,
+                promotions=base.promotions,
+                auto_schema=True
+            );
+            base.close();
+            ctx2.mem.store = counting;
+
+            idx = ctx2.mem.warm_topology_for_hop([root_id], "PRel", "PA", 2);
+            assert idx.node_type(root_id) == "Root";
+            assert not idx.has_root(root_id);
+            assert idx.has_hop(root_id, "PRel", "PA", 2);
+            after_warm = counting.rows_calls;
+            assert after_warm == 1;
+
+            q = GraphQuery(ranch.archetype, hops=[QHop(dir=2, `edge=PRel, nd=PA)]);
+            ids = resolve_query_prefix(ctx2.mem, q, 1);
+            assert len(ids) == 3;
+            assert counting.rows_calls == after_warm , (
+                "filtered hop topology should answer matching graph prefixes without SQL"
+            );
+
+            hits = resolve_query(ctx2.mem, q);
+            assert len(hits) == 3;
+            after_narrow = counting.rows_calls;
+            assert after_narrow <= after_warm + 1 , (
+                "matching graph resolve should only fetch winner anchors after topology"
+            );
+
+            wider = GraphQuery(ranch.archetype, hops=[QHop(dir=2, nd=PA)]);
+            assert len(resolve_query(ctx2.mem, wider)) == 3;
+            assert counting.rows_calls == after_narrow + 1 , (
+                "untyped graph query must not reuse a narrower filtered hop mark"
             );
         } finally {
             JacRuntime.exec_ctx = old;

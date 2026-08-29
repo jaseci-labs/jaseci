@@ -184,6 +184,12 @@ obj Session {
     def query_cache_put(key: any, value: any) -> None;
     def invalidate_topology_index -> None;
     def warm_topology_for_nodes(ids: Iterable[UUID]) -> any;
+    def warm_topology_for_hop(
+        ids: Iterable[UUID],
+        edge_type: (str | None),
+        node_type: (str | None),
+        direction: int
+    ) -> any;
     def quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None;
     def is_recoverable_quarantine(id: UUID) -> bool;
     async def aget(id: UUID) -> (Anchor | None);

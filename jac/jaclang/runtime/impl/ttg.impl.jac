@@ -627,12 +627,7 @@ def _resolve_indexed_chain(
         return [];
     }
     try {
-        idx = mem.warm_topology_for_nodes(origins);
-        if not isinstance(idx, TopologyIndex) {
-            return None;
-        }
         current = origins;
-        current_warmed = True;
         if not chain {
             return current[:limit];
         }
@@ -640,12 +635,11 @@ def _resolve_indexed_chain(
             if not current {
                 return [];
             }
-            if not current_warmed {
-                idx = mem.warm_topology_for_nodes(current);
-                if not isinstance(idx, TopologyIndex) {
-                    return None;
-                }
-                current_warmed = True;
+            idx = mem.warm_topology_for_hop(
+                current, hop[0], hop[1], int(hop[2] or 2)
+            );
+            if not isinstance(idx, TopologyIndex) {
+                return None;
             }
             for cur in current {
                 if idx.node_type(cur) is None {
@@ -654,7 +648,6 @@ def _resolve_indexed_chain(
             }
             is_last = hop_idx == len(chain) - 1;
             current = idx.resolve_chain(current, [hop], limit if is_last else 0);
-            current_warmed = False;
         }
         return current[:limit];
     } except Exception as e {
@@ -818,12 +811,12 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
         qpos = len(queue);
         topo_idx: (TopologyIndex | None) = None;
         try {
-            warmed = mem.warm_topology_for_nodes(frontier);
-            if isinstance(warmed, TopologyIndex) {
-                topo_idx = warmed;
+            maybe_idx = mem?._topology_index;
+            if isinstance(maybe_idx, TopologyIndex) {
+                topo_idx = maybe_idx;
                 for cur in frontier {
                     if cur not in type_cache {
-                        tname = warmed.node_type(cur);
+                        tname = maybe_idx.node_type(cur);
                         if tname is not None {
                             type_cache[cur] = tname;
                         }
@@ -831,7 +824,7 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
                 }
             }
         } except Exception as e {
-            logger.debug(f"TTG frontier topology warm failed: {e}");
+            logger.debug(f"TTG frontier topology lookup failed: {e}");
         }
         missing_frontier = [
             cur

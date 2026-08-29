@@ -800,6 +800,20 @@ impl Session.warm_topology_for_nodes(ids: Iterable[UUID]) -> any {
 }
 
 
+impl Session.warm_topology_for_hop(
+    ids: Iterable[UUID],
+    edge_type: (str | None),
+    node_type: (str | None),
+    direction: int
+) -> any {
+    import from jaclang.runtime.topology_index { warm_topology_for_hop }
+    idx = warm_topology_for_hop(self, list(ids), edge_type, node_type, direction);
+    self._topology_index = idx;
+    self.__topology_index__ = idx;
+    return idx;
+}
+
+
 impl Session.store_raw(uid: UUID, row: AnchorRow) -> None {
     if uid in self._deleted {
         return;

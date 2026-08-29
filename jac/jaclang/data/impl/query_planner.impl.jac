@@ -146,7 +146,9 @@ def _existing_topology_index(mem: Session) -> any {
     if idx is None {
         return None;
     }
-    for attr in ("resolve_chain", "node_type", "owner_root_for", "has_root") {
+    for attr in (
+        "resolve_chain", "node_type", "owner_root_for", "has_root", "has_hop"
+    ) {
         if not hasattr(idx, attr) {
             return None;
         }
@@ -155,13 +157,18 @@ def _existing_topology_index(mem: Session) -> any {
 }
 
 
-def _topology_complete_for(idx: any, ids: list[UUID]) -> bool {
+def _topology_hop_complete_for(
+    idx: any, ids: list[UUID], hop: tuple[str | None, str | None, int]
+) -> bool {
     for uid in ids {
         if idx.node_type(uid) is None {
             return False;
         }
         owner = idx.owner_root_for(uid);
-        if owner is None or not idx.has_root(owner) {
+        if owner is not None and idx.has_root(owner) {
+            continue;
+        }
+        if not idx.has_hop(uid, hop[0], hop[1], int(hop[2] or 2)) {
             return False;
         }
     }
@@ -217,7 +224,7 @@ def _topology_node_ids(
     }
     hops = list(q.hops[:upto]);
     for (i, hop) in enumerate(chain) {
-        if not _topology_complete_for(idx, current) {
+        if not _topology_hop_complete_for(idx, current, hop) {
             return None;
         }
         current = idx.resolve_chain(current, [hop], 0);

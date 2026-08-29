@@ -179,6 +179,63 @@ test "builder warms owner topology from seed nodes across roots" {
 }
 
 
+test "filtered hop warm indexes only matching frontier adjacency" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx1 = _ctx(td);
+        JacRuntime.exec_ctx = ctx1;
+        ids: tuple[UUID, UUID, UUID, UUID, UUID];
+        try {
+            ids = _seed_cross_root(ctx1);
+            ctx1.mem.commit();
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx1.close();
+        }
+
+        ctx2 = _ctx(td);
+        JacRuntime.exec_ctx = ctx2;
+        try {
+            (alice_root_id, bob_root_id, alice_id, bob_id, tweet_id) = ids;
+            idx = ctx2.mem.warm_topology_for_hop(
+                [alice_id], "GTIPost", "GTITweet", 2
+            );
+            assert isinstance(idx, TopologyIndex);
+            assert not idx.has_root(alice_root_id);
+            assert idx.node_type(alice_id) == "GTIProfile";
+            assert idx.resolve_chain(
+                [alice_id], [("GTIFollow", "GTIProfile", 2)], 10
+            ) == [];
+
+            idx = ctx2.mem.warm_topology_for_hop(
+                [alice_id], "GTIFollow", "GTIProfile", 2
+            );
+            assert not idx.has_root(alice_root_id);
+            assert not idx.has_root(bob_root_id);
+            assert idx.owner_root_for(bob_id) == bob_root_id;
+            assert idx.resolve_chain(
+                [alice_id], [("GTIFollow", "GTIProfile", 2)], 10
+            ) == [bob_id];
+            assert idx.resolve_chain(
+                [alice_id],
+                [("GTIFollow", "GTIProfile", 2), ("GTIPost", "GTITweet", 2)],
+                10
+            ) == [];
+
+            idx = ctx2.mem.warm_topology_for_hop([bob_id], "GTIPost", "GTITweet", 2);
+            assert idx.resolve_chain(
+                [alice_id],
+                [("GTIFollow", "GTIProfile", 2), ("GTIPost", "GTITweet", 2)],
+                10
+            ) == [tweet_id];
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx2.close();
+        }
+    }
+}
+
+
 test "TTG uses warmed topology to continue across owner roots" {
     with TemporaryDirectory() as td {
         old = JacRuntime.exec_ctx;

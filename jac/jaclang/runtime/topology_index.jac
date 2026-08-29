@@ -9,6 +9,7 @@ import from uuid { UUID }
 glob __all__ = [
          'TopologyEdge',
          'TopologyIndex',
+         'warm_topology_for_hop',
          'warm_topology_for_nodes'
      ];
 
@@ -29,7 +30,8 @@ obj TopologyIndex {
         out_by_src: dict[UUID, list[TopologyEdge]] = {},
         in_by_dst: dict[UUID, list[TopologyEdge]] = {},
         edge_ids: set[UUID] = set(),
-        loaded_roots: set[UUID] = set();
+        loaded_roots: set[UUID] = set(),
+        loaded_hops: set[tuple[UUID, str, str, int]] = set();
 
     def clear -> None;
     def add_type(type_name: str, ancestors: list[str]) -> None;
@@ -51,6 +53,18 @@ obj TopologyIndex {
 
     def mark_roots_loaded(root_ids: list[UUID]) -> None;
     def has_root(root_id: UUID) -> bool;
+    def mark_hops_loaded(
+        origin_ids: list[UUID],
+        edge_type: (str | None),
+        node_type: (str | None),
+        direction: int
+    ) -> None;
+    def has_hop(
+        origin_id: UUID,
+        edge_type: (str | None),
+        node_type: (str | None),
+        direction: int
+    ) -> bool;
     def node_type(node_id: UUID) -> (str | None);
     def owner_root_for(node_id: UUID) -> (UUID | None);
     def resolve_chain(
@@ -63,3 +77,12 @@ obj TopologyIndex {
 
 
 def warm_topology_for_nodes(mem: any, node_ids: list[UUID]) -> TopologyIndex;
+
+
+def warm_topology_for_hop(
+    mem: any,
+    origin_ids: list[UUID],
+    edge_type: (str | None),
+    node_type: (str | None),
+    direction: int
+) -> TopologyIndex;
