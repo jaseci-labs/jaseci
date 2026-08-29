@@ -285,11 +285,30 @@ test "_build_startup_probe defaults to a period that actually shaves the measure
 # readiness probe runs for the pod's entire lifetime, so the tighter
 # period only applies when the service's replica floor is 0.
 
-test "_build_readiness_probe uses the default period for a normally-scaled service" {
-    b = _builder({"pingsvc": {"hpa": {"min": 1}}});
-    probe = b._build_readiness_probe("pingsvc");
-    assert probe["periodSeconds"] == KubernetesConfig().readiness_period;
-    assert probe["failureThreshold"] == 3;
+test "a rendered Deployment tightens probes for a min=0 service but not its min=1 sibling in the same fleet" {
+    # Through the real top-level path (_build_service_pod_spec, what
+    # generate_manifests actually calls), not the private probe builders
+    # directly -- proves the wiring from a service's own hpa.min into its
+    # own container's probe fields, not just that the builders compute the
+    # right numbers in isolation.
+    b = _builder({"zerosvc": {"hpa": {"min": 0}}, "onesvc": {"hpa": {"min": 1}}});
+    zero_probe = b._build_service_pod_spec("zerosvc", "python:3.12-slim")["containers"][
+        0
+    ]["readinessProbe"];
+    one_probe = b._build_service_pod_spec("onesvc", "python:3.12-slim")["containers"][0][
+        "readinessProbe"
+    ];
+    assert zero_probe["periodSeconds"]
+        == KubernetesConfig().readiness_period_scale_to_zero;
+    assert one_probe["periodSeconds"] == KubernetesConfig().readiness_period;
+    assert one_probe["failureThreshold"] == 3;
+}
+
+test "a rendered pod spec joins the bundle loader's group instead of relying on a world-writable cache" {
+    import from jaclang.scale.injector.pvc_injector { LOADER_GID }
+    b = _builder({"onesvc": {}});
+    spec = b._build_service_pod_spec("onesvc", "python:3.12-slim");
+    assert spec["securityContext"]["fsGroup"] == LOADER_GID;
 }
 
 test "_build_readiness_probe tightens the period for a service with replica floor 0" {
