@@ -14,7 +14,7 @@ edge ScopeOverload {}
 
 edge ScopeChild {}
 
-edge ScopeOwner {}
+edge ScopeParent {}
 
 edge CfgSucc {}
 

@@ -260,11 +260,13 @@ impl JacProgram.release_compile_closure(
     self.type_evaluator = None;
     self.diags.clear();
     self.scratch = BuildScratch();
-    import os;
+    import gc;
     if os.environ.get("JAC_GC_FREEZE_ON_RELEASE") {
-        import gc;
+        gc.unfreeze();
         gc.collect();
         gc.freeze();
+    } else {
+        gc.collect();
     }
 }
 

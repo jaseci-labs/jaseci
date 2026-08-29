@@ -651,15 +651,15 @@ impl UniScopeNode.parent_scope.getter -> (UniScopeNode | None) {
     if found {
         return found[-1];
     }
-    owners = [self<-:ScopeOwner:<-];
+    owners = [self->:ScopeParent:->];
     return owners[-1] if owners else None;
 }
 
 impl UniScopeNode.parent_scope.setter(parent_scope: (UniScopeNode | None)) {
     del [edge self<-:ScopeChild:<-];
-    del [edge self<-:ScopeOwner:<-];
+    del [edge self->:ScopeParent:->];
     if parent_scope is not None {
-        parent_scope +>:ScopeOwner:+> self;
+        self +>:ScopeParent:+> parent_scope;
     }
 }
 
@@ -829,7 +829,7 @@ impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
 
 impl UniScopeNode.link_kid_scope(key_node: UniScopeNode) -> UniScopeNode {
     del [edge key_node<-:ScopeChild:<-];
-    del [edge key_node<-:ScopeOwner:<-];
+    del [edge key_node->:ScopeParent:->];
     self +>:ScopeChild:+> key_node;
     return key_node;
 }

@@ -141,7 +141,7 @@ import from jaclang.compiler.frontend.relations {
     InScope,
     PlacedIn,
     ScopeChild,
-    ScopeOwner,
+    ScopeParent,
     ScopeOverload,
     ScopePrimary,
     SymOf,
