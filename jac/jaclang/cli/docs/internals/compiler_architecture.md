@@ -156,29 +156,46 @@ structure is edges rather than fields. A node holds only scalars (token text,
 positions, flags); each child slot the parser fills (`condition`, `body`,
 `target`, ...) is a role-typed edge from
 [`compiler/frontend/roles.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/roles.jac)
-(`ConditionRole`, `BodyRole`, ... all subclasses of `Role`, which carries
-`in_kid`), and tokens that belong to no slot hang off `KidRole`. The spelling
-passes use is unchanged: `nd.condition`, `nd.body`, `nd.kid` and `nd.parent`
-are accessors over those edges
-(`unitree.impl/roles.impl.jac`: each `{ getter; }` slot declared in
-`unitree.jac` reads its edge type there, and the `init` for each class links
-its children through `_link`). `kid` is every
-in-kid role edge in connection order, so the formatter and `unparse` see the
-same token stream as before; `parent` is the source of the newest incoming
-role edge.
+(`ConditionRole`, `BodyRole`, ... all subclasses of `Role`), and the ordered
+token stream is a separate `Kid` edge per child. The spelling passes use is
+unchanged: `nd.condition`, `nd.body`, `nd.kid` and `nd.parent` are accessors
+over those edges (`unitree.impl/roles.impl.jac`: each `{ getter; }` slot
+declared in `unitree.jac` reads its edge type there, and the `init` for each
+class links its children through `_link`). `kid` is the Kid edges in
+connection order, so the formatter and `unparse` see the same token stream as
+before; `parent` is the source of the newest incoming Kid edge (or Role edge,
+for a node reachable only through a slot).
 
 Construction connects: a class's generated `init` assigns its scalars and calls
-`_link(kid, roles)`, which attaches each child through the class's `_attach`
-(a `match` over the role name that connects with the literal edge type). After
+`_link(kid, roles)`, which records each child in the node's adjacency. After
 that a node is data. The rewriting tools (`normalize`, the lint fixer,
 `unparse`, `eject`) and the decl/impl merge do not assign fields: they
 `_role_set`, `set_kids`, `replace_kid` or `link_impl`, which are connects and
 disconnects. `Ability.body` after `DeclImplMatchPass` is an `ImplOf` edge to
 the `ImplDef`; `ImplDef.decl_link` reads it backwards.
 
-Compiler graphs are transient: the seed tier's `jac0core/osp0.py` builds edges
-in the anchors' adjacency only (no persistence rows, no execution context), and
-reads them back with `refs0`, so a released module is simply collectable.
+Compiler graphs are transient, and their edges are light. A field-less,
+directed edge between unpersisted nodes is not an object: `NodeAnchor` keeps
+`out_light` / `in_light`, dicts from edge class to the list of neighbour nodes
+in connection order, and every `Role`, `Kid` and relation edge (`SymOf`,
+`TypeOf`, `CfgSucc`, ...) lives there. Ownership follows connect direction:
+out-links hold their targets, in-links are weak references, so a tree owns
+its children, an interned type or codespace singleton never keeps its users
+alive, and a dropped subtree is collectable with no severing. Only an edge
+that carries fields (`ScopePrimary.alias`, `TypeMemberOf.name`) is an
+`EdgeAnchor` in `edges`; a node that acquires persistence materializes its
+light edges into rows (`NodeAnchor.all_edges`).
+
+The compiler's source uses the language for all of it. Both lowerings
+recognize the simple hop (one origin, one direction, one edge class, no
+predicate, no node filter, no chain) and emit a direct adjacency read:
+jac0 emits `hop0`, the py backend emits `hop`, so `[self->:Kid:->]` is one
+dict lookup plus a copy, and `[self<-:Kid:<-][-1]` is `parent`. Anything
+richer goes through `refs0` / `refs` as before. `del` accepts an edge set:
+`del [edge self->:Kid:->];` lowers to `clear0` / `clear_edges`, which drops
+the set by class without materializing it (`set_kids`, `_role_set` and every
+slot setter are written that way). A `[edge ...]` query or `del` on a single
+light edge works on a view (`light_edge_view`).
 
 ### The front end
 

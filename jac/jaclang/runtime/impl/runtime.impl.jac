@@ -241,7 +241,7 @@ impl JacWalker.`visit(
         if not isinstance(anchor, (NodeAnchor, EdgeAnchor)) {
             raise ValueError('Anchor should be NodeAnchor or EdgeAnchor.');
         }
-        targets.append(anchor);
+        targets.append(arch);
     }
     return osp_visit(targets, insert_loc);
 }
@@ -252,7 +252,7 @@ impl JacWalker.spawn_call(
     import from jaclang.runtime.osp_kernel { osp_spawn }
     import from jaclang.runtime.osp_kernel_sv { desc_for, make_sv_runtime }
     warch = `walker.archetype;
-    starts: list = `list(`walker.next);
+    starts: list = [a.archetype for a in `walker.next];
     osp_spawn(make_sv_runtime(), warch, desc_for(`type(warch)), starts);
     return warch;
 }
@@ -267,7 +267,10 @@ impl JacWalker.async_spawn_call(
     }
     warch = `walker.archetype;
     await osp_spawn_async(
-        make_sv_runtime(), warch, desc_for(`type(warch)), `list(`walker.next)
+        make_sv_runtime(),
+        warch,
+        desc_for(`type(warch)),
+        [a.archetype for a in `walker.next]
     );
     return warch;
 }
@@ -1096,6 +1099,95 @@ impl JacGraph.connect(
     return right[0] if right_is_node else right;
 }
 
+"""The simple hop the codegen emits for `[x ->:T:->]` when there is nothing
+to plan: one origin, one direction, one edge class, no predicates. A
+transient origin with no EdgeAnchors is answered from the light adjacency
+with no context lookup at all; anything else is the full `refs`."""
+impl JacGraph.hop(
+    origin: any, dir: int, edge_type: (type | None) = None, edges_only: bool = False
+) -> list {
+    if isinstance(origin, `list) {
+        return JacRuntimeInterface.refs(
+            GraphQuery(
+                origin, hops=[QHop(dir=dir, `edge=edge_type)], edges_only=edges_only
+            )
+        );
+    }
+    anchor = origin.__jac__;
+    if anchor.persistent
+        or (
+            anchor.edges and (edge_type is None or not is_light_edge_type(edge_type))
+        ) {
+        return JacRuntimeInterface.refs(
+            GraphQuery(
+                origin, hops=[QHop(dir=dir, `edge=edge_type)], edges_only=edges_only
+            )
+        );
+    }
+    if edges_only {
+        out: list = [];
+        if dir != 1 {
+            for ea in light_edge_views(anchor, edge_type, True) {
+                out.append(ea.archetype);
+            }
+        }
+        if dir != 2 {
+            for ea in light_edge_views(anchor, edge_type, False) {
+                out.append(ea.archetype);
+            }
+        }
+        return out;
+    }
+    if dir == 2 {
+        found = light_out(anchor, edge_type);
+    } elif dir == 1 {
+        found = light_in(anchor, edge_type);
+    } else {
+        found = light_out(anchor, edge_type) + light_in(anchor, edge_type);
+    }
+    if len(found) < 2 {
+        return `list(found);
+    }
+    return `list(`dict.fromkeys(found));
+}
+
+"""`del [edge x ->:T:->];`: drop every edge of the set without building it.
+Light edges are popped from the adjacency by class; EdgeAnchors are
+destroyed (persistent, with the access check) or detached."""
+impl JacGraph.clear_edges(
+    origin: any, dir: int, edge_type: (type | None) = None
+) -> bool {
+    origins = origin if isinstance(origin, `list) else [origin];
+    hit = False;
+    for o in origins {
+        anchor = o.__jac__;
+        if dir != 1 and light_clear_matching(anchor, edge_type, True) {
+            hit = True;
+        }
+        if dir != 2 and light_clear_matching(anchor, edge_type, False) {
+            hit = True;
+        }
+        for ea in `list(anchor.edges) {
+            if edge_type is not None and not isinstance(ea.archetype, edge_type) {
+                continue;
+            }
+            if dir == 2 and not (ea.source is anchor or ea.is_undirected) {
+                continue;
+            }
+            if dir == 1 and not (ea.target is anchor or ea.is_undirected) {
+                continue;
+            }
+            if ea.persistent {
+                JacRuntimeInterface.destroy([ea]);
+            } else {
+                ea.detach();
+            }
+            hit = True;
+        }
+    }
+    return hit;
+}
+
 impl JacGraph.disconnect(
     left: (NodeArchetype | list[NodeArchetype]),
     right: (NodeArchetype | list[NodeArchetype]),
@@ -1119,6 +1211,9 @@ impl JacGraph.disconnect(
         sv_register_hydrated(nd);
         handled: set = set();
         for j in right {
+            if _light_disconnect_between(nd, j.__jac__, dir.value, filter) {
+                disconnect_occurred = True;
+            }
             for anchor in sv_candidate_edges_between(nd, j.__jac__, dir.value) {
                 akey = anchor_key(anchor);
                 if akey in handled {
@@ -1183,30 +1278,49 @@ impl JacGraph.build_edge(
     conn_assign: (tuple[(tuple, tuple)] | None)
 ) -> Callable[([NodeAnchor, NodeAnchor], EdgeArchetype)] {
     ct = conn_type or GenericEdge;
+    cls = ct if isinstance(ct, `type) else `type(ct);
+    light = (not is_undirected) and (not conn_assign) and is_light_edge_type(cls);
     def builder(source: NodeAnchor, target: NodeAnchor) -> EdgeArchetype {
-        import from jaclang.runtime.osp_graph_sv { sv_conn }
-        `edge = ct() if isinstance(ct, `type) else ct;
-        eanch = `edge.__jac__=EdgeAnchor(
-            archetype=`edge, source=source, target=target, is_undirected=is_undirected
+        if light and not (source.persistent or target.persistent) {
+            light_connect(source, cls, target);
+            return light_edge_view(cls, source, target);
+        }
+        return JacRuntimeInterface.heavy_edge(
+            source, target, ct, is_undirected, conn_assign
         );
-        source.edges.append(eanch);
-        target.edges.append(eanch);
-        sv_conn(source, target, eanch, is_undirected);
-        if conn_assign {
-            for (fld, val) in zip(conn_assign[0], conn_assign[1], strict=False) {
-                if hasattr(`edge, fld) {
-                    setattr(`edge, fld, val);
-                } else {
-                    raise ValueError(f"Invalid attribute: {fld}");
-                }
-            }
-        }
-        if (source.persistent or target.persistent) {
-            JacRuntimeInterface.save(eanch);
-        }
-        return `edge;
     }
     return builder;
+}
+
+impl JacGraph.heavy_edge(
+    source: NodeAnchor,
+    target: NodeAnchor,
+    conn_type: type[EdgeArchetype] | EdgeArchetype | None,
+    is_undirected: bool,
+    conn_assign: (tuple[(tuple, tuple)] | None)
+) -> EdgeArchetype {
+    import from jaclang.runtime.osp_graph_sv { sv_conn }
+    ct = conn_type or GenericEdge;
+    `edge = ct() if isinstance(ct, `type) else ct;
+    eanch = `edge.__jac__=EdgeAnchor(
+        archetype=`edge, source=source, target=target, is_undirected=is_undirected
+    );
+    source.edges.append(eanch);
+    target.edges.append(eanch);
+    sv_conn(source, target, eanch, is_undirected);
+    if conn_assign {
+        for (fld, val) in zip(conn_assign[0], conn_assign[1], strict=False) {
+            if hasattr(`edge, fld) {
+                setattr(`edge, fld, val);
+            } else {
+                raise ValueError(f"Invalid attribute: {fld}");
+            }
+        }
+    }
+    if (source.persistent or target.persistent) {
+        JacRuntimeInterface.save(eanch);
+    }
+    return `edge;
 }
 
 impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
@@ -1217,10 +1331,13 @@ impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
         anchor.persistent = True;
         anchor.`root = jctx.user_root.id;
     }
+    if anchor.is_populated() {
+        track_writes(anchor.archetype);
+    }
     jctx.mem.put(anchor);
     match anchor {
         case NodeAnchor():
-            for ed in anchor.edges {
+            for ed in anchor.all_edges() {
                 if (ed.is_populated() and not ed.persistent) {
                     JacRuntimeInterface.save(ed);
                 }
@@ -1252,6 +1369,7 @@ impl JacPersistence.destroy(
         if JacRuntimeInterface.check_write_access(anchor, op_hint="delete") {
             match anchor {
                 case NodeAnchor():
+                    anchor.detach_light();
                     for `edge in anchor.edges[:] {
                         eid = `edge.id;
                         `edge.detach();

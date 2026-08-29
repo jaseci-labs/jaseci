@@ -2990,6 +2990,46 @@ impl JcirGenPass._delete_ctx_targets(
 }
 
 impl JcirGenPass.exit_delete_stmt with DeleteStmt exit {
+    tgt = here.target;
+    if isinstance(tgt, EdgeRefTrailer) {
+        simple = self._simple_hop(tgt) if tgt.edges_only else None;
+        if simple is not None {
+            self.set_out(
+                here,
+                [
+                    self.nod(
+                        'Expr',
+                        ['value'],
+                        [
+                            self.nod(
+                                'Call',
+                                ['func', 'args', 'keywords'],
+                                [self.jaclib_obj('clear_edges'), simple, []]
+                            )
+                        ]
+                    )
+                ]
+            );
+            return;
+        }
+        self.set_out(
+            here,
+            [
+                self.nod(
+                    'Expr',
+                    ['value'],
+                    [
+                        self.nod(
+                            'Call',
+                            ['func', 'args', 'keywords'],
+                            [self.jaclib_obj('destroy'), [self.val(tgt)], []]
+                        )
+                    ]
+                )
+            ]
+        );
+        return;
+    }
     destroy_expr = self.nod(
         'Expr',
         ['value'],
@@ -4845,7 +4885,55 @@ impl JcirGenPass._traversal_consumed_now(nd: EdgeRefTrailer) -> bool {
 }
 
 
+"""`[x ->:T:->]` with nothing to plan: one origin, one hop, an edge class or
+no type, no predicates, no node filter, no chain, not async, not the operand
+of `visit`. Returns `[origin, dir, edge_type]` for `hop`/`clear_edges`."""
+impl JcirGenPass._simple_hop(nd: EdgeRefTrailer) -> (list[CgNode] | None) {
+    if nd.is_async or isinstance(nd.parent, VisitStmt) {
+        return None;
+    }
+    chain = nd.chain;
+    if len(chain) == 2
+        and not isinstance(chain[0], EdgeOpRef)
+        and isinstance(chain[1], EdgeOpRef) {
+        origin_ast = self.val(chain[0]);
+        hop = chain[1];
+    } elif len(chain) == 1 and isinstance(chain[0], EdgeOpRef) {
+        hop = chain[0];
+        origin_ast = self.val(hop);
+    } else {
+        return None;
+    }
+    type_ast = self.const_of(None);
+    fc = hop.filter_cond;
+    if fc is not None {
+        if fc.compares or fc.f_type is None {
+            return None;
+        }
+        type_ast = self.val(fc.f_type);
+    }
+    return [origin_ast, self.const_of(hop.edge_dir.value), type_ast];
+}
+
 impl JcirGenPass.exit_edge_ref_trailer with EdgeRefTrailer exit {
+    simple = self._simple_hop(here);
+    if simple is not None {
+        self.set_out(
+            here,
+            [
+                self.nod(
+                    'Call',
+                    ['func', 'args', 'keywords'],
+                    [
+                        self.jaclib_obj('hop'),
+                        [*simple, self.const_of(here.edges_only)],
+                        []
+                    ]
+                )
+            ]
+        );
+        return;
+    }
     origin: (CgNode | None) = None;
     cur = here.chain[0];
     chomp = [*here.chain[1:]];

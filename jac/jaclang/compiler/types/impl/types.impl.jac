@@ -1,31 +1,22 @@
+"""Type-graph edges. Composition edges are light (no fields); the target
+holds its sources weakly, so an interned type never keeps its users alive.
+`TypeMemberOf`/`EnumMemberOf` carry a name and are EdgeAnchors. The four
+helpers are the one shape every accessor reads: the edge archetypes of a
+slot, an edge's target, delete one, connect one."""
 def _eouts(origin: any, ecls: type) -> list {
-    me = getattr(origin, "__jac__");
-    found: list = [];
-    for ea in me.edges {
-        if (ea.source is me) and isinstance(ea.archetype, ecls) {
-            found.append(ea);
-        }
-    }
-    return found;
+    return [edge origin->:ecls:->];
 }
 
-def _tgt(ea: any) -> any {
-    return ea.target.archetype;
+def _tgt(e: any) -> any {
+    return getattr(e, "__jac__").target.archetype;
 }
 
-def _edel(ea: any) {
-    ea.source.edges.remove(ea);
-    ea.target.edges.remove(ea);
+def _edel(e: any) {
+    del e;
 }
 
 def _econn(src: any, tgt: any, e: any) {
-    import from jaclang.runtime.archetype { EdgeAnchor }
-    sa = getattr(src, "__jac__");
-    ta = getattr(tgt, "__jac__");
-    ea = EdgeAnchor(archetype=e, source=sa, target=ta, is_undirected=False);
-    e.__jac__ = ea;
-    sa.edges.append(ea);
-    ta.edges.append(ea);
+    src +>:(e):+> tgt;
 }
 
 impl ModuleType.symbol_table.getter -> (SymbolTable | None) {
@@ -258,7 +249,7 @@ impl ClassDetailsShared.enum_value_type.setter(
 impl ClassDetailsShared.typeddict_fields.getter -> (dict[str, TypeBase] | None) {
     d: dict[str, TypeBase] = {};
     for ea in _eouts(self, TypeMemberOf) {
-        d[ea.archetype.name] = _tgt(ea);
+        d[ea.name] = _tgt(ea);
     }
     return d;
 }
@@ -277,7 +268,7 @@ impl ClassDetailsShared.typeddict_fields.setter(
 impl ClassDetailsShared.enum_members.getter -> (dict[str, EnumMemberInfo] | None) {
     d: dict[str, EnumMemberInfo] = {};
     for ea in _eouts(self, EnumMemberOf) {
-        d[ea.archetype.name] = _tgt(ea);
+        d[ea.name] = _tgt(ea);
     }
     return d;
 }

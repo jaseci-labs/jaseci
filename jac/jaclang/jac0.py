@@ -588,6 +588,7 @@ class DisengageStmt:
 @dataclass
 class DeleteStmt:
     expr: str = ""
+    clear: str = ""
 
 
 @dataclass
@@ -877,6 +878,56 @@ def _lower_preds(flt: list[Token], like: Token) -> list[Token]:
     return out
 
 
+def _match_edge_set(tokens: list[Token]) -> list[Token] | None:
+    """`[edge <origin> <one plain hop>]` as the operand of `del`.
+
+    Returns the `_jac_osp.clear0(origin, dir, T)` call for that shape, or None
+    when the operand is anything else (then it is an ordinary delete of the
+    materialized set).
+    """
+    if not tokens or tokens[0].type != TT.LBRACKET or tokens[-1].type != TT.RBRACKET:
+        return None
+    depth = 0
+    for i, t in enumerate(tokens):
+        if t.type in (TT.LPAREN, TT.LBRACKET, TT.LBRACE):
+            depth += 1
+        elif t.type in (TT.RPAREN, TT.RBRACKET, TT.RBRACE):
+            depth -= 1
+            if depth == 0 and i != len(tokens) - 1:
+                return None
+    inner = tokens[1:-1]
+    if not (inner and inner[0].type == TT.NAME and inner[0].value == "edge" and not inner[0].backtick):
+        return None
+    inner = inner[1:]
+    d = 0
+    k = 0
+    while k < len(inner):
+        t = inner[k]
+        if t.type in (TT.LPAREN, TT.LBRACKET, TT.LBRACE):
+            d += 1
+        elif t.type in (TT.RPAREN, TT.RBRACKET, TT.RBRACE):
+            d -= 1
+        if d == 0:
+            m = _match_hop(inner, k)
+            if m is not None:
+                length, direction, etype, flt = m
+                if flt or k == 0 or k + length != len(inner):
+                    return None
+                origin = _lower_edge_refs(inner[:k])
+                like = tokens[0]
+                return _osp_call(
+                    "clear0",
+                    [
+                        origin,
+                        [_tok(TT.NUMBER, str(direction), like)],
+                        [_tok(TT.NAME, etype or "None", like)],
+                    ],
+                    like,
+                )
+        k += 1
+    return None
+
+
 def _lower_edge_refs(tokens: list[Token]) -> list[Token]:
     """`[x ->:T:->]`, `[x <-:T:<-]`, `[x -->]`, `[edge x ->:T:->]` and hop chains
     become `_jac_osp.refs0(origin, dir, T, edges_only)` calls."""
@@ -941,6 +992,19 @@ def _lower_edge_refs(tokens: list[Token]) -> list[Token]:
                     raise ParseError(
                         f"line {tok.line}: filter comprehensions are outside the seed subset"
                     )
+            if len(hops) == 1 and not flt and not trailing:
+                # One hop, no predicate, no node filter: the direct adjacency read.
+                cur = _osp_call(
+                    "hop0",
+                    [
+                        cur,
+                        [_tok(TT.NUMBER, str(direction), tok)],
+                        [_tok(TT.NAME, etype or "None", tok)],
+                        [_tok(TT.NAME, "True" if edges_only else "False", tok)],
+                    ],
+                    tok,
+                )
+                continue
             args = [
                 cur,
                 [_tok(TT.NUMBER, str(direction), tok)],
@@ -1364,6 +1428,17 @@ class Parser:
         stop_names: set | None = None,
     ) -> str:
         """Collect tokens until a stop token at depth 0, return as Python str."""
+        return tokens_to_str(
+            self._collect_tokens_until(*stop, stop_values=stop_values, stop_names=stop_names)
+        )
+
+    def _collect_tokens_until(
+        self,
+        *stop: TT,
+        stop_values: set | None = None,
+        stop_names: set | None = None,
+    ) -> list[Token]:
+        """Collect raw tokens until a stop token at depth 0."""
         toks: list[Token] = []
         depth = 0
         sv = stop_values or set()
@@ -1386,7 +1461,7 @@ class Parser:
                 if depth < 0:
                     break
             toks.append(self._advance())
-        return tokens_to_str(toks)
+        return toks
 
     def _collect_type(
         self,
@@ -2221,9 +2296,12 @@ class Parser:
 
     def _parse_delete(self) -> DeleteStmt:
         self._expect(TT.NAME, "del")
-        expr = self._collect_until(TT.SEMI)
+        toks = self._collect_tokens_until(TT.SEMI)
         self._match(TT.SEMI)
-        return DeleteStmt(expr=expr)
+        clear = _match_edge_set(toks)
+        if clear is not None:
+            return DeleteStmt(expr="", clear=tokens_to_str(clear))
+        return DeleteStmt(expr=tokens_to_str(toks))
 
     def _parse_expr_stmt(self) -> ExprStmt:
         expr = self._collect_until(TT.SEMI)
@@ -2358,8 +2436,14 @@ class CodeGen:
         elif isinstance(node, AssertStmt):
             self._line(f"assert {node.expr}")
         elif isinstance(node, DeleteStmt):
-            self._line(f"_jac_osp.destroy0({node.expr})")
-            self._line(f"del {node.expr}")
+            if node.clear:
+                self._line(node.clear)
+            elif node.expr.startswith("_jac_osp."):
+                # an edge/node set from a reference expression: nothing to unbind
+                self._line(f"_jac_osp.destroy0({node.expr})")
+            else:
+                self._line(f"_jac_osp.destroy0({node.expr})")
+                self._line(f"del {node.expr}")
         elif isinstance(node, VisitStmt):
             wlk = self._walker_receiver()
             if node.insert_loc is not None:

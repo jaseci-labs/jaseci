@@ -575,6 +575,7 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     ) -> (list[tuple[str, bool, bool]] | None);
 
     def _final_hop_types(nd: EdgeRefTrailer) -> tuple[str, str];
+    def _simple_hop(nd: EdgeRefTrailer) -> (list[CgNode] | None);
     can exit_index_slice with IndexSlice exit;
     can exit_special_var_ref with SpecialVarRef exit;
     can exit_edge_ref_trailer with EdgeRefTrailer exit;

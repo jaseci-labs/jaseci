@@ -17,10 +17,17 @@ obj NodeDesc {
         `exit: list[Slot];
 }
 
+"""One walk. `next` is the legacy FIFO queue (`visit x;` appends, `next_head`
+is its consumed prefix). `front` is the front-splice stack: `visit:0: xs;`
+pushes xs reversed, so `front.pop()` yields the next fenced child in order
+and a splice costs O(len(xs)) rather than a copy of the whole queue. A
+dequeue drains `front` before `next`, which is the order the old single
+list gave when front-splices were inserted at index 0."""
 obj WalkScope {
     has wlk: any,
         path: list[int],
         next: list[int],
+        front: list[int],
         ignores: list[int],
         reports: list[any],
         disengaged: bool = False,
@@ -71,21 +78,36 @@ def osp_visit(targets: list[int], insert_loc: int = -1) -> bool {
         }
         return True;
     }
-    if scope.next_head > 0 {
-        scope.next = scope.next[scope.next_head:];
-        scope.next_head = 0;
-    }
-    pos = insert_loc;
-    if pos < -len(scope.next) {
-        pos = 0;
-    } elif pos < 0 {
-        pos = pos + len(scope.next) + 1;
-    }
-    scope.next = scope.next[:pos] + filtered + scope.next[pos:];
     if insert_loc == 0 {
+        i = len(filtered) - 1;
+        while i >= 0 {
+            scope.front.append(filtered[i]);
+            i -= 1;
+        }
         scope.fenced = True;
         scope.pending_fence += len(filtered);
+        return True;
     }
+    logical: list[int] = [];
+    i = len(scope.front) - 1;
+    while i >= 0 {
+        logical.append(scope.front[i]);
+        i -= 1;
+    }
+    j = scope.next_head;
+    while j < len(scope.next) {
+        logical.append(scope.next[j]);
+        j += 1;
+    }
+    pos = insert_loc;
+    if pos < -len(logical) {
+        pos = 0;
+    } elif pos < 0 {
+        pos = pos + len(logical) + 1;
+    }
+    scope.front = [];
+    scope.next = logical[:pos] + filtered + logical[pos:];
+    scope.next_head = 0;
     return True;
 }
 
@@ -113,7 +135,12 @@ def osp_report(val: any) {
 glob _match_slots: dict[int, list[Slot]] = {},
      _match_by_tag: dict[int, dict[int, list[Slot]]] = {};
 
-def run_typed(rt: OspRuntime, slots: list[Slot], a: any, b: any) -> None {
+"""The walk owns its scope, so the ability loops take it as a parameter and
+read `disengaged`/`skip_node` off it directly; nothing here consults the
+walk stack per ability."""
+def run_typed(
+    rt: OspRuntime, scope: WalkScope, slots: list[Slot], a: any, b: any
+) -> None {
     btag: int = rt.tag_of(b);
     key: int = id(slots);
     if _match_slots.get(key) is not slots {
@@ -133,19 +160,17 @@ def run_typed(rt: OspRuntime, slots: list[Slot], a: any, b: any) -> None {
     }
     for s in matched {
         s.fn(a, b);
-        sc = _current_scope();
-        if (sc is not None) and (sc.disengaged or sc.skip_node) {
+        if scope.disengaged or scope.skip_node {
             return;
         }
     }
 }
 
-def run_untyped(slots: list[Slot], a: any, b: any) -> None {
+def run_untyped(scope: WalkScope, slots: list[Slot], a: any, b: any) -> None {
     for s in slots {
         if s.trig_tag == UNTYPED {
             s.fn(a, b);
-            sc = _current_scope();
-            if (sc is not None) and (sc.disengaged or sc.skip_node) {
+            if scope.disengaged or scope.skip_node {
                 return;
             }
         }
@@ -153,6 +178,12 @@ def run_untyped(slots: list[Slot], a: any, b: any) -> None {
 }
 
 def _dequeue(scope: WalkScope) -> (int | None) {
+    while scope.front {
+        candidate = scope.front.pop();
+        if (not scope.ignores) or (candidate not in scope.ignores) {
+            return candidate;
+        }
+    }
     while scope.next_head < len(scope.next) {
         candidate = scope.next[scope.next_head];
         scope.next_head += 1;
@@ -182,21 +213,20 @@ def _visit_recursive(
         }
         if phase == 0 {
             scope.path.append(cur);
-            loc_tag: int = rt.tag_of(cur);
-            ndesc = rt.node_desc(loc_tag);
+            ndesc = rt.node_desc(rt.tag_of(cur));
             scope.pending_fence = 0;
-            run_typed(rt, wdesc.`entry, scope.wlk, cur);
+            run_typed(rt, scope, wdesc.`entry, scope.wlk, cur);
             if scope.disengaged {
                 return False;
             }
             if not scope.skip_node {
-                run_untyped(ndesc.`entry, cur, scope.wlk);
+                run_untyped(scope, ndesc.`entry, cur, scope.wlk);
                 if scope.disengaged {
                     return False;
                 }
             }
             if not scope.skip_node {
-                run_typed(rt, ndesc.`entry, cur, scope.wlk);
+                run_typed(rt, scope, ndesc.`entry, cur, scope.wlk);
                 if scope.disengaged {
                     return False;
                 }
@@ -210,9 +240,8 @@ def _visit_recursive(
             child: (int | None) = None;
             if scope.fenced {
                 while (budget > 0) and (child is None) {
-                    if scope.next_head < len(scope.next) {
-                        candidate = scope.next[scope.next_head];
-                        scope.next_head += 1;
+                    if scope.front {
+                        candidate = scope.front.pop();
                         budget -= 1;
                         if (not scope.ignores) or (candidate not in scope.ignores) {
                             child = candidate;
@@ -238,21 +267,20 @@ def _visit_recursive(
                 stack_bud.append(0);
             }
         } else {
-            loc_tag: int = rt.tag_of(cur);
-            ndesc = rt.node_desc(loc_tag);
+            ndesc = rt.node_desc(rt.tag_of(cur));
             scope.pending_fence = 0;
-            run_typed(rt, ndesc.`exit, cur, scope.wlk);
+            run_typed(rt, scope, ndesc.`exit, cur, scope.wlk);
             if scope.disengaged {
                 return False;
             }
             if not scope.skip_node {
-                run_untyped(ndesc.`exit, cur, scope.wlk);
+                run_untyped(scope, ndesc.`exit, cur, scope.wlk);
                 if scope.disengaged {
                     return False;
                 }
             }
             if not scope.skip_node {
-                run_typed(rt, wdesc.`exit, scope.wlk, cur);
+                run_typed(rt, scope, wdesc.`exit, scope.wlk, cur);
                 if scope.disengaged {
                     return False;
                 }
@@ -271,6 +299,7 @@ def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list[int]) ->
         wlk=wlk,
         path=[],
         next=`list(starts),
+        front=[],
         ignores=[],
         reports=[],
         nested=(len(_walk_stack) > 0)
@@ -281,7 +310,7 @@ def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list[int]) ->
         if scope.next {
             anchor = scope.next[0];
 
-            run_untyped(wdesc.`entry, wlk, anchor);
+            run_untyped(scope, wdesc.`entry, wlk, anchor);
         }
 
         while not scope.disengaged {
@@ -295,7 +324,7 @@ def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list[int]) ->
         }
 
         if scope.path and (not scope.disengaged) {
-            run_untyped(wdesc.`exit, wlk, scope.path[-1]);
+            run_untyped(scope, wdesc.`exit, wlk, scope.path[-1]);
         }
         ok = True;
     } finally {

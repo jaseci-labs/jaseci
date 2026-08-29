@@ -1,3 +1,5 @@
+import from jaclang.runtime.archetype { relink_light, sever_light }
+
 impl UniNode.postinit -> None {
     self.__sub_node_tab = None;
     self._ctx_parent = None;
@@ -6,7 +8,7 @@ impl UniNode.postinit -> None {
     self._gen = None;
     self.ct_pruned = False;
     if self?._role_shapes is None {
-        self._role_shapes = {};
+        self._role_shapes = None;
     }
     (first_tok, last_tok) = self.resolve_tok_range();
     self.loc = CodeLocInfo(first_tok, last_tok);
@@ -21,29 +23,30 @@ impl UniNode.walk_kids with TreeWalker entry {
 }
 
 impl UniNode._attach(child: UniNode, role: type) -> None {
-    e: Role = role();
-    self +>:(e):+> child;
+    self +>:(role):+> child;
 }
 
 impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
-    shapes: dict[type, str] = self?._role_shapes or {};
-    self._role_shapes = shapes;
     role_of: dict[int, type] = {};
-    for (role, value) in roles.items() {
-        if value is None {
-            shapes[role] = "none";
-        } elif isinstance(value, (list, tuple)) {
-            shapes[role] = "many";
-            for v in value {
-                if isinstance(v, UniNode) {
-                    role_of[id(v)] = role;
+    if roles {
+        shapes: dict[type, str] = self?._role_shapes or {};
+        self._role_shapes = shapes;
+        for (role, value) in roles.items() {
+            if value is None {
+                shapes[role] = "none";
+            } elif isinstance(value, (list, tuple)) {
+                shapes[role] = "many";
+                for v in value {
+                    if isinstance(v, UniNode) {
+                        role_of[id(v)] = role;
+                    }
                 }
+            } elif isinstance(value, UniNode) {
+                shapes[role] = "one";
+                role_of[id(value)] = role;
+            } else {
+                shapes[role] = "none";
             }
-        } elif isinstance(value, UniNode) {
-            shapes[role] = "one";
-            role_of[id(value)] = role;
-        } else {
-            shapes[role] = "none";
         }
     }
     attached: set[int] = set();
@@ -175,26 +178,9 @@ impl UniNode._role_set(role: type[Role], value: any) -> None {
         shapes[role] = "one";
         vals = [value];
     }
-    keep: set[int] = set();
+    del [edge self->:role:->];
     for v in vals {
-        keep.add(id(v));
-    }
-    already: set[int] = set();
-    for e in self._role_edges() {
-        if `type(e) is not role {
-            continue;
-        }
-        tgt = self._edge_target(e);
-        if id(tgt) in keep {
-            already.add(id(tgt));
-            continue;
-        }
-        del e;
-    }
-    for v in vals {
-        if id(v) not in already {
-            self._attach(v, role);
-        }
+        self._attach(v, role);
     }
     self._invalidate_sub_node_tab();
 }
@@ -305,9 +291,7 @@ impl UniNode.insert_kids_at_pos(
 
 impl UniNode.set_kids(nodes: Sequence[UniNode], pos_update: bool = True) -> UniNode {
     self._assert_thawed();
-    for e in [edge self->:Kid:->] {
-        del e;
-    }
+    del [edge self->:Kid:->];
     for n in nodes {
         if n is not None {
             self +>:Kid:+> n;
@@ -362,12 +346,19 @@ impl UniNode.sever_external_edges -> None {
             }
         }
     }
+    inside: set[int] = set();
     anchors: set[int] = set();
     for nd in nodes {
+        inside.add(id(nd));
         anchors.add(id(getattr(nd, "__jac__")));
     }
     for nd in nodes {
         me = getattr(nd, "__jac__");
+        for far in sever_light(me, inside) {
+            if isinstance(far, UniNode) {
+                far._invalidate_sub_node_tab();
+            }
+        }
         for ea in `list(me.edges) {
             far = ea.target if ea.source is me else ea.source;
             if id(far) not in anchors {
@@ -388,26 +379,8 @@ impl UniNode.sever_external_edges -> None {
 
 impl UniNode.detached_copy -> UniNode {
     import copy;
-    me = getattr(self, "__jac__");
-    saved: list = [];
-    for ea in `list(me.edges) {
-        if ea.target is me and isinstance(ea.archetype, (Role, Kid)) {
-            src = ea.source;
-            saved.append((ea, src, src.edges.index(ea), me.edges.index(ea)));
-        }
-    }
-    for (ea, src, si, ti) in reversed(saved) {
-        src.edges.remove(ea);
-        me.edges.remove(ea);
-    }
-    try {
-        dup = copy.deepcopy(self);
-    } finally {
-        for (ea, src, si, ti) in saved {
-            src.edges.insert(si, ea);
-            me.edges.insert(ti, ea);
-        }
-    }
+    dup = copy.deepcopy(self);
+    relink_light(getattr(dup, "__jac__"));
     return dup;
 }
 
@@ -683,12 +656,8 @@ impl UniScopeNode.parent_scope.getter -> (UniScopeNode | None) {
 }
 
 impl UniScopeNode.parent_scope.setter(parent_scope: (UniScopeNode | None)) {
-    for e in [edge self<-:ScopeChild:<-] {
-        del e;
-    }
-    for e in [edge self<-:ScopeOwner:<-] {
-        del e;
-    }
+    del [edge self<-:ScopeChild:<-];
+    del [edge self<-:ScopeOwner:<-];
     if parent_scope is not None {
         parent_scope +>:ScopeOwner:+> self;
     }
@@ -840,9 +809,7 @@ impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
 }
 
 impl UniScopeNode.set_primary_names(syms: dict[(str, Symbol)]) -> None {
-    for e in [edge self->:ScopePrimary:->] {
-        del e;
-    }
+    del [edge self->:ScopePrimary:->];
     for (key, sym) in syms.items() {
         self +>:ScopePrimary(alias=(key if key != sym.name else "")):+> sym;
     }
@@ -861,12 +828,8 @@ impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
 }
 
 impl UniScopeNode.link_kid_scope(key_node: UniScopeNode) -> UniScopeNode {
-    for e in [edge key_node<-:ScopeChild:<-] {
-        del e;
-    }
-    for e in [edge key_node<-:ScopeOwner:<-] {
-        del e;
-    }
+    del [edge key_node<-:ScopeChild:<-];
+    del [edge key_node<-:ScopeOwner:<-];
     self +>:ScopeChild:+> key_node;
     return key_node;
 }
@@ -1053,25 +1016,14 @@ impl AstAccessNode.public_access.getter -> bool {
 
 impl ContextAwareNode.postinit -> None { }
 
-impl UniNode._conn_light(tgt: any, e: any) -> None {
-    import from jaclang.runtime.archetype { EdgeAnchor }
-    sa = getattr(self, "__jac__");
-    ta = getattr(tgt, "__jac__");
-    ea = EdgeAnchor(archetype=e, source=sa, target=ta, is_undirected=False);
-    e.__jac__ = ea;
-    sa.edges.append(ea);
-}
-
 impl ContextAwareNode.code_context.getter -> CodeContext {
     found = [self->:PlacedIn:->];
     return CodeContext(found[0].kind) if found else CodeContext.SERVER;
 }
 
 impl ContextAwareNode.code_context.setter(code_context: CodeContext) {
-    for e in [edge self->:PlacedIn:->] {
-        del e;
-    }
-    self._conn_light(codespace_node(code_context.value), PlacedIn());
+    del [edge self->:PlacedIn:->];
+    self +>:PlacedIn:+> codespace_node(code_context.value);
 }
 
 impl Module.decided_codespace.getter -> str {
@@ -1080,11 +1032,9 @@ impl Module.decided_codespace.getter -> str {
 }
 
 impl Module.decided_codespace.setter(decided_codespace: str) {
-    for e in [edge self->:DecidedCodespace:->] {
-        del e;
-    }
+    del [edge self->:DecidedCodespace:->];
     if decided_codespace {
-        self._conn_light(codespace_node(decided_codespace), DecidedCodespace());
+        self +>:DecidedCodespace:+> codespace_node(decided_codespace);
     }
 }
 
@@ -1119,9 +1069,7 @@ impl ConditionalNode.sc_true_target.getter -> (UniCFGNode | None) {
 }
 
 impl ConditionalNode.sc_true_target.setter(sc_true_target: (UniCFGNode | None)) {
-    for e in [edge self->:CfgTrue:->] {
-        del e;
-    }
+    del [edge self->:CfgTrue:->];
     if sc_true_target is not None {
         self +>:CfgTrue:+> sc_true_target;
     }
@@ -1133,9 +1081,7 @@ impl ConditionalNode.sc_false_target.getter -> (UniCFGNode | None) {
 }
 
 impl ConditionalNode.sc_false_target.setter(sc_false_target: (UniCFGNode | None)) {
-    for e in [edge self->:CfgFalse:->] {
-        del e;
-    }
+    del [edge self->:CfgFalse:->];
     if sc_false_target is not None {
         self +>:CfgFalse:+> sc_false_target;
     }
@@ -3052,9 +2998,7 @@ impl FuncCall.callee_decl.getter -> (Ability | None) {
 }
 
 impl FuncCall.callee_decl.setter(callee_decl: (Ability | None)) {
-    for e in [edge self->:CalleeDecl:->] {
-        del e;
-    }
+    del [edge self->:CalleeDecl:->];
     if callee_decl is not None {
         self +>:CalleeDecl:+> callee_decl;
     }
@@ -3066,9 +3010,7 @@ impl Import.absorbed_mod.getter -> (Module | None) {
 }
 
 impl Import.absorbed_mod.setter(absorbed_mod: (Module | None)) {
-    for e in [edge self->:Absorbs:->] {
-        del e;
-    }
+    del [edge self->:Absorbs:->];
     if absorbed_mod is not None {
         self +>:Absorbs:+> absorbed_mod;
     }
@@ -3080,9 +3022,7 @@ impl NameAtom.sym.getter -> (Symbol | None) {
 }
 
 impl NameAtom.sym.setter(sym: Symbol) {
-    for e in [edge self->:SymOf:->] {
-        del e;
-    }
+    del [edge self->:SymOf:->];
     if sym is not None {
         self +>:SymOf:+> sym;
     }
@@ -3326,11 +3266,9 @@ impl Expr.type.getter -> (TypeBase | None) {
 }
 
 impl Expr.type.setter(type: (TypeBase | None)) -> None {
-    for e in [edge self->:TypeOf:->] {
-        del e;
-    }
+    del [edge self->:TypeOf:->];
     if type is not None {
-        self._conn_light(type, TypeOf());
+        self +>:TypeOf:+> type;
     }
     self._type_cache = type;
     self._type_cache_ok = True;
@@ -3342,11 +3280,9 @@ impl Expr.narrowed_type.getter -> (TypeBase | None) {
 }
 
 impl Expr.narrowed_type.setter(narrowed_type: (TypeBase | None)) -> None {
-    for e in [edge self->:NarrowedTypeOf:->] {
-        del e;
-    }
+    del [edge self->:NarrowedTypeOf:->];
     if narrowed_type is not None {
-        self._conn_light(narrowed_type, NarrowedTypeOf());
+        self +>:NarrowedTypeOf:+> narrowed_type;
     }
 }
 
@@ -3356,11 +3292,9 @@ impl AstTypedVarNode.type.getter -> (TypeBase | None) {
 }
 
 impl AstTypedVarNode.type.setter(type: (TypeBase | None)) -> None {
-    for e in [edge self->:TypeOf:->] {
-        del e;
-    }
+    del [edge self->:TypeOf:->];
     if type is not None {
-        self._conn_light(type, TypeOf());
+        self +>:TypeOf:+> type;
     }
 }
 
@@ -3372,10 +3306,8 @@ impl Ability.event_triggers.getter -> (list[TypeBase] | None) {
 }
 
 impl Ability.event_triggers.setter(event_triggers: (list[TypeBase] | None)) -> None {
-    for e in [edge self->:EventTriggerOf:->] {
-        del e;
-    }
+    del [edge self->:EventTriggerOf:->];
     for t in (event_triggers or []) {
-        self._conn_light(t, EventTriggerOf());
+        self +>:EventTriggerOf:+> t;
     }
 }

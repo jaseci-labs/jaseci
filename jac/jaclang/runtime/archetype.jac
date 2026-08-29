@@ -8,6 +8,7 @@ import from threading { Lock }
 import from types { UnionType }
 import from typing { ClassVar, TypeAlias, TypeVar }
 import from uuid { UUID, uuid4 }
+import weakref;
 import from jaclang.compiler.frontend.constant { EdgeDir }
 glob logger = getLogger(__name__),
      TARCH = TypeVar('TARCH', bound='Archetype'),
@@ -16,6 +17,13 @@ glob logger = getLogger(__name__),
 
 glob _NO_TRIGGER = object(),
      _subclass_hook_lock = Lock();
+
+# Light-edge registries (see the "Light edges" section below). Declared here
+# because `Archetype.__init_subclass__` clears the subtype closure while this
+# module is still defining its own classes.
+glob _light_edge_types: dict[type, bool] = {},
+     _edge_subtypes: dict[type, tuple] = {},
+     _tracked_classes: dict[type, type] = {};
 
 enum AccessLevel { NO_ACCESS = -1, READ = 0, CONNECT = 1, WRITE = 2 }
 
@@ -92,22 +100,34 @@ obj Anchor {
     def __eq__(other: object) -> bool;
 }
 
+"""A node's adjacency has two tiers. `edges` holds EdgeAnchors: edges that
+carry fields, are undirected, or are persistent. `out_light`/`in_light` hold
+light edges: a field-less, directed, transient edge is an entry in a per-type
+list of neighbour archetypes, not an object. Both dicts are None until the
+first light edge, so a fresh anchor is still `{archetype, edges}`. A light
+edge becomes an EdgeAnchor only when the node acquires persistence
+(`all_edges`) or when a query asks for the edge itself (`light_edge_view`)."""
 obj NodeAnchor(Anchor) {
     has archetype: NodeArchetype,
         edges: list[EdgeAnchor],
-        version: int = field(`init=False, `default=0);
+        version: int = field(`init=False, `default=0),
+        out_light: (dict[type, list] | None) = field(`init=False, `default=None),
+        in_light: (dict[type, list] | None) = field(`init=False, `default=None);
 
     def __getstate__ -> dict[(str, object)];
     def is_populated -> bool;
     def edge_delta -> (tuple[(set[UUID], set[UUID])] | None);
     def remove_edge(`edge: EdgeAnchor) -> None;
+    def all_edges -> list[EdgeAnchor];
+    def detach_light -> None;
 }
 
 obj EdgeAnchor(Anchor) {
     has archetype: EdgeArchetype,
         source: NodeAnchor,
         target: NodeAnchor,
-        is_undirected: bool;
+        is_undirected: bool,
+        light: bool = field(`init=False, `default=False);
 
     def is_populated -> bool;
     def __getstate__ -> dict[(str, object)];
@@ -157,7 +177,6 @@ obj Archetype {
     static def uninstall_subclass_hook(hook: Callable[[type], None]) -> None;
     static def _subclass_tree -> list[type];
     def postinit -> None;
-    def __setattr__(name: str, value: any) -> None;
     def __repr__ -> str;
     def __jac_access__ -> (AccessLevel | str | int | None);
 }
@@ -237,4 +256,378 @@ obj JsxElement {
     has tag: object,
         `props: dict[(str, object)],
         children: list;
+}
+
+
+"""Light edges.
+
+`is_light_edge_type` decides per edge class, once: light iff the class
+declares no fields (a field-less class has nothing an edge object could hold).
+Undirected connects, attribute assignment at connect time and persistent
+endpoints always take the EdgeAnchor path; the connect sites decide that.
+
+The adjacency is keyed by exact class. A typed hop has isinstance semantics,
+so a read for `Role` must see every Role subclass; `edge_subtypes` is the
+closure of a class over the subclasses that exist, cached until a new
+archetype class is defined (`Archetype.__init_subclass__` clears it).
+
+Ownership follows connect direction. `out_light` holds the neighbour
+archetypes strongly; `in_light` holds weak references. A tree owns its
+children through out-links, a fan-in sink (an interned type, a codespace
+singleton) never keeps its sources alive, and dropping a subtree's root makes
+the subtree collectable with no severing. `light_in` dereferences and skips
+entries whose source has been collected.
+"""
+def is_light_edge_type(cls: type) -> bool {
+    known = _light_edge_types.get(cls);
+    if known is not None {
+        return known;
+    }
+    light = isinstance(cls, `type) and issubclass(cls, EdgeArchetype);
+    if light and is_dataclass(cls) {
+        for f in fields(cls) {
+            light = False;
+            break;
+        }
+    }
+    _light_edge_types[cls] = light;
+    return light;
+}
+
+def edge_subtypes(cls: type) -> tuple {
+    known = _edge_subtypes.get(cls);
+    if known is not None {
+        return known;
+    }
+    out: list = [cls];
+    i = 0;
+    while i < len(out) {
+        for sub in out[i].__subclasses__() {
+            if sub not in out {
+                out.append(sub);
+            }
+        }
+        i += 1;
+    }
+    result = tuple(out);
+    _edge_subtypes[cls] = result;
+    return result;
+}
+
+def _deref(lst: list) -> list {
+    out: list = [];
+    for r in lst {
+        a = r();
+        if a is not None {
+            out.append(a);
+        }
+    }
+    return out;
+}
+
+"""Record `src -cls-> tgt`: strongly on the source, weakly on the target."""
+def light_connect(src: NodeAnchor, cls: type, tgt: NodeAnchor) -> None {
+    out = src.out_light;
+    if out is None {
+        out = {};
+        src.out_light = out;
+    }
+    lst = out.get(cls);
+    if lst is None {
+        out[cls] = [tgt.archetype];
+    } else {
+        lst.append(tgt.archetype);
+    }
+    inn = tgt.in_light;
+    if inn is None {
+        inn = {};
+        tgt.in_light = inn;
+    }
+    back = weakref.ref(src.archetype);
+    lst = inn.get(cls);
+    if lst is None {
+        inn[cls] = [back];
+    } else {
+        lst.append(back);
+    }
+}
+
+def _drop_entry(d: (dict | None), cls: type, key: any) -> bool {
+    if d is None {
+        return False;
+    }
+    lst = d.get(cls);
+    if lst is None {
+        return False;
+    }
+    try {
+        lst.remove(key);
+    } except ValueError {
+        return False;
+    }
+    if not lst {
+        d.pop(cls, None);
+    }
+    return True;
+}
+
+"""Remove one `src -cls-> tgt` entry from both sides. Returns whether the
+source side held it."""
+def light_disconnect(src: NodeAnchor, cls: type, tgt: NodeAnchor) -> bool {
+    held = _drop_entry(src.out_light, cls, tgt.archetype);
+    _drop_entry(tgt.in_light, cls, weakref.ref(src.archetype));
+    return held;
+}
+
+"""Drop every light edge of exactly `cls` on one side of `anchor`, and the
+mirror entries on the far side."""
+def light_clear(anchor: NodeAnchor, cls: type, outgoing: bool = True) -> bool {
+    d = anchor.out_light if outgoing else anchor.in_light;
+    if d is None {
+        return False;
+    }
+    lst = d.pop(cls, None);
+    if not lst {
+        return False;
+    }
+    me = anchor.archetype;
+    if outgoing {
+        back = weakref.ref(me);
+        for other in lst {
+            _drop_entry(other.__jac__.in_light, cls, back);
+        }
+    } else {
+        for other in _deref(lst) {
+            _drop_entry(other.__jac__.out_light, cls, me);
+        }
+    }
+    return True;
+}
+
+"""`del [edge x ->:T:->]` on the light tier: every class that is a `cls`
+(None: every class) on one side of `anchor`."""
+def light_clear_matching(
+    anchor: NodeAnchor, cls: (type | None), outgoing: bool
+) -> bool {
+    d = anchor.out_light if outgoing else anchor.in_light;
+    if not d {
+        return False;
+    }
+    hit = False;
+    for k in `list(d.keys()) {
+        if cls is None or issubclass(k, cls) {
+            if light_clear(anchor, k, outgoing) {
+                hit = True;
+            }
+        }
+    }
+    return hit;
+}
+
+def _collect_light(d: dict, cls: (type | None)) -> list {
+    if cls is None {
+        out: list = [];
+        for lst in d.values() {
+            out.extend(lst);
+        }
+        return out;
+    }
+    subs = edge_subtypes(cls);
+    if len(subs) == 1 {
+        lst = d.get(cls);
+        return lst if lst is not None else [];
+    }
+    found: list = [];
+    if len(subs) <= len(d) {
+        for sub in subs {
+            lst = d.get(sub);
+            if lst {
+                found.extend(lst);
+            }
+        }
+    } else {
+        for (k, lst) in d.items() {
+            if lst and issubclass(k, cls) {
+                found.extend(lst);
+            }
+        }
+    }
+    return found;
+}
+
+"""Neighbour archetypes over light out-edges of `cls` (subclasses included;
+None means every type). The exact-type case is the live adjacency list;
+`hop` copies before handing it to a program."""
+def light_out(anchor: NodeAnchor, cls: (type | None)) -> list {
+    d = anchor.out_light;
+    return _collect_light(d, cls) if d else [];
+}
+
+"""Neighbour archetypes over light in-edges: dereferenced, dead sources
+skipped, always a fresh list."""
+def light_in(anchor: NodeAnchor, cls: (type | None)) -> list {
+    d = anchor.in_light;
+    return _deref(_collect_light(d, cls)) if d else [];
+}
+
+"""An EdgeArchetype standing for one light edge, for `[edge ...]` queries,
+walkers visiting edges and `del`. It is not the adjacency entry; `detach`
+on its anchor removes the entry it stands for."""
+def light_edge_view(cls: type, src: NodeAnchor, tgt: NodeAnchor) -> EdgeArchetype {
+    e = cls.__new__(cls);
+    ea = EdgeAnchor(archetype=e, source=src, target=tgt, is_undirected=False);
+    ea.light = True;
+    e.__jac__ = ea;
+    return e;
+}
+
+def light_edge_views(
+    anchor: NodeAnchor, cls: (type | None), outgoing: bool
+) -> list[EdgeAnchor] {
+    d = anchor.out_light if outgoing else anchor.in_light;
+    if not d {
+        return [];
+    }
+    out: list[EdgeAnchor] = [];
+    for (k, lst) in d.items() {
+        if cls is not None and not issubclass(k, cls) {
+            continue;
+        }
+        for other in (lst if outgoing else _deref(lst)) {
+            oa = other.__jac__;
+            e = light_edge_view(k, anchor, oa)
+                if outgoing
+                else light_edge_view(k, oa, anchor);
+            out.append(e.__jac__);
+        }
+    }
+    return out;
+}
+
+"""Cut every light edge that crosses the boundary of a node set (ids of the
+archetypes inside). Returns the far archetypes that lost an edge, so a caller
+can invalidate caches on them."""
+def sever_light(anchor: NodeAnchor, inside: set[int]) -> list {
+    touched: list = [];
+    out = anchor.out_light;
+    if out {
+        for (cls, lst) in `list(out.items()) {
+            for tgt in `list(lst) {
+                if id(tgt) not in inside {
+                    light_disconnect(anchor, cls, tgt.__jac__);
+                    touched.append(tgt);
+                }
+            }
+        }
+    }
+    inn = anchor.in_light;
+    if inn {
+        for (cls, lst) in `list(inn.items()) {
+            for src in _deref(lst) {
+                if id(src) not in inside {
+                    light_disconnect(src.__jac__, cls, anchor);
+                    touched.append(src);
+                }
+            }
+        }
+    }
+    return touched;
+}
+
+"""After `copy.deepcopy` of a subtree. Out-links were copied (they are
+strong); in-links were not (a `weakref.ref` deep-copies as itself, so a
+copied child's parent link still points at the original). Rebuild every
+in-link inside the copy from the copied out-links and drop the rest: the
+root has no parent, and nothing outside the copy points into it."""
+def relink_light(start: NodeAnchor) -> None {
+    seen: set[int] = set();
+    order: list = [];
+    stack: list = [start.archetype];
+    while stack {
+        nd = stack.pop();
+        if id(nd) in seen {
+            continue;
+        }
+        seen.add(id(nd));
+        order.append(nd);
+        d = nd.__jac__.out_light;
+        if d {
+            for lst in d.values() {
+                for t in lst {
+                    if id(t) not in seen {
+                        stack.append(t);
+                    }
+                }
+            }
+        }
+    }
+    for nd in order {
+        nd.__jac__.in_light = None;
+    }
+    for nd in order {
+        d = nd.__jac__.out_light;
+        if not d {
+            continue;
+        }
+        back = weakref.ref(nd);
+        for (cls, lst) in d.items() {
+            for t in lst {
+                ta = t.__jac__;
+                inn = ta.in_light;
+                if inn is None {
+                    inn = {};
+                    ta.in_light = inn;
+                }
+                cur = inn.get(cls);
+                if cur is None {
+                    inn[cls] = [back];
+                } else {
+                    cur.append(back);
+                }
+            }
+        }
+    }
+}
+
+"""Persistence dirty-marking. A transient archetype has no `__setattr__` hook
+at all: the moment an anchor becomes persistent its archetype swaps to a
+generated subclass (same name, same MRO, cached per class) whose `__setattr__`
+marks the anchor dirty. Only persisted objects pay per write."""
+def _dirty_setattr(self: any, name: str, value: any) -> None {
+    object.__setattr__(self, name, value);
+    an = self.__dict__.get('__jac__');
+    if an is None or not an.persistent {
+        return;
+    }
+    import from jaclang.runtime.runtime { JacRuntime }
+    ctx = JacRuntime.exec_ctx;
+    if ctx is not None {
+        md = ctx.mem?.mark_dirty;
+        if md is not None {
+            md(an);
+        }
+    }
+}
+
+def track_writes(arch: Archetype) -> None {
+    cls = `type(arch);
+    if cls.__dict__.get('__jac_tracked__', False) {
+        return;
+    }
+    tracked = _tracked_classes.get(cls);
+    if tracked is None {
+        tracked = `type(
+            cls.__name__,
+            (cls, ),
+            {
+                '__module__': cls.__module__,
+                '__qualname__': cls.__qualname__,
+                '__jac_base__': True,
+                '__jac_tracked__': True,
+                '__setattr__': _dirty_setattr
+            }
+        );
+        _tracked_classes[cls] = tracked;
+    }
+    object.__setattr__(arch, '__class__', tracked);
 }

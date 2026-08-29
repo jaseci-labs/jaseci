@@ -173,7 +173,6 @@ node UniNode {
     def _link(kid: Sequence[UniNode], roles: dict[type, any]) -> None;
     def detached_copy -> UniNode;
     def sever_external_edges -> None;
-    def _conn_light(tgt: any, e: any) -> None;
     def _assert_thawed -> None;
     def freeze_structure -> None;
     def thaw_structure -> None;
@@ -211,7 +210,6 @@ node UniNode {
     ) -> UniNode;
 
     def set_kids(nodes: Sequence[UniNode], pos_update: bool = True) -> UniNode;
-
     def replace_kid(old: UniNode, new: UniNode) -> UniNode;
     def set_parent(parent: UniNode) -> UniNode;
     def resolve_tok_range -> tuple[(Token, Token)];
