@@ -6,7 +6,7 @@ import os;
 import sys;
 import types;
 import from collections { OrderedDict }
-import from collections.abc { Callable, Coroutine, Mapping, Sequence }
+import from collections.abc { Callable, Coroutine, Iterable, Mapping, Sequence }
 import from concurrent.futures { Future, ThreadPoolExecutor }
 import from contextvars { ContextVar }
 import dataclasses;
@@ -180,7 +180,10 @@ class JacPersistence {
     static async def aget_object(id: str) -> (Archetype | None);
     static def object_ref(`obj: Archetype) -> str;
     static def save(`obj: (Archetype | Anchor)) -> None;
-    static def destroy(objs: Archetype | Anchor | list[(Archetype | Anchor)]) -> None;
+    static def destroy(objs: any, strict: bool = False) -> None;
+    static def _destroy_anchors(objs: any, strict: bool) -> list[Anchor];
+    static def peek_attr(`obj: any, name: str) -> any;
+    static def peek_item(container: any, key: any) -> any;
     static def get_user_manager(base_path: str) -> UserManager;
     static def store(base_path: str = './storage', create_dirs: bool = True) -> any;
     static def get_persistent_memory(config: dict) -> any;

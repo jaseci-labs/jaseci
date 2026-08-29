@@ -700,7 +700,7 @@ impl JacLangServer.close_module(uri: str) -> None {
     fs_path = uris.to_fs_path(uri);
     with self._state_lock.write_lock() {
         if fs_path in self.sem_managers {
-            del (self.sem_managers[fs_path], );
+            del self.sem_managers[fs_path];
         }
     }
 }
@@ -708,10 +708,10 @@ impl JacLangServer.close_module(uri: str) -> None {
 impl JacLangServer.delete_module(uri: str) -> None {
     with self._state_lock.write_lock() {
         if uri in self.program.mod.hub {
-            del (self.program.mod.hub[uri], );
+            del self.program.mod.hub[uri];
         }
         if uri in self.sem_managers {
-            del (self.sem_managers[uri], );
+            del self.sem_managers[uri];
         }
     }
 }
@@ -721,8 +721,8 @@ impl JacLangServer.rename_module(old_path: str, new_path: str) -> None {
         if old_path in self.program.mod.hub and new_path != old_path {
             self.program.mod.hub[new_path] = self.program.mod.hub[old_path];
             self.sem_managers[new_path] = self.sem_managers[old_path];
-            del (self.program.mod.hub[old_path], );
-            del (self.sem_managers[old_path], );
+            del self.program.mod.hub[old_path];
+            del self.sem_managers[old_path];
         }
     }
 }

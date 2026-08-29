@@ -870,12 +870,14 @@ impl NormalizePass.enter_ctrl_stmt(nd: uni.CtrlStmt) -> None {
 }
 
 impl NormalizePass.enter_delete_stmt(nd: uni.DeleteStmt) -> None {
-    new_kid: list[uni.UniNode] = [
-        nd.gen_token(Tok.KW_DELETE),
-        nd.target,
-        nd.gen_token(Tok.SEMI),
-
-    ];
+    new_kid: list[uni.UniNode] = [nd.gen_token(Tok.KW_DELETE)];
+    for i in range(len(nd.targets)) {
+        if i > 0 {
+            new_kid.append(nd.gen_token(Tok.COMMA));
+        }
+        new_kid.append(nd.targets[i]);
+    }
+    new_kid.append(nd.gen_token(Tok.SEMI));
     nd.set_kids(nodes=new_kid);
 }
 

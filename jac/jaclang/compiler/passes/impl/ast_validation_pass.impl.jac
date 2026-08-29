@@ -253,7 +253,42 @@ impl ASTValidationPass.enter_expr_as_item(
 impl ASTValidationPass.enter_delete_stmt(
     self: ASTValidationPass, nd: DeleteStmt
 ) -> None {
-    self._reject_non_bindable(nd.target);
+    for target in nd.targets {
+        self._reject_non_bindable(target);
+        self._reject_undeletable(target);
+    }
+}
+
+impl ASTValidationPass._reject_undeletable(
+    self: ASTValidationPass, target: object
+) -> None {
+    inner = target;
+    while isinstance(inner, AtomUnit) {
+        inner = inner.value;
+    }
+    if isinstance(inner, (TupleVal, ListVal)) {
+        if len(inner.values) == 0 {
+            self.emit(E0083, node_override=inner, what="an empty target list");
+            return;
+        }
+        for el in inner.values {
+            self._reject_undeletable(el);
+        }
+        return;
+    }
+    if isinstance(inner, AtomTrailer) and inner.is_null_ok {
+        self.emit(E0083, node_override=inner, what="a null-safe access");
+        return;
+    }
+    if isinstance(inner, UnaryExpr)
+        and isinstance(inner.op, Token)
+        and inner.op.name in (Tok.STAR_MUL, Tok.STAR_POW) {
+        self.emit(E0083, node_override=inner, what="an unpacked target");
+        return;
+    }
+    if isinstance(inner, (Literal, MultiString, FString)) {
+        self.emit(E0083, node_override=inner, what="a literal");
+    }
 }
 
 impl ASTValidationPass.enter_import(self: ASTValidationPass, nd: Import) -> None {

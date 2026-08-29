@@ -103,6 +103,7 @@ impl Anchor.__getstate__ -> dict[(str, any)] {
 
 impl Anchor.__setstate__(state: dict[(str, any)]) -> None {
     self.__dict__.update(state);
+    self.__dict__.setdefault('destroyed', False);
     if (self.is_populated() and self.archetype) {
         self.archetype.__jac__ = self;
         self.hash = hash(dumps(self));

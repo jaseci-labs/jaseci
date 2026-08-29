@@ -1837,6 +1837,100 @@ impl DeleteStmt.postinit -> None {
 }
 
 
+impl DeleteStmt.leaf_targets -> list[Expr] {
+    leaves: list[Expr] = [];
+    pending: list[Expr] = `list(self.targets);
+    pending.reverse();
+    while pending {
+        inner = DeleteStmt.unwrap_target(pending.pop());
+        if isinstance(inner, (TupleVal, ListVal)) {
+            elems = [
+                el
+                for el in inner.values
+                if isinstance(el, Expr)
+            ];
+            elems.reverse();
+            pending.extend(elems);
+        } else {
+            leaves.append(inner);
+        }
+    }
+    return leaves;
+}
+
+
+impl DeleteStmt.unwrap_target(target: Expr) -> Expr {
+    inner: Expr = target;
+    while isinstance(inner, AtomUnit) and isinstance(inner.value, Expr) {
+        inner = inner.value;
+    }
+    return inner;
+}
+
+
+impl DeleteStmt.is_location(target: Expr) -> bool {
+    inner = DeleteStmt.unwrap_target(target);
+    if isinstance(inner, Name) {
+        return True;
+    }
+    return isinstance(inner, AtomTrailer)
+        and (inner.is_attr or isinstance(inner.right, IndexSlice));
+}
+
+
+impl DeleteStmt.type_may_hold_graph(t: (TypeBase | None)) -> bool {
+    import from jaclang.compiler.types.types { ClassType, UnionType }
+
+    def never_graph(ty: any) -> bool {
+        if isinstance(ty, UnionType) {
+            return all(never_graph(m) for m in ty.types);
+        }
+        if not isinstance(ty, ClassType) {
+            return False;
+        }
+        if ty.is_any_type()
+            or ty.is_node_type()
+            or ty.is_edge_type()
+            or ty.is_walker_type()
+            or not ty.is_builtin() {
+            return False;
+        }
+        class_name = ty.shared.class_name;
+        if class_name
+            in (
+                "int",
+                "float",
+                "complex",
+                "str",
+                "bytes",
+                "bytearray",
+                "bool",
+                "None",
+                "NoneType"
+            ) {
+            return True;
+        }
+        type_args = ty.private.type_args;
+        if type_args is None or len(type_args) == 0 {
+            return False;
+        }
+        if class_name in ("list", "tuple", "set", "frozenset") {
+            return all(never_graph(a) for a in type_args);
+        }
+        if class_name == "dict" {
+            return len(type_args) == 2 and never_graph(type_args[1]);
+        }
+        return False;
+    }
+    return not never_graph(t);
+}
+
+
+impl DeleteStmt.target_may_hold_graph(target: Expr) -> bool {
+    return DeleteStmt.type_may_hold_graph(target.type);
+}
+
+
 impl ReportStmt.postinit -> None {
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);

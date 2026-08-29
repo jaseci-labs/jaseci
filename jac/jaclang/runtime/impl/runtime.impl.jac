@@ -241,6 +241,9 @@ impl JacWalker.`visit(
         if not isinstance(anchor, (NodeAnchor, EdgeAnchor)) {
             raise ValueError('Anchor should be NodeAnchor or EdgeAnchor.');
         }
+        if anchor.destroyed {
+            continue;
+        }
         targets.append(anchor);
     }
     return osp_visit(targets, insert_loc);
@@ -316,6 +319,13 @@ impl JacWalker.`spawn(
     }
     `walker: WalkerAnchor = warch.__jac__;
     loc: (NodeAnchor | EdgeAnchor) = assign(`walker, targ);
+    for start in `walker.next {
+        if start.destroyed {
+            raise RuntimeError(
+                f"cannot spawn on a destroyed graph object: {start.archetype!r}"
+            );
+        }
+    }
     if warch.__jac_async__ {
         return JacRuntimeInterface.async_spawn_call(`walker=`walker, nd=loc);
     }
@@ -1070,9 +1080,15 @@ impl JacGraph.connect(
     edges = [];
     for i in left {
         _left = i.__jac__;
+        if _left.destroyed {
+            raise RuntimeError(f"cannot connect a destroyed node: {i!r}");
+        }
         if JacRuntimeInterface.check_connect_access(_left, op_hint="edge_write") {
             for j in right {
                 _right = j.__jac__;
+                if _right.destroyed {
+                    raise RuntimeError(f"cannot connect a destroyed node: {j!r}");
+                }
                 if JacRuntimeInterface.check_connect_access(
                     _right, op_hint="edge_write"
                 ) {
@@ -1240,21 +1256,51 @@ impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
     }
 }
 
-impl JacPersistence.destroy(
-    objs: Archetype | Anchor | list[(Archetype | Anchor)]
-) -> None {
-    obj_list = objs if isinstance(objs, `list) else [objs];
-    for `obj in obj_list {
-        if not isinstance(`obj, (Archetype, Anchor)) {
-            return;
+impl JacPersistence._destroy_anchors(objs: any, strict: bool) -> list[Anchor] {
+    anchors: list[Anchor] = [];
+    queue: list[any] = [objs];
+    seen: set[int] = set();
+    idx = 0;
+    while idx < len(queue) {
+        item = queue[idx];
+        idx += 1;
+        if isinstance(item, Archetype) {
+            anchors.append(item.__jac__);
+        } elif isinstance(item, Anchor) {
+            anchors.append(item);
+        } elif isinstance(item, (str, bytes, bytearray))
+            or not isinstance(item, Iterable) {
+            if strict {
+                raise TypeError(
+                    f"cannot destroy {type(item).__name__!r}: a `del` value "
+                    "target must yield nodes, edges or archetypes"
+                );
+            }
+        } elif id(item) not in seen {
+            seen.add(id(item));
+            for sub in (item.values() if isinstance(item, Mapping) else item) {
+                queue.append(sub);
+            }
         }
-        anchor = `obj.__jac__ if isinstance(`obj, Archetype) else `obj;
+    }
+    return anchors;
+}
+
+impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
+    for anchor in JacPersistence._destroy_anchors(objs, strict) {
+        if isinstance(anchor.archetype, Root) {
+            raise RuntimeError("cannot destroy root");
+        }
+        if anchor.destroyed {
+            continue;
+        }
         if JacRuntimeInterface.check_write_access(anchor, op_hint="delete") {
             match anchor {
                 case NodeAnchor():
                     for `edge in anchor.edges[:] {
                         eid = `edge.id;
                         `edge.detach();
+                        `edge.destroyed = True;
                         if eid is not None {
                             JacRuntimeInterface.get_context().mem.delete(eid);
                         }
@@ -1271,7 +1317,33 @@ impl JacPersistence.destroy(
             if aid is not None {
                 JacRuntimeInterface.get_context().mem.delete(aid);
             }
+            anchor.destroyed = True;
         }
+    }
+}
+
+impl JacPersistence.peek_attr(`obj: any, name: str) -> any {
+    try {
+        return getattr(`obj, name);
+    } except Exception {
+        return None;
+    }
+}
+
+impl JacPersistence.peek_item(container: any, key: any) -> any {
+    try {
+        if isinstance(container, `dict) {
+            return `dict.get(container, key);
+        }
+        if isinstance(container, (`list, `tuple)) {
+            builtin_getitem: any = `list.__getitem__
+                if isinstance(container, `list)
+                else `tuple.__getitem__;
+            return builtin_getitem(container, key);
+        }
+        return container[key];
+    } except Exception {
+        return None;
     }
 }
 

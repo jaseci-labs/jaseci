@@ -1754,7 +1754,19 @@ impl TypeCheckPass.exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None {
 }
 
 impl TypeCheckPass.exit_delete_stmt(self: TypeCheckPass, nd: DeleteStmt) -> None {
-    self.evaluator.get_type_of_expression(nd.target);
+    for target in nd.targets {
+        self.evaluator.get_type_of_expression(target);
+    }
+    for leaf in nd.leaf_targets() {
+        if DeleteStmt.is_location(leaf)
+            or isinstance(leaf, (Literal, MultiString, FString)) {
+            continue;
+        }
+        leaf_type = self.evaluator.get_type_of_expression(leaf);
+        if not DeleteStmt.type_may_hold_graph(leaf_type) {
+            self.emit(E1131, node_override=leaf, type=str(leaf_type));
+        }
+    }
 }
 
 impl TypeCheckPass.exit_visit_stmt(self: TypeCheckPass, nd: VisitStmt) -> None {

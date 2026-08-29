@@ -327,6 +327,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="Component body statements run on every render, and state writes are immediately visible, so this assignment would re-render forever. Move it into a `can` ability, an event handler, or a method.",
          blocks_codegen=True
      ),
+     E0083 = _err(
+         "E0083",
+         Category.SYNTAX,
+         "Cannot delete {what}",
+         help="`del` takes either a location to unbind -- a name, an attribute, or a subscript -- or an expression yielding graph objects to destroy. This target is neither."
+     ),
      W0060 = _warn(
          "W0060",
          Category.SYNTAX,
@@ -809,6 +815,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="The literal is past what the target float can represent, so it"
          " would arrive as `inf`. Use a wider float type, or write the value the"
          " type can actually hold."
+     ),
+     E1131 = _err(
+         "E1131",
+         Category.TYPE,
+         "`del` target of type '{type}' can never yield a graph object",
+         help="A `del` target that is not a name, an attribute or a subscript is a"
+         " destroy request, so it must yield nodes, edges or archetypes. Assign"
+         " `None` to the location that holds this value if you meant to drop a"
+         " reference."
      ),
      E1301 = _err(
          "E1301",

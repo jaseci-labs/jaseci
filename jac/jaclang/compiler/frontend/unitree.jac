@@ -901,9 +901,14 @@ obj DeleteStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has target: Expr;
+    has targets: list[Expr];
 
     def postinit -> None;
+    def leaf_targets -> list[Expr];
+    static def unwrap_target(target: Expr) -> Expr;
+    static def is_location(target: Expr) -> bool;
+    static def type_may_hold_graph(t: (TypeBase | None)) -> bool;
+    static def target_may_hold_graph(target: Expr) -> bool;
 }
 
 obj ReportStmt(CodeBlockStmt) {

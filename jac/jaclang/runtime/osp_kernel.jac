@@ -32,7 +32,8 @@ obj OspRuntime {
     has tag_of: Callable[([any], int)],
         is_a: Callable[([int, int], bool)],
         node_desc: Callable[([int], NodeDesc)],
-        on_complete: Callable[([WalkScope, bool], None)];
+        on_complete: Callable[([WalkScope, bool], None)],
+        alive: (Callable[([any], bool)] | None) = None;
 }
 
 glob _walk_stack: list[WalkScope] = [];
@@ -168,6 +169,9 @@ def _visit_recursive(
             stack_ph.append(1);
         } elif phase == 1 {
             child = _dequeue(scope);
+            while child is not None and rt.alive is not None and not rt.alive(child) {
+                child = _dequeue(scope);
+            }
             if child is not None {
                 stack_loc.append(cur);
                 stack_ph.append(1);

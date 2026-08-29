@@ -76,6 +76,7 @@ obj Anchor {
         `root: (UUID | None) = field(`init=False, `default=None),
         access: (Permission | None) = field(`init=False, `default=None),
         persistent: bool = field(`init=False, `default=False),
+        destroyed: bool = field(`init=False, `default=False),
         hash: int = field(`init=False, `default=0);
 
     def ensure_id -> UUID;
