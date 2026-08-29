@@ -257,6 +257,8 @@ def _emit_unit_diagnostics(jac_path: str, programs: list) {
     }
 }
 
+glob _unit_program: list = [];
+
 def precompile_unit(
     jac_path: str, pkg_root: str, embed_src: bool = False
 ) -> bytes | None {
@@ -265,7 +267,10 @@ def precompile_unit(
 
     compiler = Jac.get_compiler();
 
-    program = JacProgram();
+    if not _unit_program {
+        _unit_program.append(JacProgram());
+    }
+    program = _unit_program[0];
     code = compiler.get_bytecode(full_target=jac_path, target_program=program);
     if code is None {
         _emit_unit_diagnostics(jac_path, [program, compiler.selfhost.program]);
