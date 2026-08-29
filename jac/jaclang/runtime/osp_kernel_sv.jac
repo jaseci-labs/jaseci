@@ -188,17 +188,12 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
     }
 }
 
-def _sv_alive(anchor: any) -> bool {
-    return not getattr(anchor, "destroyed", False);
-}
-
 def make_sv_runtime -> OspRuntime {
     return OspRuntime(
         tag_of=_sv_tag_of,
         is_a=_sv_is_a,
         node_desc=_sv_node_desc,
-        on_complete=_sv_on_complete,
-        alive=_sv_alive
+        on_complete=_sv_on_complete
     );
 }
 
@@ -261,8 +256,7 @@ async def _visit_recursive_async(
             child = None;
             while scope.next {
                 candidate = scope.next.pop(0);
-                if candidate not in scope.ignores
-                    and (rt.alive is None or rt.alive(candidate)) {
+                if candidate not in scope.ignores {
                     child = candidate;
                     break;
                 }

@@ -3185,31 +3185,28 @@ impl EsastGenPass.exit_binary_expr(nd: uni.BinaryExpr) -> None {
 
 impl EsastGenPass.exit_delete_stmt(nd: uni.DeleteStmt) -> None {
     stmts: list[es.Statement] = [];
+    ordinal = 0;
     for target in nd.leaf_targets() {
         if not uni.DeleteStmt.is_location(target) {
-            _st = self._es_destroy_stmt(target, True, nd);
+            _st = self._es_destroy_stmt(target, nd);
             if _st is not None {
                 stmts.append(_st);
             }
-            continue;
-        }
-        if uni.DeleteStmt.target_may_hold_graph(target) {
-            _st = self._es_destroy_stmt(target, False, nd);
-            if _st is not None {
-                stmts.append(_st);
-            }
-        }
-        if isinstance(target, uni.AtomTrailer) {
-            _st = self._es_delete_location_stmt(target, nd);
-            if _st is not None {
-                stmts.append(_st);
-            }
+        } elif isinstance(target, uni.AtomTrailer) {
+            stmts.extend(self._es_delete_location(target, nd, ordinal));
         } elif isinstance(target, uni.Name) {
+            _name_es = target.gen.es_ast;
+            if isinstance(_name_es, es.Node) {
+                stmts.append(
+                    self._es_poly_destroy_stmt(cast(es.Expression, _name_es), nd)
+                );
+            }
             _st = self._es_release_name_stmt(target, nd);
             if _st is not None {
                 stmts.append(_st);
             }
         }
+        ordinal += 1;
     }
     nd.gen.es_ast = stmts[0]
         if len(stmts) == 1
@@ -3240,22 +3237,13 @@ impl EsastGenPass._es_release_name_stmt(
 }
 
 impl EsastGenPass._es_destroy_stmt(
-    target: uni.Expr, strict: bool, nd: uni.DeleteStmt
+    target: uni.Expr, nd: uni.DeleteStmt
 ) -> (es.Statement | None) {
-    if not strict
-        and self._osp_expr_arch_kind(target) is None
-        and not self._osp_model().arch_kind {
-        return None;
-    }
     _target_es = target.gen.es_ast;
     if not isinstance(_target_es, es.Node) {
         return None;
     }
     self.needs_osp_graph = True;
-    _args: list[(es.Expression | es.SpreadElement)] = [cast(es.Expression, _target_es)];
-    if strict {
-        _args.append(self.sync_loc(es.Literal(value=True), jac_node=nd));
-    }
     return self.sync_loc(
         es.ExpressionStatement(
             expression=self.sync_loc(
@@ -3263,7 +3251,10 @@ impl EsastGenPass._es_destroy_stmt(
                     callee=self.sync_loc(
                         es.Identifier(name='__ospDestroyW'), jac_node=nd
                     ),
-                    arguments=_args
+                    arguments=[
+                        cast(es.Expression, _target_es),
+                        self.sync_loc(es.Literal(value=True), jac_node=nd)
+                    ]
                 ),
                 jac_node=nd
             )
@@ -3272,71 +3263,157 @@ impl EsastGenPass._es_destroy_stmt(
     );
 }
 
-impl EsastGenPass._es_delete_location_stmt(
-    target: uni.AtomTrailer, nd: uni.DeleteStmt
-) -> (es.Statement | None) {
-    _obj_es = target.target.gen.es_ast;
-    if not isinstance(_obj_es, es.Node) {
-        return None;
-    }
-    _obj = cast(es.Expression, _obj_es);
-    if target.is_attr {
-        _prop = target.right.gen.es_ast;
-        if not isinstance(_prop, es.Node) {
-            return None;
-        }
-        return self.sync_loc(
-            es.ExpressionStatement(
-                expression=self.sync_loc(
-                    es.UnaryExpression(
-                        operator='delete',
-                        prefix=True,
-                        argument=self.sync_loc(
-                            es.MemberExpression(
-                                object=_obj,
-                                property=cast(es.Expression, _prop),
-                                computed=False
-                            ),
-                            jac_node=nd
-                        )
-                    ),
-                    jac_node=nd
-                )
-            ),
-            jac_node=nd
-        );
-    }
-    _islice = target.right;
-    if not isinstance(_islice, uni.IndexSlice) or not _islice.slices {
-        return None;
-    }
-    _slice = _islice.slices[0];
-    if _islice.is_range {
-        return self.sync_loc(
-            es.ExpressionStatement(
-                expression=self._build_jac_call(
-                    ["_jac", "poly", "delslice"],
-                    [
-                        _obj,
-                        self._es_slice_part(_slice.start, nd),
-                        self._es_slice_part(_slice.stop, nd),
-                        self._es_slice_part(_slice.step, nd)
-                    ],
-                    nd
-                )
-            ),
-            jac_node=nd
-        );
-    }
-    _idx = self._es_slice_part(_slice.start, nd);
+impl EsastGenPass._es_poly_destroy_stmt(
+    value: es.Expression, nd: uni.DeleteStmt
+) -> es.Statement {
     return self.sync_loc(
         es.ExpressionStatement(
-            expression=self._build_jac_call(
-                ["_jac", "poly", "delitem"], [_obj, _idx], nd
-            )
+            expression=self._build_jac_call(["_jac", "poly", "destroy"], [value], nd)
         ),
         jac_node=nd
     );
+}
+
+impl EsastGenPass._es_del_trivial(expr: es.Expression) -> bool {
+    return isinstance(expr, (es.Identifier, es.Literal));
+}
+
+impl EsastGenPass._es_del_bind(
+    expr: es.Expression, name: str, stmts: list[es.Statement], nd: uni.DeleteStmt
+) -> es.Expression {
+    stmts.append(
+        self.sync_loc(
+            es.VariableDeclaration(
+                declarations=[
+                    self.sync_loc(
+                        es.VariableDeclarator(
+                            id=self.sync_loc(es.Identifier(name=name), jac_node=nd),
+                            `init=expr
+                        ),
+                        jac_node=nd
+                    )
+                ],
+                kind='const'
+            ),
+            jac_node=nd
+        )
+    );
+    return self.sync_loc(es.Identifier(name=name), jac_node=nd);
+}
+
+impl EsastGenPass._es_delete_location(
+    target: uni.AtomTrailer, nd: uni.DeleteStmt, ordinal: int
+) -> list[es.Statement] {
+    stmts: list[es.Statement] = [];
+    _obj_es = target.target.gen.es_ast;
+    if not isinstance(_obj_es, es.Node) {
+        return stmts;
+    }
+    prefix = f"_jac_del_{nd.loc.first_line}_{nd.loc.col_start}_{ordinal}";
+    container = cast(es.Expression, _obj_es);
+    if not self._es_del_trivial(container) {
+        container = self._es_del_bind(container, prefix + "_c", stmts, nd);
+    }
+    if target.is_attr {
+        _prop = target.right.gen.es_ast;
+        if not isinstance(_prop, es.Node) {
+            return stmts;
+        }
+        stmts.append(
+            self._es_poly_destroy_stmt(
+                self.sync_loc(
+                    es.MemberExpression(
+                        object=container,
+                        property=cast(es.Expression, _prop),
+                        computed=False
+                    ),
+                    jac_node=nd
+                ),
+                nd
+            )
+        );
+        stmts.append(
+            self.sync_loc(
+                es.ExpressionStatement(
+                    expression=self.sync_loc(
+                        es.UnaryExpression(
+                            operator='delete',
+                            prefix=True,
+                            argument=self.sync_loc(
+                                es.MemberExpression(
+                                    object=container,
+                                    property=cast(es.Expression, _prop),
+                                    computed=False
+                                ),
+                                jac_node=nd
+                            )
+                        ),
+                        jac_node=nd
+                    )
+                ),
+                jac_node=nd
+            )
+        );
+        return stmts;
+    }
+    _islice = target.right;
+    if not isinstance(_islice, uni.IndexSlice) or not _islice.slices {
+        return stmts;
+    }
+    _slice = _islice.slices[0];
+    if _islice.is_range {
+        parts: list[es.Expression] = [];
+        for (_pname, _part) in [
+            ("_s", _slice.start),
+            ("_e", _slice.stop),
+            ("_p", _slice.step)
+        ] {
+            _pe = self._es_slice_part(_part, nd);
+            if not self._es_del_trivial(_pe) {
+                _pe = self._es_del_bind(_pe, prefix + _pname, stmts, nd);
+            }
+            parts.append(_pe);
+        }
+        stmts.append(
+            self._es_poly_destroy_stmt(
+                self._build_jac_call(
+                    ["_jac", "poly", "getslice"], [container] + parts, nd
+                ),
+                nd
+            )
+        );
+        stmts.append(
+            self.sync_loc(
+                es.ExpressionStatement(
+                    expression=self._build_jac_call(
+                        ["_jac", "poly", "delslice"], [container] + parts, nd
+                    )
+                ),
+                jac_node=nd
+            )
+        );
+        return stmts;
+    }
+    _idx = self._es_slice_part(_slice.start, nd);
+    if not self._es_del_trivial(_idx) {
+        _idx = self._es_del_bind(_idx, prefix + "_k", stmts, nd);
+    }
+    stmts.append(
+        self._es_poly_destroy_stmt(
+            self._build_jac_call(["_jac", "poly", "getitem"], [container, _idx], nd), nd
+        )
+    );
+    stmts.append(
+        self.sync_loc(
+            es.ExpressionStatement(
+                expression=self._build_jac_call(
+                    ["_jac", "poly", "delitem"], [container, _idx], nd
+                )
+            ),
+            jac_node=nd
+        )
+    );
+    return stmts;
 }
 
 impl EsastGenPass._es_slice_part(
@@ -5677,7 +5754,15 @@ impl EsastGenPass._build_local_osp_spawn(
         ),
         jac_node=nd
     );
-    starts = self.sync_loc(es.ArrayExpression(elements=[target_es]), jac_node=nd);
+    starts = self.sync_loc(
+        es.CallExpression(
+            callee=self.sync_loc(es.Identifier(name="__ospLiveStarts"), jac_node=nd),
+            arguments=[
+                self.sync_loc(es.ArrayExpression(elements=[target_es]), jac_node=nd)
+            ]
+        ),
+        jac_node=nd
+    );
     return self.sync_loc(
         es.CallExpression(
             callee=self.sync_loc(es.Identifier(name="__ospC.osp_spawn"), jac_node=nd),
@@ -5765,8 +5850,7 @@ impl EsastGenPass._build_osp_setup_js -> str {
             + "is_a: (t, b) => __ospIsA(t, b), "
             + "node_desc: (t) => (globalThis.__jacOspDesc || {})[t] "
             + "?? new __ospC.NodeDesc({type_tag: t, entry: [], exit: []}), "
-            + "on_complete: (s, ok) => { if (s.wlk && !s.nested) s.wlk.reports = s.reports; }, "
-            + "alive: (o) => !__ospC.osp_is_dead(__ospId(o))"
+            + "on_complete: (s, ok) => { if (s.wlk && !s.nested) s.wlk.reports = s.reports; }"
             + "});"
     );
     return "\n".join(lines);

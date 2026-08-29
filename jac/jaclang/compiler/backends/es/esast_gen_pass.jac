@@ -511,12 +511,21 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_switch_case(nd: uni.SwitchCase) -> None;
     def exit_delete_stmt(nd: uni.DeleteStmt) -> None;
     def _es_destroy_stmt(
-        target: uni.Expr, strict: bool, nd: uni.DeleteStmt
+        target: uni.Expr, nd: uni.DeleteStmt
     ) -> (es.Statement | None);
 
-    def _es_delete_location_stmt(
-        target: uni.AtomTrailer, nd: uni.DeleteStmt
-    ) -> (es.Statement | None);
+    def _es_poly_destroy_stmt(
+        value: es.Expression, nd: uni.DeleteStmt
+    ) -> es.Statement;
+
+    def _es_del_trivial(expr: es.Expression) -> bool;
+    def _es_del_bind(
+        expr: es.Expression, name: str, stmts: list[es.Statement], nd: uni.DeleteStmt
+    ) -> es.Expression;
+
+    def _es_delete_location(
+        target: uni.AtomTrailer, nd: uni.DeleteStmt, ordinal: int
+    ) -> list[es.Statement];
 
     def _es_release_name_stmt(
         target: uni.Name, nd: uni.DeleteStmt

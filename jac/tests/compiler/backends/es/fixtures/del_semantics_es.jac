@@ -38,6 +38,14 @@ def del_forms -> dict {
     }
     x = 7;
     del x;
+    calls = [0];
+    picked = {"k": N(8)};
+
+    def pick() -> dict {
+        calls[0] = calls[0] + 1;
+        return picked;
+    }
+    del pick()["k"];
     return {
         "d": d,
         "seq": seq,
@@ -47,6 +55,8 @@ def del_forms -> dict {
         "kept": len([edge c->:E:->]),
         "holder": len(holder),
         "named": len([edge p->:E:->]),
-        "x": x
+        "x": x,
+        "picked": len(picked),
+        "calls": calls[0]
     };
 }

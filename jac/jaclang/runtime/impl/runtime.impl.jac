@@ -1268,25 +1268,25 @@ impl JacPersistence._destroy_anchors(objs: any, strict: bool) -> list[Anchor] {
             anchors.append(item.__jac__);
         } elif isinstance(item, Anchor) {
             anchors.append(item);
-        } elif isinstance(item, (str, bytes, bytearray))
-            or not isinstance(item, Iterable) {
-            if strict {
-                raise TypeError(
-                    f"cannot destroy {type(item).__name__!r}: a `del` value "
-                    "target must yield nodes, edges or archetypes"
-                );
+        } elif isinstance(item, (`list, `tuple, `set, frozenset, deque, `dict)) {
+            if id(item) not in seen {
+                seen.add(id(item));
+                for sub in (item.values() if isinstance(item, `dict) else item) {
+                    queue.append(sub);
+                }
             }
-        } elif id(item) not in seen {
-            seen.add(id(item));
-            for sub in (item.values() if isinstance(item, Mapping) else item) {
-                queue.append(sub);
-            }
+        } elif strict {
+            raise TypeError(
+                f"cannot destroy {type(item).__name__!r}: a `del` value "
+                "target must yield nodes, edges or archetypes"
+            );
         }
     }
     return anchors;
 }
 
 impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
+    import from jaclang.runtime.osp_kernel { osp_forget }
     for anchor in JacPersistence._destroy_anchors(objs, strict) {
         if isinstance(anchor.archetype, Root) {
             raise RuntimeError("cannot destroy root");
@@ -1301,6 +1301,7 @@ impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
                         eid = `edge.id;
                         `edge.detach();
                         `edge.destroyed = True;
+                        osp_forget(`edge);
                         if eid is not None {
                             JacRuntimeInterface.get_context().mem.delete(eid);
                         }
@@ -1318,6 +1319,7 @@ impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
                 JacRuntimeInterface.get_context().mem.delete(aid);
             }
             anchor.destroyed = True;
+            osp_forget(anchor);
         }
     }
 }

@@ -1,6 +1,6 @@
-# A representative of the subscript `del` sites in the tree whose container
-# type can never hold a graph object. The peek and the destroy are elided, so
-# every one of them lowers to the bare Python statement.
+# A representative of the subscript `del` sites in the tree. Each one peeks
+# the location once, destroys whatever graph objects it held (nothing, here),
+# and then runs the Python statement verbatim.
 def evict(cache: dict[str, int], key: str) {
     del cache[key];
 }

@@ -32,8 +32,7 @@ obj OspRuntime {
     has tag_of: Callable[([any], int)],
         is_a: Callable[([int, int], bool)],
         node_desc: Callable[([int], NodeDesc)],
-        on_complete: Callable[([WalkScope, bool], None)],
-        alive: (Callable[([any], bool)] | None) = None;
+        on_complete: Callable[([WalkScope, bool], None)];
 }
 
 glob _walk_stack: list[WalkScope] = [];
@@ -81,6 +80,22 @@ def osp_visit(targets: list[int], insert_loc: int = -1) -> bool {
     }
     scope.next = scope.next[:pos] + filtered + scope.next[pos:];
     return True;
+}
+
+def osp_forget(target: int) {
+    for scope in _walk_stack {
+        if target not in scope.ignores {
+            scope.ignores.append(target);
+        }
+    }
+}
+
+def osp_forget_all(targets: list[int]) {
+    i = 0;
+    while i < len(targets) {
+        osp_forget(targets[i]);
+        i += 1;
+    }
 }
 
 def osp_disengage {
@@ -169,9 +184,6 @@ def _visit_recursive(
             stack_ph.append(1);
         } elif phase == 1 {
             child = _dequeue(scope);
-            while child is not None and rt.alive is not None and not rt.alive(child) {
-                child = _dequeue(scope);
-            }
             if child is not None {
                 stack_loc.append(cur);
                 stack_ph.append(1);

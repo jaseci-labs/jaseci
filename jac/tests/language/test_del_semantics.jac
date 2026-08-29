@@ -239,14 +239,15 @@ test "del under the native backend matches the Python backend" {
 
 
 # ---------------------------------------------------------------------------
-# Codegen shape: when the type checker proves a location can never hold a
-# graph object, the peek and the destroy are elided and the statement lowers
-# to the bare Python `del`. Representative of the subscript `del` sites in the
-# tree, every one of which used to emit a pointless `destroy()`.
+# Codegen shape: a location target is peeked once through the side-effect free
+# helper, destroyed non-strictly, and then released with the real Python
+# `del`, which stays verbatim in the generated code. No static analysis
+# decides whether the peek happens, so the lowering is the same for a typed
+# and an untyped container.
 # ---------------------------------------------------------------------------
 glob SUBSCRIPT_IR = os.path.join(FIXTURES, "del_subscript_ir.jac");
 
-test "a subscript del generates no destroy call" {
+test "a subscript del peeks once and keeps the Python del verbatim" {
     result = subprocess.run(
         [sys.executable, "-m", "jaclang", "tool", "ir", "py", SUBSCRIPT_IR],
         capture_output=True,
@@ -254,9 +255,11 @@ test "a subscript del generates no destroy call" {
         cwd=JAC_ROOT
     );
     assert result.returncode == 0 , result.stderr;
-    assert "destroy" not in result.stdout , result.stdout;
-    assert "peek_item" not in result.stdout , result.stdout;
+    assert "destroy(peek_item(cache, key))" in result.stdout , result.stdout;
     assert "del cache[key]" in result.stdout , result.stdout;
+    assert "destroy(peek_item(items, 0))" in result.stdout , result.stdout;
     assert "del items[0]" in result.stdout , result.stdout;
+    assert "destroy(peek_item(items, slice(1, 3, None)))" in result.stdout , result.stdout;
     assert "del items[1:3]" in result.stdout , result.stdout;
+    assert "strict" not in result.stdout , result.stdout;
 }

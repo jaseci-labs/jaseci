@@ -206,9 +206,16 @@ impl NaIRGenStmt._codegen_destroy_target(target: uni.Expr, nd: uni.DeleteStmt) -
         self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
         return;
     }
+    _forget_fn = self.func_symtab.get("osp_forget");
+    _forget_all_fn = self.func_symtab.get("osp_forget_all");
     if self._infer_list_elem_type(_val) is not None {
         _all_argtys = _destroy_all_fn.function_type.args;
-        self.builder.call(_destroy_all_fn, [self._coerce_type(_val, _all_argtys[0])]);
+        _hs = self._coerce_type(_val, _all_argtys[0]);
+        self.builder.call(_destroy_all_fn, [_hs]);
+        if _forget_all_fn is not None {
+            _fa_argtys = _forget_all_fn.function_type.args;
+            self.builder.call(_forget_all_fn, [self._coerce_type(_hs, _fa_argtys[0])]);
+        }
         return;
     }
     if self._struct_name_of(target) is None {
@@ -216,7 +223,12 @@ impl NaIRGenStmt._codegen_destroy_target(target: uni.Expr, nd: uni.DeleteStmt) -
         return;
     }
     _argtys = _destroy_fn.function_type.args;
-    self.builder.call(_destroy_fn, [self._coerce_type(_val, _argtys[0])]);
+    _h = self._coerce_type(_val, _argtys[0]);
+    self.builder.call(_destroy_fn, [_h]);
+    if _forget_fn is not None {
+        _f_argtys = _forget_fn.function_type.args;
+        self.builder.call(_forget_fn, [self._coerce_type(_h, _f_argtys[0])]);
+    }
 }
 
 impl NaIRGenStmt._del_target_holds_graph(target: uni.Expr) -> bool {

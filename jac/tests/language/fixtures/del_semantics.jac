@@ -8,6 +8,7 @@
 # The body lives in functions rather than in `with entry` so that `jac fmt
 # --lintfix` cannot hoist a literal assignment into a `glob` and split the
 # block in half.
+import itertools;
 import from collections { defaultdict }
 
 node N {
@@ -166,6 +167,15 @@ def location_targets {
     assert calls == [0] , f"A16 container evaluated {len(calls)} times";
     assert "k" not in holders[0] , "A16 key survived";
     assert nkids() == before - 1 , "A16 graph effect";
+    # A18: flattening enters containers only; an iterator is a leaf and is
+    # not consumed
+    it = iter([1, 2, 3]);
+    it_alias = it;
+    del it;
+    assert `list(it_alias) == [1, 2, 3] , "A18 iterator consumed";
+    # A19: an infinite iterator is a leaf, so del returns at once
+    counter = itertools.count();
+    del counter;
     # A17: every alias sees the death
     a17 = fresh("a17");
     a17 ++> N("child");

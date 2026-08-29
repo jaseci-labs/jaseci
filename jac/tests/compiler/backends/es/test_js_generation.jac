@@ -3504,12 +3504,15 @@ test "del es lowering" {
     fn_idx = js_code.find("function del_forms");
     assert fn_idx >= 0 , "compiled function del_forms must be present";
     body = js_code[fn_idx:js_code.find("\n}", fn_idx)];
-    # A dict key and a list index over plain values are reference removals;
-    # the type checker proves nothing graph-typed sits there, so no destroy.
+    # A dict key and a list index are peeked once through the poly helper,
+    # destroyed non-strictly, then released.
+    assert '_jac.poly.destroy(_jac.poly.getitem(d, "k"))' in body , body;
     assert '_jac.poly.delitem(d, "k")' in body , body;
+    assert "_jac.poly.destroy(_jac.poly.getitem(seq, 0))" in body , body;
     assert "_jac.poly.delitem(seq, 0)" in body , body;
     # A slice carries its bounds and step through, rather than collapsing to
     # a single index delete.
+    assert "_jac.poly.destroy(_jac.poly.getslice(span, 0, 2, null))" in body , body;
     assert "_jac.poly.delslice(span, 0, 2, null)" in body , body;
     assert "_jac.poly.delslice(strided, null, null, 2)" in body , body;
     # A value target destroys, strictly, and nothing else in the statement.
@@ -3520,9 +3523,15 @@ test "del es lowering" {
     # removes the slot.
     holder_del = body.find("_jac.poly.delitem(holder, 0)");
     assert holder_del >= 0 , body;
-    assert "__ospDestroyW(" in body[:holder_del] , body;
-    # A name holding an edge destroys through the same helper, non-strictly.
-    assert "__ospDestroyW(edg)" in body , body;
+    assert "_jac.poly.destroy(_jac.poly.getitem(holder, 0))" in body[:holder_del] , body;
+    # A name holding an edge destroys through the poly helper, non-strictly,
+    # and is then cleared.
+    assert "_jac.poly.destroy(edg)" in body , body;
+    # A call result as the container is evaluated once, into a block-scoped
+    # temporary, before the peek and the delete.
+    assert "const _jac_del_" in body , body;
+    assert "_jac.poly.getitem(_jac_del_" in body , body;
+    assert body.count("= pick()") == 1 , body;
     # A plain local is released; JavaScript has no unbind, so it is cleared.
     assert "x = undefined" in body , body;
     assert_balanced_syntax(js_code, DEL_FIXTURE);
@@ -3553,19 +3562,24 @@ test "del es runtime" {
     assert got["holder"] == 0 , got;
     assert got["named"] == 0 , got;
     assert "x" not in got , got;
+    assert got["picked"] == 1 , got;
+    assert got["calls"] == 1 , got;
 }
 
 
 test "del on a plain local in a graphless module is a no-op, not an error" {
-    # JavaScript has no unbind, and a module with no archetypes has nothing to
-    # destroy, so the statement lowers to an empty block. It must not report
-    # the construct as unsupported, and it must not drag in the OSP runtime.
+    # JavaScript has no unbind, so the name is cleared; the peek goes through
+    # the poly helper, which is a no-op unless an OSP runtime is loaded, so a
+    # graphless module must not drag in the OSP driver.
     js_code = compile_fixture_to_js(DEL_PLAIN_FIXTURE, FIXTURES);
     fn_idx = js_code.find("function del_plain");
     assert fn_idx >= 0 , "compiled function del_plain must be present";
     body = js_code[fn_idx:js_code.find("\n}", fn_idx)];
     assert "__ospDestroyW" not in body , body;
-    assert "_jac.poly.del" not in body , body;
+    assert "_jac.poly.destroy(x)" in body , body;
     assert "x = undefined" in body , body;
+    assert "function __ospDestroyW" not in js_code , (
+        "a graphless module must not pull in the OSP driver"
+    );
     assert_balanced_syntax(js_code, DEL_PLAIN_FIXTURE);
 }

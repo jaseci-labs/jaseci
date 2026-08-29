@@ -2999,13 +2999,8 @@ impl JcirGenPass._del_location(
     target: Expr, nd: DeleteStmt, ordinal: int
 ) -> list[CgItem] {
     stmts: list[CgItem] = [];
-    peek = DeleteStmt.target_may_hold_graph(target);
-    if isinstance(target, Name) or not peek {
-        if peek {
-            stmts.append(
-                self._destroy_call(self._del_ctx_target(target, 'Load'), False)
-            );
-        }
+    if isinstance(target, Name) {
+        stmts.append(self._destroy_call(self._del_ctx_target(target, 'Load'), False));
         stmts.append(
             self.nod('Delete', ['targets'], [[self._del_ctx_target(target, 'Del')]])
         );
