@@ -1,4 +1,4 @@
-import from jaclang.runtime.archetype { relink_light, sever_light }
+import from jaclang.runtime.archetype { relink_light }
 
 impl UniNode.postinit -> None {
     self.__sub_node_tab = None;
@@ -69,14 +69,6 @@ impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
             }
         }
     }
-}
-
-impl UniNode._role_edges -> list[Role] {
-    return [edge self->:Role:->];
-}
-
-impl UniNode._edge_target(e: Role) -> UniNode {
-    return getattr(e, "__jac__").target.archetype;
 }
 
 impl UniNode._children -> list[UniNode] {
@@ -307,74 +299,20 @@ impl UniNode.set_kids(nodes: Sequence[UniNode], pos_update: bool = True) -> UniN
 impl UniNode.replace_kid(old: UniNode, new: UniNode) -> UniNode {
     self._assert_thawed();
     roles: list[type] = [];
-    for e in self._role_edges() {
-        if self._edge_target(e) is old and `type(e) not in roles {
+    for e in [edge self->:Role:->] {
+        if getattr(e, "__jac__").target.archetype is old and `type(e) not in roles {
             roles.append(`type(e));
         }
     }
     for role in roles {
-        targets: list[UniNode] = [];
-        for e in self._role_edges() {
-            if `type(e) is role {
-                tgt = self._edge_target(e);
-                targets.append(new if tgt is old else tgt);
-                del e;
-            }
-        }
+        targets = [self->:role:->];
+        del [edge self->:role:->];
         for t in targets {
-            self._attach(t, role);
+            self._attach(new if t is old else t, role);
         }
     }
     self.set_kids([new if k is old else k for k in self.kid], pos_update=False);
     return self;
-}
-
-impl UniNode.sever_external_edges -> None {
-    nodes: list[UniNode] = [];
-    seen: set[int] = set();
-    stack: list[UniNode] = [self];
-    while stack {
-        nd = stack.pop();
-        if id(nd) in seen {
-            continue;
-        }
-        seen.add(id(nd));
-        nodes.append(nd);
-        for tgt in nd._children() {
-            if id(tgt) not in seen {
-                stack.append(tgt);
-            }
-        }
-    }
-    inside: set[int] = set();
-    anchors: set[int] = set();
-    for nd in nodes {
-        inside.add(id(nd));
-        anchors.add(id(getattr(nd, "__jac__")));
-    }
-    for nd in nodes {
-        me = getattr(nd, "__jac__");
-        for far in sever_light(me, inside) {
-            if isinstance(far, UniNode) {
-                far._invalidate_sub_node_tab();
-            }
-        }
-        for ea in `list(me.edges) {
-            far = ea.target if ea.source is me else ea.source;
-            if id(far) not in anchors {
-                if ea in far.edges {
-                    far.edges.remove(ea);
-                }
-                if ea in me.edges {
-                    me.edges.remove(ea);
-                }
-                far_arch = far.archetype;
-                if isinstance(far_arch, UniNode) {
-                    far_arch._invalidate_sub_node_tab();
-                }
-            }
-        }
-    }
 }
 
 impl UniNode.detached_copy -> UniNode {
@@ -1304,12 +1242,9 @@ impl Module.annexable_by.getter -> (str | None) {
 }
 
 impl ProgramModule.postinit -> None {
-    self._link(
-        [self.main_mod or Module.make_stub()],
-        {MainRole: self.main_mod or Module.make_stub()}
-    );
     UniNode.postinit(self);
-    self.hub = {self.loc.mod_path: self.main_mod} if self.main_mod else {};
+    main = self.main_mod;
+    self.hub = {self.loc.mod_path: main} if main else {};
 }
 
 
@@ -3299,10 +3234,7 @@ impl AstTypedVarNode.type.setter(type: (TypeBase | None)) -> None {
 }
 
 impl Ability.event_triggers.getter -> (list[TypeBase] | None) {
-    found = [
-        getattr(e, "__jac__").target.archetype for e in [edge self->:EventTriggerOf:->]
-    ];
-    return found;
+    return [self->:EventTriggerOf:->];
 }
 
 impl Ability.event_triggers.setter(event_triggers: (list[TypeBase] | None)) -> None {

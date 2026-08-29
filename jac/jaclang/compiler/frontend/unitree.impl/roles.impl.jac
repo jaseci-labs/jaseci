@@ -1735,9 +1735,21 @@ impl Module.init(
 impl ProgramModule.init(
     *, main_mod: (Module | None) = None, kid: Sequence[UniNode] = []
 ) -> None {
-    self.main_mod = main_mod;
-    self._link(kid, {});
+    target = main_mod or Module.make_stub();
+    self._link([*kid, target], {MainRole: target});
     self.postinit();
+}
+
+impl ProgramModule.main_mod.getter -> (Module | None) {
+    found = [self->:MainRole:->];
+    if not found {
+        return None;
+    }
+    return None if found[0].stub_only else found[0];
+}
+
+impl ProgramModule.main_mod.setter(main_mod: (Module | None)) {
+    self._role_set(MainRole, main_mod or Module.make_stub());
 }
 
 impl TypeParam.init(

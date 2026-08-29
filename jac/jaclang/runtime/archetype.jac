@@ -346,6 +346,13 @@ def light_connect(src: NodeAnchor, cls: type, tgt: NodeAnchor) {
         inn[cls] = [back];
     } else {
         lst.append(back);
+        if len(lst) & 63 == 0 {
+            lst[:] = [
+                r
+                for r in lst
+                if r() is not None
+            ];
+        }
     }
 }
 
@@ -456,6 +463,74 @@ def light_in(anchor: NodeAnchor, cls: (type | None)) -> list {
     return _deref(_collect_light(d, cls)) if d else [];
 }
 
+def light_hop(
+    anchor: NodeAnchor, dir: int, cls: (type | None), edges_only: bool
+) -> list {
+    if edges_only {
+        out: list = [];
+        if dir != 1 {
+            for ea in light_edge_views(anchor, cls, True) {
+                out.append(ea.archetype);
+            }
+        }
+        if dir != 2 {
+            for ea in light_edge_views(anchor, cls, False) {
+                out.append(ea.archetype);
+            }
+        }
+        return out;
+    }
+    if cls is not None and len(_edge_subtypes.get(cls) or edge_subtypes(cls)) == 1 {
+        found: list = [];
+        if dir != 1 {
+            d = anchor.out_light;
+            lst = d.get(cls) if d else None;
+            if lst {
+                found = lst if dir == 2 else `list(lst);
+            }
+        }
+        if dir != 2 {
+            d = anchor.in_light;
+            lst = d.get(cls) if d else None;
+            if lst {
+                hits = _deref(lst);
+                found = hits if dir == 1 else found + hits;
+            }
+        }
+    } elif dir == 2 {
+        found = light_out(anchor, cls);
+    } elif dir == 1 {
+        found = light_in(anchor, cls);
+    } else {
+        found = light_out(anchor, cls) + light_in(anchor, cls);
+    }
+    if len(found) < 2 {
+        return `list(found);
+    }
+    return `list(`dict.fromkeys(found));
+}
+
+def light_hop_answers(anchor: NodeAnchor, cls: (type | None)) -> bool {
+    if anchor.persistent {
+        return False;
+    }
+    if not anchor.edges {
+        return True;
+    }
+    return cls is not None and not anchor.mixed and is_light_edge_type(cls);
+}
+
+def light_clear_hop(anchor: NodeAnchor, dir: int, cls: (type | None)) -> bool {
+    hit = False;
+    if dir != 1 and light_clear_matching(anchor, cls, True) {
+        hit = True;
+    }
+    if dir != 2 and light_clear_matching(anchor, cls, False) {
+        hit = True;
+    }
+    return hit;
+}
+
 def light_edge_view(cls: type, src: NodeAnchor, tgt: NodeAnchor) -> EdgeArchetype {
     e = cls.__new__(cls);
     ea = EdgeAnchor(archetype=e, source=src, target=tgt, is_undirected=False);
@@ -485,33 +560,6 @@ def light_edge_views(
         }
     }
     return out;
-}
-
-def sever_light(anchor: NodeAnchor, inside: set[int]) -> list {
-    touched: list = [];
-    out = anchor.out_light;
-    if out {
-        for (cls, lst) in `list(out.items()) {
-            for tgt in `list(lst) {
-                if id(tgt) not in inside {
-                    light_disconnect(anchor, cls, tgt.__jac__);
-                    touched.append(tgt);
-                }
-            }
-        }
-    }
-    inn = anchor.in_light;
-    if inn {
-        for (cls, lst) in `list(inn.items()) {
-            for src in _deref(lst) {
-                if id(src) not in inside {
-                    light_disconnect(src.__jac__, cls, anchor);
-                    touched.append(src);
-                }
-            }
-        }
-    }
-    return touched;
 }
 
 def relink_light(start: NodeAnchor) {

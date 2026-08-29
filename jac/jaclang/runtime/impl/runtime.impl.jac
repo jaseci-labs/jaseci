@@ -1102,50 +1102,15 @@ impl JacGraph.connect(
 impl JacGraph.hop(
     origin: any, dir: int, edge_type: (type | None) = None, edges_only: bool = False
 ) -> list {
-    if isinstance(origin, `list) {
-        return JacRuntimeInterface.refs(
-            GraphQuery(
-                origin, hops=[QHop(dir=dir, `edge=edge_type)], edges_only=edges_only
-            )
-        );
-    }
-    anchor = origin.__jac__;
-    if anchor.persistent
-        or (
-            anchor.edges
-            and (anchor.mixed or edge_type is None or not is_light_edge_type(edge_type))
-        ) {
-        return JacRuntimeInterface.refs(
-            GraphQuery(
-                origin, hops=[QHop(dir=dir, `edge=edge_type)], edges_only=edges_only
-            )
-        );
-    }
-    if edges_only {
-        out: list = [];
-        if dir != 1 {
-            for ea in light_edge_views(anchor, edge_type, True) {
-                out.append(ea.archetype);
-            }
+    if not isinstance(origin, `list) {
+        anchor = origin.__jac__;
+        if light_hop_answers(anchor, edge_type) {
+            return light_hop(anchor, dir, edge_type, edges_only);
         }
-        if dir != 2 {
-            for ea in light_edge_views(anchor, edge_type, False) {
-                out.append(ea.archetype);
-            }
-        }
-        return out;
     }
-    if dir == 2 {
-        found = light_out(anchor, edge_type);
-    } elif dir == 1 {
-        found = light_in(anchor, edge_type);
-    } else {
-        found = light_out(anchor, edge_type) + light_in(anchor, edge_type);
-    }
-    if len(found) < 2 {
-        return `list(found);
-    }
-    return `list(`dict.fromkeys(found));
+    return JacRuntimeInterface.refs(
+        GraphQuery(origin, hops=[QHop(dir=dir, `edge=edge_type)], edges_only=edges_only)
+    );
 }
 
 impl JacGraph.clear_edges(
@@ -1155,10 +1120,7 @@ impl JacGraph.clear_edges(
     hit = False;
     for o in origins {
         anchor = o.__jac__;
-        if dir != 1 and light_clear_matching(anchor, edge_type, True) {
-            hit = True;
-        }
-        if dir != 2 and light_clear_matching(anchor, edge_type, False) {
+        if light_clear_hop(anchor, dir, edge_type) {
             hit = True;
         }
         for ea in `list(anchor.edges) {

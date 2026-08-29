@@ -62,7 +62,18 @@ impl JacProgram.release_module(self: JacProgram, resolved_path: str) -> None {
         prog_root.main_mod = None;
     }
     if released is not None {
-        released.sever_external_edges();
+        if prog_root.main_mod is released {
+            prog_root.main_mod = None;
+        }
+        prog_root.set_kids(
+            [
+                k
+                for k in prog_root.kid
+                if k is not released
+            ],
+            pos_update=False
+        );
+        del [edge released<-:ScopeChild:<-];
         if prog_root.kid {
             (first_tok, last_tok) = prog_root.resolve_tok_range();
             prog_root.loc.update_token_range(first_tok, last_tok);
@@ -246,7 +257,7 @@ impl JacProgram.release_check_caches(self: JacProgram) -> None {
 }
 
 impl JacProgram.release_compile_closure(
-    self: JacProgram, keep_stubs: bool = False
+    self: JacProgram, keep_stubs: bool = False, freeze: bool = True
 ) -> None {
     import os;
     if os.environ.get("JAC_NO_UNIT_EVICT") {
@@ -261,12 +272,9 @@ impl JacProgram.release_compile_closure(
     self.diags.clear();
     self.scratch = BuildScratch();
     import gc;
-    if os.environ.get("JAC_GC_FREEZE_ON_RELEASE") {
-        gc.unfreeze();
-        gc.collect();
+    gc.collect();
+    if freeze and os.environ.get("JAC_GC_FREEZE_ON_RELEASE") {
         gc.freeze();
-    } else {
-        gc.collect();
     }
 }
 

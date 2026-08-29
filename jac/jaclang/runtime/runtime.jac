@@ -24,13 +24,12 @@ import from jaclang.runtime.archetype {
     anchor_key,
     same_anchor,
     is_light_edge_type,
-    light_clear_matching,
+    light_clear_hop,
     light_connect,
     light_disconnect,
     light_edge_view,
-    light_edge_views,
-    light_in,
-    light_out,
+    light_hop,
+    light_hop_answers,
     track_writes
 }
 import from jaclang.compiler.frontend.constant { EdgeDir, colors }

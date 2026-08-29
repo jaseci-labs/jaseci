@@ -20,17 +20,17 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from jaclang.runtime.archetype import (
-    _edge_subtypes as _SUBTYPES,
     EdgeAnchor,
     EdgeArchetype as Edge,
     GenericEdge,
     NodeArchetype as Node,
     WalkerArchetype as Walker,
-    edge_subtypes,
     is_light_edge_type,
-    light_clear_matching,
+    light_clear_hop,
     light_connect,
     light_edge_views,
+    light_hop,
+    light_hop_answers,
     light_in,
     light_out,
 )
@@ -218,50 +218,17 @@ def hop0(origin: Any, dir: int, edge: Any = None, edges_only: bool = False) -> l
     """The simple hop: one origin, one direction, one edge class, no filters.
 
     jac0 lowers `[x ->:T:->]` / `[x <-:T:<-]` / `[x -->]` here when the hop
-    carries no predicate, node filter or chain. A light edge class can only
-    live in the light tier of a transient node, so a typed light hop is one
-    dict lookup even on a node that also holds EdgeAnchors of other types;
-    an untyped hop, a heavy type or a persistent origin takes `refs0`.
-    Returns a fresh, order-preserving, deduplicated list.
+    carries no predicate, node filter or chain. A typed light hop on a
+    transient node is answered from the light tier; an untyped hop, a heavy
+    type, a node holding a light class as an EdgeAnchor or a persistent
+    origin takes `refs0`.
     """
     if isinstance(origin, list):
         return refs0(origin, dir, edge, edges_only)
     me = origin.__jac__
-    if me.edges and (
-        edge is None or me.persistent or me.mixed or not is_light_edge_type(edge)
-    ):
+    if not light_hop_answers(me, edge):
         return refs0(origin, dir, edge, edges_only)
-    if edges_only:
-        out: list = []
-        if dir != 1:
-            out.extend(ea.archetype for ea in light_edge_views(me, edge, True))
-        if dir != 2:
-            out.extend(ea.archetype for ea in light_edge_views(me, edge, False))
-        return out
-    if edge is None or len(_SUBTYPES.get(edge) or edge_subtypes(edge)) != 1:
-        if dir == 2:
-            found = light_out(me, edge)
-        elif dir == 1:
-            found = light_in(me, edge)
-        else:
-            found = light_out(me, edge) + light_in(me, edge)
-    else:
-        # exact class, no subclasses: the common case, no helper frames
-        found = []
-        if dir != 1:
-            d = me.out_light
-            lst = d.get(edge) if d else None
-            if lst:
-                found = lst if dir == 2 else list(lst)
-        if dir != 2:
-            d = me.in_light
-            lst = d.get(edge) if d else None
-            if lst:
-                hits = [a for a in (r() for r in lst) if a is not None]
-                found = hits if dir == 1 else found + hits
-    if len(found) < 2:
-        return list(found)
-    return list(dict.fromkeys(found))
+    return light_hop(me, dir, edge, edges_only)
 
 
 def clear0(origin: Any, dir: int, edge: Any = None) -> bool:
@@ -274,9 +241,7 @@ def clear0(origin: Any, dir: int, edge: Any = None) -> bool:
     hit = False
     for o in origins:
         me = o.__jac__
-        if dir != 1 and light_clear_matching(me, edge, True):
-            hit = True
-        if dir != 2 and light_clear_matching(me, edge, False):
+        if light_clear_hop(me, dir, edge):
             hit = True
         for ea in list(me.edges):
             if edge is not None and not isinstance(ea.archetype, edge):

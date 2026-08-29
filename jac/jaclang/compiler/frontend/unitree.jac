@@ -172,13 +172,10 @@ node UniNode {
 
     def _link(kid: Sequence[UniNode], roles: dict[type, any]) -> None;
     def detached_copy -> UniNode;
-    def sever_external_edges -> None;
     def _assert_thawed -> None;
     def freeze_structure -> None;
     def thaw_structure -> None;
     def _attach(child: UniNode, role: type) -> None;
-    def _role_edges -> list[Role];
-    def _edge_target(e: Role) -> UniNode;
     def _children -> list[UniNode];
     def _role_shaped(role: type[Role], found: list[UniNode]) -> any;
     def _role_set(role: type[Role], value: any) -> None;
@@ -689,9 +686,8 @@ node Module(AstDocNode, UniScopeNode) {
 }
 
 node ProgramModule(UniNode) {
-    has main_mod: (Module | None) = None,
-        hub: dict[(str, Module)] postinit;
-
+    has hub: dict[(str, Module)] postinit;
+    has main_mod: (Module | None) { getter; setter(main_mod: (Module | None)); }
     has main: Module { getter; }
 
     def init(*, main_mod: (Module | None) = None, kid: Sequence[UniNode] = []) -> None;
