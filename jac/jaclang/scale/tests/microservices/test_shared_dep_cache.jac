@@ -1,6 +1,9 @@
 import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
-    build_bootstrap_init_container,
-    venv_cache_key
+    build_bootstrap_init_container
+}
+import from jaclang.scale.deploy.target.kubernetes.venv_cache {
+    venv_cache_key,
+    is_cache_eligible
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -74,102 +77,53 @@ test "venv_cache_key changes when the base image changes" {
 }
 
 
+# ===== venv cache eligibility =====
+# Only a digest-pinned image can safely participate in the shared cache: a
+# mutable tag (python:3.12-slim, a jaseci/jaclang:dev/experimental-N build
+# whose digest lookup failed, or an operator-configured custom image) can
+# point at a different interpreter tomorrow under the same name, and the
+# cache key has no other way to see that. is_cache_eligible is the one gate
+# every consumer (the bootstrap script below, and any future one) must
+# consult instead of re-deriving this rule.
+
+test "is_cache_eligible requires a resolved digest" {
+    assert is_cache_eligible("jaseci/jaclang@sha256:" + "a" * 64);
+    assert not is_cache_eligible("jaseci/jaclang:dev");
+    assert not is_cache_eligible("python:3.12-slim");
+    assert not is_cache_eligible("");
+}
+
+
 # ===== venv persistence across pod restarts =====
 # /app is an emptyDir, wiped every pod boot, so jac install rebuilds the
 # venv from scratch on every scale-to-zero wake even though the dependency
-# set is unchanged. These only cover the bootstrap script's mechanical copy
-# in/copy out -- the actual install/skip *decision* is _venv_deps_stale's
-# job (test_dependencies.jac), not re-verified here.
+# set is unchanged. The bootstrap script's job is only to call
+# `jac scale venv-cache-restore`/`venv-cache-publish` in the right order
+# around `jac install`, and only when the image is cache-eligible; the
+# restore/publish/evict mechanics themselves are real functions exercised
+# directly, with real concurrency, in test_venv_cache.jac -- not
+# re-verified here by reading generated shell text.
 
-test "bootstrap restores a cached venv from the bundle PVC before jac install" {
+test "bootstrap calls venv-cache-restore before install and venv-cache-publish after, only for a digest-pinned image" {
     specs = ["requests>=2.28.0"];
-    base_image = "python:3.12-slim";
+    pinned_image = "jaseci/jaclang@sha256:" + "b" * 64;
     ctr = build_bootstrap_init_container(
-        KubernetesConfig(), base_image, resolved_specs=specs
+        KubernetesConfig(), pinned_image, resolved_specs=specs
     );
     script = str(ctr["args"][0]);
-    cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(specs, base_image)}";
-    assert cache_dir in script;
-    assert script.index(cache_dir) < script.index("jac install");
+    assert "jac scale venv-cache-restore" in script;
+    assert "jac scale venv-cache-publish" in script;
+    assert script.index("venv-cache-restore") < script.index("jac install");
+    assert script.index("venv-cache-publish") > script.index("jac install");
+    assert "chmod 0777" not in script.split("jac install")[1];
 }
 
-test "bootstrap persists the venv to the bundle PVC cache after jac install" {
+test "bootstrap skips the venv cache entirely for a mutable-tag image" {
     specs = ["requests>=2.28.0"];
-    base_image = "python:3.12-slim";
     ctr = build_bootstrap_init_container(
-        KubernetesConfig(), base_image, resolved_specs=specs
+        KubernetesConfig(), "python:3.12-slim", resolved_specs=specs
     );
     script = str(ctr["args"][0]);
-    cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(specs, base_image)}";
-    # A later occurrence of the same path after "jac install" is the
-    # write-back; rindex catches it regardless of how many times the
-    # restore step above also references the path.
-    assert script.rindex(cache_dir) > script.index("jac install");
-}
-
-test "bootstrap persists the venv atomically, never deletes the live cache path in place" {
-    # Scale-to-zero's own point is bursty cold starts: several pods can be
-    # persisting to the same cache key at once. A sibling pod's restore, or
-    # the next wake, must never observe cache_dir mid-write -- an in-place
-    # `rm -rf` of the live path is exactly the window where a reader sees
-    # neither the old venv nor the new one. If a corrupted partial copy is
-    # what a reader lands on, and it happens to still carry a valid marker,
-    # _venv_deps_stale would wrongly call it fresh and skip reinstalling
-    # a genuinely broken venv -- worse than no caching at all.
-    specs = ["requests>=2.28.0"];
-    base_image = "python:3.12-slim";
-    ctr = build_bootstrap_init_container(
-        KubernetesConfig(), base_image, resolved_specs=specs
-    );
-    script = str(ctr["args"][0]);
-    cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(specs, base_image)}";
-    assert f'rm -rf "{cache_dir}"' not in script;
-    # The write-back must land in one atomic rename: the operation that
-    # most recently touches the final occurrence of cache_dir must be a
-    # move into place, not a direct copy onto the live path.
-    last_idx = script.rindex(cache_dir);
-    last_mv = script.rfind("mv ", 0, last_idx);
-    last_cp = script.rfind("cp -a", 0, last_idx);
-    assert last_mv != -1;
-    assert last_mv > last_cp;
-}
-
-test "venv cache is size-bounded like the pip cache, not left to grow without limit" {
-    # The pip cache (15 lines above this one in the generated script) caps
-    # itself at 512MB and wipes-and-rewarms past that. Every unique
-    # (base_image, specs) pair otherwise gets a permanent directory under
-    # .cache/venv that nothing else in this codebase ever cleans up --
-    # reap_superseded_deployments only reaps stale Deployment objects, not
-    # PVC content. Left unbounded, this grows across every dependency bump
-    # and image upgrade over an app's lifetime, on the same PVC that stores
-    # the actual deployable bundles.
-    specs = ["requests>=2.28.0"];
-    base_image = "python:3.12-slim";
-    ctr = build_bootstrap_init_container(
-        KubernetesConfig(), base_image, resolved_specs=specs
-    );
-    script = str(ctr["args"][0]);
-    assert script.count("du -sm") == 2;
-    venv_cache_root = f"{BUNDLE_MOUNT_PATH}/.cache/venv";
-    last_du = script.rindex("du -sm");
-    assert venv_cache_root in script[last_du:last_du + len(venv_cache_root) + 20];
-}
-
-test "venv cache write path is opened cross-uid like the pip cache" {
-    # Without an explicit chmod, whichever pod's UID first creates
-    # .cache/venv leaves it at that UID's default permissions. A later pod
-    # running under a different UID (a different python_image, or an image
-    # whose default user changed) then fails to mkdir/cp its own
-    # hash-keyed subdir -- silently, swallowed by 2>/dev/null -- and
-    # permanently degrades to "no caching, full install every wake" with
-    # no visible signal. The pip cache right next to this one already
-    # solves exactly this.
-    specs = ["requests>=2.28.0"];
-    base_image = "python:3.12-slim";
-    ctr = build_bootstrap_init_container(
-        KubernetesConfig(), base_image, resolved_specs=specs
-    );
-    script = str(ctr["args"][0]);
-    venv_cache_root = f"{BUNDLE_MOUNT_PATH}/.cache/venv";
-    assert f"chmod 0777 {venv_cache_root}" in script;
+    assert "venv-cache-restore" not in script;
+    assert "venv-cache-publish" not in script;
 }
