@@ -353,6 +353,27 @@ def _ingest_topology_rows(idx: TopologyIndex, rows: list) -> list[UUID] {
 }
 
 
+impl ingest_topology_rows(mem: any, rows: list) -> TopologyIndex {
+    idx = _topology_index_for(mem);
+    lock = getattr(mem, "_topology_lock", None);
+    if lock is not None {
+        lock.acquire();
+    }
+    try {
+        _ingest_topology_rows(idx, rows);
+    } finally {
+        if lock is not None {
+            lock.release();
+        }
+    }
+    if mem is not None {
+        mem._topology_index = idx;
+        mem.__topology_index__ = idx;
+    }
+    return idx;
+}
+
+
 impl warm_topology_for_nodes(mem: any, node_ids: list[UUID]) -> TopologyIndex {
     idx = _topology_index_for(mem);
     pending = _pending_seed_ids(idx, node_ids);

@@ -9,6 +9,7 @@ import from uuid { UUID }
 glob __all__ = [
          'TopologyEdge',
          'TopologyIndex',
+         'ingest_topology_rows',
          'warm_topology_for_hop',
          'warm_topology_for_nodes'
      ];
@@ -77,6 +78,9 @@ obj TopologyIndex {
 
 
 def warm_topology_for_nodes(mem: any, node_ids: list[UUID]) -> TopologyIndex;
+
+
+def ingest_topology_rows(mem: any, rows: list) -> TopologyIndex;
 
 
 def warm_topology_for_hop(
