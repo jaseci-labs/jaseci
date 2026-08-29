@@ -303,13 +303,6 @@ obj ManifestBuilder {
         dry_run: bool = False,
         _bundle_services_cache: (dict[str, str] | None) = None;
 
-    def _bundle_services -> dict[str, str] {
-        if self._bundle_services_cache is None {
-            self._bundle_services_cache = {};
-        }
-        return self._bundle_services_cache;
-    }
-
     def _ms_cfg -> dict[str, any] {
         if self.microservices_config is not None {
             return normalize_microservices_config(
@@ -523,8 +516,7 @@ obj ManifestBuilder {
 
     def generate_manifests(app_config: AppConfig, image: str) -> dict[str, any] {
         self.project_dir = self.project_dir or app_config.code_folder;
-        self._prime_solo_route(app_config);
-        self._bundle_services();
+        self._bundle_services(app_config);
         injector = self._prepare_injector(app_config);
         self._bundle_object_key = injector._object_key;
 
@@ -666,19 +658,18 @@ obj ManifestBuilder {
         return {name: derive_route_prefix(name)};
     }
 
-    def _prime_solo_route(app_config: AppConfig) -> None {
-        import from jaclang.scale.runtime.discovery.route_policy { resolve_routes }
+    def _solo_aware_ms_cfg(app_config: AppConfig) -> dict[str, any] {
         if self.microservices_config is not None {
-            return;
+            return self._ms_cfg();
         }
-
+        import from jaclang.scale.runtime.discovery.route_policy { resolve_routes }
         try {
             ms_cfg = dict(get_scale_config().get_microservices_config());
         } except Exception {
-            return;
+            return self._ms_cfg();
         }
         if resolve_routes(ms_cfg) {
-            return;
+            return self._ms_cfg();
         }
         routes = self._solo_route(app_config);
         services = dict(ms_cfg.get("services", {}));
@@ -694,7 +685,7 @@ obj ManifestBuilder {
         }
         ms_cfg["services"] = services;
         ms_cfg["routes"] = routes;
-        self.microservices_config = ms_cfg;
+        return ms_cfg;
     }
 
     def _drain_timeout -> int {
@@ -713,6 +704,38 @@ obj ManifestBuilder {
         } except Exception {
             return {};
         }
+    }
+
+    def _bundle_services(app_config: (AppConfig | None) = None) -> dict[str, str] {
+        if self._bundle_services_cache is None {
+            self._bundle_services_cache = {};
+        }
+        return self._bundle_services_cache;
+    }
+
+    def _client_entry_setting -> tuple[str, str, bool] {
+        import from jaclang.scale.config.config_loader {
+            get_scale_config,
+            normalize_microservices_config
+        }
+        if self.microservices_config is not None {
+            raw = self.microservices_config;
+        } else {
+            raw = get_scale_config().load().get("microservices", {}) or {};
+        }
+        declared = dict(raw.get("client", {}) or {}).get("entry", None);
+        resolved = normalize_microservices_config(raw, env_routes_fallback=False)[
+            "client"
+        ]["entry"];
+        return (
+            str(resolved or "").strip(),
+            declared.strip() if isinstance(declared, str) else "",
+            declared is False
+        );
+    }
+
+    def _declared_client_entry -> str {
+        return self._client_entry_setting()[1];
     }
 
     def _client_entry -> str {
