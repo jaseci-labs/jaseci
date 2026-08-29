@@ -283,6 +283,20 @@ def clear0(origin: Any, dir: int, edge: Any = None) -> bool:
     Light edges are popped from the adjacency by class; EdgeAnchors of the
     set are detached one by one (destroyed, if persistent).
     """
+    if edge is not None and not isinstance(origin, list):
+        me = origin.__jac__
+        if not me.edges:
+            subs = _edge_subtypes.get(edge)
+            if subs is None:
+                subs = edge_subtypes(edge)
+            if len(subs) == 1:
+                # Nothing of that class on this node: no set to clear.
+                d_out = me.out_light
+                d_in = me.in_light
+                if (dir == 1 or not d_out or edge not in d_out) and (
+                    dir == 2 or not d_in or edge not in d_in
+                ):
+                    return False
     origins = origin if isinstance(origin, list) else [origin]
     hit = False
     for o in origins:
@@ -306,25 +320,41 @@ def spawn0(op1: Any, op2: Any) -> Any:
 
 
 _osp_visit: Callable | None = None
+_scope_of: dict | None = None
 
 
 def visit0(walker: Any, expr: Any, insert_loc: int = -1) -> bool:
     """`visit expr;` from a walker or a node ability.
 
     A list of node/edge archetypes (the compiler's `visit :0: [k for k in
-    self.kid ...]`) goes straight to the kernel queue; anything else (a
-    GraphQuery, a single archetype, a foreign object) takes the runtime's
-    checked path.
+    self.kid ...]`) is written onto the walker's own queue: the kernel
+    registers the live scope per walker at spawn, so the common `visit` and
+    `visit :0:` forms need neither the context lookup nor a kernel call.
+    Anything else (a GraphQuery, a single archetype, a foreign object, a
+    walk with ignores, another insert position) takes the checked path.
     """
     if isinstance(expr, list) and isinstance(walker, Walker):
+        if not expr:
+            return False
         for item in expr:
             if not isinstance(item, (Node, Edge)):
                 return _rt().visit(walker, expr, insert_loc)
-        global _osp_visit
+        global _osp_visit, _scope_of
         if _osp_visit is None:
-            from jaclang.runtime.osp_kernel import osp_visit
+            from jaclang.runtime import osp_kernel
 
-            _osp_visit = osp_visit
+            _osp_visit = osp_kernel.osp_visit
+            _scope_of = osp_kernel._scope_of
+        scope = _scope_of.get(id(walker))
+        if scope is not None and not scope.ignores:
+            if insert_loc == 0:
+                scope.front.extend(reversed(expr))
+                scope.fenced = True
+                scope.pending_fence += len(expr)
+                return True
+            if insert_loc == -1:
+                scope.next.extend(expr)
+                return True
         return _osp_visit(expr, insert_loc)
     return _rt().visit(walker, expr, insert_loc)
 

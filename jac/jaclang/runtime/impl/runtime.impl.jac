@@ -224,7 +224,7 @@ impl JacWalker.`visit(
         ),
     insert_loc: int = -1
 ) -> bool {
-    import from jaclang.runtime.osp_kernel { osp_visit }
+    import from jaclang.runtime.osp_kernel { osp_visit, scope_of }
     if isinstance(expr, GraphQuery) {
         expr.from_visit = True;
         expr = JacRuntimeInterface.refs(expr);
@@ -242,6 +242,22 @@ impl JacWalker.`visit(
             raise ValueError('Anchor should be NodeAnchor or EdgeAnchor.');
         }
         targets.append(arch);
+    }
+    if not targets {
+        return False;
+    }
+    scope = scope_of(`walker);
+    if scope is not None and not scope.ignores {
+        if insert_loc == 0 {
+            scope.front.extend(reversed(targets));
+            scope.fenced = True;
+            scope.pending_fence += len(targets);
+            return True;
+        }
+        if insert_loc == -1 {
+            scope.next.extend(targets);
+            return True;
+        }
     }
     return osp_visit(targets, insert_loc);
 }
@@ -1070,6 +1086,27 @@ impl JacGraph.connect(
     conn_assign: (tuple[(tuple, tuple)] | None) = None,
     edges_only: bool = False
 ) -> (NodeArchetype | list[NodeArchetype] | list[EdgeArchetype]) {
+    if (
+        not undir
+        and conn_assign is None
+        and not edges_only
+        and isinstance(`edge, `type)
+        and isinstance(left, NodeArchetype)
+        and isinstance(right, NodeArchetype)
+    ) {
+        light = _light_edge_types.get(`edge);
+        if light is None {
+            light = is_light_edge_type(`edge);
+        }
+        if light {
+            src = left.__jac__;
+            tgt = right.__jac__;
+            if not (src.persistent or tgt.persistent) {
+                light_connect(src, `edge, tgt);
+                return right;
+            }
+        }
+    }
     left = [left] if isinstance(left, NodeArchetype) else left;
     right_is_node = isinstance(right, NodeArchetype);
     right = [right] if isinstance(right, NodeArchetype) else right;
@@ -1107,6 +1144,26 @@ impl JacGraph.hop(
 ) -> list {
     if not isinstance(origin, `list) {
         anchor = origin.__jac__;
+        if (
+            edge_type is not None
+            and dir != 3
+            and not edges_only
+            and not anchor.persistent
+            and (
+                not anchor.edges
+                or (not anchor.mixed and _light_edge_types.get(edge_type))
+            )
+            and len(_edge_subtypes.get(edge_type) or edge_subtypes(edge_type)) == 1
+        ) {
+            if dir == 2 {
+                d = anchor.out_light;
+                lst = d.get(edge_type) if d else None;
+                return `list(lst) if lst else [];
+            }
+            d = anchor.in_light;
+            lst = d.get(edge_type) if d else None;
+            return _deref(lst) if lst else [];
+        }
         if light_hop_answers(anchor, edge_type) {
             return light_hop(anchor, dir, edge_type, edges_only);
         }
@@ -1119,6 +1176,22 @@ impl JacGraph.hop(
 impl JacGraph.clear_edges(
     origin: any, dir: int, edge_type: (type | None) = None
 ) -> bool {
+    if edge_type is not None and not isinstance(origin, `list) {
+        anchor = origin.__jac__;
+        if (
+            not anchor.edges
+            and len(_edge_subtypes.get(edge_type) or edge_subtypes(edge_type)) == 1
+        ) {
+            d_out = anchor.out_light;
+            d_in = anchor.in_light;
+            if (
+                (dir == 1 or not d_out or edge_type not in d_out)
+                and (dir == 2 or not d_in or edge_type not in d_in)
+            ) {
+                return False;
+            }
+        }
+    }
     origins = origin if isinstance(origin, `list) else [origin];
     hit = False;
     for o in origins {

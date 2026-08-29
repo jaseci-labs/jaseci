@@ -257,10 +257,7 @@ impl JacProgram.release_check_caches(self: JacProgram) -> None {
 }
 
 impl JacProgram.release_compile_closure(
-    self: JacProgram,
-    keep_stubs: bool = False,
-    freeze: bool = True,
-    collect: bool = True
+    self: JacProgram, keep_stubs: bool = False, collect: bool = True
 ) -> None {
     import os;
     if os.environ.get("JAC_NO_UNIT_EVICT") {
@@ -274,13 +271,9 @@ impl JacProgram.release_compile_closure(
     self.type_evaluator = None;
     self.diags.clear();
     self.scratch.clear();
-    if not collect {
-        return;
-    }
-    import gc;
-    gc.collect();
-    if freeze and os.environ.get("JAC_GC_FREEZE_ON_RELEASE") {
-        gc.freeze();
+    if collect {
+        import gc;
+        gc.collect();
     }
 }
 

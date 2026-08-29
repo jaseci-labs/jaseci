@@ -8,7 +8,8 @@ obj Slot {
 obj WalkerDesc {
     has type_tag: int,
         `entry: list[Slot],
-        `exit: list[Slot];
+        `exit: list[Slot],
+        plans: (dict[type, tuple] | None) = None;
 }
 
 obj NodeDesc {
@@ -39,7 +40,12 @@ obj OspRuntime {
         on_complete: Callable[([WalkScope, bool], None)];
 }
 
-glob _walk_stack: list[WalkScope] = [];
+glob _walk_stack: list[WalkScope] = [],
+     _scope_of: dict[int, WalkScope] = {};
+
+def scope_of(wlk: any) -> (WalkScope | None) {
+    return _scope_of.get(id(wlk));
+}
 
 def _current_scope -> (WalkScope | None) {
     if _walk_stack {
@@ -67,17 +73,11 @@ def osp_visit(targets: list[int], insert_loc: int = -1) -> bool {
         return False;
     }
     if insert_loc == -1 {
-        for t in filtered {
-            scope.next.append(t);
-        }
+        scope.next.extend(filtered);
         return True;
     }
     if insert_loc == 0 {
-        i = len(filtered) - 1;
-        while i >= 0 {
-            scope.front.append(filtered[i]);
-            i -= 1;
-        }
+        scope.front.extend(reversed(filtered));
         scope.fenced = True;
         scope.pending_fence += len(filtered);
         return True;
@@ -130,12 +130,7 @@ glob _match_slots: dict[int, list[Slot]] = {},
      _match_by_tag: dict[int, dict[int, list[Slot]]] = {};
 
 def run_typed(
-    rt: OspRuntime,
-    scope: WalkScope,
-    slots: list[Slot],
-    a: any,
-    b: any,
-    btag: int
+    rt: OspRuntime, scope: WalkScope, slots: list[Slot], a: any, b: any, btag: int
 ) -> None {
     if not slots {
         return;
@@ -175,6 +170,50 @@ def run_untyped(scope: WalkScope, slots: list[Slot], a: any, b: any) -> None {
     }
 }
 
+def _plan_for(
+    rt: OspRuntime,
+    wdesc: WalkerDesc,
+    wtag: int,
+    ndesc: NodeDesc,
+    plans: dict,
+    cls: type
+) -> tuple {
+    ctag: int = ndesc.type_tag;
+    w_entry: list[Slot] = [];
+    for s in wdesc.`entry {
+        if s.trig_tag != UNTYPED and rt.is_a(ctag, s.trig_tag) {
+            w_entry.append(s);
+        }
+    }
+    w_exit: list[Slot] = [];
+    for s in wdesc.`exit {
+        if s.trig_tag != UNTYPED and rt.is_a(ctag, s.trig_tag) {
+            w_exit.append(s);
+        }
+    }
+    n_entry_u: list[Slot] = [];
+    n_entry_t: list[Slot] = [];
+    for s in ndesc.`entry {
+        if s.trig_tag == UNTYPED {
+            n_entry_u.append(s);
+        } elif rt.is_a(wtag, s.trig_tag) {
+            n_entry_t.append(s);
+        }
+    }
+    n_exit_u: list[Slot] = [];
+    n_exit_t: list[Slot] = [];
+    for s in ndesc.`exit {
+        if s.trig_tag == UNTYPED {
+            n_exit_u.append(s);
+        } elif rt.is_a(wtag, s.trig_tag) {
+            n_exit_t.append(s);
+        }
+    }
+    plan = (w_entry, n_entry_u, n_entry_t, n_exit_t, n_exit_u, w_exit, ndesc);
+    plans[cls] = plan;
+    return plan;
+}
+
 def _dequeue(scope: WalkScope) -> (int | None) {
     while scope.front {
         candidate = scope.front.pop();
@@ -201,47 +240,67 @@ def _visit_recursive(
 ) -> bool {
     wtag: int = wdesc.type_tag;
     wlk = scope.wlk;
-    stack_loc: list[int] = [loc];
-    stack_ph: list[int] = [0];
-    stack_bud: list[int] = [0];
-    stack_nd: list = [None];
-    while stack_loc {
-        cur = stack_loc.pop();
-        phase = stack_ph.pop();
-        budget = stack_bud.pop();
-        ndesc = stack_nd.pop();
+    plans = wdesc.plans;
+    if plans is None {
+        plans = {};
+        wdesc.plans = plans;
+    }
+    stack: list[list] = [[loc, 0, 0, None]];
+    while stack {
+        frame = stack[-1];
+        phase: int = frame[1];
         if scope.disengaged {
             return False;
         }
         if phase == 0 {
+            cur = frame[0];
             scope.path.append(cur);
-            ndesc = rt.node_desc(rt.tag_of(cur));
+            cls = `type(cur);
+            plan = plans.get(cls);
+            if plan is None {
+                ndesc = rt.node_desc(rt.tag_of(cur));
+                plan = _plan_for(rt, wdesc, wtag, ndesc, plans, cls);
+            }
+            frame[3] = plan;
             scope.pending_fence = 0;
-            run_typed(rt, scope, wdesc.`entry, wlk, cur, ndesc.type_tag);
+            for s in plan[0] {
+                s.fn(wlk, cur);
+                if scope.disengaged or scope.skip_node {
+                    break;
+                }
+            }
             if scope.disengaged {
                 return False;
             }
             if not scope.skip_node {
-                run_untyped(scope, ndesc.`entry, cur, wlk);
+                for s in plan[1] {
+                    s.fn(cur, wlk);
+                    if scope.disengaged or scope.skip_node {
+                        break;
+                    }
+                }
                 if scope.disengaged {
                     return False;
                 }
             }
             if not scope.skip_node {
-                run_typed(rt, scope, ndesc.`entry, cur, wlk, wtag);
+                for s in plan[2] {
+                    s.fn(cur, wlk);
+                    if scope.disengaged or scope.skip_node {
+                        break;
+                    }
+                }
                 if scope.disengaged {
                     return False;
                 }
             }
             scope.skip_node = False;
-
-            stack_loc.append(cur);
-            stack_ph.append(1);
-            stack_bud.append(scope.pending_fence);
-            stack_nd.append(ndesc);
+            frame[1] = 1;
+            frame[2] = scope.pending_fence;
         } elif phase == 1 {
             child: (int | None) = None;
             if scope.fenced {
+                budget: int = frame[2];
                 while (budget > 0) and (child is None) {
                     if scope.front {
                         candidate = scope.front.pop();
@@ -253,46 +312,54 @@ def _visit_recursive(
                         budget = 0;
                     }
                 }
+                frame[2] = budget;
             } else {
                 child = _dequeue(scope);
             }
             if child is not None {
-                stack_loc.append(cur);
-                stack_ph.append(1);
-                stack_bud.append(budget);
-                stack_nd.append(ndesc);
-
-                stack_loc.append(child);
-                stack_ph.append(0);
-                stack_bud.append(0);
-                stack_nd.append(None);
+                stack.append([child, 0, 0, None]);
             } else {
-                stack_loc.append(cur);
-                stack_ph.append(2);
-                stack_bud.append(0);
-                stack_nd.append(ndesc);
+                frame[1] = 2;
             }
         } else {
+            cur = frame[0];
+            plan = frame[3];
+            stack.pop();
             scope.pending_fence = 0;
-            run_typed(rt, scope, ndesc.`exit, cur, wlk, wtag);
+            for s in plan[3] {
+                s.fn(cur, wlk);
+                if scope.disengaged or scope.skip_node {
+                    break;
+                }
+            }
             if scope.disengaged {
                 return False;
             }
             if not scope.skip_node {
-                run_untyped(scope, ndesc.`exit, cur, wlk);
+                for s in plan[4] {
+                    s.fn(cur, wlk);
+                    if scope.disengaged or scope.skip_node {
+                        break;
+                    }
+                }
                 if scope.disengaged {
                     return False;
                 }
             }
             if not scope.skip_node {
-                run_typed(rt, scope, wdesc.`exit, wlk, cur, ndesc.type_tag);
+                for s in plan[5] {
+                    s.fn(wlk, cur);
+                    if scope.disengaged or scope.skip_node {
+                        break;
+                    }
+                }
                 if scope.disengaged {
                     return False;
                 }
             }
             scope.skip_node = False;
-            if scope.fenced and (scope.pending_fence > 0) and stack_bud {
-                stack_bud[-1] += scope.pending_fence;
+            if scope.fenced and (scope.pending_fence > 0) and stack {
+                stack[-1][2] += scope.pending_fence;
             }
         }
     }
@@ -310,6 +377,9 @@ def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list[int]) ->
         nested=(len(_walk_stack) > 0)
     );
     _walk_stack.append(scope);
+    wkey: int = id(wlk);
+    prev_scope = _scope_of.get(wkey);
+    _scope_of[wkey] = scope;
     ok = False;
     try {
         if scope.next {
@@ -333,6 +403,11 @@ def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list[int]) ->
         }
         ok = True;
     } finally {
+        if prev_scope is None {
+            _scope_of.pop(wkey, None);
+        } else {
+            _scope_of[wkey] = prev_scope;
+        }
         _walk_stack.pop();
         if scope.nested and _walk_stack {
             outer = _walk_stack[-1];
