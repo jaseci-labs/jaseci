@@ -338,9 +338,30 @@ obj ManifestBuilder {
             guard_route_name(name);
             synthesized = dict(ms_cfg);
             synthesized["routes"] = {name: derive_route_prefix(name)};
+            entry_file = self._solo_entry_file();
+            if entry_file {
+                services = dict(synthesized.get("services", {}));
+                solo_cfg = dict(services.get(name, {}));
+                solo_cfg["file"] = entry_file;
+                services[name] = solo_cfg;
+                synthesized["services"] = services;
+            }
             return synthesized;
         } except Exception {
             return ms_cfg;
+        }
+    }
+
+    def _solo_entry_file -> str {
+        if not self.project_dir {
+            return "";
+        }
+        try {
+            import from jaclang.scale.injector.bundle { entry_module_rel }
+            rel = entry_module_rel(self.project_dir);
+            return rel.as_posix() if rel is not None else "";
+        } except Exception {
+            return "";
         }
     }
 
