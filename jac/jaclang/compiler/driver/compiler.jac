@@ -79,6 +79,8 @@ import from jaclang.compiler.driver.na_coverage {
     na_demotion_note
 }
 
+glob COMPILE_GC_THRESHOLDS: tuple[int, int, int] = (100000, 50, 100);
+
 obj JacCompiler {
     has _selfhost: (SelfHostCache | None) = None,
         _reentrant_depth: int = 0;

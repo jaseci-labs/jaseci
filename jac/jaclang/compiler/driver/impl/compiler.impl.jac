@@ -1128,6 +1128,16 @@ impl JacCompiler.compile(
     _prev_cs = get_effective_default_codespace_override();
     _depth_prev = self._reentrant_depth;
     self._reentrant_depth = _depth_prev + 1;
+    _gc_prev: (tuple | None) = None;
+    if _depth_prev == 0 and not os.environ.get('JAC_GC_NO_COMPILE_BOOST') {
+        import gc;
+        _gc_prev = gc.get_threshold();
+        if _gc_prev[0] >= COMPILE_GC_THRESHOLDS[0] {
+            _gc_prev = None;
+        } else {
+            gc.set_threshold(*COMPILE_GC_THRESHOLDS);
+        }
+    }
     _outer_opts: (CompileOptions | None) = None;
     _outer_prog: (JacProgram | None) = None;
     _scratch_prog: (JacProgram | None) = None;
@@ -1264,6 +1274,10 @@ impl JacCompiler.compile(
                 _scratch_prog.scratch.compile_depth = 0;
                 self._release_compile_scratch(_scratch_prog);
             }
+        }
+        if _gc_prev is not None {
+            import gc;
+            gc.set_threshold(*_gc_prev);
         }
     }
 }

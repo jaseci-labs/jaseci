@@ -35,6 +35,15 @@ impl check(
     if lint_only {
         return lint(paths=paths, fix=fix, ignore=ignore);
     }
+    import gc;
+    import os;
+    import from jaclang.compiler.driver.compiler { COMPILE_GC_THRESHOLDS }
+    if (
+        not os.environ.get('JAC_GC_NO_COMPILE_BOOST')
+        and gc.get_threshold()[0] < COMPILE_GC_THRESHOLDS[0]
+    ) {
+        gc.set_threshold(*COMPILE_GC_THRESHOLDS);
+    }
     if isinstance(paths, str) {
         paths = [paths];
     }
