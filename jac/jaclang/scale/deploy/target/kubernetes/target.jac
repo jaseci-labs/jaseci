@@ -588,7 +588,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
             names.append(dep_name);
             svc_scaling: dict[str, any] = dict(scaling.get(svc_name, {}));
-            svc_autoscaler_cfg: dict[str, any] | None = svc_scaling.get("autoscaler", {});
+            svc_autoscaler_cfg: dict[str, any] | None = svc_scaling.get(
+                "autoscaler", {}
+            );
             if is_scale_to_zero_eligible(svc_autoscaler_cfg, engine) {
                 zero_floor_names.add(dep_name);
             }
