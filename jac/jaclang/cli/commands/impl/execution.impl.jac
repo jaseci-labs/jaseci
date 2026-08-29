@@ -590,9 +590,16 @@ def _exec_file(
                 _cfg_kind is not None
                 and (_cfg_kind.project.kind or '').strip() == 'cli-native'
             );
+            import from jaclang.compiler.placement.placement_pins {
+                _is_demoted_native as _na_demoted
+            }
             if (
                 _kind_forced
-                or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
+                or (
+                    _default_codespace_is_native()
+                    and sys.stdout is sys.__stdout__
+                    and not _na_demoted(os.path.realpath(filename))
+                )
             ) {
                 import ctypes;
                 import from jaclang.compiler.driver.compile_options {

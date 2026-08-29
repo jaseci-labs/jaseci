@@ -135,6 +135,10 @@ obj JacCompiler {
     def stamp_client_kind_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_access_check_facts(mod: uni.Module) -> None;
     def stamp_native_import_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    def _persist_module_cache(
+        full_target: str, result: uni.Module, actual_program: JacProgram
+    ) -> None;
+
     def _release_compile_scratch(target_program: JacProgram) -> None;
     def compile(
         file_path: str,

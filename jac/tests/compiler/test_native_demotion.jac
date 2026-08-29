@@ -25,8 +25,12 @@ import from jaclang.compiler.driver.boundary_classify {
     plain_native_import_target
 }
 import from jaclang.compiler.placement.placement_pins {
+    _clear_demoted_native,
+    _demotion_sidecar,
+    _is_demoted_native,
     _mark_demoted_native,
     _na_demotion_memo,
+    _na_demotion_probed,
     effective_module_pin
 }
 import from jaclang.compiler.placement.placement_solver { invalidate_importers_es }
@@ -95,10 +99,38 @@ test "a demoted module loses the pin everywhere it is consulted" {
         assert plain_native_import_target(imp, prog) is None;
         assert not import_declares_native_target(imp);
     } finally {
-        _na_demotion_memo.pop(models_path, None);
+        _clear_demoted_native(models_path);
     }
 }
 
+
+test "a demotion verdict persists across processes and dies with the file" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as tmp {
+        path = os.path.realpath(os.path.join(tmp, "demoted.jac"));
+        with open(path, "w", encoding="utf-8") as f {
+            f.write("with entry { x = 1; }\n");
+        }
+        try {
+            assert not _is_demoted_native(path) , "no verdict before marking";
+            _mark_demoted_native(path);
+            sidecar = _demotion_sidecar(path);
+            assert sidecar is not None and os.path.exists(sidecar) , "marking must persist a sidecar";
+            _na_demotion_memo.clear();
+            _na_demotion_probed.clear();
+            assert _is_demoted_native(path) , "a fresh process must read the verdict back";
+            with open(path, "w", encoding="utf-8") as f {
+                f.write("with entry { x = 12; }\n");
+            }
+            later = os.stat(path).st_mtime_ns + 1000000000;
+            os.utime(path, ns=(later, later));
+            assert not _is_demoted_native(path) , "an edited file must be re-tried natively";
+            assert not os.path.exists(sidecar) , "a stale verdict must be removed";
+        } finally {
+            _clear_demoted_native(path);
+        }
+    }
+}
 
 test "importer invalidation clears ES output and NATIVE bindings" {
     (prog, app, _imp, models_path) = compile_pin_fixture();
@@ -148,6 +180,6 @@ test "the demotion fallback re-lowers importers away from the na seam" {
         assert "__na_bind" not in (app.gen.js or "") , "the re-lowered importer must not bind through the na seam";
         assert "E5082" in raised or "E5082" in error_codes(prog) , "a plain client import of a server def must be diagnosed";
     } finally {
-        _na_demotion_memo.pop(models_path, None);
+        _clear_demoted_native(models_path);
     }
 }
