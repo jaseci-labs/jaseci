@@ -18,9 +18,6 @@ glob logger = getLogger(__name__),
 glob _NO_TRIGGER = object(),
      _subclass_hook_lock = Lock();
 
-# Light-edge registries (see the "Light edges" section below). Declared here
-# because `Archetype.__init_subclass__` clears the subtype closure while this
-# module is still defining its own classes.
 glob _light_edge_types: dict[type, bool] = {},
      _edge_subtypes: dict[type, tuple] = {},
      _tracked_classes: dict[type, type] = {};
@@ -100,13 +97,6 @@ obj Anchor {
     def __eq__(other: object) -> bool;
 }
 
-"""A node's adjacency has two tiers. `edges` holds EdgeAnchors: edges that
-carry fields, are undirected, or are persistent. `out_light`/`in_light` hold
-light edges: a field-less, directed, transient edge is an entry in a per-type
-list of neighbour archetypes, not an object. Both dicts are None until the
-first light edge, so a fresh anchor is still `{archetype, edges}`. A light
-edge becomes an EdgeAnchor only when the node acquires persistence
-(`all_edges`) or when a query asks for the edge itself (`light_edge_view`)."""
 obj NodeAnchor(Anchor) {
     has archetype: NodeArchetype,
         edges: list[EdgeAnchor],
@@ -259,25 +249,6 @@ obj JsxElement {
 }
 
 
-"""Light edges.
-
-`is_light_edge_type` decides per edge class, once: light iff the class
-declares no fields (a field-less class has nothing an edge object could hold).
-Undirected connects, attribute assignment at connect time and persistent
-endpoints always take the EdgeAnchor path; the connect sites decide that.
-
-The adjacency is keyed by exact class. A typed hop has isinstance semantics,
-so a read for `Role` must see every Role subclass; `edge_subtypes` is the
-closure of a class over the subclasses that exist, cached until a new
-archetype class is defined (`Archetype.__init_subclass__` clears it).
-
-Ownership follows connect direction. `out_light` holds the neighbour
-archetypes strongly; `in_light` holds weak references. A tree owns its
-children through out-links, a fan-in sink (an interned type, a codespace
-singleton) never keeps its sources alive, and dropping a subtree's root makes
-the subtree collectable with no severing. `light_in` dereferences and skips
-entries whose source has been collected.
-"""
 def is_light_edge_type(cls: type) -> bool {
     known = _light_edge_types.get(cls);
     if known is not None {
@@ -325,8 +296,7 @@ def _deref(lst: list) -> list {
     return out;
 }
 
-"""Record `src -cls-> tgt`: strongly on the source, weakly on the target."""
-def light_connect(src: NodeAnchor, cls: type, tgt: NodeAnchor) -> None {
+def light_connect(src: NodeAnchor, cls: type, tgt: NodeAnchor) {
     out = src.out_light;
     if out is None {
         out = {};
@@ -371,16 +341,12 @@ def _drop_entry(d: (dict | None), cls: type, key: any) -> bool {
     return True;
 }
 
-"""Remove one `src -cls-> tgt` entry from both sides. Returns whether the
-source side held it."""
 def light_disconnect(src: NodeAnchor, cls: type, tgt: NodeAnchor) -> bool {
     held = _drop_entry(src.out_light, cls, tgt.archetype);
     _drop_entry(tgt.in_light, cls, weakref.ref(src.archetype));
     return held;
 }
 
-"""Drop every light edge of exactly `cls` on one side of `anchor`, and the
-mirror entries on the far side."""
 def light_clear(anchor: NodeAnchor, cls: type, outgoing: bool = True) -> bool {
     d = anchor.out_light if outgoing else anchor.in_light;
     if d is None {
@@ -404,8 +370,6 @@ def light_clear(anchor: NodeAnchor, cls: type, outgoing: bool = True) -> bool {
     return True;
 }
 
-"""`del [edge x ->:T:->]` on the light tier: every class that is a `cls`
-(None: every class) on one side of `anchor`."""
 def light_clear_matching(
     anchor: NodeAnchor, cls: (type | None), outgoing: bool
 ) -> bool {
@@ -455,24 +419,16 @@ def _collect_light(d: dict, cls: (type | None)) -> list {
     return found;
 }
 
-"""Neighbour archetypes over light out-edges of `cls` (subclasses included;
-None means every type). The exact-type case is the live adjacency list;
-`hop` copies before handing it to a program."""
 def light_out(anchor: NodeAnchor, cls: (type | None)) -> list {
     d = anchor.out_light;
     return _collect_light(d, cls) if d else [];
 }
 
-"""Neighbour archetypes over light in-edges: dereferenced, dead sources
-skipped, always a fresh list."""
 def light_in(anchor: NodeAnchor, cls: (type | None)) -> list {
     d = anchor.in_light;
     return _deref(_collect_light(d, cls)) if d else [];
 }
 
-"""An EdgeArchetype standing for one light edge, for `[edge ...]` queries,
-walkers visiting edges and `del`. It is not the adjacency entry; `detach`
-on its anchor removes the entry it stands for."""
 def light_edge_view(cls: type, src: NodeAnchor, tgt: NodeAnchor) -> EdgeArchetype {
     e = cls.__new__(cls);
     ea = EdgeAnchor(archetype=e, source=src, target=tgt, is_undirected=False);
@@ -504,9 +460,6 @@ def light_edge_views(
     return out;
 }
 
-"""Cut every light edge that crosses the boundary of a node set (ids of the
-archetypes inside). Returns the far archetypes that lost an edge, so a caller
-can invalidate caches on them."""
 def sever_light(anchor: NodeAnchor, inside: set[int]) -> list {
     touched: list = [];
     out = anchor.out_light;
@@ -534,12 +487,7 @@ def sever_light(anchor: NodeAnchor, inside: set[int]) -> list {
     return touched;
 }
 
-"""After `copy.deepcopy` of a subtree. Out-links were copied (they are
-strong); in-links were not (a `weakref.ref` deep-copies as itself, so a
-copied child's parent link still points at the original). Rebuild every
-in-link inside the copy from the copied out-links and drop the rest: the
-root has no parent, and nothing outside the copy points into it."""
-def relink_light(start: NodeAnchor) -> None {
+def relink_light(start: NodeAnchor) {
     seen: set[int] = set();
     order: list = [];
     stack: list = [start.archetype];
@@ -589,10 +537,6 @@ def relink_light(start: NodeAnchor) -> None {
     }
 }
 
-"""Persistence dirty-marking. A transient archetype has no `__setattr__` hook
-at all: the moment an anchor becomes persistent its archetype swaps to a
-generated subclass (same name, same MRO, cached per class) whose `__setattr__`
-marks the anchor dirty. Only persisted objects pay per write."""
 def _dirty_setattr(self: any, name: str, value: any) -> None {
     object.__setattr__(self, name, value);
     an = self.__dict__.get('__jac__');

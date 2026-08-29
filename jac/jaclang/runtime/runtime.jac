@@ -106,8 +106,6 @@ def _all_grant(anchor: Anchor) -> AccessLevel {
     return AccessLevel.NO_ACCESS if perm is None else perm.all;
 }
 
-"""Light edges between two transient nodes: both endpoints are unpersisted,
-so there is no access gate and no row to retire. `filter` sees a view."""
 def _light_disconnect_between(
     a: NodeAnchor, b: NodeAnchor, dirv: int, filter: (Callable | None)
 ) -> bool {

@@ -37,19 +37,23 @@ glob SCAN_ROOTS: list[str] = [
      ],
      SANCTIONED: dict[str, tuple] = {
          "runtime/impl/archetype.impl.jac": (
-             4,
+             5,
              "the field's own primitives: __getstate__ stubs the list for "
-             "pickling, edge_delta derives the OCC add/remove sets, and "
+             "pickling (and passes it through unchanged for a transient "
+             "anchor, whose light edges ride along as the adjacency dicts), "
+             "all_edges returns it after materializing the light tier, and "
              "remove_edge is the mutation bookkeeping detach() rides on"
          ),
          "runtime/impl/runtime.impl.jac": (
-             7,
-             "mutation bookkeeping and persistence: build_edge's dual-write "
+             8,
+             "mutation bookkeeping and persistence: heavy_edge's dual-write "
              "appends (the store write sits beside them), disconnect's "
-             "stub-populate priming before driver hydration, save's cascade "
-             "over unsaved edges, destroy's detach iteration, and "
-             "reset_graph's persistence-record rewrite (paired with "
-             "sv_forget_by_id so the store retracts in step)"
+             "stub-populate priming before driver hydration, destroy's and "
+             "clear_edges' detach iterations, hop's guard that routes a node "
+             "holding EdgeAnchors to the planned query, and reset_graph's "
+             "persistence-record rewrite (paired with sv_forget_by_id so the "
+             "store retracts in step); save's cascade reads through "
+             "all_edges so light edges materialize first"
          ),
          "runtime/osp_graph_sv.jac": (
              1,

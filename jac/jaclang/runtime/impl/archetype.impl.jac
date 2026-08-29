@@ -366,10 +366,6 @@ impl ObjectSpatialFunction.trigger -> (
     return ty;
 }
 
-"""Turn every light edge on this node into an EdgeAnchor and return the
-full edge list. This is the door between the transient adjacency and
-persistence: `save`, `__getstate__` and `edge_delta` all read through it, so
-a graph persisted mid-life carries its light edges as rows."""
 impl NodeAnchor.all_edges -> list[EdgeAnchor] {
     out = self.out_light;
     inn = self.in_light;

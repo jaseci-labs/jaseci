@@ -1,8 +1,3 @@
-"""Type-graph edges. Composition edges are light (no fields); the target
-holds its sources weakly, so an interned type never keeps its users alive.
-`TypeMemberOf`/`EnumMemberOf` carry a name and are EdgeAnchors. The four
-helpers are the one shape every accessor reads: the edge archetypes of a
-slot, an edge's target, delete one, connect one."""
 def _eouts(origin: any, ecls: type) -> list {
     return [edge origin->:ecls:->];
 }

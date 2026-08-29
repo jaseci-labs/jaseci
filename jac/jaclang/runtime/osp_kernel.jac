@@ -17,12 +17,6 @@ obj NodeDesc {
         `exit: list[Slot];
 }
 
-"""One walk. `next` is the legacy FIFO queue (`visit x;` appends, `next_head`
-is its consumed prefix). `front` is the front-splice stack: `visit:0: xs;`
-pushes xs reversed, so `front.pop()` yields the next fenced child in order
-and a splice costs O(len(xs)) rather than a copy of the whole queue. A
-dequeue drains `front` before `next`, which is the order the old single
-list gave when front-splices were inserted at index 0."""
 obj WalkScope {
     has wlk: any,
         path: list[int],
@@ -135,9 +129,6 @@ def osp_report(val: any) {
 glob _match_slots: dict[int, list[Slot]] = {},
      _match_by_tag: dict[int, dict[int, list[Slot]]] = {};
 
-"""The walk owns its scope, so the ability loops take it as a parameter and
-read `disengaged`/`skip_node` off it directly; nothing here consults the
-walk stack per ability."""
 def run_typed(
     rt: OspRuntime, scope: WalkScope, slots: list[Slot], a: any, b: any
 ) -> None {

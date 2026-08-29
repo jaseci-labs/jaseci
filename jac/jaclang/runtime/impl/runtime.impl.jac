@@ -1099,10 +1099,6 @@ impl JacGraph.connect(
     return right[0] if right_is_node else right;
 }
 
-"""The simple hop the codegen emits for `[x ->:T:->]` when there is nothing
-to plan: one origin, one direction, one edge class, no predicates. A
-transient origin with no EdgeAnchors is answered from the light adjacency
-with no context lookup at all; anything else is the full `refs`."""
 impl JacGraph.hop(
     origin: any, dir: int, edge_type: (type | None) = None, edges_only: bool = False
 ) -> list {
@@ -1151,9 +1147,6 @@ impl JacGraph.hop(
     return `list(`dict.fromkeys(found));
 }
 
-"""`del [edge x ->:T:->];`: drop every edge of the set without building it.
-Light edges are popped from the adjacency by class; EdgeAnchors are
-destroyed (persistent, with the access check) or detached."""
 impl JacGraph.clear_edges(
     origin: any, dir: int, edge_type: (type | None) = None
 ) -> bool {

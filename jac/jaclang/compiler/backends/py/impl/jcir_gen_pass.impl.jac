@@ -4885,9 +4885,6 @@ impl JcirGenPass._traversal_consumed_now(nd: EdgeRefTrailer) -> bool {
 }
 
 
-"""`[x ->:T:->]` with nothing to plan: one origin, one hop, an edge class or
-no type, no predicates, no node filter, no chain, not async, not the operand
-of `visit`. Returns `[origin, dir, edge_type]` for `hop`/`clear_edges`."""
 impl JcirGenPass._simple_hop(nd: EdgeRefTrailer) -> (list[CgNode] | None) {
     if nd.is_async or isinstance(nd.parent, VisitStmt) {
         return None;

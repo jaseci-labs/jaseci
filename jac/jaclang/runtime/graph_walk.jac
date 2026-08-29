@@ -148,10 +148,6 @@ def edge_pair_for(e: EdgeAnchor, cur: Anchor, hop: QHop) -> (Anchor | None) {
 }
 
 
-"""One hop over a node's light adjacency. A light edge has no fields, so an
-edge predicate can never match one and the caller skips this tier when the
-hop carries `epreds`. The edge view is built only when the query wants edges:
-a node hop over light edges allocates nothing but the result pair."""
 def _walk_light(
     cur: NodeAnchor,
     hop: QHop,
