@@ -162,15 +162,16 @@ def typeshed_stubs_available -> bool {
 }
 
 def require_typeshed_stubs -> None {
-    if typeshed_stubs_available() {
+    import from jaclang.jac0core.stubcat_hook { active }
+    if active() is not None or typeshed_stubs_available() {
         return;
     }
     raise TypeshedUnavailableError(
-        "type inference is on the critical path of every compilation, but the "
-        "vendored typeshed stdlib stubs are missing from this environment, so "
-        "no module can be compiled. In a source checkout run "
+        "type inference is on the critical path of every compilation, but this "
+        "environment has neither a stub catalog nor the vendored typeshed stdlib "
+        "stubs, so no module can be compiled. In a source checkout run "
         "'zig build fetch-typeshed'; in an installed environment reinstall the "
-        "jac distribution, whose payload is required to carry the stubs."
+        "jac distribution, whose payload carries the catalog."
     );
 }
 

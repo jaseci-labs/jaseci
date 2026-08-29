@@ -56,7 +56,7 @@ obj SelfHostCache {
             slim.interop_manifest = result.gen.interop_manifest;
             self.program.hub.artifacts[full_target] = slim;
         }
-        self.program.release_compile_closure(keep_stubs=True);
+        self.program.release_compile_closure();
     }
 
     def enter_bytecode {

@@ -83,10 +83,15 @@ glob COMPILE_GC_THRESHOLDS: tuple[int, int, int] = (100000, 50, 100);
 
 obj JacCompiler {
     has _selfhost: (SelfHostCache | None) = None,
-        _reentrant_depth: int = 0;
+        _reentrant_depth: int = 0,
+        _stub_catalog: any = None,
+        _stub_catalog_tried: bool = False,
+        stub_catalog_disabled: bool = False;
 
     has selfhost: SelfHostCache { getter; }
 
+    def stub_catalog -> any;
+    def ensure_stub_catalog -> any;
     def get_native_interop_setup(
         full_target: str, target_program: JacProgram
     ) -> tuple[((object | None), (dict[(str, object)] | None))];

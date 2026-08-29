@@ -132,6 +132,25 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
 
 glob _client_kind_probe: dict = {"active": False};
 
+def is_compiler_tree_path(source_path: str) -> bool {
+    try {
+        resolved = str(Path(source_path).resolve());
+    } except OSError {
+        return False;
+    }
+    base = _jaclang_pkg_dir + os.sep;
+    if not resolved.startswith(base) {
+        return False;
+    }
+    rel = resolved[len(base):].replace(os.sep, "/");
+    for root in COMPILER_DIGEST_ROOTS {
+        if rel == root or rel.startswith(root + "/") {
+            return True;
+        }
+    }
+    return False;
+}
+
 def is_compiler_source_path(source_path: str) -> bool {
     try {
         resolved = str(Path(source_path).resolve());

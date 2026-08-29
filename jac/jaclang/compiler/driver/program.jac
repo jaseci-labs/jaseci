@@ -40,11 +40,9 @@ class JacProgram {
     def init(self: JacProgram, main_mod: (uni.ProgramModule | None) = None) -> None;
     def _get_compiler(self: JacProgram) -> JacCompiler;
     def get_type_evaluator(self: JacProgram) -> TypeEvaluator;
+    def stub_catalog(self: JacProgram) -> any;
     def clear_type_system(self: JacProgram, clear_hub: bool = False) -> None;
-    def release_compile_closure(
-        self: JacProgram, keep_stubs: bool = True, collect: bool = True
-    ) -> None;
-
+    def release_compile_closure(self: JacProgram, collect: bool = True) -> None;
     def release_native_dep_units(self: JacProgram) -> None;
     def release_check_caches(self: JacProgram) -> None;
     def hub_cache_stamp(self: JacProgram, resolved_path: str) -> None;

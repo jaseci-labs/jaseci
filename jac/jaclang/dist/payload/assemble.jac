@@ -39,6 +39,12 @@ glob PAYLOAD_ZSTD_LEVEL: int = 19,
          "sys.argv = ['jac', 'run'] + sys.argv[1:]\n"
          "from jaclang.cli.cli_boot import start_cli\n"
          "start_cli()\n"
+     ),
+     STUBCAT_BOOT_SRC: str = (
+         "import sys\n"
+         "import _jac_finder; _jac_finder.install()\n"
+         "from jaclang.compiler.types.stubcat.build import main\n"
+         "sys.exit(main(sys.argv[1:]))\n"
      );
 
 obj MkPayloadOpts {
@@ -51,7 +57,9 @@ obj MkPayloadOpts {
         precompiled_cache: str | None = None,
         layer_cache: str | None = None,
         seal: bool = False,
-        debug_src: bool = False;
+        debug_src: bool = False,
+        stubcat_out: str | None = None,
+        skip_stubcat: bool = False;
 }
 
 obj FoundLib {
@@ -69,6 +77,8 @@ def resolve_python(pbs_py_dir: str) -> str;
 def assemble_site(repo_root: str, site: str, opts: MkPayloadOpts);
 def write_dist_info(repo_root: str, site: str);
 def run_precompile_stage(py: str, pbs_py_dir: str, site: str, opts: MkPayloadOpts);
+def run_stubcat_stage(py: str, pbs_py_dir: str, site: str, opts: MkPayloadOpts);
+def run_stubcat(py: str, pbs_py_dir: str, site: str, out: str) -> bool;
 def precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool);
 def precompile_env(pbs_py_dir: str, site: str) -> dict[str, str];
 def stage_python_bin(pbs_py_dir: str, stage: str);

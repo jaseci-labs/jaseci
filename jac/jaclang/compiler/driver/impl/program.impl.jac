@@ -93,6 +93,18 @@ impl JacProgram.load_dependency_module(
     import from pathlib { Path }
 
     resolved_path = str(Path(source_path).resolve());
+    if resolved_path.endswith('.pyi') {
+        catalog = self.stub_catalog();
+        if catalog is not None {
+            cat_mod = catalog.module_for_path(resolved_path);
+            if cat_mod is not None {
+                if importer_path is not None {
+                    self.record_dependency(importer_path, resolved_path);
+                }
+                return cat_mod;
+            }
+        }
+    }
     compiler = self._get_compiler();
     target_program = compiler.selfhost.resolve(resolved_path, self);
     target_hub = target_program.mod.hub;
@@ -127,9 +139,12 @@ impl JacProgram.load_dependency_module(
                 uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
                 self
             ).ir_out;
+            mod.stub_only = True;
+
+            target_hub[resolved_path] = mod;
+            target_program.hub_cache_stamp(resolved_path);
             compiler.resolve_absorb_imports(mod, self);
             run_pass(SymTabBuildPass, mod, self);
-            mod.stub_only = True;
         } else {
             mod = self.compile(
                 source_path, use_str=use_str, no_cgen=True, symtab_ir_only=True
@@ -173,6 +188,10 @@ impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {
     import from jaclang.compiler.driver.compiler { JacCompiler }
     self._compiler = JacCompiler();
     return self._compiler;
+}
+
+impl JacProgram.stub_catalog(self: JacProgram) -> any {
+    return self._get_compiler().stub_catalog();
 }
 
 impl JacProgram.get_type_evaluator(self: JacProgram) -> TypeEvaluator {
@@ -257,7 +276,7 @@ impl JacProgram.release_check_caches(self: JacProgram) -> None {
 }
 
 impl JacProgram.release_compile_closure(
-    self: JacProgram, keep_stubs: bool = True, collect: bool = True
+    self: JacProgram, collect: bool = True
 ) -> None {
     import os;
     if os.environ.get("JAC_NO_UNIT_EVICT") {
@@ -265,7 +284,7 @@ impl JacProgram.release_compile_closure(
     }
 
     self.release_native_dep_units();
-    self.hub.reset(keep_stubs=keep_stubs);
+    self.hub.reset();
     self.mod = self.hub.mod;
     self.deps.clear();
     self.type_evaluator = None;

@@ -527,8 +527,19 @@ impl TypeEvaluator._convert_to_instance(jtype: TypeBase) -> TypeBase {
 }
 
 impl TypeEvaluator._metaclass_of(cls_type: ClassType) -> (ClassType | None) {
+    import from jaclang.compiler.types.stubcat.reader { CatScope }
     for cls in cls_type.shared.mro {
         arch = cls.shared.symbol_table;
+        if isinstance(arch, CatScope) {
+            meta_type = arch.metaclass_type();
+            if (
+                isinstance(meta_type, ClassType)
+                and meta_type.shared is not cls_type.shared
+            ) {
+                return meta_type;
+            }
+            continue;
+        }
         if not isinstance(arch, Archetype) {
             continue;
         }
@@ -1233,6 +1244,9 @@ impl TypeEvaluator._is_ability_staticmethod(node_: Ability) -> bool {
 
 impl TypeEvaluator._classify_property_symbol(symbol: Symbol) -> PropertyWriteKind {
     import from jaclang.compiler.types.type_utils { PropertyWriteKind }
+    if symbol.provider is not None {
+        return PropertyWriteKind(symbol.provider.property_kind());
+    }
     node_ = symbol.decl.name_of;
 
     if isinstance(node_, HasVar) and node_.accessors {
@@ -1268,6 +1282,13 @@ impl TypeEvaluator.get_getter_type_from_property(symbol: Symbol) -> (TypeBase | 
     if kind == PropertyWriteKind.NOT_PROPERTY {
         return None;
     }
+    if symbol.provider is not None {
+        cat_type = self.get_type_of_symbol(symbol);
+        if isinstance(cat_type, FunctionType) {
+            return cat_type.return_type;
+        }
+        return None;
+    }
     node_ = symbol.decl.name_of;
     if not isinstance(node_, Ability) {
         return None;
@@ -1287,6 +1308,17 @@ impl TypeEvaluator.get_property_write_type(symbol: Symbol) -> PropertyWriteResul
     kind = self._classify_property_symbol(symbol);
     if kind == PropertyWriteKind.NOT_PROPERTY {
         return PropertyWriteResult(kind=PropertyWriteKind.NOT_PROPERTY);
+    }
+    if symbol.provider is not None {
+        write_kind = PropertyWriteKind(symbol.provider.property_write_kind());
+        if write_kind == PropertyWriteKind.WRITABLE {
+            baked = symbol.provider.property_write_type();
+            return PropertyWriteResult(
+                kind=PropertyWriteKind.WRITABLE,
+                write_type=baked if baked is not None else UnknownType()
+            );
+        }
+        return PropertyWriteResult(kind=PropertyWriteKind.READ_ONLY);
     }
 
     node_decl = symbol.decl.name_of;

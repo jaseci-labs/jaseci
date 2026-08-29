@@ -73,7 +73,7 @@ def _stub_modules(prog: JacProgram) -> dict {
     return out;
 }
 
-test "stub trees survive release_compile_closure so retained bindings never dangle" {
+test "typeshed never enters the hub and builtins bindings survive a release" {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     prog = JacProgram();
     first = prog.compile(file_path="stub_retention_probe.jac", use_str=STUB_SRC);
@@ -81,19 +81,13 @@ test "stub trees survive release_compile_closure so retained bindings never dang
         str(e) for e in prog.errors_had
     ]}";
     stubs = _stub_modules(prog);
-    assert any(p.endswith("_typeshed/__init__.pyi") for p in stubs) , "the probe must have pulled _typeshed in through builtins";
+    assert not stubs , (
+        f"typeshed modules found in a program hub: {sorted(stubs)}; the stub "
+        "catalog serves them and nothing should parse a stdlib .pyi into a hub"
+    );
     prog.release_compile_closure();
     Jac.get_compiler().selfhost.program.release_compile_closure();
     gc.collect();
-    dead = [
-        p.split("/")[-1]
-        for (p, ref) in stubs.items()
-        if ref() is None
-    ];
-    assert not dead , (
-        f"stub trees collected across a release: {dead}; the memoized builtins scope binds into them, "
-        "so with weak in-links a dropped stub tree leaves those bindings dangling"
-    );
     second = prog.compile(
         file_path="stub_retention_probe_2.jac", use_str=STUB_SRC + "# second unit\n"
     );

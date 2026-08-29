@@ -958,31 +958,34 @@ impl OverloadedType.__str__ -> str {
     return f"<overload {count} overloads>";
 }
 
-impl ClassType.is_node_type -> bool {
+def _class_scope_category(scope: any) -> any {
     import from jaclang.compiler.frontend.unitree { Archetype }
+    if isinstance(scope, Archetype) {
+        return scope.sym_category;
+    }
+    import from jaclang.compiler.types.stubcat.reader { CatScope }
+    if isinstance(scope, CatScope) and scope.cat_owner_sym is not None {
+        return scope.cat_owner_sym.sym_type;
+    }
+    return None;
+}
+
+impl ClassType.is_node_type -> bool {
     import from jaclang.compiler.frontend.constant { SymbolType }
     if self.shared.is_root_class {
         return True;
     }
-    arch = self.shared.symbol_table;
-    assert isinstance(arch, Archetype);
-    return (arch.sym_category == SymbolType.NODE_ARCH);
+    return _class_scope_category(self.shared.symbol_table) == SymbolType.NODE_ARCH;
 }
 
 impl ClassType.is_edge_type -> bool {
-    import from jaclang.compiler.frontend.unitree { Archetype }
     import from jaclang.compiler.frontend.constant { SymbolType }
-    arch = self.shared.symbol_table;
-    assert isinstance(arch, Archetype);
-    return (arch.sym_category == SymbolType.EDGE_ARCH);
+    return _class_scope_category(self.shared.symbol_table) == SymbolType.EDGE_ARCH;
 }
 
 impl ClassType.is_walker_type -> bool {
-    import from jaclang.compiler.frontend.unitree { Archetype }
     import from jaclang.compiler.frontend.constant { SymbolType }
-    arch = self.shared.symbol_table;
-    assert isinstance(arch, Archetype);
-    return (arch.sym_category == SymbolType.WALKER_ARCH);
+    return _class_scope_category(self.shared.symbol_table) == SymbolType.WALKER_ARCH;
 }
 
 impl ClassType.is_data_class -> bool {
@@ -1094,10 +1097,14 @@ impl ClassType.lookup_member_symbol(
 impl ClassType.get_class_symbol -> (Symbol | None) {
     import from jaclang.compiler.frontend.unitree { Archetype }
     symbol_table = self.shared.symbol_table;
-    if not isinstance(symbol_table, Archetype) {
-        return None;
+    if isinstance(symbol_table, Archetype) {
+        return symbol_table.name.sym;
     }
-    return symbol_table.name.sym;
+    import from jaclang.compiler.types.stubcat.reader { CatScope }
+    if isinstance(symbol_table, CatScope) {
+        return symbol_table.cat_owner_sym;
+    }
+    return None;
 }
 
 impl ClassType.specialize_generics(type_args: list[TypeBase]) -> ClassType {

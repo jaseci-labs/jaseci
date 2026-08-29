@@ -8,6 +8,44 @@ impl JacCompiler.selfhost.getter -> SelfHostCache {
     return cache;
 }
 
+impl JacCompiler.stub_catalog -> any {
+    if self.stub_catalog_disabled {
+        return None;
+    }
+    found = self._stub_catalog;
+    if found is not None {
+        return found;
+    }
+    import from jaclang.jac0core.stubcat_hook { active }
+    found = active();
+    self._stub_catalog = found;
+    return found;
+}
+
+impl JacCompiler.ensure_stub_catalog -> any {
+    if self.stub_catalog_disabled {
+        return None;
+    }
+    found = self.stub_catalog();
+    if found is not None {
+        return found;
+    }
+    import from jaclang.jac0core.stubcat_hook { env_disabled }
+    if env_disabled() {
+        return None;
+    }
+    if self._stub_catalog_tried {
+        return None;
+    }
+    self._stub_catalog_tried = True;
+    import jaclang.compiler.types.stubcat.format;
+    import jaclang.compiler.types.stubcat.reader;
+    import from jaclang.compiler.types.stubcat.locate { ensure_catalog }
+    found = ensure_catalog();
+    self._stub_catalog = found;
+    return found;
+}
+
 impl JacCompiler.get_native_interop_setup(
     full_target: str, target_program: JacProgram
 ) -> tuple[((object | None), (dict[(str, object)] | None))] {
@@ -1120,6 +1158,15 @@ impl JacCompiler.compile(
     use_str: (str | None) = None,
     options: CompileOptions = CompileOptions()
 ) -> uni.Module {
+    if self._reentrant_depth == 0 and not self.stub_catalog_disabled {
+        import from jaclang.compiler.driver.jir { is_compiler_tree_path }
+        if (
+            not self.selfhost.is_selfhost(target_program)
+            and not is_compiler_tree_path(str(file_path))
+        ) {
+            self.ensure_stub_catalog();
+        }
+    }
     import from pathlib { Path as _WrapPath }
     import from jaclang.compiler.frontend.codeinfo {
         get_effective_default_codespace_override,

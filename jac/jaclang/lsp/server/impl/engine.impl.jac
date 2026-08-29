@@ -324,6 +324,20 @@ impl JacLangServer.get_references(
     return [];
 }
 
+def _definition_symbol(sym: any) -> any {
+    cur = sym;
+    seen: set[int] = set();
+    while cur is not None and cur.provider is not None and id(cur) not in seen {
+        seen.add(id(cur));
+        target = cur.provider.definition();
+        if target is None or target is cur {
+            break;
+        }
+        cur = target;
+    }
+    return cur;
+}
+
 impl JacLangServer.get_definition(
     file_path: str, position: lspt.Position
 ) -> Optional[lspt.Location] {
@@ -447,10 +461,10 @@ impl JacLangServer.get_definition(
         if isinstance(node_type, ModuleType) {
             return make_location(node_selected, is_module=True);
         } elif isinstance(node_type, ClassType) and node_selected.sym {
-            return make_location(node_selected.sym.decl);
+            return make_location(_definition_symbol(node_selected.sym).decl);
         } elif isinstance(node_type, (FunctionType, OverloadedType))
             and node_selected.sym {
-            return make_location(node_selected.sym.decl);
+            return make_location(_definition_symbol(node_selected.sym).decl);
         }
     }
 
@@ -465,7 +479,7 @@ impl JacLangServer.get_definition(
     }
 
     if node_selected.sym and node_selected.sym.defn {
-        defn0 = node_selected.sym.defn[0];
+        defn0 = _definition_symbol(node_selected.sym).defn[0];
 
         if defn0 is node_selected
             or (

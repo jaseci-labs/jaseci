@@ -259,7 +259,8 @@ node Symbol {
         na_escapes: bool = False,
         na_region_handle: bool = False,
         na_stack_ok: bool = False,
-        _in_stub_scope: (bool | None) = None;
+        _in_stub_scope: (bool | None) = None,
+        provider: any = None;
 
     def init(
         defn: NameAtom,

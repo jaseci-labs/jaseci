@@ -406,6 +406,10 @@ impl TypeEvaluator._resolve_importer_path(ast_node: UniNode) -> (str | None) {
 }
 
 impl TypeEvaluator.get_type_of_symbol(symbol: Symbol) -> TypeBase {
+    provider = symbol.provider;
+    if provider is not None {
+        return provider.resolve_type(self, symbol);
+    }
     if self.push_symbol_resolution(symbol) {
         try {
             result = self._get_type_of_symbol(symbol);
@@ -422,6 +426,15 @@ impl TypeEvaluator.resolve_to_definition_symbol(symbol: Symbol) -> Symbol {
     cur = symbol;
     while id(cur) not in visited {
         visited.add(id(cur));
+        provider = cur.provider;
+        if provider is not None {
+            target = provider.definition();
+            if target is None or target is cur {
+                break;
+            }
+            cur = target;
+            continue;
+        }
         if not (cur.imported and cur.decl) {
             break;
         }

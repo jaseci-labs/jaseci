@@ -47,12 +47,12 @@ obj ModuleHub {
         }
     }
 
-    def reset(keep_stubs: bool = False) {
+    def reset {
         retained_mods: dict[str, uni.Module] = {};
         retained_stamps: dict[str, float] = {};
         dropped: list[uni.Module] = [];
         for (path, mod) in self.mod.hub.items() {
-            if keep_stubs and path.endswith(".pyi") {
+            if path.endswith(".pyi") {
                 retained_mods[path] = mod;
                 if path in self.stamps {
                     retained_stamps[path] = self.stamps[path];
