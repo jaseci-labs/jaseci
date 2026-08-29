@@ -615,14 +615,38 @@ test "a hub response without a digest keeps the tag form" {
 }
 
 
-test "experimental images stay in tag form (downstream keys on the tag)" {
+test "experimental images are pinned to the registry digest too, same as dev" {
+    # An experimental-<PR> tag is rebuilt on every push to the PR, so it is
+    # exactly the mutable-tag case the shared venv cache's eligibility gate
+    # (is_cache_eligible) exists for: without a digest, a cached venv from
+    # an earlier push on the same PR would silently be reused against a
+    # rebuilt, possibly ABI-incompatible interpreter.
     d = _write_toml("[experimental]\npr = 7494\n");
     payload = json.dumps({"digest": "sha256:" + ("cd" * 32)}).encode();
     saved = binary_mod._http_get_bytes;
     binary_mod._http_get_bytes = _as_any(functools.partial(_payload_response, payload));
     try {
         image = binary_mod.resolve_pod_base_image(d, "");
-        assert image == "jaseci/jaclang:experimental-7494";
+        assert image == "jaseci/jaclang@sha256:" + ("cd" * 32);
+    } finally {
+        binary_mod._http_get_bytes = saved;
+    }
+}
+
+test "experimental images fall back to the tag, not the plain python base, when the digest lookup fails" {
+    # Unlike dev/pinned-version, a failed lookup here must not fall back to
+    # python:3.12-slim: the tag names the specific PR build under test, and
+    # that identity matters more than digest-pinning for a short-lived,
+    # frequently-rebuilt image whose registry publish can simply lag.
+    d = _write_toml("[experimental]\npr = 7494\n");
+    saved = binary_mod._http_get_bytes;
+    def _raise(url: str) -> bytes {
+        raise RuntimeError("404");
+    }
+    try {
+        binary_mod._http_get_bytes = _as_any(_raise);
+        assert binary_mod.resolve_pod_base_image(d, "")
+            == "jaseci/jaclang:experimental-7494";
     } finally {
         binary_mod._http_get_bytes = saved;
     }
