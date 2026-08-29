@@ -348,10 +348,13 @@ impl Session.postinit -> None {
     import threading;
     self._lock = threading.RLock();
     self._raw_lock = threading.Lock();
+    self._query_cache_lock = threading.Lock();
     self._topology_lock = threading.Lock();
     self._fetch_count = 0;
     self.__mem__ = {};
     self.__raw_mem__ = {};
+    self._query_cache = {};
+    self._topology_index = None;
     self.__topology_index__ = None;
     self._prefetch_ids = set();
     self._prefetch_done = threading.Event();
@@ -441,6 +444,7 @@ impl Session.get(id: UUID) -> (Anchor | None) {
 impl Session.put(anchor: Anchor) -> None {
     aid = anchor.ensure_id();
     with self._lock {
+        self.invalidate_query_cache();
         if isinstance(anchor, (NodeAnchor, EdgeAnchor)) {
             self.invalidate_topology_index();
         }
@@ -456,6 +460,7 @@ impl Session.put(anchor: Anchor) -> None {
 
 impl Session.mark_dirty(anchor: Anchor) -> None {
     if anchor.id in self.__mem__ {
+        self.invalidate_query_cache();
         self._dirty[anchor.id] = None;
     }
 }
@@ -463,6 +468,7 @@ impl Session.mark_dirty(anchor: Anchor) -> None {
 
 impl Session.delete(id: UUID) -> None {
     with self._lock {
+        self.invalidate_query_cache();
         self.invalidate_topology_index();
         self.__mem__.pop(id, None);
         self._dirty.pop(id, None);
@@ -670,12 +676,14 @@ impl Session.commit(anchor: (Anchor | None) = None) -> None {
             self._dirty.clear();
             self._deleted.clear();
         }
+        self.invalidate_query_cache();
     }
     self._fire_on_commit();
 }
 
 
 impl Session.abort -> None {
+    self.invalidate_query_cache();
     if self.store is not None {
         self.store.rollback();
     }
@@ -719,12 +727,61 @@ impl Session.get_mem -> dict[UUID, Anchor] {
 }
 
 
+impl Session.invalidate_query_cache -> None {
+    lock = getattr(self, "_query_cache_lock", None);
+    if lock is not None {
+        lock.acquire();
+    }
+    try {
+        self._query_cache = {};
+    } finally {
+        if lock is not None {
+            lock.release();
+        }
+    }
+}
+
+
+impl Session.query_cache_get(key: any) -> any {
+    lock = getattr(self, "_query_cache_lock", None);
+    if lock is not None {
+        lock.acquire();
+    }
+    try {
+        return self._query_cache.get(key);
+    } finally {
+        if lock is not None {
+            lock.release();
+        }
+    }
+}
+
+
+impl Session.query_cache_put(key: any, value: any) -> None {
+    lock = getattr(self, "_query_cache_lock", None);
+    if lock is not None {
+        lock.acquire();
+    }
+    try {
+        if len(self._query_cache) >= 4096 {
+            self._query_cache.clear();
+        }
+        self._query_cache[key] = value;
+    } finally {
+        if lock is not None {
+            lock.release();
+        }
+    }
+}
+
+
 impl Session.invalidate_topology_index -> None {
     lock = getattr(self, "_topology_lock", None);
     if lock is not None {
         lock.acquire();
     }
     try {
+        self._topology_index = None;
         self.__topology_index__ = None;
     } finally {
         if lock is not None {
@@ -736,7 +793,10 @@ impl Session.invalidate_topology_index -> None {
 
 impl Session.warm_topology_for_nodes(ids: Iterable[UUID]) -> any {
     import from jaclang.runtime.topology_index { warm_topology_for_nodes }
-    return warm_topology_for_nodes(self, list(ids));
+    idx = warm_topology_for_nodes(self, list(ids));
+    self._topology_index = idx;
+    self.__topology_index__ = idx;
+    return idx;
 }
 
 
@@ -929,6 +989,9 @@ impl Session._raise_ro_retry -> None {
 
 impl Session._drop_snapshot_reads -> None {
     import from jaclang.runtime.osp_graph_sv { sv_forget_edge }
+    if self._snapshot_reads {
+        self.invalidate_query_cache();
+    }
     for id in self._snapshot_reads {
         if id in self._dirty or id in self._deleted {
             continue;
@@ -950,6 +1013,7 @@ impl Session._ensure_txn -> None {
         }
         wanted = self._txn_isolation();
         if not self.store.in_txn() {
+            self.invalidate_query_cache();
             self.store.begin(wanted);
             return;
         }
@@ -958,6 +1022,7 @@ impl Session._ensure_txn -> None {
             if self._ro_units > 0 {
                 self._raise_ro_retry();
             }
+            self.invalidate_query_cache();
             self.store.commit();
             self._drop_snapshot_reads();
             self.store.begin(TxnIsolation.SERIALIZABLE);
@@ -998,6 +1063,7 @@ impl Session.read_scope_exit -> None {
             return;
         }
         try {
+            self.invalidate_query_cache();
             self.store.commit();
         } except Exception as e {
             logger.warning(
@@ -1065,6 +1131,7 @@ impl Session.get_fetch_count -> int {
 
 
 impl Session._recover_conflict -> None {
+    self.invalidate_query_cache();
     if self.store is not None {
         try {
             self.store.rollback();
@@ -1147,6 +1214,7 @@ impl Session._flush_locked(full: bool) -> None {
             pending.append((anchor, h));
         }
         if rows or self._deleted {
+            self.invalidate_query_cache();
             if self.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
                 if self._ro_units > 0 {
                     self._raise_ro_retry();
@@ -1319,6 +1387,7 @@ impl Session.close -> None {
     self._dirty.clear();
     self._deleted.clear();
     self._flushed_hash.clear();
+    self.invalidate_query_cache();
     import from jaclang.runtime.osp_graph_sv { sv_store_closed }
     sv_store_closed(self);
 }

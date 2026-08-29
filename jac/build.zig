@@ -253,7 +253,7 @@ pub fn build(b: *std.Build) void {
     addTreeInputs(b, build_stub, "jaclang");
     build_stub.addFileInput(b.path("launcher/launcher.jac"));
     b.step("stub", "Build just the launcher stub (no payload)")
-        .dependOn(&b.addInstallBinFile(stub, "jac").step);
+        .dependOn(&b.addInstallBinFile(stub, "jac-stub").step);
 
     // --- runtime payload: -Dpayload override, else mkpayload ---------------
     const payload: std.Build.LazyPath = if (b.option([]const u8, "payload", "Path to a prebuilt runtime payload .tar.zst")) |p|

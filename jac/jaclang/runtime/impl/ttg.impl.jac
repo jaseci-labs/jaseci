@@ -526,7 +526,7 @@ impl JacTTGGenerator._arch_types_for_ids(
     missing: list[UUID] = [];
     seen: set[UUID] = set();
     raw_mem = mem?.__raw_mem__;
-    topo_idx = getattr(mem, "__topology_index__", None);
+    topo_idx = mem?._topology_index;
     for id in ids {
         if id in seen {
             continue;
@@ -632,6 +632,7 @@ def _resolve_indexed_chain(
             return None;
         }
         current = origins;
+        current_warmed = True;
         if not chain {
             return current[:limit];
         }
@@ -639,9 +640,12 @@ def _resolve_indexed_chain(
             if not current {
                 return [];
             }
-            idx = mem.warm_topology_for_nodes(current);
-            if not isinstance(idx, TopologyIndex) {
-                return None;
+            if not current_warmed {
+                idx = mem.warm_topology_for_nodes(current);
+                if not isinstance(idx, TopologyIndex) {
+                    return None;
+                }
+                current_warmed = True;
             }
             for cur in current {
                 if idx.node_type(cur) is None {
@@ -650,12 +654,7 @@ def _resolve_indexed_chain(
             }
             is_last = hop_idx == len(chain) - 1;
             current = idx.resolve_chain(current, [hop], limit if is_last else 0);
-            if not is_last and current {
-                idx = mem.warm_topology_for_nodes(current);
-                if not isinstance(idx, TopologyIndex) {
-                    return None;
-                }
-            }
+            current_warmed = False;
         }
         return current[:limit];
     } except Exception as e {
@@ -702,6 +701,67 @@ def _cached_type_matches(
 }
 
 
+def _owner_root_for_id(
+    mem: any,
+    id: UUID,
+    topo_idx: (TopologyIndex | None) = None
+) -> (UUID | None) {
+    if mem is None {
+        return None;
+    }
+    if topo_idx is None {
+        maybe_idx = mem?._topology_index;
+        if isinstance(maybe_idx, TopologyIndex) {
+            topo_idx = maybe_idx;
+        }
+    }
+    if isinstance(topo_idx, TopologyIndex) {
+        owner = topo_idx.owner_root_for(id);
+        if owner is not None {
+            return owner;
+        }
+    }
+    raw_mem = mem?.__raw_mem__;
+    if isinstance(raw_mem, dict) {
+        row = raw_mem.get(id);
+        if row is not None and row.root_id is not None {
+            return row.root_id;
+        }
+    }
+    anchor = mem?.__mem__?.get(id);
+    if anchor is not None {
+        return anchor.`root;
+    }
+    return None;
+}
+
+
+def _append_prefetch_id(
+    mem: any,
+    prefetch: list[UUID],
+    prefetch_seen: set[UUID],
+    id: UUID,
+    max_length: int,
+    topo_idx: (TopologyIndex | None) = None
+) -> bool {
+    if id not in prefetch_seen {
+        if len(prefetch) >= max_length {
+            return False;
+        }
+        prefetch_seen.add(id);
+        prefetch.append(id);
+    }
+    owner = _owner_root_for_id(mem, id, topo_idx);
+    if owner is not None and owner != id and owner not in prefetch_seen {
+        if len(prefetch) < max_length {
+            prefetch_seen.add(owner);
+            prefetch.append(owner);
+        }
+    }
+    return True;
+}
+
+
 @classmethod
 impl JacTTGGenerator.get_ttg_prefetch_list(
     cls: type[JacTTGGenerator],
@@ -736,7 +796,9 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
         )
     );
     start_id = start_anchor.id;
-    prefetch: list[UUID] = [start_id];
+    prefetch: list[UUID] = [];
+    prefetch_seen: set[UUID] = set();
+    _append_prefetch_id(mem, prefetch, prefetch_seen, start_id, max_length);
     seen: set[UUID] = {start_id};
     queue: list[UUID] = [start_id];
     type_cache: dict[UUID, str] = {};
@@ -846,7 +908,11 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
                     break;
                 }
                 seen.add(tgt);
-                prefetch.append(tgt);
+                if not _append_prefetch_id(
+                    mem, prefetch, prefetch_seen, tgt, max_length, topo_idx
+                ) {
+                    break;
+                }
                 added.append(tgt);
                 if is_visit_chain {
                     queue.append(tgt);
@@ -855,14 +921,6 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
             }
             if added {
                 if topo_idx is not None {
-                    try {
-                        warmed = mem.warm_topology_for_nodes(added);
-                        if isinstance(warmed, TopologyIndex) {
-                            topo_idx = warmed;
-                        }
-                    } except Exception {
-                        ;
-                    }
                     for tgt in added {
                         if tgt not in type_cache {
                             tname = topo_idx.node_type(tgt);

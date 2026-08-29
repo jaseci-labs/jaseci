@@ -51,6 +51,189 @@ def _bound_pushable -> bool {
 }
 
 
+def _freeze_cache_value(value: any) -> any {
+    if isinstance(value, UUID) {
+        return str(value);
+    }
+    if isinstance(value, (list, tuple)) {
+        return tuple([_freeze_cache_value(v) for v in value]);
+    }
+    if isinstance(value, set) {
+        return tuple(sorted([_freeze_cache_value(v) for v in value], key=str));
+    }
+    if isinstance(value, dict) {
+        out: list = [];
+        for k in sorted(value.keys(), key=str) {
+            out.append((str(k), _freeze_cache_value(value[k])));
+        }
+        return tuple(out);
+    }
+    return value;
+}
+
+
+def _query_cache_key(kind: str, sql: str, params: dict, upto: int) -> tuple {
+    return (kind, upto, sql, _freeze_cache_value(params));
+}
+
+
+def _uniq_uuid_list(ids: list[UUID]) -> list[UUID] {
+    out: list[UUID] = [];
+    seen: set[UUID] = set();
+    for uid in ids {
+        if uid in seen {
+            continue;
+        }
+        seen.add(uid);
+        out.append(uid);
+    }
+    return out;
+}
+
+
+def _type_name(tp: any) -> (str | None) {
+    if tp is None {
+        return None;
+    }
+    name = str(getattr(tp, "__name__", ""));
+    return name if name else None;
+}
+
+
+def _single_node_type_name(hop: any) -> (tuple | None) {
+    nd = hop.nd;
+    if nd is None {
+        return (True, None);
+    }
+    types = list(nd) if isinstance(nd, tuple) else [nd];
+    if len(types) != 1 {
+        return None;
+    }
+    name = _type_name(types[0]);
+    return (True, name) if name is not None else None;
+}
+
+
+def _topology_chain(q: GraphQuery, upto: int) -> (list[tuple[str | None, str | None, int]] | None) {
+    if q.edges_only or q.order {
+        return None;
+    }
+    chain: list[tuple[str | None, str | None, int]] = [];
+    for hop in q.hops[:upto] {
+        if hop.epreds or hop.only is not None {
+            return None;
+        }
+        direction = int(hop.dir or 2);
+        if direction not in (1, 2, 3) {
+            return None;
+        }
+        edge_name = _type_name(hop.`edge);
+        if hop.`edge is not None and edge_name is None {
+            return None;
+        }
+        node_type = _single_node_type_name(hop);
+        if node_type is None {
+            return None;
+        }
+        chain.append((edge_name, node_type[1], direction));
+    }
+    return chain;
+}
+
+
+def _existing_topology_index(mem: Session) -> any {
+    idx = getattr(mem, "_topology_index", None);
+    if idx is None {
+        return None;
+    }
+    for attr in ("resolve_chain", "node_type", "owner_root_for", "has_root") {
+        if not hasattr(idx, attr) {
+            return None;
+        }
+    }
+    return idx;
+}
+
+
+def _topology_complete_for(idx: any, ids: list[UUID]) -> bool {
+    for uid in ids {
+        if idx.node_type(uid) is None {
+            return False;
+        }
+        owner = idx.owner_root_for(uid);
+        if owner is None or not idx.has_root(owner) {
+            return False;
+        }
+    }
+    return True;
+}
+
+
+def _topology_filter_pred_ids(
+    mem: Session, ids: list[UUID], preds: list[QPred]
+) -> (list[UUID] | None) {
+    if not preds or not ids {
+        return ids;
+    }
+    fetched = mem.batch_get(ids);
+    out: list[UUID] = [];
+    for uid in ids {
+        anchor = fetched.get(uid);
+        if anchor is None or not anchor.is_populated() or anchor.archetype is None {
+            return None;
+        }
+        ok = True;
+        for pred in preds {
+            if not pred.matches(pred_subject(anchor.archetype, pred)) {
+                ok = False;
+                break;
+            }
+        }
+        if ok {
+            out.append(uid);
+        }
+    }
+    return out;
+}
+
+
+def _topology_node_ids(
+    mem: Session, origin_ids: list[UUID], q: GraphQuery, upto: int
+) -> (list[UUID] | None) {
+    if mem.store is None or not origin_ids {
+        return [] if not origin_ids else None;
+    }
+    idx = _existing_topology_index(mem);
+    if idx is None {
+        return None;
+    }
+    chain = _topology_chain(q, upto);
+    if chain is None {
+        return None;
+    }
+    current = _uniq_uuid_list(origin_ids);
+    if not chain {
+        return current;
+    }
+    hops = list(q.hops[:upto]);
+    for (i, hop) in enumerate(chain) {
+        if not _topology_complete_for(idx, current) {
+            return None;
+        }
+        current = idx.resolve_chain(current, [hop], 0);
+        if not current {
+            return [];
+        }
+        filtered = _topology_filter_pred_ids(mem, current, hops[i].preds);
+        if filtered is None {
+            return None;
+        }
+        current = filtered;
+    }
+    return current;
+}
+
+
 impl _sql_pairs(
     mem: Session, origin_ids: list[UUID], q: GraphQuery, upto: int
 ) -> tuple[list[tuple[(UUID | None), (UUID | None)]], list[QPred]] {
@@ -97,11 +280,22 @@ impl _sql_pairs(
         tail = list(cq.residual.get(last) or []);
     }
     cq.params['origin'] = [str(i) for i in origin_ids];
+    cache_key: (tuple | None) = None;
+    if not cq.residual {
+        cache_key = _query_cache_key("pairs", cq.sql, cq.params, upto);
+        cached = mem.query_cache_get(cache_key);
+        if cached is not None {
+            return (list(cached[0]), list(cached[1]));
+        }
+    }
     out: list[tuple[(UUID | None), (UUID | None)]] = [];
     for r in store.rows(cq.sql, cq.params) {
         nid = UUID(str(r[0])) if r[0] is not None else None;
         eid = UUID(str(r[1])) if r[1] is not None else None;
         out.append((nid, eid));
+    }
+    if cache_key is not None {
+        mem.query_cache_put(cache_key, (tuple(out), tuple(tail)));
     }
     return (out, tail);
 }
@@ -123,11 +317,12 @@ def _tail_ok(anchor: Anchor, tail: list[QPred]) -> bool {
 
 def _resolve_pairs(
     mem: Session, q: GraphQuery, upto: int
-) -> tuple[list[tuple[any, any]], dict[any, Anchor], list[QPred]] {
+) -> tuple[list[tuple[any, any]], dict[any, Anchor], list[QPred], bool] {
     origins = origin_anchors(q);
     local: dict[any, Anchor] = {};
     sql_ids: list[UUID] = [];
     mem_origins: list[Anchor] = [];
+    used_topology = False;
     for oanch in origins {
         if mem.store is not None and oanch.persistent {
             sql_ids.append(oanch.ensure_id());
@@ -136,7 +331,14 @@ def _resolve_pairs(
         }
         local[anchor_key(oanch)] = oanch;
     }
-    (pairs, tail) = _sql_pairs(mem, sql_ids, q, upto);
+    topo_ids = _topology_node_ids(mem, sql_ids, q, upto);
+    if topo_ids is not None {
+        pairs = [(i, None) for i in topo_ids];
+        tail: list[QPred] = [];
+        used_topology = bool(sql_ids);
+    } else {
+        (pairs, tail) = _sql_pairs(mem, sql_ids, q, upto);
+    }
     if upto == 0 {
         pairs = [(i, None) for i in sql_ids];
     }
@@ -150,7 +352,7 @@ def _resolve_pairs(
         }
         pairs.append((akey, ekey));
     }
-    return (pairs, local, tail);
+    return (pairs, local, tail, used_topology);
 }
 
 
@@ -188,7 +390,7 @@ def _unique_nodes(pairs: list[tuple[any, any]]) -> list {
 
 
 impl resolve_query_prefix(mem: Session, q: GraphQuery, upto: int) -> list[UUID] {
-    (pairs, _local, _tail) = _resolve_pairs(mem, q, upto);
+    (pairs, _local, _tail, _used_topology) = _resolve_pairs(mem, q, upto);
     return [
         k
         for k in _unique_nodes(pairs)
@@ -207,7 +409,7 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
     if not needs_store(mem, origins) {
         return walk_nodes(origins, q, gated);
     }
-    (pairs, local, tail) = _resolve_pairs(mem, q, len(q.hops));
+    (pairs, local, tail, used_topology) = _resolve_pairs(mem, q, len(q.hops));
     ids = _unique_nodes(pairs);
     out = _materialize_ids(mem, ids, local);
     if tail {
@@ -217,7 +419,7 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
             if _tail_ok(a, tail)
         ];
     }
-    if gated and not _acl_fully_pushed(mem, q) {
+    if gated and (used_topology or not _acl_fully_pushed(mem, q)) {
         out = [
             a
             for a in out
@@ -276,7 +478,7 @@ impl resolve_query_edges(mem: Session, q: GraphQuery) -> list[Anchor] {
     if not needs_store(mem, origins) {
         return walk_edges(origins, q, gated);
     }
-    (pairs, local, tail) = _resolve_pairs(mem, q, len(q.hops));
+    (pairs, local, tail, _used_topology) = _resolve_pairs(mem, q, len(q.hops));
     edge_ids: list = [];
     node_of: dict = {};
     seen: set = set();
@@ -352,14 +554,25 @@ impl resolve_query_count(mem: Session, q: GraphQuery) -> int {
         }
         ids.append(oanch.ensure_id());
     }
+    topo_ids = _topology_node_ids(mem, ids, q, len(q.hops));
+    if topo_ids is not None {
+        return len(topo_ids);
+    }
     mem.read_barrier();
     cq = compile_query(q, len(q.hops), promotions=store?.promotions, count_only=True);
     if cq.residual {
         return len(_resolve_for(mem, q));
     }
     cq.params['origin'] = [str(i) for i in ids];
+    cache_key = _query_cache_key("count", cq.sql, cq.params, len(q.hops));
+    cached = mem.query_cache_get(cache_key);
+    if cached is not None {
+        return int(cached);
+    }
     rows = store.rows(cq.sql, cq.params);
-    return int(rows[0][0]) if rows else 0;
+    count = int(rows[0][0]) if rows else 0;
+    mem.query_cache_put(cache_key, count);
+    return count;
 }
 
 

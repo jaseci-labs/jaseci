@@ -196,7 +196,7 @@ test "TTG uses warmed topology to continue across owner roots" {
         ctx2 = _ctx(td);
         JacRuntime.exec_ctx = ctx2;
         try {
-            (_, _, alice_id, bob_id, tweet_id) = ids;
+            (alice_root_id, bob_root_id, alice_id, bob_id, tweet_id) = ids;
             alice = ctx2.mem.get(alice_id);
             assert isinstance(alice, NodeAnchor);
             plan = JacTTGGenerator.get_ttg_prefetch_list(
@@ -204,6 +204,21 @@ test "TTG uses warmed topology to continue across owner roots" {
             );
             assert bob_id in plan , plan;
             assert tweet_id in plan , plan;
+            assert alice_root_id in plan , plan;
+            assert bob_root_id in plan , plan;
+            assert len(plan) <= 10 , plan;
+            assert plan.index(alice_id) < plan.index(alice_root_id) , plan;
+            assert plan.index(bob_id) < plan.index(bob_root_id) , plan;
+
+            limited = JacTTGGenerator.get_ttg_prefetch_list(
+                GTITraverse(), alice, ctx2.mem, max_length=4
+            );
+            assert len(limited) == 4 , limited;
+            assert alice_id in limited , limited;
+            assert alice_root_id in limited , limited;
+            assert bob_id in limited , limited;
+            assert bob_root_id in limited , limited;
+            assert tweet_id not in limited , limited;
         } finally {
             JacRuntime.exec_ctx = old;
             ctx2.close();

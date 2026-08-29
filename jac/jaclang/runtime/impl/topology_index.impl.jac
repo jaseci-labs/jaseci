@@ -249,10 +249,10 @@ impl TopologyIndex.__len__ -> int {
 
 
 def _topology_index_for(mem: any) -> TopologyIndex {
-    idx = getattr(mem, "__topology_index__", None);
+    idx = mem?._topology_index;
     if not isinstance(idx, TopologyIndex) {
         idx = TopologyIndex();
-        setattr(mem, "__topology_index__", idx);
+        mem._topology_index = idx;
     }
     return idx;
 }
@@ -310,24 +310,24 @@ impl warm_topology_for_nodes(mem: any, node_ids: list[UUID]) -> TopologyIndex {
                   AND NOT (root_id = ANY(CAST(:loaded_roots AS uuid[])))
             ),
             local_nodes(id) AS (
+                SELECT wr.root_id
+                FROM wanted_roots wr
+                UNION
                 SELECT n.id
                 FROM anchors n
+                JOIN wanted_roots wr ON wr.root_id = n.root_id
                 WHERE n.kind = 'NodeAnchor'
-                  AND (
-                    n.id IN (SELECT root_id FROM wanted_roots)
-                    OR n.root_id IN (SELECT root_id FROM wanted_roots)
-                  )
             ),
             edge_rows AS (
                 SELECT e.id, e.arch_type, e.src, e.dst, e.undirected, e.seq
                 FROM anchors e
-                JOIN anchors s ON s.id = e.src AND s.kind = 'NodeAnchor'
-                JOIN anchors t ON t.id = e.dst AND t.kind = 'NodeAnchor'
+                JOIN local_nodes n ON n.id = e.src
                 WHERE e.kind = 'EdgeAnchor'
-                  AND (
-                    s.id IN (SELECT id FROM local_nodes)
-                    OR t.id IN (SELECT id FROM local_nodes)
-                  )
+                UNION
+                SELECT e.id, e.arch_type, e.src, e.dst, e.undirected, e.seq
+                FROM anchors e
+                JOIN local_nodes n ON n.id = e.dst
+                WHERE e.kind = 'EdgeAnchor'
             ),
             all_node_ids(id) AS (
                 SELECT id FROM local_nodes
