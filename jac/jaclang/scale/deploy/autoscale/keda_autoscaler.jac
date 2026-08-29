@@ -42,8 +42,10 @@ obj KEDAAutoscaler(Autoscaler) {
         trigger: Trigger, app_name: str, trigger_index: int
     ) -> dict[str, any];
 
+    static def _owner_label_value(name: str) -> str;
+    def _scaled_object_name(spec: AutoscalerSpec, app_name: str) -> str;
     def _build_trigger_auth_manifest(
-        trigger: Trigger, namespace: str, app_name: str, trigger_index: int
+        trigger: Trigger, namespace: str, app_name: str, trigger_index: int, owner: str
     ) -> (dict[str, any] | None);
 
     def _apply_custom_object(
@@ -56,11 +58,18 @@ obj KEDAAutoscaler(Autoscaler) {
         body: dict[str, any]
     ) -> None;
 
+    def _prune_orphan_trigger_auths(
+        api: any, namespace: str, owner: str, desired_auth_names: set[str]
+    ) -> None;
+
     def _build_manifests(spec: AutoscalerSpec) -> list[dict[str, any]];
     def preflight -> list[str];
     def apply(spec: AutoscalerSpec) -> bool;
-    def destroy(autoscaler_name: str, namespace: str) -> None;
-    def destroy_collection(namespace: str, label_selector: str) -> None;
+    def destroy(app_name: str, namespace: str) -> None;
+    def destroy_collection(
+        namespace: str, label_selector: str, best_effort: bool = False
+    ) -> None;
+
     def resource_name_for(target: str) -> str;
     def _validate_http_activation_spec(spec: HTTPActivationSpec) -> None;
     def _build_routing_rules(rules: list[HTTPRoutingRule]) -> list[dict[str, any]];
