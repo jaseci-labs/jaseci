@@ -102,7 +102,8 @@ obj NodeAnchor(Anchor) {
         edges: list[EdgeAnchor],
         version: int = field(`init=False, `default=0),
         out_light: (dict[type, list] | None) = field(`init=False, `default=None),
-        in_light: (dict[type, list] | None) = field(`init=False, `default=None);
+        in_light: (dict[type, list] | None) = field(`init=False, `default=None),
+        mixed: bool = field(`init=False, `default=False);
 
     def __getstate__ -> dict[(str, object)];
     def is_populated -> bool;
@@ -186,6 +187,32 @@ class EdgeArchetype(Archetype) {
     with entry {
         __jac_base__: ClassVar[bool] = True;
         __jac__: EdgeAnchor;
+    }
+
+    def __eq__(other: object) -> bool {
+        if self is other {
+            return True;
+        }
+        mine = self.__dict__.get('__jac__');
+        theirs = other.__dict__.get('__jac__')
+            if isinstance(other, EdgeArchetype)
+            else None;
+        if mine is None or theirs is None or not (mine.light and theirs.light) {
+            return False;
+        }
+        return (
+            `type(self) is `type(other)
+            and mine.source is theirs.source
+            and mine.target is theirs.target
+        );
+    }
+
+    def __hash__ -> int {
+        mine = self.__dict__.get('__jac__');
+        if mine is not None and mine.light {
+            return hash((`type(self), id(mine.source), id(mine.target)));
+        }
+        return id(self);
     }
 }
 

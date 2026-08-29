@@ -4886,7 +4886,24 @@ impl JcirGenPass._traversal_consumed_now(nd: EdgeRefTrailer) -> bool {
 
 
 impl JcirGenPass._simple_hop(nd: EdgeRefTrailer) -> (list[CgNode] | None) {
-    if nd.is_async or isinstance(nd.parent, VisitStmt) {
+    if nd.is_async {
+        return None;
+    }
+    parent = nd.parent;
+    if isinstance(parent, VisitStmt) {
+        return None;
+    }
+    if isinstance(parent, AtomTrailer)
+        and parent.target is nd
+        and isinstance(parent.right, (FilterCompr, IndexSlice)) {
+        return None;
+    }
+    if isinstance(parent, FuncCall)
+        and isinstance(parent.target, Name)
+        and parent.target.sym_name == 'sorted'
+        and parent.params is not None
+        and len(parent.params) >= 1
+        and parent.params[0] is nd {
         return None;
     }
     chain = nd.chain;

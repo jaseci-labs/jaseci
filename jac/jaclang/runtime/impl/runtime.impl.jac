@@ -1112,7 +1112,8 @@ impl JacGraph.hop(
     anchor = origin.__jac__;
     if anchor.persistent
         or (
-            anchor.edges and (edge_type is None or not is_light_edge_type(edge_type))
+            anchor.edges
+            and (anchor.mixed or edge_type is None or not is_light_edge_type(edge_type))
         ) {
         return JacRuntimeInterface.refs(
             GraphQuery(
@@ -1300,6 +1301,10 @@ impl JacGraph.heavy_edge(
     );
     source.edges.append(eanch);
     target.edges.append(eanch);
+    if is_light_edge_type(`type(`edge)) {
+        source.mixed = True;
+        target.mixed = True;
+    }
     sv_conn(source, target, eanch, is_undirected);
     if conn_assign {
         for (fld, val) in zip(conn_assign[0], conn_assign[1], strict=False) {

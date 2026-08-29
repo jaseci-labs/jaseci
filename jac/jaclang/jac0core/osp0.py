@@ -91,6 +91,9 @@ def connect0(
             e.__jac__ = EdgeAnchor(archetype=e, source=src, target=tgt, is_undirected=False)
             src.edges.append(e.__jac__)
             tgt.edges.append(e.__jac__)
+            if is_light_edge_type(cls):
+                src.mixed = True
+                tgt.mixed = True
             if conn_assign:
                 for fld, val in zip(conn_assign[0], conn_assign[1], strict=False):
                     setattr(e, fld, val)
@@ -224,7 +227,9 @@ def hop0(origin: Any, dir: int, edge: Any = None, edges_only: bool = False) -> l
     if isinstance(origin, list):
         return refs0(origin, dir, edge, edges_only)
     me = origin.__jac__
-    if me.edges and (edge is None or me.persistent or not is_light_edge_type(edge)):
+    if me.edges and (
+        edge is None or me.persistent or me.mixed or not is_light_edge_type(edge)
+    ):
         return refs0(origin, dir, edge, edges_only)
     if edges_only:
         out: list = []
