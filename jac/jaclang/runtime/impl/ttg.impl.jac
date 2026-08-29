@@ -657,6 +657,130 @@ def _resolve_indexed_chain(
 }
 
 
+def _resolve_recursive_sql_single_hop(
+    mem: any,
+    origins: list[UUID],
+    chain: list[tuple[str | None, str | None, int]],
+    limit: int
+) -> (list[UUID] | None) {
+    import os as _os;
+    if (
+        _os.environ.get("JAC_TTG_SQL_RECURSIVE", "1").strip().lower()
+        in ("0", "false", "no", "off")
+    ) {
+        return None;
+    }
+    if mem is None or mem?.store is None or limit <= 0 {
+        return None;
+    }
+    if len(origins) != 1 or len(chain) != 1 {
+        return None;
+    }
+    hop = chain[0];
+    edge_type = hop[0];
+    node_type = hop[1];
+    try {
+        direction = int(hop[2] or 2);
+    } except Exception {
+        return None;
+    }
+    if edge_type is None or node_type is not None or direction not in (1, 2, 3) {
+        return None;
+    }
+    try {
+        mem.read_barrier();
+        rows = mem.store.rows(
+            """
+            WITH RECURSIVE walk(node_id, depth, path) AS (
+                SELECT
+                    CAST(:origin_id AS uuid) AS node_id,
+                    0 AS depth,
+                    ARRAY[CAST(:origin_id AS uuid)] AS path
+                UNION ALL
+                SELECT
+                    step.next_id,
+                    walk.depth + 1,
+                    walk.path || step.next_id
+                FROM walk
+                JOIN LATERAL (
+                    SELECT
+                        CASE
+                            WHEN e.src = walk.node_id THEN e.dst
+                            ELSE e.src
+                        END AS next_id,
+                        e.seq,
+                        e.id
+                    FROM anchors e
+                    WHERE e.kind = 'EdgeAnchor'
+                      AND e.src IS NOT NULL
+                      AND e.dst IS NOT NULL
+                      AND (
+                          (CAST(:direction AS int) = 1
+                              AND (e.dst = walk.node_id
+                                   OR (e.undirected AND e.src = walk.node_id)))
+                          OR (CAST(:direction AS int) = 2
+                              AND (e.src = walk.node_id
+                                   OR (e.undirected AND e.dst = walk.node_id)))
+                          OR (CAST(:direction AS int) = 3
+                              AND (e.src = walk.node_id OR e.dst = walk.node_id))
+                      )
+                      AND (
+                          e.arch_type = CAST(:edge_type AS text)
+                          OR EXISTS (
+                              SELECT 1 FROM graph_types gt
+                              WHERE gt.type_name = e.arch_type
+                                AND gt.ancestor = CAST(:edge_type AS text)
+                          )
+                      )
+                    ORDER BY e.seq NULLS FIRST, e.id
+                    LIMIT 1
+                ) step ON step.next_id IS NOT NULL
+                         AND NOT (step.next_id = ANY(walk.path))
+                WHERE walk.depth < CAST(:limit AS int)
+            )
+            SELECT node_id
+            FROM walk
+            WHERE depth > 0
+            ORDER BY depth, node_id
+            LIMIT CAST(:limit AS int)
+            """,
+            {
+                "origin_id": str(origins[0]),
+                "edge_type": str(edge_type),
+                "direction": direction,
+                "limit": int(limit)
+            }
+        );
+        out: list[UUID] = [];
+        seen: set[UUID] = set();
+        for r in rows {
+            uid = UUID(str(r[0]));
+            if uid not in seen {
+                seen.add(uid);
+                out.append(uid);
+            }
+        }
+        warm_ids: list[UUID] = [origins[0]];
+        warm_ids.extend(out);
+        try {
+            mem.warm_topology_for_hop(warm_ids, edge_type, node_type, direction);
+        } except Exception as e {
+            logger.debug(f"TTG recursive SQL topology warm failed: {e}");
+        }
+        if out {
+            logger.debug(
+                f"[TTG-SQL] recursive single-hop edge={edge_type} "
+                f"origin={origins[0]} ids={len(out)}"
+            );
+        }
+        return out;
+    } except Exception as e {
+        logger.debug(f"TTG recursive SQL resolve failed: {e}");
+        return None;
+    }
+}
+
+
 def _cached_type_matches(
     cls: type[JacTTGGenerator],
     warch: any,
@@ -866,7 +990,10 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
             }
             remaining = max_length - len(prefetch);
             rc_start = _time.perf_counter();
-            results = _resolve_indexed_chain(mem, origins, chain, remaining);
+            results = _resolve_recursive_sql_single_hop(mem, origins, chain, remaining);
+            if results is None {
+                results = _resolve_indexed_chain(mem, origins, chain, remaining);
+            }
             if results is None {
                 results = [];
                 batch_seen: set[UUID] = set();
