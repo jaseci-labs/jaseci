@@ -7,6 +7,13 @@ import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_c
 import from jaclang.scale.deploy.target.factory { DeploymentTargetFactory }
 import from jaclang.scale.models.resource_status { ResourceStatus }
 import from jaclang.scale.observability.factory { UtilityFactory }
+import from jaclang.testing.requires { require_flag }
+
+with entry {
+    require_flag(
+        "JAC_TEST_K8S", "this e2e needs a live Kubernetes cluster and kubectl context"
+    );
+}
 
 # Real-cluster e2e for get_status()'s scale-to-zero eligibility check. Unlike
 # test_factories.jac's unit tests, this hits a genuine Kubernetes Deployment
