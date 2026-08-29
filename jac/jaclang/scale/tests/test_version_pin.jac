@@ -2,7 +2,17 @@ import json;
 import tempfile;
 import unittest.mock;
 import jaclang.scale.injector.binary as binary_mod;
-import from jaclang.scale.injector.binary { _exact_of, _resolve_target_version }
+import from jaclang.scale.injector.binary {
+    _exact_of,
+    _resolve_target_version,
+    generation_mismatch
+}
+import from jaclang.cli.manifest_route { resolve_cli_version }
+import from jaclang.scale.config.app_config { AppConfig }
+import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+    KubernetesConfig
+}
+import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
 import from jaclang.project.config { JacConfig }
 import from pathlib { Path }
 
@@ -342,4 +352,91 @@ test "the preflight needs the pod binary and the host sealing binary" {
     ) {
         assert binary_mod.preflight_pod_runtime(d, "stable", pod_arch) == "0.34.3";
     }
+}
+
+
+test "a deploy is refused when the pin and the deployer differ by minor line" {
+    # The pin selects the pod image and the seal; the deploying jac renders the
+    # manifests and provisions the database. #8766: nothing compared the two, so
+    # a 0.34 deployer stood up Mongo for an app pinned to a Postgres runtime and
+    # said nothing. Patch drift is fine, a minor line is not.
+    assert generation_mismatch("0.34.17", "0.34.15") == "";
+    assert generation_mismatch("0.36.1", "0.36.1") == "";
+
+    refusal = generation_mismatch("0.36.1", "0.34.15");
+    assert "0.36.1" in refusal and "0.34.15" in refusal , (
+        f"{refusal!a} must name both versions so the operator can act"
+    );
+    assert "0.34." in refusal , f"{refusal!a} must say what to pin instead";
+    assert "mongo" not in refusal.lower() and "postgres" not in refusal.lower() , (
+        f"{refusal!a} names a backend; a deployer only knows its own generation"
+    );
+
+    # Refusal runs both ways: a newer deployer cannot serve an older pin either.
+    assert generation_mismatch("0.34.17", "0.36.1") != "";
+    assert generation_mismatch("1.0.0", "0.36.1") != "";
+
+    # An unpinned app, or a deployer that cannot name itself, is not refused.
+    assert generation_mismatch("", "0.34.15") == "";
+    assert generation_mismatch("0.36.1", "") == "";
+}
+
+
+test "the deploy refusal is keyed on the running jac, and never blocks itself" {
+    # Composed on the real pin resolver, so this pins the wiring the deploy
+    # calls: an app pinned to the running jac always deploys, an app a minor
+    # line away never does, and anything the resolver cannot answer is left
+    # for the preflight to report rather than refused here.
+    running = resolve_cli_version().strip();
+    (major, minor, _) = binary_mod._ver_key(running);
+
+    same = _project(f'[project]\nname = "x"\njac-version = "=={running}"\n');
+    assert binary_mod.deploy_generation_refusal(same, "stable") == "" , (
+        "an app pinned to the deployer's own version must always deploy"
+    );
+
+    other = _project(
+        f'[project]\nname = "x"\njac-version = "=={major}.{minor + 1}.0"\n'
+    );
+    assert binary_mod.deploy_generation_refusal(other, "stable") != "";
+
+    # No pin, and a channel that ships its own binary, are both unconstrained.
+    assert binary_mod.deploy_generation_refusal(
+        _project('[project]\nname = "x"\n'), "stable"
+    )
+        == "";
+    assert binary_mod.deploy_generation_refusal(other, "dev") == "";
+
+    # A pin naming no published release is the preflight's error to raise, with
+    # the message that tells the operator which releases exist.
+    unmatched = _project('[project]\nname = "x"\njac-version = ">=99.0"\n');
+    with unittest.mock.patch.object(
+        binary_mod, "_list_release_versions", return_value=["0.34.3"]
+    ) {
+        assert binary_mod.deploy_generation_refusal(unmatched, "stable") == "";
+    }
+}
+
+
+test "a cross-generation deploy is refused before the cluster is contacted" {
+    # #8766: the pin picks the pod image, the deploying jac provisions the
+    # store, and a mismatch used to deploy anyway. The refusal has to land
+    # before _load_cluster_config, so it reaches an operator with no kubeconfig
+    # and costs nothing to discover.
+    running = resolve_cli_version().strip();
+    (major, minor, _) = binary_mod._ver_key(running);
+    pinned = f"{major}.{minor + 1}.0";
+    code = _project(f'[project]\nname = "x"\njac-version = "=={pinned}"\n');
+
+    cfg = KubernetesConfig.from_dict(
+        KubernetesConfig, {"app_name": "x", "namespace": "default"}
+    );
+    result = KubernetesTarget(config=cfg, microservices_config={}).deploy(
+        AppConfig(code_folder=code, file_name="main.jac")
+    );
+
+    assert result.success is False , "a cross-generation deploy must not proceed";
+    assert pinned in result.message and running in result.message , (
+        f"{result.message!a} must name both generations"
+    );
 }

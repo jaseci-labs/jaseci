@@ -245,6 +245,36 @@ def resolve_deploy_version(project_dir: str, channel: str) -> str {
 }
 
 
+def generation_mismatch(pinned: str, running: str) -> str {
+    if not pinned or not running {
+        return "";
+    }
+    (pin_major, pin_minor, _) = _ver_key(pinned);
+    (run_major, run_minor, _) = _ver_key(running);
+    if (pin_major, pin_minor) == (run_major, run_minor) {
+        return "";
+    }
+    return (
+        f"this deployer is jac {running} and cannot deploy an app pinned to "
+        f"{pinned}. the deploying jac renders the manifests and provisions the "
+        "database, so a different minor line stands up a backend the pod "
+        f"cannot use. upgrade the deployer, or pin [project] jac-version to "
+        f"{run_major}.{run_minor}."
+    );
+}
+
+
+def deploy_generation_refusal(project_dir: str, channel: str) -> str {
+    import from jaclang.cli.manifest_route { resolve_cli_version }
+    try {
+        pinned = resolve_deploy_version(project_dir, channel);
+    } except Exception {
+        return "";
+    }
+    return generation_mismatch(pinned, resolve_cli_version());
+}
+
+
 def resolve_console_version(
     project_dir: str, channel: str, deploy_version: str
 ) -> str {

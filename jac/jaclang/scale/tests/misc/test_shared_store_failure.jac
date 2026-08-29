@@ -12,9 +12,12 @@ manager rendering it verbatim, and failures staying retryable.
 """
 
 import os;
+import tempfile;
 import unittest.mock;
 import jaclang.scale.persistence.pg as pg_mod;
+import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+import from pathlib { Path }
 
 glob _DEAD_URL = 'postgresql://jac:jac@127.0.0.1:1/jac';
 
@@ -194,4 +197,71 @@ test "a configured [scale.database] url is a real source, not just a message" {
     } finally {
         _disarm();
     }
+}
+
+
+def _in_cluster(toml: str) -> bool {
+    # A real jac.toml through the real loader: the guard reads
+    # [scale.kubernetes] database_mode, so a hand-built dict would not prove
+    # the key is spelled the way an app spells it.
+    prior = os.environ.get('KUBERNETES_SERVICE_HOST');
+    os.environ['KUBERNETES_SERVICE_HOST'] = '10.96.0.1';
+    with tempfile.TemporaryDirectory() as d {
+        (Path(d) / 'jac.toml').write_text(toml, encoding='utf-8');
+        reset_scale_config();
+        get_scale_config(Path(d));
+        try {
+            return pg_mod._embedded_refused_in_cluster();
+        } finally {
+            reset_scale_config();
+            if prior is None {
+                os.environ.pop('KUBERNETES_SERVICE_HOST', None);
+            } else {
+                os.environ['KUBERNETES_SERVICE_HOST'] = prior;
+            }
+        }
+    }
+}
+
+
+test "in a cluster with no url, the store refuses to embed a database" {
+    # #8766: shared_store() provisioned a database inside the pod when no url
+    # resolved. One per replica, on the pod filesystem, gone on restart, and
+    # nothing said so. A deploy that lost its database must fail, not degrade.
+    _arm('');
+    prior = os.environ.get('KUBERNETES_SERVICE_HOST');
+    os.environ['KUBERNETES_SERVICE_HOST'] = '10.96.0.1';
+    try {
+        assert pg_mod.shared_store() is None , (
+            'an embedded database in a cluster is per-replica and lost on '
+            'restart; it must not be handed out as the shared store'
+        );
+        reason = pg_mod.shared_store_failure() or '';
+        assert reason == pg_mod.NO_DATABASE_IN_CLUSTER , (
+            f"{reason!a} does not report the in-cluster refusal"
+        );
+        assert 'database_mode' in reason , (
+            f"{reason!a} must name the opt-out for an app that needs no database"
+        );
+    } finally {
+        if prior is None {
+            os.environ.pop('KUBERNETES_SERVICE_HOST', None);
+        } else {
+            os.environ['KUBERNETES_SERVICE_HOST'] = prior;
+        }
+        _disarm();
+    }
+}
+
+
+test "the refusal is scoped to a cluster, and yields to a declared opt-out" {
+    assert pg_mod._embedded_refused_in_cluster() is False , (
+        'off-cluster, an embedded database is the point; refusing there would '
+        'break every laptop run'
+    );
+    assert _in_cluster('[project]\nname = "app"\n') is True;
+    assert _in_cluster(
+        '[project]\nname = "app"\n[scale.kubernetes]\ndatabase_mode = "none"\n'
+    )
+        is False , 'an app that declares it needs no database is not misconfigured';
 }
