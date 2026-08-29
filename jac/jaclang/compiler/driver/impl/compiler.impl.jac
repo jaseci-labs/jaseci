@@ -687,6 +687,16 @@ impl JacCompiler.parse_str(
             if _na_ok {
                 _coerce_native_module(mod);
                 na_coverage_record(mod.loc.mod_path, 'native');
+            } elif _na_why == 'previously-demoted' {
+                import from jaclang.compiler.placement.placement_pins {
+                    _demoted_native_code
+                }
+                na_coverage_record(
+                    mod.loc.mod_path,
+                    'demoted',
+                    _demoted_native_code(os.path.realpath(mod.loc.mod_path)),
+                    _na_why
+                );
             } else {
                 na_coverage_record(mod.loc.mod_path, 'server', '', _na_why);
             }
@@ -1163,7 +1173,7 @@ impl JacCompiler.compile(
             _resolved, 'ice' if _is_ice else 'demoted', _demote_code, _first_err
         );
         import from jaclang.compiler.placement.placement_pins { _mark_demoted_native }
-        _mark_demoted_native(_resolved);
+        _mark_demoted_native(_resolved, _demote_code);
         del _wrap_prog.errors_had[_pre_errs:];
         del _wrap_prog.warnings_had[_pre_warns:];
         try {
@@ -1229,12 +1239,16 @@ impl JacCompiler._persist_module_cache(
     } except Exception {
         return;
     }
+    cache_bc = result.gen.py_bytecode;
+    if cache_bc is None or result.parse_failed {
+        return;
+    }
     try {
         import pickle;
         import json;
         import zlib;
         sections: dict[int, bytes] = {};
-        sections[SEC_BYTECODE] = result.gen.py_bytecode;
+        sections[SEC_BYTECODE] = cache_bc;
         if actual_program.mtir_map {
             sections[SEC_MTIR] = pickle.dumps(
                 actual_program.mtir_map, int(pickle.HIGHEST_PROTOCOL)
@@ -1279,10 +1293,7 @@ impl JacCompiler._persist_module_cache(
         if result.ct_file_deps {
             sections[SEC_CTDEPS] = ct_deps_section(result.ct_file_deps);
         }
-        cache_bc: any = result.gen?.py_bytecode;
-        if cache_bc is not None and not result.parse_failed {
-            write_module_cache(full_target, cache_bc, extra_sections=sections);
-        }
+        write_module_cache(full_target, cache_bc, extra_sections=sections);
     } except Exception {
         ;
     }

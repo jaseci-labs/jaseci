@@ -99,6 +99,7 @@ def config_module_pin(source_path: str) -> str {
 
 
 glob _na_demotion_memo: dict[str, tuple] = {},
+     _na_demotion_code: dict[str, str] = {},
      _na_demotion_probed: set[str] = set();
 
 
@@ -131,9 +132,10 @@ def _load_demotion(path: str) -> (tuple | None) {
         with open(sidecar, "r", encoding="utf-8") as f {
             parts = f.read().split();
         }
-        if len(parts) != 2 {
+        if len(parts) < 2 {
             return None;
         }
+        _na_demotion_code[path] = parts[2] if len(parts) > 2 else "";
         return (int(parts[0]), int(parts[1]));
     } except Exception {
         return None;
@@ -171,17 +173,27 @@ def _is_demoted_native(path: str) -> bool {
         return True;
     }
     del _na_demotion_memo[path];
+    _na_demotion_code.pop(path, None);
     _remove_demotion_sidecar(path);
     return False;
 }
 
 
-def _mark_demoted_native(path: str) {
+def _demoted_native_code(path: str) -> str {
+    if not _is_demoted_native(path) {
+        return "";
+    }
+    return _na_demotion_code.get(path, "");
+}
+
+
+def _mark_demoted_native(path: str, code: str = "") {
     key = _file_key(path);
     if key is None {
         return;
     }
     _na_demotion_memo[path] = key;
+    _na_demotion_code[path] = code;
     _na_demotion_probed.discard(path);
     sidecar = _demotion_sidecar(path);
     if sidecar is None {
@@ -191,7 +203,7 @@ def _mark_demoted_native(path: str) {
         os.makedirs(os.path.dirname(sidecar), exist_ok=True);
         tmp = f"{sidecar}.{os.getpid()}.tmp";
         with open(tmp, "w", encoding="utf-8") as f {
-            f.write(f"{key[0]} {key[1]}\n");
+            f.write(f"{key[0]} {key[1]} {code}\n");
         }
         os.replace(tmp, sidecar);
     } except OSError {
@@ -202,6 +214,7 @@ def _mark_demoted_native(path: str) {
 
 def _clear_demoted_native(path: str) {
     _na_demotion_memo.pop(path, None);
+    _na_demotion_code.pop(path, None);
     _na_demotion_probed.discard(path);
     _remove_demotion_sidecar(path);
 }

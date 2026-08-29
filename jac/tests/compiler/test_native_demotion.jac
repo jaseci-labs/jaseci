@@ -26,6 +26,7 @@ import from jaclang.compiler.driver.boundary_classify {
 }
 import from jaclang.compiler.placement.placement_pins {
     _clear_demoted_native,
+    _demoted_native_code,
     _demotion_sidecar,
     _is_demoted_native,
     _mark_demoted_native,
@@ -113,12 +114,13 @@ test "a demotion verdict persists across processes and dies with the file" {
         }
         try {
             assert not _is_demoted_native(path) , "no verdict before marking";
-            _mark_demoted_native(path);
+            _mark_demoted_native(path, "E5092");
             sidecar = _demotion_sidecar(path);
             assert sidecar is not None and os.path.exists(sidecar) , "marking must persist a sidecar";
             _na_demotion_memo.clear();
             _na_demotion_probed.clear();
             assert _is_demoted_native(path) , "a fresh process must read the verdict back";
+            assert _demoted_native_code(path) == "E5092" , "the demotion code must persist with the verdict";
             with open(path, "w", encoding="utf-8") as f {
                 f.write("with entry { x = 12; }\n");
             }
