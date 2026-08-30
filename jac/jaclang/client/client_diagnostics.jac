@@ -14,6 +14,9 @@ obj ClientDiagnostic {
         unmapped_reason: str = "",
         related: list[dict[str, any]] = [],
         stack: str = "",
+        component_stack: str = "",
+        resolved_stack: str = "",
+        resolved_component_stack: str = "",
         base_path: str = "",
         rendered_cache: str = "";
 
@@ -39,7 +42,14 @@ def build_failure_diagnostic(
 ) -> ClientDiagnostic;
 
 def classify_client_payload(
-    base_path: str, payload: dict[str, any], channel: str = "browser"
+    base_path: str,
+    payload: dict[str, any],
+    channel: str = "browser",
+    verbose: bool = False
+) -> ClientDiagnostic;
+
+def log_client_error(
+    base_path: str, data: dict[str, any], verbose: bool = False
 ) -> ClientDiagnostic;
 
 def render_diagnostics(

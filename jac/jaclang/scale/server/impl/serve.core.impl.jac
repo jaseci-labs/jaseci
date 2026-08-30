@@ -448,11 +448,8 @@ impl JacAPIServerCore._register_client_error_endpoint -> None {
             );
         }
 
-        import from jaclang.client.source_mapping {
-            _error_rate_limiter,
-            resolve_client_error_stacks
-        }
-        import from jaclang.client.client_diagnostics { classify_client_payload }
+        import from jaclang.client.source_mapping { _error_rate_limiter }
+        import from jaclang.client.client_diagnostics { log_client_error }
         import from jaclang.project.config { get_config }
 
         if not _error_rate_limiter.should_log(message) {
@@ -462,34 +459,16 @@ impl JacAPIServerCore._register_client_error_endpoint -> None {
         }
         cfg = get_config();
         verbose = cfg.client_errors.verbose if cfg else False;
-        diag = classify_client_payload(self.base_path or '', data, channel='browser');
-        (stack, component_stack) = resolve_client_error_stacks(
-            self.base_path,
-            data.get('stack', ''),
-            data.get('componentStack', ''),
-            verbose=verbose
-        );
-        rendered = diag.render();
-        log_parts = [rendered];
-        if stack {
-            log_parts.append(f"  Stack: {stack}");
-        }
-        if component_stack {
-            log_parts.append(f"  Component stack: {component_stack}");
-        }
-        if data.get('url', '') {
-            log_parts.append(f"  URL: {data['url']}");
-        }
-        logger.error('\n'.join(log_parts));
-        console.error(rendered);
-        if stack {
-            for line in stack.split('\n') {
+        diag = log_client_error(self.base_path or '', data, verbose);
+        console.error(diag.render());
+        if diag.resolved_stack {
+            for line in diag.resolved_stack.split('\n') {
                 console.print(f"    {line}");
             }
         }
-        if component_stack {
+        if diag.resolved_component_stack {
             console.print(f"  Component stack:");
-            for line in component_stack.split('\n') {
+            for line in diag.resolved_component_stack.split('\n') {
                 console.print(f"    {line}");
             }
         }

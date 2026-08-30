@@ -1019,23 +1019,3 @@ obj JacLocator {
         );
     }
 }
-
-def resolve_client_error_stacks(
-    base_path: (str | None),
-    stack: str = "",
-    component_stack: str = "",
-    verbose: bool = False
-) -> tuple[str, str] {
-    if base_path and (stack or component_stack) {
-        try {
-            locator = JacLocator.for_base(base_path);
-            if stack {
-                stack = locator.resolve_stack_trace(stack, verbose);
-            }
-            if component_stack {
-                component_stack = locator.resolve_stack_trace(component_stack, verbose);
-            }
-        } except Exception { }
-    }
-    return (stack, component_stack);
-}

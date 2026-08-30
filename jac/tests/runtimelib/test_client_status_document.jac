@@ -292,6 +292,10 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
             logged = buf.getvalue();
             assert "error[E7003]" in logged , logged;
             assert "--> app.jac:2" in logged , logged;
+            # One classification, one renderer: the stack is resolved on the
+            # diagnostic (not a second time by the endpoint) and logged from it.
+            assert "  Stack: TypeError" in logged , logged;
+            assert "at app (app.jac:2:" in logged , logged;
         } finally {
             logger.removeHandler(sink);
             client.close();
@@ -367,5 +371,57 @@ test "a tagged stdout line reaches the callback and is never echoed" {
         echoed = "".join(out.written);
         assert CLIENT_EVENT_PREFIX not in echoed , echoed;
         assert "ordinary vite chatter" in echoed , echoed;
+    }
+}
+
+test "the shared client-error path classifies once and carries both stacks" {
+    import from jaclang.client.client_diagnostics { log_client_error }
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        compiled = proj / ".jac" / "client" / "compiled";
+        compiled.mkdir(parents=True);
+        src = proj / "app.jac";
+        src.write_text(
+            "def:pub app() -> any {\n    marker = 1;\n    return marker;\n}\n"
+        );
+        (compiled / "app.js").write_text(
+            f"/* Source: {src} */\nfunction app() {{\n  let marker = 1;\n"
+            "  return marker;\n}\nexport {app};\n"
+        );
+        (compiled / "app.js.map").write_text(
+            json.dumps(
+                {
+                    "version": 3,
+                    "file": "app.js",
+                    "sources": [str(src)],
+                    "names": ["marker"],
+                    "mappings": ";;EACIA"
+                }
+            )
+        );
+        raw_stack = "TypeError: marker is not a function\n"
+            "    at app (http://localhost:8000/compiled/app.js:3:4)";
+        raw_component = "    at App (http://localhost:8000/compiled/app.js:3:4)";
+        diag = log_client_error(
+            str(proj),
+            {
+                "message": "marker is not a function",
+                "stack": raw_stack,
+                "componentStack": raw_component,
+                "url": "http://localhost:8000/"
+            }
+        );
+        assert diag.code == "E7003" , diag.code;
+        # The raw stacks are kept verbatim alongside the resolved ones.
+        assert diag.stack == raw_stack;
+        assert diag.component_stack == raw_component;
+        assert "app.jac:2:" in diag.resolved_stack , diag.resolved_stack;
+        assert "compiled/app.js" not in diag.resolved_stack , diag.resolved_stack;
+        assert "app.jac:2:" in diag.resolved_component_stack ,
+            diag.resolved_component_stack;
+        # Both stacks survive the status-document round trip.
+        wire = diag.to_dict();
+        assert wire["resolved_stack"] == diag.resolved_stack;
+        assert wire["component_stack"] == raw_component;
     }
 }

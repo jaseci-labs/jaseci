@@ -133,6 +133,9 @@ impl ClientDiagnostic.to_dict -> dict[str, any] {
         "unmapped_reason": self.unmapped_reason,
         "related": self.related,
         "stack": self.stack,
+        "component_stack": self.component_stack,
+        "resolved_stack": self.resolved_stack,
+        "resolved_component_stack": self.resolved_component_stack,
         "rendered": self.render()
     };
 }
@@ -152,6 +155,9 @@ impl ClientDiagnostic.from_dict(data: dict[str, any]) -> ClientDiagnostic {
         unmapped_reason=_text(data.get("unmapped_reason")),
         related=list(data.get("related") or []),
         stack=_text(data.get("stack")),
+        component_stack=_text(data.get("component_stack")),
+        resolved_stack=_text(data.get("resolved_stack")),
+        resolved_component_stack=_text(data.get("resolved_component_stack")),
         rendered_cache=_text(data.get("rendered"))
     );
 }
@@ -285,7 +291,10 @@ def _requested_module(message: str) -> str {
 }
 
 impl classify_client_payload(
-    base_path: str, payload: dict[str, any], channel: str = "browser"
+    base_path: str,
+    payload: dict[str, any],
+    channel: str = "browser",
+    verbose: bool = False
 ) -> ClientDiagnostic {
     message = _text(payload.get("message"));
     stack = _text(payload.get("stack"));
@@ -293,12 +302,22 @@ impl classify_client_payload(
     (line, column) = _payload_position(payload);
     raw_location = _raw_location(payload);
     locator = JacLocator.for_base(base_path);
+    component_stack = _text(payload.get("componentStack"));
     diag = ClientDiagnostic(
         channel=channel,
         base_path=os.path.abspath(base_path or "."),
         raw_location=raw_location,
-        stack=stack
+        stack=stack,
+        component_stack=component_stack
     );
+    if stack {
+        diag.resolved_stack = locator.resolve_stack_trace(stack, verbose);
+    }
+    if component_stack {
+        diag.resolved_component_stack = locator.resolve_stack_trace(
+            component_stack, verbose
+        );
+    }
 
     miss = _EXPORT_MISS_RE.search(message);
     if miss {
@@ -430,5 +449,25 @@ impl classify_client_payload(
         f"the browser reported '{raw_location or 'no location'}', which no compiled "
         f"Jac artifact and no source map claims"
     );
+    return diag;
+}
+
+impl log_client_error(
+    base_path: str, data: dict[str, any], verbose: bool = False
+) -> ClientDiagnostic {
+    import logging;
+    diag = classify_client_payload(base_path, data, "browser", verbose);
+    parts: list[str] = [diag.render()];
+    if diag.resolved_stack {
+        parts.append(f"  Stack: {diag.resolved_stack}");
+    }
+    if diag.resolved_component_stack {
+        parts.append(f"  Component stack: {diag.resolved_component_stack}");
+    }
+    url = _text(data.get("url"));
+    if url {
+        parts.append(f"  URL: {url}");
+    }
+    logging.getLogger("jaclang.client_errors").error("\n".join(parts));
     return diag;
 }
