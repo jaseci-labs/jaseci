@@ -134,10 +134,16 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             " build can compile + statically link the LLVMPY_* shim."
         );
     }
-    dst_dir = os.path.join(site, "jaclang", "compiler", "backends", "native", "llvm");
-    make_dirs(dst_dir);
+    dst = site_shim_path(site);
+    make_dirs(os.path.dirname(dst));
     log(f"==> bundling Zig-built LLVMPY_* shim ({so})");
-    copy_file(so, os.path.join(dst_dir, os.path.basename(so)));
+    copy_file(so, dst);
+    if not file_exists(dst) {
+        raise PayloadDie(
+            f"mkpayload: bundled {so} but no shim at {dst}; the JIR seal and the"
+            " shipped binary both locate it by that exact path."
+        );
+    }
 
     bb = opts.bun_bin;
     if bb is not None {
@@ -333,18 +339,7 @@ impl stage_tree(
     stage_stdlib(pbs_lib, lib_dst);
 
     copy_tree(site, os.path.join(stage, "site"), skip_stage_site);
-    strip_best_effort(
-        os.path.join(
-            stage,
-            "site",
-            "jaclang",
-            "compiler",
-            "backends",
-            "native",
-            "llvm",
-            shim_file_name()
-        )
-    );
+    strip_best_effort(site_shim_path(os.path.join(stage, "site")));
 
     stage_python_bin(pbs_py_dir, stage);
 
@@ -496,6 +491,12 @@ impl shim_file_name -> str {
         return "libjacllvm.dylib";
     }
     return "libjacllvm.so";
+}
+
+impl site_shim_path(site: str) -> str {
+    return os.path.join(
+        site, "jaclang", "compiler", "backends", "native", "llvm", shim_file_name()
+    );
 }
 
 impl find_libpython(lib_dir: str) -> FoundLib {

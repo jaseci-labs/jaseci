@@ -97,6 +97,7 @@ def stage_musl(musl_dir: str, stage: str);
 def stage_wasm_libc(wasm_libc_dir: str, stage: str);
 def find_ca_bundle(pbs_py_dir: str) -> str | None;
 def shim_file_name -> str;
+def site_shim_path(site: str) -> str;
 def find_libpython(lib_dir: str) -> FoundLib;
 def is_volatile_path(p: str) -> bool;
 def collect_stage_entries(stage: str) -> list[TarEntry];
