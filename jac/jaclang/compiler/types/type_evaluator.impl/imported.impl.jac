@@ -462,7 +462,7 @@ impl TypeEvaluator.forget_module(resolved_path: str) -> None {
         if key == resolved_path or os.path.realpath(key) == canon
     ];
     for key in stale_paths {
-        self._module_type_cache.pop(key);
+        del self._module_type_cache[key];
     }
 }
 
