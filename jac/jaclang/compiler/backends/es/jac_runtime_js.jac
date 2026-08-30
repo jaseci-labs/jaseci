@@ -1910,6 +1910,7 @@ if (!globalThis.__jacOspCore) {
 var __ospC = globalThis.__jacOspCore;
 var __ospO = __ospC.O;
 var __ospH = __ospC.H;
+var __ospGenericEdge = globalThis.__jacOspGenericEdge ??= class __ospGenericEdge {};
 function __ospId(o) {
   if (o == null) return 0;
   let h = __ospH.get(o);

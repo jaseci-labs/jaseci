@@ -1362,6 +1362,11 @@ impl JcirGenPass.exit_sub_tag with SubTag exit {
 }
 
 impl JcirGenPass.exit_module with Module exit {
+    import from jaclang.runtime.osp_model { get_osp_model }
+    _osp = get_osp_model(here);
+    for (_cname, _cother) in _osp.collisions {
+        self.emit(E5102, node_override=here, name=_cname, other=_cother);
+    }
     mod_path = here.loc.mod_path;
     is_builtin_module = (
         (mod_path.endswith('builtin.jac') or mod_path.endswith('builtin.py'))

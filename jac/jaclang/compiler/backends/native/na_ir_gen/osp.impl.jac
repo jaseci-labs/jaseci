@@ -345,7 +345,7 @@ impl NaIRGenOsp._osp_emit_callbacks -> dict {
         _nested = self.builder.load(
             self.builder.gep(
                 _scope,
-                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx.get("nested", 7))],
+                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx["nested"])],
                 name="oc.nested.p"
             ),
             name="oc.nested"
@@ -362,7 +362,7 @@ impl NaIRGenOsp._osp_emit_callbacks -> dict {
         _wlk_jv = self.builder.load(
             self.builder.gep(
                 _scope,
-                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx.get("wlk", 0))],
+                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx["wlk"])],
                 name="oc.wlk.p"
             ),
             name="oc.wlk.jv"
@@ -375,7 +375,7 @@ impl NaIRGenOsp._osp_emit_callbacks -> dict {
         _rep = self.builder.load(
             self.builder.gep(
                 _scope,
-                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx.get("reports", 4))],
+                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx["reports"])],
                 name="oc.rep.p"
             ),
             name="oc.rep"

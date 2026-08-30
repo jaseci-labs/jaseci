@@ -5869,6 +5869,10 @@ impl EsastGenPass._build_osp_tags_js -> str {
         );
         lines.append(f"__ospC.osp_register_type({tag}, [{isa_members}]);");
     }
+    import from jaclang.runtime.osp_model { stable_osp_tag }
+    ge_tag = stable_osp_tag("GenericEdge");
+    lines.append(f"__ospGenericEdge.prototype.__tag = {ge_tag};");
+    lines.append(f"__ospC.osp_register_type({ge_tag}, []);");
     return "\n".join(lines);
 }
 
@@ -5958,35 +5962,58 @@ impl EsastGenPass.exit_visit_stmt with uni.VisitStmt exit {
     if here.insert_loc and here.insert_loc.gen.es_ast {
         insert = cast(es.Expression, here.insert_loc.gen.es_ast);
     }
-    here.gen.es_ast = self.sync_loc(
-        es.ExpressionStatement(
-            expression=self.sync_loc(
-                es.CallExpression(
-                    callee=self.sync_loc(
-                        es.Identifier(name='__ospC.osp_visit'), jac_node=here
-                    ),
-                    arguments=[target, insert]
-                ),
-                jac_node=here
-            )
+    visit_call = self.sync_loc(
+        es.CallExpression(
+            callee=self.sync_loc(
+                es.Identifier(name='__ospC.osp_visit'), jac_node=here
+            ),
+            arguments=[target, insert]
         ),
         jac_node=here
+    );
+    if here.else_body and here.else_body.gen.es_ast {
+        here.gen.es_ast = self.sync_loc(
+            es.IfStatement(
+                test=self.sync_loc(
+                    es.UnaryExpression(
+                        operator='!', argument=visit_call, prefix=True
+                    ),
+                    jac_node=here
+                ),
+                consequent=cast(es.Statement, here.else_body.gen.es_ast),
+                alternate=None
+            ),
+            jac_node=here
+        );
+        return;
+    }
+    here.gen.es_ast = self.sync_loc(
+        es.ExpressionStatement(expression=visit_call), jac_node=here
     );
 }
 
 impl EsastGenPass.exit_disengage_stmt with uni.DisengageStmt exit {
     self.needs_osp_kernel = True;
     here.gen.es_ast = self.sync_loc(
-        es.ExpressionStatement(
-            expression=self.sync_loc(
-                es.CallExpression(
-                    callee=self.sync_loc(
-                        es.Identifier(name='__ospC.osp_disengage'), jac_node=here
+        es.BlockStatement(
+            body=[
+                self.sync_loc(
+                    es.ExpressionStatement(
+                        expression=self.sync_loc(
+                            es.CallExpression(
+                                callee=self.sync_loc(
+                                    es.Identifier(name='__ospC.osp_disengage'),
+                                    jac_node=here
+                                ),
+                                arguments=[]
+                            ),
+                            jac_node=here
+                        )
                     ),
-                    arguments=[]
+                    jac_node=here
                 ),
-                jac_node=here
-            )
+                self.sync_loc(es.ReturnStatement(argument=None), jac_node=here)
+            ]
         ),
         jac_node=here
     );
@@ -6288,7 +6315,15 @@ impl EsastGenPass._build_osp_graph_call(
     edge_tag = -1;
     edge_body: es.Expression;
     if co.conn_type is None {
-        edge_body = self.sync_loc(es.ObjectExpression(properties=[]), jac_node=nd);
+        edge_body = self.sync_loc(
+            es.NewExpression(
+                callee=self.sync_loc(
+                    es.Identifier(name='__ospGenericEdge'), jac_node=nd
+                ),
+                arguments=[]
+            ),
+            jac_node=nd
+        );
     } else {
         edge_tag = self._edge_tag_literal(nd, co.conn_type, False);
         if isinstance(co.conn_type, uni.Name) {
@@ -6310,6 +6345,50 @@ impl EsastGenPass._build_osp_graph_call(
                         properties=[]
                     ); }
                 )
+            );
+        }
+    }
+    if co.conn_assign is not None {
+        props: list = [];
+        for kw in co.conn_assign.assigns {
+            if kw.key is None {
+                continue;
+            }
+            props.append(
+                self.sync_loc(
+                    es.Property(
+                        key=self.sync_loc(
+                            es.Identifier(name=kw.key.sym_name), jac_node=kw
+                        ),
+                        value=cast(
+                            es.Expression,
+                            self._get_ast_or_default(
+                                kw.value,
+                                default_factory=lambda (_src: any) { es.Literal(
+                                    value=None
+                                ); }
+                            )
+                        ),
+                        kind='init'
+                    ),
+                    jac_node=kw
+                )
+            );
+        }
+        if props {
+            edge_body = self.sync_loc(
+                es.CallExpression(
+                    callee=self.sync_loc(
+                        es.Identifier(name='Object.assign'), jac_node=nd
+                    ),
+                    arguments=[
+                        edge_body,
+                        self.sync_loc(
+                            es.ObjectExpression(properties=props), jac_node=nd
+                        )
+                    ]
+                ),
+                jac_node=nd
             );
         }
     }
