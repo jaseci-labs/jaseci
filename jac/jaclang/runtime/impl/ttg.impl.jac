@@ -12,7 +12,7 @@ import from jaclang.runtime.archetype {
     VisitType
 }
 import from jaclang.runtime.graph_query { QHop }
-import from jaclang.runtime.topology_index { ingest_topology_rows }
+import from jaclang.runtime.topology_index { TopologyIndex, ingest_topology_rows }
 
 glob logger = logging.getLogger(__name__),
      _runtime_type_cache: dict[str, type] = {};
@@ -686,6 +686,101 @@ def _ttg_specialized_max_chain_len(specs: list[dict]) -> int {
 }
 
 
+def _ttg_as_bool(value: object) -> bool {
+    if isinstance(value, bool) {
+        return value;
+    }
+    return str(value).strip().lower() in ("true", "t", "1", "yes", "y");
+}
+
+
+def _ttg_idx_type_matches(
+    idx: TopologyIndex, actual: (str | None), wanted: (str | None)
+) -> bool {
+    if wanted is None {
+        return True;
+    }
+    if actual is None or not actual {
+        return False;
+    }
+    if actual == wanted {
+        return True;
+    }
+    ancestors: set[str] = idx.type_ancestors.get(actual, set());
+    return wanted in ancestors;
+}
+
+
+def _ttg_idx_node_matches(
+    idx: TopologyIndex, node_id: UUID, wanted: (str | None)
+) -> bool {
+    return _ttg_idx_type_matches(idx, idx.node_type(node_id), wanted);
+}
+
+
+def _ttg_mark_single_hop_complete(
+    idx: TopologyIndex,
+    origins: list[UUID],
+    specs: list[dict],
+    plan_depth: dict[UUID, int],
+    plan_is_frontier: dict[UUID, bool],
+    max_length: int,
+    prefetch_count: int
+) -> tuple[int, int] {
+    if prefetch_count >= max_length {
+        return (0, 0);
+    }
+    frontier_nodes: list[UUID] = [];
+    seen: set[UUID] = set();
+
+    def add_frontier(uid: UUID) {
+        if uid in seen {
+            return;
+        }
+        if idx.node_type(uid) is None {
+            return;
+        }
+        seen.add(uid);
+        frontier_nodes.append(uid);
+    }
+
+    for uid in origins {
+        add_frontier(uid);
+    }
+    for (uid, is_frontier) in plan_is_frontier.items() {
+        if not is_frontier {
+            continue;
+        }
+        if int(plan_depth.get(uid, max_length)) >= max_length {
+            continue;
+        }
+        add_frontier(uid);
+    }
+
+    marked = 0;
+    skipped_multihop = 0;
+    for spec in specs {
+        chain = spec.get("chain") or [];
+        if len(chain) != 1 {
+            skipped_multihop += 1;
+            continue;
+        }
+        hop = chain[0];
+        origin_ids: list[UUID] = [
+            uid
+            for uid in frontier_nodes
+            if _ttg_idx_node_matches(idx, uid, spec.get("from_type"))
+        ];
+        if not origin_ids {
+            continue;
+        }
+        idx.mark_hops_loaded(origin_ids, hop[0], hop[1], int(hop[2] or 2));
+        marked += len(origin_ids);
+    }
+    return (marked, skipped_multihop);
+}
+
+
 def _ttg_render_directed_edge_branch(
     source_expr: str,
     source_col: str,
@@ -966,6 +1061,7 @@ def _ttg_render_specialized_set_based_sql(
                     walk.path_ord,
                     walk.path_nodes,
                     walk.path_edges,
+                    walk.is_frontier,
                     CASE
                         WHEN n.kind = 'NodeAnchor' AND n.arch_type = 'Root'
                             THEN n.id
@@ -982,7 +1078,8 @@ def _ttg_render_specialized_set_based_sql(
                     path_nodes,
                     path_edges,
                     0 AS sub_ord,
-                    target_id AS id
+                    target_id AS id,
+                    is_frontier
                 FROM candidate_node_rows
                 UNION ALL
                 SELECT
@@ -991,26 +1088,39 @@ def _ttg_render_specialized_set_based_sql(
                     path_nodes,
                     path_edges,
                     1 AS sub_ord,
-                    owner_root AS id
+                    owner_root AS id,
+                    FALSE AS is_frontier
                 FROM candidate_node_rows
                 WHERE owner_root IS NOT NULL
                   AND owner_root <> target_id
             ),
-            dedup_additions AS (
-                SELECT DISTINCT ON (id)
+            frontier_flags AS (
+                SELECT
                     id,
-                    depth,
-                    path_ord,
-                    path_nodes,
-                    path_edges,
-                    sub_ord
+                    BOOL_OR(is_frontier) AS is_frontier
                 FROM raw_additions
                 WHERE id IS NOT NULL
-                ORDER BY id, depth, path_ord, sub_ord
+                GROUP BY id
+            ),
+            dedup_additions AS (
+                SELECT DISTINCT ON (id)
+                    raw_additions.id,
+                    raw_additions.depth,
+                    raw_additions.path_ord,
+                    raw_additions.path_nodes,
+                    raw_additions.path_edges,
+                    raw_additions.sub_ord,
+                    frontier_flags.is_frontier
+                FROM raw_additions
+                JOIN frontier_flags ON frontier_flags.id = raw_additions.id
+                WHERE raw_additions.id IS NOT NULL
+                ORDER BY raw_additions.id, depth, path_ord, sub_ord
             ),
             ordered_plan AS (
                 SELECT
                     id,
+                    depth,
+                    is_frontier,
                     path_nodes,
                     path_edges,
                     ROW_NUMBER() OVER (
@@ -1019,7 +1129,7 @@ def _ttg_render_specialized_set_based_sql(
                 FROM dedup_additions
             ),
             prefetch_plan AS (
-                SELECT id, path_nodes, path_edges, ord
+                SELECT id, depth, is_frontier, path_nodes, path_edges, ord
                 FROM ordered_plan
                 WHERE ord <= CAST(:limit AS bigint)
             ),
@@ -1027,6 +1137,8 @@ def _ttg_render_specialized_set_based_sql(
                 SELECT
                     p.ord,
                     p.id,
+                    p.depth,
+                    p.is_frontier,
                     n.arch_type,
                     CASE
                         WHEN n.kind = 'NodeAnchor' AND n.arch_type = 'Root'
@@ -1039,7 +1151,15 @@ def _ttg_render_specialized_set_based_sql(
                 JOIN anchors n ON n.id = p.id
                  AND n.kind = 'NodeAnchor'
                 LEFT JOIN graph_types gt ON gt.type_name = n.arch_type
-                GROUP BY p.ord, p.id, n.id, n.kind, n.arch_type, n.root_id
+                GROUP BY
+                    p.ord,
+                    p.id,
+                    p.depth,
+                    p.is_frontier,
+                    n.id,
+                    n.kind,
+                    n.arch_type,
+                    n.root_id
             ),
             topology_node_ids AS (
                 SELECT DISTINCT pn.id
@@ -1098,9 +1218,9 @@ def _ttg_render_specialized_set_based_sql(
                 owner_root,
                 NULL::uuid AS src,
                 NULL::uuid AS dst,
-                false AS undirected,
+                is_frontier AS undirected,
                 ancestors,
-                NULL::bigint AS seq
+                depth::bigint AS seq
             FROM plan_rows
             UNION ALL
             SELECT
@@ -1192,6 +1312,8 @@ def _resolve_sql_visit_bfs_specialized_set_based(
     }
     prefetch: list[UUID] = [];
     prefetch_seen: set[UUID] = set();
+    plan_depth: dict[UUID, int] = {};
+    plan_is_frontier: dict[UUID, bool] = {};
     topology_rows: list[tuple] = [];
     for r in rows {
         row_kind = int(str(r[0]));
@@ -1209,6 +1331,8 @@ def _resolve_sql_visit_bfs_specialized_set_based(
             if type_cache is not None {
                 type_cache[uid] = arch_type;
             }
+            plan_depth[uid] = int(str(r[9] or 0));
+            plan_is_frontier[uid] = _ttg_as_bool(r[7]);
             topology_rows.append((
                 0,
                 r[2],
@@ -1249,8 +1373,19 @@ def _resolve_sql_visit_bfs_specialized_set_based(
             ));
         }
     }
+    complete_hops = 0;
+    skipped_complete_multihop = 0;
     try {
-        ingest_topology_rows(mem, topology_rows);
+        idx = ingest_topology_rows(mem, topology_rows);
+        (complete_hops, skipped_complete_multihop) = _ttg_mark_single_hop_complete(
+            idx,
+            origins,
+            specs,
+            plan_depth,
+            plan_is_frontier,
+            max_length,
+            len(prefetch)
+        );
     } except Exception as e {
         logger.debug(f"TTG specialized SQL BFS topology ingest failed: {e}");
     }
@@ -1259,6 +1394,8 @@ def _resolve_sql_visit_bfs_specialized_set_based(
         f"prefetched={len(prefetch)} rows_returned={len(rows)} "
         f"topology_rows={len(topology_rows)} fanout={fanout_desc} "
         f"max_chain={max_chain_len} query_count=1 "
+        f"complete_hops={complete_hops} "
+        f"skipped_complete_multihop={skipped_complete_multihop} "
         "mode=set-based-specialized"
     );
     return prefetch;
