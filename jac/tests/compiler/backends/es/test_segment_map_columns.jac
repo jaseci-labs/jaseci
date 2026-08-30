@@ -96,8 +96,7 @@ test "an import specifier is not shadowed by a longer one it is a substring of" 
         source=es.Literal(
             value="mermaid",
             loc=es.SourceLocation(
-                start=es.Position(line=1, column=13),
-                end=es.Position(line=1, column=22)
+                start=es.Position(line=1, column=13), end=es.Position(line=1, column=22)
             )
         )
     );
@@ -135,8 +134,7 @@ test "an unlocatable child is skipped rather than guessed onto a wrong column" {
     # no segment may point at a generated column whose text is not the name
     for seg in segments {
         if seg[4] {
-            assert code[seg[1]:seg[1] + len(seg[4])] == seg[4] ,
-                f"{seg} does not sit on its own text in {code!r}";
+            assert code[seg[1]:seg[1] + len(seg[4])] == seg[4] , f"{seg} does not sit on its own text in {code!r}";
         }
     }
 }

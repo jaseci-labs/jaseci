@@ -25,7 +25,45 @@ def _as_any(v: any) -> any {
     return v;
 }
 
+"""Return every process-global this file touches to its default.
+
+Test workers are pooled, so a locator cache keyed on a deleted temp dir, a
+latched rate limiter or a live HotReloader would ride into whatever runs
+next in the same worker.
+"""
+def _reset_client_globals {
+    import from jaclang.client.source_mapping {
+        _locator_cache,
+        _mapper_cache,
+        _error_rate_limiter
+    }
+    _locator_cache.clear();
+    _mapper_cache.clear();
+    _error_rate_limiter._seen = {};
+    _error_rate_limiter._count = 0;
+    _error_rate_limiter._window_start = 0.0;
+    active = HotReloader._active;
+    if active is not None {
+        active.stop();
+    }
+    HotReloader._active = None;
+}
+
+"""Forget a module this file compiled into the long-lived global program."""
+def _drop_module(path: str) -> None {
+    import from jaclang { JacRuntime as Jac }
+    program = Jac.program;
+    if program is None {
+        return;
+    }
+    try {
+        program.invalidate_module(path);
+        program.drop_module_alerts(path);
+    } except Exception { }
+}
+
 def _reloader(base: Path) -> HotReloader {
+    _reset_client_globals();
     watcher = JacFileWatcher(watch_paths=[str(base)], _debounce_ms=50);
     return HotReloader(base_path=str(base), module_name="app", watcher=watcher);
 }
@@ -37,38 +75,41 @@ test "a real client compile failure becomes a located diagnostic" {
         app = proj / "app.jac";
         app.write_text("def app() -> any {\n    return <div UNCLOSED;\n}\n");
         reloader = _reloader(proj);
-        reloader._recompile_client_code(str(app));
-
-        status = reloader.build_status();
-        assert set(status.keys()) == {"status", "diagnostics"} , status;
-        assert status["status"] == "error";
-        diags = status["diagnostics"];
-        assert len(diags) >= 1 , diags;
-        first = diags[0];
-        assert first["file"].endswith("app.jac") , first["file"];
-        assert first["line"] > 0 , first;
-        assert first["code"] , "a compile diagnostic must carry the compiler's code";
-        assert first["channel"] == "jac" , first["channel"];
-        assert "-->" in first["rendered"] , first["rendered"];
-
-        # The status document is the only file written, and it carries the value.
-        client_dir = proj / ".jac" / "client";
-        doc = client_dir / ".jac-status.json";
-        assert doc.exists() , ".jac-status.json was not written";
-        stored = json.loads(doc.read_text());
-        assert stored["status"] == "error";
-        assert stored["diagnostics"][0]["file"].endswith("app.jac");
-        assert not (client_dir / ".jac-build-error.json").exists() ,
-            ".jac-build-error.json must no longer be written";
-        assert not (client_dir / ".jac-dev-status.json").exists() ,
-            ".jac-dev-status.json must no longer be written";
-
-        # Recovery empties the document.
-        app.write_text("def app() -> any {\n    return <div>ok</div>;\n}\n");
-        reloader._recompile_client_code(str(app));
-        reloader.record_ok();
-        assert reloader.build_status() == {"status": "ok", "diagnostics": []};
-        assert not doc.exists() , "a healthy build must leave no status document";
+        try {
+            reloader._recompile_client_code(str(app));
+            status = reloader.build_status();
+            assert set(status.keys()) == {"status", "diagnostics"} , status;
+            assert status["status"] == "error";
+            diags = status["diagnostics"];
+            assert len(diags) >= 1 , diags;
+            first = diags[0];
+            assert first["file"].endswith("app.jac") , first["file"];
+            assert first["line"] > 0 , first;
+            assert first["code"] , "a compile diagnostic must carry the compiler's code";
+            assert first["channel"] == "jac" , first["channel"];
+            assert "-->" in first["rendered"] , first["rendered"];
+            # The status document is the only file written, and it carries the value.
+            client_dir = proj / ".jac" / "client";
+            doc = client_dir / ".jac-status.json";
+            assert doc.exists() , ".jac-status.json was not written";
+            stored = json.loads(doc.read_text());
+            assert stored["status"] == "error";
+            assert stored["diagnostics"][0]["file"].endswith("app.jac");
+            assert not (client_dir / ".jac-build-error.json").exists() , ".jac-build-error.json must no longer be written";
+            assert not (client_dir / ".jac-dev-status.json").exists() , ".jac-dev-status.json must no longer be written";
+            # Recovery empties the document.
+            app.write_text("def app() -> any {\n    return <div>ok</div>;\n}\n");
+            reloader._recompile_client_code(str(app));
+            reloader.record_ok();
+            assert reloader.build_status() == {"status": "ok", "diagnostics": []};
+            assert not doc.exists() , "a healthy build must leave no status document";
+        } finally {
+            # This test compiles into the long-lived global program; drop what
+            # it left there so a pooled worker's later tests do not inherit it.
+            _drop_module(str(app));
+            _drop_module(str(app.resolve()));
+            _reset_client_globals();
+        }
     }
 }
 
@@ -106,7 +147,7 @@ test "raw client events arrive on the callback and are classified once" {
             {
                 "type": "SyntaxError",
                 "message": "The requested module '/.vite/deps/left-pad.js?v=1' "
-                    "does not provide an export named 'Nope'",
+                "does not provide an export named 'Nope'",
                 "stack": "",
                 "source": "",
                 "phase": "load"
@@ -201,6 +242,7 @@ test "the core /__build_status route serves the status document shape" {
         } finally {
             reloader.stop();
             client.close();
+            _reset_client_globals();
         }
     }
 }
@@ -208,7 +250,7 @@ test "the core /__build_status route serves the status document shape" {
 obj _CapturedServer {
     has endpoints: list = [];
 
-    def add_endpoint(ep: any) -> None {
+    def add_endpoint(ep: any) {
         self.endpoints.append(ep);
     }
 }
@@ -236,6 +278,7 @@ test "the scale /__build_status route serves the same status document shape" {
             assert body["diagnostics"][0]["file"] == "main.jac" , body;
         } finally {
             reloader.stop();
+            _reset_client_globals();
         }
     }
 }
@@ -282,7 +325,7 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
                 json={
                     "message": "marker is not a function",
                     "stack": "TypeError: marker is not a function\n"
-                        "    at app (http://localhost:8000/compiled/app.js:3:4)",
+                    "    at app (http://localhost:8000/compiled/app.js:3:4)",
                     "url": "http://localhost:8000/",
                     "source": "http://localhost:8000/compiled/app.js"
                 }
@@ -299,6 +342,7 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
         } finally {
             logger.removeHandler(sink);
             client.close();
+            _reset_client_globals();
         }
     }
 }
@@ -324,11 +368,11 @@ obj _FakeProc {
 obj _FakeOut {
     has written: list[str] = [];
 
-    def write(text: str) -> None {
+    def write(text: str) {
         self.written.append(text);
     }
 
-    def flush -> None { }
+    def flush { }
 }
 
 obj _FakeSys {
@@ -346,12 +390,14 @@ test "a tagged stdout line reaches the callback and is never echoed" {
     with TemporaryDirectory() as tmp {
         seen: list = [];
         bundler = ViteBundler(Path(tmp));
-        bundler.on_client_event = lambda (slot: str, payload: any) {
-            seen.append((slot, payload));
-        };
-        tagged = CLIENT_EVENT_PREFIX + json.dumps(
-            {"slot": "vite", "payload": {"message": "boom", "id": "compiled/x.js"}}
-        ) + "\n";
+        bundler.on_client_event = lambda (slot: str, payload: any) { seen.append(
+            (slot, payload)
+        ); };
+        tagged = CLIENT_EVENT_PREFIX
+            + json.dumps(
+                {"slot": "vite", "payload": {"message": "boom", "id": "compiled/x.js"}}
+            )
+            + "\n";
         stream = _FakeStream(
             lines=[
                 "  VITE v5.0.0  ready in 120 ms\n",
@@ -400,7 +446,7 @@ test "the shared client-error path classifies once and carries both stacks" {
             )
         );
         raw_stack = "TypeError: marker is not a function\n"
-            "    at app (http://localhost:8000/compiled/app.js:3:4)";
+        "    at app (http://localhost:8000/compiled/app.js:3:4)";
         raw_component = "    at App (http://localhost:8000/compiled/app.js:3:4)";
         diag = log_client_error(
             str(proj),
@@ -417,11 +463,25 @@ test "the shared client-error path classifies once and carries both stacks" {
         assert diag.component_stack == raw_component;
         assert "app.jac:2:" in diag.resolved_stack , diag.resolved_stack;
         assert "compiled/app.js" not in diag.resolved_stack , diag.resolved_stack;
-        assert "app.jac:2:" in diag.resolved_component_stack ,
-            diag.resolved_component_stack;
+        assert "app.jac:2:" in diag.resolved_component_stack , diag.resolved_component_stack;
         # Both stacks survive the status-document round trip.
         wire = diag.to_dict();
         assert wire["resolved_stack"] == diag.resolved_stack;
         assert wire["component_stack"] == raw_component;
     }
+}
+
+test "the suite leaves no dev-loop global behind" {
+    import from jaclang.client.source_mapping {
+        _locator_cache,
+        _mapper_cache,
+        _error_rate_limiter
+    }
+    _reset_client_globals();
+    # A pooled worker runs later suites in this same process.
+    assert HotReloader._active is None;
+    assert _locator_cache == {};
+    assert _mapper_cache == {};
+    assert _error_rate_limiter._seen == {};
+    assert _error_rate_limiter._count == 0;
 }

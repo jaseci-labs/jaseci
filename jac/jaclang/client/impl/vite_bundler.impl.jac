@@ -1244,7 +1244,7 @@ def _is_vite_url_line(line: str) -> bool {
 }
 
 impl _forward_vite_output(
-    proc: subprocess.Popen[str],
+    proc: any,
     ready_event: any,
     sys_module: any,
     output_buffer: list[str],
