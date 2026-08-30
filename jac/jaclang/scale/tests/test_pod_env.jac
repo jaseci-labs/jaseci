@@ -16,6 +16,12 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.config.app_config { AppConfig }
+import from jaclang.scale.runtime.gateway.service_registry {
+    ServiceRegistry,
+    ServiceEntry
+}
+import from jaclang.runtimelib.sv_client { peer_url_env_key }
+import from jaclang.scale.config.config_loader { reset_scale_config }
 
 
 glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e";
@@ -259,6 +265,492 @@ test "the marker is opaque and carries no secret material" {
     assert _revision_of(manifest) == "4242" , (
         "the marker is the Secret's resourceVersion, not a function of its values"
     );
+}
+
+
+test "build_env omits JAC_SV_ROUTES when no routes are declared" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg, microservices_config={"routes": {}});
+
+    env = builder._build_env("orders_app", {});
+
+    assert "JAC_SV_ROUTES" not in {e["name"] for e in env};
+}
+
+test "build_env injects K8S_APP_NAME and K8S_NAMESPACE from k8s_config" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="jac-shop-dev");
+    builder = ManifestBuilder(k8s_config=cfg);
+
+    env = builder._build_env("orders", {});
+
+    pairs = {`entry["name"]: `entry["value"] for `entry in env};
+    assert pairs.get("JAC_SV_NAME") == "orders";
+    assert pairs.get("K8S_APP_NAME") == "jac-shop";
+    assert pairs.get("K8S_NAMESPACE") == "jac-shop-dev";
+}
+
+
+test "build_env keeps per-service overrides but never shadows the K8S_* vars" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="jac-shop-dev");
+    builder = ManifestBuilder(k8s_config=cfg);
+
+    env = builder._build_env(
+        "orders", {"env": {"STRIPE_KEY": "sk_test", "K8S_APP_NAME": "evil"}}
+    );
+
+    names = [`entry["name"] for `entry in env];
+    assert "STRIPE_KEY" in names;
+
+    first_app_name = next(
+        (
+            e["value"]
+            for e in env
+            if e["name"] == "K8S_APP_NAME"
+        ),
+        None
+    );
+    assert first_app_name == "jac-shop";
+}
+
+
+test "the gateway pod never rebuilds the client at boot" {
+    # The deploy builds the client bundle on the host and fails fast when
+    # that build fails; the pod serves what shipped and must not retry.
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg);
+    with mock.patch.object(builder, "_client_entry", return_value="main.jac") {
+        `entry = builder._pod_entrypoint();
+    }
+    args = `entry["args"][0];
+    assert "jac build" not in args;
+    assert "exec jac scale gateway" in args;
+}
+
+
+test "no client entry means no client build in the gateway entrypoint" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg);
+    with mock.patch.object(builder, "_client_entry", return_value="") {
+        `entry = builder._pod_entrypoint();
+    }
+    assert "jac build" not in `entry["args"][0];
+}
+
+
+def _entrypoint_run(project: str, env: dict[str, str]) -> tuple[int, str, str] {
+    import subprocess;
+    import from jaclang.scale.injector.bundle { APP_MOUNT_PATH }
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    script: str = ManifestBuilder(k8s_config=cfg)._pod_entrypoint()["args"][0];
+    mount = f"cd {APP_MOUNT_PATH}; ";
+    assert mount in script , script;
+    script = script.replace(mount, f"cd {project}; ", 1);
+    bin_dir = Path(project) / ".stub-bin";
+    bin_dir.mkdir();
+    record = Path(project) / ".jac-argv";
+    stub = bin_dir / "jac";
+    stub.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{record}\"\n");
+    stub.chmod(0o755);
+    run_env = dict(os.environ);
+    run_env["PATH"] = f"{bin_dir}{os.pathsep}{run_env.get('PATH', '')}";
+    run_env.pop("JAC_SV_FILE", None);
+    run_env.update(env);
+    proc = subprocess.run(
+        ["bash", "-c", script], env=run_env, capture_output=True, text=True
+    );
+    argv = record.read_text() if record.is_file() else "";
+    return (proc.returncode, argv, proc.stderr);
+}
+
+
+test "a service pod boots exactly the module the deploy resolved" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "svc.jac").write_text("");
+        (Path(project) / "lib").mkdir();
+        (Path(project) / "lib" / "svc.jac").write_text("");
+        (rc, argv, err) = _entrypoint_run(
+            project, {"JAC_SV_NAME": "svc", "JAC_SV_FILE": "svc.jac"}
+        );
+        assert rc == 0 , err;
+        assert argv.split() == ["run", "--serve", "svc.jac"] , argv;
+    }
+}
+
+
+test "a service pod refuses a file the bundle does not ship" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "svc.jac").write_text("");
+        (rc, argv, err) = _entrypoint_run(
+            project, {"JAC_SV_NAME": "svc", "JAC_SV_FILE": "lib/svc.jac"}
+        );
+        assert rc == 1 , (rc, err);
+        assert argv == "" , argv;
+        assert "does not contain" in err , err;
+    }
+}
+
+
+test "a service pod with no resolved file refuses to guess" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "svc.jac").write_text("");
+        (rc, argv, err) = _entrypoint_run(project, {"JAC_SV_NAME": "svc"});
+        assert rc == 1 , (rc, err);
+        assert argv == "" , argv;
+        assert "JAC_SV_FILE is not set" in err , err;
+    }
+}
+
+
+test "every service pod env carries its bundle-resolved file" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(
+        k8s_config=cfg,
+        project_dir=str(_K8S_E2E_FIXTURE),
+        microservices_config={"routes": dict(_DISCOVERED_ROUTES)}
+    );
+    orders = {e["name"]: e["value"] for e in builder._build_env("orders_app", {})};
+    assert orders["JAC_SV_FILE"] == "orders_app.jac" , orders;
+    main_env = {e["name"]: e["value"] for e in builder._build_env("main", {})};
+    assert main_env["JAC_SV_FILE"] == "main.jac" , main_env;
+}
+
+
+def _routed_project(tmp: str, files: list[str]) -> str {
+    for rel in files {
+        p = Path(tmp) / rel;
+        p.parent.mkdir(parents=True, exist_ok=True);
+        p.write_text("def:pub ping -> str { return \"pong\"; }\n");
+    }
+    (Path(tmp) / "jac.toml").write_text("[project]\nname = \"mini\"\n");
+    return tmp;
+}
+
+
+test "the pod env resolves the routes the deploy emits pods for" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as tmp {
+        project = _routed_project(tmp, ["svc.jac", "lib/svc.jac", "main.jac"]);
+        cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+        builder = ManifestBuilder(
+            k8s_config=cfg,
+            project_dir=project,
+            microservices_config={"routes": {"svc": "/svc"}},
+            dry_run=True
+        );
+        app_cfg = AppConfig(code_folder=project, app_name="jac-shop");
+        specs = builder.generate_service_pod_specs(app_cfg, "img");
+        env = {e["name"]: e["value"] for e in specs["svc"]["containers"][0]["env"]};
+        assert env["JAC_SV_FILE"] == "svc.jac" , env;
+        main_env = {
+            e["name"]: e["value"] for e in specs["main"]["containers"][0]["env"]
+        };
+        assert main_env["JAC_SV_FILE"] == "main.jac" , main_env;
+    }
+}
+
+
+test "the pod env carries the bundle-validated path, not the declared string" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as tmp {
+        project = _routed_project(tmp, ["lib/svc.jac", "main.jac"]);
+        cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+        declared: dict[str, any] = {"file": "./lib/svc.jac"};
+        builder = ManifestBuilder(
+            k8s_config=cfg,
+            project_dir=project,
+            microservices_config={
+                "routes": {"svc": "/svc"},
+                "services": {"svc": declared}
+            },
+            dry_run=True
+        );
+        env = {e["name"]: e["value"] for e in builder._build_env("svc", declared)};
+        assert env["JAC_SV_FILE"] == "lib/svc.jac" , env;
+    }
+}
+
+
+test "the injector seals against the config the deploy emits pods for" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as tmp {
+        project = _routed_project(tmp, ["svc.jac", "main.jac"]);
+        cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+        builder = ManifestBuilder(
+            k8s_config=cfg,
+            project_dir=project,
+            microservices_config={"routes": {"svc": "/svc"}},
+            dry_run=True
+        );
+        app_cfg = AppConfig(code_folder=project, app_name="jac-shop");
+        injector = builder._prepare_injector(app_cfg);
+        assert injector._ms_config == builder._ms_cfg() , injector._ms_config;
+        assert injector._ms_config["routes"] == {"svc": "/svc", "main": "/__main__"};
+    }
+}
+
+
+test "a routed service with no module fails manifest generation, dry run included" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as tmp {
+        project = _routed_project(tmp, ["main.jac"]);
+        cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+        builder = ManifestBuilder(
+            k8s_config=cfg,
+            project_dir=project,
+            microservices_config={"routes": {"ghost": "/ghost"}},
+            dry_run=True
+        );
+        app_cfg = AppConfig(code_folder=project, app_name="jac-shop");
+        caught = "";
+        try {
+            builder.generate_manifests(app_cfg, "img");
+        } except ValueError as e {
+            caught = str(e);
+        }
+        assert "'ghost'" in caught , caught;
+        assert "ghost.jac" in caught , caught;
+    }
+}
+
+
+test "user env cannot point a pod at an arbitrary service file" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg);
+    env = builder._build_env(
+        "orders", {"env": {"JAC_SV_FILE": "evil.jac", "JAC_SV_NAME": "evil"}}
+    );
+    values: dict[str, str] = {e["name"]: e["value"] for e in env};
+    assert values["JAC_SV_NAME"] == "orders";
+    assert "JAC_SV_FILE" not in values;
+}
+
+
+test "a single-file full-stack app still gets its client bundle built" {
+    import tempfile;
+    import os;
+    with tempfile.TemporaryDirectory() as tmp {
+        with open(os.path.join(tmp, "jac.toml"), "w") as f {
+            f.write("[project]\nname = \"todo-app\"\n\n[client]\n");
+        }
+        cfg = KubernetesConfig(app_name="todo-app", namespace="ns");
+        builder = ManifestBuilder(k8s_config=cfg, project_dir=tmp);
+        assert builder._has_client_source();
+        assert builder._client_entry() == "main.jac";
+    }
+}
+
+
+# Peer URL resolution. jac-scale injects a JAC_SV_<PEER>_URL for every peer, so
+# the registry must read it rather than deriving every URL from the route name.
+# The env key keeps the raw route name while Kubernetes names are RFC1123-safe,
+# so orders_app injects JAC_SV_ORDERS_APP_URL beside an orders-app-service; a
+# reader keyed off the safe name would miss and fall back to the derived URL.
+
+glob _PEER_ROUTES: dict[str, str] = {"orders_app": "/orders", "cart_app": "/cart"},
+     _PEER_NS: str = "shop",
+     _PEER_PORT: int = 8000,
+     _ORDERS_DERIVED: str = "http://orders-app-service.shop.svc.cluster.local:8000",
+     _CART_DERIVED: str = "http://cart-app-service.shop.svc.cluster.local:8000";
+
+
+def _peer_env_snapshot -> dict[str, str | None] {
+    keys = [peer_url_env_key(name) for name in _PEER_ROUTES.keys()];
+    keys.append("POD_NAMESPACE");
+    return {key: os.environ.get(key) for key in keys};
+}
+
+
+def _peer_env_restore(saved: dict[str, str | None]) {
+    for (key, value) in saved.items() {
+        if value is None {
+            os.environ.pop(key, None);
+        } else {
+            os.environ[key] = value;
+        }
+    }
+    reset_scale_config();
+}
+
+
+def _peer_env_isolate {
+    for name in _PEER_ROUTES.keys() {
+        os.environ.pop(peer_url_env_key(name), None);
+    }
+    os.environ["POD_NAMESPACE"] = _PEER_NS;
+    # build_k8s_registry now consults scale config (for http_activation
+    # awareness); reset so no earlier test's cached, possibly
+    # activation-enabled config leaks into these naming-convention checks.
+    reset_scale_config();
+}
+
+
+def _peer_builder -> ManifestBuilder {
+    cfg = KubernetesConfig(
+        app_name="jac-shop", namespace=_PEER_NS, container_port=_PEER_PORT
+    );
+    return ManifestBuilder(
+        k8s_config=cfg,
+        project_dir=str(_K8S_E2E_FIXTURE),
+        microservices_config={"routes": dict(_PEER_ROUTES)}
+    );
+}
+
+
+def _peer_env_of(svc_name: str) -> dict[str, str] {
+    app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
+    specs = _peer_builder().generate_service_pod_specs(app_cfg, "img");
+    return {
+        `entry["name"]: `entry["value"]
+        for `entry in specs[svc_name]["containers"][0]["env"]
+    };
+}
+
+
+test "a peer with no override resolves by naming convention" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+
+        registry = build_k8s_registry(_PEER_ROUTES, _PEER_PORT);
+
+        assert registry["orders_app"] == _ORDERS_DERIVED , (
+            f"expected the derived URL, got {registry['orders_app']}"
+        );
+        assert registry["cart_app"] == _CART_DERIVED;
+    } finally {
+        _peer_env_restore(saved);
+    }
+}
+
+
+test "an override wins for its own peer and leaves the others derived" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+        standby = "http://orders-app-standby-service.shop.svc.cluster.local:8000";
+        os.environ[peer_url_env_key("orders_app")] = standby;
+
+        registry = build_k8s_registry(_PEER_ROUTES, _PEER_PORT);
+
+        assert registry["orders_app"] == standby;
+        assert registry["cart_app"] == _CART_DERIVED , (
+            "an override for one peer must not affect another"
+        );
+    } finally {
+        _peer_env_restore(saved);
+    }
+}
+
+
+# A pod never given an override and one whose override was blanked must behave
+# the same, or clearing a value would break routing instead of restoring it.
+test "a blank override falls back to the derived URL" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+        os.environ[peer_url_env_key("orders_app")] = "   ";
+
+        registry = build_k8s_registry(_PEER_ROUTES, _PEER_PORT);
+
+        assert registry["orders_app"] == _ORDERS_DERIVED;
+    } finally {
+        _peer_env_restore(saved);
+    }
+}
+
+
+# The literal is asserted rather than derived from peer_url_env_key, so a change
+# to that helper fails here instead of moving both sides together. The override
+# is a value the derivation cannot produce, so reading the wrong key shows up as
+# a failure rather than an accidental match.
+test "the key the builder injects is the key the registry reads" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+        cart_env = _peer_env_of("cart_app");
+
+        assert "JAC_SV_ORDERS_APP_URL" in cart_env , (
+            "the builder no longer injects the underscore-preserving key; "
+            f"it wrote {sorted(cart_env.keys())}"
+        );
+
+        standby = "http://orders-app-standby-service.shop.svc.cluster.local:8000";
+        os.environ["JAC_SV_ORDERS_APP_URL"] = standby;
+        registry = build_k8s_registry(_PEER_ROUTES, _PEER_PORT);
+
+        assert registry["orders_app"] == standby , (
+            "the registry did not read the key the builder wrote, so it "
+            f"resolved {registry['orders_app']}"
+        );
+    } finally {
+        _peer_env_restore(saved);
+    }
+}
+
+
+# Reading the env must be a no-op for existing deployments, which holds only
+# while the injector and the resolver agree on namespace and port.
+test "the injected default equals the derived URL under matching config" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+
+        cart_env = _peer_env_of("cart_app");
+
+        assert cart_env[peer_url_env_key("orders_app")] == _ORDERS_DERIVED , (
+            "injected and derived URLs diverged, so reading the env would "
+            "change behavior for existing pods"
+        );
+    } finally {
+        _peer_env_restore(saved);
+    }
+}
+
+
+# K8sRuntimeServiceResolver.url_for is the other k8s resolution site. It is
+# dormant today, but it must not become the one path that bypasses an override
+# once the admin ops that construct it are wired up.
+def _peer_resolver -> K8sRuntimeServiceResolver {
+    return K8sRuntimeServiceResolver(
+        registry=ServiceRegistry(), namespace=_PEER_NS, port=_PEER_PORT
+    );
+}
+
+
+test "url_for uses the override when one is set" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+        standby = "http://orders-app-standby-service.shop.svc.cluster.local:8000";
+        os.environ[peer_url_env_key("orders_app")] = standby;
+
+        `entry = ServiceEntry(
+            name="orders_app", file="orders_app.jac", prefix="/orders"
+        );
+
+        assert _peer_resolver().url_for(`entry) == standby;
+    } finally {
+        _peer_env_restore(saved);
+    }
+}
+
+
+test "url_for derives when no override is set" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+
+        `entry = ServiceEntry(
+            name="orders_app", file="orders_app.jac", prefix="/orders"
+        );
+
+        assert _peer_resolver().url_for(`entry) == _ORDERS_DERIVED;
+    } finally {
+        _peer_env_restore(saved);
+    }
 }
 
 

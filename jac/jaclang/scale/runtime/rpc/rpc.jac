@@ -6,6 +6,31 @@ import from .breaker {
 }
 
 
+def _resolve_call_target(module_name: str) -> tuple[str, str | None] {
+    """One bundled lookup for (url, interceptor Host-header override), so
+    the two are never resolved independently and can't disagree.
+    Primary source: the live K8s dynamic registry (JacScalePlugin's
+    get_sv_service_routes, K8s-mode only). Fallback: sv_client's static
+    registry/env-var resolution, paired with its own host-override table.""";
+    import from jaclang.runtimelib { sv_client }
+
+    try {
+        import from jaclang.scale.plugin { JacScalePlugin }
+        routes: dict[str, any] = JacScalePlugin.get_sv_service_routes();
+        route = routes.get(module_name);
+        if route is not None and route.url {
+            return (route.url, route.host_header);
+        }
+    } except Exception {
+        ;
+    }
+    return (
+        sv_client.resolve_url(module_name),
+        sv_client.host_override_for(module_name)
+    );
+}
+
+
 def service_call(module_name: str, func_name: str, args: dict) -> any {
     import time;
     import from jaclang.runtimelib { sv_client }
@@ -33,12 +58,7 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
         );
     }
 
-    import jaclang;
-    ms_registry: dict[str, str] = jaclang.JacRuntime.get_sv_registry();
-    url: str = ms_registry.get(module_name, "");
-    if not url {
-        url = sv_client.resolve_url(module_name);
-    }
+    (url, host_override) = _resolve_call_target(module_name);
     import from jaclang.runtimelib.serving.client {
         ClientConnectionError,
         post_stream_aware_sync
@@ -59,6 +79,10 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
     tp = current_traceparent(trace);
     if tp {
         headers["traceparent"] = tp;
+    }
+
+    if host_override {
+        headers["Host"] = host_override;
     }
 
     max_attempts: int = 3;
@@ -124,7 +148,7 @@ def walker_call(
         );
     }
 
-    url = sv_client.resolve_url(module_name);
+    (url, host_override) = _resolve_call_target(module_name);
     import from jaclang.runtimelib.serving.client {
         ClientConnectionError,
         request_sync
@@ -144,6 +168,10 @@ def walker_call(
     tp = current_traceparent(trace);
     if tp {
         headers["traceparent"] = tp;
+    }
+
+    if host_override {
+        headers["Host"] = host_override;
     }
 
     max_attempts: int = 3;

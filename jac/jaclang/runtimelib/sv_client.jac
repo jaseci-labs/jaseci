@@ -1,11 +1,21 @@
 import os;
 
 glob _registry: dict[str, str] = {},
+     _host_overrides: dict[str, str] = {},
      _test_clients: dict[str, any] = {},
      _consumer_providers: dict[str, list[str]] = {};
 
 def headless_start_args(entry_file: str, port: int) -> list[str] {
     return ["start", entry_file, "--port", str(port), "--no-client"];
+}
+
+def peer_url_env_key(module_name: str) -> str {
+    return f"JAC_SV_{module_name.upper()}_URL";
+}
+
+def peer_url_from_env(module_name: str) -> str {
+    raw = os.environ.get(peer_url_env_key(module_name), "").strip();
+    return raw;
 }
 
 def register(module_name: str, url: str) {
@@ -16,6 +26,15 @@ def unregister(module_name: str) {
     if module_name in _registry {
         del _registry[module_name];
     }
+    _host_overrides.pop(module_name, None);
+}
+
+def register_host_override(module_name: str, host: str) {
+    _host_overrides[module_name] = host;
+}
+
+def host_override_for(module_name: str) -> str | None {
+    return _host_overrides.get(module_name);
 }
 
 def register_test_client(module_name: str, client: any) {

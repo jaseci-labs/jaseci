@@ -6,6 +6,12 @@ import from jaclang.scale.runtime.context.auth_ctx {
     get_current_auth
 }
 import from jaclang.scale.plugin { JacScalePlugin }
+import from jaclang.scale.runtime.context.service_routing { ServiceRoute }
+
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 
 obj _MockRequest {
@@ -448,8 +454,8 @@ test "_sv_rpc_timeout returns default when config lookup fails" {
 }
 
 
-test "sv_service_call uses URL from get_sv_registry hookspec when present" {
-    import jaclang;
+test "sv_service_call uses URL from get_sv_service_routes when present" {
+    import from jaclang.scale.runtime.context.service_routing { ServiceRoute }
 
     captured: dict = {};
     def handler(request: _MockRequest) -> _MockResponse {
@@ -460,14 +466,17 @@ test "sv_service_call uses URL from get_sv_registry hookspec when present" {
     }
 
     original_post = _install_mock(handler);
-    original_get_registry = jaclang.JacRuntime.get_sv_registry;
+    original_get_routes = JacScalePlugin.get_sv_service_routes;
 
-    def fake_registry -> dict[str, str] {
+    def fake_routes -> dict[str, ServiceRoute] {
         return {
-            "k9_test_mod": "http://k9-test-mod-service.prod.svc.cluster.local:8000"
+            "k9_test_mod": ServiceRoute(
+                url="http://k9-test-mod-service.prod.svc.cluster.local:8000",
+                host_header=None
+            )
         };
     }
-    jaclang.JacRuntime.get_sv_registry = staticmethod(fake_registry);
+    _as_any(JacScalePlugin).get_sv_service_routes = staticmethod(fake_routes);
 
     try {
         if "k9_test_mod" in sv_client._registry {
@@ -479,15 +488,13 @@ test "sv_service_call uses URL from get_sv_registry hookspec when present" {
 
         assert "k9-test-mod-service.prod.svc.cluster.local" in captured["url"];
     } finally {
-        jaclang.JacRuntime.get_sv_registry = original_get_registry;
+        JacScalePlugin.get_sv_service_routes = original_get_routes;
         sv_http.post_stream_aware_sync = original_post;
     }
 }
 
 
-test "sv_service_call falls back to sv_client.resolve_url when hookspec empty" {
-    import jaclang;
-
+test "sv_service_call falls back to sv_client.resolve_url when the dynamic registry is empty" {
     captured: dict = {};
     def handler(request: _MockRequest) -> _MockResponse {
         captured["url"] = str(request.url);
@@ -497,9 +504,9 @@ test "sv_service_call falls back to sv_client.resolve_url when hookspec empty" {
     }
 
     original_post = _install_mock(handler);
-    original_get_registry = jaclang.JacRuntime.get_sv_registry;
+    original_get_routes = JacScalePlugin.get_sv_service_routes;
 
-    jaclang.JacRuntime.get_sv_registry = staticmethod(lambda { {}; });
+    _as_any(JacScalePlugin).get_sv_service_routes = staticmethod(lambda { {}; });
 
     try {
         sv_client.register("k9_fallback_mod", "http://fallback.invalid:9999");
@@ -507,9 +514,50 @@ test "sv_service_call falls back to sv_client.resolve_url when hookspec empty" {
         assert result == "via-fallback";
         assert "fallback.invalid:9999" in captured["url"];
     } finally {
-        jaclang.JacRuntime.get_sv_registry = original_get_registry;
+        JacScalePlugin.get_sv_service_routes = original_get_routes;
         sv_http.post_stream_aware_sync = original_post;
         sv_client.unregister("k9_fallback_mod");
+    }
+}
+
+
+test "sv_service_call sets the Host header when the resolved route carries one" {
+    import from jaclang.scale.runtime.context.service_routing { ServiceRoute }
+
+    captured: dict = {};
+    def handler(request: _MockRequest) -> _MockResponse {
+        captured["headers"] = request.headers;
+        return _MockResponse(
+            json_payload={"ok": True, "data": {"result": "via-interceptor"}}
+        );
+    }
+
+    original_post = _install_mock(handler);
+    original_get_routes = JacScalePlugin.get_sv_service_routes;
+
+    def fake_routes -> dict[str, ServiceRoute] {
+        return {
+            "k9_intercepted_mod": ServiceRoute(
+                url="http://keda-add-ons-http-interceptor-proxy.keda:8080",
+                host_header="k9-intercepted-mod-service.prod.svc.cluster.local"
+            )
+        };
+    }
+    _as_any(JacScalePlugin).get_sv_service_routes = staticmethod(fake_routes);
+
+    try {
+        if "k9_intercepted_mod" in sv_client._registry {
+            sv_client.unregister("k9_intercepted_mod");
+        }
+        result = JacScalePlugin.sv_service_call("k9_intercepted_mod", "do", {});
+        assert result == "via-interceptor";
+        assert (
+            captured["headers"]["Host"]
+            == "k9-intercepted-mod-service.prod.svc.cluster.local"
+        );
+    } finally {
+        JacScalePlugin.get_sv_service_routes = original_get_routes;
+        sv_http.post_stream_aware_sync = original_post;
     }
 }
 
