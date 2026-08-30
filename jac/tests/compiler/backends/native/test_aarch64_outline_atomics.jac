@@ -40,7 +40,8 @@ the LSE fast path.
 Pinned here on every host: the family is complete and every member is weak and
 hidden, both restated from the ABI's own axes rather than read back out of the
 generator, the block is well-formed IR, and -- since #8788 -- a real aarch64
-object assembles out of the executable path on ANY host.
+object assembles out of the executable path on ANY host, carrying all one
+hundred helpers into its symbol table.
 
 That last one is the lesson of #8788. Parsing is not assembling: `parse_assembly`
 accepts a `module asm` block without looking inside it, and the failure lands
@@ -138,13 +139,14 @@ test "every helper is weak and hidden, so it neither collides nor escapes" {
     }
 }
 
-test "an aarch64 host assembles every instruction and emits every symbol" {
-    # Module-level asm is assembled by the MC layer's *assembly parser*, and the
-    # shim exports only LLVMPY_InitializeNativeAsmParser -- there is no
-    # all-targets counterpart to reach for. So this can only run for real where
-    # the host is the target. Writing it found the matching production bug: the
-    # shared-library emitter initialized the asm PRINTERS and no parser at all,
-    # which segfaults outright the moment a module carries asm.
+test "an aarch64 host assembles every instruction through the NATIVE parser" {
+    # Module-level asm is assembled by the MC layer's *assembly parser*. Since
+    # #8788 the shim registers every target's, so the cross-host case is covered
+    # by the object-emission test at the bottom of this file; what is left here
+    # is the host==target path through LLVMPY_InitializeNativeAsmParser, which
+    # is still what an aarch64 machine takes. It stays in-process and therefore
+    # host-gated: a missing parser is report_fatal_error, and an abort in here
+    # would take the whole file's worker with it.
     import platform;
 
     if platform.machine() not in ["aarch64", "arm64"] {
@@ -338,7 +340,7 @@ test "the aarch64 executable path assembles to a real object (#8788)" {
         f"is none.\nstdout: {res.stdout[-800:]}\nstderr: {res.stderr[-800:]}"
     );
     assert "EMIT_OK" in res.stdout , (
-        f"the object emitted, but not as an aarch64 ELF carrying the "
-        f"outline-atomics family.\nstdout: {res.stdout[-800:]}"
+        f"the object emitted, but not as an aarch64 ELF carrying every member "
+        f"of the outline-atomics family.\nstdout: {res.stdout[-800:]}"
     );
 }
