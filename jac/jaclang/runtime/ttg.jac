@@ -33,6 +33,16 @@ class JacTTGGenerator {
     ) -> tuple[str | None, str | None, int];
 
     @classmethod
+    def _edge_ref_explicit_origin_name(
+        cls: type[JacTTGGenerator], trailer: any
+    ) -> (str | None);
+
+    @classmethod
+    def _edge_ref_origin_is_current(
+        cls: type[JacTTGGenerator], trailer: any
+    ) -> bool;
+
+    @classmethod
     def _extract_chains_from_trailer(
         cls: type[JacTTGGenerator], scope: any, trailer: any
     ) -> list[tuple[str | None, str | None, int]];
