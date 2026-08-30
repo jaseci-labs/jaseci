@@ -925,9 +925,9 @@ const projectRoot = path.resolve(__dirname, "../../..");
 // Jac source mapper plugin - chains the per-file column maps the Jac client
 // compiler writes, so a bundled stack keeps its way back to .jac coordinates.
 // It derives no locations of its own: that is the Jac side's job.
-function jacSourceMapper() {{
+function jacSourceMapChain() {{
   return {{
-    name: 'jac-source-mapper',
+    name: 'jac-source-map-chain',
     enforce: 'pre',
 
     transform(code, id) {{
@@ -956,7 +956,7 @@ export default defineConfig({{
 {define_str}
   }},
   plugins: [
-    jacSourceMapper(),{(newline + plugins_str + newline + '  ')
+    jacSourceMapChain(),{(newline + plugins_str + newline + '  ')
             if plugins_str
             else ''}],
   root: buildDir, // base folder (.jac/client/) so vite can find node_modules
