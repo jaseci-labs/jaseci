@@ -629,13 +629,39 @@ def _discover_jac_toml(base: str) -> (Path | None) {
     return None;
 }
 
+def _locator_signature(compiled_dir: Path, base_path: str) -> str {
+    parts: list[str] = [];
+    if compiled_dir.is_dir() {
+        for f in sorted(compiled_dir.rglob("*.js.map")) {
+            try {
+                parts.append(f"{f}:{os.path.getmtime(f)}");
+            } except OSError {
+                continue;
+            }
+        }
+    }
+    toml = os.path.join(base_path, "jac.toml");
+    try {
+        parts.append(f"{toml}:{os.path.getmtime(toml)}");
+    } except OSError {
+        parts.append(f"{toml}:-");
+    }
+    return "|".join(parts);
+}
+
+glob _locator_cache: dict[str, tuple[str, any]] = {};
+
 obj JacLocator {
     has base_path: str,
         compiled_dir: Path,
-        sources: dict[str, str] = {},
-        maps: dict[str, SourceMap] = {},
-        toml_path: (Path | None) = None,
-        bundle_mapper: (SourceMapper | None) = None,
+        _sources: dict[str, str] = {},
+        _sources_loaded: bool = False,
+        _maps: dict[str, SourceMap] = {},
+        _maps_missing: set[str] = set(),
+        _toml_path: (Path | None) = None,
+        _toml_scanned: bool = False,
+        _bundle_mapper: (SourceMapper | None) = None,
+        _bundle_scanned: bool = False,
         _text_cache: dict[str, str] = {};
 
     static def for_base(
@@ -645,54 +671,48 @@ obj JacLocator {
         cdir: Path = Path(compiled_dir)
             if compiled_dir
             else Path(os.path.join(base, ".jac", "client", "compiled"));
-        sources: dict[str, str] = {};
-        maps: dict[str, SourceMap] = {};
-        if cdir.is_dir() {
-            for js_file in cdir.rglob("*.js") {
-                rel = js_file.relative_to(cdir).as_posix();
-                try {
-                    with open(js_file, encoding="utf-8") as f {
-                        first_line = f.readline().strip();
-                    }
-                } except (OSError, UnicodeDecodeError) {
-                    continue;
+        key = f"{base}|{cdir}";
+        signature = _locator_signature(cdir, base);
+        cached: tuple[str, any] | None = _locator_cache.get(key);
+        if cached is not None and cached[0] == signature {
+            return cached[1];
+        }
+        locator = JacLocator(base_path=base, compiled_dir=cdir);
+        _locator_cache[key] = (signature, locator);
+        return locator;
+    }
+
+    def sources -> dict[str, str] {
+        if self._sources_loaded {
+            return self._sources;
+        }
+        self._sources_loaded = True;
+        if not self.compiled_dir.is_dir() {
+            return self._sources;
+        }
+        for js_file in self.compiled_dir.rglob("*.js") {
+            rel = js_file.relative_to(self.compiled_dir).as_posix();
+            try {
+                with open(js_file, encoding="utf-8") as f {
+                    first_line = f.readline().strip();
                 }
-                found = _SOURCE_HEADER_RE.`match(first_line);
-                if found {
-                    sources[rel] = found.group(1);
-                }
+            } except (OSError, UnicodeDecodeError) {
+                continue;
             }
-            for map_file in cdir.rglob("*.js.map") {
-                rel = map_file.relative_to(cdir).as_posix()[:-(len(".map"))];
-                try {
-                    with open(map_file, encoding="utf-8") as f {
-                        raw: dict = dict(json.load(f));
-                    }
-                } except (OSError, ValueError) {
-                    continue;
-                }
-                maps[rel] = SourceMap(
-                    sources=list(raw.get("sources", [])),
-                    source_comments={},
-                    _index=_parse_mappings(str(raw.get("mappings", ""))),
-                    names=[str(n) for n in raw.get("names", [])]
-                );
+            found = _SOURCE_HEADER_RE.`match(first_line);
+            if found {
+                self._sources[rel] = found.group(1);
             }
         }
-        bundle: (SourceMapper | None) = None;
-        try {
-            bundle = SourceMapper.from_bundle(base);
-        } except Exception {
-            bundle = None;
+        return self._sources;
+    }
+
+    def toml_path -> (Path | None) {
+        if not self._toml_scanned {
+            self._toml_scanned = True;
+            self._toml_path = _discover_jac_toml(self.base_path);
         }
-        return JacLocator(
-            base_path=base,
-            compiled_dir=cdir,
-            sources=sources,
-            maps=maps,
-            toml_path=_discover_jac_toml(base),
-            bundle_mapper=bundle
-        );
+        return self._toml_path;
     }
 
     def relative(path: str) -> str {
@@ -706,20 +726,65 @@ obj JacLocator {
         }
     }
 
-    def _map_for(rel: str) -> (SourceMap | None) {
-        if rel in self.maps {
-            return self.maps[rel];
-        }
-        name = _basename(rel);
-        if not name {
+    def _load_map(rel: str) -> (SourceMap | None) {
+        try {
+            raw: dict = dict(
+                json.loads(
+                    (self.compiled_dir / (rel + ".map")).read_text(encoding="utf-8")
+                )
+            );
+        } except (OSError, ValueError) {
             return None;
         }
-        for key in sorted(self.maps.keys()) {
-            if _basename(key) == name {
-                return self.maps[key];
+        return SourceMap(
+            sources=list(raw.get("sources", [])),
+            source_comments={},
+            _index=_parse_mappings(str(raw.get("mappings", ""))),
+            names=[str(n) for n in raw.get("names", [])]
+        );
+    }
+
+    def _map_for(rel: str) -> (SourceMap | None) {
+        if not rel {
+            return None;
+        }
+        if rel in self._maps {
+            return self._maps[rel];
+        }
+        if rel in self._maps_missing {
+            return None;
+        }
+        direct = self._load_map(rel);
+        if direct is not None {
+            self._maps[rel] = direct;
+            return direct;
+        }
+        name = _basename(rel);
+        for key in sorted(self.sources().keys()) {
+            if _basename(key) == name and key != rel {
+                alt = self._load_map(key);
+                if alt is not None {
+                    self._maps[key] = alt;
+                    self._maps[rel] = alt;
+                    return alt;
+                }
+                break;
             }
         }
+        self._maps_missing.add(rel);
         return None;
+    }
+
+    def _bundle -> (SourceMapper | None) {
+        if not self._bundle_scanned {
+            self._bundle_scanned = True;
+            try {
+                self._bundle_mapper = SourceMapper.from_bundle(self.base_path);
+            } except Exception {
+                self._bundle_mapper = None;
+            }
+        }
+        return self._bundle_mapper;
     }
 
     def _js_text(rel: str) -> str {
@@ -740,26 +805,29 @@ obj JacLocator {
         if not rel {
             return "";
         }
-        if rel in self.sources {
-            return self.sources[rel];
+        known = self.sources();
+        if rel in known {
+            return known[rel];
         }
         name = _basename(rel);
-        for key in sorted(self.sources.keys()) {
+        for key in sorted(known.keys()) {
             if _basename(key) == name {
-                return self.sources[key];
+                return known[key];
             }
         }
         return "";
     }
 
     def fallback_owner -> str {
-        for key in sorted(self.sources.keys()) {
+        known = self.sources();
+        for key in sorted(known.keys()) {
             if _basename(key) in ("_entry.js", "main.js", "index.js") {
-                return self.sources[key];
+                return known[key];
             }
         }
-        if self.toml_path is not None {
-            return str(self.toml_path);
+        toml = self.toml_path();
+        if toml is not None {
+            return str(toml);
         }
         return self.base_path;
     }
@@ -768,15 +836,17 @@ obj JacLocator {
         module_id: str, line: int, column: int
     ) -> (SourceLocation | None) {
         rel = _module_rel(module_id);
-        source_map = self._map_for(rel) if rel else None;
+        source_map = self._map_for(rel);
         if source_map is not None {
             loc = source_map.resolve(line, column);
             if loc is not None and loc.file.endswith(".jac") {
                 return loc;
             }
+            return None;
         }
-        if source_map is None and self.bundle_mapper is not None {
-            loc = self.bundle_mapper.resolve(line, column);
+        bundle = self._bundle();
+        if bundle is not None {
+            loc = bundle.resolve(line, column);
             if loc is not None and loc.file.endswith(".jac") {
                 return loc;
             }
@@ -845,7 +915,8 @@ obj JacLocator {
             return None;
         }
         owner_only: (SourceLocation | None) = None;
-        for rel in sorted(self.sources.keys()) {
+        known = self.sources();
+        for rel in sorted(known.keys()) {
             text = self._js_text(rel);
             if not text {
                 continue;
@@ -870,9 +941,7 @@ obj JacLocator {
                     return loc;
                 }
                 if owner_only is None {
-                    owner_only = SourceLocation(
-                        file=self.sources[rel], line=0, column=0
-                    );
+                    owner_only = SourceLocation(file=known[rel], line=0, column=0);
                 }
             }
         }
@@ -881,44 +950,38 @@ obj JacLocator {
 
     def importer_of(module_id: str, specifier: str) -> (SourceLocation | None) {
         rel = _module_rel(module_id);
-        if not rel or rel not in self.sources {
+        known = self.sources();
+        if not rel or rel not in known {
             return self.locate_import(specifier);
         }
         wanted = _npm_specifier(specifier);
         text = self._js_text(rel);
-        for found in _JS_IMPORT_RE.finditer(text) {
-            if not _specifier_matches(found.group("spec"), wanted) {
-                continue;
-            }
-            (js_line, js_col) = _text_pos(text, found.start());
-            loc = self.locate_compiled(rel, js_line, js_col);
-            if loc is not None {
-                return loc;
-            }
-        }
-        for found in _JS_BARE_IMPORT_RE.finditer(text) {
-            if not _specifier_matches(found.group("spec"), wanted) {
-                continue;
-            }
-            (js_line, js_col) = _text_pos(text, found.start());
-            loc = self.locate_compiled(rel, js_line, js_col);
-            if loc is not None {
-                return loc;
+        for pattern in (_JS_IMPORT_RE, _JS_BARE_IMPORT_RE) {
+            for found in pattern.finditer(text) {
+                if not _specifier_matches(found.group("spec"), wanted) {
+                    continue;
+                }
+                (js_line, js_col) = _text_pos(text, found.start());
+                loc = self.locate_compiled(rel, js_line, js_col);
+                if loc is not None {
+                    return loc;
+                }
             }
         }
-        return SourceLocation(file=self.sources[rel], line=0, column=0);
+        return SourceLocation(file=known[rel], line=0, column=0);
     }
 
     def locate_npm_declaration(package: str) -> (tuple[SourceLocation, str] | None) {
-        if self.toml_path is None or not self.toml_path.is_file() {
+        toml = self.toml_path();
+        if toml is None or not toml.is_file() {
             return None;
         }
         try {
-            lines = self.toml_path.read_text(encoding="utf-8").splitlines();
+            lines = toml.read_text(encoding="utf-8").splitlines();
         } except (OSError, UnicodeDecodeError) {
             return None;
         }
-        path = str(self.toml_path);
+        path = str(toml);
         header = -1;
         for (idx, raw) in enumerate(lines) {
             if raw.strip().replace(" ", "") == "[dependencies.npm]" {
@@ -929,8 +992,7 @@ obj JacLocator {
         if header < 0 {
             return (
                 SourceLocation(file=path, line=0, column=0),
-                f"jac.toml declares no [dependencies.npm] table, so '{package}' is "
-                f"not declared anywhere"
+                f"jac.toml declares no [dependencies.npm] table, so '{package}' is not declared anywhere"
             );
         }
         cursor = header + 1;

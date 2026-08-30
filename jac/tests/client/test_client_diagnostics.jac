@@ -279,3 +279,58 @@ test "the npm locator finds the declared key, the table, and the absent table" {
         assert "[dependencies.npm]" in note , note;
     }
 }
+
+test "the locator is cached per compiled dir and invalidated by a touched map" {
+    import os;
+    import from jaclang.client.source_mapping { JacLocator }
+    import from jaclang.client.client_diagnostics { classify_client_payload }
+
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        compiled = _make_project(proj);
+        payload = {
+            "type": "SyntaxError",
+            "message": "The requested module '/.vite/deps/mermaid.js?v=1' "
+                "does not provide an export named 'Mermaid'",
+            "source": "",
+            "phase": "load"
+        };
+        # Two classifications against an unchanged compiled dir share one
+        # locator: no re-scan and no re-parse of the maps per payload.
+        classify_client_payload(str(proj), payload, channel="browser");
+        first = JacLocator.for_base(str(proj));
+        classify_client_payload(str(proj), payload, channel="browser");
+        assert JacLocator.for_base(str(proj)) is first , "locator was rebuilt";
+        # A map is loaded and parsed on first use only.
+        assert "docs/MermaidDiagram.js" in first._maps ,
+            "the map the payload needed was never loaded";
+        assert "docs/Missing.js" not in first._maps ,
+            "an unrelated map was parsed eagerly";
+        # Touching a map invalidates the cache.
+        touched = compiled / "docs" / "MermaidDiagram.js.map";
+        stamp = os.path.getmtime(touched) + 10;
+        os.utime(touched, (stamp, stamp));
+        assert JacLocator.for_base(str(proj)) is not first ,
+            "a rebuilt map did not invalidate the locator";
+    }
+}
+
+test "the locator scans no compiled headers until something asks for them" {
+    import from jaclang.client.source_mapping { JacLocator }
+
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        _make_project(proj);
+        locator = JacLocator.for_base(str(proj));
+        assert locator._sources == {} , "for_base scanned the compiled headers";
+        assert locator._maps == {} , "for_base parsed maps eagerly";
+        assert locator._bundle_mapper is None , "for_base built the bundle mapper";
+        # A compiled coordinate resolves through exactly one map.
+        loc = locator.locate_compiled("compiled/docs/MermaidDiagram.js", 3, 18);
+        assert loc is not None;
+        assert loc.file.endswith("docs/MermaidDiagram.jac") , loc.file;
+        assert list(locator._maps.keys()) == ["docs/MermaidDiagram.js"] ,
+            list(locator._maps.keys());
+        assert locator._sources == {} , "resolving a direct hit forced a header scan";
+    }
+}
