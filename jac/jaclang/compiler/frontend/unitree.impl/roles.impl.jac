@@ -559,7 +559,7 @@ impl HasVar.value.getter -> (Expr | None) {
 }
 
 impl HasVar.accessors.getter -> (Sequence[Ability] | None) {
-    return [self->:AccessorsRole:->];
+    return self._role_shaped(AccessorsRole, [self->:AccessorsRole:->]);
 }
 
 impl HasVar.__repr__ -> str {

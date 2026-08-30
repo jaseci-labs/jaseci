@@ -395,9 +395,24 @@ impl TypeEvaluator._import_module_from_path(
 }
 
 impl TypeEvaluator.forget_module(resolved_path: str) -> None {
-    if resolved_path in self._module_type_cache {
-        del (self._module_type_cache[resolved_path], );
+    import os;
+    canon = os.path.realpath(resolved_path);
+    # Module types are cached under the path the import statement resolved
+    # to, which is the importer's (possibly symlinked, e.g. /var vs
+    # /private/var) spelling rather than the canonical hub key; match on the
+    # real path so an evicted module cannot keep serving its old symbol table.
+    stale_paths = [
+        key
+        for key in self._module_type_cache
+        if key == resolved_path or os.path.realpath(key) == canon
+    ];
+    for key in stale_paths {
+        del (self._module_type_cache[key], );
     }
+    # Interned ClassDetailsShared stay: their key carries the declaring
+    # file's content hash, so a rewritten module interns fresh identities
+    # while a released-and-reimported unchanged module keeps the ones every
+    # retained ClassType still points at.
 }
 
 impl TypeEvaluator._resolve_importer_path(ast_node: UniNode) -> (str | None) {

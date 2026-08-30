@@ -800,6 +800,9 @@ test "param arg" {
     captured = io.StringIO();
     old_stdout = sys.stdout;
     sys.stdout = captured;
+    # Bound before the try so a failure ahead of the temp-file write surfaces
+    # as itself rather than as an UnboundLocalError from the cleanup.
+    jac_file_path = "";
     try {
         transform.jac2py(f"{fixture_path('params/test_complex_params.jac')}");
         py_code = JacProgram().compile(file_path=filename).gen.py;
@@ -824,7 +827,9 @@ test "param arg" {
             execution.run(jac_file_path);
         } finally {
             os.remove(py_file_path);
-            os.remove(jac_file_path);
+            if jac_file_path {
+                os.remove(jac_file_path);
+            }
         }
     } finally {
         sys.stdout = old_stdout;

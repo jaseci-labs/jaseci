@@ -937,32 +937,63 @@ impl TypeEvaluator._is_expr_super(expr: Expr) -> bool {
 }
 
 impl TypeEvaluator._is_unbound_method_call(expr: FuncCall) -> bool {
-    first_positional_arg: Expr | None = None;
-    for arg in expr.params {
-        if not isinstance(arg, KWPair) {
-            first_positional_arg = arg;
-            break;
-        }
-    }
-
-    if first_positional_arg is None or not self._is_expr_self(first_positional_arg) {
-        return False;
-    }
-
+    # `Cls.method(obj, ...)`: an instance method reached through the class
+    # object is unbound, so the receiver is passed explicitly whatever the
+    # first argument is (object.__setattr__(x, ...), str.upper(s), ...).
     if isinstance(expr.target, AtomTrailer) and expr.target.is_attr {
         base_type = self.get_type_of_expression(expr.target.target);
         if isinstance(base_type, ClassType) and base_type.is_instantiable_class() {
             if isinstance(expr.target.right, Name) {
                 member = self._lookup_class_member(base_type, expr.target.right.value);
                 if member {
+                    decl = member.symbol.decl;
+                    node_ = decl.name_of if decl is not None else None;
+                    if isinstance(node_, HasVar) {
+                        return False;
+                    }
                     member_type = self.get_type_of_symbol(member.symbol);
-                    if isinstance(member_type, FunctionType) {
-                        if member_type.function_flags
-                            & FunctionTypeFlags.StaticMethod {
-                            return False;
-                        }
+                    if not isinstance(member_type, FunctionType) {
+                        return False;
+                    }
+                    if member_type.function_flags
+                        & (
+                            FunctionTypeFlags.StaticMethod
+                            | FunctionTypeFlags.ClassMethod
+                        ) {
+                        return False;
+                    }
+                    # the declaration's own markers come first: a `cls` param
+                    # of a decorated classmethod is flagged as a receiver when
+                    # the decorator type did not resolve (pooled whole-tree
+                    # checks), so the syntactic markers must win over is_self
+                    if isinstance(node_, Ability) and (
+                        node_.is_static
+                        or node_.is_cls_method
+                        or `any(
+                            isinstance(dec, Name) and dec.sym_name == "staticmethod"
+                            for dec in (node_.decorators or ())
+                        )
+                    ) {
+                        return False;
+                    }
+                    params = member_type.parameters;
+                    if params and params[0].is_self {
                         return True;
                     }
+                    if params and params[0].is_cls {
+                        return False;
+                    }
+                    # no declared receiver: only a Jac ability with an implicit
+                    # self takes one (not a def in a Python-style class, nor a
+                    # def outside the member list)
+                    if not isinstance(node_, Ability) or not node_.is_method {
+                        return False;
+                    }
+                    sig = node_.signature;
+                    if isinstance(sig, FuncSignature) and sig.is_in_py_class {
+                        return False;
+                    }
+                    return True;
                 }
             }
         }

@@ -1028,6 +1028,11 @@ impl NaIRGenCore._forward_declare_archetype_methods(arch: uni.Archetype) -> None
             if stmt.signature is not None
                 and isinstance(stmt.signature, uni.FuncSignature) {
                 self._forward_declare_method(aname, stmt, imported=True);
+                if stmt.name_ref is not None {
+                    self._record_linked_decl(
+                        self.method_funcs.get(f"{aname}.{stmt.name_ref.sym_name}"), stmt
+                    );
+                }
             } elif isinstance(stmt.signature, uni.EventSignature)
                 and (arch.arch_kind is not None) {
                 self._forward_declare_event_method(aname, stmt);
@@ -1193,6 +1198,21 @@ impl NaIRGenCore._forward_declare_imported_ability(
         }
     }
     self._maybe_declare_ability(nd);
+    self._record_linked_decl(self.func_symtab.get(name), nd);
+}
+
+impl NaIRGenCore._record_linked_decl(
+    func: (ir.Function | None), decl: uni.Ability
+) -> None {
+    # `decl` is the imported module's own `def` -- the declaration `func` was
+    # actually lowered from -- so it is the ground truth for the native calling
+    # convention (parameter order, defaults, ownership) at every call site.
+    # The checker-bound `callee_decl` may instead be a stub-catalog symbol with
+    # no signature, or a typeshed stub whose defaults are `...` placeholders.
+    if func is None or id(func) in self._linked_fn_decls {
+        return;
+    }
+    self._linked_fn_decls[id(func)] = (func, decl);
 }
 
 impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {

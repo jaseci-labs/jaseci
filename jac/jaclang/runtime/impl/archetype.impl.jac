@@ -86,7 +86,7 @@ impl Anchor.__getattr__(name: str) -> object {
 
 impl Anchor.__getstate__ -> dict[(str, any)] {
     if self.is_populated() {
-        unlinked = object.__new__(self.archetype.__class__);
+        unlinked = object.__new__(untracked_class(self.archetype.__class__));
         unlinked.__dict__.update(self.archetype.__dict__);
         unlinked.__dict__.pop('__jac__', None);
         return {
@@ -102,13 +102,14 @@ impl Anchor.__getstate__ -> dict[(str, any)] {
 }
 
 impl Anchor.__setstate__(state: dict[(str, any)]) -> None {
+    # persistent is a property (its setter arms write tracking), so it must
+    # not ride into __dict__ with the rest of the state
+    persistent = bool(state.pop('persistent', False));
     self.__dict__.update(state);
+    self.persistent = persistent;
     if (self.is_populated() and self.archetype) {
         self.archetype.__jac__ = self;
         self.hash = hash(dumps(self));
-        if self.persistent {
-            track_writes(self.archetype);
-        }
     }
 
     if isinstance(self, NodeAnchor) {
@@ -320,7 +321,6 @@ impl Root.__jac__ -> NodeAnchor {
     anchor = NodeAnchor(archetype=self, edges=[]);
     anchor.persistent = True;
     anchor.ensure_id();
-    track_writes(self);
     return anchor;
 }
 
@@ -413,4 +413,24 @@ impl NodeAnchor.detach_light -> None {
         }
         self.in_light = None;
     }
+}
+
+impl Anchor.persistent.getter -> bool {
+    return self._persistent;
+}
+
+impl Anchor.persistent.setter(persistent: bool) -> None {
+    # The one seam that arms write tracking: whichever path makes an anchor
+    # persistent (save, hydration, a direct flip by session code) its
+    # archetype's field writes must reach the session's dirty set.
+    self._persistent = persistent;
+    # keyed on the archetype alone: a NodeAnchor mid-hydration is not yet
+    # populated (no edges list) but its archetype is already the live object
+    if persistent and 'archetype' in self.__dict__ {
+        track_writes(self.archetype);
+    }
+}
+
+impl NodeAnchor.has_heavy_edges -> bool {
+    return bool(self.edges);
 }

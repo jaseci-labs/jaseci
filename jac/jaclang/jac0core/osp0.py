@@ -320,7 +320,7 @@ def spawn0(op1: Any, op2: Any) -> Any:
 
 
 _osp_visit: Callable | None = None
-_scope_of: dict | None = None
+_scope_of: Callable | None = None
 
 
 def visit0(walker: Any, expr: Any, insert_loc: int = -1) -> bool:
@@ -344,8 +344,8 @@ def visit0(walker: Any, expr: Any, insert_loc: int = -1) -> bool:
             from jaclang.runtime import osp_kernel
 
             _osp_visit = osp_kernel.osp_visit
-            _scope_of = osp_kernel._scope_of
-        scope = _scope_of.get(id(walker))
+            _scope_of = osp_kernel.scope_of
+        scope = _scope_of(walker)
         if scope is not None and not scope.ignores:
             if insert_loc == 0:
                 scope.front.extend(reversed(expr))

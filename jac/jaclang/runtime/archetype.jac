@@ -80,8 +80,9 @@ obj Anchor {
         id: (UUID | None) = field(`init=False, `default=None),
         `root: (UUID | None) = field(`init=False, `default=None),
         access: (Permission | None) = field(`init=False, `default=None),
-        persistent: bool = field(`init=False, `default=False),
+        _persistent: bool = field(`init=False, `default=False),
         hash: int = field(`init=False, `default=0);
+    has persistent: bool { getter; setter(persistent: bool); }
 
     def ensure_id -> UUID;
     def own_access -> Permission;
@@ -110,6 +111,7 @@ obj NodeAnchor(Anchor) {
     def edge_delta -> (tuple[(set[UUID], set[UUID])] | None);
     def remove_edge(`edge: EdgeAnchor) -> None;
     def all_edges -> list[EdgeAnchor];
+    def has_heavy_edges -> bool;
     def detach_light -> None;
 }
 
@@ -301,7 +303,7 @@ def edge_subtypes(cls: type) -> tuple {
     i = 0;
     while i < len(out) {
         for sub in out[i].__subclasses__() {
-            if sub not in out {
+            if sub not in out and not sub.__dict__.get('__jac_tracked__', False) {
                 out.append(sub);
             }
         }
@@ -522,7 +524,7 @@ def light_hop_answers(anchor: NodeAnchor, cls: (type | None)) -> bool {
     if anchor.persistent {
         return False;
     }
-    if not anchor.edges {
+    if not anchor.has_heavy_edges() {
         return True;
     }
     return cls is not None and not anchor.mixed and is_light_edge_type(cls);
@@ -539,7 +541,9 @@ def light_clear_hop(anchor: NodeAnchor, dir: int, cls: (type | None)) -> bool {
     return hit;
 }
 
-def light_edge_view(cls: type, src: NodeAnchor, tgt: NodeAnchor) -> EdgeArchetype {
+def light_edge_view(
+    cls: type[EdgeArchetype], src: NodeAnchor, tgt: NodeAnchor
+) -> EdgeArchetype {
     e = cls.__new__(cls);
     ea = EdgeAnchor(archetype=e, source=src, target=tgt, is_undirected=False);
     ea.light = True;
@@ -636,7 +640,24 @@ def _dirty_setattr(self: any, name: str, value: any) -> None {
     }
 }
 
+def untracked_class(cls: type[Archetype]) -> type[Archetype] {
+    return cls.__dict__.get('__jac_untracked__', cls);
+}
+
+def _untracked_new(cls: type[Archetype]) -> Archetype {
+    return object.__new__(cls);
+}
+
+def _tracked_reduce_ex(self: any, protocol: int) -> tuple {
+    # pickle and copy rebuild the declared class, never the tracked twin
+    # (which shares its name, so pickle would reject it as a different object)
+    return (_untracked_new, (untracked_class(`type(self)), ), self.__dict__);
+}
+
 def track_writes(arch: Archetype) -> None {
+    # Armed by Anchor.persistent's setter: a persistent archetype's field
+    # writes must land in the session's dirty set, so its class is swapped
+    # for a same-named twin whose __setattr__ marks the anchor dirty.
     cls = `type(arch);
     if cls.__dict__.get('__jac_tracked__', False) {
         return;
@@ -651,7 +672,9 @@ def track_writes(arch: Archetype) -> None {
                 '__qualname__': cls.__qualname__,
                 '__jac_base__': True,
                 '__jac_tracked__': True,
-                '__setattr__': _dirty_setattr
+                '__jac_untracked__': cls,
+                '__setattr__': _dirty_setattr,
+                '__reduce_ex__': _tracked_reduce_ex
             }
         );
         _tracked_classes[cls] = tracked;

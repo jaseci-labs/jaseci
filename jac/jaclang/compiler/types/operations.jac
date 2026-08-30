@@ -497,6 +497,11 @@ def get_type_of_binary_operation(
 
         def validate_conn_type(type_expr: Expr) -> TypeBase {
             ct = evaluator.get_type_of_expression(type_expr);
+            # A `type[E]`-typed expression names the edge class E exactly as
+            # a bare class reference does; unwrap it before the edge check.
+            if isinstance(ct, ClassType) and evaluator._is_type_subscript(ct) {
+                ct = evaluator._get_type_for_member_lookup(ct);
+            }
             if (
                 not ct.is_any_type()
                 and not isinstance(ct, UnknownType)

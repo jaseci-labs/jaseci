@@ -1,5 +1,3 @@
-import from jaclang.runtime.archetype { relink_light }
-
 impl UniNode.postinit -> None {
     self.__sub_node_tab = None;
     self._ctx_parent = None;
@@ -22,7 +20,7 @@ impl UniNode.walk_kids with TreeWalker entry {
     ];
 }
 
-impl UniNode._attach(child: UniNode, role: type) -> None {
+impl UniNode._attach(child: UniNode, role: type[Role]) -> None {
     self +>:(role):+> child;
 }
 
@@ -35,7 +33,12 @@ impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
         }
         return;
     }
+    # One child may fill several roles (the JSX `{name}` attribute shorthand
+    # is both the attribute's name and its value): role_of holds the first
+    # role a node fills and extra_roles the rare additional ones, so the
+    # common one-role case allocates nothing beyond the original map.
     role_of: dict[int, type] = {};
+    extra_roles: dict[int, list[type]] = {};
     if roles {
         shapes: dict[type, str] = self?._role_shapes or {};
         self._role_shapes = shapes;
@@ -46,12 +49,22 @@ impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
                 shapes[role] = "many";
                 for v in value {
                     if isinstance(v, UniNode) {
-                        role_of[id(v)] = role;
+                        prev = role_of.get(id(v));
+                        if prev is None {
+                            role_of[id(v)] = role;
+                        } elif prev is not role {
+                            extra_roles.setdefault(id(v), []).append(role);
+                        }
                     }
                 }
             } elif isinstance(value, UniNode) {
                 shapes[role] = "one";
-                role_of[id(value)] = role;
+                prev = role_of.get(id(value));
+                if prev is None {
+                    role_of[id(value)] = role;
+                } elif prev is not role {
+                    extra_roles.setdefault(id(value), []).append(role);
+                }
             } else {
                 shapes[role] = "none";
             }
@@ -65,6 +78,11 @@ impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
             if role is not None and id(k) not in attached {
                 self._attach(k, role);
                 attached.add(id(k));
+                if extra_roles {
+                    for extra in extra_roles.get(id(k), []) {
+                        self._attach(k, extra);
+                    }
+                }
             }
         }
     }
@@ -74,6 +92,13 @@ impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
             if isinstance(v, UniNode) and id(v) not in attached {
                 self._attach(v, role);
                 attached.add(id(v));
+                if extra_roles {
+                    for extra in extra_roles.get(id(v), []) {
+                        if extra is not role {
+                            self._attach(v, extra);
+                        }
+                    }
+                }
             }
         }
     }
@@ -158,6 +183,25 @@ impl UniNode.thaw_structure -> None {
             }
         }
     }
+}
+
+impl UniNode.structure_thawed -> StructureThaw {
+    return StructureThaw(target=self);
+}
+
+impl StructureThaw.__enter__ -> StructureThaw {
+    self.refreeze = self.target._struct_frozen;
+    if self.refreeze {
+        self.target.thaw_structure();
+    }
+    return self;
+}
+
+impl StructureThaw.__exit__(exc_type: any, exc: any, tb: any) -> bool {
+    if self.refreeze {
+        self.target.freeze_structure();
+    }
+    return False;
 }
 
 impl UniNode._role_set(role: type[Role], value: any) -> None {
@@ -325,8 +369,51 @@ impl UniNode.replace_kid(old: UniNode, new: UniNode) -> UniNode {
 
 impl UniNode.detached_copy -> UniNode {
     import copy;
-    dup = copy.deepcopy(self);
-    relink_light(getattr(dup, "__jac__"));
+    # __deepcopy__ rebuilds the clone's Kid and Role edges through _attach,
+    # so its in-links are already consistent; nothing to relink afterwards.
+    return copy.deepcopy(self);
+}
+
+impl UniNode.__deepcopy__(memo: dict) -> UniNode {
+    import copy;
+    # Clone the subtree by hand.  The generic deepcopy would walk the runtime
+    # anchor, whose in-link weakrefs cannot be pickled, and would drag the
+    # parent chain in through `_ctx_parent`.  Only Kid and Role edges are
+    # structure; symbol, impl and cfg relations are not copied, so the clone
+    # comes back detached and thawed with fresh derived caches.
+    dup = object.__new__(type(self));
+    memo[id(self)] = dup;
+    for (key, val) in self.__dict__.items() {
+        if key == "__jac__" {
+            continue;
+        }
+        if key == "_ctx_parent" or key.endswith("__sub_node_tab") {
+            dup.__dict__[key] = None;
+        } elif key == "_struct_frozen" {
+            dup.__dict__[key] = False;
+        } elif key == "orig_src" {
+            # The Source node is file identity shared by every token, not
+            # part of the subtree being cloned.
+            dup.__dict__[key] = val;
+        } else {
+            dup.__dict__[key] = copy.deepcopy(val, memo);
+        }
+    }
+    for k in self.kid {
+        kc = copy.deepcopy(k, memo);
+        dup +>:Kid:+> kc;
+    }
+    roles: list[type] = [];
+    for e in [edge self->:Role:->] {
+        if `type(e) not in roles {
+            roles.append(`type(e));
+        }
+    }
+    for role in roles {
+        for tgt in [self->:role:->] {
+            dup._attach(copy.deepcopy(tgt, memo), role);
+        }
+    }
     return dup;
 }
 

@@ -97,7 +97,11 @@ impl ClassDetailsShared.symbol_table.getter -> SymbolTable {
 
 impl ClassDetailsShared.symbol_table.setter(symbol_table: SymbolTable) -> None {
     del [edge self->:DeclScopeOf:->];
-    self +>:DeclScopeOf:+> symbol_table;
+    # A class built without a scope (synthetic MRO fixtures pass None through
+    # `any`) records no DeclScopeOf edge, as the plain field on main tolerated.
+    if symbol_table is not None {
+        self +>:DeclScopeOf:+> symbol_table;
+    }
     c = self._acc_cache;
     if c is None {
         c = {};

@@ -65,6 +65,13 @@ def check_jit_execution -> object {
     Deleting the engine will remove all associated modules.
     It is an error to delete the associated modules.
     """
+# Engines whose code addresses have escaped to callers. A raw function
+# address (ctypes, interop thunks) stays callable only while the engine that
+# JIT'd it lives, and nothing on the Python side references the engine once
+# the compile closure that produced it is released, so the hand-out pins it
+# for the life of the process.
+glob _PINNED_ENGINES: list = [];
+
 class ExecutionEngine(ffi.ObjectRef) {
     with entry {
         _object_cache: (_ObjectCacheRef | None) = None;
@@ -78,6 +85,7 @@ class ExecutionEngine(ffi.ObjectRef) {
         self._td: (targets.TargetData | None) = None;
         self.static_init_symbols = [];
         self.static_init_chained = `set();
+        self._pinned = False;
         module._owned = True;
         ffi.ObjectRef.init(self, ptr);
     }
@@ -107,13 +115,23 @@ class ExecutionEngine(ffi.ObjectRef) {
 
         Handing out an address makes the unit's code reachable, so any pending
         static initializers run first -- unless *name* is listed in
-        *static_init_chained*, meaning that function runs them itself.
+        *static_init_chained*, meaning that function runs them itself -- and
+        the engine is pinned so the address outlives its compile closure.
         """
     def get_function_address(self: ExecutionEngine, name: any) -> int {
+        self._pin();
         if self.static_init_symbols and (name not in self.static_init_chained) {
             self.run_static_init();
         }
         return ffi.lib.LLVMPY_GetFunctionAddress(self, name.encode("ascii"));
+    }
+
+    """Keep this engine alive for the rest of the process."""
+    def _pin(self: ExecutionEngine) -> None {
+        if not self._pinned {
+            self._pinned = True;
+            _PINNED_ENGINES.append(self);
+        }
     }
 
     """
@@ -122,6 +140,7 @@ class ExecutionEngine(ffi.ObjectRef) {
         It's a fatal error in LLVM if the symbol of *name* doesn't exist.
         """
     def get_global_value_address(self: ExecutionEngine, name: any) -> object {
+        self._pin();
         return ffi.lib.LLVMPY_GetGlobalValueAddress(self, name.encode("ascii"));
     }
 

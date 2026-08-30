@@ -31,9 +31,10 @@ declared, which is exactly the two module-level errors `layout_pass` carried
 -- `Type "NoneType" has no attribute "mangle"` and the `<Unknown>`
 assignment behind it -- and a native lane cannot host the read at all. So
 `AstTypedVarNode`, the shared base of `HasVar` and `ParamVar`, declares
-`type` now, and the walk narrows to `HasVar` before reading it rather than
-reaching through an optional `UniNode`. Both errors clear and the verdicts
-are byte-identical.
+`type` now (on the graph layout as an edge-backed accessor slot with a
+setter, the same way `Expr.type` is declared), and the walk narrows to
+`HasVar` before reading it rather than reaching through an optional
+`UniNode`. Both errors clear and the verdicts are byte-identical.
 
 The tests below pin the behaviour rather than the plumbing, because the
 verdicts are what a future change to this walk can break. It stays
@@ -80,15 +81,24 @@ def _acyclic(name: str) -> bool {
 }
 
 
-"""Whether a node type declares a has-field of the given name, anywhere in its MRO.
+"""Whether a node type declares a has-slot of the given name, anywhere in its MRO.
 
-The slot is a per-instance field, so it is absent from the class itself; the
-declaration shows up in `__annotations__` of whichever ancestor declares it.
+A plain `has` slot is a per-instance field, so it is absent from the class
+itself; the declaration shows up in `__annotations__` of whichever ancestor
+declares it. An accessor slot (`has x: T { getter; setter(x: T); }`), which
+is how every edge-backed slot of a graph node is declared, shows up as a
+`property` descriptor in that ancestor's own `__dict__` instead. `writable`
+additionally requires an accessor slot to carry a setter: a slot the checker
+assigns to has to have one.
 """
-def _declares(node_type: type, field: str) -> bool {
+def _declares(node_type: type, field: str, writable: bool = False) -> bool {
     for cls in node_type.__mro__ {
         if field in getattr(cls, '__annotations__', {}) {
             return True;
+        }
+        desc = vars(cls).get(field);
+        if isinstance(desc, property) {
+            return (not writable) or (desc.fset is not None);
         }
     }
     return False;
@@ -99,12 +109,12 @@ test "the slot the type checker stamps on a typed var is a declared one" {
     # This is the fix, stated as a fact: the checker writes `.type` onto
     # HasVar and ParamVar, so the class has to declare it. Undeclared, the
     # read type-checks as NoneType and no native lane can host it.
-    assert _declares(uni.HasVar, 'type') , (
+    assert _declares(uni.HasVar, 'type', writable=True) , (
         "HasVar lost its declared 'type' slot, but TypeCheckPass.exit_has_var "
         "still assigns it -- that is an undeclared stash, and it is what put "
         "two checker errors in layout_pass"
     );
-    assert _declares(uni.ParamVar, 'type') , (
+    assert _declares(uni.ParamVar, 'type', writable=True) , (
         "ParamVar lost its declared 'type' slot; exit_param_var stamps it the "
         "same way exit_has_var does"
     );

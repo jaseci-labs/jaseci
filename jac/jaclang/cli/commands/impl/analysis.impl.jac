@@ -857,6 +857,10 @@ impl format(
     );
 
     results_by_idx: dict[(int, dict)] = {};
+    # Progress is the only observable difference between the two paths: the
+    # pool reports completions as `Formatting [N/M] completed...`, the serial
+    # path names each file as it starts.
+    progress: dict[(str, any)] = {"pooled": use_pool, "done": 0};
 
     def fmt_job(request: dict[(str, any)]) -> dict {
         fp = str(request["path"]);
@@ -866,10 +870,18 @@ impl format(
     }
 
     def on_dispatch(idx: int, path: str) {
-        console.print(f"Formatting {path}");
+        if not progress["pooled"] {
+            console.print(f"Formatting {path}");
+        }
     }
 
     def on_record(idx: int, record: dict[(str, any)]) -> None {
+        if progress["pooled"] {
+            progress["done"] += 1;
+            console.print(
+                f"Formatting [{progress['done']}/{total_files}] completed..."
+            );
+        }
         res = _wire_dict(record.get('result'));
         if res {
             results_by_idx[idx] = res;
@@ -908,6 +920,7 @@ impl format(
                 "falling back to serial."
             );
             results_by_idx.clear();
+            progress["pooled"] = False;
             pool.run_inline();
         }
     } else {

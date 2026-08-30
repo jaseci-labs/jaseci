@@ -143,8 +143,8 @@ def is_compiler_tree_path(source_path: str) -> bool {
         return False;
     }
     rel = resolved[len(base):].replace(os.sep, "/");
-    for root in COMPILER_DIGEST_ROOTS {
-        if rel == root or rel.startswith(root + "/") {
+    for digest_root in COMPILER_DIGEST_ROOTS {
+        if rel == digest_root or rel.startswith(digest_root + "/") {
             return True;
         }
     }

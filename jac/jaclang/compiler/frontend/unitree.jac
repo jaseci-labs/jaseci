@@ -172,10 +172,12 @@ node UniNode {
 
     def _link(kid: Sequence[UniNode], roles: dict[type, any]) -> None;
     def detached_copy -> UniNode;
+    def __deepcopy__(memo: dict) -> UniNode;
     def _assert_thawed -> None;
     def freeze_structure -> None;
     def thaw_structure -> None;
-    def _attach(child: UniNode, role: type) -> None;
+    def structure_thawed -> StructureThaw;
+    def _attach(child: UniNode, role: type[Role]) -> None;
     def _children -> list[UniNode];
     def _role_shaped(role: type[Role], found: list[UniNode]) -> any;
     def _role_set(role: type[Role], value: any) -> None;
@@ -283,6 +285,20 @@ node Symbol {
     def add_use(nd: NameAtom) -> None;
     def in_stub_scope -> bool;
     def __repr__ -> str;
+}
+
+obj StructureThaw {
+    """Scoped thaw for tools that legitimately restructure a frozen tree.
+
+    Entering thaws the target's subtree when it is frozen; leaving re-freezes
+    it (also on error) so the post-codegen mutation guard is restored.  An
+    unfrozen target is left untouched on both sides.
+    """
+    has target: UniNode,
+        refreeze: bool = False;
+
+    def __enter__ -> StructureThaw;
+    def __exit__(exc_type: any, exc: any, tb: any) -> bool;
 }
 
 obj InheritedSymbolTable {

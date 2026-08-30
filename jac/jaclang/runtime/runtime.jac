@@ -33,8 +33,7 @@ import from jaclang.runtime.archetype {
     light_disconnect,
     light_edge_view,
     light_hop,
-    light_hop_answers,
-    track_writes
+    light_hop_answers
 }
 import from jaclang.compiler.frontend.constant { EdgeDir, colors }
 import from jaclang.runtime.graph_query { GraphQuery, QHop }

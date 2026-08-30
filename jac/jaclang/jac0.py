@@ -2570,24 +2570,34 @@ class CodeGen:
         else:
             prev_in_class = self._in_class
             self._in_class = True
-            # Emit body but skip stubs that have matching impls
+            # Group impls by the stub they implement so each one is emitted
+            # at its declaration's position: the full compiler substitutes an
+            # impl body into its stub in place, so method (and therefore
+            # ability-slot) order follows the archetype body, not the impl
+            # file. Accessor impls (`Cls.prop.getter`) have no stub and are
+            # emitted after the body.
+            impls_by_stub: dict[str, list[ImplDef]] = {}
+            accessor_impls: list[ImplDef] = []
+            for impl in impls:
+                parts = impl.target.split(".")
+                if len(parts) >= 2 and parts[-1] in ("getter", "setter", "deleter"):
+                    accessor_impls.append(impl)
+                    continue
+                mname = parts[-1] if len(parts) > 1 else parts[0]
+                mname = _dunder_names.get(mname, mname)
+                if mname not in stub_lookup:
+                    continue
+                impls_by_stub.setdefault(mname, []).append(impl)
             for bnode in body:
                 if isinstance(bnode, FuncDef):
                     fname = _dunder_names.get(bnode.name, bnode.name)
                     if fname in impl_method_names and fname in stub_lookup:
-                        continue  # Skip stub; impl will provide the method
+                        # The impl provides the method, in the stub's place.
+                        for impl in impls_by_stub.get(fname, []):
+                            self._emit_impl_as_method(impl, stub_lookup)
+                        continue
                 self._emit(bnode)
-            for impl in impls:
-                parts = impl.target.split(".")
-                mname = parts[-1] if len(parts) > 1 else parts[0]
-                mname = _dunder_names.get(mname, mname)
-                # Native property accessor impls (`Cls.prop.getter`) have no
-                # FuncDef stub; emit them directly.
-                if len(parts) >= 2 and parts[-1] in ("getter", "setter", "deleter"):
-                    self._emit_impl_as_method(impl, stub_lookup)
-                    continue
-                if mname not in stub_lookup:
-                    continue
+            for impl in accessor_impls:
                 self._emit_impl_as_method(impl, stub_lookup)
             self._in_class = prev_in_class
         self._arch_kind = prev_arch_kind

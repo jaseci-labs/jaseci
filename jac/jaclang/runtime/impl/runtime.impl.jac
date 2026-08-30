@@ -1150,7 +1150,7 @@ impl JacGraph.hop(
             and not edges_only
             and not anchor.persistent
             and (
-                not anchor.edges
+                not anchor.has_heavy_edges()
                 or (not anchor.mixed and _light_edge_types.get(edge_type))
             )
             and len(_edge_subtypes.get(edge_type) or edge_subtypes(edge_type)) == 1
@@ -1179,7 +1179,7 @@ impl JacGraph.clear_edges(
     if edge_type is not None and not isinstance(origin, `list) {
         anchor = origin.__jac__;
         if (
-            not anchor.edges
+            not anchor.has_heavy_edges()
             and len(_edge_subtypes.get(edge_type) or edge_subtypes(edge_type)) == 1
         ) {
             d_out = anchor.out_light;
@@ -1366,9 +1366,6 @@ impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
     if (not anchor.persistent and not anchor.root) {
         anchor.persistent = True;
         anchor.`root = jctx.user_root.id;
-    }
-    if anchor.is_populated() {
-        track_writes(anchor.archetype);
     }
     jctx.mem.put(anchor);
     match anchor {
