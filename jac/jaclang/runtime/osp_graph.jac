@@ -51,7 +51,9 @@ obj EdgeRow {
 
 obj Adj {
     has rows_out: list[int],
-        rows_in: list[int];
+        rows_in: list[int],
+        out: dict[int, list[int]],
+        inn: dict[int, list[int]];
 }
 
 obj OspGraph {
@@ -67,9 +69,141 @@ obj OspGraph {
             found: Adj = self.adj[h];
             return found;
         }
-        made = Adj(rows_out=[], rows_in=[]);
+        made = Adj(rows_out=[], rows_in=[], out={}, inn={});
         self.adj[h] = made;
         return made;
+    }
+
+    def has_light(h: int) -> bool {
+        if h not in self.adj {
+            return False;
+        }
+        a: Adj = self.adj[h];
+        for k in a.out {
+            peers: list[int] = a.out[k];
+            if peers {
+                return True;
+            }
+        }
+        for k in a.inn {
+            srcs: list[int] = a.inn[k];
+            if srcs {
+                return True;
+            }
+        }
+        return False;
+    }
+
+    def connect_light(src: int, tgt: int, tag: int, one_sided: bool) -> int {
+        if src in self.dead or tgt in self.dead {
+            return -1;
+        }
+        sa: Adj = self.adj_of(src);
+        ta: Adj = self.adj_of(tgt);
+        if tag in sa.out {
+            outs: list[int] = sa.out[tag];
+            outs.append(tgt);
+        } else {
+            sa.out[tag] = [tgt];
+        }
+        if not one_sided {
+            if tag in ta.inn {
+                inns: list[int] = ta.inn[tag];
+                inns.append(src);
+            } else {
+                ta.inn[tag] = [src];
+            }
+        }
+        return tgt;
+    }
+
+    def light_remove_one(src: int, tgt: int, tag: int) -> bool {
+        if src not in self.adj {
+            return False;
+        }
+        sa: Adj = self.adj[src];
+        if tag not in sa.out {
+            return False;
+        }
+        outs: list[int] = sa.out[tag];
+        if not self._drop_handle(outs, tgt) {
+            return False;
+        }
+        if tgt in self.adj {
+            ta: Adj = self.adj[tgt];
+            if tag in ta.inn {
+                inns: list[int] = ta.inn[tag];
+                self._drop_handle(inns, src);
+            }
+        }
+        return True;
+    }
+
+    def light_pairs(h: int, outgoing: bool) -> list[int] {
+        out: list[int] = [];
+        if h not in self.adj {
+            return out;
+        }
+        a: Adj = self.adj[h];
+        d: dict[int, list[int]] = a.out if outgoing else a.inn;
+        for k in d {
+            peers: list[int] = d[k];
+            for p in peers {
+                out.append(k);
+                out.append(p);
+            }
+        }
+        return out;
+    }
+
+    def light_detach(h: int) -> int {
+        if h not in self.adj {
+            return 0;
+        }
+        a: Adj = self.adj[h];
+        n = 0;
+        for k in a.out {
+            peers: list[int] = a.out[k];
+            for p in peers {
+                if p in self.adj {
+                    pa: Adj = self.adj[p];
+                    if k in pa.inn {
+                        inns: list[int] = pa.inn[k];
+                        self._drop_handle(inns, h);
+                    }
+                }
+                n += 1;
+            }
+        }
+        for k in a.inn {
+            srcs: list[int] = a.inn[k];
+            for s in srcs {
+                if s in self.adj {
+                    sa: Adj = self.adj[s];
+                    if k in sa.out {
+                        outs: list[int] = sa.out[k];
+                        self._drop_handle(outs, h);
+                    }
+                }
+                n += 1;
+            }
+        }
+        a.out.clear();
+        a.inn.clear();
+        return n;
+    }
+
+    def _drop_handle(lst: list[int], h: int) -> bool {
+        i = 0;
+        n = len(lst);
+        while i < n {
+            if lst[i] == h {
+                lst.pop(i);
+                return True;
+            }
+            i += 1;
+        }
+        return False;
     }
 
     def is_dead(h: int) -> bool {
@@ -161,7 +295,7 @@ obj OspGraph {
     }
 
     def _tag_matches(tag: int, want: int) -> bool {
-        if want < 0 or tag == want {
+        if want == -1 or tag == want {
             return True;
         }
         return osp_is_a(tag, want);
@@ -210,6 +344,35 @@ obj OspGraph {
                 if o not in seen {
                     seen.add(o);
                     out.append(o);
+                }
+            }
+        }
+        if edges_only {
+            return;
+        }
+        if dir == 2 or dir == 3 {
+            for k in a.out {
+                if self._tag_matches(k, edge_tag) {
+                    peers: list[int] = a.out[k];
+                    for p in peers {
+                        if p not in seen {
+                            seen.add(p);
+                            out.append(p);
+                        }
+                    }
+                }
+            }
+        }
+        if dir == 1 or dir == 3 {
+            for k in a.inn {
+                if self._tag_matches(k, edge_tag) {
+                    srcs: list[int] = a.inn[k];
+                    for s in srcs {
+                        if s not in seen {
+                            seen.add(s);
+                            out.append(s);
+                        }
+                    }
                 }
             }
         }
@@ -484,6 +647,41 @@ obj OspGraph {
         return len(hits);
     }
 
+    def light_disconnect_between(src: int, tgt: int, dir: int, edge_tag: int) -> int {
+        n = 0;
+        if src not in self.adj {
+            return 0;
+        }
+        a: Adj = self.adj[src];
+        if dir == 2 or dir == 3 {
+            ktags: list[int] = [];
+            for k in a.out {
+                if self._tag_matches(k, edge_tag) {
+                    ktags.append(k);
+                }
+            }
+            for k in ktags {
+                while self.light_remove_one(src, tgt, k) {
+                    n += 1;
+                }
+            }
+        }
+        if dir == 1 or dir == 3 {
+            ktags2: list[int] = [];
+            for k in a.inn {
+                if self._tag_matches(k, edge_tag) {
+                    ktags2.append(k);
+                }
+            }
+            for k in ktags2 {
+                while self.light_remove_one(tgt, src, k) {
+                    n += 1;
+                }
+            }
+        }
+        return n;
+    }
+
     def disconnect_between_many(
         srcs: list[int], tgts: list[int], dir: int, edge_tag: int
     ) -> int {
@@ -504,6 +702,7 @@ obj OspGraph {
         if h not in self.adj {
             return 0;
         }
+        n0: int = self.light_detach(h);
         a: Adj = self.adj[h];
         gone: list[int] = [];
         for rid in a.rows_out {
@@ -518,7 +717,7 @@ obj OspGraph {
                 gone.append(rid);
             }
         }
-        n = 0;
+        n = n0;
         for rid in gone {
             row: EdgeRow = self.rows[rid];
             if not row.live {
@@ -546,6 +745,17 @@ obj OspGraph {
         return n;
     }
 
+    def drop_node(h: int) -> int {
+        n = self.node_destroy(h);
+        if h in self.adj {
+            self.adj.pop(h);
+        }
+        if h in self.dead {
+            self.dead.pop(h);
+        }
+        return n;
+    }
+
     def region_died(rgn: int) -> int {
         if rgn not in self.regions {
             return 0;
@@ -555,6 +765,7 @@ obj OspGraph {
         stash: list[Adj] = [];
         for h in members {
             if h in self.adj {
+                self.light_detach(h);
                 a: Adj = self.adj[h];
                 stash.append(a);
                 self.adj.pop(h);
@@ -686,6 +897,34 @@ def osp_wrap1(x: int) -> list[int] {
 
 def osp_edge_peer(edge_handle: int, origin: int) -> int {
     return DEFAULT_GRAPH.edge_peer(edge_handle, origin);
+}
+
+def osp_conn_light(src: int, tgt: int, edge_tag: int, one_sided: int) -> int {
+    return DEFAULT_GRAPH.connect_light(src, tgt, edge_tag, one_sided != 0);
+}
+
+def osp_light_remove(src: int, tgt: int, edge_tag: int) -> int {
+    return 1 if DEFAULT_GRAPH.light_remove_one(src, tgt, edge_tag) else 0;
+}
+
+def osp_light_pairs(h: int, outgoing: int) -> list[int] {
+    return DEFAULT_GRAPH.light_pairs(h, outgoing != 0);
+}
+
+def osp_light_detach(h: int) -> int {
+    return DEFAULT_GRAPH.light_detach(h);
+}
+
+def osp_has_light(h: int) -> int {
+    return 1 if DEFAULT_GRAPH.has_light(h) else 0;
+}
+
+def osp_light_disconn_between(src: int, tgt: int, dir: int, edge_tag: int) -> int {
+    return DEFAULT_GRAPH.light_disconnect_between(src, tgt, dir, edge_tag);
+}
+
+def osp_drop_node(h: int) -> int {
+    return DEFAULT_GRAPH.drop_node(h);
 }
 
 def osp_disconn_between(src: int, tgt: int, dir: int, edge_tag: int) -> int {

@@ -8,7 +8,6 @@ import from threading { Lock }
 import from types { UnionType }
 import from typing { ClassVar, TypeVar }
 import from uuid { UUID, uuid4 }
-import weakref;
 import from jaclang.compiler.frontend.constant { EdgeDir }
 glob logger = getLogger(__name__),
      TARCH = TypeVar('TARCH', bound='Archetype'),
@@ -19,7 +18,6 @@ glob _NO_TRIGGER = object(),
      _subclass_hook_lock = Lock();
 
 glob _light_edge_types: dict[type, bool] = {},
-     _edge_subtypes: dict[type, tuple] = {},
      _tracked_classes: dict[type, type] = {};
 
 enum AccessLevel { NO_ACCESS = -1, READ = 0, CONNECT = 1, WRITE = 2 }
@@ -104,11 +102,10 @@ obj NodeAnchor(Anchor) {
     has archetype: NodeArchetype,
         edges: list[EdgeAnchor],
         version: int = field(`init=False, `default=0),
-        out_light: (dict[type, list] | None) = field(`init=False, `default=None),
-        in_light: (dict[type, list] | None) = field(`init=False, `default=None),
         mixed: bool = field(`init=False, `default=False);
 
     def __getstate__ -> dict[(str, object)];
+    def __setstate__(state: dict[(str, object)]) -> None;
     def is_populated -> bool;
     def edge_delta -> (tuple[(set[UUID], set[UUID])] | None);
     def remove_edge(`edge: EdgeAnchor) -> None;
@@ -296,178 +293,91 @@ def is_light_edge_type(cls: type) -> bool {
     return light;
 }
 
-def edge_subtypes(cls: type) -> tuple {
-    known = _edge_subtypes.get(cls);
-    if known is not None {
-        return known;
-    }
-    out: list = [cls];
-    i = 0;
-    while i < len(out) {
-        for sub in out[i].__subclasses__() {
-            if sub not in out and not sub.__dict__.get('__jac_tracked__', False) {
-                out.append(sub);
+glob _light_reg: set = set();
+
+def _light_tag(cls: type) -> any {
+    if cls not in _light_reg {
+        import from jaclang.runtime.osp_graph { osp_register_type }
+        bases: list = [];
+        for c in cls.__mro__[1:] {
+            if c is not object {
+                bases.append(c);
             }
         }
-        i += 1;
+        t: any = cls;
+        osp_register_type(t, bases);
+        _light_reg.add(cls);
     }
-    result = tuple(out);
-    _edge_subtypes[cls] = result;
-    return result;
+    return cls;
 }
 
-def _deref(lst: list) -> list {
-    out: list = [];
-    for r in lst {
-        a = r();
-        if a is not None {
-            out.append(a);
-        }
-    }
-    return out;
+def _light_pairs_of(anchor: NodeAnchor, outgoing: bool) -> list {
+    import from jaclang.runtime.osp_graph { osp_light_pairs }
+    me: any = anchor.archetype;
+    return osp_light_pairs(me, 1 if outgoing else 0);
 }
 
 def light_connect(src: NodeAnchor, cls: type, tgt: NodeAnchor) {
-    out = src.out_light;
-    if out is None {
-        out = {};
-        src.out_light = out;
-    }
-    lst = out.get(cls);
-    if lst is None {
-        out[cls] = [tgt.archetype];
-    } else {
-        lst.append(tgt.archetype);
-    }
-    inn = tgt.in_light;
-    if inn is None {
-        inn = {};
-        tgt.in_light = inn;
-    }
-    back = weakref.ref(src.archetype);
-    lst = inn.get(cls);
-    if lst is None {
-        inn[cls] = [back];
-    } else {
-        lst.append(back);
-        if len(lst) & 63 == 0 {
-            lst[:] = [
-                r
-                for r in lst
-                if r() is not None
-            ];
-        }
-    }
-}
-
-def _drop_entry(d: (dict | None), cls: type, key: any) -> bool {
-    if d is None {
-        return False;
-    }
-    lst = d.get(cls);
-    if lst is None {
-        return False;
-    }
-    try {
-        lst.remove(key);
-    } except ValueError {
-        return False;
-    }
-    if not lst {
-        d.pop(cls, None);
-    }
-    return True;
+    import from jaclang.runtime.osp_graph { osp_conn_light }
+    sh: any = src.archetype;
+    th: any = tgt.archetype;
+    osp_conn_light(sh, th, _light_tag(cls), 0);
 }
 
 def light_disconnect(src: NodeAnchor, cls: type, tgt: NodeAnchor) -> bool {
-    held = _drop_entry(src.out_light, cls, tgt.archetype);
-    _drop_entry(tgt.in_light, cls, weakref.ref(src.archetype));
-    return held;
+    import from jaclang.runtime.osp_graph { osp_light_remove }
+    sh: any = src.archetype;
+    th: any = tgt.archetype;
+    return osp_light_remove(sh, th, _light_tag(cls)) != 0;
 }
 
-def light_clear(anchor: NodeAnchor, cls: type, outgoing: bool = True) -> bool {
-    d = anchor.out_light if outgoing else anchor.in_light;
-    if d is None {
-        return False;
-    }
-    lst = d.pop(cls, None);
-    if not lst {
-        return False;
-    }
-    me = anchor.archetype;
-    if outgoing {
-        back = weakref.ref(me);
-        for other in lst {
-            _drop_entry(other.__jac__.in_light, cls, back);
-        }
-    } else {
-        for other in _deref(lst) {
-            _drop_entry(other.__jac__.out_light, cls, me);
-        }
-    }
-    return True;
-}
-
-def light_clear_matching(
-    anchor: NodeAnchor, cls: (type | None), outgoing: bool
+def _light_clear_pairs(
+    anchor: NodeAnchor, cls: (type | None), outgoing: bool, exact: bool
 ) -> bool {
-    d = anchor.out_light if outgoing else anchor.in_light;
-    if not d {
-        return False;
-    }
-    if cls is not None and len(_edge_subtypes.get(cls) or edge_subtypes(cls)) == 1 {
-        return light_clear(anchor, cls, outgoing);
-    }
+    import from jaclang.runtime.osp_graph { osp_light_remove }
+    me: any = anchor.archetype;
+    pairs = _light_pairs_of(anchor, outgoing);
     hit = False;
-    for k in `list(d.keys()) {
-        if cls is None or issubclass(k, cls) {
-            if light_clear(anchor, k, outgoing) {
-                hit = True;
+    i = 0;
+    while i < len(pairs) {
+        k = pairs[i];
+        other = pairs[i + 1];
+        i += 2;
+        if cls is not None {
+            if exact {
+                if k is not cls {
+                    continue;
+                }
+            } elif not issubclass(k, cls) {
+                continue;
             }
+        }
+        removed = osp_light_remove(me, other, k)
+            if outgoing
+            else osp_light_remove(other, me, k);
+        if removed != 0 {
+            hit = True;
         }
     }
     return hit;
 }
 
-def _collect_light(d: dict, cls: (type | None)) -> list {
-    if cls is None {
-        out: list = [];
-        for lst in d.values() {
-            out.extend(lst);
-        }
-        return out;
-    }
-    subs = edge_subtypes(cls);
-    if len(subs) == 1 {
-        lst = d.get(cls);
-        return lst if lst is not None else [];
-    }
-    found: list = [];
-    if len(subs) <= len(d) {
-        for sub in subs {
-            lst = d.get(sub);
-            if lst {
-                found.extend(lst);
-            }
-        }
-    } else {
-        for (k, lst) in d.items() {
-            if lst and issubclass(k, cls) {
-                found.extend(lst);
-            }
-        }
-    }
-    return found;
+def light_clear(anchor: NodeAnchor, cls: type, outgoing: bool = True) -> bool {
+    return _light_clear_pairs(anchor, cls, outgoing, True);
+}
+
+def light_clear_matching(
+    anchor: NodeAnchor, cls: (type | None), outgoing: bool
+) -> bool {
+    return _light_clear_pairs(anchor, cls, outgoing, False);
 }
 
 def light_out(anchor: NodeAnchor, cls: (type | None)) -> list {
-    d = anchor.out_light;
-    return _collect_light(d, cls) if d else [];
+    return light_hop(anchor, 2, cls, False);
 }
 
 def light_in(anchor: NodeAnchor, cls: (type | None)) -> list {
-    d = anchor.in_light;
-    return _deref(_collect_light(d, cls)) if d else [];
+    return light_hop(anchor, 1, cls, False);
 }
 
 def light_hop(
@@ -487,39 +397,10 @@ def light_hop(
         }
         return out;
     }
-    if cls is not None and len(_edge_subtypes.get(cls) or edge_subtypes(cls)) == 1 {
-        if dir == 2 {
-            d = anchor.out_light;
-            lst = d.get(cls) if d else None;
-            return `list(lst) if lst else [];
-        }
-        if dir == 1 {
-            d = anchor.in_light;
-            lst = d.get(cls) if d else None;
-            return _deref(lst) if lst else [];
-        }
-        found: list = [];
-        d = anchor.out_light;
-        lst = d.get(cls) if d else None;
-        if lst {
-            found = `list(lst);
-        }
-        d = anchor.in_light;
-        lst = d.get(cls) if d else None;
-        if lst {
-            found = found + _deref(lst);
-        }
-    } elif dir == 2 {
-        found = light_out(anchor, cls);
-    } elif dir == 1 {
-        found = light_in(anchor, cls);
-    } else {
-        found = light_out(anchor, cls) + light_in(anchor, cls);
-    }
-    if len(found) < 2 {
-        return `list(found);
-    }
-    return `list(`dict.fromkeys(found));
+    import from jaclang.runtime.osp_graph { DEFAULT_GRAPH }
+    me: any = anchor.archetype;
+    tag: any = _light_tag(cls) if cls is not None else -1;
+    return DEFAULT_GRAPH.refs(me, dir, tag, False);
 }
 
 def light_hop_answers(anchor: NodeAnchor, cls: (type | None)) -> bool {
@@ -556,22 +437,21 @@ def light_edge_view(
 def light_edge_views(
     anchor: NodeAnchor, cls: (type | None), outgoing: bool
 ) -> list[EdgeAnchor] {
-    d = anchor.out_light if outgoing else anchor.in_light;
-    if not d {
-        return [];
-    }
     out: list[EdgeAnchor] = [];
-    for (k, lst) in d.items() {
+    pairs = _light_pairs_of(anchor, outgoing);
+    i = 0;
+    while i < len(pairs) {
+        k = pairs[i];
+        other = pairs[i + 1];
+        i += 2;
         if cls is not None and not issubclass(k, cls) {
             continue;
         }
-        for other in (lst if outgoing else _deref(lst)) {
-            oa = other.__jac__;
-            e = light_edge_view(k, anchor, oa)
-                if outgoing
-                else light_edge_view(k, oa, anchor);
-            out.append(e.__jac__);
-        }
+        oa = other.__jac__;
+        e = light_edge_view(k, anchor, oa)
+            if outgoing
+            else light_edge_view(k, oa, anchor);
+        out.append(e.__jac__);
     }
     return out;
 }

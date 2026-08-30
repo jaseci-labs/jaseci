@@ -2,6 +2,7 @@ import from jaclang.runtime.archetype {
     Anchor,
     EdgeAnchor,
     NodeAnchor,
+    _light_pairs_of,
     anchor_key,
     light_edge_view,
     same_anchor
@@ -157,41 +158,36 @@ def _walk_light(
     seen: set,
     nxt: list[tuple[Anchor, (EdgeAnchor | None)]]
 ) -> None {
-    d = cur.out_light if outgoing else cur.in_light;
-    if not d {
-        return;
-    }
     ecls = hop.`edge;
-    for (k, lst) in d.items() {
+    pairs = _light_pairs_of(cur, outgoing);
+    i = 0;
+    while i < len(pairs) {
+        k = pairs[i];
+        arch = pairs[i + 1];
+        i += 2;
         if ecls is not None and not issubclass(k, ecls) {
             continue;
         }
-        for item in lst {
-            arch = item if outgoing else item();
-            if arch is None {
-                continue;
-            }
-            other = arch.__jac__;
-            if not hop_matches_node(other, hop) {
-                continue;
-            }
-            if gated and not acl_read_ok(other) {
-                continue;
-            }
-            key = (k, id(cur), id(other)) if outgoing else (k, id(other), id(cur));
-            if key in seen {
-                continue;
-            }
-            seen.add(key);
-            e: (EdgeAnchor | None) = None;
-            if want_edges {
-                view = light_edge_view(k, cur, other)
-                    if outgoing
-                    else light_edge_view(k, other, cur);
-                e = view.__jac__;
-            }
-            nxt.append((other, e));
+        other = arch.__jac__;
+        if not hop_matches_node(other, hop) {
+            continue;
         }
+        if gated and not acl_read_ok(other) {
+            continue;
+        }
+        key = (k, id(cur), id(other)) if outgoing else (k, id(other), id(cur));
+        if key in seen {
+            continue;
+        }
+        seen.add(key);
+        e: (EdgeAnchor | None) = None;
+        if want_edges {
+            view = light_edge_view(k, cur, other)
+                if outgoing
+                else light_edge_view(k, other, cur);
+            e = view.__jac__;
+        }
+        nxt.append((other, e));
     }
 }
 
