@@ -451,6 +451,15 @@ fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.built
     });
     const seed_tests = b.addTest(.{ .name = "fetch-pbs-tests", .root_module = seed_mod });
     test_step.dependOn(&b.addRunArtifact(seed_tests).step);
+
+    const ts_mod = b.createModule(.{
+        .root_source_file = b.path("bootstrap/fetch_typeshed.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    const ts_tests = b.addTest(.{ .name = "fetch-typeshed-tests", .root_module = ts_mod });
+    test_step.dependOn(&b.addRunArtifact(ts_tests).step);
 }
 
 /// Map a target to the os-arch token the fetch-pbs subcommand understands,
