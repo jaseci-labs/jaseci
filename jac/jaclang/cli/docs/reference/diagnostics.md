@@ -338,6 +338,19 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `E1405` | Closure capture of '{name}' escapes its scope in a nogc-enforced module ({provenance}) |
 | `E1406` | '{name}' has retaining or aliasing semantics not supported in a nogc-enforced module ({provenance}) |
 
+### Type-Only Import Bindings
+
+| Code | Message |
+|------|---------|
+| `E1131` | '{name}' is a type-only export of '{module}' and must be imported with `import type` |
+| `E1132` | '{name}' was imported with `import type` and cannot be used as a value |
+
+!!! tip "Fixing `E1131` (a type-only export reached by a plain import)"
+    Some declarations exist only for the checker and have no runtime export: a TypeScript `interface` or `type` alias in a `.d.ts` (npm package or sibling declaration file), and a jac `type` alias. A plain `import from` binds them as values, so the client backend emits a named ESM specifier the loader cannot satisfy -- in the browser that is a link-time `SyntaxError` that takes the whole module graph down, with no diagnostic upstream. Move the name to its own `import type from <module> { Name }` statement (the client backend erases it, the Python backend lowers it to a `typing.TYPE_CHECKING` guard) and leave the value imports from the same module where they are. `declare class`, `declare enum`, and every jac archetype (`obj`, `class`, `node`, `edge`, `walker`, `enum`) are both a value and a type, so a plain import of one stays correct; a package with no declarations at all is a value import as before (`W1102` / `E1120`). The error blocks codegen. See [Type-Only Imports](language/types-and-values.md#type-only-imports-import-type).
+
+!!! tip "Fixing `E1132` (a type-only binding used as a value)"
+    An `import type` binding is registered with the checker and nothing else -- no runtime import is emitted for it -- so calling it, reading an attribute off it, passing it to `isinstance`/`issubclass`, decorating with it, inheriting from it, or assigning it reaches a name nothing binds. Annotations, `has` field types, return types, generic arguments, `as` casts, and `type` alias right-hand sides are type position and stay legal. If the name really is needed at runtime, import it with a plain `import from` instead, which requires that it actually has a runtime export. The error blocks codegen.
+
 ### Type Warnings
 
 | Code | Message |
