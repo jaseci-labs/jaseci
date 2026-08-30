@@ -8,7 +8,12 @@ import struct;
 import from collections { deque }
 glob logger = logging.getLogger(__name__),
      PROTOCOL_VERSION = 196608,
-     __all__ = ['PgWireConnection', 'PgWireError', 'sql_log_reset_for_tests'];
+     __all__ = [
+        'PgWireConnection',
+        'PgWireError',
+        'selep_trace_reset_for_tests',
+        'sql_log_reset_for_tests'
+     ];
 
 
 class PgWireError(Exception) {}
@@ -18,6 +23,7 @@ def _encode_param(v: any) -> (bytes | None);
 def _array_literal(vals: any) -> str;
 def _decode_value(oid: int, raw: bytes) -> any;
 def _named_to_positional(sql: str, params: dict) -> tuple[str, list];
+def selep_trace_reset_for_tests -> None;
 def sql_log_reset_for_tests -> None;
 
 

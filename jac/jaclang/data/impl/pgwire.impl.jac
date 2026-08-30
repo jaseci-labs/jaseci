@@ -3,7 +3,9 @@ import threading;
 glob _INT32 = '!i',
      _INT16 = '!h',
      _sql_log_state: list = [None],
-     _sql_log_lock: threading.Lock = threading.Lock();
+     _sql_log_lock: threading.Lock = threading.Lock(),
+     _selep_trace_state: list = [None],
+     _selep_trace_lock: threading.Lock = threading.Lock();
 
 
 def _compact_sql(sql: str) -> str {
@@ -30,6 +32,12 @@ def _sql_log_path -> str {
 }
 
 
+def _selep_trace_path -> str {
+    import os;
+    return os.environ.get('JAC_SELEP_TRACE', '').strip();
+}
+
+
 impl sql_log_reset_for_tests -> None {
     with _sql_log_lock {
         state = _sql_log_state[0];
@@ -41,6 +49,121 @@ impl sql_log_reset_for_tests -> None {
             }
         }
         _sql_log_state[0] = None;
+    }
+}
+
+
+impl selep_trace_reset_for_tests -> None {
+    with _selep_trace_lock {
+        state = _selep_trace_state[0];
+        if state is not None and state is not False {
+            try {
+                state[0].close();
+            } except Exception {
+                ;
+            }
+        }
+        _selep_trace_state[0] = None;
+    }
+}
+
+
+def _trace_jsonable(v: any) -> any {
+    if v is None or isinstance(v, (str, int, float, bool)) {
+        return v;
+    }
+    if isinstance(v, bytes) {
+        return {"__bytes_hex__": v.hex()};
+    }
+    if isinstance(v, (list, tuple, set)) {
+        out: list = [];
+        for item in v {
+            out.append(_trace_jsonable(item));
+        }
+        return out;
+    }
+    if isinstance(v, dict) {
+        mapped: dict[str, any] = {};
+        for pair in v.items() {
+            key = pair[0];
+            value = pair[1];
+            mapped[str(key)] = _trace_jsonable(value);
+        }
+        return mapped;
+    }
+    return str(v);
+}
+
+
+def _trace_jsonable_params(params: dict) -> dict {
+    out: dict[str, any] = {};
+    for pair in params.items() {
+        key = pair[0];
+        value = pair[1];
+        out[str(key)] = _trace_jsonable(value);
+    }
+    return out;
+}
+
+
+def _write_selep_trace(
+    conn: any,
+    sql: str,
+    params: dict,
+    pos_sql: str,
+    args: list,
+    elapsed_ms: float,
+    row_count: int,
+    error: str = ''
+) -> None {
+    if _selep_trace_state[0] is False {
+        return;
+    }
+    with _selep_trace_lock {
+        state = _selep_trace_state[0];
+        if state is None {
+            try {
+                import pathlib;
+                path = _selep_trace_path();
+                if not path {
+                    _selep_trace_state[0] = False;
+                    return;
+                }
+                p = pathlib.Path(path);
+                p.parent.mkdir(parents=True, exist_ok=True);
+                state = (p.open('a'),);
+                _selep_trace_state[0] = state;
+            } except Exception {
+                _selep_trace_state[0] = False;
+                return;
+            }
+        }
+        if state is False {
+            return;
+        }
+        try {
+            import json;
+            import time;
+            fh = state[0];
+            record = {
+                "ts_ns": time.time_ns(),
+                "thread_id": threading.get_ident(),
+                "database": str(getattr(conn, 'database', '') or ''),
+                "application_name": str(getattr(conn, 'application_name', '') or ''),
+                "elapsed_ms": elapsed_ms,
+                "row_count": row_count,
+                "status": 'error' if error else 'ok',
+                "error": error,
+                "sql": _compact_sql(sql),
+                "params": _trace_jsonable_params(params),
+                "pos_sql": _compact_sql(pos_sql),
+                "args": _trace_jsonable(args)
+            };
+            fh.write(json.dumps(record, sort_keys=True) + "\n");
+            fh.flush();
+        } except Exception {
+            ;
+        }
     }
 }
 
@@ -487,12 +610,15 @@ impl PgWireConnection._handle_async(msg_type: str, payload: bytes) -> bool {
 impl PgWireConnection.run(sql: str, **params: any) -> list {
     assert not self._closed , 'connection is closed';
     log_sql = _sql_log_state[0] is not False;
+    log_selep = _selep_trace_state[0] is not False;
     start = 0.0;
-    if log_sql {
+    if log_sql or log_selep {
         import time as _time;
         start = _time.perf_counter();
     }
     rows: list = [];
+    pos_sql = sql;
+    args: list = [];
     try {
         (pos_sql, args) = _named_to_positional(sql, params);
         bind = (
@@ -573,30 +699,60 @@ impl PgWireConnection.run(sql: str, **params: any) -> list {
                 if err is not None {
                     raise PgWireError(err);
                 }
-                if log_sql {
+                if log_sql or log_selep {
                     import time as _time;
-                    _write_sql_log(
-                        self,
-                        sql,
-                        params,
-                        (_time.perf_counter() - start) * 1000,
-                        len(rows)
-                    );
+                    elapsed_ms = (_time.perf_counter() - start) * 1000;
+                    if log_sql {
+                        _write_sql_log(
+                            self,
+                            sql,
+                            params,
+                            elapsed_ms,
+                            len(rows)
+                        );
+                    }
+                    if log_selep {
+                        _write_selep_trace(
+                            self,
+                            sql,
+                            params,
+                            pos_sql,
+                            args,
+                            elapsed_ms,
+                            len(rows)
+                        );
+                    }
                 }
                 return rows;
             }
         }
     } except Exception as e {
-        if log_sql {
+        if log_sql or log_selep {
             import time as _time;
-            _write_sql_log(
-                self,
-                sql,
-                params,
-                (_time.perf_counter() - start) * 1000,
-                len(rows),
-                f"{type(e).__name__}: {e}"
-            );
+            elapsed_ms = (_time.perf_counter() - start) * 1000;
+            error = f"{type(e).__name__}: {e}";
+            if log_sql {
+                _write_sql_log(
+                    self,
+                    sql,
+                    params,
+                    elapsed_ms,
+                    len(rows),
+                    error
+                );
+            }
+            if log_selep {
+                _write_selep_trace(
+                    self,
+                    sql,
+                    params,
+                    pos_sql,
+                    args,
+                    elapsed_ms,
+                    len(rows),
+                    error
+                );
+            }
         }
         raise;
     }

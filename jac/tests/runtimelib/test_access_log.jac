@@ -1,5 +1,6 @@
 """Session access-log compatibility hooks."""
 
+import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
@@ -10,7 +11,10 @@ import from jaclang.project.config {
     get_explicit_config,
     set_config
 }
-import from jaclang.data.pgwire { sql_log_reset_for_tests }
+import from jaclang.data.pgwire {
+    selep_trace_reset_for_tests,
+    sql_log_reset_for_tests
+}
 import from jaclang.data.store { PgStore }
 import from jaclang.server.session {
     Session,
@@ -63,6 +67,41 @@ test "run sql_log records pgwire sql csv" {
     } finally {
         sql_log_reset_for_tests();
         set_config(old_config);
+    }
+}
+
+test "run selep trace records replayable sql jsonl" {
+    old_trace = os.environ.get("JAC_SELEP_TRACE");
+    try {
+        with TemporaryDirectory() as tmpdir {
+            trace_path = Path(str(tmpdir)) / "selep.jsonl";
+            os.environ["JAC_SELEP_TRACE"] = str(trace_path);
+            selep_trace_reset_for_tests();
+
+            lease = runtime_for_base(tmpdir, str(Path(str(tmpdir)) / "trace_app.jac"));
+            store = PgStore(
+                conninfo=lease.runtime.ensure(), ensure_cb=lease.runtime.ensure
+            );
+            try {
+                rows = store.rows("SELECT CAST(:x AS int)", {"x": 7});
+                assert int(rows[0][0]) == 7;
+            } finally {
+                store.close();
+            }
+            selep_trace_reset_for_tests();
+
+            body = trace_path.read_text();
+            assert '"sql": "SELECT CAST(:x AS int)"' in body , body;
+            assert '"params": {"x": 7}' in body , body;
+            assert '"status": "ok"' in body , body;
+        }
+    } finally {
+        selep_trace_reset_for_tests();
+        if old_trace is None {
+            os.environ.pop("JAC_SELEP_TRACE", None);
+        } else {
+            os.environ["JAC_SELEP_TRACE"] = old_trace;
+        }
     }
 }
 
