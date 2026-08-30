@@ -143,19 +143,6 @@ def osp_report(val: any) {
     }
 }
 
-def run_typed(
-    rt: OspRuntime, scope: WalkScope, slots: list[Slot], a: any, b: any, btag: int
-) -> None {
-    for s in slots {
-        if (s.trig_tag != UNTYPED) and rt.is_a(btag, s.trig_tag) {
-            s.fn(a, b);
-            if scope.disengaged or scope.skip_node {
-                return;
-            }
-        }
-    }
-}
-
 def run_untyped(scope: WalkScope, slots: list[Slot], a: any, b: any) -> None {
     for s in slots {
         if s.trig_tag == UNTYPED {

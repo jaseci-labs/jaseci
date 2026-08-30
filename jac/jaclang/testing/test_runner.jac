@@ -97,7 +97,6 @@ obj Reporter {
 
 import from jaclang.cli.workpool {
     WorkPool,
-    default_jobs,
     should_retire as _should_retire,
     worker_rss_mb as _worker_rss_mb
 }

@@ -6,7 +6,7 @@ import from logging { getLogger }
 import from pickle { dumps }
 import from threading { Lock }
 import from types { UnionType }
-import from typing { ClassVar, TypeAlias, TypeVar }
+import from typing { ClassVar, TypeVar }
 import from uuid { UUID, uuid4 }
 import weakref;
 import from jaclang.compiler.frontend.constant { EdgeDir }
@@ -573,56 +573,6 @@ def light_edge_views(
         }
     }
     return out;
-}
-
-def relink_light(start: NodeAnchor) {
-    seen: set[int] = set();
-    order: list = [];
-    stack: list = [start.archetype];
-    while stack {
-        nd = stack.pop();
-        if id(nd) in seen {
-            continue;
-        }
-        seen.add(id(nd));
-        order.append(nd);
-        d = nd.__jac__.out_light;
-        if d {
-            for lst in d.values() {
-                for t in lst {
-                    if id(t) not in seen {
-                        stack.append(t);
-                    }
-                }
-            }
-        }
-    }
-    for nd in order {
-        nd.__jac__.in_light = None;
-    }
-    for nd in order {
-        d = nd.__jac__.out_light;
-        if not d {
-            continue;
-        }
-        back = weakref.ref(nd);
-        for (cls, lst) in d.items() {
-            for t in lst {
-                ta = t.__jac__;
-                inn = ta.in_light;
-                if inn is None {
-                    inn = {};
-                    ta.in_light = inn;
-                }
-                cur = inn.get(cls);
-                if cur is None {
-                    inn[cls] = [back];
-                } else {
-                    cur.append(back);
-                }
-            }
-        }
-    }
 }
 
 def _dirty_setattr(self: any, name: str, value: any) -> None {

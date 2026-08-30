@@ -42,7 +42,6 @@ import from jaclang.compiler.types.types {
 import from jaclang.compiler.types.stubcat.format {
     ACCESS_PRIVATE,
     ACCESS_PROTECTED,
-    ARCH_ENUM,
     Cursor,
     Header,
     LIT_BOOL,
@@ -181,10 +180,6 @@ node CatScope(UniScopeNode) {
             return None;
         }
         return self.cat.type_of(self.cat_metaclass);
-    }
-
-    def is_enum_scope -> bool {
-        return self.cat_arch_kind == ARCH_ENUM;
     }
 
     def get_has_vars -> list[HasVar] {
@@ -354,10 +349,6 @@ obj StubCatalog {
         return out;
     }
 
-    def module_count -> int {
-        return self.hdr.n_modules;
-    }
-
     def abs_path(rel: str) -> str {
         if not rel {
             return "";
@@ -376,10 +367,6 @@ obj StubCatalog {
             return None;
         }
         return real[len(prefix):].replace(os.sep, "/");
-    }
-
-    def has_module(name: str) -> bool {
-        return name in self._mod_names;
     }
 
     def module_path(parts: list[str]) -> (str | None) {
