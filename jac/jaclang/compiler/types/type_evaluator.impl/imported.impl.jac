@@ -175,7 +175,11 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
 }
 
 impl TypeEvaluator._apply_import_binding_kind(
-    node_: ModuleItem, binding: Name, kind: BindingKind, module: str
+    node_: ModuleItem,
+    binding: Name,
+    kind: BindingKind,
+    module: str,
+    target_decl: (NameAtom | None) = None
 ) -> None {
     for cand in (binding, node_.alias) {
         if cand is None {
@@ -187,11 +191,29 @@ impl TypeEvaluator._apply_import_binding_kind(
         }
         sym.binding_kind = kind;
     }
-    if not kind.is_type_only() or node_.from_parent.is_typed {
+    if node_.from_parent.is_typed {
         return;
     }
+    space = CodeContext.CLIENT if is_client_destined(node_) else node_.codespace();
+    if kind_has_runtime_binding(kind, target_decl, space) {
+        return;
+    }
+    if kind.is_type_only() {
+        scope = "";
+        why = f"'{node_.name.value}' names a type and nothing else: a"
+        " TypeScript `interface` or `type` alias declares no runtime"
+        " export in any codespace.";
+    } else {
+        scope = " in client code";
+        why = f"'{node_.name.value}' is a jac `type` alias. The python backend"
+        " lowers an alias to a real runtime binding, so a plain import of"
+        " it from server code is correct; the client backend erases the"
+        " alias, and this module is client code.";
+    }
     anchor = node_.name if isinstance(node_.name, Name) else binding;
-    self.emit_diag(E1131, anchor, name=node_.name.value, module=module);
+    self.emit_diag(
+        E1131, anchor, name=node_.name.value, module=module, scope=scope, why=why
+    );
 }
 
 impl TypeEvaluator._resolve_star_import_symbol(

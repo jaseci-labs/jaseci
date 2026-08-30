@@ -2728,6 +2728,16 @@ def ability_of_symbol(sym: (Symbol | None)) -> (Ability | None);
 
 def binding_kind_of_decl(decl: NameAtom) -> BindingKind;
 
+def resolved_decl_of(sym: Symbol) -> (NameAtom | None);
+
+def kind_has_runtime_binding(
+    kind: BindingKind, decl: (NameAtom | None), space: CodeContext
+) -> bool;
+
+def has_runtime_binding(sym: Symbol, space: CodeContext) -> bool;
+
+def is_client_destined(nd: UniNode) -> bool;
+
 def type_only_import_of(nd: NameAtom) -> (ModuleItem | None);
 
 def in_type_position(nd: UniNode) -> bool;

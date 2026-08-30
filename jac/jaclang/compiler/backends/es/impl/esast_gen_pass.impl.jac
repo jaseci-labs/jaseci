@@ -7868,14 +7868,7 @@ impl EsastGenPass._get_ast_or_default(
 }
 
 impl EsastGenPass._is_client_destined(nd: uni.UniNode) -> bool {
-    cur: (uni.UniNode | None) = nd;
-    while cur is not None {
-        if isinstance(cur, uni.ContextAwareNode) {
-            return (cur.code_context == CodeContext.CLIENT) or cur.codespace_dual;
-        }
-        cur = cur.parent;
-    }
-    return False;
+    return uni.is_client_destined(nd);
 }
 
 impl EsastGenPass._collect_stmt_body(

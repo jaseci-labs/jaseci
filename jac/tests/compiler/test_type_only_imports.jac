@@ -247,39 +247,106 @@ test "plain import of a jac type alias is refused; import type is clean" {
 }
 
 
-test "the jac type alias rule holds on the server side too" {
-    # E1131 is a property of the binding, not of the codespace: one spelling
-    # for a type-only export everywhere, so a module reads the same way
-    # whichever backend lowers it.
+glob BRAND_SRC: str = "type UserId := int;\n",
+     BRAND_USE_SRC: str = (
+         "import from .brands { UserId }\n\n"
+         "def mk(raw: int) -> UserId {\n"
+         "    return UserId(raw);\n"
+         "}\n"
+     );
+
+
+"""Write an unpinned (server) jac project root and return it."""
+def write_server_project(proj_root: Path, entry_mod: str) -> Path {
+    (proj_root / "jac.toml").write_text(
+        '[project]\nname = "typeonlysv"\nversion = "0.1.0"\n' 'entry-point = "'
+            + entry_mod
+            + '"\n'
+    );
+    return proj_root;
+}
+
+
+test "a server module may value-import a jac type alias and construct it" {
+    # The python backend lowers `type UserId := int;` to a real runtime binding
+    # (`UserId = int`), so `UserId(raw)` is the documented way to build a brand
+    # -- E1107 exists to keep the base primitive precisely so this works. E1131
+    # must not push cross-module brand construction onto `import type`.
     with TemporaryDirectory() as td {
-        proj_root = Path(cast(str, td));
-        (proj_root / "jac.toml").write_text(
-            '[project]\nname = "typeonlysv"\nversion = "0.1.0"\n'
-            'entry-point = "bad.jac"\n'
+        proj_root = write_server_project(Path(cast(str, td)), "use.jac");
+        (proj_root / "brands.jac").write_text(BRAND_SRC);
+        f = proj_root / "use.jac";
+        f.write_text(BRAND_USE_SRC);
+        (prog, _mod) = compile_module(f);
+        assert not prog.errors_had , f"A server-side brand construction through a plain import must be clean, got {[
+            str(e) for e in prog.errors_had
+        ]}";
+    }
+}
+
+
+test "a client module may not value-import a jac type alias" {
+    # Only the ES backend erases an alias, so the very same pair is an error
+    # once the importing module is client code.
+    with TemporaryDirectory() as td {
+        proj_root = write_pinned_project(Path(cast(str, td)));
+        (proj_root / "brands.jac").write_text(BRAND_SRC);
+        f = proj_root / "use.jac";
+        f.write_text(BRAND_USE_SRC);
+        (prog, _mod) = compile_module(f);
+        hits = alerts_with(prog.errors_had, "E1131");
+        assert len(hits) == 1 , f"Expected E1131 on the client side, got {codes_of(
+            prog.errors_had
+        )}";
+        src = f.read_text();
+        assert src[hits[0].loc.pos_start:].startswith("UserId") , "E1131 should be anchored at the UserId token";
+        assert "in client code" in hits[0].msg , f"E1131 must scope the claim to client code, got: {hits[
+            0
+        ].msg}";
+    }
+}
+
+
+test "import type of a jac alias erases it on the server too, so value use is E1132" {
+    # The remedy E1131 offers has teeth: on the server an `import type` lowers
+    # to a TYPE_CHECKING guard, so the name is not there at run time and the
+    # constructor call is refused rather than left to fail as a NameError.
+    with TemporaryDirectory() as td {
+        proj_root = write_server_project(Path(cast(str, td)), "use.jac");
+        (proj_root / "brands.jac").write_text(BRAND_SRC);
+        f = proj_root / "use.jac";
+        f.write_text(
+            "import type from .brands { UserId }\n\n"
+            "def mk(raw: int) -> UserId {\n"
+            "    return UserId(raw);\n"
+            "}\n"
         );
+        (prog, _mod) = compile_module(f);
+        assert "E1132" in codes_of(prog.errors_had) , f"Expected E1132 for a guarded alias used as a constructor, got {codes_of(
+            prog.errors_had
+        )}";
+    }
+}
+
+
+test "a server has-field may be typed by a plainly imported jac alias" {
+    # The docs' own caveat: an archetype field type is resolved at run time
+    # through typing.get_type_hints, so pushing this onto `import type` would
+    # break it. A plain import has to stay legal here.
+    with TemporaryDirectory() as td {
+        proj_root = write_server_project(Path(cast(str, td)), "store.jac");
         (proj_root / "rows.jac").write_text("type Row = dict[str, int];\n");
-        bad = proj_root / "bad.jac";
-        bad.write_text(
-            'import from .rows { Row }\n\n'
-            'def first(r: Row) -> int {\n'
-            '    return len(r);\n'
-            '}\n'
+        f = proj_root / "store.jac";
+        f.write_text(
+            "import from .rows { Row }\n\n"
+            "obj Store {\n"
+            "    has rows: Row = {};\n"
+            "}\n"
         );
-        (prog_bad, _mod_bad) = compile_module(bad);
-        assert "E1131" in codes_of(prog_bad.errors_had) , f"Expected E1131 on the server side as well, got {codes_of(
-            prog_bad.errors_had
-        )}";
-        good = proj_root / "good.jac";
-        good.write_text(
-            'import type from .rows { Row }\n\n'
-            'def first(r: Row) -> int {\n'
-            '    return len(r);\n'
-            '}\n'
-        );
-        (prog_good, _mod_good) = compile_module(good);
-        assert "E1131" not in codes_of(prog_good.errors_had) , f"`import type` of a jac type alias should be clean on the server side, got {codes_of(
-            prog_good.errors_had
-        )}";
+        (prog, _mod) = compile_module(f);
+        assert not prog.errors_had , f"A server `has` field typed by a plainly imported alias must be clean, got {[
+            str(e) for e in prog.errors_had
+        ]}";
     }
 }
 

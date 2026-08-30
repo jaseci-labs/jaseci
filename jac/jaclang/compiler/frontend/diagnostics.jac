@@ -813,17 +813,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E1131 = _err(
          "E1131",
          Category.TYPE,
-         "'{name}' is a type-only export of '{module}' and must be imported with"
-         " `import type`",
-         help="'{name}' names a type and nothing else -- a TypeScript"
-         " `interface` or `type` alias in a `.d.ts`, or a jac `type` alias."
-         " There is no runtime binding of that name to import, so a plain"
-         " `import from` emits a named specifier the loader cannot satisfy"
-         " (in the browser that is an ESM link error that takes the whole"
-         " module graph down). Move '{name}' to its own `import type from"
-         " {module} {{ {name} }}` statement, which the client backend erases"
-         " and the server backend lowers to a `typing.TYPE_CHECKING` guard;"
-         " the value imports from '{module}' stay where they are.",
+         "'{name}' is a type-only export of '{module}'{scope} and must be"
+         " imported with `import type`",
+         help="{why} With no runtime binding to import, a plain `import from`"
+         " emits a named specifier the loader cannot satisfy -- in the browser"
+         " that is an ESM link error that takes the whole module graph down."
+         " Move '{name}' to its own `import type from {module} {{ {name} }}`"
+         " statement, which the client backend erases and the server backend"
+         " lowers to a `typing.TYPE_CHECKING` guard; the value imports from"
+         " '{module}' stay where they are.",
          blocks_codegen=True
      ),
      E1132 = _err(

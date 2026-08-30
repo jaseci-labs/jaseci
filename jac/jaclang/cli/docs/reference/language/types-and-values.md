@@ -145,17 +145,33 @@ This is the supported way to break circular imports between Jac modules whose ty
 
 #### Type-only exports have to be imported this way
 
-Every import binding carries a *kind*, inherited from whatever it resolves to. Some declarations are type-only: they exist for the checker and have no runtime export at all, so for them `import type` is not a style choice but the only correct spelling, and the checker enforces it with [`E1131`](../diagnostics.md#type-only-import-bindings).
+Every import binding carries a *kind*, inherited from whatever it resolves to. The question the checker asks at an import is not "is this a type?" but **"does the backend that lowers *this* module leave a runtime binding for it?"** Where the answer is no, `import type` is not a style choice but the only correct spelling, and [`E1131`](../diagnostics.md#type-only-import-bindings) says so.
 
-| Declaration | Kind |
-|-------------|------|
-| TypeScript `interface` in a `.d.ts` | type only |
-| TypeScript `type` alias in a `.d.ts` | type only |
-| Jac `type` alias (`type Row = dict[str, int];`) and type parameters | type only |
-| TypeScript `declare class`, `declare enum` | value and type |
-| TypeScript `declare const`, `declare function` | value |
-| Jac `obj`, `class`, `node`, `edge`, `walker`, `enum` | value and type |
-| Jac `def`, `glob`, `has`, parameters | value |
+| Declaration | Runtime binding on the server | Runtime binding in the client |
+|-------------|-------------------------------|-------------------------------|
+| TypeScript `interface` in a `.d.ts` | -- | no |
+| TypeScript `type` alias in a `.d.ts` | -- | no |
+| TypeScript `declare class`, `declare enum` | -- | yes |
+| TypeScript `declare const`, `declare function` | -- | yes |
+| Jac `type` alias (`type Row = dict[str, int];`) | **yes** | **no** |
+| Jac type parameters | no | no |
+| Jac `obj`, `class`, `node`, `edge`, `walker`, `enum` | yes | yes |
+| Jac `def`, `glob`, `has`, parameters | yes | yes |
+
+A `.d.ts` `interface` or `type` alias declares no runtime export in any codespace, so a plain import of one is always E1131.
+
+A Jac `type` alias is different, and the difference matters. The Python backend lowers `type Row = dict[str, int];` to a real module-level `TypeAliasType` object, and lowers a distinct alias `type UserId := int;` to a plain `UserId = int`, which is why `UserId(raw)` is the supported way to build a brand. Only the client backend erases aliases. So:
+
+```jac
+# server module -- fine, and `import type` here would break UserId(raw)
+import from brands { UserId }
+def mk(raw: int) -> UserId { return UserId(raw); }
+```
+
+```jac
+# client module -- E1131 on UserId
+import from brands { UserId }
+```
 
 An external module that ships no declarations at all is a value import exactly as before (`W1102`, or `E1120` under `[check] untyped-external = "error"`).
 
@@ -190,7 +206,7 @@ def bad -> Point {
 }
 ```
 
-`Point(1, 2)` is `E1132`: the annotation and the cast above it are fine, the constructor call is not. If a name is genuinely needed at runtime, import it with a plain `import from`, which requires that it actually has a runtime export.
+`Point(1, 2)` is `E1132`: the annotation and the cast above it are fine, the constructor call is not. This holds on the server as well as in the client -- `import type` erases the name on both backends, so a guarded `UserId(raw)` would be a `NameError` at runtime rather than a brand. If a name is genuinely needed at runtime, import it with a plain `import from`, which requires that it actually has a runtime binding in the codespace doing the importing.
 
 !!! note "`has` field types under Python's dataclass machinery"
     Jac archetypes are dataclass-derived on the Python backend, and libraries that resolve annotations through `typing.get_type_hints` at class-definition time (dataclass, Pydantic, attrs, FastAPI route signatures, SQLAlchemy declarative, msgspec) read the module's real globals, where a `TYPE_CHECKING`-guarded import is not present. That is a Python-runtime limitation rather than a checker rule, so it is not diagnosed: if an archetype's `has` field type or a decorator-resolved annotation has to survive to runtime, keep that name on a regular `import`.

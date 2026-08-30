@@ -75,6 +75,9 @@ import from jaclang.compiler.frontend.unitree {
     MultiString,
     Name,
     NameAtom,
+    is_client_destined,
+    kind_has_runtime_binding,
+    resolved_decl_of,
     Null,
     OpenStmt,
     ParamKind as UniParamKind,
@@ -107,6 +110,7 @@ import from jaclang.compiler.frontend.unitree {
 import from jaclang.compiler.frontend.constant {
     TOKEN_MAP,
     BindingKind,
+    CodeContext,
     SymbolType,
     Tokens as Tok,
     EdgeDir,
@@ -425,7 +429,11 @@ walker TypeEvaluator {
     ) -> (BindingKind | None);
 
     def _apply_import_binding_kind(
-        node_: ModuleItem, binding: Name, kind: BindingKind, module: str
+        node_: ModuleItem,
+        binding: Name,
+        kind: BindingKind,
+        module: str,
+        target_decl: (NameAtom | None) = None
     ) -> None;
 
     def _load_ts_declarations(dts_path: str) -> (dict[str, TsDecl] | None);

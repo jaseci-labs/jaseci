@@ -3257,13 +3257,60 @@ impl ability_of_symbol(sym: (Symbol | None)) -> (Ability | None) {
 
 impl binding_kind_of_decl(decl: NameAtom) -> BindingKind {
     owner = decl.name_of;
-    if isinstance(owner, (Archetype, Enum)) {
+    if isinstance(owner, (Archetype, Enum, TypeAlias)) {
         return BindingKind.BOTH;
     }
-    if isinstance(owner, (TypeAlias, TypeParam)) {
+    if isinstance(owner, TypeParam) {
         return BindingKind.TYPE;
     }
     return BindingKind.VALUE;
+}
+
+impl resolved_decl_of(sym: Symbol) -> (NameAtom | None) {
+    seen: set[int] = set();
+    cur: Symbol = sym;
+    while True {
+        if id(cur) in seen or not cur.defn {
+            return None;
+        }
+        seen.add(id(cur));
+        decl = cur.decl;
+        if not isinstance(decl.parent, ModuleItem) {
+            return decl;
+        }
+        nxt = decl.sym;
+        if nxt is None or nxt is cur {
+            return None;
+        }
+        cur = nxt;
+    }
+}
+
+impl kind_has_runtime_binding(
+    kind: BindingKind, decl: (NameAtom | None), space: CodeContext
+) -> bool {
+    if not kind.denotes_value() {
+        return False;
+    }
+    if space != CodeContext.CLIENT {
+        return True;
+    }
+    return decl is None or not isinstance(decl.name_of, TypeAlias);
+}
+
+impl has_runtime_binding(sym: Symbol, space: CodeContext) -> bool {
+    return kind_has_runtime_binding(sym.binding_kind, resolved_decl_of(sym), space);
+}
+
+impl is_client_destined(nd: UniNode) -> bool {
+    cur: (UniNode | None) = nd;
+    while cur is not None {
+        if isinstance(cur, ContextAwareNode) {
+            return (cur.code_context == CodeContext.CLIENT) or cur.codespace_dual;
+        }
+        cur = cur.parent;
+    }
+    return False;
 }
 
 impl type_only_import_of(nd: NameAtom) -> (ModuleItem | None) {

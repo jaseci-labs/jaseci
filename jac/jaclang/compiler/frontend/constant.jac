@@ -48,6 +48,10 @@ enum BindingKind {
         def denotes_type(self: BindingKind) -> bool {
             return (self != BindingKind.VALUE);
         }
+
+        def denotes_value(self: BindingKind) -> bool {
+            return (self != BindingKind.TYPE);
+        }
     }
 }
 
