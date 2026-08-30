@@ -1238,7 +1238,20 @@ impl ClassDetailsShared.same_class(other: ClassDetailsShared) -> bool {
     if key is None {
         return False;
     }
-    return key == other.canonical_key();
+    other_key = other.canonical_key();
+    if key == other_key {
+        return True;
+    }
+    # A bundled stdlib class is declared twice: by its typeshed stub (the
+    # server codespace's view) and by its na_stdlib implementation (what a
+    # native codespace links). Both name one class, so a value typed through
+    # either declaration is assignable to the other.
+    if other_key is None or self.class_name != other.class_name {
+        return False;
+    }
+    import from jaclang.compiler.frontend.codeinfo { bundled_stdlib_module_of }
+    mod_name = bundled_stdlib_module_of(key[0]);
+    return mod_name is not None and mod_name == bundled_stdlib_module_of(other_key[0]);
 }
 
 impl TypeBase.is_class_instance -> bool {
