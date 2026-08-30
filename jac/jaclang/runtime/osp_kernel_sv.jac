@@ -60,12 +60,12 @@ obj _ContextStack {
 }
 
 with entry {
-    _kernel._walk_stack = cast(list[WalkScope], _ContextStack());
+    _kernel.DEFAULT.stack = cast(list[WalkScope], _ContextStack());
 }
 
 def isolate_request_walk_stack {
-    if isinstance(_kernel._walk_stack, _ContextStack) {
-        _kernel._walk_stack._var.set([]);
+    if isinstance(_kernel.DEFAULT.stack, _ContextStack) {
+        _kernel.DEFAULT.stack._var.set([]);
     }
 }
 
@@ -340,9 +340,9 @@ async def osp_spawn_async(
         front=[],
         ignores=[],
         reports=[],
-        nested=(len(_kernel._walk_stack) > 0)
+        nested=(len(_kernel.DEFAULT.stack) > 0)
     );
-    _kernel._walk_stack.append(scope);
+    _kernel.DEFAULT.stack.append(scope);
     ok = False;
     try {
         if scope.next {
@@ -363,9 +363,9 @@ async def osp_spawn_async(
         }
         ok = True;
     } finally {
-        _kernel._walk_stack.pop();
-        if scope.nested and _kernel._walk_stack {
-            outer = _kernel._walk_stack[-1];
+        _kernel.DEFAULT.stack.pop();
+        if scope.nested and _kernel.DEFAULT.stack {
+            outer = _kernel.DEFAULT.stack[-1];
             for r in scope.reports {
                 outer.reports.append(r);
             }
