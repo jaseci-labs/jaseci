@@ -5,6 +5,7 @@ import from .tokens {
     SrcDiag,
     is_special_var_kind
 }
+import from .lexer { tokenize_full }
 
 import from jaclang.compiler.frontend.unitree {
     Ability,
