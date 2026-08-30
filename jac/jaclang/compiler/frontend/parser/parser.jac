@@ -1,10 +1,4 @@
-import from .tokens {
-    LexToken,
-    TokenKind,
-    SourceLoc,
-    SrcDiag,
-    is_special_var_kind
-}
+import from .tokens { LexToken, TokenKind, SourceLoc, SrcDiag, is_special_var_kind }
 import from .lexer { tokenize_full }
 
 import from jaclang.compiler.frontend.unitree {
