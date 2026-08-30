@@ -355,6 +355,44 @@ test "the locator scans no compiled headers until something asks for them" {
     }
 }
 
+test "a module id may not escape the compiled directory" {
+    import from jaclang.client.source_mapping { JacLocator, _module_rel }
+    import from jaclang.client.client_diagnostics { classify_client_payload }
+
+    # `/cl/__error__` is reachable in production, so the module id in a browser
+    # payload is attacker-influenced input that reaches the filesystem.
+    for escape in [
+        "http://host/compiled/../../../../etc/passwd",
+        "compiled/../../secrets.js",
+        "/compiled/a/../../../b.js",
+        "..%2f..%2fx.js/../../../y.js"
+    ] {
+        assert _module_rel(escape) == "" , f"{escape} escaped to {_module_rel(escape)}";
+    }
+    # An ordinary nested module id still resolves.
+    assert _module_rel("http://host:5173/compiled/docs/X.js?v=1") == "docs/X.js";
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        _make_project(proj);
+        locator = JacLocator.for_base(str(proj));
+        assert locator.locate_compiled("compiled/../../../etc/passwd", 1, 0) is None;
+        assert locator.owner_for("compiled/../../../etc/passwd") == "";
+        diag = classify_client_payload(
+            str(proj),
+            {
+                "type": "Error",
+                "message": "boom",
+                "source": "http://host/compiled/../../../../etc/passwd",
+                "line": 1,
+                "column": 1
+            },
+            channel="browser"
+        );
+        assert diag.code == "E7006" , diag.code;
+        assert "etc/passwd" not in diag.file , diag.file;
+    }
+}
+
 test "the suite leaves no dev-loop global behind" {
     import from jaclang.client.source_mapping { _locator_cache, _mapper_cache }
     _reset_client_globals();

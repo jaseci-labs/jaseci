@@ -560,12 +560,16 @@ def _module_rel(module_id: str) -> str {
     marker = "/compiled/";
     at = mid.rfind(marker);
     if at >= 0 {
-        return mid[at + len(marker):];
+        mid = mid[at + len(marker):];
+    } elif mid.startswith("compiled/") {
+        mid = mid[len("compiled/"):];
+    } else {
+        mid = mid.lstrip("/");
     }
-    if mid.startswith("compiled/") {
-        return mid[len("compiled/"):];
+    if mid.startswith("/") or ".." in mid.split("/") {
+        return "";
     }
-    return mid.lstrip("/");
+    return mid;
 }
 
 def _npm_specifier(raw: str) -> str {
