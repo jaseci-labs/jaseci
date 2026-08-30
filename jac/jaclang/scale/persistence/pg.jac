@@ -9,10 +9,9 @@ glob logger = logging.getLogger(__name__),
          'directory to provision an embedded server for'
      ),
      NO_DATABASE_IN_CLUSTER = (
-         'no [scale.database] url / JAC_DB_URL resolved in a cluster, and an '
-         'embedded server here would be per-replica and lost on restart. '
-         'point the deploy at a database, or set [scale.kubernetes] '
-         'database_mode = "none" if this app needs none'
+         'no [scale.database] url / JAC_DB_URL resolved in a cluster, where an '
+         'embedded server would be per-replica and lost on restart. point the '
+         'deploy at a database'
      ),
      _DOCS_DDL = (
          'CREATE TABLE IF NOT EXISTS jac_docs ('
@@ -74,21 +73,8 @@ def _store_target(store: any) -> str {
 }
 
 
-def _embedded_refused_in_cluster -> bool {
-    if not os.environ.get('KUBERNETES_SERVICE_HOST', '').strip() {
-        return False;
-    }
-    try {
-        import from jaclang.scale.config.config_loader { get_scale_config }
-        import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
-            resolve_database_mode
-        }
-        mode = resolve_database_mode(get_scale_config().get_kubernetes_config());
-        return mode != 'none';
-    } except Exception as e {
-        logger.debug(f"[scale.kubernetes] database_mode unreadable: {e}");
-        return True;
-    }
+def _in_cluster -> bool {
+    return bool(os.environ.get('KUBERNETES_SERVICE_HOST', '').strip());
 }
 
 
@@ -138,7 +124,7 @@ def shared_store -> (any | None) {
             promotions = promotions_for(JacRuntime.get_base_path_dir());
             if url {
                 store = PgStore(conninfo=conninfo_from_url(url), promotions=promotions);
-            } elif _embedded_refused_in_cluster() {
+            } elif _in_cluster() {
                 _fail(NO_DATABASE_IN_CLUSTER);
                 return None;
             } else {

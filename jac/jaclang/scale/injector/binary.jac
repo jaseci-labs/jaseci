@@ -245,7 +245,14 @@ def resolve_deploy_version(project_dir: str, channel: str) -> str {
 }
 
 
-def generation_mismatch(pinned: str, running: str) -> str {
+def deploy_generation_refusal(project_dir: str, channel: str) -> str {
+    try {
+        import from jaclang.cli.manifest_route { resolve_cli_version }
+        pinned = resolve_deploy_version(project_dir, channel);
+        running = resolve_cli_version().strip();
+    } except Exception {
+        return "";
+    }
     if not pinned or not running {
         return "";
     }
@@ -261,17 +268,6 @@ def generation_mismatch(pinned: str, running: str) -> str {
         f"cannot use. upgrade the deployer, or pin [project] jac-version to "
         f"{run_major}.{run_minor}."
     );
-}
-
-
-def deploy_generation_refusal(project_dir: str, channel: str) -> str {
-    import from jaclang.cli.manifest_route { resolve_cli_version }
-    try {
-        pinned = resolve_deploy_version(project_dir, channel);
-    } except Exception {
-        return "";
-    }
-    return generation_mismatch(pinned, resolve_cli_version());
 }
 
 
