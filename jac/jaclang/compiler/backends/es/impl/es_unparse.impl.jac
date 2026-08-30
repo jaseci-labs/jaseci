@@ -701,9 +701,6 @@ impl JSCodeGenerator.build_segments(code: str) -> list[tuple[int, int, int, int,
             }
             idx = text.find(kid_text, cursor);
             if (idx < 0) {
-                idx = text.find(kid_text);
-            }
-            if (idx < 0) {
                 continue;
             }
             cursor = idx + len(kid_text);
