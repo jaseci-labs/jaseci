@@ -70,7 +70,7 @@ impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
         root_anchor = user_root.__jac__;
         Jac.save(root_anchor);
         Jac.commit(root_anchor);
-        root_id = root_anchor.id.hex;
+        root_id = root_anchor.ensure_id().hex;
         token = secrets.token_urlsafe(32);
         password_hash = hashlib.sha256(password.encode()).hexdigest();
         self._conn.execute(
@@ -97,7 +97,7 @@ impl UserManager.reset_root(username: str) -> (str | None) {
         root_anchor = user_root.__jac__;
         Jac.save(root_anchor);
         Jac.commit(root_anchor);
-        root_id = root_anchor.id.hex;
+        root_id = root_anchor.ensure_id().hex;
         self._conn.execute(
             "UPDATE users SET root_id = ? WHERE username = ?", (root_id, username)
         );

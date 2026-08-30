@@ -1,7 +1,6 @@
 import os;
 import sys;
-import from jaclang.cli.command { ArgKind, arg_consumes_value }
-import from jaclang.cli.manifest { ArgMeta, CommandMeta }
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec, arg_consumes_value }
 
 def _discover_project_config {
     import from jaclang.project.tomlio { MalformedJacTomlError }
@@ -29,7 +28,7 @@ def _exit_on_malformed_jac_toml(exc: any) {
 }
 
 impl split_remainder_argv(
-    raw: list[str], meta: CommandMeta
+    raw: list[str], meta: CommandSpec
 ) -> tuple[list[str], list[str]] | None {
     if len(raw) < 2 {
         return None;
@@ -85,7 +84,7 @@ impl split_remainder_argv(
     return None;
 }
 
-def _extract_script_args(meta: CommandMeta) -> list[str] {
+def _extract_script_args(meta: CommandSpec) -> list[str] {
     raw = sys.argv[1:];
     split = split_remainder_argv(raw, meta);
     if split is None {
@@ -96,7 +95,7 @@ def _extract_script_args(meta: CommandMeta) -> list[str] {
     return script_args;
 }
 
-def _apply_profile(meta: CommandMeta, args_dict: dict) {
+def _apply_profile(meta: CommandSpec, args_dict: dict) {
     import from jaclang.cli.console { console }
     try {
         import from jaclang.project.config { get_config }
@@ -128,7 +127,7 @@ def _apply_profile(meta: CommandMeta, args_dict: dict) {
     }
 }
 
-def _arg_dict_key(arg: ArgMeta) -> str {
+def _arg_dict_key(arg: Arg) -> str {
     if arg.dest {
         return arg.dest;
     }
@@ -149,7 +148,7 @@ def _config_value(config: any, config_key: str) -> tuple[str, str, any] | None {
     return (section, key, getattr(section_obj, key, None));
 }
 
-def _apply_config_defaults(config: any, meta: CommandMeta, args_dict: dict) {
+def _apply_config_defaults(config: any, meta: CommandSpec, args_dict: dict) {
     for arg in meta.args {
         if not arg.config_key {
             continue;
@@ -230,7 +229,6 @@ impl run_selected_command(command_name: str) -> None {
         return;
     }
 
-    import from jaclang.cli.command { CommandSpec }
     import from jaclang.cli.console { console }
     import from jaclang.cli.executor { get_executor }
     import from jaclang.cli.loader { load_handler }

@@ -98,6 +98,9 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
     if self._builder is None or self._builder.block.is_terminated {
         return;
     }
+    if isinstance(nd, (uni.AssertStmt, uni.Ability)) and nd.is_comptime {
+        return;
+    }
     if isinstance(nd, uni.ReturnStmt) {
         self._codegen_return(nd);
     } elif isinstance(nd, uni.IfStmt) {
@@ -428,6 +431,35 @@ impl NaIRGenStmt._codegen_return(nd: uni.ReturnStmt) -> None {
 }
 
 impl NaIRGenStmt._codegen_if(nd: uni.IfStmt) -> None {
+    if nd.is_comptime {
+        taken = nd.ct_taken;
+        if taken is None {
+            (ok, v) = self._ct_value_with_bindings(nd.condition);
+            if not ok {
+                self.emit(
+                    E5092,
+                    node_override=nd.condition,
+                    kind="comptime if condition",
+                    name="comptime if",
+                    help_text="The condition depends on a comptime parameter or loop variable that has no binding in this specialization."
+                );
+                return;
+            }
+            taken = bool(v);
+        }
+        if taken {
+            if isinstance(nd.body, (list, tuple)) {
+                self._codegen_body(nd.body);
+            }
+        } elif isinstance(nd.else_body, uni.ElseIf) {
+            self._codegen_if(nd.else_body);
+        } elif isinstance(nd.else_body, uni.ElseStmt) {
+            if isinstance(nd.else_body.body, (list, tuple)) {
+                self._codegen_body(nd.else_body.body);
+            }
+        }
+        return;
+    }
     cond = self._codegen_required(nd.condition);
     if cond is None {
         return;
@@ -2956,6 +2988,40 @@ impl NaIRGenStmt._codegen_ctrl(nd: uni.CtrlStmt) -> None {
 }
 
 impl NaIRGenStmt._codegen_for(nd: uni.InForStmt) -> None {
+    if nd.is_comptime {
+        (ok, items) = self._ct_value_with_bindings(nd.collection);
+        if not ok {
+            self.emit(
+                E5092,
+                node_override=nd.collection,
+                kind="comptime for collection",
+                name="comptime for",
+                help_text="The collection depends on a comptime parameter or loop variable that has no binding in this specialization."
+            );
+            return;
+        }
+        saved_ct = self._ct_bindings;
+        self._ct_bindings = dict(saved_ct);
+        try {
+            for item in items {
+                self._bind_ct_target(nd.target, item);
+                if isinstance(nd.body, (list, tuple)) {
+                    self._codegen_body(nd.body);
+                }
+                if self.builder.block.is_terminated {
+                    break;
+                }
+            }
+        } finally {
+            self._ct_bindings = saved_ct;
+        }
+        if isinstance(nd.else_body, uni.ElseStmt)
+            and isinstance(nd.else_body.body, (list, tuple))
+            and not self.builder.block.is_terminated {
+            self._codegen_body(nd.else_body.body);
+        }
+        return;
+    }
     if self._try_iter_protocol_for(nd) {
         return;
     }

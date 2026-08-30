@@ -1,11 +1,10 @@
-def print_guide_hint(alert: any) -> None {
+def print_guide_hint(code: (str | None), category: (str | None)) -> None {
     import from jaclang.cli.console { console }
     import from jaclang.cli.guide_store { guide_for_diagnostic }
-    info = alert.code;
-    if info is None {
+    if not code or not category {
         return;
     }
-    name = guide_for_diagnostic(info.code, info.category.value);
+    name = guide_for_diagnostic(code, category);
     if name is not None {
         console.print(f"  → run 'jac guide {name}' for guidance", style="muted");
     }
@@ -32,13 +31,21 @@ impl print_failures(failed_results: list, nowarn: bool = False) -> None {
     for r in failed_results {
         console.print(separator(r['path'], char='_'));
         for e in r['errors'] {
-            console.error(e.pretty_print());
-            print_guide_hint(e);
+            if isinstance(e, dict) {
+                console.error(str(e.get('pretty') or e.get('text') or ''));
+                print_guide_hint(e.get('code'), e.get('category'));
+            } else {
+                console.error(str(e));
+            }
         }
         if not nowarn and r['warnings'] {
             for w in r['warnings'] {
-                console.warning(w.pretty_print());
-                print_guide_hint(w);
+                if isinstance(w, dict) {
+                    console.warning(str(w.get('pretty') or w.get('text') or ''));
+                    print_guide_hint(w.get('code'), w.get('category'));
+                } else {
+                    console.warning(str(w));
+                }
             }
         }
         console.print("");

@@ -62,6 +62,9 @@ impl NaIRGenCalls._erased_generic_ctor(nd: uni.FuncCall) -> (str | None) {
         or not isinstance(_tgt.right, uni.IndexSlice) {
         return None;
     }
+    if self._ct_ctor_slots(_tgt) {
+        return self._get_name(_tgt.target);
+    }
     _base_tk = self._type_key_of(_tgt.target);
     if _base_tk is None or not _base_tk.startswith("type[") {
         return None;
@@ -73,7 +76,26 @@ impl NaIRGenCalls._erased_generic_ctor(nd: uni.FuncCall) -> (str | None) {
     return self._erased_arch_base(_tk[5:-1]);
 }
 
-impl NaIRGenCalls._callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None) {
+impl NaIRGenCalls._linked_callee_decl(
+    func: (ir.Function | None)
+) -> (uni.Ability | None) {
+    if func is None {
+        return None;
+    }
+    rec = self._linked_fn_decls.get(id(func));
+    if rec is None or rec[0] is not func {
+        return None;
+    }
+    return rec[1];
+}
+
+impl NaIRGenCalls._callee_sig_of(
+    nd: uni.FuncCall, func: (ir.Function | None) = None
+) -> (uni.FuncSignature | None) {
+    linked = self._linked_callee_decl(func);
+    if linked is not None and isinstance(linked.signature, uni.FuncSignature) {
+        return linked.signature;
+    }
     decl = nd.callee_decl;
     sig = decl.signature if decl is not None else None;
     return sig if isinstance(sig, uni.FuncSignature) else None;
@@ -203,7 +225,7 @@ impl NaIRGenCalls._codegen_bound_args(
         );
     }
 
-    callee_sig = self._callee_sig_of(nd);
+    callee_sig = self._callee_sig_of(nd, func);
     if kw_spreads and (callee_sig is None or callee_sig.kwargs is None) {
         self.emit(
             E5092,
@@ -2132,7 +2154,7 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 nd.target.sym_name in self.arch_ast_map
                 or self._arch_alias_target(nd.target) in self.arch_ast_map
             );
-        _sig = None if _is_ctor else self._callee_sig_of(nd);
+        _sig = None if _is_ctor else self._callee_sig_of(nd, func);
         _sig_params = _sig.get_parameters() if _sig is not None else [];
         if _is_ctor {
             for _oi in range(len(release_args)) {

@@ -7,6 +7,10 @@ impl NaIRGenExpr._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
     _jac_loc: str = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
+    _folded = self._ct_fold(nd);
+    if _folded is not None {
+        return _folded;
+    }
     if isinstance(nd, uni.Int) {
         tok_name = nd?.name;
         if tok_name == Tok.HEX {
@@ -495,6 +499,18 @@ impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
 
 impl NaIRGenExpr._codegen_name(nd: uni.Name) -> (ir.Value | None) {
     var_name = nd.value;
+    _ct_owner = self._ct_type_param_owner(nd);
+    if _ct_owner is not None {
+        _self_val: (ir.Value | None) = None;
+        if "self" in self.local_vars {
+            _self_val = self.builder.load(self.local_vars["self"], name="self");
+        } elif "self" in self.func_symtab {
+            _self_val = self.func_symtab["self"];
+        }
+        if _self_val is not None {
+            return self._codegen_field_access(_self_val, var_name, _ct_owner, nd);
+        }
+    }
     _has_caps = var_name in self.lambda_captures or var_name in self.nested_captures;
     if _has_caps {
         _np = nd.parent;
@@ -541,7 +557,10 @@ impl NaIRGenExpr._codegen_pipe_fwd(nd: uni.BinaryExpr) -> (ir.Value | None) {
         genai_call=None,
         kid=[nd.right, *call_params]
     );
-    call.parent = nd.parent;
+    _owner = nd.parent;
+    if _owner is not None {
+        call.set_parent(_owner);
+    }
     return self._codegen_expr(call);
 }
 
@@ -840,6 +859,29 @@ impl NaIRGenExpr._codegen_compare_link(
             );
             return self.builder.zext(_ocmp, ir.IntType(64), name="opt.cmp.i64");
         }
+    }
+
+    if op in (Tok.KW_IS, Tok.KW_ISN)
+        and self?.jacval_type
+        and left.type == self.jacval_type
+        and right.type == self.jacval_type {
+        _jv_tag_eq = self.builder.icmp_unsigned(
+            "==",
+            self.builder.extract_value(left, 0, name="is.jv.l.tag"),
+            self.builder.extract_value(right, 0, name="is.jv.r.tag"),
+            name="is.jv.tag.eq"
+        );
+        _jv_pv_eq = self.builder.icmp_unsigned(
+            "==",
+            self.builder.extract_value(left, 1, name="is.jv.l.pv"),
+            self.builder.extract_value(right, 1, name="is.jv.r.pv"),
+            name="is.jv.pv.eq"
+        );
+        _jv_same = self.builder.and_(_jv_tag_eq, _jv_pv_eq, name="is.jv.same");
+        if op == Tok.KW_ISN {
+            return self.builder.not_(_jv_same, name="is.jv.diff");
+        }
+        return _jv_same;
     }
 
     if op == Tok.KW_IN or op == Tok.KW_NIN {
@@ -2388,4 +2430,17 @@ impl NaIRGenExpr._infer_dict_type(val: ir.Value) -> (tuple | None) {
         }
     }
     return None;
+}
+
+impl NaIRGenExpr._ct_type_param_owner(nd: uni.Name) -> (str | None) {
+    sym = nd.sym;
+    if sym is None {
+        return None;
+    }
+    owner = sym.decl.name_of;
+    if not (isinstance(owner, uni.TypeParam) and owner.is_comptime) {
+        return None;
+    }
+    arch = owner.find_parent_of_type(uni.Archetype);
+    return arch.name.value if arch is not None else None;
 }

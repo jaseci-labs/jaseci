@@ -25,6 +25,24 @@ impl PermissionDenied.message -> str {
     );
 }
 
+impl Anchor.ensure_id -> UUID {
+    aid = self.id;
+    if aid is None {
+        aid = uuid4();
+        self.id = aid;
+    }
+    return aid;
+}
+
+impl Anchor.own_access -> Permission {
+    perm = self.access;
+    if perm is None {
+        perm = Permission();
+        self.access = perm;
+    }
+    return perm;
+}
+
 impl Anchor.is_populated -> bool {
     return ('archetype' in self.__dict__);
 }
@@ -32,16 +50,20 @@ impl Anchor.is_populated -> bool {
 impl Anchor.make_stub -> TANCH {
     if self.is_populated() {
         unloaded = object.__new__(self.__class__);
-        unloaded.id = self.id;
+        unloaded.id = self.ensure_id();
         return unloaded;
     }
     return self;
 }
 
 impl Anchor.populate -> None {
+    aid = self.id;
+    if aid is None {
+        return;
+    }
     import from jaclang { JacRuntimeInterface as Jac }
     ctx = Jac.get_context();
-    anchor = ctx.mem.get(self.id);
+    anchor = ctx.mem.get(aid);
     if anchor {
         self.__dict__.update(anchor.__dict__);
     }
@@ -64,23 +86,25 @@ impl Anchor.__getattr__(name: str) -> object {
 
 impl Anchor.__getstate__ -> dict[(str, any)] {
     if self.is_populated() {
-        unlinked = object.__new__(self.archetype.__class__);
+        unlinked = object.__new__(untracked_class(self.archetype.__class__));
         unlinked.__dict__.update(self.archetype.__dict__);
         unlinked.__dict__.pop('__jac__', None);
         return {
-            'id': self.id,
+            'id': self.ensure_id(),
             'archetype': unlinked,
             'root': self.root,
             'access': self.access,
             'persistent': self.persistent
         };
     } else {
-        return {'id': self.id};
+        return {'id': self.ensure_id()};
     }
 }
 
 impl Anchor.__setstate__(state: dict[(str, any)]) -> None {
+    persistent = bool(state.pop('persistent', False));
     self.__dict__.update(state);
+    self.persistent = persistent;
     if (self.is_populated() and self.archetype) {
         self.archetype.__jac__ = self;
         self.hash = hash(dumps(self));
@@ -88,7 +112,7 @@ impl Anchor.__setstate__(state: dict[(str, any)]) -> None {
 
     if isinstance(self, NodeAnchor) {
         self.__dict__['_initial_edge_ids'] = frozenset(
-            e.id for e in self.__dict__.get('edges', [])
+            e.ensure_id() for e in self.__dict__.get('edges', [])
         );
     }
 }
@@ -110,7 +134,7 @@ impl Anchor.__repr__ -> str {
 
 impl Anchor.`report -> AnchorReport {
     return AnchorReport(
-        id=self.id.hex,
+        id=self.ensure_id().hex,
         context=asdict(self.archetype)
             if (is_dataclass(self.archetype) and not isinstance(self.archetype, `type))
             else {}
@@ -118,12 +142,17 @@ impl Anchor.`report -> AnchorReport {
 }
 
 impl Anchor.__hash__ -> int {
-    return hash(self.id);
+    aid = self.id;
+    return hash(aid) if aid is not None else id(self);
 }
 
 impl Anchor.__eq__(other: object) -> bool {
-    if isinstance(other, Anchor) {
-        return ((self.__class__ is other.__class__) and (self.id == other.id));
+    if self is other {
+        return True;
+    }
+    if isinstance(other, Anchor) and (self.__class__ is other.__class__) {
+        aid = self.id;
+        return aid is not None and aid == other.id;
     }
     return False;
 }
@@ -141,7 +170,13 @@ impl EdgeAnchor.is_populated -> bool {
 impl NodeAnchor.__getstate__ -> dict[(str, object)] {
     state = super.__getstate__();
     if self.is_populated() {
-        state['edges'] = [`edge.make_stub() for `edge in self.edges];
+        if self.persistent {
+            state['edges'] = [`edge.make_stub() for `edge in self.all_edges()];
+        } else {
+            state['edges'] = `list(self.edges);
+            state['out_light'] = self.out_light;
+            state['in_light'] = self.in_light;
+        }
     }
     return state;
 }
@@ -152,7 +187,7 @@ impl NodeAnchor.edge_delta -> (tuple[(set[UUID], set[UUID])] | None) {
         return None;
     }
     initial: set[UUID] = set(initial_fs);
-    current: set[UUID] = set(e.id for e in self.edges);
+    current: set[UUID] = set(e.ensure_id() for e in self.all_edges());
     return (current - initial, initial - current);
 }
 
@@ -172,7 +207,7 @@ impl EdgeAnchor.__getstate__ -> dict[(str, object)] {
 
 impl NodeAnchor.remove_edge(`edge: EdgeAnchor) -> None {
     for (idx, ed) in enumerate(self.edges) {
-        if (ed.id == `edge.id) {
+        if same_anchor(ed, `edge) {
             self.edges.pop(idx);
             break;
         }
@@ -180,6 +215,10 @@ impl NodeAnchor.remove_edge(`edge: EdgeAnchor) -> None {
 }
 
 impl EdgeAnchor.detach -> None {
+    if self.light {
+        light_disconnect(self.source, `type(self.archetype), self.target);
+        return;
+    }
     self.source.remove_edge(self);
     self.target.remove_edge(self);
     import from jaclang.runtime.osp_graph_sv { sv_forget_edge }
@@ -187,8 +226,9 @@ impl EdgeAnchor.detach -> None {
 
     import from jaclang.runtime.runtime { JacRuntime }
     ctx = JacRuntime.exec_ctx;
-    if ctx is not None {
-        ctx.mem.delete(self.id);
+    aid = self.id;
+    if ctx is not None and aid is not None {
+        ctx.mem.delete(aid);
     }
 }
 
@@ -199,6 +239,7 @@ impl Archetype.__jac__ -> Anchor {
 
 impl Archetype.__init_subclass__(cls: any, **kwargs: object) -> None {
     super.__init_subclass__(**kwargs);
+    _edge_subtypes.clear();
     if not cls.__dict__.get('__jac_base__', False) {
         import from jaclang { JacRuntimeInterface as _ }
         _.make_archetype(cls);
@@ -261,22 +302,6 @@ impl Archetype.uninstall_subclass_hook(hook: Callable[[type], None]) -> None {
 
 impl Archetype.postinit -> None { }
 
-impl Archetype.__setattr__(name: str, value: any) -> None {
-    object.__setattr__(self, name, value);
-    an = self.__dict__.get('__jac__');
-    if an is None or not an.persistent {
-        return;
-    }
-    import from jaclang.runtime.runtime { JacRuntime }
-    ctx = JacRuntime.exec_ctx;
-    if ctx is not None {
-        md = ctx.mem?.mark_dirty;
-        if md is not None {
-            md(an);
-        }
-    }
-}
-
 impl Archetype.__repr__ -> str {
     return f"{self.__class__.__name__}";
 }
@@ -291,7 +316,10 @@ impl GenericEdge.__repr__ -> str {
 
 @cached_property
 impl Root.__jac__ -> NodeAnchor {
-    return NodeAnchor(archetype=self, persistent=True, edges=[]);
+    anchor = NodeAnchor(archetype=self, edges=[]);
+    anchor.persistent = True;
+    anchor.ensure_id();
+    return anchor;
 }
 
 impl Root.__getattr__(name: str) -> Root {
@@ -334,4 +362,69 @@ impl ObjectSpatialFunction.trigger -> (
         );
     }
     return ty;
+}
+
+impl NodeAnchor.all_edges -> list[EdgeAnchor] {
+    out = self.out_light;
+    inn = self.in_light;
+    if out is None and inn is None {
+        return self.edges;
+    }
+    import from jaclang.runtime.runtime { JacRuntimeInterface }
+    me = self.archetype;
+    if out is not None {
+        self.out_light = None;
+        back = weakref.ref(me);
+        for (cls, lst) in out.items() {
+            for other in lst {
+                oa = other.__jac__;
+                _drop_entry(oa.in_light, cls, back);
+                JacRuntimeInterface.heavy_edge(self, oa, cls, False, None);
+            }
+        }
+    }
+    if inn is not None {
+        self.in_light = None;
+        for (cls, lst) in inn.items() {
+            for other in _deref(lst) {
+                oa = other.__jac__;
+                _drop_entry(oa.out_light, cls, me);
+                JacRuntimeInterface.heavy_edge(oa, self, cls, False, None);
+            }
+        }
+    }
+    return self.edges;
+}
+
+impl NodeAnchor.detach_light -> None {
+    out = self.out_light;
+    if out is not None {
+        for cls in `list(out.keys()) {
+            light_clear(self, cls, True);
+        }
+        self.out_light = None;
+    }
+    inn = self.in_light;
+    if inn is not None {
+        for cls in `list(inn.keys()) {
+            light_clear(self, cls, False);
+        }
+        self.in_light = None;
+    }
+}
+
+impl Anchor.persistent.getter -> bool {
+    return self._persistent;
+}
+
+impl Anchor.persistent.setter(persistent: bool) -> None {
+    self._persistent = persistent;
+
+    if persistent and 'archetype' in self.__dict__ {
+        track_writes(self.archetype);
+    }
+}
+
+impl NodeAnchor.has_heavy_edges -> bool {
+    return bool(self.edges);
 }
