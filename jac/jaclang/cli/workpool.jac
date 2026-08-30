@@ -49,6 +49,8 @@ def should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> bool;
 
 def env_int(name: str, fallback: int) -> int;
 
+def maybe_malloc_trim -> None;
+
 def default_jobs -> int;
 
 def jobs_setting(

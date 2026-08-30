@@ -301,7 +301,9 @@ impl JacCompiler.get_bytecode(
     } finally {
         if is_internal {
             if self.selfhost.at_outermost_bytecode() {
-                self.selfhost.evict_unit(full_target, result);
+                self.selfhost.evict_unit(
+                    full_target, result, collect=self.unit_collect
+                );
             }
             self.selfhost.exit_bytecode();
         }

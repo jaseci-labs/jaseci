@@ -461,6 +461,13 @@ impl should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> bool
     return rss_cap > 0 and rss_mb >= rss_cap;
 }
 
+impl maybe_malloc_trim -> None {
+    try {
+        import ctypes;
+        ctypes.CDLL("libc.so.6").malloc_trim(0);
+    } except (ImportError, OSError, AttributeError, ValueError) { }
+}
+
 impl env_int(name: str, fallback: int) -> int {
     raw = os.environ.get(name, "");
     if not raw.strip() {

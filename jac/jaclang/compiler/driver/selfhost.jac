@@ -41,7 +41,9 @@ obj SelfHostCache {
         return target_program;
     }
 
-    def evict_unit(full_target: str, result: (uni.Module | None)) -> None {
+    def evict_unit(
+        full_target: str, result: (uni.Module | None), collect: bool = True
+    ) -> None {
         import os;
         if os.environ.get("JAC_NO_UNIT_EVICT") {
             return;
@@ -56,7 +58,7 @@ obj SelfHostCache {
             slim.interop_manifest = result.gen.interop_manifest;
             self.program.hub.artifacts[full_target] = slim;
         }
-        self.program.release_compile_closure();
+        self.program.release_compile_closure(collect=collect);
     }
 
     def enter_bytecode {

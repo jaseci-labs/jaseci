@@ -260,10 +260,11 @@ def _emit_unit_diagnostics(jac_path: str, programs: list) {
 glob _unit_program: list = [];
 
 def precompile_unit(
-    jac_path: str, pkg_root: str, embed_src: bool = False
+    jac_path: str, pkg_root: str, embed_src: bool = False, collect: bool = True
 ) -> bytes | None {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.cli.workpool { maybe_malloc_trim }
 
     compiler = Jac.get_compiler();
 
@@ -271,12 +272,14 @@ def precompile_unit(
         _unit_program.append(JacProgram());
     }
     program = _unit_program[0];
+    compiler.unit_collect = collect;
     code = compiler.get_bytecode(full_target=jac_path, target_program=program);
     if code is None {
         _emit_unit_diagnostics(jac_path, [program, compiler.selfhost.program]);
     }
-    program.release_compile_closure();
-    compiler.selfhost.program.release_compile_closure();
+    program.release_compile_closure(collect=collect);
+    compiler.selfhost.program.release_compile_closure(collect=collect);
+    maybe_malloc_trim();
     if code is None {
         return None;
     }
@@ -633,7 +636,7 @@ def _precompile_retire(served: int, rss_mb: int) -> bool {
         served,
         env_int("JAC_PRECOMPILE_RECYCLE", 0),
         rss_mb,
-        env_int("JAC_PRECOMPILE_RECYCLE_MB", 8192)
+        env_int("JAC_PRECOMPILE_RECYCLE_MB", 4096)
     );
 }
 
@@ -775,6 +778,15 @@ def main {
     );
     counts: dict[str, int] = {"compiled": 0, "reused": 0, "failed": 0};
 
+    import gc;
+    import from jaclang.compiler.driver.compiler { COMPILE_GC_THRESHOLDS }
+    if (
+        not os.environ.get("JAC_GC_NO_COMPILE_BOOST")
+        and gc.get_threshold()[0] < COMPILE_GC_THRESHOLDS[0]
+    ) {
+        gc.set_threshold(*COMPILE_GC_THRESHOLDS);
+    }
+
     def unit_job(request: dict[(str, any)]) -> dict[(str, any)] {
         jac_path = str(request["path"]);
         rel = Path(jac_path).relative_to(pkg_path);
@@ -787,7 +799,9 @@ def main {
                     return {"status": "reused", "rel": str(rel)};
                 }
             }
-            jir_bytes = precompile_unit(jac_path, package_dir, embed_src);
+            jir_bytes = precompile_unit(
+                jac_path, package_dir, embed_src, collect=not use_pool
+            );
             if jir_bytes is None {
                 jir_path.unlink(missing_ok=True);
                 return {

@@ -86,7 +86,8 @@ obj JacCompiler {
         _reentrant_depth: int = 0,
         _stub_catalog: any = None,
         _stub_catalog_tried: bool = False,
-        stub_catalog_disabled: bool = False;
+        stub_catalog_disabled: bool = False,
+        unit_collect: bool = True;
 
     has selfhost: SelfHostCache { getter; }
 

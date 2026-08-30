@@ -11,10 +11,8 @@ import from jaclang.cli.check_report {
 }
 
 def _maybe_malloc_trim {
-    try {
-        import ctypes;
-        ctypes.CDLL("libc.so.6").malloc_trim(0);
-    } except (ImportError, OSError, AttributeError, ValueError) { }
+    import from jaclang.cli.workpool { maybe_malloc_trim }
+    maybe_malloc_trim();
 }
 
 glob _CHECK_STATE: dict[(str, any)] = {"prog": None, "coverage_on": False};
