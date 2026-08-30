@@ -226,67 +226,39 @@ test "build status records errors and recovers" {
     }
 }
 
-test "build status folds in the raw client-event transport with jac precedence" {
-    import json;
+test "build status folds in client events, with jac precedence" {
     with tempfile.TemporaryDirectory() as tmp {
         temp_dir = Path(tmp);
         watcher = JacFileWatcher(watch_paths=[str(temp_dir)]);
         reloader = HotReloader(
             base_path=str(temp_dir), module_name="test", watcher=watcher
         );
-        status_dir = temp_dir / ".jac" / "client";
-        status_dir.mkdir(parents=True);
-        events_file = status_dir / ".jac-client-events.json";
+        (temp_dir / ".jac" / "client" / "compiled").mkdir(parents=True);
         # A Vite resolve failure forwarded raw by the dev plugin surfaces even
         # though the Jac transpile layer is clean (#7286)
-        events_file.write_text(
-            json.dumps(
-                {
-                    "vite": {
-                        "message": 'Failed to resolve import "totally-missing-pkg"',
-                        "id": "compiled/pages/index.js",
-                        "plugin": "vite:import-analysis"
-                    },
-                    "client": None
-                }
-            )
+        reloader.record_client_event(
+            "vite",
+            {
+                "message": 'Failed to resolve import "totally-missing-pkg"',
+                "id": "compiled/pages/index.js",
+                "plugin": "vite:import-analysis"
+            }
         );
         status = reloader.build_status();
         assert status["status"] == "error";
         assert status["diagnostics"][0]["channel"] == "vite";
         assert "totally-missing-pkg" in status["diagnostics"][0]["message"];
-        # Browser-load payloads surface when they are the only failure
-        events_file.write_text(
-            json.dumps(
-                {
-                    "vite": None,
-                    "client": {
-                        "message": "does not provide an export named 'nope'",
-                        "source": "/compiled/pages/index.js",
-                        "phase": "load"
-                    }
-                }
-            )
-        );
-        assert reloader.build_status()["diagnostics"][0]["channel"] == "browser";
-        # Vite outranks the browser; a Jac error outranks both (most upstream)
-        events_file.write_text(
-            json.dumps(
-                {
-                    "vite": {"message": "vite broke", "id": ""},
-                    "client": {"message": "load broke", "source": ""}
-                }
-            )
-        );
-        assert reloader.build_status()["diagnostics"][0]["channel"] == "vite";
+        # A Jac build failure outranks the layers downstream of it
         reloader.record_error("app.jac", "syntax");
         assert reloader.build_status()["diagnostics"][0]["channel"] == "jac";
         reloader.record_ok();
         assert reloader.build_status()["diagnostics"][0]["channel"] == "vite";
-        # Recovery: plugin removes the file -> healthy; corrupt file is ignored
-        events_file.unlink();
+        # Recovery: the plugin sends a null payload for the slot it cleared
+        reloader.record_client_event("vite", None);
         assert reloader.build_status() == {"status": "ok", "diagnostics": []};
-        events_file.write_text("{not json");
+        # An unknown slot or a payload with no message is ignored
+        reloader.record_client_event("nonsense", {"message": "x"});
+        reloader.record_client_event("vite", {"message": ""});
         assert reloader.build_status() == {"status": "ok", "diagnostics": []};
     }
 }

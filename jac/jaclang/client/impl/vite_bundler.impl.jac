@@ -1240,12 +1240,13 @@ def _is_vite_url_line(line: str) -> bool {
     return False;
 }
 
-def _forward_vite_output(
+impl _forward_vite_output(
     proc: subprocess.Popen[str],
-    ready_event: threading.Event,
+    ready_event: any,
     sys_module: any,
-    output_buffer: list[str]
-) {
+    output_buffer: list[str],
+    dispatch: any = None
+) -> None {
     stream = proc.stdout;
     if stream is None {
         return;
@@ -1255,6 +1256,14 @@ def _forward_vite_output(
             line = stream.readline();
             if not line {
                 break;
+            }
+            if line.startswith(CLIENT_EVENT_PREFIX) {
+                if dispatch is not None {
+                    try {
+                        dispatch(line);
+                    } except Exception { }
+                }
+                continue;
             }
 
             if _is_vite_ready_line(line) {
@@ -1272,6 +1281,22 @@ def _forward_vite_output(
     } except Exception {
         ;
     }
+}
+
+impl ViteBundler._dispatch_client_event(self: ViteBundler, line: str) -> None {
+    handler = self.on_client_event;
+    if handler is None {
+        return;
+    }
+    try {
+        data = json.loads(line[len(CLIENT_EVENT_PREFIX):]);
+    } except ValueError {
+        return;
+    }
+    if not isinstance(data, dict) {
+        return;
+    }
+    handler(str(data.get('slot') or ''), data.get('payload'));
 }
 
 impl ViteBundler.start_dev_server(
@@ -1447,27 +1472,20 @@ export default function jacFastRefresh() {
 impl ViteBundler._write_client_events_plugin(
     self: ViteBundler, configs_dir: Path
 ) -> None {
-    plugin_js = r'''// jac-client-events.js (generated) - raw dev-loop event transport.
-// This plugin resolves nothing and renders nothing. It writes the RAW Vite and
-// browser payloads to .jac-client-events.json; the Jac process reads them,
-// maps them back to .jac (or jac.toml) locations, classifies them, renders
-// them with the same renderer `jac check` uses, and owns .jac-status.json.
-import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const eventsFile = path.resolve(__dirname, "..", ".jac-client-events.json");
-
-const state = { vite: null, client: null, runtime: null };
-
-function flush() {
+    plugin_js = (
+        '// jac-client-events.js (generated) - raw dev-loop event transport.\n'
+        '// This plugin resolves nothing, stores nothing and renders nothing.\n'
+        '// It writes one tagged JSON line per event to stdout, the stream the\n'
+        '// jac process already reads. That process is the side that maps a\n'
+        '// compiled coordinate back to a .jac (or jac.toml) location, classifies\n'
+        '// it, renders it with the same renderer `jac check` uses, and owns\n'
+        '// .jac-status.json.\n'
+        f'const PREFIX = "{CLIENT_EVENT_PREFIX}";\n'
+    )
+        + r'''
+function emit(slot, payload) {
   try {
-    if (!state.vite && !state.client && !state.runtime) {
-      if (fs.existsSync(eventsFile)) fs.unlinkSync(eventsFile);
-      return;
-    }
-    fs.writeFileSync(eventsFile, JSON.stringify(state), "utf-8");
+    process.stdout.write(PREFIX + JSON.stringify({ slot: slot, payload: payload }) + "\n");
   } catch (e) {}
 }
 
@@ -1477,7 +1495,7 @@ function flush() {
 // but does not declare the build broken.
 export function recordClientEvent(data) {
   const d = data || {};
-  const raw = {
+  emit(d.phase === "load" ? "client" : "runtime", {
     "type": String(d.type || "Error"),
     "message": String(d.message || "client module load failed"),
     "stack": String(d.stack || ""),
@@ -1485,13 +1503,7 @@ export function recordClientEvent(data) {
     "line": Number(d.line || 0),
     "column": Number(d.column || 0),
     "phase": String(d.phase || ""),
-  };
-  if (d.phase === "load") {
-    state.client = raw;
-  } else {
-    state.runtime = raw;
-  }
-  flush();
+  });
 }
 
 export default function jacClientEvents() {
@@ -1499,11 +1511,11 @@ export default function jacClientEvents() {
     name: "jac-client-events",
     apply: "serve",
     configureServer(server) {
-      flush(); // both slots start null: removes stale state from a prior run
+      let viteBroken = false;
 
       // Vite announces every transform/resolve failure on its HMR channel
       // (the payload that drives its own error overlay), and update/full-reload
-      // on recovery. Mirror exactly those semantics into the vite slot.
+      // on recovery. Mirror exactly those semantics onto the vite slot.
       const wrap = (chan) => {
         if (!chan || typeof chan.send !== "function" || chan.__jacClientEvents) return;
         chan.__jacClientEvents = true;
@@ -1515,20 +1527,20 @@ export default function jacClientEvents() {
               // jac* payloads are the Jac and browser layers, tracked elsewhere
               if (!String(payload.err.plugin || "").startsWith("jac")) {
                 const err = payload.err;
-                state.vite = {
+                viteBroken = true;
+                emit("vite", {
                   "message": String(err.message || "Vite error"),
                   "stack": String(err.stack || ""),
                   "id": String(err.id || ""),
                   "plugin": String(err.plugin || ""),
                   "frame": String(err.frame || ""),
                   "loc": err.loc || null,
-                };
-                flush();
+                });
               }
             } else if (
               payload
               && (payload.type === "update" || payload.type === "full-reload")
-              && state.vite
+              && viteBroken
               // Jac-recovery reloads (jacBuildErrorOverlay) say nothing about
               // the Vite layer; with no client connected nothing will re-arm
               // a still-broken module, so keep the error latched.
@@ -1536,8 +1548,8 @@ export default function jacClientEvents() {
               && server.ws.clients
               && server.ws.clients.size > 0
             ) {
-              state.vite = null;
-              flush();
+              viteBroken = false;
+              emit("vite", null);
             }
           } catch (e) {}
           return orig(...args);
@@ -1548,13 +1560,7 @@ export default function jacClientEvents() {
 
       // The dev index.html sends this after the entry module loads cleanly:
       // the only reliable "browser recovered" signal a server can get.
-      const onReady = () => {
-        if (state.client || state.runtime) {
-          state.client = null;
-          state.runtime = null;
-          flush();
-        }
-      };
+      const onReady = () => { emit("ready", null); };
       server.ws.on("jac:client-ready", onReady);
       // mirror wrap(): register on the HMR channel too if it is distinct
       if (server.hot && server.hot !== server.ws && typeof server.hot.on === "function") {
@@ -1587,7 +1593,13 @@ impl ViteBundler._start_vite_with_output_capture(
     output_buffer: list[str] = [];
     output_thread = threading.Thread(
         target=_forward_vite_output,
-        args=(process, ready_event, sys_module, output_buffer),
+        args=(
+            process,
+            ready_event,
+            sys_module,
+            output_buffer,
+            self._dispatch_client_event
+        ),
         daemon=True
     );
     output_thread.start();

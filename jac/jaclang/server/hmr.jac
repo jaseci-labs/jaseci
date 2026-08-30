@@ -19,9 +19,10 @@ obj HotReloader {
         _running: bool = False,
         _build_status: BuildStatus = BuildStatus.OK,
         _diagnostics: list = [],
-        _reload_nonce: int = 0,
-        _events_signature: str = "",
-        _events_thread: any = None;
+        _vite_diagnostics: list = [],
+        _client_diagnostics: list = [],
+        _runtime_diagnostics: list = [],
+        _reload_nonce: int = 0;
 
     static has _active: (HotReloader | None) = None,
         _build_lock: threading.Lock = threading.Lock();
@@ -31,7 +32,8 @@ obj HotReloader {
     def on_file_change(event: any) -> None;
     def build_status -> dict;
     def diagnostics -> list;
-    def _event_diagnostics(slots: tuple = ('vite', 'client')) -> list;
+    def attach_client_bundler(bundler: any) -> None;
+    def record_client_event(slot: str, payload: (dict | None)) -> None;
     def record_ok -> None;
     def record_error(
         file_path: str,
@@ -57,10 +59,7 @@ obj HotReloader {
     def _refresh_routing(file_path: str) -> None;
     def _entry_module_path -> Path;
     def _status_file_path -> Path;
-    def _events_file_path -> Path;
     def _sync_status_file -> None;
-    def _poll_client_events -> None;
-    def _report_client_events -> None;
     def _classify_declarations(file_path: str) -> tuple[bool, bool];
     def _path_to_module(file_path: str) -> str;
     def _get_js_filename(file_path: str) -> str;

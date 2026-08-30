@@ -2,7 +2,6 @@ import json;
 import logging;
 import os;
 import sys;
-import threading;
 import time;
 import shutil;
 import from pathlib { Path }
@@ -22,10 +21,6 @@ impl HotReloader.start -> None {
     self.watcher.start();
     self._running = True;
     HotReloader._active = self;
-    self._events_thread = threading.Thread(
-        target=self._poll_client_events, daemon=True
-    );
-    self._events_thread.start();
     logger.debug(f"Hot reloader started for module: {self.module_name}");
 }
 
@@ -37,7 +32,6 @@ impl HotReloader.stop -> None {
     if HotReloader._active is self {
         HotReloader._active = None;
     }
-    self._events_thread = None;
 
     self.watcher.stop();
     logger.debug("Hot reloader stopped");
@@ -56,42 +50,57 @@ impl HotReloader.build_status -> dict {
 
 impl HotReloader.diagnostics -> list {
     with HotReloader._build_lock {
-        status = self._build_status;
-        held = list(self._diagnostics);
+        if self._build_status is BuildStatus.ERROR {
+            return list(self._diagnostics);
+        }
+        if self._build_status is not BuildStatus.OK {
+            return [];
+        }
+        return list(self._vite_diagnostics) + list(self._client_diagnostics);
     }
-    if status is BuildStatus.ERROR {
-        return held;
-    }
-    if status is BuildStatus.OK {
-        return self._event_diagnostics();
-    }
-    return [];
 }
 
-impl HotReloader._event_diagnostics(slots: tuple = ('vite', 'client')) -> list {
+impl HotReloader.attach_client_bundler(bundler: any) -> None {
+    if bundler is None {
+        return;
+    }
+    bundler.on_client_event = self.record_client_event;
+}
+
+impl HotReloader.record_client_event(slot: str, payload: (dict | None)) -> None {
     import from jaclang.client.client_diagnostics { classify_client_payload }
-    try {
-        data = json.loads(self._events_file_path().read_text(encoding='utf-8'));
-    } except (OSError, ValueError) {
-        return [];
+    import from jaclang.client.source_mapping { _error_rate_limiter }
+    if slot not in ('vite', 'client', 'runtime', 'ready') {
+        return;
     }
-    if not isinstance(data, dict) {
-        return [];
-    }
-    out: list = [];
-    for slot_name in slots {
-        slot = data.get(slot_name);
-        if not isinstance(slot, dict) or not slot.get('message') {
-            continue;
-        }
-        channel = 'vite' if slot_name == 'vite' else 'browser';
+    fresh: list = [];
+    if slot != 'ready' and isinstance(payload, dict) and payload.get('message') {
+        channel = 'vite' if slot == 'vite' else 'browser';
         try {
-            out.append(classify_client_payload(self.base_path, slot, channel));
+            fresh = [classify_client_payload(self.base_path, payload, channel)];
         } except Exception as e {
             logger.debug(f"Could not classify client event: {e}");
+            return;
         }
     }
-    return out;
+    with HotReloader._build_lock {
+        if slot == 'ready' {
+            self._client_diagnostics = [];
+            self._runtime_diagnostics = [];
+        } elif slot == 'vite' {
+            self._vite_diagnostics = fresh;
+        } elif slot == 'client' {
+            self._client_diagnostics = fresh;
+        } else {
+            self._runtime_diagnostics = fresh;
+        }
+    }
+    for diag in fresh {
+        if _error_rate_limiter.should_log(diag.key()) {
+            console.error(diag.render());
+        }
+    }
+    self._sync_status_file();
 }
 
 impl HotReloader.record_ok -> None {
@@ -136,10 +145,6 @@ impl HotReloader._status_file_path -> Path {
     return Path(self.base_path) / '.jac' / 'client' / '.jac-status.json';
 }
 
-impl HotReloader._events_file_path -> Path {
-    return self._status_file_path().parent / '.jac-client-events.json';
-}
-
 impl HotReloader._sync_status_file -> None {
     try {
         payload = self.build_status();
@@ -151,38 +156,6 @@ impl HotReloader._sync_status_file -> None {
             status_file.unlink();
         }
     } except OSError { }
-}
-
-impl HotReloader._poll_client_events -> None {
-    while self._running {
-        try {
-            self._report_client_events();
-        } except Exception as e {
-            logger.debug(f"Client event poll failed: {e}");
-        }
-        time.sleep(0.3);
-    }
-}
-
-impl HotReloader._report_client_events -> None {
-    import from jaclang.client.source_mapping { _error_rate_limiter }
-    events_file = self._events_file_path();
-    try {
-        stat = events_file.stat();
-        signature = f"{stat.st_mtime_ns}:{stat.st_size}";
-    } except OSError {
-        signature = "";
-    }
-    if signature == self._events_signature {
-        return;
-    }
-    self._events_signature = signature;
-    for diag in self._event_diagnostics(('vite', 'client', 'runtime')) {
-        if _error_rate_limiter.should_log(diag.key()) {
-            console.error(diag.render());
-        }
-    }
-    self._sync_status_file();
 }
 
 impl get_build_status -> dict {

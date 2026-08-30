@@ -77,7 +77,7 @@ test "the hot reloader ignores the retired status files entirely" {
         proj = Path(tmp);
         client_dir = proj / ".jac" / "client";
         client_dir.mkdir(parents=True);
-        # Both retired files, holding an error each. Neither may be read.
+        # Every retired file, holding an error each. None may be read.
         (client_dir / ".jac-dev-status.json").write_text(
             json.dumps(
                 {"vite": {"message": "stale vite error", "file": ""}, "client": None}
@@ -86,34 +86,32 @@ test "the hot reloader ignores the retired status files entirely" {
         (client_dir / ".jac-build-error.json").write_text(
             json.dumps({"file": "app.jac", "message": "stale jac error"})
         );
+        (client_dir / ".jac-client-events.json").write_text(
+            json.dumps({"vite": {"message": "stale event"}, "client": None})
+        );
         reloader = _reloader(proj);
         assert reloader.build_status() == {"status": "ok", "diagnostics": []};
     }
 }
 
-test "raw client events from the Vite layer are classified on the Jac side" {
+test "raw client events arrive on the callback and are classified once" {
     with TemporaryDirectory() as tmp {
         proj = Path(tmp);
         client_dir = proj / ".jac" / "client";
         (client_dir / "compiled").mkdir(parents=True);
-        # The plugin forwards RAW payloads only; the Jac process classifies.
-        (client_dir / ".jac-client-events.json").write_text(
-            json.dumps(
-                {
-                    "vite": None,
-                    "client": {
-                        "type": "SyntaxError",
-                        "message": "The requested module "
-                            "'/.vite/deps/left-pad.js?v=1' does not provide an "
-                            "export named 'Nope'",
-                        "stack": None,
-                        "source": "",
-                        "phase": "load"
-                    }
-                }
-            )
-        );
         reloader = _reloader(proj);
+        # The plugin forwards RAW payloads only; the Jac process classifies.
+        reloader.record_client_event(
+            "client",
+            {
+                "type": "SyntaxError",
+                "message": "The requested module '/.vite/deps/left-pad.js?v=1' "
+                    "does not provide an export named 'Nope'",
+                "stack": "",
+                "source": "",
+                "phase": "load"
+            }
+        );
         status = reloader.build_status();
         assert status["status"] == "error";
         diag = status["diagnostics"][0];
@@ -123,6 +121,56 @@ test "raw client events from the Vite layer are classified on the Jac side" {
         # name an owner rather than an empty file field.
         assert diag["file"] != "" , diag;
         assert diag["unmapped_reason"] != "" , diag;
+        # Classification happened on arrival: the status document is already
+        # written, and no transport file is left behind.
+        assert (client_dir / ".jac-status.json").exists();
+        assert not (client_dir / ".jac-client-events.json").exists();
+        # The browser's clean-load beacon clears the browser slots.
+        reloader.record_client_event("ready", None);
+        assert reloader.build_status() == {"status": "ok", "diagnostics": []};
+    }
+}
+
+test "event slots rank vite over browser, and a jac failure over both" {
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        (proj / ".jac" / "client" / "compiled").mkdir(parents=True);
+        reloader = _reloader(proj);
+        reloader.record_client_event(
+            "vite",
+            {
+                "message": 'Failed to resolve import "totally-missing-pkg"',
+                "id": "compiled/pages/index.js",
+                "plugin": "vite:import-analysis"
+            }
+        );
+        reloader.record_client_event(
+            "client", {"message": "load broke", "source": "", "phase": "load"}
+        );
+        assert reloader.build_status()["diagnostics"][0]["channel"] == "vite";
+        reloader.record_error("app.jac", "syntax");
+        assert reloader.build_status()["diagnostics"][0]["channel"] == "jac";
+        reloader.record_ok();
+        assert reloader.build_status()["diagnostics"][0]["channel"] == "vite";
+        # A null payload clears the slot the plugin sent it for.
+        reloader.record_client_event("vite", None);
+        assert reloader.build_status()["diagnostics"][0]["channel"] == "browser";
+        reloader.record_client_event("ready", None);
+        assert reloader.build_status() == {"status": "ok", "diagnostics": []};
+    }
+}
+
+test "a post-load runtime event is reported without breaking the build" {
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        (proj / ".jac" / "client" / "compiled").mkdir(parents=True);
+        reloader = _reloader(proj);
+        reloader.record_client_event(
+            "runtime",
+            {"type": "TypeError", "message": "x is not a function", "phase": ""}
+        );
+        # Reported to the terminal, but the build is not broken by it.
+        assert reloader.build_status() == {"status": "ok", "diagnostics": []};
     }
 }
 
@@ -248,5 +296,76 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
             logger.removeHandler(sink);
             client.close();
         }
+    }
+}
+
+
+obj _FakeStream {
+    has lines: list[str] = [],
+        _at: int = 0;
+
+    def readline -> str {
+        if self._at >= len(self.lines) {
+            return "";
+        }
+        self._at += 1;
+        return self.lines[self._at - 1];
+    }
+}
+
+obj _FakeProc {
+    has stdout: any;
+}
+
+obj _FakeOut {
+    has written: list[str] = [];
+
+    def write(text: str) -> None {
+        self.written.append(text);
+    }
+
+    def flush -> None { }
+}
+
+obj _FakeSys {
+    has stdout: any;
+}
+
+test "a tagged stdout line reaches the callback and is never echoed" {
+    import json;
+    import threading;
+    import from jaclang.client.vite_bundler {
+        ViteBundler,
+        _forward_vite_output,
+        CLIENT_EVENT_PREFIX
+    }
+    with TemporaryDirectory() as tmp {
+        seen: list = [];
+        bundler = ViteBundler(Path(tmp));
+        bundler.on_client_event = lambda (slot: str, payload: any) {
+            seen.append((slot, payload));
+        };
+        tagged = CLIENT_EVENT_PREFIX + json.dumps(
+            {"slot": "vite", "payload": {"message": "boom", "id": "compiled/x.js"}}
+        ) + "\n";
+        stream = _FakeStream(
+            lines=[
+                "  VITE v5.0.0  ready in 120 ms\n",
+                tagged,
+                "some ordinary vite chatter\n"
+            ]
+        );
+        out = _FakeOut();
+        _forward_vite_output(
+            _FakeProc(stdout=stream),
+            threading.Event(),
+            _FakeSys(stdout=out),
+            [],
+            bundler._dispatch_client_event
+        );
+        assert seen == [("vite", {"message": "boom", "id": "compiled/x.js"})] , seen;
+        echoed = "".join(out.written);
+        assert CLIENT_EVENT_PREFIX not in echoed , echoed;
+        assert "ordinary vite chatter" in echoed , echoed;
     }
 }

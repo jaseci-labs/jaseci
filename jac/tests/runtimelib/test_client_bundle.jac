@@ -165,15 +165,23 @@ test "dev config wires the raw client-event transport; build config does not" {
             in dev_content;
         assert "jacClientEvents()," in dev_content;
         plugin_js = (dev_cfg.parent / "jac-client-events.js").read_text();
-        # The plugin is a dumb transport: it forwards Vite's raw err payload
-        # and the browser's raw payload, and derives no file itself.
-        assert '".jac-client-events.json"' in plugin_js;
+        # The plugin is a dumb transport: one tagged JSON line per event on
+        # stdout, which the jac process already reads. It writes no file,
+        # keeps no status, and derives no file path of its own.
+        assert "process.stdout.write(PREFIX" in plugin_js;
+        assert 'const PREFIX = "@@jac-client-event ";' in plugin_js;
+        assert "jac-client-events.json" not in plugin_js;
         assert "dev-status" not in plugin_js;
+        assert 'import fs from "fs"' not in plugin_js;
         assert '"id": String(err.id || "")' in plugin_js;
         assert '"plugin": String(err.plugin || "")' in plugin_js;
         assert '"frame": String(err.frame || "")' in plugin_js;
         assert '.replace(".js", ".jac")' not in plugin_js;
         assert '.startsWith("jac")' in plugin_js;
+        # Four slots, and only those four
+        for slot in ['emit("vite"', 'emit("ready"', '"client" : "runtime"'] {
+            assert slot in plugin_js , slot;
+        }
         assert '"full-reload"' in plugin_js;
         # Jac-recovery reloads must not clear a still-broken Vite layer, and
         # clearing needs a connected client to re-arm a persisting error
