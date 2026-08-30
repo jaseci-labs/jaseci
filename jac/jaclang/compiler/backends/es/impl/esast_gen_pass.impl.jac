@@ -6341,6 +6341,36 @@ impl EsastGenPass._build_osp_disconnect_call(
     _edge_tag = self._edge_tag_literal(
         nd, _fcond.f_type if (_fcond is not None) else None, True
     );
+    if (_fcond is not None) and _fcond.compares {
+        _pred = self._build_osp_filter_pred(nd, _fcond);
+        if _pred is not None {
+            _arrow = self.sync_loc(
+                es.ArrowFunctionExpression(
+                    params=[self.sync_loc(es.Identifier(name='x'), jac_node=nd)],
+                    body=_pred,
+                    expression=True
+                ),
+                jac_node=nd
+            );
+            return self.sync_loc(
+                es.CallExpression(
+                    callee=self.sync_loc(
+                        es.Identifier(name='__ospDiscBetweenPredW'), jac_node=nd
+                    ),
+                    arguments=[
+                        left,
+                        right,
+                        self.sync_loc(
+                            es.Literal(value=int(spec.edge_dir.value)), jac_node=nd
+                        ),
+                        self.sync_loc(es.Literal(value=_edge_tag), jac_node=nd),
+                        _arrow
+                    ]
+                ),
+                jac_node=nd
+            );
+        }
+    }
     return self.sync_loc(
         es.CallExpression(
             callee=self.sync_loc(es.Identifier(name='__ospDiscBetweenW'), jac_node=nd),

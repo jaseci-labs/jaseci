@@ -233,6 +233,112 @@ obj OspGraph {
         return out;
     }
 
+    def refs_edge_pred(
+        origins: list[int],
+        dir: int,
+        edge_tag: int,
+        edges_only: bool,
+        pred: Callable[([int], bool)]
+    ) -> list[int] {
+        out: list[int] = [];
+        seen: set[int] = set();
+        for origin in origins {
+            if origin not in self.adj or origin in self.dead {
+                continue;
+            }
+            a: Adj = self.adj[origin];
+            for rid in a.rows_out {
+                row: EdgeRow = self.rows[rid];
+                if not row.live {
+                    continue;
+                }
+                eff = dir;
+                if row.undirected {
+                    eff = 3;
+                }
+                if (eff == 2 or eff == 3)
+                    and self._tag_matches(row.tag, edge_tag)
+                    and pred(row.handle) {
+                    o: int = row.handle if edges_only else row.tgt;
+                    if o not in seen {
+                        seen.add(o);
+                        out.append(o);
+                    }
+                }
+            }
+            for rid in a.rows_in {
+                row: EdgeRow = self.rows[rid];
+                if not row.live {
+                    continue;
+                }
+                eff = dir;
+                if row.undirected {
+                    eff = 3;
+                }
+                if (eff == 1 or eff == 3)
+                    and self._tag_matches(row.tag, edge_tag)
+                    and pred(row.handle) {
+                    o: int = row.handle if edges_only else row.src;
+                    if o not in seen {
+                        seen.add(o);
+                        out.append(o);
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    def filter_handles(
+        hs: list[int], pred: Callable[([int], bool)]
+    ) -> list[int] {
+        out: list[int] = [];
+        for h in hs {
+            if pred(h) {
+                out.append(h);
+            }
+        }
+        return out;
+    }
+
+    def refs_chain(
+        origins: list[int], dirs: list[int], tags: list[int], edges_only: bool
+    ) -> list[int] {
+        cur = origins;
+        i = 0;
+        n = len(dirs);
+        while i < n {
+            last = i == (n - 1);
+            cur = self.refs_many(cur, dirs[i], tags[i], edges_only if last else False);
+            i += 1;
+        }
+        return cur;
+    }
+
+    def conn_many(
+        srcs: list[int],
+        tgts: list[int],
+        eobjs: list[int],
+        undirected: bool,
+        tag: int,
+        rgn_src: int,
+        rgn_tgt: int
+    ) -> int {
+        n = 0;
+        k = 0;
+        for s in srcs {
+            for t in tgts {
+                eobj: int = eobjs[k];
+                k += 1;
+                if self.connect(s, t, eobj, undirected, tag, rgn_src, rgn_tgt) < 0 {
+                    return -1;
+                }
+                n += 1;
+            }
+        }
+        return n;
+    }
+
     def edge_peer(eobj: int, origin: int) -> int {
         if eobj not in self.row_of {
             return -1;
@@ -322,6 +428,72 @@ obj OspGraph {
             self._row_retire(rid);
         }
         return len(hits);
+    }
+
+    def disconnect_between_pred(
+        src: int, tgt: int, dir: int, edge_tag: int, pred: Callable[([int], bool)]
+    ) -> int {
+        if src not in self.adj {
+            return 0;
+        }
+        a: Adj = self.adj[src];
+        hits: list[int] = [];
+        hit_set: set[int] = set();
+        for rid in a.rows_out {
+            row: EdgeRow = self.rows[rid];
+            if not row.live {
+                continue;
+            }
+            eff = dir;
+            if row.undirected {
+                eff = 3;
+            }
+            if (eff == 2 or eff == 3)
+                and row.tgt == tgt
+                and self._tag_matches(row.tag, edge_tag)
+                and pred(row.handle) {
+                if rid not in hit_set {
+                    hit_set.add(rid);
+                    hits.append(rid);
+                }
+            }
+        }
+        for rid in a.rows_in {
+            row: EdgeRow = self.rows[rid];
+            if not row.live {
+                continue;
+            }
+            eff = dir;
+            if row.undirected {
+                eff = 3;
+            }
+            if (eff == 1 or eff == 3)
+                and row.src == tgt
+                and self._tag_matches(row.tag, edge_tag)
+                and pred(row.handle) {
+                if rid not in hit_set {
+                    hit_set.add(rid);
+                    hits.append(rid);
+                }
+            }
+        }
+        for rid in hits {
+            self._unlink(rid);
+            self._row_retire(rid);
+        }
+        return len(hits);
+    }
+
+    def disconnect_between_many(
+        srcs: list[int], tgts: list[int], dir: int, edge_tag: int
+    ) -> int {
+        n = 0;
+        for s in srcs {
+            for t in tgts {
+                n += self.disconnect_between(s, t, dir, edge_tag);
+            }
+        }
+        return n;
     }
 
     def node_destroy(h: int) -> int {
@@ -456,6 +628,54 @@ def osp_refs_many(
     origins: list[int], dir: int, edge_tag: int, edges_only: int
 ) -> list[int] {
     return DEFAULT_GRAPH.refs_many(origins, dir, edge_tag, edges_only != 0);
+}
+
+def osp_refs_edge_pred(
+    origins: list[int],
+    dir: int,
+    edge_tag: int,
+    edges_only: int,
+    pred: Callable[([int], bool)]
+) -> list[int] {
+    return DEFAULT_GRAPH.refs_edge_pred(
+        origins, dir, edge_tag, edges_only != 0, pred
+    );
+}
+
+def osp_filter(hs: list[int], pred: Callable[([int], bool)]) -> list[int] {
+    return DEFAULT_GRAPH.filter_handles(hs, pred);
+}
+
+def osp_refs_chain(
+    origins: list[int], dirs: list[int], tags: list[int], edges_only: int
+) -> list[int] {
+    return DEFAULT_GRAPH.refs_chain(origins, dirs, tags, edges_only != 0);
+}
+
+def osp_conn_many(
+    srcs: list[int],
+    tgts: list[int],
+    eobjs: list[int],
+    undirected: int,
+    edge_tag: int,
+    rgn_src: int,
+    rgn_tgt: int
+) -> int {
+    return DEFAULT_GRAPH.conn_many(
+        srcs, tgts, eobjs, undirected != 0, edge_tag, rgn_src, rgn_tgt
+    );
+}
+
+def osp_disconn_between_pred(
+    src: int, tgt: int, dir: int, edge_tag: int, pred: Callable[([int], bool)]
+) -> int {
+    return DEFAULT_GRAPH.disconnect_between_pred(src, tgt, dir, edge_tag, pred);
+}
+
+def osp_disconn_between_many(
+    srcs: list[int], tgts: list[int], dir: int, edge_tag: int
+) -> int {
+    return DEFAULT_GRAPH.disconnect_between_many(srcs, tgts, dir, edge_tag);
 }
 
 def osp_wrap1(x: int) -> list[int] {

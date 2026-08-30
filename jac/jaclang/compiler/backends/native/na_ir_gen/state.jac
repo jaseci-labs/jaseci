@@ -100,8 +100,6 @@ obj NaIRGenState(ModuleCodegenPass) {
         _osp_ensure_fn: (ir.Function | None) = None,
         _osp_kernel_inited_gv: (ir.GlobalVariable | None) = None,
         _osp_kernel_glob_init_fn: (ir.Function | None) = None,
-        _osp_filter_fn: (ir.Function | None) = None,
-        _osp_is_a_fn: (ir.Function | None) = None,
         tuple_types: dict[str, ir.LiteralStructType] = {},
         global_vars: dict[str, ir.GlobalVariable] = {},
         global_var_types: dict[str, ir.Type] = {},
