@@ -336,13 +336,6 @@ def is_native_by_location(file_path: str) -> bool {
     return ap.startswith(os.path.join(pkg, "runtime", "na_stdlib") + os.sep);
 }
 
-"""The bundled stdlib module a declaring file belongs to, or None.
-
-A bundled stdlib module has two declarations of every public class: the
-typeshed stub the checker reads in the server codespace and the na_stdlib
-implementation a native codespace links against. Both name the same class,
-so identity questions map either file back to the module's dotted name.
-"""
 def bundled_stdlib_module_of(file_path: str) -> (str | None) {
     import os;
     import jaclang;
@@ -356,7 +349,7 @@ def bundled_stdlib_module_of(file_path: str) -> (str | None) {
     if ap.startswith(native_root) and ap.endswith(".jac") {
         rel = ap[len(native_root):-len(".jac")];
         parts = rel.split(os.sep);
-        # an OS variant (`pathlib.darwin.jac`) is the same module
+
         parts[-1] = parts[-1].split(".")[0];
         return ".".join(parts);
     }
