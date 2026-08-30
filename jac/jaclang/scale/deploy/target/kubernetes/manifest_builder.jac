@@ -955,7 +955,11 @@ obj ManifestBuilder {
             if peer_name == GATEWAY_NAME {
                 continue;
             }
-            key = f"JAC_SV_{peer_name.upper()}_URL";
+            if self._get_http_activation_config(peer_name) is not None {
+                continue;
+            }
+            import from jaclang.runtimelib { sv_client }
+            key = sv_client.peer_url_env_key(peer_name);
             if key in seen_peer_keys {
                 continue;
             }

@@ -17,6 +17,23 @@ namespace = "jac-http-rpc-wake-e2e"
 app = "/"
 worker = "/worker"
 
+# A cold KEDA-HTTP-Add-on wake blocks a proxied request behind a real pod
+# boot (jac install + first compile), which can genuinely take longer than
+# the default 30s http_forward_timeout -- especially on a slower/shared
+# runner. This applies to both hops the RPC-wake test exercises: the
+# gateway forwarding straight to worker (external-wake), and the gateway
+# forwarding to app while app's own handler blocks on its RPC call to
+# worker (rpc-wake) -- so the override needs to cover every service, not
+# just worker.
+[scale.microservices]
+http_forward_timeout = 240
+
+[scale.microservices.services.worker]
+# The internal RPC path (app calling worker.ping() over sv-to-sv RPC) has
+# its own, separate, even shorter default (10s) -- give it the same
+# cold-wake headroom as http_forward_timeout above.
+rpc_timeout = 240
+
 [scale.microservices.services.worker.http_activation]
 enabled = true
 target_port = 8000
