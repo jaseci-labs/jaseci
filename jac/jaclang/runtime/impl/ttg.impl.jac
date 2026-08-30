@@ -1002,7 +1002,7 @@ def _ttg_render_specialized_set_based_sql(
                 FROM prefetch_plan p
                 CROSS JOIN LATERAL unnest(p.path_nodes) AS pn(id)
                 WHERE pn.id IS NOT NULL
-                UNION
+                EXCEPT
                 SELECT id
                 FROM prefetch_plan
                 WHERE id IS NOT NULL
@@ -1212,7 +1212,8 @@ def _resolve_sql_visit_bfs_specialized_set_based(
     }
     logger.info(
         f"[TTG-SQL-BFS] specs={len(specs)} origins={len(origins)} "
-        f"prefetched={len(prefetch)} fanout={fanout_desc} "
+        f"prefetched={len(prefetch)} rows_returned={len(rows)} "
+        f"topology_rows={len(topology_rows)} fanout={fanout_desc} "
         f"max_chain={max_chain_len} query_count=1 "
         "mode=set-based-specialized"
     );
