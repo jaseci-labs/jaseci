@@ -233,6 +233,29 @@ if ! wait_for_ready scaledobject "${SCALE_TARGET}-http-scaledobject"; then
     exit 1
 fi
 
+_t "wait for worker to reach 0 replicas before the first wake test"
+echo "=== a fresh deploy starts worker at 1 replica; confirm KEDA has scaled it to 0 ==="
+echo "    before test 1, or that test would pass even with broken interceptor routing ==="
+SCALED_DOWN=0
+ELAPSED=0
+while [ "${ELAPSED}" -lt "${SCALE_DOWN_TIMEOUT}" ]; do
+    CURRENT_REPLICAS=$(kubectl get deployment "${SCALE_TARGET}" -n "${NAMESPACE}" \
+        -o jsonpath='{.spec.replicas}')
+    if [ "${CURRENT_REPLICAS}" = "0" ]; then
+        SCALED_DOWN=1
+        break
+    fi
+    sleep "${POLLING_INTERVAL}"
+    ELAPSED=$(( ELAPSED + POLLING_INTERVAL ))
+    echo "  +${ELAPSED}s replicas=${CURRENT_REPLICAS}"
+done
+if [ "${SCALED_DOWN}" != "1" ]; then
+    echo "FAIL: worker did not reach 0 replicas within ${SCALE_DOWN_TIMEOUT}s of the initial deploy" >&2
+    dump_state
+    exit 1
+fi
+echo "  worker is at 0 replicas"
+
 _t "port-forward gateway"
 echo "=== port-forward the gateway's own Service (not the interceptor) ==="
 GATEWAY_LOCAL_PORT="${GATEWAY_LOCAL_PORT:-18081}"
