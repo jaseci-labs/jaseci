@@ -1458,13 +1458,6 @@ impl JacServe.build_client_bundle(
     return builder.build(module, force=force);
 }
 
-impl JacServe.format_build_error(
-    error_output: str, project_dir: Path, config: object = None
-) -> str {
-    import from jaclang.client.serving { JacClient }
-    return JacClient.format_build_error(error_output, project_dir, config);
-}
-
 impl JacBuiltin.get_console -> ConsoleImpl {
     import from jaclang.cli.console { JacConsole }
     return JacConsole();

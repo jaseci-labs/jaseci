@@ -55,3 +55,13 @@ def log_client_error(
 def render_diagnostics(
     diagnostics: list[ClientDiagnostic], colors: bool = False
 ) -> str;
+
+def classify_build_output(
+    base_path: str, error_output: str, verbose: bool = False
+) -> list[ClientDiagnostic];
+
+def format_build_diagnostics(
+    base_path: str, error_output: str, config: object = None
+) -> str;
+
+def is_debug_mode(config: object = None) -> bool;

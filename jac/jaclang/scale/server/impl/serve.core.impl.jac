@@ -213,12 +213,13 @@ impl JacAPIServerCore.start(
                         f"  ✔ Client bundle ready ({elapsed:.1f}s)", style="success"
                     );
                 } except Exception as e {
+                    import from jaclang.client.client_diagnostics {
+                        format_build_diagnostics
+                    }
                     error_output = str(e);
                     project_dir = config.project_root if config else Path.cwd();
-                    formatted_error = Jac.format_build_error(
-                        error_output=error_output,
-                        project_dir=project_dir,
-                        config=config
+                    formatted_error = format_build_diagnostics(
+                        str(project_dir), error_output, config
                     );
                     console.warning("Failed to build client bundle");
                     console.print(file=sys.stderr);
