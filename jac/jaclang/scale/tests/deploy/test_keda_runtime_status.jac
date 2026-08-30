@@ -32,7 +32,7 @@ test "keda normalize returns unknown when the ScaledObject does not exist" {
     assert status.desired_replicas == 0;
     assert status.current_replicas == 0;
     assert status.ready_replicas == 0;
-    assert "not found" in status.message.lower();
+    assert status.message is not None and "not found" in status.message.lower();
 }
 
 test "keda normalize reports degraded when Ready is false" {
@@ -75,7 +75,7 @@ test "keda normalize reports degraded and names the static fallback when Fallbac
     };
     status = KEDAAutoscaler()._normalize_keda_status(scaled_object, None, None);
     assert status.state == AutoscalerState.DEGRADED.value;
-    assert "fallback" in status.message.lower();
+    assert status.message is not None and "fallback" in status.message.lower();
 }
 
 test "keda normalize reports inactive with a distinct message when Paused is true" {
@@ -91,7 +91,7 @@ test "keda normalize reports inactive with a distinct message when Paused is tru
     };
     status = KEDAAutoscaler()._normalize_keda_status(scaled_object, None, None);
     assert status.state == AutoscalerState.INACTIVE.value;
-    assert "paused" in status.message.lower();
+    assert status.message is not None and "paused" in status.message.lower();
 }
 
 test "keda normalize reports inactive for idle scale-to-zero -- this is not an error" {

@@ -1,11 +1,4 @@
-import from .tokens {
-    LexToken,
-    TokenKind,
-    SourceLoc,
-    SrcDiag,
-    CommentData,
-    is_special_var_kind
-}
+import from .tokens { LexToken, TokenKind, SourceLoc, SrcDiag, is_special_var_kind }
 import from .lexer { tokenize_full }
 
 import from jaclang.compiler.frontend.unitree {
@@ -26,7 +19,6 @@ import from jaclang.compiler.frontend.unitree {
     CastExpr,
     CfgExpr,
     CodeBlockStmt,
-    CommentToken,
     CompareExpr,
     ConcurrentExpr,
     ConnectOp,
@@ -43,7 +35,6 @@ import from jaclang.compiler.frontend.unitree {
     ElseStmt,
     ElementStmt,
     EmptyToken,
-    EnumBlockStmt,
     Enum,
     EventSignature,
     Except,
@@ -596,29 +587,4 @@ obj Parser {
     def parse_sem_def -> SemDef;
     def parse_type_alias -> TypeAlias;
     def parse_type_params -> tuple[(list, list)];
-}
-
-def parse_source(
-    tokens: list[LexToken], file_path: str, source_code: str
-) -> tuple[(Module, int, list[SrcDiag])] {
-    parser = Parser(tokens=tokens, file_path=file_path, source_code=source_code);
-    mod = parser.parse();
-    return (mod, parser.error_count, parser.diags);
-}
-
-
-def parse_program(
-    source: str, file_path: str
-) -> tuple[(Module, int, list[SrcDiag], list[CommentData], list[SrcDiag], int)] {
-    (tokens, comments, lex_diags, lex_error_count) = tokenize_full(source, file_path);
-    parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
-    mod = parser.parse();
-    return (
-        mod,
-        parser.error_count,
-        parser.diags,
-        comments,
-        lex_diags,
-        lex_error_count
-    );
 }

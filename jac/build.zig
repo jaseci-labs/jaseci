@@ -75,6 +75,7 @@ const JACBOOT_SRC =
     "root, mode, argv = sys.argv[1], sys.argv[2], sys.argv[3:]\n" ++
     "sys.path.insert(0, root)\n" ++
     "os.environ['JAC_NO_DEV_SOURCE'] = '1'\n" ++
+    "os.environ['JAC_STUBCAT_BUILDING'] = '1'\n" ++
     "import _jac_finder\n" ++
     "_jac_finder.install()\n" ++
     "if mode == 'payload':\n" ++
@@ -256,6 +257,10 @@ pub fn build(b: *std.Build) void {
         .dependOn(&b.addInstallBinFile(stub, "jac").step);
 
     // --- runtime payload: -Dpayload override, else mkpayload ---------------
+    // The stub catalog (pre-resolved typeshed types) is a second mkpayload
+    // output that `pack` places as its own page-aligned region of the binary;
+    // a prebuilt -Dpayload carries the same catalog as a file inside it.
+    var stubcat_region: ?std.Build.LazyPath = null;
     const payload: std.Build.LazyPath = if (b.option([]const u8, "payload", "Path to a prebuilt runtime payload .tar.zst")) |p|
         .{ .cwd_relative = p }
     else payload: {
@@ -277,6 +282,10 @@ pub fn build(b: *std.Build) void {
         mk.step.dependOn(fetch_target);
         mk.step.dependOn(&fetch_ts.step);
         const out = mk.addOutputFileArg("payload.tar.zst");
+        stubcat_region = mk.addPrefixedOutputFileArg("--stubcat-out=", "stubcat.bin");
+        if (b.option(bool, "skip-stubcat", "mkpayload: skip the stub catalog build (the type checker builds it on first use)") orelse false) {
+            mk.addArg("--skip-stubcat");
+        }
         // Optional trailing flags (parsed after the positional pbs/root/out):
         // --shim ships the Zig-built LLVMPY_* shim; --skip-precompile drops the
         // JIR precompile (fast link validation; first run compiles on demand).
@@ -404,6 +413,9 @@ pub fn build(b: *std.Build) void {
     pack.addFileArg(stub);
     pack.addFileArg(payload);
     const jac = pack.addOutputFileArg("jac");
+    if (stubcat_region) |region| {
+        pack.addFileArg(region);
+    }
     b.getInstallStep().dependOn(&b.addInstallBinFile(jac, "jac").step);
 }
 

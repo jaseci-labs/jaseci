@@ -92,7 +92,7 @@ impl HPAAutoscaler.apply{
             raise;
         }
     }
-    autoscaling_v2 = AutoscalingV2Api();
+    autoscaling_v2: any = AutoscalingV2Api();
     try {
         autoscaling_v2.read_namespaced_horizontal_pod_autoscaler(
             name=name, namespace=namespace
@@ -113,7 +113,7 @@ impl HPAAutoscaler.apply{
 }
 
 impl HPAAutoscaler.destroy{
-    autoscaling_v2 = AutoscalingV2Api();
+    autoscaling_v2: any = AutoscalingV2Api();
     delete_if_exists(
         autoscaling_v2.delete_namespaced_horizontal_pod_autoscaler,
         self.resource_name_for(app_name),
@@ -223,7 +223,7 @@ impl HPAAutoscaler._normalize_hpa_status{
 
 impl HPAAutoscaler.get_runtime_status{
     try {
-        hpa = AutoscalingV2Api().read_namespaced_horizontal_pod_autoscaler(
+        hpa: any = AutoscalingV2Api().read_namespaced_horizontal_pod_autoscaler(
             name=autoscaler_name, namespace=namespace
         );
     } except ApiException as e {

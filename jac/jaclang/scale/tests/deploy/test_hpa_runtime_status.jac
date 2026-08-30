@@ -13,7 +13,7 @@ test "hpa normalize returns unknown when the HPA does not exist" {
     assert status.desired_replicas == 0;
     assert status.current_replicas == 0;
     assert status.ready_replicas == 0;
-    assert "not found" in status.message.lower();
+    assert status.message is not None and "not found" in status.message.lower();
 }
 
 test "hpa normalize reports active when ScalingActive is healthy" {

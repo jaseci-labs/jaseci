@@ -9,6 +9,17 @@ import from jaclang.scale.deploy.autoscale.observer {
 import from jaclang.scale.deploy.autoscale.autoscaler { AutoscalerTransition }
 
 
+def _next(sub: AutoscalerSubscription) -> AutoscalerTransition {
+    # poll() returns AutoscalerTransition | None; every caller below already
+    # knows a transition is queued (it just delivered one), so this narrows
+    # that guarantee into a type the chained .resource_version access below
+    # can rely on, instead of repeating an is-not-None assert at every call.
+    result = sub.poll(timeout_seconds=0);
+    assert result is not None;
+    return result;
+}
+
+
 def transition(
     resource_version: str,
     autoscaler_name: str = "orders-scaledobject",
@@ -32,8 +43,8 @@ test "a subscription with no filters receives every delivered transition in orde
     sub._deliver(transition("1"));
     sub._deliver(transition("2"));
 
-    assert sub.poll(timeout_seconds=0).resource_version == "1";
-    assert sub.poll(timeout_seconds=0).resource_version == "2";
+    assert _next(sub).resource_version == "1";
+    assert _next(sub).resource_version == "2";
     assert sub.poll(timeout_seconds=0) is None;
 }
 
@@ -60,8 +71,8 @@ test "drop_oldest evicts the oldest queued transition and keeps the newest in or
     }
 
     assert sub.dropped_count() == 2;
-    assert sub.poll(timeout_seconds=0).resource_version == "3";
-    assert sub.poll(timeout_seconds=0).resource_version == "4";
+    assert _next(sub).resource_version == "3";
+    assert _next(sub).resource_version == "4";
     assert sub.poll(timeout_seconds=0) is None;
 }
 
@@ -74,8 +85,8 @@ test "drop_newest discards the incoming transition and keeps the oldest in place
     }
 
     assert sub.dropped_count() == 2;
-    assert sub.poll(timeout_seconds=0).resource_version == "1";
-    assert sub.poll(timeout_seconds=0).resource_version == "2";
+    assert _next(sub).resource_version == "1";
+    assert _next(sub).resource_version == "2";
     assert sub.poll(timeout_seconds=0) is None;
 }
 
@@ -92,8 +103,8 @@ test "close backpressure closes the subscription instead of growing the queue fu
 
     # Further deliveries are no-ops once closed -- the queue never grows past max_queue.
     sub._deliver(transition("4"));
-    assert sub.poll(timeout_seconds=0).resource_version == "1";
-    assert sub.poll(timeout_seconds=0).resource_version == "2";
+    assert _next(sub).resource_version == "1";
+    assert _next(sub).resource_version == "2";
     assert sub.poll(timeout_seconds=0) is None;
 }
 
@@ -117,7 +128,7 @@ test "consumer-initiated close stops future delivery and is idempotent" {
 
     assert sub.is_closed() is True;
     sub._deliver(transition("2"));
-    assert sub.poll(timeout_seconds=0).resource_version == "1";
+    assert _next(sub).resource_version == "1";
     assert sub.poll(timeout_seconds=0) is None;
 }
 

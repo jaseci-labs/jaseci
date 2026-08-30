@@ -444,6 +444,26 @@ test "apply skips ScaledObject creation when KEDA CRDs are not installed" {
     mock_api.patch_namespaced_custom_object.assert_not_called();
 }
 
+test "apply skips ScaledObject creation when the CRD check returns 422, not just 404" {
+    # preflight() itself already treats 422 the same as 404 (see above), but
+    # that alone doesn't prove apply()'s missing-CRD skip path -- which reads
+    # preflight()'s return value, not the exception -- exercises the 422
+    # branch specifically. This closes that gap directly.
+    KEDAAutoscaler._preflight_cache.clear();
+    mock_api = unittest.mock.MagicMock();
+    mock_api.list_cluster_custom_object.side_effect = ApiException(status=422);
+    keda = KEDAAutoscaler(_custom_api=mock_api);
+    spec = AutoscalerSpec(
+        scale_target_name="svc-deployment",
+        namespace="default",
+        triggers=[Trigger(type="cpu", metadata={})]
+    );
+    result = keda.apply(spec);
+    assert result == False;
+    mock_api.create_namespaced_custom_object.assert_not_called();
+    mock_api.patch_namespaced_custom_object.assert_not_called();
+}
+
 test "apply logs the install docs link when KEDA CRDs are not installed" {
     KEDAAutoscaler._preflight_cache.clear();
     mock_api = unittest.mock.MagicMock();

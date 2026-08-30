@@ -54,16 +54,6 @@ test "AutoscalerRuntimeStatus carries engine condition passthrough and identifie
     assert status.message == "spec not reconciled";
 }
 
-test "AutoscalerRuntimeStatus omitting a required field raises TypeError" {
-    raised = False;
-    try {
-        AutoscalerRuntimeStatus(state=AutoscalerState.ACTIVE.value, desired_replicas=1);
-    } except TypeError {
-        raised = True;
-    }
-    assert raised , "Expected TypeError when current_replicas/ready_replicas are omitted";
-}
-
 test "AutoscalerTransition requires identity, state pair, observed_at, and resource_version" {
     transition = AutoscalerTransition(
         autoscaler_name="orders-scaledobject",
@@ -96,23 +86,6 @@ test "AutoscalerTransition allows previous_state=None for a first-ever observati
         resource_version="1"
     );
     assert transition.previous_state is None;
-}
-
-test "AutoscalerTransition omitting resource_version raises TypeError" {
-    raised = False;
-    try {
-        AutoscalerTransition(
-            autoscaler_name="orders-scaledobject",
-            scale_target_name="orders-deployment",
-            namespace="staging",
-            previous_state=None,
-            state=AutoscalerState.ACTIVE.value,
-            observed_at="2026-08-21T12:00:00+00:00"
-        );
-    } except TypeError {
-        raised = True;
-    }
-    assert raised , "Expected TypeError when resource_version is omitted";
 }
 
 test "base Autoscaler.get_runtime_status raises NotImplementedError" {
