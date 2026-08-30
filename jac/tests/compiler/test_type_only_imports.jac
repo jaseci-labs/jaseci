@@ -15,8 +15,6 @@ speaking at load:
 - E1132: a binding brought in with `import type` used in value position.
 """
 
-import os;
-import tempfile;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from typing { cast }
