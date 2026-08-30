@@ -5,6 +5,7 @@ import from jaclang.compiler.frontend.srcloc { CodeLocInfo }
 import from jaclang.compiler.frontend.constant {
     BUILTIN_CALLABLE_NAMES,
     DELIM_MAP,
+    BindingKind,
     CodeContext,
     EdgeDir,
     ExprCtx,
@@ -260,6 +261,7 @@ node Symbol {
         na_region_handle: bool = False,
         na_stack_ok: bool = False,
         _in_stub_scope: (bool | None) = None,
+        _binding_kind: (BindingKind | None) = None,
         provider: any = None;
 
     def init(
@@ -278,6 +280,7 @@ node Symbol {
     has sym_dotted_name: str { getter; }
     has symbol_table: (UniScopeNode | None) { getter; }
     has storage: SymbolStorage { getter; }
+    has binding_kind: BindingKind { getter; setter(binding_kind: BindingKind); }
 
     def add_defn(nd: NameAtom) -> None;
     def add_use(nd: NameAtom) -> None;
@@ -2719,3 +2722,19 @@ def record_cross_scope_rebind(py_scope: UniScopeNode, name: str, sym: Symbol) ->
 def _ability_of_defn(defn_node: UniNode) -> (Ability | None);
 
 def ability_of_symbol(sym: (Symbol | None)) -> (Ability | None);
+
+def binding_kind_of_decl(decl: NameAtom) -> BindingKind;
+
+def resolved_decl_of(sym: Symbol) -> (NameAtom | None);
+
+def kind_has_runtime_binding(
+    kind: BindingKind, decl: (NameAtom | None), space: CodeContext
+) -> bool;
+
+def has_runtime_binding(sym: Symbol, space: CodeContext) -> bool;
+
+def is_client_destined(nd: UniNode) -> bool;
+
+def type_only_import_of(nd: NameAtom) -> (ModuleItem | None);
+
+def in_type_position(nd: UniNode) -> bool;

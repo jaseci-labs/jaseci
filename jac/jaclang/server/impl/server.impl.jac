@@ -2220,31 +2220,14 @@ impl JacAPIServer.build_app -> ServingApp {
                 content={'error': 'Missing required field: message'}, status_code=400
             );
         }
-        import from jaclang.client.source_mapping {
-            _error_rate_limiter,
-            resolve_client_error_stacks,
-            format_client_error_log
-        }
+        import from jaclang.client.source_mapping { _error_rate_limiter }
+        import from jaclang.client.client_diagnostics { log_client_error }
         if not _error_rate_limiter.should_log(message) {
             return JSONResponse(content={'ok': True, 'throttled': True});
         }
         cfg = get_config();
         verbose = cfg.client_errors.verbose if cfg else False;
-        (stack, component_stack) = resolve_client_error_stacks(
-            server.base_path,
-            data.get('stack', ''),
-            data.get('componentStack', ''),
-            verbose=verbose
-        );
-        log_parts = format_client_error_log(
-            message,
-            stack=stack,
-            component_stack=component_stack,
-            url=data.get('url', ''),
-            source=data.get('source', '')
-        );
-        import logging;
-        logging.getLogger('jaclang.client_errors').error('\n'.join(log_parts));
+        log_client_error(server.base_path or '', data, verbose);
         return JSONResponse(content={'ok': True});
     }
 

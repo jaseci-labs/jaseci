@@ -2287,6 +2287,88 @@ To see raw error output alongside formatted diagnostics, set `debug = true` unde
 
 > **Note:** Debug mode is enabled by default for a better development experience. For production deployments, set `debug = false` in `jac.toml`.
 
+### Dev Loop Diagnostics
+
+Once the dev server is up, every failure the loop can see -- a Jac compile
+error, a Vite resolve failure, a module-link error in the browser, an uncaught
+exception with a stack -- is resolved back to a Jac location and reported as one
+diagnostic value. The terminal line uses the same renderer as `jac check`:
+
+```text
+error[E7001]: The module 'mermaid' has no export named 'Mermaid'
+  --> docs/MermaidDiagram.jac:1:44
+    1 | import from "mermaid" { default as mermaid, Mermaid }
+      |                                             ^
+help: ... import it with 'import type' ...
+```
+
+The Vite plugins forward raw payloads only, over the channel the jac process
+already reads: the dev server's stdout. Each event is one tagged JSON line --
+
+```text
+@@jac-client-event {"slot": "vite", "payload": { ... }}
+```
+
+-- in slot `vite`, `client` (a module-load failure), `runtime` (anything thrown
+after the app came up) or `ready` (the browser's clean-load beacon). A `null`
+payload clears its slot, and `ready` clears both browser slots. The jac process
+consumes those lines (they are never echoed to the terminal), classifies each
+one on arrival, renders it, and keeps the result in memory. The only file
+involved is the status document it writes:
+
+| File | Written by | Contents |
+|------|-----------|----------|
+| `.jac/client/.jac-status.json` | the jac dev server | the status document (below); absent when the build is healthy |
+
+A `runtime` event is reported to the terminal but does not mark the build
+broken, so it does not appear in the status document.
+
+The status document is also what `GET /__build_status` returns, on both the core
+server and the scale gateway:
+
+```json
+{
+  "status": "ok" | "compiling" | "error" | "unavailable",
+  "diagnostics": [
+    {
+      "code": "E7001",
+      "severity": "error",
+      "category": "runtime",
+      "message": "The module 'mermaid' has no export named 'Mermaid'",
+      "help": "...",
+      "file": "docs/MermaidDiagram.jac",
+      "line": 1,
+      "column": 44,
+      "channel": "browser",
+      "raw_location": "/.vite/deps/mermaid.js?v=0926aa4f",
+      "unmapped_reason": "",
+      "related": [{"label": "...", "file": "jac.toml", "line": 6, "column": 1}],
+      "stack": "",
+      "component_stack": "",
+      "resolved_stack": "",
+      "resolved_component_stack": "",
+      "rendered": "error[E7001]: ...\n  --> docs/MermaidDiagram.jac:1:44\n..."
+    }
+  ]
+}
+```
+
+`file` is relative to the project root and is never empty: when nothing on disk
+claims the reported location, it names the best-known Jac owner and
+`unmapped_reason` says why the mapping failed. `channel` is `jac`, `vite`,
+`browser` or `server`, and `raw_location` keeps the compiled/Vite/browser
+location the diagnostic was mapped from. A stack-bearing error carries both the
+browser's raw `stack` and the `resolved_stack` whose frames were mapped onto
+`.jac` files (and the same pair for React's component stack). The browser overlay renders the same
+value, and the `/cl/__error__` endpoint logs it through the same renderer in
+production. See [Errors and Warnings](../diagnostics.md#dev-loop-and-client-runtime-errors-e7xxx)
+for the code catalog.
+
+Locations come from the per-file source maps the client compiler writes beside
+each `compiled/*.js`. They are segment-level -- generated line *and* column,
+with a `names` array -- so a stack frame or an import specifier resolves to an
+exact `.jac` column, not merely to a line.
+
 ---
 
 ## Build-Time Constants

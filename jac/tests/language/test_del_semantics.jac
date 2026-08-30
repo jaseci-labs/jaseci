@@ -187,7 +187,7 @@ test "malformed del targets are rejected by the front end" {
 
 test "a del value target that can never be a graph object is an error" {
     out = run_jac_check(BAD_TARGETS);
-    assert out.count("error[E1131]") == 1 , out;
+    assert out.count("error[E1133]") == 1 , out;
     assert "can never yield a graph object" in out , out;
 }
 
@@ -195,7 +195,7 @@ test "well formed del statements never reach E5043" {
     out = run_jac_check(DEL_SEMANTICS);
     assert "E5043" not in out , out;
     assert "E0083" not in out , out;
-    assert "E1131" not in out , out;
+    assert "E1133" not in out , out;
 }
 
 

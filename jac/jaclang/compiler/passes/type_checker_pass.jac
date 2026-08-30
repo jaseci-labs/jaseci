@@ -53,6 +53,8 @@ import from jaclang.compiler.frontend.unitree {
     TypeAlias,
     UniNode,
     VisitStmt,
+    in_type_position,
+    type_only_import_of,
     IfStmt,
     ElseIf,
     WhileStmt,
@@ -121,8 +123,9 @@ import from jaclang.compiler.frontend.diagnostics {
     E1117,
     E1119,
     E1124,
+    E1132,
     E5095,
-    E1131,
+    E1133,
     W1036,
     W1037,
     W1052,
@@ -192,6 +195,7 @@ walker TypeCheckPass(UniPass) {
     def _resolve_comptime_if(nd: IfStmt) -> None;
     def _in_comptime_context(nd: UniNode) -> bool;
     def _check_comptime_only_use(nd: Name) -> None;
+    def _check_type_only_value_use(nd: Name) -> None;
     can exit_if_stmt with IfStmt exit;
     can exit_else_if with ElseIf exit;
     can exit_while_stmt with WhileStmt exit;

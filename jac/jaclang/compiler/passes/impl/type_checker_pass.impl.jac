@@ -35,6 +35,7 @@ impl TypeCheckPass.exit_name with Name exit {
     }
     if here.sym is not None {
         self._check_comptime_only_use(here);
+        self._check_type_only_value_use(here);
     }
 }
 
@@ -1649,6 +1650,16 @@ impl TypeCheckPass._check_comptime_only_use(nd: Name) -> None {
     self.emit(E0033, node_override=nd, what=what, reason="");
 }
 
+impl TypeCheckPass._check_type_only_value_use(nd: Name) -> None {
+    if isinstance(nd.parent, AtomTrailer) and nd.parent.right is nd {
+        return;
+    }
+    if type_only_import_of(nd) is None or in_type_position(nd) {
+        return;
+    }
+    self.emit(E1132, node_override=nd, name=nd.sym_name);
+}
+
 impl TypeCheckPass.exit_if_stmt with IfStmt exit {
     if here.__class__ is not IfStmt {
         return;
@@ -1782,7 +1793,7 @@ impl TypeCheckPass.exit_delete_stmt with DeleteStmt exit {
         }
         leaf_type = self.evaluator.get_type_of_expression(leaf);
         if not DeleteStmt.type_may_hold_graph(leaf_type) {
-            self.emit(E1131, node_override=leaf, type=str(leaf_type));
+            self.emit(E1133, node_override=leaf, type=str(leaf_type));
         }
     }
 }
