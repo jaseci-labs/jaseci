@@ -18,6 +18,154 @@
 //! a no-op once `stdlib/.typeshed-sha` names the pinned commit.
 
 const std = @import("std");
+const seed = @import("seed.zig");
+const Io = std.Io;
+const Allocator = std.mem.Allocator;
+
+const TARBALL_BASE = "https://codeload.github.com/python/typeshed/tar.gz";
+const STDLIB = "stdlib";
+const STAMP = "stdlib/.typeshed-sha";
+const MARKER = "stdlib/VERSIONS";
+
+pub fn main(init: std.process.Init) !void {
+    const io = init.io;
+    const gpa = init.gpa;
+    var arena_state = std.heap.ArenaAllocator.init(gpa);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+
+    var args: [2][]const u8 = undefined;
+    var n: usize = 0;
+    var it = init.minimal.args.iterate();
+    while (it.next()) |arg| : (n += 1) {
+        if (n < args.len) args[n] = arg;
+    }
+    if (n < 2) seed.die("usage: fetch_typeshed <vendor-dir>", .{});
+    const vendor_path = args[1];
+
+    var vendor = Io.Dir.cwd().openDir(io, vendor_path, .{}) catch |err|
+        seed.die("fetch-typeshed: cannot open {s}: {s}", .{ vendor_path, @errorName(err) });
+    defer vendor.close(io);
+
+    const commit = try readPin(io, a, vendor, vendor_path, "PIN");
+    const expected = try readPin(io, a, vendor, vendor_path, "TARBALL_SHA256");
+
+    if (upToDate(io, a, vendor, commit)) {
+        seed.log("fetch-typeshed: already present ({s})", .{commit});
+        return;
+    }
+
+    seed.log("fetch-typeshed: fetching typeshed @ {s}", .{commit});
+    const url = try std.fmt.allocPrint(a, "{s}/{s}", .{ TARBALL_BASE, commit });
+    const gz = try seed.httpGetAlloc(io, gpa, url);
+    defer gpa.free(gz);
+
+    const tar = gunzip(gpa, gz) catch |err|
+        seed.die("fetch-typeshed: gzip decompress failed: {s}", .{@errorName(err)});
+    defer gpa.free(tar);
+
+    // The pin names a commit, but a commit is only as trustworthy as the host
+    // serving it; the digest is what actually fixes the bytes.
+    const actual = seed.sha256Hex(tar);
+    if (!std.mem.eql(u8, &actual, expected)) {
+        seed.die(
+            "fetch-typeshed: tarball checksum mismatch @ {s}\n  expected {s}\n  actual   {s}",
+            .{ commit, expected, &actual },
+        );
+    }
+
+    install(io, gpa, vendor, tar, commit) catch |err|
+        seed.die("fetch-typeshed: install failed: {s}", .{@errorName(err)});
+    seed.log("fetch-typeshed: ready ({s})", .{commit});
+}
+
+/// True when `<vendor>/stdlib` is already the tree for `commit`. The stamp is
+/// written last, so a torn install never reads as up to date.
+pub fn upToDate(io: Io, gpa: Allocator, vendor: Io.Dir, commit: []const u8) bool {
+    vendor.access(io, MARKER, .{}) catch return false;
+    const stamp = vendor.readFileAlloc(io, STAMP, gpa, .limited(256)) catch return false;
+    defer gpa.free(stamp);
+    return std.mem.eql(u8, std.mem.trim(u8, stamp, " \t\r\n"), commit);
+}
+
+/// Replace `<vendor>/stdlib` with the stubs in `tar` and stamp it with `commit`.
+/// Replace, not merge: a pin bump that drops a stub upstream must drop it here
+/// too, or the type checker keeps resolving a module typeshed no longer has.
+pub fn install(io: Io, gpa: Allocator, vendor: Io.Dir, tar: []const u8, commit: []const u8) !void {
+    try vendor.deleteTree(io, STDLIB);
+
+    var name_buf: [std.fs.max_path_bytes]u8 = undefined;
+    var link_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const copy_buf = try gpa.alloc(u8, 64 * 1024);
+    defer gpa.free(copy_buf);
+
+    var src = Io.Reader.fixed(tar);
+    var entries: std.tar.Iterator = .init(&src, .{
+        .file_name_buffer = &name_buf,
+        .link_name_buffer = &link_buf,
+    });
+    while (try entries.next()) |entry| {
+        if (entry.kind != .file) continue;
+        const dest = vendorPath(entry.name) orelse continue;
+        if (std.fs.path.dirnamePosix(dest)) |parent| try vendor.createDirPath(io, parent);
+        var out = try vendor.createFile(io, dest, .{});
+        defer out.close(io);
+        var writer = out.writer(io, copy_buf);
+        try entries.streamRemaining(entry, &writer.interface);
+        try writer.interface.flush();
+    }
+
+    // A tarball with no stdlib/ means a bad pin, not an empty typeshed. Say so
+    // instead of stamping an empty tree as good.
+    vendor.access(io, MARKER, .{}) catch return error.NoStdlib;
+    try vendor.writeFile(io, .{ .sub_path = STAMP, .data = commit });
+}
+
+/// Where a tar entry lands under the vendor dir, or null when the vendored tree
+/// does not carry it. The archive is rooted at `typeshed-<commit>/`, of which
+/// only the stdlib stubs and the license are vendored; typeshed's own `@tests`
+/// fixtures are dropped, matching the payload tool's `skip_typeshed_tests`.
+pub fn vendorPath(entry: []const u8) ?[]const u8 {
+    const root_end = std.mem.indexOfScalar(u8, entry, '/') orelse return null;
+    const rel = entry[root_end + 1 ..];
+    if (rel.len == 0 or !safeRelative(rel)) return null;
+    if (std.mem.indexOf(u8, rel, "@tests") != null) return null;
+    if (std.mem.eql(u8, rel, "LICENSE")) return rel;
+    if (std.mem.startsWith(u8, rel, STDLIB ++ "/") and rel.len > STDLIB.len + 1) return rel;
+    return null;
+}
+
+/// Reject anything that would write outside the vendor dir. The tarball is
+/// digest-pinned, so this is belt and braces -- but the seed runs unsandboxed
+/// over a path it took off the network.
+fn safeRelative(rel: []const u8) bool {
+    if (std.fs.path.isAbsolutePosix(rel)) return false;
+    var parts = std.mem.splitScalar(u8, rel, '/');
+    while (parts.next()) |part| {
+        if (std.mem.eql(u8, part, "..")) return false;
+    }
+    return true;
+}
+
+fn readPin(io: Io, a: Allocator, vendor: Io.Dir, vendor_path: []const u8, name: []const u8) ![]const u8 {
+    const raw = vendor.readFileAlloc(io, name, a, .limited(4096)) catch |err|
+        seed.die("fetch-typeshed: cannot read {s}/{s}: {s}", .{ vendor_path, name, @errorName(err) });
+    const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+    if (trimmed.len == 0) seed.die("fetch-typeshed: {s}/{s} is empty", .{ vendor_path, name });
+    return trimmed;
+}
+
+fn gunzip(gpa: Allocator, gz: []const u8) ![]u8 {
+    const window = try gpa.alloc(u8, std.compress.flate.max_window_len);
+    defer gpa.free(window);
+    var src = Io.Reader.fixed(gz);
+    var dz: std.compress.flate.Decompress = .init(&src, .gzip, window);
+    var aw: Io.Writer.Allocating = .init(gpa);
+    errdefer aw.deinit();
+    _ = try dz.reader.streamRemaining(&aw.writer);
+    var list = aw.toArrayList();
+    return list.toOwnedSlice(gpa);
+}
 
 test "vendorPath keeps the stdlib stubs and the license, drops the rest" {
     const root = "typeshed-bbbf7530a987e59c8458127351cacad2e57f04bf/";
