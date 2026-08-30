@@ -439,8 +439,20 @@ impl TypeEvaluator._get_getattr_return_type(base_type: ClassType) -> TypeBase | 
     }
 
     if member := self._lookup_class_member(base_type, "__getattribute__") {
-        _ga_decl = self.declaring_class_of(member.symbol, base_type);
-        if _ga_decl is not None and _ga_decl.shared.class_name != "object" {
+        import from jaclang.compiler.types.type_utils { collect_member_syms }
+        _ga_owned = False;
+        for _ga_cls in base_type.shared.mro {
+            if _ga_cls.shared.class_name == "object" {
+                continue;
+            }
+            _ga_tbl = _ga_cls.shared.symbol_table;
+            if _ga_tbl is not None
+                and collect_member_syms(_ga_tbl, "__getattribute__") {
+                _ga_owned = True;
+                break;
+            }
+        }
+        if _ga_owned {
             getattr_type = self.get_type_of_symbol(member.symbol);
             if isinstance(getattr_type, FunctionType) {
                 return getattr_type.return_type or UnknownType();

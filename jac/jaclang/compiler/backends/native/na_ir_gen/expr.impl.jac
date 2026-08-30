@@ -761,6 +761,19 @@ impl NaIRGenExpr._codegen_kernel_spawn(
         ),
         name="spawn.desc.i8"
     );
+    _dead_fn = self.func_symtab.get("osp_is_dead");
+    if _dead_fn is not None {
+        _d_argtys = _dead_fn.function_type.args;
+        _dead = self.builder.call(
+            _dead_fn, [self._coerce_type(loc_val, _d_argtys[0])], name="spawn.dead"
+        );
+        _is_dead = self.builder.icmp_signed(
+            "!=", _dead, ir.Constant(_dead.type, 0), name="spawn.isdead"
+        );
+        self._emit_runtime_raise(
+            _is_dead, "RuntimeError", "cannot spawn on a destroyed graph object"
+        );
+    }
     _rt = self.builder.load(self._osp_rt_global, name="spawn.rt");
     self.builder.call(
         osp_spawn_fn,

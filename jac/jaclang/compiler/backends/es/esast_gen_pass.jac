@@ -511,6 +511,28 @@ walker EsastGenPass(BaseAstGenPass[es.Statement]) {
     can exit_switch_stmt with uni.SwitchStmt exit;
     can exit_switch_case with uni.SwitchCase exit;
     can exit_delete_stmt with uni.DeleteStmt exit;
+    def _es_destroy_stmt(
+        target: uni.Expr, nd: uni.DeleteStmt
+    ) -> (es.Statement | None);
+
+    def _es_poly_destroy_stmt(
+        value: es.Expression, nd: uni.DeleteStmt
+    ) -> es.Statement;
+
+    def _es_del_trivial(expr: es.Expression) -> bool;
+    def _es_del_bind(
+        expr: es.Expression, name: str, stmts: list[es.Statement], nd: uni.DeleteStmt
+    ) -> es.Expression;
+
+    def _es_delete_location(
+        target: uni.AtomTrailer, nd: uni.DeleteStmt, ordinal: int
+    ) -> list[es.Statement];
+
+    def _es_release_name_stmt(
+        target: uni.Name, nd: uni.DeleteStmt
+    ) -> (es.Statement | None);
+
+    def _es_slice_part(part: (uni.Expr | None), nd: uni.DeleteStmt) -> es.Expression;
     can exit_match_stmt with uni.MatchStmt exit;
     def _lower_match_pattern(
         pat: uni.MatchPattern, subj: es.Expression

@@ -122,6 +122,22 @@ def osp_visit(targets: list[int], insert_loc: int = -1) -> bool {
     return True;
 }
 
+def osp_forget(target: int) {
+    for scope in _walk_stack {
+        if target not in scope.ignores {
+            scope.ignores.append(target);
+        }
+    }
+}
+
+def osp_forget_all(targets: list[int]) {
+    i = 0;
+    while i < len(targets) {
+        osp_forget(targets[i]);
+        i += 1;
+    }
+}
+
 def osp_disengage {
     scope = _current_scope();
     if scope is not None {

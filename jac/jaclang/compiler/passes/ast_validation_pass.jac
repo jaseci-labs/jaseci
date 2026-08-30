@@ -5,6 +5,7 @@ import from jaclang.compiler.frontend.unitree {
     Archetype,
     Assignment,
     AtomTrailer,
+    AtomUnit,
     BinaryExpr,
     ContextAwareNode,
     CtrlStmt,
@@ -14,6 +15,7 @@ import from jaclang.compiler.frontend.unitree {
     ExprAsItem,
     ExprStmt,
     ForeverStmt,
+    FString,
     FuncCall,
     FuncSignature,
     GlobalVars,
@@ -30,9 +32,11 @@ import from jaclang.compiler.frontend.unitree {
     KWPair,
     LambdaExpr,
     ListVal,
+    Literal,
     MatchStmt,
     Module,
     ModuleCode,
+    MultiString,
     Name,
     ParamVar,
     ReturnStmt,
@@ -41,6 +45,7 @@ import from jaclang.compiler.frontend.unitree {
     Token,
     TryStmt,
     TupleVal,
+    UnaryExpr,
     UniNode,
     WhileStmt,
     WithStmt,
@@ -72,6 +77,7 @@ import from jaclang.compiler.frontend.diagnostics {
     E0075,
     E0076,
     E0082,
+    E0083,
     E2019,
     E2020,
     E2021,
@@ -104,6 +110,7 @@ walker ASTValidationPass(UniPass) {
     can enter_expr_as_item with ExprAsItem entry;
     can enter_delete_stmt with DeleteStmt entry;
     def _reject_non_bindable(target: object) -> None;
+    def _reject_undeletable(target: object) -> None;
     can enter_param_var with ParamVar entry;
     can enter_yield_expr with YieldExpr entry;
     can enter_ctrl_stmt with CtrlStmt entry;

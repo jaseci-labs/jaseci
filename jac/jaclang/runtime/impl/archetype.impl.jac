@@ -104,6 +104,7 @@ impl Anchor.__getstate__ -> dict[(str, any)] {
 impl Anchor.__setstate__(state: dict[(str, any)]) -> None {
     persistent = bool(state.pop('persistent', False));
     self.__dict__.update(state);
+    self.__dict__.setdefault('destroyed', False);
     self.persistent = persistent;
     if (self.is_populated() and self.archetype) {
         self.archetype.__jac__ = self;

@@ -793,8 +793,8 @@ impl CtrlStmt.__repr__ -> str {
     return f"{type(self).__name__}";
 }
 
-impl DeleteStmt.target.getter -> Expr {
-    return [self->:TargetRole:->][0];
+impl DeleteStmt.targets.getter -> list[Expr] {
+    return [self->:TargetRole:->];
 }
 
 impl DeleteStmt.__repr__ -> str {
@@ -2358,8 +2358,8 @@ impl CtrlStmt.init(*, ctrl: Token, kid: Sequence[UniNode] = []) -> None {
     self.postinit();
 }
 
-impl DeleteStmt.init(*, target: Expr, kid: Sequence[UniNode] = []) -> None {
-    self._link(kid, {TargetRole: target});
+impl DeleteStmt.init(*, targets: list[Expr], kid: Sequence[UniNode] = []) -> None {
+    self._link(kid, {TargetRole: targets});
     self.postinit();
 }
 

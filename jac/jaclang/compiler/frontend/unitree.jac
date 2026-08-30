@@ -1447,11 +1447,16 @@ node CtrlStmt(CodeBlockStmt) {
 }
 
 node DeleteStmt(CodeBlockStmt) {
-    has target: Expr { getter; }
+    has targets: list[Expr] { getter; }
 
-    def init(*, target: Expr, kid: Sequence[UniNode] = []) -> None;
+    def init(*, targets: list[Expr], kid: Sequence[UniNode] = []) -> None;
     def postinit -> None;
     def __repr__ -> str;
+    def leaf_targets -> list[Expr];
+    static def unwrap_target(target: Expr) -> Expr;
+    static def is_location(target: Expr) -> bool;
+    static def type_may_hold_graph(t: (TypeBase | None)) -> bool;
+    static def target_may_hold_graph(target: Expr) -> bool;
 }
 
 node ReportStmt(CodeBlockStmt) {
