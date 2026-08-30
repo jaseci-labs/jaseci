@@ -26,6 +26,18 @@ glob _SCHEMA_SQL = [
         ON anchors (dst, arch_type) WHERE dst IS NOT NULL
     """,
          """
+    CREATE INDEX IF NOT EXISTS idx_anchors_edge_src_type_order
+        ON anchors (src, arch_type, seq, id)
+        INCLUDE (dst, undirected)
+        WHERE kind = 'EdgeAnchor' AND src IS NOT NULL AND dst IS NOT NULL
+    """,
+         """
+    CREATE INDEX IF NOT EXISTS idx_anchors_edge_dst_type_order
+        ON anchors (dst, arch_type, seq, id)
+        INCLUDE (src, undirected)
+        WHERE kind = 'EdgeAnchor' AND src IS NOT NULL AND dst IS NOT NULL
+    """,
+         """
     CREATE INDEX IF NOT EXISTS idx_anchors_kind_type
         ON anchors (kind, arch_type)
     """,
