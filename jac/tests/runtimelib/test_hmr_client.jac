@@ -484,7 +484,7 @@ test "jacjsx import added in real compilation" {
         assert "import {__jacJsx" in content or "import{__jacJsx" in content , "__jacJsx is used but import statement is missing";
         # --- build error: reported out-of-band, never via _entry.js ---
         entry_file = unique_dir / ".jac" / "client" / "compiled" / "_entry.js";
-        error_file = unique_dir / ".jac" / "client" / ".jac-build-error.json";
+        error_file = unique_dir / ".jac" / "client" / ".jac-status.json";
         bad_file = unique_dir / "app.jac";
         bad_file.write_text(
             "    def app() -> any {\n"
@@ -493,11 +493,14 @@ test "jacjsx import added in real compilation" {
         );
         reloader._recompile_client_code(str(bad_file));
         assert not entry_file.exists() , "_entry.js must not be created just to display an error";
-        assert error_file.exists() , "build error must be mirrored to .jac-build-error.json for the Vite overlay";
+        assert error_file.exists() , "build error must be mirrored to .jac-status.json for the Vite overlay";
         import json;
         error_data = json.loads(error_file.read_text());
-        assert error_data["message"] , "mirrored build error must carry a non-empty message";
-        assert "app.jac" in str(error_data["message"]) , "mirrored error must reference the failing source location";
+        assert error_data["status"] == "error";
+        first = error_data["diagnostics"][0];
+        assert first["message"] , "mirrored build error must carry a non-empty message";
+        assert first["file"].endswith("app.jac") , "mirrored error must name the failing .jac file";
+        assert first["line"] > 0 , "mirrored error must name the failing line";
         assert reloader.build_status()["status"] == "error";
         # --- fix the error: recovery clears the mirrored error ---
         bad_file.write_text(
@@ -505,7 +508,7 @@ test "jacjsx import added in real compilation" {
         );
         reloader._recompile_client_code(str(bad_file));
         reloader.record_ok();  # _process_change settles to ok after a clean rebuild
-        assert not error_file.exists() , ".jac-build-error.json must be removed on recovery";
+        assert not error_file.exists() , ".jac-status.json must be removed on recovery";
         assert reloader.build_status()["status"] == "ok";
     }
 }
@@ -892,7 +895,7 @@ test "router entry survives an error then fix cycle" {
         reloader._recompile_client_code(str(index_file));
         reloader._refresh_routing(str(index_file));
         entry_file = compiled_dir / "_entry.js";
-        error_file = compiled_dir.parent / ".jac-build-error.json";
+        error_file = compiled_dir.parent / ".jac-status.json";
         assert "BrowserRouter" in entry_file.read_text();
         # Break the page: the app entry is untouched; the error goes out-of-band
         entry_mtime = entry_file.stat().st_mtime_ns;
@@ -950,7 +953,7 @@ test "asset deletion removes the copy without touching the entry" {
         # Deletion is not an error and must not touch the app
         assert entry_file.stat().st_mtime_ns == entry_mtime , "asset deletion must not touch _entry.js";
         assert reloader.build_status()["status"] == "ok" , "asset deletion must not be reported as a build error";
-        assert not (compiled_dir.parent / ".jac-build-error.json").exists();
+        assert not (compiled_dir.parent / ".jac-status.json").exists();
     }
 }
 

@@ -62,9 +62,11 @@ test "dev vite config registers the port reporter; build config does not" {
         # the jac CLI reads it instead of parsing Vite's stdout.
         assert "jac-port-reporter" in dev_content;
         assert ".dev-port" in dev_content;
-        # Build errors surface through Vite's native overlay in dev mode
+        # Build errors surface through Vite's native overlay in dev mode,
+        # driven by the single status document the Jac process owns
         assert "jac-build-error-overlay" in dev_content;
-        assert ".jac-build-error.json" in dev_content;
+        assert ".jac-status.json" in dev_content;
+        assert ".jac-build-error.json" not in dev_content;
         # Force-reload plugin: rescues export-set edits that Fast Refresh would
         # otherwise swallow, reloading (jacTriggered) when the jac dev server
         # bumps .jac-force-reload
@@ -89,6 +91,10 @@ test "dev vite config registers error reporter; overlay is gated to module-load 
         assert "jac-error-reporter" in dev_content;
         # Overlay must only fire for module-load failures, not every runtime error
         assert 'phase === "load"' in dev_content;
+        # The transport is dumb: raw fields forwarded, no path rewriting here.
+        assert '.replace("compiled/", "")' not in dev_content;
+        assert '.slice(0, -3) + ".jac"' not in dev_content;
+        assert "recordClientEvent(data)" in dev_content;
         build_cfg = bundler.create_vite_config(`entry, is_dev=False);
         build_content = build_cfg.read_text();
         assert "jac-error-reporter" not in build_content;
@@ -146,7 +152,7 @@ test "dev config wires fast refresh and index.html installs the hook before the 
     }
 }
 
-test "dev config wires the layered dev-status bridge; build config does not" {
+test "dev config wires the raw client-event transport; build config does not" {
     import tempfile;
     import from jaclang.client.vite_bundler { ViteBundler }
     with tempfile.TemporaryDirectory() as tmp {
@@ -154,15 +160,18 @@ test "dev config wires the layered dev-status bridge; build config does not" {
         `entry = Path(tmp) / "main.js";
         dev_cfg = bundler.create_vite_config(`entry, is_dev=True);
         dev_content = dev_cfg.read_text();
-        assert 'import jacDevStatus, { reportClientLoad } from "./jac-dev-status.js"'
+        assert 'import jacClientEvents, { recordClientEvent } from "./jac-client-events.js"'
             in dev_content;
-        assert "jacDevStatus()," in dev_content;
-        # Browser load-phase failures feed the client slot via the reporter
-        assert "reportClientLoad(data)" in dev_content;
-        plugin_js = (dev_cfg.parent / "jac-dev-status.js").read_text();
-        # Vite slot: set from Vite's own error payloads, cleared on recovery
-        # payloads; jac-layer payloads are excluded (tracked in-process)
-        assert '".jac-dev-status.json"' in plugin_js;
+        assert "jacClientEvents()," in dev_content;
+        plugin_js = (dev_cfg.parent / "jac-client-events.js").read_text();
+        # The plugin is a dumb transport: it forwards Vite's raw err payload
+        # and the browser's raw payload, and derives no file itself.
+        assert '".jac-client-events.json"' in plugin_js;
+        assert "dev-status" not in plugin_js;
+        assert '"id": String(err.id || "")' in plugin_js;
+        assert '"plugin": String(err.plugin || "")' in plugin_js;
+        assert '"frame": String(err.frame || "")' in plugin_js;
+        assert '.replace(".js", ".jac")' not in plugin_js;
         assert '.startsWith("jac")' in plugin_js;
         assert '"full-reload"' in plugin_js;
         # Jac-recovery reloads must not clear a still-broken Vite layer, and
@@ -176,7 +185,7 @@ test "dev config wires the layered dev-status bridge; build config does not" {
         html = (Path(tmp) / "index.html").read_text();
         assert 'import.meta.hot.send("jac:client-ready")' in html;
         build_content = bundler.create_vite_config(`entry, is_dev=False).read_text();
-        assert "jacDevStatus" not in build_content;
+        assert "jacClientEvents" not in build_content;
     }
 }
 
