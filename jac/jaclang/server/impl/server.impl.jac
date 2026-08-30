@@ -2582,10 +2582,9 @@ impl JacAPIServer.start(
         console.print('\nPress Ctrl+C to stop the server');
         if bundle_error {
             import sys;
-            formatted_error = Jac.format_build_error(
-                error_output=bundle_error,
-                project_dir=Path(self.base_path),
-                config=config
+            import from jaclang.client.client_diagnostics { format_build_diagnostics }
+            formatted_error = format_build_diagnostics(
+                self.base_path, bundle_error, config
             );
             console.print(file=sys.stderr);
             console.print(formatted_error, file=sys.stderr);

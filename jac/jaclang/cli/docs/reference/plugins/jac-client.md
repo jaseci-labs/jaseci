@@ -2271,17 +2271,20 @@ The Vite dev server is configured with `appType: 'spa'` for history API fallback
 
 ## Build Error Diagnostics
 
-When client builds fail, jac-client displays structured error diagnostics instead of raw Vite/Rollup output. Errors include:
+When the client bundle fails to build at server startup, Jac classifies the raw Vite/Rollup output with the same engine the dev loop uses and renders each error with the `jac check` renderer. Errors include:
 
-- **Error codes** (`JAC_CLIENT_001`, `JAC_CLIENT_003`, etc.)
-- **Source snippets** pointing to the original `.jac` file location
-- **Actionable hints** and quick fix commands
+- **Error codes** from the `E7xxx` runtime catalog, the same ones the dev loop reports
+- **A Jac location** -- the `.jac` line the compiled artifact was lowered from -- or a note saying why one could not be derived
+- **The registry's help text**, including the `[dependencies.npm]` guidance for an undeclared package
 
 | Code | Issue | Example Fix |
 |------|-------|-------------|
-| `JAC_CLIENT_001` | Missing npm dependency | `jac install --npm <package>` |
-| `JAC_CLIENT_003` | Syntax error in client code | Check source snippet |
-| `JAC_CLIENT_004` | Unresolved import | Verify import path |
+| `E7001` | Module has no such export | Import it with `import type`, or check the export name |
+| `E7002` | Unresolved import | Verify the path, or declare the package and run `jac install` |
+| `E7004` | Vite rejected a module | Read the location the diagnostic names |
+| `E7005` | The build could not produce a loadable module | Run `jac check` on the file it names |
+
+Run `jac guide reference/diagnostics` for the full catalog.
 
 To see raw error output alongside formatted diagnostics, set `debug = true` under `[client]` in `jac.toml` or set the `JAC_DEBUG=1` environment variable.
 

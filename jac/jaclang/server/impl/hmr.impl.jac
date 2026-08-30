@@ -11,6 +11,11 @@ import from jaclang.cli.console { console }
 
 glob logger = logging.getLogger(__name__);
 
+def _syntax_error_line(file_path: str, err: SyntaxError) -> str {
+    where = f":{err.lineno}" if err?.lineno and err.lineno else "";
+    return f"Syntax error in {file_path}{where}: {err?.msg or str(err)}";
+}
+
 impl HotReloader.start -> None {
     if self._running {
         return;
@@ -381,10 +386,8 @@ impl HotReloader._reload_server_module(file_path: str) -> None {
         );
         console.print(f"[HMR] Reloaded: {file_path}");
     } except SyntaxError as e {
-        line_info = f":{e.lineno}" if e?.lineno and e.lineno else "";
         console.error(
-            f"Syntax error in {file_path}{line_info}: {e?.msg or str(e)}",
-            hint="Fix the error and save to retry"
+            _syntax_error_line(file_path, e), hint="Fix the error and save to retry"
         );
         self.record_error(
             file_path,
@@ -640,9 +643,7 @@ impl HotReloader._classify_declarations(file_path: str) -> tuple[bool, bool] {
             has_server = True;
         }
     } except SyntaxError as e {
-        line_info = f" at line {e.lineno}" if e?.lineno and e.lineno else "";
-        console.error(f"Syntax error in {file_path}{line_info}: {e?.msg or str(e)}");
-
+        console.error(_syntax_error_line(file_path, e));
         has_server = True;
     } except Exception as e {
         error_type = type(e).__name__;

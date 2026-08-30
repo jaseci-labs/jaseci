@@ -8,12 +8,22 @@ glob _EXPORT_MISS_RE = re.compile(
      ),
      _QUOTED_RE = re.compile(r"[\"']([^\"']+)[\"']"),
      _RESOLVE_FAIL_RE = re.compile(
-         r"Failed to resolve import\s+[\"']([^\"']+)[\"']"
+         r"[Ff]ailed to resolve import\s+[\"']([^\"']+)[\"']"
          r"(?:\s+from\s+[\"']([^\"']+)[\"'])?"
      ),
      _CANNOT_FIND_RE = re.compile(
          r"(?:Cannot find module|Could not resolve)\s+[\"']([^\"']+)[\"']"
-     );
+         r"(?:\s+from\s+[\"']([^\"']+)[\"'])?"
+     ),
+     _BUILD_ERROR_RES = [_RESOLVE_FAIL_RE, _CANNOT_FIND_RE, _EXPORT_MISS_RE],
+     _BUILD_FRAME_PREFIXES = ["at ", "^", "|"],
+     _BUILD_FRAMING = ["error during build", "error", "build failed"],
+     _JAC_COMPILE_MARKER = "failed to compile",
+     _NO_BYTECODE_MARKER = "no bytecode found for",
+     _LINE_MARKER = ", line ",
+     _COL_MARKER = ", col ",
+     _RAW_HEADER = "--- Raw Error (debug=true) ---",
+     _RAW_FOOTER = "--- End Raw Error ---";
 
 def _diag(code: str) -> any {
     import from jaclang.compiler.frontend.diagnostics { DIAGNOSTICS }
@@ -352,6 +362,7 @@ impl classify_client_payload(
         alt = _CANNOT_FIND_RE.search(message);
         if alt {
             missing_name = alt.group(1);
+            importer = alt.group(2) or "";
         }
     }
     if missing_name {
@@ -474,4 +485,173 @@ impl log_client_error(
     }
     logging.getLogger("jaclang.client_errors").error("\n".join(parts));
     return diag;
+}
+
+def _leading_number(text: str) -> int {
+    digits = "";
+    for ch in text {
+        if not ch.isdigit() {
+            break;
+        }
+        digits += ch;
+    }
+    return int(digits) if digits else 0;
+}
+
+def _marker_line(output: str, lowered: str, marker: str) -> str {
+    at = lowered.find(marker);
+    if at < 0 {
+        return "";
+    }
+    start = output.rfind("\n", 0, at) + 1;
+    end = output.find("\n", at);
+    return output[start:] if end < 0 else output[start:end];
+}
+
+def _marked_number(line: str, marker: str) -> int {
+    at = line.lower().find(marker);
+    return 0 if at < 0 else _leading_number(line[at + len(marker):]);
+}
+
+def _first_quoted(text: str) -> str {
+    for quote in ("'", '"') {
+        parts = text.split(quote);
+        if len(parts) >= 2 and parts[1] {
+            return parts[1];
+        }
+    }
+    return "";
+}
+
+def _trailing_detail(line: str) -> str {
+    at = line.rfind(": ");
+    return "" if at <= 0 else line[at + 2:].strip();
+}
+
+def _jac_compile_failure(base_path: str, output: str) -> (ClientDiagnostic | None) {
+    lowered = output.lower();
+    compile_line = _marker_line(output, lowered, _JAC_COMPILE_MARKER);
+    file_path = _first_quoted(compile_line);
+    line = _marked_number(compile_line, _LINE_MARKER);
+    column = _marked_number(compile_line, _COL_MARKER);
+    message = _trailing_detail(compile_line);
+    if not file_path {
+        bytecode_line = _marker_line(output, lowered, _NO_BYTECODE_MARKER);
+        at = bytecode_line.lower().find(_NO_BYTECODE_MARKER);
+        if at >= 0 {
+            file_path = bytecode_line[at + len(_NO_BYTECODE_MARKER):].strip();
+        }
+        line = 0;
+        column = 0;
+        message = "";
+    }
+    if not file_path {
+        return None;
+    }
+    return build_failure_diagnostic(
+        base_path,
+        file_path,
+        message or f"could not compile '{os.path.basename(file_path)}'",
+        line,
+        column
+    );
+}
+
+def _build_error_lines(output: str) -> list[str] {
+    found: list[str] = [];
+    seen: set[str] = set();
+    for raw in output.splitlines() {
+        line = raw.strip();
+        if not line or line in seen {
+            continue;
+        }
+        for pattern in _BUILD_ERROR_RES {
+            if pattern.search(line) {
+                seen.add(line);
+                found.append(line);
+                break;
+            }
+        }
+    }
+    return found;
+}
+
+def _condensed_build_message(output: str) -> str {
+    for raw in output.splitlines() {
+        line = raw.strip();
+        if not line or any(line.startswith(p) for p in _BUILD_FRAME_PREFIXES) {
+            continue;
+        }
+        if line.lower().rstrip(":") in _BUILD_FRAMING {
+            continue;
+        }
+        return line;
+    }
+    return output.strip() or "the client bundle build produced no output";
+}
+
+impl classify_build_output(
+    base_path: str, error_output: str, verbose: bool = False
+) -> list[ClientDiagnostic] {
+    output = error_output or "";
+    out: list[ClientDiagnostic] = [];
+    seen: set[str] = set();
+    compile_failure = _jac_compile_failure(base_path, output);
+    if compile_failure is not None {
+        seen.add(compile_failure.key());
+        out.append(compile_failure);
+    }
+    for line in _build_error_lines(output) {
+        diag = classify_client_payload(
+            base_path, {"message": line}, DiagChannel.VITE.value, verbose
+        );
+        if diag.key() in seen {
+            continue;
+        }
+        seen.add(diag.key());
+        out.append(diag);
+    }
+    if out {
+        return out;
+    }
+    return [
+        classify_client_payload(
+            base_path,
+            {"message": _condensed_build_message(output)},
+            DiagChannel.VITE.value,
+            verbose
+        )
+    ];
+}
+
+impl format_build_diagnostics(
+    base_path: str, error_output: str, config: object = None
+) -> str {
+    rendered = render_diagnostics(classify_build_output(base_path, error_output));
+    if not is_debug_mode(config) {
+        return rendered;
+    }
+    return f"{rendered}\n\n{_RAW_HEADER}\n{error_output}\n{_RAW_FOOTER}";
+}
+
+impl is_debug_mode(config: object = None) -> bool {
+    env_debug = os.environ.get("JAC_DEBUG", "").lower();
+    if env_debug in ("1", "true", "yes") {
+        return True;
+    }
+    if env_debug in ("0", "false", "no") {
+        return False;
+    }
+    import from jaclang.project.config { JacConfig }
+    if isinstance(config, JacConfig) {
+        try {
+            client_cfg = config.get_plugin_config("client");
+            if client_cfg {
+                return bool(client_cfg.get("debug", True));
+            }
+        } except Exception {
+            ;
+        }
+    }
+    return True;
 }

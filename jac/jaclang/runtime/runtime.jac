@@ -13,7 +13,6 @@ import dataclasses;
 import from dataclasses { dataclass, field }
 import from inspect { getfile }
 import from logging { getLogger }
-import from pathlib { Path }
 import from typing { TYPE_CHECKING, Literal, ParamSpec, Protocol, TypeAlias, TypeVar }
 import from uuid { UUID }
 import from jaclang.runtime.archetype {
@@ -449,10 +448,6 @@ class JacServe {
     static def build_client_bundle(
         module: types.ModuleType, force: bool = False
     ) -> ClientBundle;
-
-    static def format_build_error(
-        error_output: str, project_dir: Path, config: object = None
-    ) -> str;
 
     static def get_api_server_class -> type;
     static def ensure_sv_service(module_name: str, base_path: str) -> None;

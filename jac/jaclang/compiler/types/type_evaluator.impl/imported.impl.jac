@@ -54,15 +54,15 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
                                     sibling_dts, item_name
                                 ) {
                                 binding.type = declared;
-                                binding._sym_category = SymbolType.VAR;
+                                declared_kind = self._ts_declared_kind_from_file(
+                                    sibling_dts, item_name
+                                )
+                                    or BindingKind.VALUE;
+                                binding._sym_category = SymbolType.TYPE
+                                    if declared_kind.is_type_only()
+                                    else SymbolType.VAR;
                                 self._apply_import_binding_kind(
-                                    node_,
-                                    binding,
-                                    self._ts_declared_kind_from_file(
-                                        sibling_dts, item_name
-                                    )
-                                        or BindingKind.VALUE,
-                                    from_mod_name
+                                    node_, binding, declared_kind, from_mod_name
                                 );
                                 return binding.type;
                             }
@@ -123,13 +123,15 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
                         import_node.from_loc, item_name
                     ) {
                     binding.type = declared;
-                    binding._sym_category = SymbolType.VAR;
+                    declared_kind = self._ts_declared_kind(
+                        import_node.from_loc, item_name
+                    )
+                        or BindingKind.VALUE;
+                    binding._sym_category = SymbolType.TYPE
+                        if declared_kind.is_type_only()
+                        else SymbolType.VAR;
                     self._apply_import_binding_kind(
-                        node_,
-                        binding,
-                        self._ts_declared_kind(import_node.from_loc, item_name)
-                            or BindingKind.VALUE,
-                        from_mod_name
+                        node_, binding, declared_kind, from_mod_name
                     );
                     return binding.type;
                 }

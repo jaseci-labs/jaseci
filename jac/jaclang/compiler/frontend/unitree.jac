@@ -2720,6 +2720,8 @@ def ability_of_symbol(sym: (Symbol | None)) -> (Ability | None);
 
 def binding_kind_of_decl(decl: NameAtom) -> BindingKind;
 
+def import_chain_of(sym: Symbol) -> list[Symbol];
+
 def resolved_decl_of(sym: Symbol) -> (NameAtom | None);
 
 def kind_has_runtime_binding(

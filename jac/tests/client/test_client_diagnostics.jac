@@ -400,3 +400,110 @@ test "the suite leaves no dev-loop global behind" {
     assert _locator_cache == {};
     assert _mapper_cache == {};
 }
+
+test "a startup bundle failure resolves every error it can place to a .jac line" {
+    import from jaclang.client.client_diagnostics { classify_build_output }
+
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        compiled = _make_project(proj);
+        # What rollup actually prints when the bundle build fails at startup:
+        # two unresolved imports in one blob, wrapped in framing noise.
+        output = "error during build:\n"
+        f'[vite]: Rollup failed to resolve import "left-pad" from "{compiled}/docs/Missing.js".\n'
+        "This is most likely unintended because it can break your "
+        "application at runtime.\n"
+        'Failed to resolve import "mermaid" from "compiled/docs/MermaidDiagram.js". '
+        "Does the file exist?\n"
+        "    at viteWarn (file:///opt/vite/dist/node/chunks/dep.js:1:1)\n";
+        diags = classify_build_output(str(proj), output);
+        codes = [d.code for d in diags];
+        assert codes == ["E7002", "E7002"] , codes;
+        files = sorted([d.file for d in diags]);
+        assert files == ["docs/MermaidDiagram.jac", "docs/Missing.jac"] , files;
+        for d in diags {
+            assert d.line == 1 , f"{d.file} lost its Jac line: {d.line}";
+            assert d.channel == "vite" , d.channel;
+        }
+        rendered = "\n\n".join(d.render() for d in diags);
+        assert "error[E7002]" in rendered , rendered;
+        assert "--> docs/Missing.jac:1:" in rendered , rendered;
+        assert "--> docs/MermaidDiagram.jac:1:" in rendered , rendered;
+        # The undeclared package still gets the one npm wording, from W1106.
+        missing = [
+            d
+            for d in diags
+            if d.file == "docs/Missing.jac"
+        ][0];
+        assert "jac install" in missing.help_text , missing.help_text;
+        assert missing.related , "no jac.toml location for the undeclared package";
+    }
+}
+
+test "a Jac compile failure in the bundle output keeps its file, line and column" {
+    import from jaclang.client.client_diagnostics { classify_build_output }
+
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        _make_project(proj);
+        target = proj / "docs" / "MermaidDiagram.jac";
+        output = f"Failed to compile '{target}', line 3, col 5: unexpected token";
+        diags = classify_build_output(str(proj), output);
+        assert len(diags) == 1 , [d.code for d in diags];
+        diag = diags[0];
+        assert diag.code == "E7005" , diag.code;
+        assert diag.file == "docs/MermaidDiagram.jac" , diag.file;
+        assert diag.line == 3 , diag.line;
+        assert diag.column == 5 , diag.column;
+        assert "unexpected token" in diag.message , diag.message;
+        rendered = diag.render();
+        assert "error[E7005]" in rendered , rendered;
+        assert "--> docs/MermaidDiagram.jac:3:5" in rendered , rendered;
+    }
+}
+
+test "a bundle failure that names nothing still renders and says why" {
+    import from jaclang.client.client_diagnostics { classify_build_output }
+
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        _make_project(proj);
+        diags = classify_build_output(str(proj), "error during build:\nboom");
+        assert len(diags) == 1 , [d.code for d in diags];
+        diag = diags[0];
+        assert diag.code == "E7004" , diag.code;
+        assert diag.file != "" , "the file field must never be silently empty";
+        assert diag.unmapped_reason != "" , "an unmapped diagnostic must say why";
+        assert "error[E7004]" in diag.render() , diag.render();
+    }
+}
+
+test "the startup renderer keeps the raw output only in debug mode" {
+    import os;
+    import from jaclang.client.client_diagnostics { format_build_diagnostics }
+
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        compiled = _make_project(proj);
+        output = f'Failed to resolve import "left-pad" from "{compiled}/docs/Missing.js".';
+        prior = os.environ.get("JAC_DEBUG");
+        try {
+            os.environ["JAC_DEBUG"] = "0";
+            quiet = format_build_diagnostics(str(proj), output);
+            assert "error[E7002]" in quiet , quiet;
+            assert "--> docs/Missing.jac:1:" in quiet , quiet;
+            assert "Raw Error" not in quiet , quiet;
+            os.environ["JAC_DEBUG"] = "1";
+            loud = format_build_diagnostics(str(proj), output);
+            assert "error[E7002]" in loud , loud;
+            assert "Raw Error" in loud , loud;
+            assert output in loud , loud;
+        } finally {
+            if prior is None {
+                os.environ.pop("JAC_DEBUG", None);
+            } else {
+                os.environ["JAC_DEBUG"] = prior;
+            }
+        }
+    }
+}

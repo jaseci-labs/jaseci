@@ -538,3 +538,76 @@ test "the mermaid shape is refused as written and clean when split" {
         assert "Mermaid" not in js.replace('import mermaid from "mermaid"', "") , f"The interface must not reach the ESM output:\n{js}";
     }
 }
+
+
+# ---------------------------------------------------------------------------
+# 6. The binding's symbol category agrees with its kind
+# ---------------------------------------------------------------------------
+
+test "an imported d.ts binding takes the symbol category its kind implies" {
+    import from jaclang.compiler.frontend.constant { SymbolType }
+    import from jaclang.compiler.frontend.unitree { ModuleItem }
+
+    # A binding that answers "kind: type" and "category: variable" at the same
+    # time is one fact told two ways. Semantic tokens and hover read the
+    # category, so the interface must not present itself as a variable.
+    with TemporaryDirectory() as td {
+        proj = make_kind_project(Path(cast(str, td)));
+        f = proj / "lib" / "kinds.jac";
+        f.write_text(
+            'import type from "kindpkg" { Iface, Alias }\n'
+            'import from "kindpkg" { C, x, helper }\n'
+        );
+        (prog, mod) = compile_module(f);
+        cats: dict[str, any] = {};
+        for it in mod.get_all_sub_nodes(ModuleItem) {
+            binding = it.binding_name;
+            if binding is not None {
+                cats[it.name.value] = binding.sym_category;
+            }
+        }
+        assert cats.get("Iface") == SymbolType.TYPE , f"a d.ts interface must be a type, got {cats.get(
+            'Iface'
+        )}";
+        assert cats.get("Alias") == SymbolType.TYPE , f"a d.ts type alias must be a type, got {cats.get(
+            'Alias'
+        )}";
+        # A class and an enum are values too, so they stay variables.
+        assert cats.get("C") == SymbolType.VAR , f"a d.ts class must stay a variable, got {cats.get(
+            'C'
+        )}";
+        assert cats.get("x") == SymbolType.VAR , f"a d.ts const must stay a variable, got {cats.get(
+            'x'
+        )}";
+        assert cats.get("helper") == SymbolType.VAR , f"a d.ts function must stay a variable, got {cats.get(
+            'helper'
+        )}";
+    }
+}
+
+
+# ---------------------------------------------------------------------------
+# 7. The import chain is walked once, and every hop still counts
+# ---------------------------------------------------------------------------
+
+test "a typed import anywhere in the chain keeps the binding type-only" {
+    # `Symbol.binding_kind` and `resolved_decl_of` share one chain walk. The
+    # `import type` hop is in the middle here, so the answer can only be right
+    # if every hop is inspected rather than just the end of the chain.
+    with TemporaryDirectory() as td {
+        proj_root = write_pinned_project(Path(cast(str, td)));
+        (proj_root / "rows.jac").write_text("type Row = dict[str, int];\n");
+        (proj_root / "hub.jac").write_text('import type from .rows { Row }\n');
+        f = proj_root / "app.jac";
+        f.write_text(
+            'import from .hub { Row }\n\n'
+            'def:pub first(r: Row) -> int {\n'
+            '    return len(r);\n'
+            '}\n'
+        );
+        (prog, _mod) = compile_module(f);
+        assert "E1131" in codes_of(prog.errors_had) , f"A plain import through an `import type` hop must still be refused, got {codes_of(
+            prog.errors_had
+        )}";
+    }
+}
