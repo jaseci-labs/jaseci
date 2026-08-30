@@ -776,20 +776,17 @@ class JacScalePlugin {
 
         if "KUBERNETES_SERVICE_HOST" in os.environ {
             try {
-                import from jaclang.scale.config.config_loader { get_scale_config }
-                import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
-                    k8s_safe_name
-                }
-                import from jaclang.scale.runtime.context.util {
-                    k8s_service_dns_url,
-                    in_cluster_namespace
+                import from jaclang.scale.runtime.context.util { in_cluster_namespace }
+                import from jaclang.scale.deploy.target.kubernetes.runtime_resolver {
+                    resolve_peer_route
                 }
                 ms_cfg = get_scale_config().get_microservices_config();
                 port: int = int(ms_cfg.get("gateway_port", 8000));
-                dns_url = k8s_service_dns_url(
-                    k8s_safe_name(module_name), in_cluster_namespace(), port
-                );
-                sv_client.register(module_name, dns_url);
+                route = resolve_peer_route(module_name, in_cluster_namespace(), port);
+                sv_client.register(module_name, route.url);
+                if route.host_header {
+                    sv_client.register_host_override(module_name, route.host_header);
+                }
                 return;
             } except Exception {}
         }
@@ -871,6 +868,32 @@ class JacScalePlugin {
         }
     }
 
+    static def get_sv_service_routes -> dict[str, any] {
+        """K8s-mode-only bundled resolution: url + interceptor Host-header
+        override together, per service, from ONE call -- the single source
+        of truth get_sv_registry() (below) and sv-to-sv RPC (rpc.jac) both
+        read from, so they can never independently drift.""";
+        import os;
+        if "KUBERNETES_SERVICE_HOST" not in os.environ {
+            return {};
+        }
+        try {
+            import from jaclang.scale.deploy.target.kubernetes.runtime_resolver {
+                build_k8s_registry_routes
+            }
+            ms_cfg = get_scale_config().get_microservices_config();
+            routes: dict[str, str] = ms_cfg.get("routes", {});
+            port: int = int(ms_cfg.get("gateway_port", 8000));
+            return build_k8s_registry_routes(routes, port);
+        } except Exception as e {
+            import logging;
+            logging.getLogger(__name__).warning(
+                f"K8s get_sv_service_routes failed: {e}"
+            );
+            return {};
+        }
+    }
+
     static def get_sv_registry -> dict[str, str] {
         import os;
         import from jaclang.server { sv_client }
@@ -879,22 +902,11 @@ class JacScalePlugin {
             return dict(sv_client._registry);
         }
 
-        try {
-            import from jaclang.scale.config.config_loader { get_scale_config }
-            import from jaclang.scale.deploy.target.kubernetes.runtime_resolver {
-                build_k8s_registry
-            }
-            ms_cfg = get_scale_config().get_microservices_config();
-            routes: dict[str, str] = ms_cfg.get("routes", {});
-            port: int = int(ms_cfg.get("gateway_port", 8000));
-            return build_k8s_registry(routes, port);
-        } except Exception as e {
-            import logging;
-            logging.getLogger(__name__).warning(
-                f"K8s get_sv_registry fell back to local registry: {e}"
-            );
+        routes = JacScalePlugin.get_sv_service_routes();
+        if not routes {
             return dict(sv_client._registry);
         }
+        return {name: route.url for (name, route) in routes.items()};
     }
 
     static def sv_transport_available -> bool {

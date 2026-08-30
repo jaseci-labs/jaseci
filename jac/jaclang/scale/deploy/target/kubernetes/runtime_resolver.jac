@@ -6,20 +6,19 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceEntry
 }
 import from jaclang.server { sv_client }
-import from jaclang.scale.deploy.target.kubernetes.manifest_builder { k8s_safe_name }
-import from jaclang.scale.runtime.context.util {
-    k8s_service_dns_url,
-    in_cluster_namespace,
-    DEFAULT_GATEWAY_PORT
+import from jaclang.scale.runtime.context.util { DEFAULT_GATEWAY_PORT }
+import from jaclang.scale.runtime.context.service_routing {
+    ServiceRoute,
+    resolve_service_route
 }
 
 glob logger = logging.getLogger(__name__);
 
 
-def resolve_peer_url(svc_name: str, namespace: str, port: int) -> str {
+def resolve_peer_route(svc_name: str, namespace: str, port: int) -> ServiceRoute {
     `override: str = sv_client.peer_url_from_env(svc_name);
     if `override {
-        return `override;
+        return ServiceRoute(url=`override, host_header=None);
     }
     key: str = sv_client.peer_url_env_key(svc_name);
     if key in os.environ {
@@ -27,7 +26,27 @@ def resolve_peer_url(svc_name: str, namespace: str, port: int) -> str {
             f"{key} is set but blank; resolving '{svc_name}' by naming convention"
         );
     }
-    return k8s_service_dns_url(k8s_safe_name(svc_name), namespace, port);
+    kubernetes_cfg: dict[str, any] = {};
+    microservices_cfg: dict[str, any] = {};
+    try {
+        import from jaclang.scale.config.config_loader { get_scale_config }
+        scale_cfg = get_scale_config();
+        kubernetes_cfg = scale_cfg.get_kubernetes_config();
+        microservices_cfg = scale_cfg.get_microservices_config();
+    } except Exception as e {
+        logger.debug(
+            f"Could not load scale config while resolving '{svc_name}'; "
+            f"treating it as not HTTP-activated: {e}"
+        );
+    }
+    return resolve_service_route(
+        svc_name, namespace, port, kubernetes_cfg, microservices_cfg
+    );
+}
+
+
+def resolve_peer_url(svc_name: str, namespace: str, port: int) -> str {
+    return resolve_peer_route(svc_name, namespace, port).url;
 }
 
 
@@ -96,13 +115,24 @@ obj K8sRuntimeServiceResolver(ServiceDeployer) {
 }
 
 
+def build_k8s_registry_routes(
+    routes: dict[str, str], port: int = DEFAULT_GATEWAY_PORT
+) -> dict[str, ServiceRoute] {
+    import from jaclang.scale.runtime.context.util { in_cluster_namespace }
+    namespace: str = in_cluster_namespace();
+    result: dict[str, ServiceRoute] = {};
+    for svc_name in routes.keys() {
+        result[svc_name] = resolve_peer_route(svc_name, namespace, port);
+    }
+    return result;
+}
+
+
 def build_k8s_registry(
     routes: dict[str, str], port: int = DEFAULT_GATEWAY_PORT
 ) -> dict[str, str] {
-    namespace: str = in_cluster_namespace();
-    registry: dict[str, str] = {};
-    for svc_name in routes.keys() {
-        registry[svc_name] = resolve_peer_url(svc_name, namespace, port);
-    }
-    return registry;
+    return {
+        name: route.url
+        for (name, route) in build_k8s_registry_routes(routes, port).items()
+    };
 }

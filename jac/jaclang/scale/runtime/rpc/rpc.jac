@@ -53,6 +53,31 @@ def _rpc_with_retries(module_name: str, label: str, send: any) -> any {
 }
 
 
+def _resolve_call_target(module_name: str) -> tuple[str, str | None] {
+    """One bundled lookup for (url, interceptor Host-header override), so
+    the two are never resolved independently and can't disagree.
+    Primary source: the live K8s dynamic registry (JacScalePlugin's
+    get_sv_service_routes, K8s-mode only). Fallback: sv_client's static
+    registry/env-var resolution, paired with its own host-override table.""";
+    import from jaclang.server { sv_client }
+
+    try {
+        import from jaclang.scale.plugin { JacScalePlugin }
+        routes: dict[str, any] = JacScalePlugin.get_sv_service_routes();
+        route = routes.get(module_name);
+        if route is not None and route.url {
+            return (route.url, route.host_header);
+        }
+    } except Exception {
+        ;
+    }
+    return (
+        sv_client.resolve_url(module_name),
+        sv_client.host_override_for(module_name)
+    );
+}
+
+
 def service_call(module_name: str, func_name: str, args: dict) -> any {
     import from jaclang.server { sv_client }
     import from jaclang.scale.runtime.context.auth_ctx { get_current_auth }
@@ -78,12 +103,7 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
         );
     }
 
-    import jaclang;
-    ms_registry: dict[str, str] = jaclang.JacRuntime.get_sv_registry();
-    url: str = ms_registry.get(module_name, "");
-    if not url {
-        url = sv_client.resolve_url(module_name);
-    }
+    (url, host_override) = _resolve_call_target(module_name);
     import from jaclang.server.serving.client { post_stream_aware_sync }
 
     headers: dict[str, str] = {};
@@ -101,6 +121,10 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
     tp = current_traceparent(trace);
     if tp {
         headers["traceparent"] = tp;
+    }
+
+    if host_override {
+        headers["Host"] = host_override;
     }
 
     rpc_timeout: float = _sv_rpc_timeout(module_name);
@@ -146,7 +170,7 @@ def walker_call(
         );
     }
 
-    url = sv_client.resolve_url(module_name);
+    (url, host_override) = _resolve_call_target(module_name);
     import from jaclang.server.serving.client { request_sync }
 
     headers: dict[str, str] = {};
@@ -163,6 +187,10 @@ def walker_call(
     tp = current_traceparent(trace);
     if tp {
         headers["traceparent"] = tp;
+    }
+
+    if host_override {
+        headers["Host"] = host_override;
     }
 
     rpc_timeout: float = _sv_rpc_timeout(module_name);

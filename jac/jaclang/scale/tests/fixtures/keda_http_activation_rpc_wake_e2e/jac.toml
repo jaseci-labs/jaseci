@@ -1,0 +1,28 @@
+[project]
+name = "rpc-wake"
+version = "0.1.0"
+description = "Real-cluster e2e proving jac-scale routes gateway-forwarded and sv-to-sv RPC traffic through the KEDA HTTP interceptor automatically"
+entry-point = "app.jac"
+
+[serve]
+base_route_app = "app"
+
+[dev]
+
+[scale.kubernetes]
+bundle_storage_class = "jac-http-e2e-rwx"
+namespace = "jac-http-rpc-wake-e2e"
+
+[scale.microservices.routes]
+app = "/"
+worker = "/worker"
+
+[scale.microservices.services.worker.http_activation]
+enabled = true
+target_port = 8000
+concurrency_target = 1
+polling_interval = 10
+cooldown_period = 60
+
+[[scale.microservices.services.worker.http_activation.rules]]
+hosts = ["worker.jac-http-rpc-wake-e2e.local"]
