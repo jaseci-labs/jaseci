@@ -28,8 +28,6 @@ edge CalleeDecl {}
 
 edge Absorbs {}
 
-edge AttachedComment {}
-
 node Codespace {
     has kind: str = "";
 }

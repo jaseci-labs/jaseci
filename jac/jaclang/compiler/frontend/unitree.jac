@@ -1,6 +1,5 @@
 import os;
 import type from collections.abc { Sequence }
-import from enum { IntEnum }
 import type from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
 import from jaclang.compiler.frontend.srcloc { CodeLocInfo }
 import from jaclang.compiler.frontend.constant {
@@ -135,7 +134,6 @@ import from jaclang.compiler.frontend.relations {
     CfgFalse,
     CfgSucc,
     CfgTrue,
-    Codespace,
     DecidedCodespace,
     Defines,
     InScope,
@@ -293,12 +291,6 @@ obj StructureThaw {
 
     def __enter__ -> StructureThaw;
     def __exit__(exc_type: any, exc: any, tb: any) -> bool;
-}
-
-obj InheritedSymbolTable {
-    has base_symbol_table: UniScopeNode,
-        load_all_symbols: bool = False,
-        symbols: list[str] = [];
 }
 
 node UniScopeNode(UniNode) {

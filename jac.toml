@@ -89,18 +89,9 @@ exclude = [
     # single binary's cold start and its failures to stderr before CPython (and
     # so the console) exists -- bare print() is its mechanism too.
     "fused/report.jac",
-    # Files whose comments are load-bearing, so they are NOT deslopped:
-    #  - uni_pass.jac carries the `# >>> generated visitor surface >>>` markers
-    #    that `jac gen-uni-dispatch` uses to locate the region it rewrites;
-    #  - the two annexes below are generated whole by `jac gen-uni-dispatch` and
-    #    must byte-match its commented output for `--verify` to stay green
-    #    (full paths so the CLI's hand-written dispatch.impl.jac is NOT exempt).
-    "uni_pass.jac",
-    "unitree.impl/dispatch.impl.jac",
-    "uni_pass.impl/surface.impl.jac",
-    #  - llvm/*.jac is the vendored llvmlite port (ir + binding); it keeps
-    #    upstream's docstring/property style so diffs against llvmlite stay
-    #    reviewable.
+    # llvm/*.jac is the vendored llvmlite port (ir + binding); its comments are
+    # load-bearing, so it is NOT deslopped -- it keeps upstream's
+    # docstring/property style so diffs against llvmlite stay reviewable.
     "*/llvm/ir/*",
     "*/llvm/binding/*",
 ]

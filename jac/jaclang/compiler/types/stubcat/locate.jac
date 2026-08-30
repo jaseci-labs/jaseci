@@ -221,15 +221,3 @@ def reset_catalog_cache {
     _DIGEST_CACHE.clear();
     set_active(None);
 }
-
-def catalog_available -> bool {
-    return open_catalog() is not None;
-}
-
-def catalog_module_path(parts: list[str]) -> (str | None) {
-    cat = open_catalog();
-    if cat is None {
-        return None;
-    }
-    return cat.module_path(parts);
-}
