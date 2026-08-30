@@ -907,13 +907,16 @@ test "router entry survives an error then fix cycle" {
         assert entry_file.stat().st_mtime_ns == entry_mtime , "a build error must not touch _entry.js";
         assert "BrowserRouter" in entry_file.read_text() , "router entry must survive a build error";
         assert error_file.exists() , "build error must be mirrored for the Vite overlay";
-        # The mirror must carry the real compiler message, not just exist
+        # The mirror must carry the real compiler diagnostics, not just exist
         # (the removed bespoke overlay had regressed to rendering empty)
         import json;
         error_data = json.loads(error_file.read_text());
-        assert "index.jac" in str(error_data["file"]) , "mirrored error must name the failing file";
-        assert "Failed to compile" in str(error_data["message"])
-            and "index.jac" in str(error_data["message"]) , "mirrored error must carry the actual compiler message";
+        assert error_data["status"] == "error";
+        located = error_data["diagnostics"][0];
+        assert "index.jac" in str(located["file"]) , "mirrored error must name the failing file";
+        assert located["line"] > 0 , "mirrored error must name the failing line";
+        assert located["message"] , "mirrored error must carry the actual compiler message";
+        assert "index.jac" in located["rendered"] , "the rendered diagnostic must name the .jac source";
         # Fix the page: router still intact, mirrored error cleared
         index_file.write_text(good_source);
         reloader._recompile_client_code(str(index_file));
@@ -1036,7 +1039,7 @@ def _routed_project(tmpdir: str, extra_pages: dict[str, str] = {}) -> tuple {
 test "directory moves drive the routing lifecycle" {
     with TemporaryDirectory() as tmpdir {
         (reloader, compiled_dir, pages_dir) = _routed_project(
-            tmpdir, {"blog/post.jac": "Post"}
+            str(tmpdir), {"blog/post.jac": "Post"}
         );
         entry_file = compiled_dir / "_entry.js";
         routes_file = compiled_dir / "_routes.js";
@@ -1068,7 +1071,7 @@ test "directory moves drive the routing lifecycle" {
 
 test "renaming a page moves its route" {
     with TemporaryDirectory() as tmpdir {
-        (reloader, compiled_dir, pages_dir) = _routed_project(tmpdir);
+        (reloader, compiled_dir, pages_dir) = _routed_project(str(tmpdir));
         routes_file = compiled_dir / "_routes.js";
         assert "PagesIndex" in routes_file.read_text();
         # Rename: the watcher synthesizes DELETED(old) + CREATED(new); replay
@@ -1091,7 +1094,7 @@ test "renaming a page moves its route" {
 test "hyphenated page filenames sanitize to valid JS identifiers in _routes.js" {
     with TemporaryDirectory() as tmpdir {
         (reloader, compiled_dir, pages_dir) = _routed_project(
-            tmpdir, extra_pages={"features/about-connections.jac": "About"}
+            str(tmpdir), extra_pages={"features/about-connections.jac": "About"}
         );
         routes = (compiled_dir / "_routes.js").read_text();
         assert "PagesFeaturesAboutConnections" in routes;

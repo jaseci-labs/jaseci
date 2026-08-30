@@ -133,7 +133,7 @@ test "get_build_status reports the new shape when no reloader is running" {
 test "the core /__build_status route serves the status document shape" {
     with TemporaryDirectory() as tmp {
         client = JacTestClient.from_file(
-            str((Path(FIXTURES) / "serve_api.jac").resolve()), base_path=tmp
+            str((Path(FIXTURES) / "serve_api.jac").resolve()), base_path=str(tmp)
         );
         reloader = _reloader(Path(tmp));
         try {

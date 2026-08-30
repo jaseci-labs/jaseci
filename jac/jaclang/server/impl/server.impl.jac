@@ -2222,27 +2222,31 @@ impl JacAPIServer.build_app -> ServingApp {
         }
         import from jaclang.client.source_mapping {
             _error_rate_limiter,
-            resolve_client_error_stacks,
-            format_client_error_log
+            resolve_client_error_stacks
         }
+        import from jaclang.client.client_diagnostics { classify_client_payload }
         if not _error_rate_limiter.should_log(message) {
             return JSONResponse(content={'ok': True, 'throttled': True});
         }
         cfg = get_config();
         verbose = cfg.client_errors.verbose if cfg else False;
+        diag = classify_client_payload(server.base_path or '', data, channel='browser');
         (stack, component_stack) = resolve_client_error_stacks(
             server.base_path,
             data.get('stack', ''),
             data.get('componentStack', ''),
             verbose=verbose
         );
-        log_parts = format_client_error_log(
-            message,
-            stack=stack,
-            component_stack=component_stack,
-            url=data.get('url', ''),
-            source=data.get('source', '')
-        );
+        log_parts = [diag.render()];
+        if stack {
+            log_parts.append(f"  Stack: {stack}");
+        }
+        if component_stack {
+            log_parts.append(f"  Component stack: {component_stack}");
+        }
+        if data.get('url', '') {
+            log_parts.append(f"  URL: {data['url']}");
+        }
         import logging;
         logging.getLogger('jaclang.client_errors').error('\n'.join(log_parts));
         return JSONResponse(content={'ok': True});

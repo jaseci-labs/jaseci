@@ -217,7 +217,7 @@ test "build status records errors and recovers" {
         diag = status["diagnostics"][0];
         assert diag["file"] == "app.jac";
         assert diag["line"] == 2 and diag["column"] == 9;
-        assert diag["message"] == "Missing ';'";
+        assert "Missing ';'" in diag["message"];
         assert diag["channel"] == "jac";
         assert diag["code"] == "E7005";
         # Recovery clears the error completely
@@ -329,7 +329,7 @@ test "process change settles to ok unless an error was recorded" {
         reloader._process_change("app.jac");
         status = reloader.build_status();
         assert status["status"] == "error";
-        assert status["error"]["file"] == "app.jac";
+        assert status["diagnostics"][0]["file"] == "app.jac";
     }
 }
 

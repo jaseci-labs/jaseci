@@ -89,12 +89,13 @@ test "dev vite config registers error reporter; overlay is gated to module-load 
         dev_cfg = bundler.create_vite_config(`entry, is_dev=True);
         dev_content = dev_cfg.read_text();
         assert "jac-error-reporter" in dev_content;
-        # Overlay must only fire for module-load failures, not every runtime error
-        assert 'phase === "load"' in dev_content;
         # The transport is dumb: raw fields forwarded, no path rewriting here.
         assert '.replace("compiled/", "")' not in dev_content;
         assert '.slice(0, -3) + ".jac"' not in dev_content;
         assert "recordClientEvent(data)" in dev_content;
+        # Overlay must only fire for module-load failures, not every runtime error
+        plugin_js = (dev_cfg.parent / "jac-client-events.js").read_text();
+        assert 'd.phase === "load"' in plugin_js;
         build_cfg = bundler.create_vite_config(`entry, is_dev=False);
         build_content = build_cfg.read_text();
         assert "jac-error-reporter" not in build_content;

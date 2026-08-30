@@ -2,6 +2,7 @@ import json;
 import logging;
 import os;
 import sys;
+import threading;
 import time;
 import shutil;
 import from pathlib { Path }
@@ -21,6 +22,10 @@ impl HotReloader.start -> None {
     self.watcher.start();
     self._running = True;
     HotReloader._active = self;
+    self._events_thread = threading.Thread(
+        target=self._poll_client_events, daemon=True
+    );
+    self._events_thread.start();
     logger.debug(f"Hot reloader started for module: {self.module_name}");
 }
 
@@ -32,104 +37,158 @@ impl HotReloader.stop -> None {
     if HotReloader._active is self {
         HotReloader._active = None;
     }
+    self._events_thread = None;
 
     self.watcher.stop();
     logger.debug("Hot reloader stopped");
 }
 
 impl HotReloader.build_status -> dict {
-    dev_error = self._dev_status_error();
-    with HotReloader._build_lock {
-        status = self._build_status;
-        if status is BuildStatus.ERROR {
-            return {
-                "status": status.value,
-                "error": {
-                    "file": self._build_error_file,
-                    "message": self._build_error,
-                    "source": "jac"
-                }
-            };
-        }
-        if status is BuildStatus.OK and dev_error {
-            return {"status": BuildStatus.ERROR.value, "error": dev_error};
-        }
-        return {"status": status.value, "error": None};
+    diags = self.diagnostics();
+    if diags {
+        return {
+            "status": BuildStatus.ERROR.value,
+            "diagnostics": [diag.to_dict() for diag in diags]
+        };
     }
+    return {"status": self._build_status.value, "diagnostics": []};
 }
 
-impl HotReloader._dev_status_error -> (dict | None) {
-    status_file = self._error_file_path().parent / '.jac-dev-status.json';
+impl HotReloader.diagnostics -> list {
+    with HotReloader._build_lock {
+        status = self._build_status;
+        held = list(self._diagnostics);
+    }
+    if status is BuildStatus.ERROR {
+        return held;
+    }
+    if status is BuildStatus.OK {
+        return self._event_diagnostics();
+    }
+    return [];
+}
+
+impl HotReloader._event_diagnostics(slots: tuple = ('vite', 'client')) -> list {
+    import from jaclang.client.client_diagnostics { classify_client_payload }
     try {
-        data = json.loads(status_file.read_text(encoding='utf-8'));
+        data = json.loads(self._events_file_path().read_text(encoding='utf-8'));
     } except (OSError, ValueError) {
-        return None;
+        return [];
     }
     if not isinstance(data, dict) {
-        return None;
+        return [];
     }
-    for source in ('vite', 'client') {
-        slot = data.get(source);
-        if isinstance(slot, dict) and slot.get('message') {
-            return {
-                "file": str(slot.get('file') or ''),
-                "message": str(slot['message']),
-                "source": source
-            };
+    out: list = [];
+    for slot_name in slots {
+        slot = data.get(slot_name);
+        if not isinstance(slot, dict) or not slot.get('message') {
+            continue;
+        }
+        channel = 'vite' if slot_name == 'vite' else 'browser';
+        try {
+            out.append(classify_client_payload(self.base_path, slot, channel));
+        } except Exception as e {
+            logger.debug(f"Could not classify client event: {e}");
         }
     }
-    return None;
+    return out;
 }
 
 impl HotReloader.record_ok -> None {
     with HotReloader._build_lock {
         self._build_status = BuildStatus.OK;
-        self._build_error_file = "";
-        self._build_error = "";
+        self._diagnostics = [];
     }
-    self._sync_error_file();
+    self._sync_status_file();
 }
 
-impl HotReloader.record_error(file_path: str, message: str) -> None {
+impl HotReloader.record_error(
+    file_path: str,
+    message: str,
+    alerts: (list | None) = None,
+    line: int = 0,
+    column: int = 0
+) -> None {
+    import from jaclang.client.client_diagnostics {
+        build_failure_diagnostic,
+        diagnostics_from_alerts
+    }
+    diags = diagnostics_from_alerts(alerts, self.base_path) if alerts else [];
+    if not diags {
+        diags = [
+            build_failure_diagnostic(self.base_path, file_path, message, line, column)
+        ];
+    }
     with HotReloader._build_lock {
         self._build_status = BuildStatus.ERROR;
-        self._build_error_file = file_path;
-        self._build_error = message;
+        self._diagnostics = diags;
     }
-    self._sync_error_file();
+    self._sync_status_file();
 }
 
-impl HotReloader._error_file_path -> Path {
+impl HotReloader._status_file_path -> Path {
     if self.client_compiler {
         try {
             compiled = Path(str(self.client_compiler.jac_client_compiler.compiled_dir));
-            return compiled.parent / '.jac-build-error.json';
+            return compiled.parent / '.jac-status.json';
         } except Exception { }
     }
-    return Path(self.base_path) / '.jac' / 'client' / '.jac-build-error.json';
+    return Path(self.base_path) / '.jac' / 'client' / '.jac-status.json';
 }
 
-impl HotReloader._sync_error_file -> None {
+impl HotReloader._events_file_path -> Path {
+    return self._status_file_path().parent / '.jac-client-events.json';
+}
+
+impl HotReloader._sync_status_file -> None {
     try {
-        with HotReloader._build_lock {
-            is_error = self._build_status is BuildStatus.ERROR;
-            payload = {"file": self._build_error_file, "message": self._build_error};
-        }
-        error_file = self._error_file_path();
-        if is_error {
-            if error_file.parent.is_dir() {
-                error_file.write_text(json.dumps(payload), encoding='utf-8');
-            }
-        } elif error_file.exists() {
-            error_file.unlink();
+        payload = self.build_status();
+        status_file = self._status_file_path();
+        if payload["status"] == BuildStatus.ERROR.value {
+            status_file.parent.mkdir(parents=True, exist_ok=True);
+            status_file.write_text(json.dumps(payload), encoding='utf-8');
+        } elif status_file.exists() {
+            status_file.unlink();
         }
     } except OSError { }
+}
+
+impl HotReloader._poll_client_events -> None {
+    while self._running {
+        try {
+            self._report_client_events();
+        } except Exception as e {
+            logger.debug(f"Client event poll failed: {e}");
+        }
+        time.sleep(0.3);
+    }
+}
+
+impl HotReloader._report_client_events -> None {
+    import from jaclang.client.source_mapping { _error_rate_limiter }
+    events_file = self._events_file_path();
+    try {
+        stat = events_file.stat();
+        signature = f"{stat.st_mtime_ns}:{stat.st_size}";
+    } except OSError {
+        signature = "";
+    }
+    if signature == self._events_signature {
+        return;
+    }
+    self._events_signature = signature;
+    for diag in self._event_diagnostics(('vite', 'client', 'runtime')) {
+        if _error_rate_limiter.should_log(diag.key()) {
+            console.error(diag.render());
+        }
+    }
+    self._sync_status_file();
 }
 
 impl get_build_status -> dict {
     reloader = HotReloader._active;
     if not reloader {
-        return {"status": BuildStatus.UNAVAILABLE.value, "error": None};
+        return {"status": BuildStatus.UNAVAILABLE.value, "diagnostics": []};
     }
     return reloader.build_status();
 }
@@ -354,7 +413,12 @@ impl HotReloader._reload_server_module(file_path: str) -> None {
             f"Syntax error in {file_path}{line_info}: {e?.msg or str(e)}",
             hint="Fix the error and save to retry"
         );
-        self.record_error(file_path, f"Syntax error{line_info}: {e?.msg or str(e)}");
+        self.record_error(
+            file_path,
+            f"Syntax error: {e?.msg or str(e)}",
+            line=int(e.lineno or 0),
+            column=int(e.offset or 0)
+        );
     } except ImportError as e {
         console.error(f"Import error in {file_path}: {e}");
         self.record_error(file_path, f"Import error: {e}");
@@ -390,6 +454,7 @@ impl HotReloader._recompile_client_unified(file_path: str) -> None {
             }
         }
         jcc = self.client_compiler.jac_client_compiler;
+        mark = len(program.errors_had) if program is not None else 0;
         jcc.compile_dependencies_recursively(
             source_path, source_root=Path(self.base_path).resolve(), skip_existing=True
         );
@@ -411,7 +476,11 @@ impl HotReloader._recompile_client_unified(file_path: str) -> None {
         base_prefix = str(Path(self.base_path).resolve()) + '/';
         errors = str(e).replace(base_prefix, '');
         console.error(f"Compile error in {file_path}:\n{errors}");
-        self.record_error(file_path, errors);
+        self.record_error(
+            file_path,
+            errors,
+            alerts=(program.errors_had[mark:] if program is not None else None)
+        );
     } except Exception as e {
         console.error(f"Compile error in {file_path}: {e}");
         self.record_error(file_path, str(e));
@@ -454,7 +523,7 @@ impl HotReloader._extract_js_exports(js_path: Path) -> set[str] {
 
 impl HotReloader._signal_full_reload -> None {
     self._reload_nonce += 1;
-    signal_file = self._error_file_path().parent / '.jac-force-reload';
+    signal_file = self._status_file_path().parent / '.jac-force-reload';
     try {
         if signal_file.parent.is_dir() {
             signal_file.write_text(str(self._reload_nonce), encoding='utf-8');
@@ -519,7 +588,7 @@ impl HotReloader._recompile_client_code(
                     str(err).replace(base_prefix, '') for err in new_errors
                 );
                 console.error(f"Compile error in {file_path}:\n{errors}");
-                self.record_error(file_path, errors);
+                self.record_error(file_path, errors, alerts=new_errors);
             } else {
                 console.warning(f"Errors compiling dependency {file_path}, skipping");
             }

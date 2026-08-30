@@ -1,0 +1,47 @@
+enum DiagChannel { JAC = "jac", VITE = "vite", BROWSER = "browser", SERVER = "server" }
+
+obj ClientDiagnostic {
+    has code: str = "",
+        severity: str = "error",
+        category: str = "runtime",
+        message: str = "",
+        help_text: str = "",
+        file: str = "",
+        line: int = 0,
+        column: int = 0,
+        channel: str = "jac",
+        raw_location: str = "",
+        unmapped_reason: str = "",
+        related: list[dict[str, any]] = [],
+        stack: str = "",
+        base_path: str = "",
+        rendered_cache: str = "";
+
+    def key -> str;
+    def abs_file -> str;
+    def render(colors: bool = False) -> str;
+    def to_dict -> dict[str, any];
+    static def from_dict(data: dict[str, any]) -> ClientDiagnostic;
+}
+
+def related_location(
+    label: str, file: str, line: int = 0, column: int = 0
+) -> dict[str, any];
+
+def diagnostic_from_alert(alert: any, base_path: str = "") -> ClientDiagnostic;
+
+def diagnostics_from_alerts(
+    alerts: list[any], base_path: str = ""
+) -> list[ClientDiagnostic];
+
+def build_failure_diagnostic(
+    base_path: str, file_path: str, message: str, line: int = 0, column: int = 0
+) -> ClientDiagnostic;
+
+def classify_client_payload(
+    base_path: str, payload: dict[str, any], channel: str = "browser"
+) -> ClientDiagnostic;
+
+def render_diagnostics(
+    diagnostics: list[ClientDiagnostic], colors: bool = False
+) -> str;

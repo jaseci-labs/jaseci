@@ -1888,4 +1888,40 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.ICE,
          "ICE: missing semantic annotation -- {details}",
          help="Codegen required a fact the central analysis pipeline never recorded on the unitree. This is a compiler bug, not an error in your program."
+     ),
+     E7001 = _err(
+         "E7001",
+         Category.RUNTIME,
+         "The module '{module}' has no export named '{name}'",
+         help="The browser refused to link the module: it loaded '{module}' and found no runtime binding called '{name}'. The usual cause is a type-only export -- a TypeScript interface or type alias that lives in the package's .d.ts and is erased before the module runs -- so a value import of it always fails at link time. Import it with 'import type' if that is the case; otherwise check the package's exports for the name's real spelling, since a value import can only bind a name the package actually exports at runtime."
+     ),
+     E7002 = _err(
+         "E7002",
+         Category.RUNTIME,
+         "Failed to resolve import '{name}' from '{importer}'",
+         help="A quoted bare import always means an npm package. Declare '{name}' under [dependencies.npm] in jac.toml and run 'jac install', or use a dotted module path (import from .{name}) for a local Jac module."
+     ),
+     E7003 = _err(
+         "E7003",
+         Category.RUNTIME,
+         "Uncaught {kind} in client code: {message}",
+         help="The stack was resolved through the client source maps to the Jac line above. The raw JavaScript stack is kept on the diagnostic for frames that do not belong to your Jac sources."
+     ),
+     E7004 = _err(
+         "E7004",
+         Category.RUNTIME,
+         "Vite dev-server error: {message}",
+         help="The dev server rejected a module before the browser ever ran it. The location above is the Jac source of the compiled module Vite named."
+     ),
+     E7005 = _err(
+         "E7005",
+         Category.CODEGEN,
+         "Client build failed: {message}",
+         help="The client build could not produce a loadable module for this file. The compiler's own diagnostics are reported in place of this one whenever it emitted any; this code carries the failures that reach the dev loop as a bare exception."
+     ),
+     E7006 = _err(
+         "E7006",
+         Category.RUNTIME,
+         "Client error could not be traced to Jac source: {message}",
+         help="The dev loop kept the raw location it was given, but nothing under .jac/client/compiled claims it -- a browser extension, a dependency with no source map, or an artifact from a build that has since been replaced. Reload after a clean build if the location should be yours."
      );

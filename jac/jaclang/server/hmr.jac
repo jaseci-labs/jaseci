@@ -18,9 +18,10 @@ obj HotReloader {
         _client_output_dir: str = ".jac/client/compiled",
         _running: bool = False,
         _build_status: BuildStatus = BuildStatus.OK,
-        _build_error_file: str = "",
-        _build_error: str = "",
-        _reload_nonce: int = 0;
+        _diagnostics: list = [],
+        _reload_nonce: int = 0,
+        _events_signature: str = "",
+        _events_thread: any = None;
 
     static has _active: (HotReloader | None) = None,
         _build_lock: threading.Lock = threading.Lock();
@@ -29,9 +30,17 @@ obj HotReloader {
     def stop -> None;
     def on_file_change(event: any) -> None;
     def build_status -> dict;
-    def _dev_status_error -> (dict | None);
+    def diagnostics -> list;
+    def _event_diagnostics(slots: tuple = ('vite', 'client')) -> list;
     def record_ok -> None;
-    def record_error(file_path: str, message: str) -> None;
+    def record_error(
+        file_path: str,
+        message: str,
+        alerts: (list | None) = None,
+        line: int = 0,
+        column: int = 0
+    ) -> None;
+
     def _process_change(file_path: str, is_directory: bool = False) -> None;
     def _dispatch_change(file_path: str, is_directory: bool = False) -> None;
     def _reload_server_module(file_path: str) -> None;
@@ -47,8 +56,11 @@ obj HotReloader {
     def _remove_compiled_dir(file_path: str) -> None;
     def _refresh_routing(file_path: str) -> None;
     def _entry_module_path -> Path;
-    def _error_file_path -> Path;
-    def _sync_error_file -> None;
+    def _status_file_path -> Path;
+    def _events_file_path -> Path;
+    def _sync_status_file -> None;
+    def _poll_client_events -> None;
+    def _report_client_events -> None;
     def _classify_declarations(file_path: str) -> tuple[bool, bool];
     def _path_to_module(file_path: str) -> str;
     def _get_js_filename(file_path: str) -> str;
