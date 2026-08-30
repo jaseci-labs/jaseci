@@ -55,6 +55,15 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
                                 ) {
                                 binding.type = declared;
                                 binding._sym_category = SymbolType.VAR;
+                                self._apply_import_binding_kind(
+                                    node_,
+                                    binding,
+                                    self._ts_declared_kind_from_file(
+                                        sibling_dts, item_name
+                                    )
+                                        or BindingKind.VALUE,
+                                    from_mod_name
+                                );
                                 return binding.type;
                             }
                         }
@@ -115,6 +124,13 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
                     ) {
                     binding.type = declared;
                     binding._sym_category = SymbolType.VAR;
+                    self._apply_import_binding_kind(
+                        node_,
+                        binding,
+                        self._ts_declared_kind(import_node.from_loc, item_name)
+                            or BindingKind.VALUE,
+                        from_mod_name
+                    );
                     return binding.type;
                 }
                 binding.type = AnyType(is_foreign=True);

@@ -6959,15 +6959,8 @@ impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
 impl EsastGenPass._sv_import_item_is_type(
     nd: uni.Import, item: uni.ModuleItem
 ) -> bool {
-    type_kinds = {
-        SymbolType.OBJECT_ARCH,
-        SymbolType.NODE_ARCH,
-        SymbolType.EDGE_ARCH,
-        SymbolType.WALKER_ARCH,
-        SymbolType.ENUM_ARCH
-    };
     sym = item.name.sym;
-    if sym and (sym.sym_type in type_kinds) {
+    if sym and sym.binding_kind.denotes_type() {
         return True;
     }
     return item.name.sym_name in self.ir_in.gen.interop_manifest.boundary_types;

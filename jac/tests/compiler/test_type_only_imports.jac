@@ -146,9 +146,16 @@ test "plain import of a d.ts interface is refused, its sibling function is not" 
             program
         )}";
         assert "Iface" in hits[0].msg , f"E1131 should name Iface, got: {hits[0].msg}";
-        assert hits[0].loc.first_line == 1 , f"E1131 should be anchored on line 1, got {hits[0].loc.first_line}";
-        # `import from "kindpkg" { Iface, helper }` -- Iface starts at col 27.
-        assert hits[0].loc.col_start == 27 , f"E1131 should be anchored at the Iface token (col 27), got col {hits[0].loc.col_start}";
+        assert hits[0].loc.mod_path == str(f) , f"E1131 should be reported in the importing file, got {hits[
+            0
+        ].loc.mod_path}";
+        assert hits[0].loc.first_line == 1 , f"E1131 should be anchored on line 1, got {hits[
+            0
+        ].loc.first_line}";
+        src = f.read_text();
+        assert src[hits[0].loc.pos_start:].startswith("Iface") , f"E1131 should be anchored at the Iface token, got offset {hits[
+            0
+        ].loc.pos_start} into {src!r}";
     }
 }
 
@@ -198,7 +205,6 @@ test "import type of a d.ts interface checks clean and emits no specifier" {
         assert not program.errors_had , f"`import type` in type position should check clean, got:\n{pretty_checker_errors(
             program
         )}";
-
         (prog2, mod) = compile_module(f);
         js = mod.gen.js;
         assert js.strip() , "Expected JS output for the client module";
@@ -216,7 +222,6 @@ test "plain import of a jac type alias is refused; import type is clean" {
     with TemporaryDirectory() as td {
         proj_root = write_pinned_project(Path(cast(str, td)));
         (proj_root / "rows.jac").write_text("type Row = dict[str, int];\n");
-
         bad = proj_root / "bad.jac";
         bad.write_text(
             'import from .rows { Row }\n\n'
@@ -228,7 +233,6 @@ test "plain import of a jac type alias is refused; import type is clean" {
         assert "E1131" in codes_of(prog_bad.errors_had) , f"Expected E1131 value-importing a jac `type` alias, got {codes_of(
             prog_bad.errors_had
         )}";
-
         good = proj_root / "good.jac";
         good.write_text(
             'import type from .rows { Row }\n\n'
@@ -399,7 +403,6 @@ test "sv import stubs skip archetype items and keep function items" {
 test "the mermaid shape is refused as written and clean when split" {
     with TemporaryDirectory() as td {
         proj = make_mermaid_project(Path(cast(str, td)));
-
         broken = proj / "lib" / "app.jac";
         broken.write_text(
             'import from "mermaid" { default as mermaid, Mermaid }\n\n'
@@ -410,8 +413,13 @@ test "the mermaid shape is refused as written and clean when split" {
         assert len(hits) == 1 , f"Expected exactly one E1131 (for Mermaid, not the default), got codes {err_codes}:\n{pretty_checker_errors(
             program
         )}";
-        assert "Mermaid" in hits[0].msg , f"E1131 should name Mermaid, got: {hits[0].msg}";
-
+        assert "Mermaid" in hits[0].msg , f"E1131 should name Mermaid, got: {hits[
+            0
+        ].msg}";
+        broken_src = broken.read_text();
+        assert broken_src[hits[0].loc.pos_start:].startswith("Mermaid") , f"E1131 should be anchored at the Mermaid token, got offset {hits[
+            0
+        ].loc.pos_start}";
         fixed = proj / "lib" / "fixed.jac";
         fixed.write_text(
             'import from "mermaid" { default as mermaid }\n'
@@ -422,7 +430,6 @@ test "the mermaid shape is refused as written and clean when split" {
         assert not program2.errors_had , f"The split form should check clean, got:\n{pretty_checker_errors(
             program2
         )}";
-
         (prog3, mod) = compile_module(fixed);
         js = mod.gen.js;
         assert 'import mermaid from "mermaid"' in js , f"Only the default value import should survive:\n{js}";

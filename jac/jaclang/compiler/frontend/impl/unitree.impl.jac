@@ -574,6 +574,37 @@ impl Symbol.symbol_table.getter -> (UniScopeNode | None) {
     return None;
 }
 
+impl Symbol.binding_kind.getter -> BindingKind {
+    seen: set[int] = set();
+    cur: Symbol = self;
+    while True {
+        if id(cur) in seen or not cur.defn {
+            return BindingKind.VALUE;
+        }
+        seen.add(id(cur));
+        decl = cur.decl;
+        item = decl.parent if isinstance(decl.parent, ModuleItem) else None;
+        if item is not None and item.from_parent.is_typed {
+            return BindingKind.TYPE;
+        }
+        if cur._binding_kind is not None {
+            return cur._binding_kind;
+        }
+        if item is None {
+            return binding_kind_of_decl(decl);
+        }
+        nxt = decl.sym;
+        if nxt is None or nxt is cur {
+            return BindingKind.VALUE;
+        }
+        cur = nxt;
+    }
+}
+
+impl Symbol.binding_kind.setter(binding_kind: BindingKind) -> None {
+    self._binding_kind = binding_kind;
+}
+
 impl Symbol.storage.getter -> SymbolStorage {
     owner = self.parent_tab;
     while (owner is not None and not UniScopeNode.is_python_scoping(owner)) {
@@ -3222,6 +3253,54 @@ impl ability_of_symbol(sym: (Symbol | None)) -> (Ability | None) {
         }
     }
     return decl;
+}
+
+impl binding_kind_of_decl(decl: NameAtom) -> BindingKind {
+    owner = decl.name_of;
+    if isinstance(owner, (Archetype, Enum)) {
+        return BindingKind.BOTH;
+    }
+    if isinstance(owner, (TypeAlias, TypeParam)) {
+        return BindingKind.TYPE;
+    }
+    return BindingKind.VALUE;
+}
+
+impl type_only_import_of(nd: NameAtom) -> (ModuleItem | None) {
+    sym = nd.sym;
+    if sym is None or not sym.defn {
+        return None;
+    }
+    found: (ModuleItem | None) = None;
+    for d in sym.defn {
+        if d is nd or not isinstance(d.parent, ModuleItem) {
+            return None;
+        }
+        if not d.parent.from_parent.is_typed {
+            return None;
+        }
+        found = d.parent;
+    }
+    return found;
+}
+
+impl in_type_position(nd: UniNode) -> bool {
+    cur: UniNode = nd;
+    parent = cur.parent;
+    while parent is not None {
+        if isinstance(parent, (SubTag, TypeAlias, TypeParam, IndexSlice)) {
+            return True;
+        }
+        if isinstance(parent, CastExpr) and parent.cast_type is cur {
+            return True;
+        }
+        if isinstance(parent, FuncSignature) and parent.return_type is cur {
+            return True;
+        }
+        cur = parent;
+        parent = cur.parent;
+    }
+    return False;
 }
 
 impl bind_assignment_targets(nd: Assignment) -> None {
