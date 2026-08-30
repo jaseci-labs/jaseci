@@ -821,6 +821,17 @@ impl PgStore.txn_isolation -> (TxnIsolation | None) {
 }
 
 
+impl PgStore.reader_clone -> Store {
+    return PgStore(
+        conninfo=self.conninfo,
+        ensure_cb=self.ensure_cb,
+        promotions=dict(self.promotions),
+        auto_schema=False,
+        pending_reset=False
+    );
+}
+
+
 impl PgStore.load_full(ids: list[UUID]) -> dict[UUID, AnchorRow] {
     if not ids {
         return {};

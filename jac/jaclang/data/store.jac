@@ -93,6 +93,7 @@ obj Store {
     def rollback -> None abst;
     def in_txn -> bool abst;
     def txn_isolation -> (TxnIsolation | None) abst;
+    def reader_clone -> Store abst;
     def load_full(ids: list[UUID]) -> dict[UUID, AnchorRow] abst;
     def upsert(rows_in: list[AnchorRow]) -> None abst;
     def delete(ids: list[UUID]) -> None abst;
@@ -146,6 +147,7 @@ obj PgStore(Store) {
     def rollback -> None;
     def in_txn -> bool;
     def txn_isolation -> (TxnIsolation | None);
+    def reader_clone -> Store;
     def load_full(ids: list[UUID]) -> dict[UUID, AnchorRow];
     def upsert(rows_in: list[AnchorRow]) -> None;
     def delete(ids: list[UUID]) -> None;

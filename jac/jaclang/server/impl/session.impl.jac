@@ -846,6 +846,7 @@ impl Session.prefetch(ids: Iterable[UUID]) -> None {
     if self.store is None {
         return;
     }
+    store = self.store;
     id_list = list(ids);
     if not id_list {
         return;
@@ -873,7 +874,19 @@ impl Session.prefetch(ids: Iterable[UUID]) -> None {
         for attempt in range(2) {
             try {
                 self.read_barrier();
-                loaded = self.store.load_full(pending);
+                reader: (Store | None) = None;
+                load_store: Store = store;
+                try {
+                    reader = store.reader_clone();
+                    load_store = reader;
+                    loaded: dict[UUID, AnchorRow] = load_store.load_full(pending);
+                } finally {
+                    if reader is not None {
+                        try {
+                            reader.close();
+                        } except Exception { }
+                    }
+                }
                 for (rid, row) in loaded.items() {
                     self.store_raw(rid, row);
                 }
