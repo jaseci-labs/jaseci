@@ -1133,6 +1133,10 @@ def _ttg_render_specialized_set_based_sql(
                 FROM ordered_plan
                 WHERE ord <= CAST(:limit AS bigint)
             ),
+            plan_stats AS (
+                SELECT COUNT(*)::bigint AS total
+                FROM ordered_plan
+            ),
             plan_rows AS (
                 SELECT
                     p.ord,
@@ -1161,9 +1165,18 @@ def _ttg_render_specialized_set_based_sql(
                     n.arch_type,
                     n.root_id
             ),
+            topology_path_rows AS (
+                SELECT path_nodes, path_edges
+                FROM prefetch_plan
+                UNION ALL
+                SELECT c.path_nodes, c.path_edges
+                FROM candidate_node_rows c
+                CROSS JOIN plan_stats ps
+                WHERE ps.total <= CAST(:limit AS bigint)
+            ),
             topology_node_ids AS (
                 SELECT DISTINCT pn.id
-                FROM prefetch_plan p
+                FROM topology_path_rows p
                 CROSS JOIN LATERAL unnest(p.path_nodes) AS pn(id)
                 WHERE pn.id IS NOT NULL
                 EXCEPT
@@ -1173,7 +1186,7 @@ def _ttg_render_specialized_set_based_sql(
             ),
             topology_edge_ids AS (
                 SELECT DISTINCT pe.id
-                FROM prefetch_plan p
+                FROM topology_path_rows p
                 CROSS JOIN LATERAL unnest(p.path_edges) AS pe(id)
                 WHERE pe.id IS NOT NULL
             ),
