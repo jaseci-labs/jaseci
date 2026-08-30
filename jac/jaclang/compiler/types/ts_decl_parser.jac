@@ -1,3 +1,5 @@
+import from jaclang.compiler.frontend.constant { BindingKind }
+
 enum TsTypeKind {
     ANY = "any",
     NEVER = "never",
@@ -1183,4 +1185,28 @@ def _parse_dts_inner(source: str) -> (dict[str, TsDecl] | None) {
         return None;
     }
     return result;
+}
+
+
+def ts_decl_binding_kind(decl: TsDecl, decls: dict[str, TsDecl]) -> BindingKind {
+    cur = decl;
+    seen: set[int] = set();
+    while id(cur) not in seen {
+        seen.add(id(cur));
+        if cur.kind in (TsDeclKind.INTERFACE, TsDeclKind.TYPEALIAS) {
+            return BindingKind.TYPE;
+        }
+        if cur.kind in (TsDeclKind.CLASS, TsDeclKind.ENUM) {
+            return BindingKind.BOTH;
+        }
+        if cur.kind != TsDeclKind.REEXPORT {
+            return BindingKind.VALUE;
+        }
+        nxt = decls.get(cur.name);
+        if nxt is None {
+            return BindingKind.VALUE;
+        }
+        cur = nxt;
+    }
+    return BindingKind.VALUE;
 }

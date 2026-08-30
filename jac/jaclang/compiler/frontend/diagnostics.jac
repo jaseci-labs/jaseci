@@ -810,6 +810,35 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " would arrive as `inf`. Use a wider float type, or write the value the"
          " type can actually hold."
      ),
+     E1131 = _err(
+         "E1131",
+         Category.TYPE,
+         "'{name}' is a type-only export of '{module}'{scope} and must be"
+         " imported with `import type`",
+         help="{why} With no runtime binding to import, a plain `import from`"
+         " emits a named specifier the loader cannot satisfy -- in the browser"
+         " that is an ESM link error that takes the whole module graph down."
+         " Move '{name}' to its own `import type from {module} {{ {name} }}`"
+         " statement, which the client backend erases and the server backend"
+         " lowers to a `typing.TYPE_CHECKING` guard; the value imports from"
+         " '{module}' stay where they are.",
+         blocks_codegen=True
+     ),
+     E1132 = _err(
+         "E1132",
+         Category.TYPE,
+         "'{name}' was imported with `import type` and cannot be used as a value",
+         help="An `import type` binding exists only for the checker: no"
+         " runtime import is emitted for it, so calling it, reading an"
+         " attribute off it, passing it to `isinstance`/`issubclass`,"
+         " decorating with it, inheriting from it, or assigning it all reach"
+         " a name nothing binds. Annotations, `as` casts, `has` field types,"
+         " generic arguments and `type` alias right-hand sides are type"
+         " position and stay legal. If '{name}' is genuinely needed as a"
+         " value, import it with a plain `import from` instead -- which"
+         " requires that it actually has a runtime export.",
+         blocks_codegen=True
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,

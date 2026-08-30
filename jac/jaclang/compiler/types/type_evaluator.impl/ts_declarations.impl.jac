@@ -1,6 +1,4 @@
-impl TypeEvaluator._get_ts_declared_item_type(
-    from_loc: ModulePath, item_name: str
-) -> (TypeBase | None) {
+impl TypeEvaluator._ts_decl_path(from_loc: ModulePath) -> (str | None) {
     if not from_loc.in_client_context() {
         return None;
     }
@@ -15,34 +13,64 @@ impl TypeEvaluator._get_ts_declared_item_type(
 
     cache_key = spec + "\n" + mod_path;
     if cache_key in self._ts_decl_path_cache {
-        dts_path = self._ts_decl_path_cache[cache_key];
-    } else {
-        import from jaclang.compiler.driver.modresolver {
-            resolve_client_npm_declarations,
-            sibling_declaration_file
-        }
-        dts_path: (str | None) = None;
-        try {
-            if spec.startswith('.') {
-                js_path = from_loc.resolve_relative_path();
-                if js_path {
-                    dts_path = sibling_declaration_file(js_path);
-                }
-            } else {
-                base = self._client_npm_base(spec, mod_path);
-                if base is not None {
-                    dts_path = resolve_client_npm_declarations(spec, base);
-                }
-            }
-        } except Exception {
-            dts_path = None;
-        }
-        self._ts_decl_path_cache[cache_key] = dts_path;
+        return self._ts_decl_path_cache[cache_key];
     }
+    import from jaclang.compiler.driver.modresolver {
+        resolve_client_npm_declarations,
+        sibling_declaration_file
+    }
+    dts_path: (str | None) = None;
+    try {
+        if spec.startswith('.') {
+            js_path = from_loc.resolve_relative_path();
+            if js_path {
+                dts_path = sibling_declaration_file(js_path);
+            }
+        } else {
+            base = self._client_npm_base(spec, mod_path);
+            if base is not None {
+                dts_path = resolve_client_npm_declarations(spec, base);
+            }
+        }
+    } except Exception {
+        dts_path = None;
+    }
+    self._ts_decl_path_cache[cache_key] = dts_path;
+    return dts_path;
+}
+
+impl TypeEvaluator._get_ts_declared_item_type(
+    from_loc: ModulePath, item_name: str
+) -> (TypeBase | None) {
+    dts_path = self._ts_decl_path(from_loc);
     if dts_path is None {
         return None;
     }
     return self._ts_declared_type_from_file(dts_path, item_name);
+}
+
+impl TypeEvaluator._ts_declared_kind(
+    from_loc: ModulePath, item_name: str
+) -> (BindingKind | None) {
+    dts_path = self._ts_decl_path(from_loc);
+    if dts_path is None {
+        return None;
+    }
+    return self._ts_declared_kind_from_file(dts_path, item_name);
+}
+
+impl TypeEvaluator._ts_declared_kind_from_file(
+    dts_path: str, item_name: str
+) -> (BindingKind | None) {
+    decls = self._load_ts_declarations(dts_path);
+    if not decls {
+        return None;
+    }
+    decl = decls.get(item_name);
+    if decl is None {
+        return None;
+    }
+    return ts_decl_binding_kind(decl, decls);
 }
 
 impl TypeEvaluator._ts_declared_type_from_file(

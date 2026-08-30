@@ -1036,6 +1036,13 @@ impl TypeEvaluator._set_module_item_symbol_and_type(
     if binding := node_.binding_name {
         if not (isinstance(sym_type, UnknownType) and sym_type.is_incomplete) {
             binding.type = sym_type;
+            self._apply_import_binding_kind(
+                node_,
+                binding,
+                sym.binding_kind,
+                node_.from_mod_path.dot_path_str,
+                resolved_decl_of(sym)
+            );
         }
     }
     return sym_type;

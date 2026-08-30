@@ -338,6 +338,19 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `E1405` | Closure capture of '{name}' escapes its scope in a nogc-enforced module ({provenance}) |
 | `E1406` | '{name}' has retaining or aliasing semantics not supported in a nogc-enforced module ({provenance}) |
 
+### Type-Only Import Bindings
+
+| Code | Message |
+|------|---------|
+| `E1131` | '{name}' is a type-only export of '{module}'{scope} and must be imported with `import type` |
+| `E1132` | '{name}' was imported with `import type` and cannot be used as a value |
+
+!!! tip "Fixing `E1131` (a type-only export reached by a plain import)"
+    `E1131` asks whether the backend lowering *this* module leaves a runtime binding for the imported name. Two cases reach it. A TypeScript `interface` or `type` alias in a `.d.ts` (npm package or sibling declaration file) declares no runtime export in any codespace, so a plain import of one is always refused. A jac `type` alias is refused **only in client code**: the Python backend lowers an alias to a real runtime binding (a `TypeAliasType`, or a plain `UserId = int` for a distinct alias `type UserId := int`, which is what makes `UserId(raw)` a brand constructor), and only the client backend erases it -- so a plain import of an alias from a server module is correct and must stay that way. Where the error does fire, move the name to its own `import type from <module> { Name }` statement and leave the value imports from that module where they are. `declare class`, `declare enum`, and every jac archetype (`obj`, `class`, `node`, `edge`, `walker`, `enum`) have a runtime binding on both backends, so a plain import of one stays correct; a package with no declarations at all is a value import as before (`W1102` / `E1120`). The error blocks codegen. See [Type-Only Imports](language/types-and-values.md#type-only-imports-import-type).
+
+!!! tip "Fixing `E1132` (a type-only binding used as a value)"
+    An `import type` binding is registered with the checker and nothing else -- neither backend emits a runtime import for it -- so calling it, reading an attribute off it, passing it to `isinstance`/`issubclass`, decorating with it, inheriting from it, or assigning it reaches a name nothing binds. This holds on the server too: the `typing.TYPE_CHECKING` guard means a guarded `UserId(raw)` would be a `NameError`, not a brand. Annotations, `has` field types, return types, generic arguments, `as` casts, and `type` alias right-hand sides are type position and stay legal. If the name really is needed at runtime, import it with a plain `import from` instead, which requires that it actually has a runtime binding in the importing module's codespace. The error blocks codegen.
+
 ### Type Warnings
 
 | Code | Message |

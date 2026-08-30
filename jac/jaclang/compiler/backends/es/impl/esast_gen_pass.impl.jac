@@ -6959,15 +6959,8 @@ impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
 impl EsastGenPass._sv_import_item_is_type(
     nd: uni.Import, item: uni.ModuleItem
 ) -> bool {
-    type_kinds = {
-        SymbolType.OBJECT_ARCH,
-        SymbolType.NODE_ARCH,
-        SymbolType.EDGE_ARCH,
-        SymbolType.WALKER_ARCH,
-        SymbolType.ENUM_ARCH
-    };
     sym = item.name.sym;
-    if sym and (sym.sym_type in type_kinds) {
+    if sym and sym.binding_kind.denotes_type() {
         return True;
     }
     return item.name.sym_name in self.ir_in.gen.interop_manifest.boundary_types;
@@ -7875,14 +7868,7 @@ impl EsastGenPass._get_ast_or_default(
 }
 
 impl EsastGenPass._is_client_destined(nd: uni.UniNode) -> bool {
-    cur: (uni.UniNode | None) = nd;
-    while cur is not None {
-        if isinstance(cur, uni.ContextAwareNode) {
-            return (cur.code_context == CodeContext.CLIENT) or cur.codespace_dual;
-        }
-        cur = cur.parent;
-    }
-    return False;
+    return uni.is_client_destined(nd);
 }
 
 impl EsastGenPass._collect_stmt_body(
