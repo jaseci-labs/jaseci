@@ -653,7 +653,9 @@ the module. The primary location is the importing `.jac` line; when the missing
 name is a bare npm package, the diagnostic also carries a related location on
 the `jac.toml` `[dependencies.npm]` table -- the package's own line when it is
 declared, the table header when it is not, and the file itself when the table is
-absent. The build-time sibling for the same fact is `W1106`.
+absent. `W1106` is the build-time sibling for the same fact and owns the
+undeclared-package wording, which `E7002` reuses verbatim rather than
+duplicating.
 
 `E7003` is any error the browser threw with a stack. The topmost frame that maps
 into a `.jac` file is the reported location; the raw JavaScript stack is kept on

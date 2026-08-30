@@ -1899,7 +1899,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E7002",
          Category.RUNTIME,
          "Failed to resolve import '{name}' from '{importer}'",
-         help="A quoted bare import always means an npm package. Declare '{name}' under [dependencies.npm] in jac.toml and run 'jac install', or use a dotted module path (import from .{name}) for a local Jac module."
+         help="The dev server resolves every import in the compiled module graph before the browser runs it, and this one resolved to nothing. The location above is the Jac import the compiled module was lowered from, so check the path it names. When '{name}' is a bare npm package rather than a path, this diagnostic instead carries W1106's guidance and points at the jac.toml table that has to declare it."
      ),
      E7003 = _err(
          "E7003",

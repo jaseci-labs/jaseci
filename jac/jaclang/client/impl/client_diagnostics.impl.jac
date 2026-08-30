@@ -374,6 +374,10 @@ impl classify_client_payload(
             f"import could not be traced to a Jac line"
         );
         if not missing_name.startswith(".") and not missing_name.startswith("/") {
+            npm_info = _diag("W1106");
+            if npm_info is not None {
+                diag.help_text = _text(npm_info.format_help(name=missing_name));
+            }
             declared = locator.locate_npm_declaration(missing_name);
             if declared is not None {
                 (toml_loc, note) = declared;

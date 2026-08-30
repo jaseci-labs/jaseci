@@ -737,9 +737,12 @@ function jacBuildErrorOverlay() {{
         let file = "", message = raw, frame = "", stack = "", loc = null;
         try {{
           const data = JSON.parse(raw);
-          const diag = (data.diagnostics || [])[0] || {{}};
+          const all = data.diagnostics || [];
+          const diag = all[0] || {{}};
+          const more = all.length > 1 ? " (+" + (all.length - 1) + " more)" : "";
           file = diag.file || "";
-          message = (diag.code ? diag.code + ": " : "") + (diag.message || "Jac build error");
+          message = (diag.code ? diag.code + ": " : "")
+            + (diag.message || "Jac build error") + more;
           frame = diag.rendered || "";
           stack = diag.stack || "";
           if (diag.line) loc = {{ file: file, line: diag.line, column: diag.column || 0 }};

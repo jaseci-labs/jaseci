@@ -67,6 +67,9 @@ test "dev vite config registers the port reporter; build config does not" {
         assert "jac-build-error-overlay" in dev_content;
         assert ".jac-status.json" in dev_content;
         assert ".jac-build-error.json" not in dev_content;
+        # The overlay shows the first diagnostic and says how many follow
+        assert '" (+" + (all.length - 1) + " more)"' in dev_content;
+        assert "diag.rendered" in dev_content;
         # Force-reload plugin: rescues export-set edits that Fast Refresh would
         # otherwise swallow, reloading (jacTriggered) when the jac dev server
         # bumps .jac-force-reload
