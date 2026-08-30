@@ -29,12 +29,14 @@ impl interpolate_env_vars(value: str) -> str {
 }
 
 impl find_project_root(start: Path | None = None) -> tuple[Path, Path] | None {
-    import from jaclang.jac0core.modresolver { find_project_root as _find_project_root }
+    import from jaclang.compiler.driver.modresolver {
+        find_project_root as _find_project_root
+    }
     return _find_project_root(start);
 }
 
 impl resolve_base_path -> Path {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     base_path_dir = Path(bp_dir)
         if (bp_dir := Jac.get_context().base_path_dir or Jac.get_base_path_dir())
@@ -96,7 +98,7 @@ impl JacConfig.discover(
 }
 
 impl JacConfig.load(toml_path: Path) -> JacConfig {
-    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+    import from jaclang.project.tomlio { read_toml_with_encoding }
     if not toml_path.exists() {
         raise FileNotFoundError(f"Configuration file not found: {toml_path}");
     }
@@ -187,7 +189,8 @@ impl JacConfig.apply_profile(
     section_map = self._section_map();
     for (section, obj) in section_map.items() {
         if section in profile {
-            for (key, value) in profile[section].items() {
+            profile_section: dict[str, any] = profile[section];
+            for (key, value) in profile_section.items() {
                 if hasattr(obj, key) {
                     setattr(obj, key, value);
                 }
@@ -196,7 +199,8 @@ impl JacConfig.apply_profile(
     }
 
     if "project" in profile {
-        for (key, value) in profile["project"].items() {
+        profile_project: dict[str, any] = profile["project"];
+        for (key, value) in profile_project.items() {
             attr = key.replace("-", "_");
             if hasattr(self.project, attr) {
                 setattr(self.project, attr, value);
@@ -205,7 +209,7 @@ impl JacConfig.apply_profile(
     }
 
     if "check" in profile {
-        check_data = profile["check"];
+        check_data: dict[str, any] = profile["check"];
         for (key, value) in check_data.items() {
             if key == "lint" and isinstance(value, dict) {
                 for (lk, lv) in value.items() {
@@ -220,7 +224,7 @@ impl JacConfig.apply_profile(
     }
 
     if "storage" in profile {
-        storage_data = profile["storage"];
+        storage_data: dict[str, any] = profile["storage"];
         for (key, value) in storage_data.items() {
             if key == "type" {
                 self.storage.storage_type = value;
@@ -276,16 +280,17 @@ impl JacConfig.apply_profile_overlay(profile_name: str | None = None) -> None {
 }
 
 impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
-    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+    import from jaclang.project.tomlio { read_toml_with_encoding }
     if not toml_path.exists() {
         return;
     }
-    data = read_toml_with_encoding(str(toml_path));
+    data: dict[str, any] = read_toml_with_encoding(str(toml_path));
     data = _interpolate_recursive(data);
     section_map = self._section_map();
     for (section, obj) in section_map.items() {
         if section in data {
-            for (key, value) in data[section].items() {
+            data_section: dict[str, any] = data[section];
+            for (key, value) in data_section.items() {
                 if hasattr(obj, key) {
                     setattr(obj, key, value);
                 }
@@ -293,7 +298,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
         }
     }
     if "project" in data {
-        proj = data["project"];
+        proj: dict[str, any] = data["project"];
         for (key, value) in proj.items() {
             attr = key.replace("-", "_");
             if attr == "authors" {
@@ -309,7 +314,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
     }
 
     if "check" in data {
-        check_data = data["check"];
+        check_data: dict[str, any] = data["check"];
         for (key, value) in check_data.items() {
             if key == "lint" and isinstance(value, dict) {
                 for (lk, lv) in value.items() {
@@ -324,7 +329,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
     }
 
     if "storage" in data {
-        storage_data = data["storage"];
+        storage_data: dict[str, any] = data["storage"];
         for (key, value) in storage_data.items() {
             if key == "type" {
                 self.storage.storage_type = value;
@@ -492,8 +497,8 @@ impl JacConfig.save -> None {
     old_doc: dict[str, any] = {};
     if self.toml_path.exists() {
         import tomllib;
-        import from jaclang.jac0core.helpers { read_file_with_encoding }
-        import from jaclang.jac0core.tomlio { MalformedJacTomlError }
+        import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+        import from jaclang.project.tomlio { MalformedJacTomlError }
         text = read_file_with_encoding(str(self.toml_path));
         try {
             old_doc = tomllib.loads(text);
@@ -1195,7 +1200,6 @@ impl _parse_toml_data(
             _native_opt = _builtin_native.opt_level;
         }
         config.build = BuildConfig(
-            typecheck=build_data.get("typecheck", False),
             dir=build_data.get("dir", ".jac"),
             default_codespace=_default_cs,
             native_closure_cap=_cap,
@@ -1233,6 +1237,9 @@ impl _parse_toml_data(
         test_data = data["test"];
         config.`test = TestConfig(
             directory=test_data.get("directory", ""),
+            directories=[str(_d) for _d in test_data.get("directories", [])],
+            isolate=[str(_p) for _p in test_data.get("isolate", [])],
+            serial=[str(_p) for _p in test_data.get("serial", [])],
             filter=test_data.get("filter", ""),
             verbose=test_data.get("verbose", False),
             fail_fast=test_data.get("fail_fast", False),
@@ -1265,10 +1272,6 @@ impl _parse_toml_data(
     if "format" in data {
         fmt = data["format"];
         config.format = FormatConfig(outfile=fmt.get("outfile", ""));
-    }
-    if "precommit" in data {
-        pc_data = data["precommit"];
-        config.precommit = PrecommitConfig(typecheck=pc_data.get("typecheck", True));
     }
     if "check" in data {
         check_data = data["check"];
@@ -1308,7 +1311,7 @@ impl _parse_toml_data(
         );
     }
     if "storage" in data {
-        storage_data = data["storage"];
+        storage_data: dict[str, any] = data["storage"];
         for (key, value) in storage_data.items() {
             if key == "type" {
                 config.storage.storage_type = value;
@@ -1332,7 +1335,10 @@ impl _parse_toml_data(
 
         config.dev = DevConfig(
             jaclang_source=str(dev_data.get("jaclang_source", "")),
-            test_jobs=str(dev_data.get("test_jobs", "auto"))
+            jobs=str(dev_data.get("jobs", "")),
+            test_jobs=str(dev_data.get("test_jobs", "")),
+            check_jobs=str(dev_data.get("check_jobs", "")),
+            fmt_jobs=str(dev_data.get("fmt_jobs", ""))
         );
     }
     _warn_legacy_plugins_table(data);
@@ -1400,7 +1406,7 @@ impl get_config(
     return _config;
 }
 
-impl set_config(config: JacConfig) -> None {
+impl set_config(config: JacConfig | None) -> None {
     _config = config;
 
     _config_explicit = config is not None;

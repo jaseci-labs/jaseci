@@ -7,7 +7,7 @@ edge Edge1 {
 }
 
 with entry {
-    end = root;
+    end: any = root;
     for i in range(0, 4) {
         end ++> (end := [a(val=i) for i in range(0, 3)]);
     }
@@ -19,9 +19,12 @@ with entry {
         );
         end ++> (end := values);
     }
-    p = b[1];
+}
+
+glob p = b[1];
+with entry {
     for k in range(0, 10) {
-        p +>: Edge1 : val=6 :+> (p := a(val=k));
+        p +>:Edge1:val=6:+> (p := a(val=k));
     }
     # b++>c;
     # c++>b;

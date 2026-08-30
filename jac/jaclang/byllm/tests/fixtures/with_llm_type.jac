@@ -9,7 +9,7 @@ obj Person {
 obj University {
     has name: str,
         location: str,
-        departments: list[self.Department] = [];
+        departments: list[Department] = [];
 
     obj Department {
         has name: str,

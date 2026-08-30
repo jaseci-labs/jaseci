@@ -16,7 +16,7 @@ No mocks — real tempdir trees, real Path resolution.
 import os;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.runtimelib.serving.static_assets {
+import from jaclang.server.serving.static_assets {
     AssetRoot,
     asset_root_table,
     resolve_asset,

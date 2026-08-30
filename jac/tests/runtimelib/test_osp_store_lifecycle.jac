@@ -9,14 +9,18 @@ retracting one context's region leaves another context's live topology and
 anchor identity untouched.
 """
 
-import jaclang.jac0core.osp_graph as _g;
-import jaclang.jac0core.osp_graph_sv as _sv;
+import jaclang.runtime.osp_graph as _g;
+import jaclang.runtime.osp_graph_sv as _sv;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.archetype { EdgeAnchor }
-import from jaclang.jac0core.osp_graph_sv { handle_of, sv_conn, sv_live_edges }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.archetype { EdgeAnchor }
+import from jaclang.runtime.osp_graph_sv { handle_of, sv_conn, sv_live_edges }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 node LifeNode {
     has label: str = "";
@@ -37,7 +41,9 @@ def _mk_ctx(dirpath: str, name: str) -> ExecutionContext {
 def _connect_pair(mem: any, label: str) -> tuple {
     a = LifeNode(label=f"{label}.src").__jac__;
     b = LifeNode(label=f"{label}.tgt").__jac__;
-    e = EdgeAnchor(archetype=LifeEdge(), source=a, target=b, is_undirected=False);
+    e = EdgeAnchor(
+        archetype=_as_any(LifeEdge()), source=a, target=b, is_undirected=False
+    );
     sv_conn(a, b, e, False, mem);
     return (a, b);
 }

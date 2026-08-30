@@ -1,6 +1,42 @@
-import from jaclang.cli.command { ArgKind }
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
+import from jaclang.comptime { module_of }
 
-glob VERB_BUDGET: int = 28,
+comptime import from jaclang.cli.commands.analysis {
+    SPEC_CHECK,
+    SPEC_FORMAT,
+    SPEC_GEN_PARSER,
+    SPEC_PRECOMMIT,
+    SPEC_TEST
+}
+comptime import from jaclang.cli.commands.browse { SPEC_BROWSE }
+comptime import from jaclang.cli.commands.build { SPEC_BUILD }
+comptime import from jaclang.cli.commands.code { SPEC_CODE }
+comptime import from jaclang.cli.commands.config { SPEC_CONFIG }
+comptime import from jaclang.cli.commands.db { SPEC_DB }
+comptime import from jaclang.cli.commands.execution { SPEC_RUN, SPEC_X }
+comptime import from jaclang.cli.commands.fix { SPEC_FIX }
+comptime import from jaclang.cli.commands.guide { SPEC_GUIDE }
+comptime import from jaclang.cli.commands.mcp { SPEC_MCP_CMD }
+comptime import from jaclang.cli.commands.nacompile { SPEC_NACOMPILE }
+comptime import from jaclang.cli.commands.project {
+    SPEC_CLEAN,
+    SPEC_CREATE,
+    SPEC_INSTALL,
+    SPEC_REMOVE,
+    SPEC_UPDATE
+}
+comptime import from jaclang.cli.commands.tools {
+    SPEC_COMPLETIONS,
+    SPEC_DOT,
+    SPEC_LSP,
+    SPEC_TOOL
+}
+comptime import from jaclang.byllm.cli { SPEC_MODEL }
+comptime import from jaclang.cli.shadcn.cli { SPEC_RETHEME }
+comptime import from jaclang.client.cli { SPEC_SETUP }
+comptime import from jaclang.scale.plugin { SPEC_SCALE_CMD }
+
+comptime VERB_BUDGET: int = 26,
      TOMBSTONED_VERBS: dict[str, str] = {
          "add": "jac install <pkg>",
          "format": "jac fmt",
@@ -10,6 +46,8 @@ glob VERB_BUDGET: int = 28,
          "jacpack": "jac create --pack <dir>",
          "enter": "jac run --entry <name> <file>",
          "debug": "jac run --debug <file>",
+         "start": "jac run --serve [--port N] <file>",
+         "dev": "jac run --dev",
          "bundle": "jac build [--as jab|sealed|binary|wheel|npm]",
          "eject": "jac build --as source",
          "js": "jac tool jac2js <file>",
@@ -50,34 +88,70 @@ glob VERB_BUDGET: int = 28,
      },
      TIER_ORDER: list[str] = ["core", "learn"];
 
-obj ArgMeta {
-    has name: str,
-        kind: ArgKind = ArgKind.OPTION,
-        typ: str = "str",
-        `default: any = None,
-        help: str = "",
-        short: str | None = None,
-        choices: list[any] | None = None,
-        required: bool = False,
-        dest: str | None = None,
-        metavar: str | None = None,
-        config_key: str | None = None;
+comptime def _route(spec: CommandSpec) -> CommandSpec {
+    spec.handler_module = module_of(spec);
+    return spec;
 }
 
-obj CommandMeta {
-    has name: str,
-        help: str,
-        group: str,
-        tier: str,
-        hidden: bool,
-        handler_module: str,
-        handler_name: str,
-        description: str = "",
-        examples: list[tuple[str, str]] = [],
-        args: list[ArgMeta] = [];
+comptime ROUTES: list[CommandSpec] = [
+         _route(SPEC_BROWSE),
+         _route(SPEC_BUILD),
+         _route(SPEC_CHECK),
+         _route(SPEC_CLEAN),
+         _route(SPEC_CODE),
+         _route(SPEC_COMPLETIONS),
+         _route(SPEC_CONFIG),
+         _route(SPEC_CREATE),
+         _route(SPEC_DB),
+         _route(SPEC_DOT),
+         _route(SPEC_FIX),
+         _route(SPEC_FORMAT),
+         _route(SPEC_GEN_PARSER),
+         _route(SPEC_GUIDE),
+         _route(SPEC_INSTALL),
+         _route(SPEC_LSP),
+         _route(SPEC_MCP_CMD),
+         _route(SPEC_MODEL),
+         _route(SPEC_NACOMPILE),
+         _route(SPEC_PRECOMMIT),
+         _route(SPEC_REMOVE),
+         _route(SPEC_RETHEME),
+         _route(SPEC_RUN),
+         _route(SPEC_SCALE_CMD),
+         _route(SPEC_SETUP),
+         _route(SPEC_TEST),
+         _route(SPEC_TOOL),
+         _route(SPEC_UPDATE),
+         _route(SPEC_X)
+     ];
+
+with entry {
+    comptime assert len({r.name for r in ROUTES}) == len(ROUTES) , "duplicate command names in the manifest";
+    comptime assert len(
+        [
+            r
+            for r in ROUTES
+            if not r.hidden
+        ]
+    )
+        <= VERB_BUDGET , f"visible verbs exceed the budget of {VERB_BUDGET}; fold the new capability into an existing verb or remove one";
+    comptime assert not [
+        r.name
+        for r in ROUTES
+        if r.name in TOMBSTONED_VERBS
+    ] , "a tombstoned verb is registered again; the tombstone table is authoritative";
+    comptime assert all(
+        [
+            r.tier in TIER_SECTIONS
+            for r in ROUTES
+            if r.tier
+        ]
+    ) , "a command names a tier that TIER_SECTIONS does not know";
+    comptime assert all([r.group in GROUP_DISPLAY for r in ROUTES]) , "a command names a group that GROUP_DISPLAY does not know";
+    comptime assert all([r.handler_module and r.handler_name for r in ROUTES]) , "a command spec has no handler";
 }
 
-def get_command_meta(name: str) -> CommandMeta | None;
-def iter_command_meta(include_hidden: bool = False) -> list[CommandMeta];
+def get_command_meta(name: str) -> CommandSpec | None;
+def iter_command_meta(include_hidden: bool = False) -> list[CommandSpec];
 def known_command_names(include_hidden: bool = False) -> set[str];
 def get_groups -> list[str];

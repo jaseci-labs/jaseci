@@ -8,7 +8,7 @@ so a single boot-time build failure disabled every client page for the life of
 the process: requests came back 503 in under 150ms because no rebuild was ever
 attempted again. Recovery needed a restart.
 
-End to end against a real `jac start` subprocess. The build really fails (the
+End to end against a real `jac run --serve` subprocess. The build really fails (the
 client module imports an npm package that does not exist), and the assertion is
 on whether the server keeps trying, read from its own log.
 """
@@ -35,12 +35,8 @@ glob _BROKEN_APP: str = 'import from "@jac/runtime" { renderJsxTree, }\n'
 """The bundle build runs the real Vite/Bun pipeline, so this is an integration
 test, gated the way the other client tests in this repo are."""
 def _require_client_integration {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            "client bundle build requires the Vite/Bun toolchain; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 
@@ -107,7 +103,7 @@ test "a failed bundle build is retried on a later request, not cached until rest
         import from jaclang.scale.runtime.context.util { jac_executable }
         port = get_free_port();
         proc = subprocess.Popen(
-            [jac_executable(), "start", "brokenapp.jac", "--port", str(port)],
+            [jac_executable(), "run", "--serve", "--port", str(port), "brokenapp.jac"],
             stdout=handle,
             stderr=subprocess.STDOUT,
             cwd=str(proj)

@@ -22,44 +22,62 @@ import re;
 import jaclang;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
 
-glob SCAN_ROOTS: list[str] = ["jac0core", "runtimelib", "scale", "byllm"],
+glob SCAN_ROOTS: list[str] = [
+         "runtime",
+         "data",
+         "server",
+         "client",
+         "testing",
+         "dist",
+         "scale",
+         "byllm"
+     ],
      SANCTIONED: dict[str, tuple] = {
-         "jac0core/impl/archetype.impl.jac": (
-             4,
+         "runtime/impl/archetype.impl.jac": (
+             6,
              "the field's own primitives: __getstate__ stubs the list for "
-             "pickling, edge_delta derives the OCC add/remove sets, and "
+             "pickling (and passes it through unchanged for a transient "
+             "anchor, whose light edges ride along as the adjacency dicts), "
+             "all_edges returns it after materializing the light tier, "
+             "has_heavy_edges is the tier-routing predicate (does any "
+             "EdgeAnchor exist at all) that hop, clear_edges and "
+             "light_hop_answers consult before trusting the light tier, and "
              "remove_edge is the mutation bookkeeping detach() rides on"
          ),
-         "jac0core/impl/runtime.impl.jac": (
+         "runtime/impl/runtime.impl.jac": (
              7,
-             "mutation bookkeeping and persistence: build_edge's dual-write "
+             "mutation bookkeeping and persistence: heavy_edge's dual-write "
              "appends (the store write sits beside them), disconnect's "
-             "stub-populate priming before driver hydration, save's cascade "
-             "over unsaved edges, destroy's detach iteration, and "
-             "reset_graph's persistence-record rewrite (paired with "
-             "sv_forget_by_id so the store retracts in step)"
+             "stub-populate priming before driver hydration, destroy's and "
+             "clear_edges' detach iterations, and reset_graph's "
+             "persistence-record rewrite (paired with sv_forget_by_id so the "
+             "store retracts in step); tier routing asks the anchor's "
+             "has_heavy_edges primitive and save's cascade reads through "
+             "all_edges so light edges materialize first"
          ),
-         "jac0core/osp_graph_sv.jac": (
+         "runtime/osp_graph_sv.jac": (
              1,
              "THE hydration mint: sv_register_hydrated loading the "
              "persistence record into the store is the one sanctioned live "
              "read"
          ),
-         "runtimelib/impl/query_planner.impl.jac": (
+         "runtime/graph_walk.jac": (
              1,
-             "_walk_memory's volatile arm enumerates live anchor objects "
-             "directly; detach keeps node.edges and the sv store in step, "
-             "and the persistent arm is pure SQL (epic #7945)"
+             "the in-memory traversal primitive enumerates live anchor "
+             "objects directly; detach keeps node.edges and the sv store in "
+             "step, and the store-backed arm in data/query_planner is pure "
+             "SQL (epic #7945). Moved here from that planner in #8743: "
+             "walking a graph is not a persistence concern"
          ),
-         "runtimelib/impl/serializer.impl.jac": (
+         "data/impl/serializer.impl.jac": (
              3,
              "serialization proper: writing data.edges on save and "
              "rebuilding the stub list plus _initial_edge_ids on load"
          ),
-         "runtimelib/impl/session.impl.jac": (
+         "server/impl/session.impl.jac": (
              1,
              "hydration: _materialize rebuilds the stub list from the "
              "store's src/dst adjacency (ordered by seq) since node rows "
@@ -75,6 +93,9 @@ test "NodeAnchor.edges has no unsanctioned readers" {
     for sub in SCAN_ROOTS {
         for pat in ["*.jac", "*.py"] {
             for p in sorted((base / sub).rglob(pat)) {
+                if not p.is_file() {
+                    continue;
+                }
                 rel = str(p.relative_to(base)).replace("\\", "/");
                 if "/tests/" in f"/{rel}" or "/fixtures/" in f"/{rel}" {
                     continue;

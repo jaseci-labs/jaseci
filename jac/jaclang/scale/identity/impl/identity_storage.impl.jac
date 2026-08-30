@@ -1,6 +1,6 @@
 impl IdentityStorage.hash_password(password: str) -> str {
     cost = get_scale_config().get_auth_config()['password_hash_cost'];
-    return _scrypt_hash(password, n=2 ** int(cost));
+    return _scrypt_hash(password, n=1 << int(cost));
 }
 
 impl IdentityStorage.verify_password(password: str, password_hash: str) -> bool {
@@ -12,7 +12,7 @@ impl IdentityStorage.create_user(
     credential: dict[str, any],
     profile: dict[str, any] | None = None
 ) -> dict[str, any] {
-    import from jaclang.jac0core.constructs { Root }
+    import from jaclang.runtime.constructs { Root }
     import from jaclang { JacRuntime as Jac }
 
     type_counts: dict[str, int] = {};
@@ -70,7 +70,7 @@ impl IdentityStorage.create_user(
     user_root = Root();
     Jac.save(user_root);
     Jac.commit(user_root);
-    root_id = user_root.__jac__.id.hex;
+    root_id = user_root.__jac__.ensure_id().hex;
 
     user_doc = {
         'user_id': user_id,
@@ -97,7 +97,7 @@ impl IdentityStorage.user_exists_by_id(user_id: str) -> bool {
 }
 
 impl IdentityStorage.ensure_user_by_id(user_id: str) -> str | None {
-    import from jaclang.jac0core.constructs { Root }
+    import from jaclang.runtime.constructs { Root }
     import from jaclang { JacRuntime as Jac }
 
     existing = self.get_user_by_id(user_id);
@@ -108,7 +108,7 @@ impl IdentityStorage.ensure_user_by_id(user_id: str) -> str | None {
     user_root = Root();
     Jac.save(user_root);
     Jac.commit(user_root);
-    root_id = user_root.__jac__.id.hex;
+    root_id = user_root.__jac__.ensure_id().hex;
     now = datetime.now(UTC).isoformat();
     try {
         self._store_user(
@@ -135,7 +135,7 @@ impl IdentityStorage.ensure_user_by_id(user_id: str) -> str | None {
 }
 
 impl IdentityStorage.reset_root(user_id: str) -> str | None {
-    import from jaclang.jac0core.constructs { Root }
+    import from jaclang.runtime.constructs { Root }
     import from jaclang { JacRuntime as Jac }
 
     existing = self.get_user_by_id(user_id);
@@ -145,7 +145,7 @@ impl IdentityStorage.reset_root(user_id: str) -> str | None {
     user_root = Root();
     Jac.save(user_root);
     Jac.commit(user_root);
-    root_id = user_root.__jac__.id.hex;
+    root_id = user_root.__jac__.ensure_id().hex;
     now = datetime.now(UTC).isoformat();
     self._update_fields(user_id, {'root_id': root_id, 'updated_at': now});
     return root_id;

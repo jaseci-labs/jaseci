@@ -20,6 +20,9 @@ glob GATEWAY_API_SEGMENTS: tuple = (
          "openapi.json",
          "docs"
      ),
+     GATEWAY_PAGE_SEGMENTS: tuple = ("docs", ),
+     GATEWAY_DISCOVERY_SEGMENTS: tuple = ("jobs", GATEWAY_CLIENT_SEGMENT),
+     GATEWAY_REPLICATED_SEGMENTS: tuple = ("user", "sso", "api-key", "graph"),
      _RESERVED_SEGMENTS: set[str] = (
          set(GATEWAY_API_SEGMENTS)
          | set(GATEWAY_WELLKNOWN_SEGMENTS)
@@ -38,10 +41,33 @@ def _derive_builtin_prefixes -> tuple {
 }
 
 
+def _derive_service_owned_segments -> tuple {
+    shared = set(GATEWAY_DISCOVERY_SEGMENTS) | set(GATEWAY_REPLICATED_SEGMENTS);
+    return tuple(
+        [
+            seg
+            for seg in GATEWAY_API_SEGMENTS
+            if seg not in shared
+        ]
+    );
+}
+
+
 glob GATEWAY_BUILTIN_PREFIXES: tuple = _derive_builtin_prefixes(),
      GATEWAY_BARE_API_PATHS: set[str] = {
          f"/{seg}" for seg in GATEWAY_BARE_API_SEGMENTS
-     };
+     },
+     GATEWAY_SERVICE_OWNED_SEGMENTS: tuple = _derive_service_owned_segments();
+
+
+def is_learnable_prefix(prefix: str) -> bool {
+    segs = prefix.strip("/").split("/");
+    head = segs[0];
+    if head not in _GATEWAY_OWNED_PREFIX_SEGMENTS {
+        return True;
+    }
+    return head in GATEWAY_SERVICE_OWNED_SEGMENTS and len(segs) > 1;
+}
 
 
 def service_slug(module_name: str) -> str {
@@ -87,16 +113,24 @@ def guard_route_prefix(name: str, prefix: str) {
 }
 
 
-def ensure_main_service(
-    routes: dict[str, str], service_files: dict[str, str], entry_file: str = ''
-) -> None {
+def needs_main_service(routes: dict[str, str]) -> bool {
     if 'main' in routes {
-        return;
+        return False;
     }
     for prefix in routes.values() {
         if prefix in ('/', '/__main__') {
-            return;
+            return False;
         }
+    }
+    return True;
+}
+
+
+def ensure_main_service(
+    routes: dict[str, str], service_files: dict[str, str], entry_file: str = ''
+) -> None {
+    if not needs_main_service(routes) {
+        return;
     }
     if not entry_file {
         try {

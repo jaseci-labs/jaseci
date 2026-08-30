@@ -60,7 +60,7 @@ impl EmbeddedGateway._call_member(
 
 impl EmbeddedGateway._get_asset_table -> list[AssetRoot] {
     if self._asset_table is None {
-        import from jaclang.runtimelib.serving.static_assets { asset_root_table }
+        import from jaclang.server.serving.static_assets { asset_root_table }
         self._asset_table = asset_root_table(
             Path(self.base_path), Path(self.client_dist_dir), self.static_mounts
         );
@@ -69,10 +69,7 @@ impl EmbeddedGateway._get_asset_table -> list[AssetRoot] {
 }
 
 impl EmbeddedGateway._serve_static(path: str, accept: str) -> Response {
-    import from jaclang.runtimelib.serving.static_assets {
-        resolve_asset,
-        asset_response
-    }
+    import from jaclang.server.serving.static_assets { resolve_asset, asset_response }
     hit = resolve_asset(self._get_asset_table(), path);
     if hit is not None {
         (target, _) = hit;
@@ -141,12 +138,25 @@ impl EmbeddedGateway.setup -> None {
 }
 
 
-impl EmbeddedGateway.serve -> None {
+def _log_embedded_ready(host: str, bound: int) {
+    _logger.info(f"Embedded gateway serving in-process on {host}:{bound}");
+}
+
+
+impl EmbeddedGateway.serve(on_ready: any = None) -> None {
     if self.app is None {
         self.setup();
     }
-    _logger.info(f"Embedded gateway serving in-process on {self.host}:{self.port}");
-    import from jaclang.runtimelib.serving.server { ServingServer }
+    import from functools { partial }
+    import from jaclang.server.serving.server { ServingServer, PORT_RETRY_LIMIT }
+    import from jaclang.scale.config.config_loader { get_scale_config }
+    pinned = bool(
+        get_scale_config().get_microservices_config().get("gateway_port_pinned", False)
+    );
     serving = ServingServer(app=self.app, host=self.host, port=self.port);
-    serving.run();
+    ready: any = on_ready;
+    if ready is None {
+        ready = partial(_log_embedded_ready, self.host);
+    }
+    serving.run(on_ready=ready, port_retries=0 if pinned else PORT_RETRY_LIMIT);
 }

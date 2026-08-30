@@ -23,14 +23,18 @@ impl JacScaleUserManager.postinit -> None {
         }
     }
 
-    import from jaclang.scale.persistence.pg { shared_store }
+    import from jaclang.scale.persistence.pg {
+        NO_DATABASE_RESOLVED,
+        shared_store,
+        shared_store_failure
+    }
     store = shared_store();
     if store is None {
         raise RuntimeError(
-            'identity storage requires a reachable Postgres database: no '
-            '[scale.database] url / JAC_DB_URL resolved and the embedded '
-            'server could not be provisioned. Refusing to fall back to a '
-            'second credential store; fix the database and restart.'
+            'identity storage requires a reachable Postgres database: '
+            f"{shared_store_failure() or NO_DATABASE_RESOLVED}. Refusing to "
+            'fall back to a second credential store; fix the database and '
+            'restart.'
         );
     }
     self._identity_storage = PgIdentityStorage(store=store);
@@ -480,7 +484,14 @@ impl JacScaleUserManager.firebase_token_auth_with_id_token(
             meta=Meta(extra={'http_status': 501})
         );
     }
-    sso = self.get_sso(platform);
+    sso: any = self.get_sso(platform);
+    if sso is None {
+        return TransportResponse.fail(
+            code='SSO_INIT_FAILED',
+            message=f"Failed to initialize SSO for platform '{platform}'",
+            meta=Meta(extra={'http_status': 500})
+        );
+    }
     try {
         user_info = await sso.handle_id_token(id_token);
     } except Exception as e {

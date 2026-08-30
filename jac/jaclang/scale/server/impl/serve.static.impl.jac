@@ -1,23 +1,19 @@
 import from pathlib { Path }
-import from jaclang.runtimelib.serving.datatypes {
-    HTMLResponse,
-    JSONResponse,
-    Response
-}
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { HTMLResponse, JSONResponse, Response }
+import from jaclang.server.serving.endpoint {
     APIParameter,
     HTTPMethod,
     JEndPoint,
     ParameterType
 }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
-import from jaclang.runtimelib.server { JsonValue }
-import from jaclang.runtimelib.serving.static_assets { AssetRoot }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
+import from jaclang.server.server { JsonValue }
+import from jaclang.server.serving.static_assets { AssetRoot }
 import from jaclang.cli.console { console }
 
 impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
     try {
-        import from jaclang.runtimelib.serving.static_assets {
+        import from jaclang.server.serving.static_assets {
             resolve_asset,
             asset_response
         }
@@ -44,7 +40,7 @@ impl JacAPIServerStatic.asset_base_path -> Path {
 
 impl JacAPIServerStatic._get_asset_table -> list[AssetRoot] {
     if self._asset_table is None {
-        import from jaclang.runtimelib.serving.static_assets { asset_root_table }
+        import from jaclang.server.serving.static_assets { asset_root_table }
         base_path = self.asset_base_path();
         self._asset_table = asset_root_table(
             base_path, base_path / '.jac' / 'client' / 'dist', []
@@ -196,10 +192,7 @@ impl JacAPIServerStatic.render_base_route_callback(
 
 impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
     import from jaclang.project.config { get_config }
-    import from jaclang.runtimelib.serving.static_assets {
-        resolve_asset,
-        asset_response
-    }
+    import from jaclang.server.serving.static_assets { resolve_asset, asset_response }
     config = get_config();
     cl_route_prefix = config.serve.cl_route_prefix if config else "cl";
     api_prefixes = (f'{cl_route_prefix}/', 'walker/', 'function/', 'user/', 'static/');
@@ -317,7 +310,7 @@ impl JacAPIServerStatic.serve_graph_page -> HTMLResponse {
 
 
 impl JacAPIServerStatic.graph_data(Authorization: (str | None) = None) -> JSONResponse {
-    import from jaclang.runtimelib.utils { collect_node_connections }
+    import from jaclang.runtime.graph_utils { collect_node_connections }
 
     token: (str | None) = None;
     if (

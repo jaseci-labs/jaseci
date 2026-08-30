@@ -1,10 +1,10 @@
 import os;
 import tempfile;
-import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { Request }
 import from jaclang.scale.runtime.gateway.microservice_gateway { MicroserviceGateway }
 import from jaclang.scale.runtime.gateway.service_registry { ServiceRegistry }
 import from jaclang.scale.server.serve { JacAPIServerStatic }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
 
 
 def _static_server(project_root: str) -> JacAPIServerStatic {
@@ -12,12 +12,12 @@ def _static_server(project_root: str) -> JacAPIServerStatic {
     # point it at a real tempdir tree so the resolver runs against it (no project
     # markers above /tmp, so find_project_root falls back to this dir).
     Jac.get_context().base_path_dir = project_root;
-    return JacAPIServerStatic();
+    return JacAPIServerStatic(module_name="test_static_fallback");
 }
 
 
 def _get_request -> Request {
-    import from jaclang.runtimelib.serving.datatypes { URL }
+    import from jaclang.server.serving.datatypes { URL }
     return Request(method="GET", url=URL(path="/static/assets/logo.svg"));
 }
 
@@ -81,9 +81,7 @@ test "a mount-owned asset miss 404s through full gateway dispatch (no leak, no S
         gw.base_path = project_root;
         gw.setup();
 
-        import from jaclang.runtimelib.serving.testing {
-            ServingTestClient as TestClient
-        }
+        import from jaclang.testing.testkit { ServingTestClient as TestClient }
         client = TestClient(gw.app);
         resp = client.get("/media/logo.png", headers={"accept": "image/png"});
 
@@ -130,7 +128,7 @@ test "public/ asset is served at the web root like vite and next serve it (#8124
         gw.base_path = project_root;
         gw.client_dist_dir = empty_dist;
 
-        import from jaclang.runtimelib.serving.datatypes { URL }
+        import from jaclang.server.serving.datatypes { URL }
         req = Request(method="GET", url=URL(path="/brand/logo.png"));
         resp = gw.handle_static(req, "/brand/logo.png");
 

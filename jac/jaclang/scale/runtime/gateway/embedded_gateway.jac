@@ -1,7 +1,7 @@
 import logging;
 import from pathlib { Path }
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse, Request, Response }
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.datatypes { JSONResponse, Request, Response }
 import from jaclang.scale.runtime.gateway.gateway { Gateway }
 import from jaclang.scale.runtime.gateway.service_registry { ServiceRegistry }
 import from jaclang.scale.runtime.gateway.dispatch {
@@ -15,7 +15,7 @@ import from jaclang.scale.runtime.context.util {
     DEFAULT_GATEWAY_HOST,
     DEFAULT_CLIENT_DIST_DIR
 }
-import from jaclang.runtimelib.serving.static_assets { AssetRoot }
+import from jaclang.server.serving.static_assets { AssetRoot }
 
 glob _logger = logging.getLogger(__name__);
 
@@ -41,5 +41,5 @@ obj EmbeddedGateway(Gateway) {
     ) -> Response | None;
 
     def _serve_static(path: str, accept: str) -> Response;
-    def serve -> None;
+    def serve(on_ready: any = None) -> None;
 }

@@ -1,6 +1,6 @@
 """The front end's Python-isms, and the plain-Jac forms that replaced them.
 
-The #8039 census sweep showed the compiler front end's native gaps were not
+The #8039 coverage sweep showed the compiler front end's native gaps were not
 backend omissions but source idioms: constructs the native capability
 authority rejects, reached for where Jac (or plain data) already said the
 same thing. This file pins the replacements behaviorally, and guards the
@@ -15,15 +15,15 @@ closure and are deliberately untouched.
 
 import os;
 import types;
-import jaclang.jac0core.helpers as helpers_mod;
+import jaclang.compiler.frontend.helpers as helpers_mod;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.codeinfo { native_safe_sym }
-import from jaclang.jac0core.helpers { pascal_to_snake }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.frontend.codeinfo { native_safe_sym }
+import from jaclang.compiler.frontend.helpers { pascal_to_snake }
 
 glob FIXTURES = os.path.join(
-         TESTS_DIR, "compiler", "passes", "native", "fixtures"
+         TESTS_DIR, "compiler", "backends", "native", "fixtures"
      );
 
 """Run a snippet through the front-end check schedule with the native
@@ -34,10 +34,7 @@ def check_na_inline(label: str, code: str) -> JacProgram {
         file_path=os.path.join(FIXTURES, f"_idiom_{label}.jac"),
         use_str=code,
         options=CompileOptions(
-            type_check=True,
-            no_cgen=True,
-            force_codespace="native",
-            force_target_program=True
+            no_cgen=True, force_codespace="native", force_target_program=True
         )
     );
     return prog;
@@ -73,11 +70,12 @@ test "pascal_to_snake converts the shapes the compiler actually feeds it" {
 # The `@lru_cache(maxsize=256)` this function used to carry was sized to the
 # ~150 unitree node types, the fingerprint of the old reflective visitor
 # dispatch (`getattr(self, f"enter_{pascal_to_snake(type(nd).__name__)}")`).
-# `gen_uni_dispatch` (#6942 A.1) replaced that with static accept_enter /
-# accept_exit, so the hot loop the cache existed for is gone: what remains
-# are the generators and the `jac tool` surface, both of which call it a
-# bounded number of times. The cache was dropped rather
-# than re-spelled -- a dict memo is three lines if measurement ever asks.
+# Static accept dispatch replaced that, and pass hooks are now typed OSP
+# abilities dispatched by the walker kernel, so the hot loop the cache
+# existed for is gone: what remains are the generators and the `jac tool`
+# surface, both of which call it a bounded number of times. The cache was
+# dropped rather than re-spelled -- a dict memo is three lines if
+# measurement ever asks.
 test "pascal_to_snake is deterministic across repeat calls without a cache" {
     probe = "AVeryDistinctArchetypeName";
     first = pascal_to_snake(probe);
@@ -174,23 +172,25 @@ test "helpers module scope binds os and nothing else" {
 # genuinely cannot lower become seams instead of a whole-module refusal.
 test "helpers.jac lowers when a native unit reaches it" {
     import jaclang;
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    import from jaclang.compiler.driver.na_coverage {
+        na_coverage_begin,
+        na_coverage_end
+    }
     helpers_path = os.path.join(
-        os.path.dirname(jaclang.__file__), "jac0core", "helpers.jac"
+        os.path.dirname(jaclang.__file__), "compiler", "frontend", "helpers.jac"
     );
     prog = JacProgram();
     opts = CompileOptions(
         aot_mode=True,
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         no_ir_cache=True
     ).clone_for_native_import();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(file_path=helpers_path, options=opts);
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     assert not prog.errors_had , (
         f"helpers.jac must reach the backend, not refuse on a signature no "
@@ -200,8 +200,8 @@ test "helpers.jac lowers when a native unit reaches it" {
         "no LLVM IR for helpers.jac, so every consumer that links it inherits "
         "a module-level refusal"
     );
-    rec = census.get(os.path.realpath(helpers_path));
-    assert rec is not None , "the census recorded nothing for helpers.jac";
+    rec = coverage.get(os.path.realpath(helpers_path));
+    assert rec is not None , "the coverage recorded nothing for helpers.jac";
     seams = [str(s) for s in (rec["seams"] or [])];
     reader = [
         s
@@ -230,12 +230,12 @@ test "helpers no longer exports the moved symbols" {
 }
 
 test "the moved symbols resolve from their new modules" {
-    import from jaclang.jac0core.debugger { Jdb, debugger }
-    import from jaclang.jac0core.tomlio {
+    import from jaclang.runtime.debugger { Jdb, debugger }
+    import from jaclang.project.tomlio {
         MalformedJacTomlError,
         read_toml_with_encoding
     }
-    import from jaclang.jac0core.traceback_render { dump_traceback }
+    import from jaclang.runtime.traceback_render { dump_traceback }
     assert isinstance(debugger, Jdb);
     assert callable(read_toml_with_encoding);
     assert callable(dump_traceback);
@@ -248,7 +248,7 @@ test "the moved symbols resolve from their new modules" {
 test "MalformedJacTomlError keeps its identity and its tomllib base" {
     import tempfile;
     import tomllib;
-    import from jaclang.jac0core.tomlio {
+    import from jaclang.project.tomlio {
         MalformedJacTomlError,
         read_toml_with_encoding
     }
@@ -286,7 +286,7 @@ test "MalformedJacTomlError keeps its identity and its tomllib base" {
 # fail here with the exact delta, and the tables get regenerated.
 test "the frozen builtins table matches the running interpreter" {
     import builtins;
-    import from jaclang.compiler.passes.main.static_analysis_pass { BUILTIN_NAMES }
+    import from jaclang.compiler.passes.static_analysis_pass { BUILTIN_NAMES }
     live = set(dir(builtins));
     assert BUILTIN_NAMES == live , (
         f"regenerate BUILTIN_NAMES: missing {sorted(live - BUILTIN_NAMES)}, "
@@ -296,7 +296,7 @@ test "the frozen builtins table matches the running interpreter" {
 
 test "the frozen TestCase assert table matches the running interpreter" {
     import from unittest { TestCase }
-    import from jaclang.jac0core.passes.sym_tab_build_pass { TEST_ASSERT_METHOD_NAMES }
+    import from jaclang.compiler.passes.sym_tab_build_pass { TEST_ASSERT_METHOD_NAMES }
     live = [
         j
         for j in dir(TestCase())
@@ -308,7 +308,7 @@ test "the frozen TestCase assert table matches the running interpreter" {
 }
 
 test "a test block still binds the assert names to symbols" {
-    import from jaclang.jac0core.unitree { Name }
+    import from jaclang.compiler.frontend.unitree { Name }
     prog = JacProgram();
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "_idiom_test_asserts.jac"),
@@ -316,7 +316,7 @@ test "a test block still binds the assert names to symbols" {
         "    assertEqual(1, 1);\n"
         "    assertNotIn(2, [1]);\n"
         "}\n",
-        options=CompileOptions(type_check=False)
+        options=CompileOptions()
     );
     bound = {
         nd.value: (nd.sym is not None)
@@ -338,9 +338,9 @@ test "a test block still binds the assert names to symbols" {
 test "version-condition comparisons match the operator table they replaced" {
     import sys;
     import ast as py_ast;
-    import from jaclang.jac0core.unitree { IfStmt, PythonModuleAst, Source }
-    import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-    import from jaclang.jac0core.helpers { evaluate_version_condition }
+    import from jaclang.compiler.frontend.unitree { IfStmt, PythonModuleAst, Source }
+    import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
+    import from jaclang.compiler.frontend.helpers { evaluate_version_condition }
     code = "import sys\n"
     "if sys.version_info >= (3, 11):\n    a = 1\n"
     "if sys.version_info > (3, 11):\n    b = 1\n"
@@ -354,8 +354,7 @@ test "version-condition comparisons match the operator table they replaced" {
     mod = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(code), orig_src=Source(code, "test_version_ops.py")
-        ),
-        prog=prog
+        )
     ).ir_out;
     got = [
         evaluate_version_condition(nd.condition)
@@ -380,7 +379,7 @@ test "version-condition comparisons match the operator table they replaced" {
 # mapping beside the new one, so every CI platform proves the pair agrees.
 test "native_target_os agrees with the platform.system mapping it replaced" {
     import platform;
-    import from jaclang.jac0core.codeinfo { native_target_os }
+    import from jaclang.compiler.frontend.codeinfo { native_target_os }
     prior = os.environ.pop("JAC_NATIVE_TARGET", None);
     try {
         sysname = platform.system();
@@ -402,7 +401,7 @@ test "native_target_os agrees with the platform.system mapping it replaced" {
 }
 
 test "native_target_os still honors the JAC_NATIVE_TARGET override" {
-    import from jaclang.jac0core.codeinfo { native_target_os }
+    import from jaclang.compiler.frontend.codeinfo { native_target_os }
     prior = os.environ.pop("JAC_NATIVE_TARGET", None);
     try {
         for (raw, want) in [
@@ -423,7 +422,7 @@ test "native_target_os still honors the JAC_NATIVE_TARGET override" {
 
 test "Jdb.has_breakpoint still reads the compiled bytecode" {
     import marshal;
-    import from jaclang.jac0core.debugger { debugger }
+    import from jaclang.runtime.debugger { debugger }
     with_bp = compile("breakpoint()\n", "<probe>", "exec");
     without_bp = compile("x = 1\n", "<probe>", "exec");
     assert debugger.has_breakpoint(marshal.dumps(with_bp));
@@ -439,7 +438,7 @@ test "Jdb.has_breakpoint still reads the compiled bytecode" {
 # beside the type so the runtime does no reflection. Reflection is fine HERE --
 # a test is never lowered natively -- so this pins the pair against drift.
 test "placement blocker tables carry the real class name" {
-    import from jaclang.jac0core.placement {
+    import from jaclang.compiler.placement.placement {
         PLACEMENT_NATIVE_REJECT_NODES,
         PLACEMENT_SV_SIGNAL_NODES
     }
@@ -457,12 +456,12 @@ test "placement blocker tables carry the real class name" {
 }
 
 test "scan_native_blockers names the offending node from the table" {
-    import from jaclang.jac0core.placement { scan_native_blockers }
+    import from jaclang.compiler.placement.placement { scan_native_blockers }
     prog = JacProgram();
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "_idiom_jsx_blocker.jac"),
         use_str="def view -> any {\n    return <div>hi</div>;\n}\n",
-        options=CompileOptions(type_check=False)
+        options=CompileOptions()
     );
     (reason, _deps) = scan_native_blockers(ir, os.path.dirname(FIXTURES));
     assert reason == "contains JsxElement" , f"got reason {reason!r}";

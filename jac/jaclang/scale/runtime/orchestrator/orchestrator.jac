@@ -19,6 +19,14 @@ import from jaclang.scale.runtime.context.util {
 glob logger = logging.getLogger(__name__);
 
 
+def _log_gateway_only_ready(host: str, bound: int) {
+    logger.info(
+        f"Starting gateway-only mode on {host}:{bound} "
+        f"(K8s pod context; no service spawning)"
+    );
+}
+
+
 obj MicroserviceOrchestrator {
     has ms_config: dict[str, any];
 
@@ -66,23 +74,27 @@ obj MicroserviceOrchestrator {
         );
 
         static_mounts: list[dict[str, str]] = self._parse_static_mounts(client_config);
-        self._print_startup_banner(
-            registry,
-            client_config,
-            client_dist,
-            gateway_host,
-            gateway_port,
-            static_mounts
-        );
 
         gateway = ProcessGateway(
             registry=registry,
             port=gateway_port,
             host=gateway_host,
             client_dist_dir=client_dist,
-            static_mounts=static_mounts
+            static_mounts=static_mounts,
+            port_pinned=bool(self.ms_config.get("gateway_port_pinned", False))
         );
-        gateway.serve();
+
+        import from functools { partial }
+        gateway.serve(
+            on_ready=partial(
+                self._print_startup_banner,
+                registry,
+                client_config,
+                client_dist,
+                gateway_host,
+                static_mounts=static_mounts
+            )
+        );
 
         deployer.destroy_all();
     }
@@ -111,13 +123,11 @@ obj MicroserviceOrchestrator {
             port=gateway_port,
             host=gateway_host,
             client_dist_dir=client_dist,
-            static_mounts=static_mounts
+            static_mounts=static_mounts,
+            port_pinned=bool(self.ms_config.get("gateway_port_pinned", False))
         );
-        logger.info(
-            f"Starting gateway-only mode on {gateway_host}:{gateway_port} "
-            f"(K8s pod context; no service spawning)"
-        );
-        gateway.serve();
+        import from functools { partial }
+        gateway.serve(on_ready=partial(_log_gateway_only_ready, gateway_host));
     }
 
     def _build_registry -> ServiceRegistry {

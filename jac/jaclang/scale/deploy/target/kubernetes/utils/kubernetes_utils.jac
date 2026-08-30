@@ -1,11 +1,6 @@
-import base64;
 import os;
-import tarfile;
 import time;
 import from pathlib { Path }
-import requests;
-import urllib3;
-import from jaclang.scale.config.project_env { read_project_env }
 import from jaclang.scale._optdeps.kubernetes {
     client,
     config,
@@ -13,7 +8,13 @@ import from jaclang.scale._optdeps.kubernetes {
     ConfigException
 }
 import from jaclang.scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
-import from requests.exceptions { RequestException, SSLError }
+
+glob _LOCAL_FALLBACK_NOTE: str = (
+         "Falling back to local provider semantics: service URLs will be "
+         "reported as localhost node ports and no load balancer endpoint will "
+         "be waited for. If this is a managed cluster, the reported URLs will "
+         "be wrong."
+     );
 
 glob PSS_ENFORCE_LABEL: str = "pod-security.kubernetes.io/enforce",
      PSS_WARN_LABEL: str = "pod-security.kubernetes.io/warn",
@@ -38,15 +39,6 @@ def _refresh_rs_hashes(
     namespace: str, selector: str, current: (set | None)
 ) -> (set | None);
 
-def check_pods_restarted(
-    namespace: str,
-    app_name: str,
-    _rs_hashes: (set | None) = None,
-    _skip_config_load: bool = False
-) -> bool;
-
-def load_env_variables(code_folder: str) -> list;
-
 def create_k8s_secret(
     core_v1: client.CoreV1Api,
     namespace: str,
@@ -58,8 +50,6 @@ def delete_k8s_secret(
     core_v1: client.CoreV1Api, namespace: str, secret_name: str
 ) -> None;
 
-def check_K8s_status -> None;
-
 def delete_if_exists(
     delete_func: Callable, name: str, namespace: str, kind: str
 ) -> None;
@@ -68,28 +58,9 @@ def ensure_namespace_exists(namespace: str) -> None;
 
 def delete_namespace(namespace: str) -> None;
 
-def check_deployment_status(
-    node_port: int,
-    path: str = '/docs',
-    interval: int = 15,
-    max_retries: int = 48,
-    nlb_url: (str | None) = None,
-    namespace: str = "default",
-    app_name: str = "jaseci",
-) -> tuple[bool, str];
-
 def cluster_type -> str;
 
 def get_cluster_provider -> ClusterProvider;
-
-def ensure_pvc_exists(
-    core_v1: client.CoreV1Api,
-    namespace: str,
-    pvc_name: str,
-    storage_size: str,
-    storage_class: (str | None) = None,
-    access_mode: str = 'ReadWriteOnce'
-) -> None;
 
 def parse_storage_quantity(quantity: str) -> int;
 

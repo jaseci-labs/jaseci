@@ -42,8 +42,8 @@ Refs #8039
 
 import os;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob FIXTURES = os.path.join(TESTS_DIR, "compiler", "fixtures");
 
@@ -52,7 +52,7 @@ def check_errors(fixture: str) -> list {
     prog = JacProgram();
     prog.compile(
         file_path=str(os.path.join(FIXTURES, fixture)),
-        options=CompileOptions(type_check=True, no_cgen=True)
+        options=CompileOptions(no_cgen=True)
     );
     return [str(e) for e in (prog.errors_had or [])];
 }

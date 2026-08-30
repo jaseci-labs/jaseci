@@ -1,8 +1,8 @@
 import asyncio;
 import logging;
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
-import from jaclang.runtimelib.serving.endpoint { HTTPMethod, JEndPoint }
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { JSONResponse }
+import from jaclang.server.serving.endpoint { HTTPMethod, JEndPoint }
 import from jaclang.scale.admin.k8s_ops {
     core_api,
     networking_api,
@@ -213,7 +213,11 @@ impl JacAPIServerNetwork.register_network_endpoints -> None {
         }
         return JSONResponse(content={"ok": True, "data": data});
     }
-    self.server.add_endpoint(
+    server = self.server;
+    if server is None {
+        return;
+    }
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/ops/network",

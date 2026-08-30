@@ -15,6 +15,7 @@ obj ProcessGateway(Gateway) {
         host: str = DEFAULT_GATEWAY_HOST,
         client_dist_dir: str = DEFAULT_CLIENT_DIST_DIR,
         static_mounts: list[dict[str, str]] = [],
+        port_pinned: bool = False,
         _gateway: MicroserviceGateway | None = None;
 
     def setup {
@@ -24,6 +25,7 @@ obj ProcessGateway(Gateway) {
             host=self.host,
             client_dist_dir=self.client_dist_dir,
             static_mounts=self.static_mounts,
+            port_pinned=self.port_pinned,
             base_path=str(self._resolve_base_path())
         );
         gw.setup();
@@ -36,10 +38,12 @@ obj ProcessGateway(Gateway) {
         return resolve_base_path();
     }
 
-    def serve {
+    def serve(on_ready: any = None) {
         if self._gateway is None {
             self.setup();
         }
-        self._gateway.start();
+        gateway = self._gateway;
+        assert gateway is not None , "setup() must bind the gateway";
+        gateway.start(on_ready=on_ready);
     }
 }

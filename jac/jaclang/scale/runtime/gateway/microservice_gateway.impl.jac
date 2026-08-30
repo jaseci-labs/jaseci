@@ -1,10 +1,12 @@
 import shutil;
 
-import from jaclang.runtimelib.serving.ws { WebSocket }
-import from jaclang.runtimelib.serving.endpoint { WSEndPoint }
+import from jaclang.server.serving.ws { WebSocket }
+import from jaclang.server.serving.endpoint { WSEndPoint }
 import from jaclang.scale.runtime.routing {
     GATEWAY_BUILTIN_PREFIXES,
-    GATEWAY_BARE_API_PATHS
+    GATEWAY_BARE_API_PATHS,
+    GATEWAY_DISCOVERY_SEGMENTS,
+    GATEWAY_REPLICATED_SEGMENTS
 }
 
 
@@ -75,6 +77,11 @@ impl MicroserviceGateway.resolve_target_url(
     return target;
 }
 
+impl MicroserviceGateway.has_client_bundle -> bool {
+    return (Path(self.client_dist_dir) / "index.html").is_file();
+}
+
+
 impl MicroserviceGateway.serve_spa_fallback -> Response | None {
     index = Path(self.client_dist_dir) / "index.html";
     if index.is_file() {
@@ -116,7 +123,7 @@ impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
         return None;
     }
 
-    import from jaclang.runtimelib.serving.static_assets { asset_response }
+    import from jaclang.server.serving.static_assets { asset_response }
     if not target.is_file() {
         index = admin_dist / "index.html";
         if index.is_file() {
@@ -129,7 +136,9 @@ impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
 }
 
 glob _BUILTIN_PREFIXES: tuple = GATEWAY_BUILTIN_PREFIXES,
-     _BUILTIN_EXACT: set[str] = GATEWAY_BARE_API_PATHS;
+     _BUILTIN_EXACT: set[str] = GATEWAY_BARE_API_PATHS,
+     _DISCOVERY_SEGMENTS: set[str] = set(GATEWAY_DISCOVERY_SEGMENTS),
+     _REPLICATED_SEGMENTS: set[str] = set(GATEWAY_REPLICATED_SEGMENTS);
 
 impl MicroserviceGateway.build_forward_headers(request: Request) -> dict[str, str] {
     import from jaclang.scale.runtime.context.trace_ctx {
@@ -138,10 +147,15 @@ impl MicroserviceGateway.build_forward_headers(request: Request) -> dict[str, st
     }
     fwd: dict[str, str] = {};
     for (key, value) in request.headers.items() {
-        if key.lower() not in HOP_BY_HOP_HEADERS {
+        if key.lower() not in HOP_BY_HOP_HEADERS and key.lower() != "x-forwarded-for" {
             fwd[key] = value;
         }
     }
+
+    peer: str = request.client_host or "unknown";
+    fwd["X-Forwarded-For"] = ", ".join(
+        request.headers.getlist("X-Forwarded-For") + [peer]
+    );
 
     trace = get_current_trace() or ensure_trace_id(request.headers.get("X-Trace-Id"));
     fwd["X-Trace-Id"] = trace;
@@ -190,12 +204,8 @@ impl MicroserviceGateway.aggregate_graph_data(request: Request) -> Response | No
     merged_edges: list[dict] = [];
     fragments: int = 0;
 
-    for (svc_name, svc_entry) in self.registry.entries.items() {
-        if svc_entry.status not in (ServiceStatus.HEALTHY, ServiceStatus.STARTING)
-            or not svc_entry.url {
-            continue;
-        }
-        target_url = f"{svc_entry.url}/graph/data";
+    for (svc_name, svc_entry) in self.eligible_services() {
+        target_url = f"{self.service_base_url(svc_entry)}/graph/data";
         if query {
             target_url = f"{target_url}?{query}";
         }
@@ -265,37 +275,119 @@ impl MicroserviceGateway.handle_builtin_passthrough(
         }
     }
 
+    stripped: str = path.strip("/");
+    first_seg: str = stripped.split("/")[0] if stripped else "";
+    if first_seg in _DISCOVERY_SEGMENTS {
+        return await self.probe_services(request, path, self.eligible_services());
+    }
+    if first_seg in _REPLICATED_SEGMENTS {
+        return await self.deliver_once(request, path);
+    }
+
+    owner = await self.resolve_learned_owner(path);
+    if owner is not None {
+        return await self.forward_root_path(request, owner, path);
+    }
+    unknown: list = [
+        (name, svc)
+        for (name, svc) in self.eligible_services()
+        if not self.route_table.is_learned(name)
+    ];
+    if not unknown {
+        import from jaclang.scale.runtime.context.errors { not_found }
+        return not_found(path, message="No service declares");
+    }
+    return await self.probe_services(request, path, unknown);
+}
+
+impl MicroserviceGateway.eligible_services -> list[tuple[str, ServiceEntry]] {
+    return [
+        (name, svc)
+        for (name, svc) in self.registry.entries.items()
+        if svc.is_routable()
+    ];
+}
+
+impl MicroserviceGateway.resolve_learned_owner(path: str) -> ServiceEntry | None {
+    svc_name: str = self.route_table.owner(path);
+    if svc_name and svc_name not in self.registry.entries {
+        self.route_table.forget(svc_name);
+        svc_name = "";
+    }
+    if not svc_name {
+        if not await self.refresh_app_routes() {
+            return None;
+        }
+        svc_name = self.route_table.owner(path);
+    }
+    return self.registry.entries.get(svc_name) if svc_name else None;
+}
+
+impl MicroserviceGateway.forward_root_path(
+    request: Request, service_entry: ServiceEntry, path: str
+) -> Response | None {
+    if not service_entry.is_routable() {
+        import from jaclang.scale.runtime.context.errors { service_unavailable }
+        return service_unavailable(service_entry.name, "not accepting traffic");
+    }
+    query: str = str(request.url.query);
+    target_url: str = f"{self.service_base_url(service_entry)}{path}";
+    if query {
+        target_url = f"{target_url}?{query}";
+    }
+    logger.info(f"Forward: {request.method} {path} -> {target_url}");
+    return await self.forward_to(request, service_entry, target_url);
+}
+
+impl MicroserviceGateway.deliver_once(request: Request, path: str) -> Response | None {
+    eligible = self.eligible_services();
+    if not eligible {
+        import from jaclang.scale.runtime.context.errors { not_found }
+        return not_found(path, message="Not found on any service");
+    }
+
+    ready = [
+        (name, svc)
+        for (name, svc) in eligible
+        if svc.status == ServiceStatus.HEALTHY
+    ];
+    (_name, svc) = (ready or eligible)[0];
+    return await self.forward_root_path(request, svc, path);
+}
+
+impl MicroserviceGateway.probe_services(
+    request: Request, path: str, candidates: list[tuple[str, ServiceEntry]]
+) -> Response {
+    import from jaclang.scale.runtime.context.util { http_forward_timeout }
+    import from jaclang.scale.runtime.transport.http_forward { stream_forward }
+
     fwd_headers = self.build_forward_headers(request);
     body: bytes = request.body;
     query: str = str(request.url.query);
 
-    for (svc_name, svc_entry) in self.registry.entries.items() {
-        if svc_entry.status in (ServiceStatus.HEALTHY, ServiceStatus.STARTING)
-            and svc_entry.url {
-            target_url = f"{svc_entry.url}{path}";
-            if query {
-                target_url = f"{target_url}?{query}";
-            }
-            logger.info(f"Passthrough: {request.method} {path} -> {target_url}");
-
-            import from jaclang.scale.runtime.context.util { http_forward_timeout }
-            import from jaclang.scale.runtime.transport.http_forward { stream_forward }
-            timeout = http_forward_timeout(svc_name);
-
-            fr = await stream_forward(
-                request.method, target_url, fwd_headers, body, timeout=int(timeout)
-            );
-            if fr is None {
-                import from jaclang.scale.runtime.context.errors { service_unavailable }
-                return service_unavailable(svc_name, "transport_error");
-            }
-
-            if fr.status in (404, 405) {
-                await fr.cleanup();
-                continue;
-            }
-            return fr.to_response();
+    for (svc_name, svc_entry) in candidates {
+        target_url = f"{self.service_base_url(svc_entry)}{path}";
+        if query {
+            target_url = f"{target_url}?{query}";
         }
+        logger.info(f"Probe: {request.method} {path} -> {target_url}");
+
+        fr = await stream_forward(
+            request.method,
+            target_url,
+            fwd_headers,
+            body,
+            timeout=int(http_forward_timeout(svc_name))
+        );
+        if fr is None {
+            import from jaclang.scale.runtime.context.errors { service_unavailable }
+            return service_unavailable(svc_name, "transport_error");
+        }
+        if fr.status in (404, 405) {
+            await fr.cleanup();
+            continue;
+        }
+        return fr.to_response();
     }
     import from jaclang.scale.runtime.context.errors { not_found }
     return not_found(path, message="Not found on any service");
@@ -303,7 +395,7 @@ impl MicroserviceGateway.handle_builtin_passthrough(
 
 impl MicroserviceGateway.handle_admin(path: str) -> Response | None {
     if path == "/admin" {
-        import from jaclang.runtimelib.serving.datatypes { RedirectResponse }
+        import from jaclang.server.serving.datatypes { RedirectResponse }
         return RedirectResponse(url="/admin/", status_code=302);
     }
     if path.startswith("/admin/") {
@@ -328,9 +420,6 @@ impl MicroserviceGateway.forward_to(
     }
 
     fwd_headers = self.build_forward_headers(request);
-    client_addr: str = getattr(request?.client, "host", "unknown");
-    fwd_headers["X-Forwarded-For"] = client_addr;
-
     body: bytes = request.body;
 
     timeout = http_forward_timeout(service_entry.name);
@@ -354,54 +443,48 @@ impl MicroserviceGateway.handle_proxy(request: Request, path: str) -> Response |
 }
 
 impl MicroserviceGateway.refresh_app_routes -> bool {
+    import asyncio;
     import time;
     import from jaclang.scale.runtime.gateway.route_table { learn_service_routes }
     import from jaclang.scale.runtime.context.util { route_refresh_seconds }
 
-    now: float = time.monotonic();
-    if self._routes_refreshed_at
-        and now - self._routes_refreshed_at < route_refresh_seconds() {
+    crawl = self._spec_crawl;
+    if crawl is None or crawl.done() {
+        crawl = asyncio.ensure_future(
+            learn_service_routes(
+                self.registry,
+                self.route_table,
+                time.monotonic(),
+                route_refresh_seconds()
+            )
+        );
+        self._spec_crawl = crawl;
+    }
+    try {
+        attempted: int = await asyncio.shield(crawl);
+    } except asyncio.CancelledError {
+        raise;
+    } except Exception as e {
+        logger.warning(f"Route learning failed: {type(e).__name__}: {e}");
         return False;
     }
-
-    self._routes_refreshed_at = now;
-    learned: int = await learn_service_routes(self.registry, self.route_table);
-    if learned {
+    if attempted {
         logger.info(
             f"Learned {len(self.route_table.prefixes())} root route(s) "
-            f"from {learned} service(s)"
+            f"after asking {attempted} service(s)"
         );
     }
-    return True;
+    return attempted > 0;
 }
 
 impl MicroserviceGateway.handle_app_route(
     request: Request, path: str
 ) -> Response | None {
-    svc_name: str = self.route_table.owner(path);
-    if not svc_name {
-        if not await self.refresh_app_routes() {
-            return None;
-        }
-        svc_name = self.route_table.owner(path);
-        if not svc_name {
-            return None;
-        }
-    }
-
-    svc = self.registry.entries.get(svc_name);
+    svc = await self.resolve_learned_owner(path);
     if svc is None {
-        self.route_table.forget(svc_name);
         return None;
     }
-
-    query: str = str(request.url.query);
-    target_url: str = f"{self.service_base_url(svc)}{path}";
-    if query {
-        target_url = f"{target_url}?{query}";
-    }
-    logger.info(f"App route: {request.method} {path} -> {target_url}");
-    return await self.forward_to(request, svc, target_url);
+    return await self.forward_root_path(request, svc, path);
 }
 
 impl MicroserviceGateway.handle_openapi -> Response {
@@ -411,7 +494,7 @@ impl MicroserviceGateway.handle_openapi -> Response {
 }
 
 impl MicroserviceGateway.handle_docs -> Response {
-    import from jaclang.runtimelib.serving.openapi { swagger_ui_html }
+    import from jaclang.server.serving.openapi { swagger_ui_html }
     return HTMLResponse(
         content=swagger_ui_html("/openapi.json", "Jac Microservice Gateway - API")
     );
@@ -433,7 +516,7 @@ impl MicroserviceGateway.handle_metrics -> Response {
 
 impl MicroserviceGateway._get_asset_table -> list[AssetRoot] {
     if self._asset_table is None {
-        import from jaclang.runtimelib.serving.static_assets { asset_root_table }
+        import from jaclang.server.serving.static_assets { asset_root_table }
         self._asset_table = asset_root_table(
             Path(self.base_path), Path(self.client_dist_dir), self.static_mounts
         );
@@ -449,10 +532,7 @@ impl MicroserviceGateway.handle_static(request: Request, path: str) -> Response 
         return None;
     }
 
-    import from jaclang.runtimelib.serving.static_assets {
-        resolve_asset,
-        asset_response
-    }
+    import from jaclang.server.serving.static_assets { resolve_asset, asset_response }
     hit = resolve_asset(self._get_asset_table(), path);
     if hit is None {
         return None;
@@ -551,10 +631,13 @@ impl MicroserviceGateway.setup -> ServingApp {
                 ROUTE_BUILTIN,
                 ROUTE_ADMIN,
                 ROUTE_IDENTITY,
-                ROUTE_PROXY
+                ROUTE_PROXY,
+                ROUTE_CLIENT_PAGE
             }
             service_prefixes: list = [e.prefix for e in gw.registry.entries.values()];
-            decision = classify_route(path, service_prefixes);
+            decision = classify_route(
+                path, service_prefixes, client_pages=gw.has_client_bundle()
+            );
 
             if decision.kind == ROUTE_BUILTIN {
                 if path == "/healthz/live" {
@@ -576,6 +659,17 @@ impl MicroserviceGateway.setup -> ServingApp {
                     svc_label = "__docs__";
                     resp = gw.handle_docs();
                 }
+            } elif decision.kind == ROUTE_CLIENT_PAGE {
+                svc_label = "__static__";
+                page_resp: Response | None = None;
+                if request.method == "GET" {
+                    page_resp = gw.serve_spa_fallback();
+                }
+                if page_resp is None {
+                    import from jaclang.scale.runtime.context.errors { not_found }
+                    page_resp = not_found(path);
+                }
+                resp = page_resp;
             } elif decision.kind == ROUTE_ADMIN {
                 svc_label = "__admin__";
                 admin_resp: Response | None = None;
@@ -699,7 +793,7 @@ impl MicroserviceGateway.setup -> ServingApp {
 
     cors_cfg = ms_cfg.get("cors", {});
     if cors_cfg.get("allow_origins") {
-        import from jaclang.runtimelib.serving.middleware { cors_middleware }
+        import from jaclang.server.serving.middleware { cors_middleware }
         self.app.add_middleware(
             cors_middleware(
                 allow_origins=cors_cfg["allow_origins"],
@@ -716,24 +810,34 @@ impl MicroserviceGateway.setup -> ServingApp {
     return self.app;
 }
 
-impl MicroserviceGateway.start -> None {
+def _log_gateway_ready(host: str, bound: int) {
+    logger.info(f"Gateway starting on {host}:{bound}");
+}
+
+
+impl MicroserviceGateway.start(on_ready: any = None) -> None {
     import from jaclang.scale.runtime.lifecycle.drain { install_signal_drain }
     import from jaclang.scale.config.config_loader { get_scale_config }
 
     if self.app is None {
         self.setup();
     }
-    logger.info(f"Gateway starting on {self.host}:{self.port}");
-
     ms_cfg = get_scale_config().get_microservices_config();
     drain_timeout: float = float(ms_cfg.get("drain_timeout_seconds", 10));
 
-    import from jaclang.runtimelib.serving.server { ServingServer }
+    import from jaclang.server.serving.server { ServingServer, PORT_RETRY_LIMIT }
     serving = ServingServer(
         app=self.app, host=self.host, port=self.port, drain_timeout=drain_timeout
     );
     install_signal_drain(serving, timeout_s=drain_timeout);
-    serving.run();
+    import from functools { partial }
+    ready: any = on_ready;
+    if ready is None {
+        ready = partial(_log_gateway_ready, self.host);
+    }
+    serving.run(
+        on_ready=ready, port_retries=0 if self.port_pinned else PORT_RETRY_LIMIT
+    );
 }
 
 

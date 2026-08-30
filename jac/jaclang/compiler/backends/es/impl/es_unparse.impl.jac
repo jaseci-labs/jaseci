@@ -1,0 +1,725 @@
+impl es_to_js(nd: (es.Node | None), indent: str = '  ') -> str {
+    generator = JSCodeGenerator(indent=indent);
+    return generator.generate(nd);
+}
+
+impl es_to_js_with_map(
+    nd: (es.Node | None), indent: str = '  '
+) -> tuple[str, list[tuple[int, int, int, int, str]]] {
+    generator = JSCodeGenerator(indent=indent);
+    code = generator.generate(nd);
+    return (code, generator.build_segments(code));
+}
+
+impl _line_starts(code: str) -> list[int] {
+    starts: list[int] = [0];
+    idx = code.find('\n');
+    while (idx >= 0) {
+        starts.append(idx + 1);
+        idx = code.find('\n', idx + 1);
+    }
+    return starts;
+}
+
+impl _segment_name(nd: es.Node) -> str {
+    if nd.type not in ('Identifier', 'PrivateIdentifier', 'JsxIdentifier') {
+        return '';
+    }
+    text = str(getattr(nd, 'name', '') or '');
+    if (text == '') or (len(text) > 128) {
+        return '';
+    }
+    first = text[0];
+    if not (first.isalpha() or (first == '_') or (first == '$')) {
+        return '';
+    }
+    for ch in text {
+        if not (ch.isalnum() or (ch == '_') or (ch == '$')) {
+            return '';
+        }
+    }
+    return text;
+}
+
+impl _offset_to_pos(line_starts: list[int], offset: int) -> tuple[int, int] {
+    import bisect;
+    row = bisect.bisect_right(line_starts, offset) - 1;
+    if (row < 0) {
+        row = 0;
+    }
+    return (row + 1, offset - line_starts[row]);
+}
+
+impl JSCodeGenerator.gen_jsx_identifier(nd: es.JsxIdentifier) -> str {
+    return nd.name;
+}
+
+impl JSCodeGenerator.gen_jsx_member_expression(nd: es.JsxMemberExpression) -> str {
+    return f"{self.generate(nd.object)}.{self.generate(nd.property)}";
+}
+
+impl JSCodeGenerator.gen_jsx_empty_expression(nd: es.JsxEmptyExpression) -> str {
+    return '';
+}
+
+impl JSCodeGenerator.gen_jsx_expression_container(
+    nd: es.JsxExpressionContainer
+) -> str {
+    return f"{{{self.generate(nd.expression)}}}";
+}
+
+impl JSCodeGenerator.gen_jsx_spread_attribute(nd: es.JsxSpreadAttribute) -> str {
+    return f"{{...{self.generate(nd.argument)}}}";
+}
+
+impl JSCodeGenerator.gen_jsx_attribute(nd: es.JsxAttribute) -> str {
+    name = self.generate(nd.name);
+    if (nd.value is None) {
+        return name;
+    }
+    return f"{name}={self.generate(nd.value)}";
+}
+
+impl JSCodeGenerator.gen_jsx_opening_element(nd: es.JsxOpeningElement) -> str {
+    name = self.generate(nd.name);
+    attrs = ''.join(f" {self.generate(a)}" for a in nd.attributes);
+    if nd.selfClosing {
+        return f"<{name}{attrs} />";
+    }
+    return f"<{name}{attrs}>";
+}
+
+impl JSCodeGenerator.gen_jsx_closing_element(nd: es.JsxClosingElement) -> str {
+    return f"</{self.generate(nd.name)}>";
+}
+
+impl JSCodeGenerator.gen_jsx_text(nd: es.JsxText) -> str {
+    return nd.raw if (nd.raw is not None) else nd.value;
+}
+
+impl JSCodeGenerator.gen_jsx_element(nd: es.JsxElement) -> str {
+    opening = self.generate(nd.openingElement);
+    if (nd.openingElement and nd.openingElement.selfClosing) {
+        return opening;
+    }
+    children = ''.join(self.generate(c) for c in nd.children);
+    closing = self.generate(nd.closingElement);
+    return f"{opening}{children}{closing}";
+}
+
+impl JSCodeGenerator.gen_jsx_fragment(nd: es.JsxFragment) -> str {
+    children = ''.join(self.generate(c) for c in nd.children);
+    return f"<>{children}</>";
+}
+
+impl JSCodeGenerator.gen_export_specifier(nd: es.ExportSpecifier) -> str {
+    local = self.generate(nd.local);
+    exported = self.generate(nd.exported);
+    if (local != exported) {
+        return f"{local} as {exported}";
+    }
+    return local;
+}
+
+impl JSCodeGenerator.gen_export_named_declaration(
+    nd: es.ExportNamedDeclaration
+) -> str {
+    if nd.declaration {
+        return f"{self.indent()}export {self.generate(nd.declaration).lstrip()}";
+    }
+    specs = ', '.join(self.generate(s) for s in nd.specifiers);
+    if nd.source {
+        source = self.generate(nd.source);
+        return f"{self.indent()}export {{{specs}}} from {source};";
+    }
+    return f"{self.indent()}export {{{specs}}};";
+}
+
+impl JSCodeGenerator.gen_import_namespace_specifier(
+    nd: es.ImportNamespaceSpecifier
+) -> str {
+    return f"* as {self.generate(nd.local)}";
+}
+
+impl JSCodeGenerator.gen_import_default_specifier(
+    nd: es.ImportDefaultSpecifier
+) -> str {
+    return self.generate(nd.local);
+}
+
+impl JSCodeGenerator.gen_import_specifier(nd: es.ImportSpecifier) -> str {
+    imported = self.generate(nd.imported);
+    local = self.generate(nd.local);
+    if (imported != local) {
+        return f"{imported} as {local}";
+    }
+    return imported;
+}
+
+impl JSCodeGenerator.gen_import_declaration(nd: es.ImportDeclaration) -> str {
+    default_spec: (str | None) = None;
+    namespace_spec: (str | None) = None;
+    named_specs: list[str] = [];
+    for spec in nd.specifiers {
+        if isinstance(spec, es.ImportDefaultSpecifier) {
+            default_spec = self.generate(spec);
+        } elif isinstance(spec, es.ImportNamespaceSpecifier) {
+            namespace_spec = self.generate(spec);
+        } elif isinstance(spec, es.ImportSpecifier) {
+            named_specs.append(self.generate(spec));
+        }
+    }
+    clause_parts: list[str] = [];
+    if default_spec {
+        clause_parts.append(default_spec);
+    }
+    if namespace_spec {
+        clause_parts.append(namespace_spec);
+    }
+    if named_specs {
+        clause_parts.append('{ ' + ', '.join(named_specs) + ' }');
+    }
+    source = self.generate(nd.source);
+    if clause_parts {
+        clause = ', '.join(clause_parts);
+        return f"{self.indent()}import {clause} from {source};";
+    }
+    return f"{self.indent()}import {source};";
+}
+
+impl JSCodeGenerator.gen_rest_element(nd: es.RestElement) -> str {
+    return f"...{self.generate(nd.argument)}";
+}
+
+impl JSCodeGenerator.gen_assignment_pattern(nd: es.AssignmentPattern) -> str {
+    left = self.generate(nd.left);
+    right = self.generate(nd.right);
+    return f"{left} = {right}";
+}
+
+impl JSCodeGenerator.gen_object_pattern(nd: es.ObjectPattern) -> str {
+    props = ', '.join(self.generate(p) for p in nd.properties);
+    return f"{{{props}}}";
+}
+
+impl JSCodeGenerator.gen_array_pattern(nd: es.ArrayPattern) -> str {
+    elements = ', '.join(self.generate(e) if e else '' for e in nd.elements);
+    return f"[{elements}]";
+}
+
+impl JSCodeGenerator.gen_spread_element(nd: es.SpreadElement) -> str {
+    return f"...{self.generate(nd.argument)}";
+}
+
+impl template_element_raw(text: str) -> str {
+    return text.replace('\\', '\\\\').replace('`', '\\`').replace('${', '\\${').replace(
+        '\r', '\\r'
+    ).replace(
+        '\n', '\\n'
+    ).replace(
+        '\t', '\\t'
+    );
+}
+
+impl JSCodeGenerator.gen_template_element(nd: es.TemplateElement) -> str {
+    value = nd.value or {};
+    raw = value.get('raw');
+    if raw is not None {
+        return raw;
+    }
+    return template_element_raw(value.get('cooked') or '');
+}
+
+impl JSCodeGenerator.gen_template_literal(nd: es.TemplateLiteral) -> str {
+    parts: list[str] = [];
+    for (idx, quasi) in enumerate(nd.quasis) {
+        parts.append(self.generate(quasi));
+        if (idx < len(nd.expressions)) {
+            parts.append(f"${{{self.generate(nd.expressions[idx])}}}");
+        }
+    }
+    return f"`{''.join(parts)}`";
+}
+
+impl JSCodeGenerator.gen_await_expression(nd: es.AwaitExpression) -> str {
+    return f"await {self.generate(nd.argument)}";
+}
+
+impl JSCodeGenerator.gen_yield_expression(nd: es.YieldExpression) -> str {
+    star = '*' if nd.delegate else '';
+    if nd.argument {
+        return f"yield{star} {self.generate(nd.argument)}";
+    }
+    return f"yield{star}";
+}
+
+impl JSCodeGenerator.gen_new_expression(nd: es.NewExpression) -> str {
+    callee = self.generate(nd.callee);
+    if isinstance(nd.arguments, es.ObjectExpression) {
+        args = self.generate(nd.arguments);
+    } else {
+        args = ', '.join(self.generate(arg) for arg in nd.arguments);
+    }
+    return f"new {callee}({args})";
+}
+
+impl JSCodeGenerator.gen_call_expression(nd: es.CallExpression) -> str {
+    callee = self.generate(nd.callee);
+
+    if isinstance(nd.callee, (es.ArrowFunctionExpression, es.FunctionExpression)) {
+        callee = f"({callee})";
+    }
+    optional = '?.' if nd.optional else '';
+    if isinstance(nd.arguments, es.ObjectExpression) {
+        args = self.generate(nd.arguments);
+    } else {
+        args = ', '.join(self.generate(arg) for arg in nd.arguments);
+    }
+    return f"{callee}{optional}({args})";
+}
+
+impl JSCodeGenerator.gen_conditional_expression(nd: es.ConditionalExpression) -> str {
+    `test = self.generate(nd.`test);
+    consequent = self.generate(nd.consequent);
+    alternate = self.generate(nd.alternate);
+    return f"({`test} ? {consequent} : {alternate})";
+}
+
+impl JSCodeGenerator.gen_member_expression(nd: es.MemberExpression) -> str {
+    `obj = self.generate(nd.object);
+
+    if isinstance(
+        nd.object,
+        (
+            es.AwaitExpression,
+            es.AssignmentExpression,
+            es.ConditionalExpression,
+            es.BinaryExpression,
+            es.LogicalExpression,
+            es.UnaryExpression,
+
+        )
+    ) {
+        `obj = f"({`obj})";
+    }
+    optional = '?.' if nd.optional else '';
+    if nd.computed {
+        prop = self.generate(nd.property);
+        return f"{`obj}{optional}[{prop}]";
+    } else {
+        prop = self.generate(nd.property);
+        if optional {
+            return f"{`obj}{optional}{prop}";
+        }
+        return f"{`obj}.{prop}";
+    }
+}
+
+impl JSCodeGenerator.gen_assignment_expression(nd: es.AssignmentExpression) -> str {
+    left = self.generate(nd.left);
+    right = self.generate(nd.right);
+    return f"{left} {nd.operator} {right}";
+}
+
+impl JSCodeGenerator.gen_logical_expression(nd: es.LogicalExpression) -> str {
+    left = self.generate(nd.left);
+    right = self.generate(nd.right);
+    return f"({left} {nd.operator} {right})";
+}
+
+impl JSCodeGenerator.gen_binary_expression(nd: es.BinaryExpression) -> str {
+    left = self.generate(nd.left);
+    right = self.generate(nd.right);
+    if isinstance(nd.left, es.AssignmentExpression) {
+        left = f"({left})";
+    }
+    if isinstance(nd.right, es.AssignmentExpression) {
+        right = f"({right})";
+    }
+    return f"({left} {nd.operator} {right})";
+}
+
+impl JSCodeGenerator.gen_unary_expression(nd: es.UnaryExpression) -> str {
+    arg = self.generate(nd.argument);
+    if nd.prefix {
+        if (nd.operator in ('typeof', 'void', 'delete')) {
+            return f"{nd.operator} {arg}";
+        }
+        return f"{nd.operator}{arg}";
+    } else {
+        return f"{arg}{nd.operator}";
+    }
+}
+
+impl JSCodeGenerator.gen_arrow_function_expression(
+    nd: es.ArrowFunctionExpression
+) -> str {
+    async_str = 'async ' if nd.async_ else '';
+    params = ', '.join(self.generate(p) for p in nd.params);
+    if len(nd.params) == 1
+        and not isinstance(nd.params[0], (es.ArrayPattern, es.ObjectPattern)) {
+        params = self.generate(nd.params[0]);
+    } else {
+        params = f"({params})";
+    }
+    body = self.generate(nd.body);
+    if not isinstance(nd.body, es.BlockStatement) and body.startswith('{') {
+        body = f"({body})";
+    }
+    return f"{async_str}{params} => {body}";
+}
+
+impl JSCodeGenerator.gen_function_expression(nd: es.FunctionExpression) -> str {
+    async_str = 'async ' if nd.async_ else '';
+    generator_str = '*' if nd.generator else '';
+    name = self.generate(nd.id) if nd.id else '';
+    params = ', '.join(self.generate(p) for p in nd.params);
+    body = self.generate(nd.body);
+    return f"{async_str}function{generator_str} {name}({params}) {body}".strip();
+}
+
+impl JSCodeGenerator.gen_property(nd: es.Property) -> str {
+    key = self.generate(nd.key);
+    value = self.generate(nd.value);
+    if nd.shorthand {
+        return key;
+    } elif nd.computed {
+        return f"[{key}]: {value}";
+    } elif (nd.kind == 'get') {
+        return f"get {key}() {value}";
+    } elif (nd.kind == 'set') {
+        return f"set {key}({value})";
+    } else {
+        return f"{key}: {value}";
+    }
+}
+
+impl JSCodeGenerator.gen_object_expression(nd: es.ObjectExpression) -> str {
+    if not nd.properties {
+        return '{}';
+    }
+    props = ', '.join(self.generate(p) for p in nd.properties);
+    return f"{{{props}}}";
+}
+
+impl JSCodeGenerator.gen_array_expression(nd: es.ArrayExpression) -> str {
+    elements = ', '.join(self.generate(e) if e else '' for e in nd.elements);
+    return f"[{elements}]";
+}
+
+impl JSCodeGenerator.gen_this_expression(nd: es.ThisExpression) -> str {
+    return 'this';
+}
+
+impl JSCodeGenerator.gen_literal(nd: es.Literal) -> str {
+    if nd.raw {
+        return nd.raw;
+    }
+    if isinstance(nd.value, str) {
+        escaped = nd.value.replace('\\', '\\\\').replace('"', '\\"').replace(
+            '\n', '\\n'
+        ).replace(
+            '\r', '\\r'
+        ).replace(
+            '\t', '\\t'
+        );
+        return f'"{escaped}"';
+    } elif (nd.value is None) {
+        return 'null';
+    } elif isinstance(nd.value, bool) {
+        return 'true' if nd.value else 'false';
+    } else {
+        return str(nd.value);
+    }
+}
+
+impl JSCodeGenerator.gen_private_identifier(nd: es.PrivateIdentifier) -> str {
+    return f"#{nd.name}";
+}
+
+impl JSCodeGenerator.gen_identifier(nd: es.Identifier) -> str {
+    return nd.name;
+}
+
+impl JSCodeGenerator.gen_property_definition(nd: es.PropertyDefinition) -> str {
+    static_str = 'static ' if nd.`static else '';
+    key = self.generate(nd.key) if nd.key else '';
+    if nd.computed {
+        key = f"[{key}]";
+    }
+    value = f" = {self.generate(nd.value)}" if nd.value else '';
+    return f"{self.indent()}{static_str}{key}{value};";
+}
+
+impl JSCodeGenerator.gen_method_definition(nd: es.MethodDefinition) -> str {
+    static_str = 'static ' if nd.`static else '';
+    key = self.generate(nd.key);
+    value = self.generate(nd.value);
+    if isinstance(nd.value, es.FunctionExpression) {
+        async_str = 'async ' if nd.value.async_ else '';
+        params = ', '.join(self.generate(p) for p in nd.value.params);
+        body = self.generate(nd.value.body);
+        if (nd.kind == 'constructor') {
+            return f"{self.indent()}constructor({params}) {body}";
+        } elif (nd.kind == 'get') {
+            return f"{self.indent()}{static_str}get {key}() {body}";
+        } elif (nd.kind == 'set') {
+            return f"{self.indent()}{static_str}set {key}({params}) {body}";
+        } else {
+            return f"{self.indent()}{static_str}{async_str}{key}({params}) {body}";
+        }
+    }
+    return f"{self.indent()}{static_str}{key}{value}";
+}
+
+impl JSCodeGenerator.gen_class_body(nd: es.ClassBody) -> str {
+    if not nd.body {
+        return '{}';
+    }
+    self.indent_level += 1;
+    methods = '\n'.join(self.generate(m) for m in nd.body);
+    self.indent_level -= 1;
+    return f"{{\n{methods}\n{self.indent()}}}";
+}
+
+impl JSCodeGenerator.gen_class_declaration(nd: es.ClassDeclaration) -> str {
+    name = self.generate(nd.id) if nd.id else '';
+    extends = f" extends {self.generate(nd.superClass)}" if nd.superClass else '';
+    body = self.generate(nd.body);
+    return f"{self.indent()}class {name}{extends} {body}";
+}
+
+impl JSCodeGenerator.gen_variable_declarator(nd: es.VariableDeclarator) -> str {
+    id_str = self.generate(nd.id);
+    if nd.`init {
+        return f"{id_str} = {self.generate(nd.`init)}";
+    }
+    return id_str;
+}
+
+impl JSCodeGenerator.gen_variable_declaration(nd: es.VariableDeclaration) -> str {
+    declarators = ', '.join(self.generate(d) for d in nd.declarations);
+    return f"{self.indent()}{nd.kind} {declarators};";
+}
+
+impl JSCodeGenerator.gen_function_declaration(nd: es.FunctionDeclaration) -> str {
+    async_str = 'async ' if nd.async_ else '';
+    generator_str = '*' if nd.generator else '';
+    name = self.generate(nd.id) if nd.id else '';
+    params = ', '.join(self.generate(p) for p in nd.params);
+    body = self.generate(nd.body);
+    return f"{self.indent()}{async_str}function{generator_str} {name}({params}) {body}";
+}
+
+impl JSCodeGenerator.gen_switch_case(nd: es.SwitchCase) -> str {
+    result = f"{self.indent()}case {self.generate(nd.`test)}:\\n"
+        if nd.`test
+        else f"{self.indent()}default:\\n";
+    self.indent_level += 1;
+    for stmt in nd.consequent {
+        result += f"{self.generate(stmt)}\\n";
+    }
+    self.indent_level -= 1;
+    return result.rstrip();
+}
+
+impl JSCodeGenerator.gen_switch_statement(nd: es.SwitchStatement) -> str {
+    discriminant = self.generate(nd.discriminant);
+    self.indent_level += 1;
+    cases = '\n'.join(self.generate(`case) for `case in nd.cases);
+    self.indent_level -= 1;
+    return f"{self.indent()}switch ({discriminant}) {{\n{cases}\n{self.indent()}}}";
+}
+
+impl JSCodeGenerator.gen_catch_clause(nd: es.CatchClause) -> str {
+    if nd.param {
+        return f"catch ({self.generate(nd.param)}) {self.generate(nd.body)}";
+    }
+    return f"catch {self.generate(nd.body)}";
+}
+
+impl JSCodeGenerator.gen_try_statement(nd: es.TryStatement) -> str {
+    result = f"{self.indent()}try {self.generate(nd.block)}";
+    if nd.handler {
+        result += f" {self.generate(nd.handler)}";
+    }
+    if nd.finalizer {
+        result += f" finally {self.generate(nd.finalizer)}";
+    }
+    return result;
+}
+
+impl JSCodeGenerator.gen_throw_statement(nd: es.ThrowStatement) -> str {
+    return f"{self.indent()}throw {self.generate(nd.argument)};";
+}
+
+impl JSCodeGenerator.gen_continue_statement(nd: es.ContinueStatement) -> str {
+    if nd.label {
+        return f"{self.indent()}continue {self.generate(nd.label)};";
+    }
+    return f"{self.indent()}continue;";
+}
+
+impl JSCodeGenerator.gen_break_statement(nd: es.BreakStatement) -> str {
+    if nd.label {
+        return f"{self.indent()}break {self.generate(nd.label)};";
+    }
+    return f"{self.indent()}break;";
+}
+
+impl JSCodeGenerator.gen_for_of_statement(nd: es.ForOfStatement) -> str {
+    await_str = 'await ' if nd.await_ else '';
+    if isinstance(nd.left, es.VariableDeclaration) {
+        declarators = ', '.join(self.generate(decl) for decl in nd.left.declarations);
+        left = f"{nd.left.kind} {declarators}";
+    } else {
+        left = self.generate(nd.left);
+    }
+    right = self.generate(nd.right);
+    body = self.generate(nd.body);
+    return f"{self.indent()}for {await_str}({left} of {right}) {body}";
+}
+
+impl JSCodeGenerator.gen_for_statement(nd: es.ForStatement) -> str {
+    if nd.`init {
+        init_str = self.generate(nd.`init).lstrip();
+        if init_str.endswith(';') {
+            init_str = init_str.rstrip(';');
+        }
+    } else {
+        init_str = '';
+    }
+    test_str = self.generate(nd.`test) if nd.`test else '';
+    update = self.generate(nd.update).lstrip() if nd.update else '';
+    body = self.generate(nd.body);
+    return f"{self.indent()}for ({init_str}; {test_str}; {update}) {body}";
+}
+
+impl JSCodeGenerator.gen_while_statement(nd: es.WhileStatement) -> str {
+    `test = self.generate(nd.`test);
+    body = self.generate(nd.body);
+    return f"{self.indent()}while ({`test}) {body}";
+}
+
+impl JSCodeGenerator.gen_if_statement(nd: es.IfStatement) -> str {
+    `test = self.generate(nd.`test);
+    consequent = self.generate(nd.consequent);
+    result = f"{self.indent()}if ({`test}) {consequent}";
+    if nd.alternate {
+        if isinstance(nd.alternate, es.IfStatement) {
+            result += f" else {self.generate(nd.alternate).lstrip()}";
+        } else {
+            result += f" else {self.generate(nd.alternate)}";
+        }
+    }
+    return result;
+}
+
+impl JSCodeGenerator.gen_return_statement(nd: es.ReturnStatement) -> str {
+    if nd.argument {
+        return f"{self.indent()}return {self.generate(nd.argument)};";
+    }
+    return f"{self.indent()}return;";
+}
+
+impl JSCodeGenerator.gen_block_statement(nd: es.BlockStatement) -> str {
+    if not nd.body {
+        return '{}';
+    }
+    self.indent_level += 1;
+    parts: list[str] = [];
+    for stmt in nd.body {
+        assert isinstance(stmt, es.Node);
+        code = self.generate(stmt);
+        parts.append(code);
+    }
+    body = '\n'.join(parts);
+    self.indent_level -= 1;
+    return f"{{\n{body}\n{self.indent()}}}";
+}
+
+impl JSCodeGenerator.gen_expression_statement(nd: es.ExpressionStatement) -> str {
+    return f"{self.indent()}{self.generate(nd.expression)};";
+}
+
+impl JSCodeGenerator.gen_program(nd: es.Program) -> str {
+    parts: list[str] = [];
+    for stmt in nd.body {
+        parts.append(self.generate(stmt));
+    }
+    return '\n'.join(parts);
+}
+
+impl JSCodeGenerator.generate(nd: (es.Node | None)) -> str {
+    import from jaclang.compiler.frontend.helpers { pascal_to_snake }
+    if (nd is None) {
+        return '';
+    }
+    method_name = f"gen_{pascal_to_snake(nd.type)}";
+    method = getattr(self, method_name, None);
+    if method is None {
+        return f"/* Unsupported node type: {nd.type} */";
+    }
+    kids: list[tuple[es.Node, str, list]] = [];
+    self._frames.append(kids);
+    try {
+        result = method(nd);
+    } finally {
+        self._frames.pop();
+    }
+    if self._frames {
+        self._frames[-1].append((nd, result, kids));
+    } else {
+        self._root = [(nd, result, kids)];
+    }
+    return result;
+}
+
+impl JSCodeGenerator.build_segments(code: str) -> list[tuple[int, int, int, int, str]] {
+    line_starts = _line_starts(code);
+    found: dict[tuple[int, int], tuple[int, int, str]] = {};
+    pending: list[tuple[tuple[es.Node, str, list], int, any]] = [
+        (`entry, 0, None) for `entry in self._root
+    ];
+    while pending {
+        (frame, offset, inherited) = pending.pop();
+        (nd, text, kids) = frame;
+        loc = nd.loc
+            if (nd.loc is not None and nd.loc.start is not None)
+            else inherited;
+        start = loc.start if loc is not None else None;
+        if start is not None {
+            (gen_line, gen_col) = _offset_to_pos(line_starts, offset);
+            found[(gen_line, gen_col)] = (start.line, start.column, _segment_name(nd));
+        }
+        cursor = 0;
+        for kid in kids {
+            kid_text: str = kid[1];
+            if kid_text == '' {
+                pending.append((kid, offset + cursor, loc));
+                continue;
+            }
+            idx = text.find(kid_text, cursor);
+            if (idx < 0) {
+                continue;
+            }
+            cursor = idx + len(kid_text);
+            pending.append((kid, offset + idx, loc));
+        }
+    }
+    segments: list[tuple[int, int, int, int, str]] = [
+        (pos[0], pos[1], src[0], src[1], src[2]) for (pos, src) in sorted(found.items())
+    ];
+    return segments;
+}
+
+impl JSCodeGenerator.indent -> str {
+    return (self.indent_str * self.indent_level);
+}
+
+impl JSCodeGenerator.init(indent: str = '  ') -> None {
+    self.indent_str = indent;
+    self.indent_level = 0;
+    self._frames = [];
+    self._root = [];
+}

@@ -4,6 +4,8 @@ Demonstrates declaration/implementation separation, enums, obj inheritance,
 comprehensions, bitwise operations, and the Jac type system.
 """
 
+comptime import from jaclang.comptime { members }
+
 # ────────────────────── Enums ──────────────────────
 """Side to move."""
 enum Color {
@@ -22,7 +24,7 @@ enum PieceKind {
 }
 
 # ────────────────────── Constants ──────────────────────
-glob BOARD_SIZE: int = 8;
+comptime BOARD_SIZE: int = 8;
 
 # Castling rights as bit flags
 glob CASTLE_WK: int = 0x01,
@@ -34,17 +36,16 @@ glob CASTLE_WK: int = 0x01,
 # Bitmask for center files (c through f)
 glob CENTER_MASK: int = 0b00111100;
 
-# Piece display symbols per side
-glob WHITE_SYMBOLS: dict[PieceKind, str] = {
+# Piece display symbols per side, checked against PieceKind at compile time
+comptime WHITE_SYMBOLS: dict[PieceKind, str] = {
          PieceKind.PAWN: "♙",
          PieceKind.KNIGHT: "♘",
          PieceKind.BISHOP: "♗",
          PieceKind.ROOK: "♖",
          PieceKind.QUEEN: "♕",
          PieceKind.KING: "♔"
-     };
-
-glob BLACK_SYMBOLS: dict[PieceKind, str] = {
+     },
+     BLACK_SYMBOLS: dict[PieceKind, str] = {
          PieceKind.PAWN: "♟",
          PieceKind.KNIGHT: "♞",
          PieceKind.BISHOP: "♝",
@@ -56,7 +57,7 @@ glob BLACK_SYMBOLS: dict[PieceKind, str] = {
 glob COL_NAMES: str = "abcdefgh";
 
 # Material values (centipawns)
-glob PIECE_VALUES: dict[PieceKind, int] = {
+comptime PIECE_VALUES: dict[PieceKind, int] = {
          PieceKind.PAWN: 100,
          PieceKind.KNIGHT: 320,
          PieceKind.BISHOP: 330,
@@ -206,6 +207,9 @@ glob game = Game(),
      _args = sys.argv;
 
 with entry {
+    comptime assert set(WHITE_SYMBOLS.keys()) == set(members(PieceKind)) , "white symbols cover every PieceKind";
+    comptime assert set(BLACK_SYMBOLS.keys()) == set(members(PieceKind)) , "black symbols cover every PieceKind";
+    comptime assert set(PIECE_VALUES.keys()) == set(members(PieceKind)) , "piece values cover every PieceKind";
     for i in range(1, len(_args)) {
         arg = _args[i];
         if (arg == "--benchmark" or arg == "-b") and i + 1 < len(_args) {

@@ -27,18 +27,22 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
     }
 
     has_mtir = ir_info is not None;
+    fn_info = ir_info if isinstance(ir_info, FunctionInfo) else None;
+    ir_tools = fn_info.tools if fn_info else None;
 
-    raw_tools = call_params.get("tools", []);
-    tools = [];
+    raw_tools_arg = call_params.get("tools", []);
+    raw_tools: list[Callable | Tool | McpTool] = raw_tools_arg
+        if isinstance(raw_tools_arg, list)
+        else [];
+    tools: list[Tool | McpTool] = [];
     local_idx = 0;
     for func in raw_tools {
-        if func?.get_json_schema and func?.get_name and func?.is_finish_tool {
+        if isinstance(func, (Tool, McpTool)) {
             tools.append(func);
             continue;
         }
-        if has_mtir {
-            info = ir_info.tools[local_idx] if local_idx < len(ir_info.tools) else None;
-            tools.append(Tool(func, info=info));
+        if ir_tools is not None and local_idx < len(ir_tools) {
+            tools.append(Tool(func, info=ir_tools[local_idx]));
         } else {
             tools.append(Tool(func));
         }
@@ -47,8 +51,8 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
 
     inputs_detail: list[str] = [];
     media_inputs: list = [];
-    if has_mtir {
-        params = [param for param in ir_info.params];
+    if fn_info is not None and fn_info.params is not None {
+        params = [param for param in fn_info.params];
         for (key, value) in args.items() {
             idx = list(args.keys()).index(key);
             if isinstance(value, Media) {
@@ -101,17 +105,16 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
             }
         }
     }
-    if isinstance(caller, MethodType) {
+    caller_obj: object = caller;
+    if isinstance(caller_obj, MethodType) {
+        bound_self = caller_obj.__self__;
+        parent_info = fn_info.parent_class if isinstance(fn_info, MethodInfo) else None;
         if has_mtir {
             inputs_detail.insert(
-                0,
-                f"self = {(
-                    caller.__self__,
-                    ir_info.parent_class.semstr if ir_info.parent_class else ''
-                )}"
+                0, f"self = {(bound_self, parent_info.semstr if parent_info else '')}"
             );
         } else {
-            inputs_detail.insert(0, f"self = {caller.__self__}");
+            inputs_detail.insert(0, f"self = {bound_self}");
         }
     }
 
@@ -187,8 +190,11 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         );
     }
     if len(tools) > 0 {
-        finish_tool = Tool.make_finish_tool(return_type or str);
-        tools.append(finish_tool);
+        if return_type is None {
+            tools.append(Tool.make_finish_tool(str));
+        } else {
+            tools.append(Tool.make_finish_tool(return_type));
+        }
     }
     mt_run = MTRuntime(
         messages=messages,
@@ -243,7 +249,10 @@ impl MTRuntime.write_back_conversation -> None {
             }
         }
     }
-    self._conversation_list[:] = out;
+    conv_list = self._conversation_list;
+    if conv_list is not None {
+        conv_list[:] = out;
+    }
 }
 
 
@@ -289,7 +298,7 @@ impl MTRuntime.get_history_for_persist -> list[MessageType] {
     return out;
 }
 
-impl MTRuntime.parse_response(response: str) -> object {
+impl MTRuntime.parse_response(response: str) -> any {
     if self.resp_type is None or self.resp_type is str or response.strip() == "" {
         return response;
     }
@@ -303,7 +312,7 @@ impl MTRuntime.parse_response(response: str) -> object {
             err = OutputConversionError(
                 f"Failed to convert LLM output to '{self.resp_type.__name__}': {e}"
             );
-            err.raw_output = response;
+            setattr(err, "raw_output", response);
             raise err;
         }
     }
@@ -337,8 +346,10 @@ impl MTRuntime.get_typed_output_schema -> dict | None {
         return None;
     }
 
-    return_type_info = self.mtir.ir_info.return_type
-        if (self.mtir and self.mtir.ir_info)
+    owner = self.mtir;
+    owner_info = owner.ir_info if owner else None;
+    return_type_info = owner_info.return_type
+        if isinstance(owner_info, FunctionInfo)
         else None;
     return type_to_schema(resp_type=self.resp_type, info=return_type_info);
 }

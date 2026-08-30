@@ -22,8 +22,10 @@ import from jaclang.scale.runtime.gateway.route_table {
 
 """Serve the in-process jac app over a real socket; returns (server, port)."""
 def _expose_backend(client: ScaleTestClient) -> tuple {
-    import from jaclang.runtimelib.serving.server { ServingServer }
-    server = ServingServer(app=client._server.server.app, host="127.0.0.1", port=0);
+    import from jaclang.server.serving.server { ServingServer }
+    backend = client._server;
+    assert backend is not None , "client has no in-process server";
+    server = ServingServer(app=backend.server.app, host="127.0.0.1", port=0);
     server.serve_background();
     assert server.bound_port , "backend server did not start in time";
     return (server, server.bound_port);
@@ -57,7 +59,7 @@ test "a root-level @restspec route reaches the real backend that declares it" {
     (srv, port) = _expose_backend(backend);
     gw = _gateway_for(port);
 
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/custom/walker");
@@ -85,7 +87,7 @@ test "a declared route wins over the SPA shell for a browser navigation" {
     (Path(tmp) / "index.html").write_text("<html>spa-shell</html>");
     gw = _gateway_for(port, dist_dir=tmp);
 
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/custom/walker", headers={"Accept": "text/html"});
@@ -119,7 +121,7 @@ test "static assets keep winning over a service's declared routes" {
     (custom_dir / "walker").write_text("from-disk");
     gw = _gateway_for(port, dist_dir=tmp);
 
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/custom/walker");
@@ -142,7 +144,7 @@ test "a path no service declares still 404s instead of fanning out" {
     (srv, port) = _expose_backend(backend);
     gw = _gateway_for(port);
 
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/custom/nope");
@@ -160,7 +162,7 @@ test "learning a real backend's spec keeps gateway-owned paths out of the table"
     (srv, port) = _expose_backend(backend);
     gw = _gateway_for(port);
 
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         assert client.get("/custom/walker").status_code == 200;

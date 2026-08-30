@@ -1,6 +1,6 @@
 import os;
 import tempfile;
-import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+import from jaclang.testing.testkit { ServingTestClient as TestClient }
 import from jaclang.scale.runtime.gateway.embedded_gateway { EmbeddedGateway }
 import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,

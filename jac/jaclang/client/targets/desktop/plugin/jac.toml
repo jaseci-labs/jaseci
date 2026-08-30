@@ -1,0 +1,11 @@
+# The desktop plugin bundle is loaded as its own root: host_boot.jac's
+# _bootstrap_plugin_host puts this directory on sys.path, so `built_in/*.jac`
+# import their siblings by bare name (`import from desktop_plugin { ... }`).
+# Declaring the bundle a project makes find_jac_project_root return this
+# directory, so `jac check` resolves those imports the same way the runtime
+# does. Without it the base class resolves to Unknown from the repo root and
+# every plugin reports against a missing base.
+[project]
+name = "jac-desktop-plugins"
+version = "0.1.0"
+description = "Built-in desktop plugin bundle"

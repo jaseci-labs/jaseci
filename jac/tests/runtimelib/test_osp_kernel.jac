@@ -1,10 +1,10 @@
 """Unit tests for the portable Object-Spatial traversal kernel
-(jaclang.jac0core.osp_kernel), driven directly with toy descriptors and an
+(jaclang.runtime.osp_kernel), driven directly with toy descriptors and an
 OspRuntime - no backend wiring. Pins the dispatch model the kernel provides to
 sv/cl/na: DFS-recursive traversal with subtype dispatch, post-order exits,
 opt-in visit-once via `scope.ignores`, and report collection."""
 
-import from jaclang.jac0core.osp_kernel {
+import from jaclang.runtime.osp_kernel {
     Slot,
     WalkerDesc,
     NodeDesc,
@@ -32,6 +32,10 @@ obj TWalker {
 glob _ancestors = {1: [1], 2: [2, 1], 3: [3], 10: [10]},
      _ndescs: dict = {},
      _last_reports: list = [];
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 def t_tag_of(h: any) -> int {
     return h.tag;
@@ -119,7 +123,7 @@ test "osp kernel: subtyping dispatch and report collection" {
     w = TWalker();
     # Spawn on a Cafe (tag 2): the Place-triggered ability fires via subtyping,
     # the Cafe-triggered ability fires by exact match.
-    osp_spawn(_runtime(), w, wd, [TNode(tag=2, name="Bluebird")]);
+    osp_spawn(_runtime(), w, wd, _as_any([TNode(tag=2, name="Bluebird")]));
     assert w.log == ["place:Bluebird", "cafe:Bluebird"];
     assert _last_reports == ["Bluebird"];
 }
@@ -133,7 +137,7 @@ test "osp kernel: visit enqueues, DFS recursion through a chain" {
     c.neighbors = [];
     wd = WalkerDesc(type_tag=10, `entry=[Slot(trig_tag=1, fn=ab_step)], `exit=[]);
     w = TWalker();
-    osp_spawn(_runtime(), w, wd, [a]);
+    osp_spawn(_runtime(), w, wd, _as_any([a]));
     assert w.log == ["step:A", "step:B", "step:C"];
 }
 
@@ -152,7 +156,7 @@ test "osp kernel: branching tree - queue-FIFO entries, post-order exits" {
         `exit=[Slot(trig_tag=1, fn=ab_log_exit)]
     );
     w = TWalker();
-    osp_spawn(_runtime(), w, wd, [a]);
+    osp_spawn(_runtime(), w, wd, _as_any([a]));
     # All visits share `scope.next`, so entries fire in queue-FIFO order across
     # branches (A->B->C->D, not A->B->D->C). The "depth-first" aspect lives in
     # the exit phase: structural post-order via recursion (D before C before B
@@ -171,7 +175,7 @@ test "osp kernel: exit abilities fire in post-order" {
         `exit=[Slot(trig_tag=1, fn=ab_exit)]
     );
     w = TWalker();
-    osp_spawn(_runtime(), w, wd, [a]);
+    osp_spawn(_runtime(), w, wd, _as_any([a]));
     # Entries fire on entry (pre-order), exits fire after all descendants (post-order).
     assert w.log == ["entry:A", "entry:B", "exit:B", "exit:A"];
 }
@@ -185,7 +189,7 @@ test "osp kernel: disengage stops the walk" {
     c.neighbors = [];
     wd = WalkerDesc(type_tag=10, `entry=[Slot(trig_tag=1, fn=ab_stop)], `exit=[]);
     w = TWalker();
-    osp_spawn(_runtime(), w, wd, [a]);
+    osp_spawn(_runtime(), w, wd, _as_any([a]));
     # Disengage at B drops the already-queued C.
     assert w.log == ["stop:A", "stop:B"];
 }
@@ -201,7 +205,7 @@ test "osp kernel: node-side untyped and walker-typed entry abilities" {
     );
     wd = WalkerDesc(type_tag=10, `entry=[], `exit=[]);
     w = TWalker();
-    osp_spawn(_runtime(), w, wd, [TNode(tag=3, name="P")]);
+    osp_spawn(_runtime(), w, wd, _as_any([TNode(tag=3, name="P")]));
     # Untyped node ability (phase 2) then walker-typed node ability (phase 3).
     assert w.log == ["nany:P", "nforw:P"];
 }

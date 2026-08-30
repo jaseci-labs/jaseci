@@ -3,9 +3,13 @@
 import os;
 import shutil;
 import from tempfile { mkdtemp, mkstemp }
-import from jaclang.runtimelib.storage { LocalStorage, Storage }
-import from jaclang.runtimelib.builtin { store }
+import from jaclang.data.storage { LocalStorage, Storage }
+import from jaclang.runtime.builtin { store }
 import from jaclang.project.config { JacConfig, StorageConfig }
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 # --- LocalStorage tests ---
 test "import storage" {
@@ -175,14 +179,14 @@ test "store default" {
     # Re-import to avoid dual class loading across workers (_fresh_jac_state
     # can reload .jac modules, creating a new class object while the
     # module-level import still holds the old one).
-    import from jaclang.runtimelib.storage.local_storage { LocalStorage as LS }
+    import from jaclang.data.storage.local_storage { LocalStorage as LS }
     assert isinstance(strg, LS);
 }
 
 test "store with config" {
     tmp = mkdtemp();
     try {
-        strg = store(base_path=tmp);
+        strg = _as_any(store(base_path=tmp));
         assert strg.base_path == tmp;
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
