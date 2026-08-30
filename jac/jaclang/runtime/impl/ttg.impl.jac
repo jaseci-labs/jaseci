@@ -9,11 +9,10 @@ import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.runtime.archetype {
     NodeAnchor,
     NodeArchetype,
-    Root,
     VisitType
 }
-import from jaclang.runtime.graph_query { GraphQuery, QHop }
-import from jaclang.runtime.topology_index { TopologyIndex, ingest_topology_rows }
+import from jaclang.runtime.graph_query { QHop }
+import from jaclang.runtime.topology_index { ingest_topology_rows }
 
 glob logger = logging.getLogger(__name__),
      _runtime_type_cache: dict[str, type] = {};
@@ -508,70 +507,14 @@ impl JacTTGGenerator._extract_visits_from_ast(
 impl JacTTGGenerator._origin_for_id(
     cls: type[JacTTGGenerator], id: UUID
 ) -> NodeArchetype {
-    origin = Root();
-    anchor = origin.__jac__;
-    anchor.id = id;
-    anchor.persistent = True;
-    return origin;
+    raise RuntimeError("TTG query-planner fallback is disabled");
 }
 
 @classmethod
 impl JacTTGGenerator._arch_types_for_ids(
     cls: type[JacTTGGenerator], mem: any, ids: list[UUID]
 ) -> dict[UUID, str] {
-    out: dict[UUID, str] = {};
-    if mem is None or not ids {
-        return out;
-    }
-    missing: list[UUID] = [];
-    seen: set[UUID] = set();
-    raw_mem = mem?.__raw_mem__;
-    topo_idx = mem?._topology_index;
-    for id in ids {
-        if id in seen {
-            continue;
-        }
-        seen.add(id);
-        anchor = mem?.__mem__?.get(id);
-        if anchor is not None and anchor?.archetype is not None {
-            out[id] = type(anchor.archetype).__name__;
-            continue;
-        }
-        row = raw_mem.get(id) if isinstance(raw_mem, dict) else None;
-        if row is not None and getattr(row, "arch_type", "") {
-            out[id] = str(row.arch_type);
-            continue;
-        }
-        if isinstance(topo_idx, TopologyIndex) {
-            tname = topo_idx.node_type(id);
-            if tname is not None {
-                out[id] = tname;
-                continue;
-            }
-        }
-        missing.append(id);
-    }
-    store = mem?.store;
-    if store is None or not missing {
-        return out;
-    }
-    try {
-        mem.read_barrier();
-        rows = store.rows(
-            """
-            SELECT id, arch_type
-              FROM anchors
-             WHERE id = ANY(CAST(:ids AS uuid[]))
-            """,
-            {'ids': [str(i) for i in missing]}
-        );
-        for r in rows {
-            out[UUID(str(r[0]))] = str(r[1]);
-        }
-    } except Exception as e {
-        logger.debug(f"TTG arch_type lookup failed: {e}");
-    }
-    return out;
+    raise RuntimeError("TTG extra arch-type lookup is disabled");
 }
 
 @classmethod
@@ -580,17 +523,7 @@ impl JacTTGGenerator._chain_to_hops(
     warch: any,
     chain: list[tuple[str | None, str | None, int]]
 ) -> list[QHop] {
-    hops: list[QHop] = [];
-    for (edge_name, node_name, direction) in chain {
-        edge_type = cls._runtime_type_for_name(warch, edge_name)
-            if edge_name is not None
-            else None;
-        node_type = cls._runtime_type_for_name(warch, node_name)
-            if node_name is not None
-            else None;
-        hops.append(QHop(dir=int(direction or 2), `edge=edge_type, nd=node_type));
-    }
-    return hops;
+    raise RuntimeError("TTG query-planner fallback is disabled");
 }
 
 @classmethod
@@ -602,182 +535,7 @@ impl JacTTGGenerator._resolve_chain_ids(
     chain: list[tuple[str | None, str | None, int]],
     limit: int
 ) -> list[UUID] {
-    if mem is None or mem?.store is None or limit <= 0 or not chain {
-        return [];
-    }
-    import from jaclang.data.query_planner { resolve_query_prefix }
-    try {
-        hops = cls._chain_to_hops(warch, chain);
-        query = GraphQuery(cls._origin_for_id(origin_id), hops=hops, limit=limit);
-        return resolve_query_prefix(mem, query, len(hops));
-    } except Exception as e {
-        logger.debug(f"TTG query resolve failed: {e}");
-        return [];
-    }
-}
-
-
-def _resolve_indexed_chain(
-    mem: any,
-    origins: list[UUID],
-    chain: list[tuple[str | None, str | None, int]],
-    limit: int
-) -> (list[UUID] | None) {
-    if mem is None or limit <= 0 or not origins {
-        return [];
-    }
-    try {
-        current = origins;
-        if not chain {
-            return current[:limit];
-        }
-        for (hop_idx, hop) in enumerate(chain) {
-            if not current {
-                return [];
-            }
-            idx = mem.warm_topology_for_hop(
-                current, hop[0], hop[1], int(hop[2] or 2)
-            );
-            if not isinstance(idx, TopologyIndex) {
-                return None;
-            }
-            for cur in current {
-                if idx.node_type(cur) is None {
-                    return None;
-                }
-            }
-            is_last = hop_idx == len(chain) - 1;
-            current = idx.resolve_chain(current, [hop], limit if is_last else 0);
-        }
-        return current[:limit];
-    } except Exception as e {
-        logger.debug(f"TTG indexed resolve failed: {e}");
-        return None;
-    }
-}
-
-
-def _resolve_recursive_sql_single_hop(
-    mem: any,
-    origins: list[UUID],
-    chain: list[tuple[str | None, str | None, int]],
-    limit: int
-) -> (list[UUID] | None) {
-    import os as _os;
-    if (
-        _os.environ.get("JAC_TTG_SQL_RECURSIVE", "1").strip().lower()
-        in ("0", "false", "no", "off")
-    ) {
-        return None;
-    }
-    if mem is None or mem?.store is None or limit <= 0 {
-        return None;
-    }
-    if len(origins) != 1 or len(chain) != 1 {
-        return None;
-    }
-    hop = chain[0];
-    edge_type = hop[0];
-    node_type = hop[1];
-    try {
-        direction = int(hop[2] or 2);
-    } except Exception {
-        return None;
-    }
-    if edge_type is None or node_type is not None or direction not in (1, 2, 3) {
-        return None;
-    }
-    try {
-        mem.read_barrier();
-        rows = mem.store.rows(
-            """
-            WITH RECURSIVE walk(node_id, depth, path) AS (
-                SELECT
-                    CAST(:origin_id AS uuid) AS node_id,
-                    0 AS depth,
-                    ARRAY[CAST(:origin_id AS uuid)] AS path
-                UNION ALL
-                SELECT
-                    step.next_id,
-                    walk.depth + 1,
-                    walk.path || step.next_id
-                FROM walk
-                JOIN LATERAL (
-                    SELECT
-                        CASE
-                            WHEN e.src = walk.node_id THEN e.dst
-                            ELSE e.src
-                        END AS next_id,
-                        e.seq,
-                        e.id
-                    FROM anchors e
-                    WHERE e.kind = 'EdgeAnchor'
-                      AND e.src IS NOT NULL
-                      AND e.dst IS NOT NULL
-                      AND (
-                          (CAST(:direction AS int) = 1
-                              AND (e.dst = walk.node_id
-                                   OR (e.undirected AND e.src = walk.node_id)))
-                          OR (CAST(:direction AS int) = 2
-                              AND (e.src = walk.node_id
-                                   OR (e.undirected AND e.dst = walk.node_id)))
-                          OR (CAST(:direction AS int) = 3
-                              AND (e.src = walk.node_id OR e.dst = walk.node_id))
-                      )
-                      AND (
-                          e.arch_type = CAST(:edge_type AS text)
-                          OR EXISTS (
-                              SELECT 1 FROM graph_types gt
-                              WHERE gt.type_name = e.arch_type
-                                AND gt.ancestor = CAST(:edge_type AS text)
-                          )
-                      )
-                    ORDER BY e.seq NULLS FIRST, e.id
-                    LIMIT 1
-                ) step ON step.next_id IS NOT NULL
-                         AND NOT (step.next_id = ANY(walk.path))
-                WHERE walk.depth < CAST(:limit AS int)
-            )
-            SELECT node_id
-            FROM walk
-            WHERE depth > 0
-            ORDER BY depth, node_id
-            LIMIT CAST(:limit AS int)
-            """,
-            {
-                "origin_id": str(origins[0]),
-                "edge_type": str(edge_type),
-                "direction": direction,
-                "limit": int(limit)
-            }
-        );
-        out: list[UUID] = [];
-        seen: set[UUID] = set();
-        for r in rows {
-            uid = UUID(str(r[0]));
-            if uid not in seen {
-                seen.add(uid);
-                out.append(uid);
-            }
-        }
-        warm_ids: list[UUID] = [origins[0]];
-        warm_ids.extend(out);
-        try {
-            mem.warm_topology_for_hop(warm_ids, edge_type, node_type, direction);
-        } except Exception as e {
-            logger.debug(f"TTG recursive SQL topology warm failed: {e}");
-        }
-        if out {
-            logger.debug(
-                f"[TTG-SQL] recursive single-hop edge={edge_type} "
-                f"origin={origins[0]} ids={len(out)}"
-            );
-        }
-        return out;
-    } except Exception as e {
-        logger.debug(f"TTG recursive SQL resolve failed: {e}");
-        return None;
-    }
+    raise RuntimeError("TTG query-planner fallback is disabled");
 }
 
 
@@ -821,55 +579,55 @@ def _sql_visit_specs(
 }
 
 
-def _resolve_sql_visit_bfs(
-    cls: type[JacTTGGenerator],
+def _resolve_sql_visit_bfs_budgeted(
     mem: any,
     origins: list[UUID],
-    visits: list[VisitType],
-    max_length: int
-) -> (list[UUID] | None) {
+    specs: list[dict],
+    max_length: int,
+    type_cache: (dict[UUID, str] | None) = None
+) -> list[UUID] {
     import os as _os;
+    fanout_raw = (
+        _os.environ.get("JAC_TTG_SQL_FANOUT", "unlimited").strip().lower()
+    );
+    fanout = 0;
+    fanout_limited = False;
     if (
-        _os.environ.get("JAC_TTG_SQL_BFS", "1").strip().lower()
-        in ("0", "false", "no", "off")
+        fanout_raw
+        and fanout_raw not in (
+            "0",
+            "none",
+            "unlimited",
+            "unbounded",
+            "all",
+            "false",
+            "no",
+            "off",
+        )
     ) {
-        return None;
-    }
-    if mem is None or mem?.store is None or max_length <= 0 or not origins {
-        return None;
-    }
-    specs = _sql_visit_specs(cls, visits);
-    if specs is None {
-        return None;
-    }
-    try {
-        fanout = int(_os.environ.get("JAC_TTG_SQL_FANOUT", "1"));
-    } except Exception {
-        fanout = 1;
-    }
-    if fanout <= 0 {
-        return None;
+        try {
+            fanout = int(fanout_raw);
+        } except Exception {
+            fanout = 0;
+        }
+        if fanout > 0 {
+            fanout_limited = True;
+        }
     }
     max_chain_len = 1;
     for spec in specs {
         chain = spec.get("chain") or [];
         max_chain_len = max(max_chain_len, len(chain));
     }
-    path_base = 1;
-    for _idx in range(max_chain_len) {
-        path_base *= fanout;
-    }
-    path_base = max(1000, path_base + 10);
     params: dict[str, object] = {
         "origin_ids": [str(i) for i in origins],
         "limit": int(max_length),
-        "fanout": fanout,
-        "path_base": path_base,
-        "ord_base": max(1000, path_base * max(1, len(specs)) + 10)
+        "max_depth": int(max_length),
+        "fanout": int(fanout),
+        "fanout_limited": fanout_limited
     };
     spec_values: list[str] = [];
     hop_values: list[str] = [];
-    hop_lookup: dict[tuple[int, int], tuple[str | None, str | None, int]] = {};
     for spec in specs {
         idx = int(spec["idx"]);
         pfx = f"s{idx}";
@@ -894,238 +652,10 @@ def _resolve_sql_visit_bfs(
                 f"CAST(:{hpfx}edge AS text), CAST(:{hpfx}node AS text), "
                 f"CAST(:{hpfx}dir AS int))"
             );
-            hop_lookup[(idx, hop_idx)] = hop;
         }
     }
     spec_values_sql = ",\n                    ".join(spec_values);
     hop_values_sql = ",\n                    ".join(hop_values);
-    chain_lateral_sql = """
-                    WITH RECURSIVE chain_walk(
-                        spec_idx,
-                        hop_idx,
-                        node_id,
-                        path_nodes,
-                        path_rank
-                    ) AS (
-                        SELECT
-                            specs.idx,
-                            0 AS hop_idx,
-                            queue.node_id,
-                            ARRAY[]::uuid[] AS path_nodes,
-                            0::numeric AS path_rank
-                        FROM specs
-                        WHERE specs.chain_len > 0
-                          AND (
-                              specs.from_type IS NULL
-                              OR cur.arch_type = specs.from_type
-                              OR EXISTS (
-                                  SELECT 1 FROM graph_types gt
-                                  WHERE gt.type_name = cur.arch_type
-                                    AND gt.ancestor = specs.from_type
-                              )
-                          )
-                        UNION ALL
-                        SELECT
-                            chain_walk.spec_idx,
-                            hops.hop_idx + 1,
-                            step.next_id,
-                            chain_walk.path_nodes || step.next_id,
-                            (
-                                chain_walk.path_rank * CAST(:fanout AS numeric)
-                                + CAST(step.step_rank AS numeric)
-                            ) AS path_rank
-                        FROM chain_walk
-                        JOIN hops
-                            ON hops.spec_idx = chain_walk.spec_idx
-                           AND hops.hop_idx = chain_walk.hop_idx
-                        JOIN LATERAL (
-                            SELECT *
-                            FROM (
-                                SELECT
-                                    CASE
-                                        WHEN edge.src = chain_walk.node_id
-                                            THEN edge.dst
-                                        ELSE edge.src
-                                    END AS next_id,
-                                    edge.seq,
-                                    edge.id AS edge_id,
-                                    ROW_NUMBER() OVER (
-                                        ORDER BY edge.seq NULLS FIRST, edge.id
-                                    ) AS step_rank
-                                FROM anchors edge
-                                JOIN anchors tgt ON tgt.id = CASE
-                                        WHEN edge.src = chain_walk.node_id
-                                            THEN edge.dst
-                                        ELSE edge.src
-                                    END
-                                    AND tgt.kind = 'NodeAnchor'
-                                WHERE edge.kind = 'EdgeAnchor'
-                                  AND edge.src IS NOT NULL
-                                  AND edge.dst IS NOT NULL
-                                  AND (
-                                      (hops.direction = 1
-                                          AND (edge.dst = chain_walk.node_id
-                                               OR (edge.undirected
-                                                   AND edge.src = chain_walk.node_id)))
-                                      OR (hops.direction = 2
-                                          AND (edge.src = chain_walk.node_id
-                                               OR (edge.undirected
-                                                   AND edge.dst = chain_walk.node_id)))
-                                      OR (hops.direction = 3
-                                          AND (edge.src = chain_walk.node_id
-                                               OR edge.dst = chain_walk.node_id))
-                                  )
-                                  AND (
-                                      hops.edge_type IS NULL
-                                      OR edge.arch_type = hops.edge_type
-                                      OR EXISTS (
-                                          SELECT 1 FROM graph_types gt
-                                          WHERE gt.type_name = edge.arch_type
-                                            AND gt.ancestor = hops.edge_type
-                                      )
-                                  )
-                                  AND (
-                                      hops.node_type IS NULL
-                                      OR tgt.arch_type = hops.node_type
-                                      OR EXISTS (
-                                          SELECT 1 FROM graph_types gt
-                                          WHERE gt.type_name = tgt.arch_type
-                                            AND gt.ancestor = hops.node_type
-                                      )
-                                  )
-                            ) ranked
-                            WHERE ranked.step_rank <= CAST(:fanout AS bigint)
-                            ORDER BY ranked.step_rank
-                        ) step ON step.next_id IS NOT NULL
-                                 AND NOT (step.next_id = ANY(queue.path))
-                                 AND NOT (step.next_id = ANY(chain_walk.path_nodes))
-                    )
-                    SELECT
-                        chain_walk.spec_idx,
-                        specs.is_visit,
-                        chain_walk.node_id AS next_id,
-                        chain_walk.path_nodes,
-                        chain_walk.path_rank
-                    FROM chain_walk
-                    JOIN specs ON specs.idx = chain_walk.spec_idx
-                    WHERE chain_walk.hop_idx = specs.chain_len
-                    ORDER BY
-                        chain_walk.spec_idx,
-                        chain_walk.path_rank,
-                        chain_walk.node_id
-    """;
-    warm_lateral_sql = """
-                    WITH RECURSIVE chain_walk(
-                        spec_idx,
-                        hop_idx,
-                        node_id,
-                        path_nodes,
-                        path_rank
-                    ) AS (
-                        SELECT
-                            specs.idx,
-                            0 AS hop_idx,
-                            queue.node_id,
-                            ARRAY[]::uuid[] AS path_nodes,
-                            0::numeric AS path_rank
-                        FROM specs
-                        WHERE specs.chain_len > 0
-                          AND (
-                              specs.from_type IS NULL
-                              OR cur.arch_type = specs.from_type
-                              OR EXISTS (
-                                  SELECT 1 FROM graph_types gt
-                                  WHERE gt.type_name = cur.arch_type
-                                    AND gt.ancestor = specs.from_type
-                              )
-                          )
-                        UNION ALL
-                        SELECT
-                            chain_walk.spec_idx,
-                            hops.hop_idx + 1,
-                            step.next_id,
-                            chain_walk.path_nodes || step.next_id,
-                            (
-                                chain_walk.path_rank * CAST(:fanout AS numeric)
-                                + CAST(step.step_rank AS numeric)
-                            ) AS path_rank
-                        FROM chain_walk
-                        JOIN hops
-                            ON hops.spec_idx = chain_walk.spec_idx
-                           AND hops.hop_idx = chain_walk.hop_idx
-                        JOIN LATERAL (
-                            SELECT *
-                            FROM (
-                                SELECT
-                                    CASE
-                                        WHEN edge.src = chain_walk.node_id
-                                            THEN edge.dst
-                                        ELSE edge.src
-                                    END AS next_id,
-                                    edge.seq,
-                                    edge.id AS edge_id,
-                                    ROW_NUMBER() OVER (
-                                        ORDER BY edge.seq NULLS FIRST, edge.id
-                                    ) AS step_rank
-                                FROM anchors edge
-                                JOIN anchors tgt ON tgt.id = CASE
-                                        WHEN edge.src = chain_walk.node_id
-                                            THEN edge.dst
-                                        ELSE edge.src
-                                    END
-                                    AND tgt.kind = 'NodeAnchor'
-                                WHERE edge.kind = 'EdgeAnchor'
-                                  AND edge.src IS NOT NULL
-                                  AND edge.dst IS NOT NULL
-                                  AND (
-                                      (hops.direction = 1
-                                          AND (edge.dst = chain_walk.node_id
-                                               OR (edge.undirected
-                                                   AND edge.src = chain_walk.node_id)))
-                                      OR (hops.direction = 2
-                                          AND (edge.src = chain_walk.node_id
-                                               OR (edge.undirected
-                                                   AND edge.dst = chain_walk.node_id)))
-                                      OR (hops.direction = 3
-                                          AND (edge.src = chain_walk.node_id
-                                               OR edge.dst = chain_walk.node_id))
-                                  )
-                                  AND (
-                                      hops.edge_type IS NULL
-                                      OR edge.arch_type = hops.edge_type
-                                      OR EXISTS (
-                                          SELECT 1 FROM graph_types gt
-                                          WHERE gt.type_name = edge.arch_type
-                                            AND gt.ancestor = hops.edge_type
-                                      )
-                                  )
-                                  AND (
-                                      hops.node_type IS NULL
-                                      OR tgt.arch_type = hops.node_type
-                                      OR EXISTS (
-                                          SELECT 1 FROM graph_types gt
-                                          WHERE gt.type_name = tgt.arch_type
-                                            AND gt.ancestor = hops.node_type
-                                      )
-                                  )
-                            ) ranked
-                            WHERE ranked.step_rank <= CAST(:fanout AS bigint)
-                            ORDER BY ranked.step_rank
-                        ) step ON step.next_id IS NOT NULL
-                                 AND NOT (step.next_id = ANY(queue.path))
-                                 AND NOT (step.next_id = ANY(chain_walk.path_nodes))
-                    )
-                    SELECT DISTINCT
-                        chain_walk.spec_idx,
-                        hops.hop_idx,
-                        chain_walk.node_id AS source_id
-                    FROM chain_walk
-                    JOIN specs ON specs.idx = chain_walk.spec_idx
-                    JOIN hops
-                        ON hops.spec_idx = chain_walk.spec_idx
-                       AND hops.hop_idx = chain_walk.hop_idx
-                    WHERE chain_walk.hop_idx < specs.chain_len
-    """;
     sql = f"""
             WITH RECURSIVE
             specs(idx, from_type, is_visit, chain_len) AS (
@@ -1136,439 +666,355 @@ def _resolve_sql_visit_bfs(
                 VALUES
                     {hop_values_sql}
             ),
-            queue(node_id, depth, path, qord) AS (
+            walk(depth, node_id, path_nodes, path_ord, is_frontier) AS (
                 SELECT
-                    seed.id,
-                    0 AS depth,
-                    ARRAY[seed.id] AS path,
-                    CAST(seed.ord AS numeric) AS qord
+                    0::int AS depth,
+                    seed.id AS node_id,
+                    ARRAY[seed.id]::uuid[] AS path_nodes,
+                    ARRAY[CAST(seed.ord AS bigint)]::bigint[] AS path_ord,
+                    TRUE AS is_frontier
                 FROM unnest(CAST(:origin_ids AS uuid[]))
                     WITH ORDINALITY AS seed(id, ord)
+                JOIN anchors n ON n.id = seed.id
+                 AND n.kind = 'NodeAnchor'
                 UNION ALL
                 SELECT
-                    step.next_id,
-                    queue.depth + 1,
-                    queue.path || step.path_nodes,
+                    walk.depth + 1 AS depth,
+                    step.next_id AS node_id,
+                    step.path_nodes AS path_nodes,
                     (
-                        queue.qord * CAST(:ord_base AS numeric)
-                        + CAST(step.spec_idx AS numeric) * CAST(:path_base AS numeric)
-                        + step.path_rank
-                    ) AS qord
-                FROM queue
+                        walk.path_ord
+                        || CAST(step.spec_idx AS bigint)
+                    ) || step.hop_ord AS path_ord,
+                    step.is_visit AS is_frontier
+                FROM walk
                 JOIN anchors cur
-                    ON cur.id = queue.node_id
+                    ON cur.id = walk.node_id
                    AND cur.kind = 'NodeAnchor'
                 JOIN LATERAL (
-                    {chain_lateral_sql}
-                ) step ON step.next_id IS NOT NULL
-                         AND step.is_visit
-                         AND NOT (step.next_id = ANY(queue.path))
-                WHERE queue.depth < CAST(:limit AS int)
+                    WITH RECURSIVE chain_walk(
+                        spec_idx,
+                        chain_len,
+                        is_visit,
+                        hop_idx,
+                        node_id,
+                        path_nodes,
+                        hop_ord
+                    ) AS (
+                        SELECT
+                            specs.idx AS spec_idx,
+                            specs.chain_len AS chain_len,
+                            specs.is_visit AS is_visit,
+                            0 AS hop_idx,
+                            walk.node_id AS node_id,
+                            walk.path_nodes AS path_nodes,
+                            ARRAY[]::bigint[] AS hop_ord
+                        FROM specs
+                        WHERE specs.chain_len > 0
+                          AND (
+                              specs.from_type IS NULL
+                              OR cur.arch_type = specs.from_type
+                              OR EXISTS (
+                                  SELECT 1 FROM graph_types gt
+                                  WHERE gt.type_name = cur.arch_type
+                                    AND gt.ancestor = specs.from_type
+                              )
+                          )
+                        UNION ALL
+                        SELECT
+                            chain_walk.spec_idx,
+                            chain_walk.chain_len,
+                            chain_walk.is_visit,
+                            hops.hop_idx + 1,
+                            edge_step.next_id,
+                            chain_walk.path_nodes || edge_step.next_id,
+                            chain_walk.hop_ord || edge_step.step_rank
+                        FROM chain_walk
+                        JOIN hops
+                            ON hops.spec_idx = chain_walk.spec_idx
+                           AND hops.hop_idx = chain_walk.hop_idx
+                        JOIN LATERAL (
+                            SELECT *
+                            FROM (
+                                SELECT
+                                    CASE
+                                        WHEN edge.src = chain_walk.node_id
+                                            THEN edge.dst
+                                        ELSE edge.src
+                                    END AS next_id,
+                                    ROW_NUMBER() OVER (
+                                        ORDER BY edge.seq NULLS FIRST, edge.id
+                                    ) AS step_rank
+                                FROM anchors edge
+                                JOIN anchors tgt ON tgt.id = CASE
+                                        WHEN edge.src = chain_walk.node_id
+                                            THEN edge.dst
+                                        ELSE edge.src
+                                    END
+                                    AND tgt.kind = 'NodeAnchor'
+                                WHERE edge.kind = 'EdgeAnchor'
+                                  AND edge.src IS NOT NULL
+                                  AND edge.dst IS NOT NULL
+                                  AND (
+                                      (hops.direction = 1
+                                          AND (edge.dst = chain_walk.node_id
+                                               OR (edge.undirected
+                                                   AND edge.src = chain_walk.node_id)))
+                                      OR (hops.direction = 2
+                                          AND (edge.src = chain_walk.node_id
+                                               OR (edge.undirected
+                                                   AND edge.dst = chain_walk.node_id)))
+                                      OR (hops.direction = 3
+                                          AND (edge.src = chain_walk.node_id
+                                               OR edge.dst = chain_walk.node_id))
+                                  )
+                                  AND (
+                                      hops.edge_type IS NULL
+                                      OR edge.arch_type = hops.edge_type
+                                      OR EXISTS (
+                                          SELECT 1 FROM graph_types gt
+                                          WHERE gt.type_name = edge.arch_type
+                                            AND gt.ancestor = hops.edge_type
+                                      )
+                                  )
+                                  AND (
+                                      hops.node_type IS NULL
+                                      OR tgt.arch_type = hops.node_type
+                                      OR EXISTS (
+                                          SELECT 1 FROM graph_types gt
+                                          WHERE gt.type_name = tgt.arch_type
+                                            AND gt.ancestor = hops.node_type
+                                      )
+                                  )
+                            ) ranked_edges
+                            WHERE (
+                                NOT CAST(:fanout_limited AS boolean)
+                                OR ranked_edges.step_rank <= CAST(:fanout AS bigint)
+                            )
+                            ORDER BY ranked_edges.step_rank
+                        ) edge_step ON edge_step.next_id IS NOT NULL
+                                 AND NOT (
+                                     edge_step.next_id = ANY(chain_walk.path_nodes)
+                                 )
+                        WHERE chain_walk.hop_idx < chain_walk.chain_len
+                    ),
+                    final_chain AS (
+                        SELECT
+                            chain_walk.spec_idx,
+                            chain_walk.is_visit,
+                            chain_walk.node_id AS next_id,
+                            chain_walk.path_nodes,
+                            chain_walk.hop_ord
+                        FROM chain_walk
+                        WHERE chain_walk.hop_idx = chain_walk.chain_len
+                    ),
+                    ranked_chain AS (
+                        SELECT
+                            final_chain.*,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY final_chain.spec_idx
+                                ORDER BY final_chain.hop_ord, final_chain.next_id
+                            ) AS result_ord
+                        FROM final_chain
+                    )
+                    SELECT
+                        ranked_chain.spec_idx,
+                        ranked_chain.is_visit,
+                        ranked_chain.next_id,
+                        ranked_chain.path_nodes,
+                        ranked_chain.hop_ord
+                    FROM ranked_chain
+                    WHERE ranked_chain.result_ord <= CAST(:limit AS bigint)
+                ) step ON TRUE
+                WHERE walk.is_frontier
+                  AND walk.depth < CAST(:max_depth AS int)
             ),
-            emits AS (
+            candidate_node_rows AS (
                 SELECT
-                    queue.depth + 1 AS emit_depth,
-                    queue.qord,
-                    step.spec_idx,
-                    step.path_rank,
-                    step.next_id
-                FROM queue
-                JOIN anchors cur
-                    ON cur.id = queue.node_id
-                   AND cur.kind = 'NodeAnchor'
-                JOIN LATERAL (
-                    {chain_lateral_sql}
-                ) step ON step.next_id IS NOT NULL
-                         AND NOT (step.next_id = ANY(queue.path))
+                    walk.depth,
+                    walk.node_id AS target_id,
+                    walk.path_ord,
+                    CASE
+                        WHEN n.kind = 'NodeAnchor' AND n.arch_type = 'Root'
+                            THEN n.id
+                        ELSE n.root_id
+                    END AS owner_root
+                FROM walk
+                JOIN anchors n ON n.id = walk.node_id
+                 AND n.kind = 'NodeAnchor'
             ),
-            emit_ranked AS (
+            raw_additions AS (
                 SELECT
-                    emits.next_id,
-                    emits.spec_idx,
+                    depth,
+                    path_ord,
+                    0 AS sub_ord,
+                    target_id AS id
+                FROM candidate_node_rows
+                UNION ALL
+                SELECT
+                    depth,
+                    path_ord,
+                    1 AS sub_ord,
+                    owner_root AS id
+                FROM candidate_node_rows
+                WHERE owner_root IS NOT NULL
+                  AND owner_root <> target_id
+            ),
+            dedup_additions AS (
+                SELECT DISTINCT ON (id)
+                    id,
+                    depth,
+                    path_ord,
+                    sub_ord
+                FROM raw_additions
+                WHERE id IS NOT NULL
+                ORDER BY id, depth, path_ord, sub_ord
+            ),
+            ordered_plan AS (
+                SELECT
+                    id,
                     ROW_NUMBER() OVER (
-                        ORDER BY emits.emit_depth, emits.qord, emits.spec_idx,
-                                 emits.path_rank, emits.next_id
-                    ) AS emit_ord
-                FROM emits
+                        ORDER BY depth, path_ord, sub_ord, id
+                    ) AS ord
+                FROM dedup_additions
             ),
-            warm_sources AS (
-                SELECT DISTINCT
-                    warm_step.source_id AS node_id,
-                    warm_step.spec_idx,
-                    warm_step.hop_idx
-                FROM queue
-                JOIN anchors cur
-                    ON cur.id = queue.node_id
-                   AND cur.kind = 'NodeAnchor'
-                JOIN LATERAL (
-                    {warm_lateral_sql}
-                ) warm_step ON warm_step.source_id IS NOT NULL
+            prefetch_plan AS (
+                SELECT id, ord
+                FROM ordered_plan
+                WHERE ord <= CAST(:limit AS bigint)
             ),
-            warm_edges AS (
-                SELECT DISTINCT
-                    warm_sources.spec_idx,
-                    warm_sources.hop_idx,
-                    edge.id,
-                    edge.arch_type,
-                    edge.src,
-                    edge.dst,
-                    edge.undirected,
-                    edge.seq
-                FROM warm_sources
-                JOIN hops
-                    ON hops.spec_idx = warm_sources.spec_idx
-                   AND hops.hop_idx = warm_sources.hop_idx
-                JOIN anchors edge ON edge.kind = 'EdgeAnchor'
-                    AND edge.src IS NOT NULL
-                    AND edge.dst IS NOT NULL
-                    AND (
-                        (hops.direction = 1
-                            AND (edge.dst = warm_sources.node_id
-                                 OR (edge.undirected
-                                     AND edge.src = warm_sources.node_id)))
-                        OR (hops.direction = 2
-                            AND (edge.src = warm_sources.node_id
-                                 OR (edge.undirected
-                                     AND edge.dst = warm_sources.node_id)))
-                        OR (hops.direction = 3
-                            AND (edge.src = warm_sources.node_id
-                                 OR edge.dst = warm_sources.node_id))
-                    )
-                    AND (
-                        hops.edge_type IS NULL
-                        OR edge.arch_type = hops.edge_type
-                        OR EXISTS (
-                            SELECT 1 FROM graph_types gt
-                            WHERE gt.type_name = edge.arch_type
-                              AND gt.ancestor = hops.edge_type
-                        )
-                    )
-                JOIN anchors tgt ON (
-                    tgt.id = CASE
-                        WHEN edge.src = warm_sources.node_id THEN edge.dst
-                        ELSE edge.src
-                    END
-                    AND tgt.kind = 'NodeAnchor'
-                )
-                WHERE (
-                    hops.node_type IS NULL
-                    OR tgt.arch_type = hops.node_type
-                    OR EXISTS (
-                        SELECT 1 FROM graph_types gt
-                        WHERE gt.type_name = tgt.arch_type
-                          AND gt.ancestor = hops.node_type
-                    )
-                )
-            ),
-            all_node_ids(id) AS (
-                SELECT node_id FROM warm_sources
-                UNION
-                SELECT src FROM warm_edges WHERE src IS NOT NULL
-                UNION
-                SELECT dst FROM warm_edges WHERE dst IS NOT NULL
-            ),
-            topo_node_rows AS (
+            plan_rows AS (
                 SELECT
-                    0 AS topo_ord,
-                    n.id,
+                    p.ord,
+                    p.id,
                     n.arch_type,
                     CASE
                         WHEN n.kind = 'NodeAnchor' AND n.arch_type = 'Root'
                             THEN n.id
                         ELSE n.root_id
                     END AS owner_root,
-                    NULL::uuid AS src,
-                    NULL::uuid AS dst,
-                    false AS undirected,
                     COALESCE(string_agg(DISTINCT gt.ancestor, ','), n.arch_type)
-                        AS ancestors,
-                    NULL::bigint AS seq
-                FROM anchors n
-                JOIN all_node_ids a ON a.id = n.id
+                        AS ancestors
+                FROM prefetch_plan p
+                JOIN anchors n ON n.id = p.id
+                 AND n.kind = 'NodeAnchor'
                 LEFT JOIN graph_types gt ON gt.type_name = n.arch_type
-                WHERE n.kind = 'NodeAnchor'
-                GROUP BY n.id, n.kind, n.arch_type, n.root_id
-            ),
-            topo_edge_rows AS (
-                SELECT
-                    1 AS topo_ord,
-                    warm_edges.id,
-                    warm_edges.arch_type,
-                    NULL::uuid AS owner_root,
-                    warm_edges.src,
-                    warm_edges.dst,
-                    warm_edges.undirected,
-                    COALESCE(
-                        string_agg(DISTINCT gt.ancestor, ','),
-                        warm_edges.arch_type
-                    ) AS ancestors,
-                    warm_edges.seq
-                FROM warm_edges
-                LEFT JOIN graph_types gt ON gt.type_name = warm_edges.arch_type
-                GROUP BY
-                    warm_edges.id,
-                    warm_edges.arch_type,
-                    warm_edges.src,
-                    warm_edges.dst,
-                    warm_edges.undirected,
-                    warm_edges.seq
-            ),
-            topology_rows AS (
-                SELECT * FROM topo_node_rows
-                UNION ALL
-                SELECT * FROM topo_edge_rows
+                GROUP BY p.ord, p.id, n.id, n.kind, n.arch_type, n.root_id
             )
             SELECT
-                0 AS kind,
-                emit_ranked.next_id AS id,
-                emit_ranked.spec_idx,
-                NULL::int AS hop_idx,
-                emit_ranked.emit_ord,
-                NULL::int AS topo_ord,
-                NULL::text AS arch_type,
-                NULL::uuid AS owner_root,
-                NULL::uuid AS src,
-                NULL::uuid AS dst,
-                false AS undirected,
-                NULL::text AS ancestors,
-                NULL::bigint AS seq
-            FROM emit_ranked
-            WHERE emit_ranked.emit_ord <= CAST(:limit AS bigint)
-            UNION ALL
-            SELECT
-                1 AS kind,
-                warm_sources.node_id AS id,
-                warm_sources.spec_idx,
-                warm_sources.hop_idx,
-                NULL::bigint AS emit_ord,
-                NULL::int AS topo_ord,
-                NULL::text AS arch_type,
-                NULL::uuid AS owner_root,
-                NULL::uuid AS src,
-                NULL::uuid AS dst,
-                false AS undirected,
-                NULL::text AS ancestors,
-                NULL::bigint AS seq
-            FROM warm_sources
-            UNION ALL
-            SELECT
-                2 AS kind,
-                topology_rows.id,
-                NULL::int AS spec_idx,
-                NULL::int AS hop_idx,
-                NULL::bigint AS emit_ord,
-                topology_rows.topo_ord,
-                topology_rows.arch_type,
-                topology_rows.owner_root,
-                topology_rows.src,
-                topology_rows.dst,
-                topology_rows.undirected,
-                topology_rows.ancestors,
-                topology_rows.seq
-            FROM topology_rows
-            ORDER BY
-                kind,
-                emit_ord NULLS LAST,
-                topo_ord NULLS LAST,
-                spec_idx NULLS LAST,
-                hop_idx NULLS LAST,
-                seq NULLS FIRST,
-                id
+                ord,
+                id,
+                arch_type,
+                owner_root,
+                ancestors
+            FROM plan_rows
+            ORDER BY ord
             """;
+    fanout_desc = "unlimited";
+    if fanout_limited {
+        fanout_desc = str(fanout);
+    }
+    logger.info(
+        f"[TTG-SQL-BFS-START] specs={len(specs)} origins={len(origins)} "
+        f"fanout={fanout_desc} max_chain={max_chain_len} "
+        f"limit={max_length} mode=set-based"
+    );
+    mem.read_barrier();
+    explain_mode = (_os.environ.get("JAC_TTG_SQL_EXPLAIN", "").strip().lower());
     try {
-        mem.read_barrier();
+        if explain_mode in ("plan", "analyze", "true", "1", "on", "yes") {
+            explain_options = "VERBOSE, FORMAT TEXT";
+            if explain_mode in ("analyze", "true", "1", "on", "yes") {
+                explain_options = "ANALYZE, BUFFERS, VERBOSE, SUMMARY, FORMAT TEXT";
+            }
+            explain_rows = mem.store.rows(
+                f"EXPLAIN ({explain_options}) {sql}",
+                params
+            );
+            explain_lines: list[str] = [];
+            for r in explain_rows {
+                explain_lines.append(str(r[0]));
+            }
+            logger.warning("[TTG-SQL-EXPLAIN]\n" + "\n".join(explain_lines));
+            raise RuntimeError("TTG SQL EXPLAIN requested");
+        }
         rows = mem.store.rows(sql, params);
-        emit_ids: list[UUID] = [];
-        emit_seen: set[UUID] = set();
-        warm_groups: dict[tuple[int, int], list[UUID]] = {};
-        warm_seen: dict[tuple[int, int], set[UUID]] = {};
-        topology_rows: list[tuple] = [];
-        for r in rows {
-            kind = int(str(r[0]));
-            if kind == 0 {
-                uid = UUID(str(r[1]));
-                if uid not in emit_seen {
-                    emit_seen.add(uid);
-                    emit_ids.append(uid);
-                }
-            } elif kind == 1 {
-                uid = UUID(str(r[1]));
-                spec_idx = int(str(r[2]));
-                hop_idx = int(str(r[3]));
-                key = (spec_idx, hop_idx);
-                if key not in warm_groups {
-                    warm_groups[key] = [];
-                    warm_seen[key] = set();
-                }
-                if uid not in warm_seen[key] {
-                    warm_seen[key].add(uid);
-                    warm_groups[key].append(uid);
-                }
-            } elif kind == 2 {
-                topology_rows.append((
-                    r[5],
-                    r[1],
-                    r[6],
-                    r[7],
-                    r[8],
-                    r[9],
-                    r[10],
-                    r[11],
-                    r[12]
-                ));
-            }
-        }
-        topo_idx = ingest_topology_rows(mem, topology_rows);
-        for key in sorted(warm_groups.keys()) {
-            hop = hop_lookup.get(key);
-            if hop is None {
-                continue;
-            }
-            try {
-                topo_idx.mark_hops_loaded(
-                    warm_groups[key],
-                    hop[0],
-                    hop[1],
-                    int(hop[2] or 2)
-                );
-            } except Exception as e {
-                logger.debug(f"TTG SQL BFS topology mark failed: {e}");
-            }
-        }
-        prefetch: list[UUID] = [];
-        prefetch_seen: set[UUID] = set();
-        for origin in origins {
-            if not _append_prefetch_id(
-                mem, prefetch, prefetch_seen, origin, max_length, topo_idx
-            ) {
-                return prefetch;
-            }
-        }
-        for uid in emit_ids {
-            if not _append_prefetch_id(
-                mem, prefetch, prefetch_seen, uid, max_length, topo_idx
-            ) {
-                break;
-            }
-        }
-        logger.info(
-            f"[TTG-SQL-BFS] specs={len(specs)} origins={len(origins)} "
-            f"emits={len(emit_ids)} topology_rows={len(topology_rows)} "
-            f"prefetched={len(prefetch)} fanout={fanout} max_chain={max_chain_len}"
-        );
-        return prefetch;
     } except Exception as e {
-        if _os.environ.get("JAC_TTG_SQL_DEBUG") {
-            logger.warning(f"TTG SQL BFS resolve failed: {e}");
-        } else {
-            logger.debug(f"TTG SQL BFS resolve failed: {e}");
+        logger.warning(f"TTG set-based SQL BFS failed: {e}");
+        raise;
+    }
+    prefetch: list[UUID] = [];
+    prefetch_seen: set[UUID] = set();
+    topology_rows: list[tuple] = [];
+    for r in rows {
+        uid = UUID(str(r[1]));
+        if uid in prefetch_seen {
+            continue;
         }
-        return None;
-    }
-}
-
-
-def _cached_type_matches(
-    cls: type[JacTTGGenerator],
-    warch: any,
-    actual: (str | None),
-    wanted: (str | None),
-    topo_idx: (TopologyIndex | None)
-) -> bool {
-    if wanted is None {
-        return True;
-    }
-    if actual is None {
-        return False;
-    }
-    if actual == wanted {
-        return True;
-    }
-    if topo_idx is not None {
-        ancestors = topo_idx.type_ancestors.get(actual);
-        if ancestors is not None and wanted in ancestors {
-            return True;
+        if len(prefetch) >= max_length {
+            break;
         }
+        prefetch_seen.add(uid);
+        prefetch.append(uid);
+        arch_type = str(r[2] or "unknown");
+        if type_cache is not None {
+            type_cache[uid] = arch_type;
+        }
+        topology_rows.append((
+            0,
+            r[1],
+            arch_type,
+            r[3],
+            None,
+            None,
+            False,
+            r[4],
+            None
+        ));
     }
     try {
-        actual_cls = cls._runtime_type_for_name(warch, actual);
-        wanted_cls = cls._runtime_type_for_name(warch, wanted);
-        if actual_cls is not None
-            and wanted_cls is not None
-            and issubclass(actual_cls, wanted_cls) {
-            return True;
-        }
-    } except Exception {
-        ;
+        ingest_topology_rows(mem, topology_rows);
+    } except Exception as e {
+        logger.debug(f"TTG SQL BFS topology ingest failed: {e}");
     }
-    return False;
+    logger.info(
+        f"[TTG-SQL-BFS] specs={len(specs)} origins={len(origins)} "
+        f"prefetched={len(prefetch)} fanout={fanout_desc} "
+        f"max_chain={max_chain_len} query_count=1 mode=set-based"
+    );
+    return prefetch;
 }
 
 
-def _owner_root_for_id(
+def _resolve_sql_visit_bfs(
+    cls: type[JacTTGGenerator],
     mem: any,
-    id: UUID,
-    topo_idx: (TopologyIndex | None) = None
-) -> (UUID | None) {
-    if mem is None {
-        return None;
-    }
-    if topo_idx is None {
-        maybe_idx = mem?._topology_index;
-        if isinstance(maybe_idx, TopologyIndex) {
-            topo_idx = maybe_idx;
-        }
-    }
-    if isinstance(topo_idx, TopologyIndex) {
-        owner = topo_idx.owner_root_for(id);
-        if owner is not None {
-            return owner;
-        }
-    }
-    raw_mem = mem?.__raw_mem__;
-    if isinstance(raw_mem, dict) {
-        row = raw_mem.get(id);
-        if row is not None and row.root_id is not None {
-            return row.root_id;
-        }
-    }
-    anchor = mem?.__mem__?.get(id);
-    if anchor is not None {
-        return anchor.`root;
-    }
-    return None;
-}
-
-
-def _append_prefetch_id(
-    mem: any,
-    prefetch: list[UUID],
-    prefetch_seen: set[UUID],
-    id: UUID,
+    origins: list[UUID],
+    visits: list[VisitType],
     max_length: int,
-    topo_idx: (TopologyIndex | None) = None
-) -> bool {
-    if id not in prefetch_seen {
-        if len(prefetch) >= max_length {
-            return False;
-        }
-        prefetch_seen.add(id);
-        prefetch.append(id);
+    type_cache: (dict[UUID, str] | None) = None
+) -> list[UUID] {
+    if max_length <= 0 {
+        return [];
     }
-    owner = _owner_root_for_id(mem, id, topo_idx);
-    if owner is not None and owner != id and owner not in prefetch_seen {
-        if len(prefetch) < max_length {
-            prefetch_seen.add(owner);
-            prefetch.append(owner);
-        }
+    if mem is None or mem?.store is None {
+        raise RuntimeError("TTG SQL BFS requires a SQL-backed memory store");
     }
-    return True;
+    if not origins {
+        raise RuntimeError("TTG SQL BFS requires at least one origin");
+    }
+    specs = _sql_visit_specs(cls, visits);
+    if specs is None {
+        raise RuntimeError("TTG SQL BFS cannot lower this walker's visit graph to SQL");
+    }
+    return _resolve_sql_visit_bfs_budgeted(
+        mem, origins, specs, max_length, type_cache
+    );
 }
 
 
 def _finalize_ttg_prefetch(
     cls: type[JacTTGGenerator],
-    mem: any,
     prefetch: list[UUID],
     type_cache: dict[UUID, str],
     ast_ms: float,
@@ -1584,7 +1030,10 @@ def _finalize_ttg_prefetch(
         if id not in type_cache
     ];
     if missing_types {
-        type_cache.update(cls._arch_types_for_ids(mem, missing_types));
+        logger.warning(
+            "[TTG-COVERAGE] missing type metadata for "
+            f"{len(missing_types)} prefetched ids"
+        );
     }
     type_counts: dict[str, int] = {};
     for id in prefetch {
@@ -1637,7 +1086,7 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
         return [];
     }
     if mem is None or mem?.store is None {
-        return [start_anchor.id];
+        raise RuntimeError("TTG prefetch requires a SQL-backed memory store");
     }
     t0 = _time.perf_counter();
     visits = cls._extract_visits_from_ast(warch);
@@ -1657,170 +1106,16 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
         )
     );
     start_id = start_anchor.id;
-    prefetch: list[UUID] = [];
-    prefetch_seen: set[UUID] = set();
-    _append_prefetch_id(mem, prefetch, prefetch_seen, start_id, max_length);
-    seen: set[UUID] = {start_id};
-    queue: list[UUID] = [start_id];
     type_cache: dict[UUID, str] = {};
     if start_anchor.archetype is not None {
         type_cache[start_id] = type(start_anchor.archetype).__name__;
-    } else {
-        type_cache.update(cls._arch_types_for_ids(mem, [start_id]));
     }
     sql_start = _time.perf_counter();
     sql_prefetch = _resolve_sql_visit_bfs(
-        cls, mem, [start_id], visits, max_length
+        cls, mem, [start_id], visits, max_length, type_cache
     );
-    if sql_prefetch is not None {
-        sql_ms = (_time.perf_counter() - sql_start) * 1000;
-        return _finalize_ttg_prefetch(
-            cls, mem, sql_prefetch, type_cache, ast_ms, sql_ms, 1, max_length
-        );
-    }
-    resolve_ms = 0.0;
-    resolve_calls = 0;
-    qpos = 0;
-    while qpos < len(queue) {
-        if len(prefetch) >= max_length {
-            break;
-        }
-        frontier = queue[qpos:];
-        qpos = len(queue);
-        topo_idx: (TopologyIndex | None) = None;
-        try {
-            maybe_idx = mem?._topology_index;
-            if isinstance(maybe_idx, TopologyIndex) {
-                topo_idx = maybe_idx;
-                for cur in frontier {
-                    if cur not in type_cache {
-                        tname = maybe_idx.node_type(cur);
-                        if tname is not None {
-                            type_cache[cur] = tname;
-                        }
-                    }
-                }
-            }
-        } except Exception as e {
-            logger.debug(f"TTG frontier topology lookup failed: {e}");
-        }
-        missing_frontier = [
-            cur
-            for cur in frontier
-            if cur not in type_cache
-        ];
-        if missing_frontier {
-            type_cache.update(cls._arch_types_for_ids(mem, missing_frontier));
-        }
-        for v in visits {
-            if len(prefetch) >= max_length {
-                break;
-            }
-            from_type = cls._resolve_type_name(v.from_node_type)
-                if isinstance(v, VisitType)
-                else None;
-            origins: list[UUID] = [];
-            for cur in frontier {
-                cur_type = type_cache.get(cur);
-                if from_type is not None {
-                    if not _cached_type_matches(
-                        cls, warch, cur_type, from_type, topo_idx
-                    ) {
-                        continue;
-                    }
-                }
-                origins.append(cur);
-            }
-            if not origins {
-                continue;
-            }
-            if isinstance(v, VisitType) and v.edge_chain is not None {
-                chain = v.edge_chain;
-            } elif isinstance(v, VisitType) {
-                edge_name = cls._resolve_type_name(v.edge_type);
-                chain = [(edge_name, None, 2)];
-            } else {
-                chain = [(None, None, 2)];
-            }
-            remaining = max_length - len(prefetch);
-            rc_start = _time.perf_counter();
-            results = _resolve_recursive_sql_single_hop(mem, origins, chain, remaining);
-            if results is None {
-                results = _resolve_indexed_chain(mem, origins, chain, remaining);
-            }
-            if results is None {
-                results = [];
-                batch_seen: set[UUID] = set();
-                for cur in origins {
-                    if len(results) >= remaining {
-                        break;
-                    }
-                    for tgt in cls._resolve_chain_ids(
-                        mem, warch, cur, chain, remaining - len(results)
-                    ) {
-                        if tgt in batch_seen {
-                            continue;
-                        }
-                        batch_seen.add(tgt);
-                        results.append(tgt);
-                        if len(results) >= remaining {
-                            break;
-                        }
-                    }
-                }
-            }
-            resolve_ms += (_time.perf_counter() - rc_start) * 1000;
-            resolve_calls += 1;
-            is_visit_chain = (not isinstance(v, VisitType)) or v.is_visit;
-            added: list[UUID] = [];
-            enqueued = 0;
-            for tgt in results {
-                if tgt in seen {
-                    continue;
-                }
-                if len(prefetch) >= max_length {
-                    break;
-                }
-                seen.add(tgt);
-                if not _append_prefetch_id(
-                    mem, prefetch, prefetch_seen, tgt, max_length, topo_idx
-                ) {
-                    break;
-                }
-                added.append(tgt);
-                if is_visit_chain {
-                    queue.append(tgt);
-                    enqueued += 1;
-                }
-            }
-            if added {
-                if topo_idx is not None {
-                    for tgt in added {
-                        if tgt not in type_cache {
-                            tname = topo_idx.node_type(tgt);
-                            if tname is not None {
-                                type_cache[tgt] = tname;
-                            }
-                        }
-                    }
-                }
-                missing_added = [
-                    tgt
-                    for tgt in added
-                    if tgt not in type_cache
-                ];
-                if missing_added {
-                    type_cache.update(cls._arch_types_for_ids(mem, missing_added));
-                }
-                logger.debug(
-                    f"[TTG-BFS] origins={len(origins)} from={from_type} "
-                    f"is_visit={is_visit_chain} chain_results={len(results)} "
-                    f"added={len(added)} enqueued={enqueued}"
-                );
-            }
-        }
-    }
+    sql_ms = (_time.perf_counter() - sql_start) * 1000;
     return _finalize_ttg_prefetch(
-        cls, mem, prefetch, type_cache, ast_ms, resolve_ms, resolve_calls, max_length
+        cls, sql_prefetch, type_cache, ast_ms, sql_ms, 1, max_length
     );
 }

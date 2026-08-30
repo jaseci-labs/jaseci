@@ -269,20 +269,16 @@ impl JacWalker.spawn_call(
     } except Exception { }
     ttg_block_start = _perf_counter();
     if isinstance(nd, NodeAnchor) {
-        try {
-            import from jaclang.project.config { get_config }
-            import from jaclang.runtime.prefetch { run_prefetch_policy }
-            cfg = get_config();
-            ctx_prefetch = JacRuntimeInterface.get_context();
-            (
-                topo_idx_time_ms,
-                ttg_time_ms,
-                prefetch_time_ms,
-                resolve_total_ms
-            ) = run_prefetch_policy(ctx_prefetch, cfg, warch, nd);
-        } except Exception as e {
-            logger.debug(f"prefetch policy failed: {e}");
-        }
+        import from jaclang.project.config { get_config }
+        import from jaclang.runtime.prefetch { run_prefetch_policy }
+        cfg = get_config();
+        ctx_prefetch = JacRuntimeInterface.get_context();
+        (
+            topo_idx_time_ms,
+            ttg_time_ms,
+            prefetch_time_ms,
+            resolve_total_ms
+        ) = run_prefetch_policy(ctx_prefetch, cfg, warch, nd);
     }
     ttg_block_end = _perf_counter();
     ttg_total_time_ms = (ttg_block_end - ttg_block_start) * 1000;
@@ -389,15 +385,11 @@ impl JacWalker.async_spawn_call(
         prefetch_worker_times_reset();
     } except Exception { }
     if isinstance(nd, NodeAnchor) {
-        try {
-            import from jaclang.project.config { get_config }
-            import from jaclang.runtime.prefetch { run_prefetch_policy }
-            cfg = get_config();
-            ctx_prefetch = JacRuntimeInterface.get_context();
-            run_prefetch_policy(ctx_prefetch, cfg, warch, nd);
-        } except Exception as e {
-            logger.debug(f"prefetch policy failed: {e}");
-        }
+        import from jaclang.project.config { get_config }
+        import from jaclang.runtime.prefetch { run_prefetch_policy }
+        cfg = get_config();
+        ctx_prefetch = JacRuntimeInterface.get_context();
+        run_prefetch_policy(ctx_prefetch, cfg, warch, nd);
     }
     try {
         import from jaclang.runtime.prefetch_policy { start_history_observation }
