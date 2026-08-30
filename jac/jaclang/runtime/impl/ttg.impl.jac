@@ -719,7 +719,8 @@ def _ttg_render_hop_join(
     source_expr: str,
     prior_nodes: list[str],
     hop: tuple[str | None, str | None, int],
-    params: dict[str, object]
+    params: dict[str, object],
+    frontier_alias: str = "walk"
 ) -> str {
     alias = f"s{spec_idx}h{hop_idx}";
     edge_param = f"{alias}edge";
@@ -748,7 +749,9 @@ def _ttg_render_hop_join(
         );
     }
     edge_sql = "\n                    UNION ALL\n".join(branches);
-    cycle_terms = [f"NOT ({alias}_edges.node_id = ANY(walk.path_nodes))"];
+    cycle_terms = [
+        f"NOT ({alias}_edges.node_id = ANY({frontier_alias}.path_nodes))"
+    ];
     cycle_terms.extend([f"{alias}_edges.node_id <> {n}" for n in prior_nodes]);
     cycle_sql = " AND ".join(cycle_terms) if cycle_terms else "TRUE";
     return f"""
@@ -839,15 +842,79 @@ def _ttg_render_spec_select(
 }
 
 
+def _ttg_render_frontier_spec_select(
+    spec: dict[str, object],
+    params: dict[str, object]
+) -> str {
+    import from typing { cast }
+    spec_idx = int(spec["idx"]);
+    pfx = f"s{spec_idx}";
+    params[f"{pfx}from"] = spec.get("from_type");
+    chain = cast(
+        list[tuple[str | None, str | None, int]],
+        spec.get("chain") or []
+    );
+    prior_nodes: list[str] = [];
+    source_expr = "frontier.node_id";
+    hop_joins: list[str] = [];
+    hop_keys: list[str] = [];
+    edge_ids: list[str] = [];
+    hop_aliases: list[str] = [];
+    for (hop_idx, hop) in enumerate(chain) {
+        alias = f"s{spec_idx}h{hop_idx}";
+        hop_aliases.append(alias);
+        hop_joins.append(
+            _ttg_render_hop_join(
+                spec_idx, hop_idx, source_expr, prior_nodes, hop, params,
+                "frontier"
+            )
+        );
+        hop_keys.append(_ttg_hop_key_expr(alias));
+        edge_ids.append(_ttg_edge_id_expr(alias));
+        source_expr = f"{alias}.node_id";
+        prior_nodes.append(source_expr);
+    }
+    if not hop_joins {
+        raise RuntimeError("TTG specialized set-based SQL requires non-empty chain");
+    }
+    last_node_expr = prior_nodes[-1];
+    last_arch_type_expr = f"{hop_aliases[-1]}.arch_type";
+    path_nodes_sql = ", ".join(prior_nodes);
+    hop_key_sql = ", ".join(hop_keys);
+    edge_ids_sql = ", ".join(edge_ids);
+    visit_sql = _ttg_sql_bool(bool(spec.get("is_visit")));
+    return f"""
+                SELECT
+                    frontier.depth + 1 AS depth,
+                    {last_node_expr} AS node_id,
+                    {last_arch_type_expr} AS arch_type,
+                    frontier.path_nodes
+                        || ARRAY[{path_nodes_sql}]::uuid[] AS path_nodes,
+                    frontier.path_edges
+                        || ARRAY[{edge_ids_sql}]::uuid[] AS path_edges,
+                    (
+                        frontier.path_ord
+                        || ARRAY[
+                            LPAD(CAST({spec_idx} AS text), 12, '0')
+                        ]::text[]
+                    ) || ARRAY[{hop_key_sql}]::text[] AS path_ord,
+                    {visit_sql}::boolean AS is_frontier
+                FROM frontier
+                {" ".join(hop_joins)}
+                WHERE {_ttg_sql_type_match("frontier.arch_type", f"{pfx}from")}
+            """;
+}
+
+
 def _ttg_render_specialized_set_based_sql(
     specs: list[dict],
     params: dict[str, object]
 ) -> str {
-    spec_selects = [
-        _ttg_render_spec_select(spec, params)
+    frontier_selects = [
+        _ttg_render_frontier_spec_select(spec, params)
         for spec in specs
     ];
-    step_sql = "\n                        UNION ALL\n".join(spec_selects);
+    recursive_sql = "\n                UNION ALL\n".join(frontier_selects);
     return f"""
             WITH RECURSIVE
             walk(
@@ -875,45 +942,22 @@ def _ttg_render_specialized_set_based_sql(
                  AND n.kind = 'NodeAnchor'
                 UNION ALL
                 SELECT
-                    walk.depth + 1 AS depth,
-                    step.next_id AS node_id,
-                    step.next_arch_type AS arch_type,
-                    step.path_nodes AS path_nodes,
-                    step.path_edges AS path_edges,
-                    (
-                        walk.path_ord
-                        || ARRAY[
-                            LPAD(CAST(step.spec_idx AS text), 12, '0')
-                        ]::text[]
-                    ) || step.hop_ord AS path_ord,
-                    step.is_visit AS is_frontier
-                FROM walk
-                JOIN LATERAL (
-                    WITH final_chain AS (
-                        {step_sql}
-                    ),
-                    ranked_chain AS (
-                        SELECT
-                            final_chain.*,
-                            ROW_NUMBER() OVER (
-                                PARTITION BY final_chain.spec_idx
-                                ORDER BY final_chain.hop_ord, final_chain.next_id
-                            ) AS result_ord
-                        FROM final_chain
+                    next.depth,
+                    next.node_id,
+                    next.arch_type,
+                    next.path_nodes,
+                    next.path_edges,
+                    next.path_ord,
+                    next.is_frontier
+                FROM (
+                    WITH frontier AS MATERIALIZED (
+                        SELECT *
+                        FROM walk
+                        WHERE walk.is_frontier
+                          AND walk.depth < CAST(:max_depth AS int)
                     )
-                    SELECT
-                        ranked_chain.spec_idx,
-                        ranked_chain.is_visit,
-                        ranked_chain.next_id,
-                        ranked_chain.next_arch_type,
-                        ranked_chain.path_nodes,
-                        ranked_chain.path_edges,
-                        ranked_chain.hop_ord
-                    FROM ranked_chain
-                    WHERE ranked_chain.result_ord <= CAST(:limit AS bigint)
-                ) step ON TRUE
-                WHERE walk.is_frontier
-                  AND walk.depth < CAST(:max_depth AS int)
+                    {recursive_sql}
+                ) next
             ),
             candidate_node_rows AS (
                 SELECT
