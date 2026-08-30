@@ -249,6 +249,43 @@ test "plain import of a jac type alias is refused; import type is clean" {
 }
 
 
+test "the jac type alias rule holds on the server side too" {
+    # E1131 is a property of the binding, not of the codespace: one spelling
+    # for a type-only export everywhere, so a module reads the same way
+    # whichever backend lowers it.
+    with TemporaryDirectory() as td {
+        proj_root = Path(cast(str, td));
+        (proj_root / "jac.toml").write_text(
+            '[project]\nname = "typeonlysv"\nversion = "0.1.0"\n'
+            'entry-point = "bad.jac"\n'
+        );
+        (proj_root / "rows.jac").write_text("type Row = dict[str, int];\n");
+        bad = proj_root / "bad.jac";
+        bad.write_text(
+            'import from .rows { Row }\n\n'
+            'def first(r: Row) -> int {\n'
+            '    return len(r);\n'
+            '}\n'
+        );
+        (prog_bad, _mod_bad) = compile_module(bad);
+        assert "E1131" in codes_of(prog_bad.errors_had) , f"Expected E1131 on the server side as well, got {codes_of(
+            prog_bad.errors_had
+        )}";
+        good = proj_root / "good.jac";
+        good.write_text(
+            'import type from .rows { Row }\n\n'
+            'def first(r: Row) -> int {\n'
+            '    return len(r);\n'
+            '}\n'
+        );
+        (prog_good, _mod_good) = compile_module(good);
+        assert "E1131" not in codes_of(prog_good.errors_had) , f"`import type` of a jac type alias should be clean on the server side, got {codes_of(
+            prog_good.errors_had
+        )}";
+    }
+}
+
+
 # ---------------------------------------------------------------------------
 # 4. E1132: a type-only binding used in value position
 # ---------------------------------------------------------------------------
