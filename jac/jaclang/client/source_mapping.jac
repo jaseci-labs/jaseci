@@ -812,6 +812,7 @@ obj JacLocator {
 
     def resolve_stack_trace(stack: str, verbose: bool = False) -> str {
         rendered: list[str] = [];
+        mapped_any = False;
         for line in str(stack or "").split("\n") {
             target = self._frame_target(line);
             if target is None {
@@ -820,6 +821,7 @@ obj JacLocator {
             }
             loc = self.locate_compiled(target[0], target[1], target[2]);
             if loc is not None {
+                mapped_any = True;
                 found = _STACK_PATTERN.search(line);
                 where = f"{self.relative(loc.file)}:{loc.line}:{loc.column}";
                 if found {
@@ -830,6 +832,9 @@ obj JacLocator {
             } elif verbose {
                 rendered.append(line);
             }
+        }
+        if not mapped_any and not verbose {
+            return stack;
         }
         return "\n".join(rendered);
     }
