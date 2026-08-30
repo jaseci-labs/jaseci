@@ -204,165 +204,26 @@ def make_sv_runtime -> OspRuntime {
     );
 }
 
-async def _run_typed_async(
-    rt: OspRuntime, scope: WalkScope, slots: list[Slot], a: any, b: any
-) -> None {
-    btag: int = rt.tag_of(b);
-    for s in slots {
-        if (s.trig_tag != UNTYPED) and rt.is_a(btag, s.trig_tag) {
-            result = s.fn(a, b);
-            if inspect.iscoroutine(result) {
-                await result;
-            }
-            if scope.disengaged or scope.skip_node {
-                return;
-            }
-        }
-    }
-}
-
-async def _run_untyped_async(
-    scope: WalkScope, slots: list[Slot], a: any, b: any
-) -> None {
-    for s in slots {
-        if s.trig_tag == UNTYPED {
-            result = s.fn(a, b);
-            if inspect.iscoroutine(result) {
-                await result;
-            }
-            if scope.disengaged or scope.skip_node {
-                return;
-            }
-        }
-    }
-}
-
-async def _visit_recursive_async(
-    rt: OspRuntime, scope: WalkScope, wdesc: WalkerDesc, loc: any
-) -> bool {
-    stack: list = [(loc, 0, 0)];
-    while stack {
-        (cur, phase, budget) = stack.pop();
-        if scope.disengaged {
-            return False;
-        }
-        if phase == 0 {
-            scope.path.append(cur);
-            loc_tag: int = rt.tag_of(cur);
-            ndesc = rt.node_desc(loc_tag);
-            scope.pending_fence = 0;
-            await _run_typed_async(rt, scope, wdesc.`entry, scope.wlk, cur);
-            if scope.disengaged {
-                return False;
-            }
-            if not scope.skip_node {
-                await _run_untyped_async(scope, ndesc.`entry, cur, scope.wlk);
-                if scope.disengaged {
-                    return False;
-                }
-            }
-            if not scope.skip_node {
-                await _run_typed_async(rt, scope, ndesc.`entry, cur, scope.wlk);
-                if scope.disengaged {
-                    return False;
-                }
-            }
-            scope.skip_node = False;
-            stack.append((cur, 1, scope.pending_fence));
-        } elif phase == 1 {
-            child = None;
-            if scope.fenced {
-                while (budget > 0) and (child is None) {
-                    if scope.front {
-                        candidate = scope.front.pop();
-                        budget -= 1;
-                        if candidate not in scope.ignores {
-                            child = candidate;
-                        }
-                    } else {
-                        budget = 0;
-                    }
-                }
-            } else {
-                child = _kernel._dequeue(scope);
-            }
-            if child is not None {
-                stack.append((cur, 1, budget));
-                stack.append((child, 0, 0));
-            } else {
-                stack.append((cur, 2, 0));
-            }
-        } else {
-            loc_tag: int = rt.tag_of(cur);
-            ndesc = rt.node_desc(loc_tag);
-            scope.pending_fence = 0;
-            await _run_typed_async(rt, scope, ndesc.`exit, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
-            }
-            if not scope.skip_node {
-                await _run_untyped_async(scope, ndesc.`exit, cur, scope.wlk);
-                if scope.disengaged {
-                    return False;
-                }
-            }
-            if not scope.skip_node {
-                await _run_typed_async(rt, scope, wdesc.`exit, scope.wlk, cur);
-                if scope.disengaged {
-                    return False;
-                }
-            }
-            scope.skip_node = False;
-            if scope.fenced and (scope.pending_fence > 0) and stack {
-                (ploc, pph, pbud) = stack[-1];
-                stack[-1] = (ploc, pph, pbud + scope.pending_fence);
-            }
-        }
-    }
-    return not scope.disengaged;
-}
-
 async def osp_spawn_async(
     rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list
 ) -> any {
-    scope = WalkScope(
-        wlk=wlk,
-        path=[],
-        next=`list(starts),
-        front=[],
-        ignores=[],
-        reports=[],
-        nested=(len(_kernel.DEFAULT.stack) > 0)
-    );
-    _kernel.DEFAULT.stack.append(scope);
+    eng = _kernel.DEFAULT;
+    scope = eng.begin(wlk, starts);
     ok = False;
     try {
-        if scope.next {
-            anchor = scope.next[0];
-            await _run_untyped_async(scope, wdesc.`entry, wlk, anchor);
-        }
-        while not scope.disengaged {
-            nxt = _kernel._dequeue(scope);
-            if nxt is None {
+        while True {
+            s = eng.next_slot(rt, scope, wdesc);
+            if s is None {
                 break;
             }
-            if not await _visit_recursive_async(rt, scope, wdesc, nxt) {
-                break;
+            result = s.fn(scope.cur_a, scope.cur_b);
+            if inspect.iscoroutine(result) {
+                await result;
             }
-        }
-        if scope.path and (not scope.disengaged) {
-            await _run_untyped_async(scope, wdesc.`exit, wlk, scope.path[-1]);
         }
         ok = True;
     } finally {
-        _kernel.DEFAULT.stack.pop();
-        if scope.nested and _kernel.DEFAULT.stack {
-            outer = _kernel.DEFAULT.stack[-1];
-            for r in scope.reports {
-                outer.reports.append(r);
-            }
-        }
-        rt.on_complete(scope, ok);
+        eng.finish(scope, ok, rt);
     }
     return wlk;
 }
