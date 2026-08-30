@@ -731,18 +731,22 @@ function jacBuildErrorOverlay() {{
           server.ws.send({{ type: "full-reload", path: "*", jacTriggered: true }});
           return;
         }}
-        let file = "", message = raw, frame = "", loc = null;
+        // The Jac process already rendered the diagnostic; the overlay shows the
+        // headline as the message and the rendered block (location, snippet,
+        // help) as the frame.
+        let file = "", message = raw, frame = "", stack = "", loc = null;
         try {{
           const data = JSON.parse(raw);
           const diag = (data.diagnostics || [])[0] || {{}};
           file = diag.file || "";
-          message = diag.rendered || diag.message || "Jac build error";
+          message = (diag.code ? diag.code + ": " : "") + (diag.message || "Jac build error");
           frame = diag.rendered || "";
+          stack = diag.stack || "";
           if (diag.line) loc = {{ file: file, line: diag.line, column: diag.column || 0 }};
         }} catch (e) {{}}
         server.ws.send({{
           type: "error",
-          err: {{ message: message, stack: "", id: file, loc: loc, frame: frame, plugin: "jac" }},
+          err: {{ message: message, stack: stack, id: file, loc: loc, frame: frame, plugin: "jac" }},
         }});
       }};
       try {{ server.watcher.add(statusFile); }} catch (e) {{}}
