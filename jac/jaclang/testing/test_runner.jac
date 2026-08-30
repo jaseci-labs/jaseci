@@ -95,37 +95,25 @@ obj Reporter {
     def _pct_text -> str;
 }
 
-obj ForkPool {
-    has plan: TestPlan,
-        selector: (NameFilter | None),
-        reporter: Reporter,
-        jobs: int,
-        xit: bool = False,
-        maxfail: (int | None) = None,
-        isolate: (set[str] | None) = None,
-        cursor: int = 0,
-        stopping: bool = False,
-        kids: list[dict[(str, any)]] postinit;
-
-    def postinit -> None;
-    def run -> None;
-    def _pump -> None;
-    def _spawn(slot: int) -> dict[(str, any)];
-    def _worker_loop(dispatch_fd: int, result_fd: int) -> None;
-    def _dispatch(kid: dict[(str, any)]) -> bool;
-    def _handle_record(kid: dict[(str, any)], line: str) -> None;
-    def _reap(kid: dict[(str, any)]) -> None;
-    def _should_stop -> bool;
-    def _shutdown -> None;
+import from jaclang.cli.workpool {
+    WorkPool,
+    default_jobs,
+    should_retire as _should_retire,
+    worker_rss_mb as _worker_rss_mb
 }
 
-def _log_worker_footprint(
-    kid: dict[(str, any)], record: dict[(str, any)], files: list[str], done: any
+def _test_retire(served: int, rss_mb: int) -> bool;
+
+def _run_plan(
+    plan: TestPlan,
+    selector: (NameFilter | None),
+    reporter: Reporter,
+    xit: bool,
+    maxfail: (int | None),
+    jobs: int,
+    isolate: (set[str] | None),
+    inline: bool
 ) -> None;
-
-def _worker_rss_mb -> int;
-
-def _should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> bool;
 
 def discover(
     paths: (list[str] | None) = None,
@@ -173,8 +161,6 @@ def _load_last_failed -> str;
 
 def _store_run_state(plan: TestPlan, reporter: Reporter) -> None;
 
-def default_jobs -> int;
-
 def resolve_jobs(requested: (str | int | None) = None) -> int;
 
 def install_warning_filters -> None;
@@ -218,14 +204,6 @@ def _capture_begin -> dict[(str, any)];
 def _capture_end(state: dict[(str, any)]) -> str;
 
 def _cleanup_test_bases -> None;
-
-def _run_serial(
-    plan: TestPlan,
-    selector: (NameFilter | None),
-    reporter: Reporter,
-    xit: bool,
-    maxfail: (int | None)
-) -> None;
 
 import atexit;
 

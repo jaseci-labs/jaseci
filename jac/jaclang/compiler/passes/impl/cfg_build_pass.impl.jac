@@ -202,27 +202,27 @@ impl CoalesceBBPass._node_label(nd: UniNode) -> str {
     return unparse_node(nd);
 }
 
-impl CoalesceBBPass.enter_node(nd: UniNode) -> None {
+impl CoalesceBBPass.coalesce_collect with UniNode entry {
     is_cfg_node = (
-        isinstance(nd, (CodeBlockStmt, Archetype))
-        and not isinstance(nd, (Semi, ModuleCode, GlobalVars, SemDef, TypeAlias))
-        and not _is_structural_child(nd)
+        isinstance(here, (CodeBlockStmt, Archetype))
+        and not isinstance(here, (Semi, ModuleCode, GlobalVars, SemDef, TypeAlias))
+        and not _is_structural_child(here)
     );
 
-    if isinstance(nd, CfgExpr) {
-        cfg_nd: CfgExpr = nd;
+    if isinstance(here, CfgExpr) {
+        cfg_nd: CfgExpr = here;
         if (cfg_nd.bb_in or cfg_nd.bb_out) and _unwrap_to_bool(cfg_nd) is None {
             is_cfg_node = True;
         }
     }
-    if is_cfg_node and isinstance(nd, UniCFGNode) {
+    if is_cfg_node and isinstance(here, UniCFGNode) {
         for bbs in self.basic_blocks.values() {
-            if (nd in bbs['bb_stmts']) {
+            if (here in bbs['bb_stmts']) {
                 return;
             }
         }
-        tail = nd.get_tail();
-        bb = self.get_bb(nd);
+        tail = here.get_tail();
+        bb = self.get_bb(here);
         self.basic_blocks[self.bb_counter] = {'bb_stmts': bb, 'bb_out': tail.bb_out};
         self.bb_counter += 1;
     }
@@ -257,12 +257,7 @@ impl CFGBuildPass.before_pass -> None { }
 
 impl CFGBuildPass.link_bbs(source: UniCFGNode, target: UniCFGNode) -> None {
     if source and target {
-        if target not in source.bb_out {
-            source.bb_out.append(target);
-        }
-        if source not in target.bb_in {
-            target.bb_in.append(source);
-        }
+        source.cfg_link(target);
         new_symbols = source.affected_symbols - target.affected_symbols;
         target.affected_symbols.update(source.affected_symbols);
 
@@ -450,47 +445,49 @@ impl CFGBuildPass._wire_bool_chain(
     return entries[0];
 }
 
-impl CFGBuildPass.exit_bool_expr(nd: BoolExpr) -> None {
-    if isinstance(nd.parent, (IfStmt, WhileStmt, ElseIf))
-        and nd is nd.parent.condition {
+impl CFGBuildPass.exit_bool_expr with BoolExpr exit {
+    if isinstance(here.parent, (IfStmt, WhileStmt, ElseIf))
+        and here is here.parent.condition {
         return;
     }
-    if len(nd.values) >= 2 {
-        `entry = self._wire_bool_operands(nd.values, _bool_is_and(nd), None, None);
+    if len(here.values) >= 2 {
+        `entry = self._wire_bool_operands(here.values, _bool_is_and(here), None, None);
 
-        enclosing_flow = nd.find_parent_of_type(UniCFGNode);
+        enclosing_flow = here.find_parent_of_type(UniCFGNode);
         if enclosing_flow is not None {
             self.link_bbs(enclosing_flow, `entry);
         }
     }
 }
 
-impl CFGBuildPass.exit_if_else_expr(nd: IfElseExpr) -> None {
+impl CFGBuildPass.exit_if_else_expr with IfElseExpr exit {
     import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
-    nd.condition.affected_symbols.update(collect_narrowing_symbols(nd.condition.expr));
+    here.condition.affected_symbols.update(
+        collect_narrowing_symbols(here.condition.expr)
+    );
 
-    unwrapped_cond = _unwrap_parens(nd.condition.expr);
+    unwrapped_cond = _unwrap_parens(here.condition.expr);
     if isinstance(unwrapped_cond, BoolExpr) and len(unwrapped_cond.values) >= 2 {
         op_is_and = _bool_is_and(unwrapped_cond);
         `entry = self._wire_bool_operands(
-            unwrapped_cond.values, op_is_and, nd.value, nd.else_value
+            unwrapped_cond.values, op_is_and, here.value, here.else_value
         );
         if `entry {
-            self.link_bbs(nd.condition, `entry);
+            self.link_bbs(here.condition, `entry);
         }
     } else {
-        nd.condition.sc_true_target = nd.value;
-        nd.condition.sc_false_target = nd.else_value;
-        self.link_bbs(nd.condition, nd.value);
-        self.link_bbs(nd.condition, nd.else_value);
+        here.condition.sc_true_target = here.value;
+        here.condition.sc_false_target = here.else_value;
+        self.link_bbs(here.condition, here.value);
+        self.link_bbs(here.condition, here.else_value);
     }
 
-    enclosing_flow = nd.find_parent_of_type(UniCFGNode);
+    enclosing_flow = here.find_parent_of_type(UniCFGNode);
     if enclosing_flow is not None {
-        self.link_bbs(enclosing_flow, nd.condition);
+        self.link_bbs(enclosing_flow, here.condition);
     }
 
-    for branch in [nd.value, nd.else_value] {
+    for branch in [here.value, here.else_value] {
         inner = _unwrap_parens(branch.expr);
         if isinstance(inner, IfElseExpr) {
             self.link_bbs(branch, inner.condition);
@@ -622,39 +619,47 @@ impl _is_structural_child(nd: UniNode) -> bool {
     return False;
 }
 
-impl CFGBuildPass.enter_node(nd: UniNode) -> None {
+impl CFGBuildPass.cfg_collect_affected with UniNode entry {
     import from jaclang.compiler.expr_keys { collect_assigned_symbols }
-    if isinstance(nd, (CodeBlockStmt, Archetype))
-        and not isinstance(nd, (Semi, ModuleCode, GlobalVars, SemDef, TypeAlias))
-        and not _is_structural_child(nd) {
-        nd.affected_symbols.update(collect_assigned_symbols(nd));
-    }
-
-    super.enter_node(nd);
-}
-
-impl CFGBuildPass.enter_if_stmt(nd: IfStmt) -> None {
-    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
-    nd.affected_symbols.update(collect_narrowing_symbols(nd.condition));
-}
-
-impl CFGBuildPass.enter_else_if(nd: ElseIf) -> None {
-    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
-    nd.affected_symbols.update(collect_narrowing_symbols(nd.condition));
-}
-
-impl CFGBuildPass.enter_assert_stmt(nd: AssertStmt) -> None {
-    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
-    nd.affected_symbols.update(collect_narrowing_symbols(nd.condition));
-}
-
-impl CFGBuildPass.enter_match_stmt(nd: MatchStmt) -> None {
-    if isinstance(nd.target, Name) {
-        nd.affected_symbols.add(nd.target.value);
+    if isinstance(here, (CodeBlockStmt, Archetype))
+        and not isinstance(here, (Semi, ModuleCode, GlobalVars, SemDef, TypeAlias))
+        and not _is_structural_child(here) {
+        here.affected_symbols.update(collect_assigned_symbols(here));
     }
 }
 
-impl CFGBuildPass.exit_if_stmt(nd: IfStmt) -> None {
+impl CFGBuildPass.enter_if_stmt with IfStmt entry {
+    if here.__class__ is not IfStmt {
+        return;
+    }
+    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
+    here.affected_symbols.update(collect_narrowing_symbols(here.condition));
+}
+
+impl CFGBuildPass.enter_else_if with ElseIf entry {
+    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
+    here.affected_symbols.update(collect_narrowing_symbols(here.condition));
+}
+
+impl CFGBuildPass.enter_assert_stmt with AssertStmt entry {
+    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
+    here.affected_symbols.update(collect_narrowing_symbols(here.condition));
+}
+
+impl CFGBuildPass.enter_match_stmt with MatchStmt entry {
+    if isinstance(here.target, Name) {
+        here.affected_symbols.add(here.target.value);
+    }
+}
+
+impl CFGBuildPass.exit_if_stmt with IfStmt exit {
+    if here.__class__ is not IfStmt {
+        return;
+    }
+    self._exit_if_stmt_impl(here);
+}
+
+impl CFGBuildPass._exit_if_stmt_impl(nd: IfStmt) -> None {
     true_target: (UniCFGNode | None) = nd.body[0] if nd.body else None;
 
     false_target: (UniCFGNode | None) = None;
@@ -694,27 +699,29 @@ impl CFGBuildPass.exit_if_stmt(nd: IfStmt) -> None {
     }
 }
 
-impl CFGBuildPass.exit_else_if(nd: ElseIf) -> None {
-    self.exit_if_stmt(nd);
+impl CFGBuildPass.exit_else_if with ElseIf exit {
+    self._exit_if_stmt_impl(here);
 }
 
-impl CFGBuildPass.exit_else_stmt(nd: ElseStmt) -> None {
-    if nd.body {
-        self._link_sequential(nd.body);
+impl CFGBuildPass.exit_else_stmt with ElseStmt exit {
+    if here.body {
+        self._link_sequential(here.body);
     }
 }
 
-impl CFGBuildPass.exit_while_stmt(nd: WhileStmt) -> None {
-    true_target: (UniCFGNode | None) = nd.body[0] if nd.body else None;
+impl CFGBuildPass.exit_while_stmt with WhileStmt exit {
+    true_target: (UniCFGNode | None) = here.body[0] if here.body else None;
 
     false_target: (UniCFGNode | None) = None;
-    if nd.else_body and isinstance(nd.else_body, ElseStmt) and nd.else_body.body {
-        false_target = nd.else_body.body[0];
-    } elif nd.parent {
-        false_target = self._find_next_cfg_stmt_after(nd.parent, nd);
+    if here.else_body
+        and isinstance(here.else_body, ElseStmt)
+        and here.else_body.body {
+        false_target = here.else_body.body[0];
+    } elif here.parent {
+        false_target = self._find_next_cfg_stmt_after(here.parent, here);
     }
 
-    unwrapped = _unwrap_parens(nd.condition);
+    unwrapped = _unwrap_parens(here.condition);
     cond_bool = unwrapped if isinstance(unwrapped, BoolExpr) else None;
 
     if cond_bool is not None and true_target {
@@ -723,24 +730,24 @@ impl CFGBuildPass.exit_while_stmt(nd: WhileStmt) -> None {
             cond_bool.values, op_is_and, true_target, false_target
         );
         if `entry {
-            self.link_bbs(nd, `entry);
+            self.link_bbs(here, `entry);
         }
     } else {
         if true_target {
-            self.link_bbs(nd, true_target);
+            self.link_bbs(here, true_target);
         }
         if false_target and cond_bool is None {
-            self.link_bbs(nd, false_target);
+            self.link_bbs(here, false_target);
         }
     }
 
-    self._link_body_tails_to_header(nd);
+    self._link_body_tails_to_header(here);
 }
 
-impl CFGBuildPass.exit_forever_stmt(nd: ForeverStmt) -> None {
-    self._link_body_tails_to_header(nd);
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
+impl CFGBuildPass.exit_forever_stmt with ForeverStmt exit {
+    self._link_body_tails_to_header(here);
+    if here.body {
+        self.link_bbs(here, here.body[0]);
     }
 }
 
@@ -760,40 +767,47 @@ impl CFGBuildPass._link_body_tails_to_header(
     }
 }
 
-impl CFGBuildPass.exit_in_for_stmt(nd: InForStmt) -> None {
-    self._link_body_tails_to_header(nd);
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
+impl CFGBuildPass.exit_in_for_stmt with InForStmt exit {
+    self._link_body_tails_to_header(here);
+    if here.body {
+        self.link_bbs(here, here.body[0]);
     }
-    if nd.else_body and isinstance(nd.else_body, ElseStmt) and nd.else_body.body {
-        self.link_bbs(nd, nd.else_body.body[0]);
-    }
-}
-
-impl CFGBuildPass.exit_iter_for_stmt(nd: IterForStmt) -> None {
-    self._link_body_tails_to_header(nd);
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
-    }
-    if nd.else_body and isinstance(nd.else_body, ElseStmt) and nd.else_body.body {
-        self.link_bbs(nd, nd.else_body.body[0]);
+    if here.else_body
+        and isinstance(here.else_body, ElseStmt)
+        and here.else_body.body {
+        self.link_bbs(here, here.else_body.body[0]);
     }
 }
 
-impl CFGBuildPass.exit_list_compr(nd: ListCompr) -> None {
-    self._wire_compr_filters(nd, nd.compr);
+impl CFGBuildPass.exit_iter_for_stmt with IterForStmt exit {
+    self._link_body_tails_to_header(here);
+    if here.body {
+        self.link_bbs(here, here.body[0]);
+    }
+    if here.else_body
+        and isinstance(here.else_body, ElseStmt)
+        and here.else_body.body {
+        self.link_bbs(here, here.else_body.body[0]);
+    }
 }
 
-impl CFGBuildPass.exit_set_compr(nd: SetCompr) -> None {
-    self._wire_compr_filters(nd, nd.compr);
+impl CFGBuildPass.exit_list_compr with ListCompr exit {
+    if here.__class__ is not ListCompr {
+        return;
+    }
+    self._wire_compr_filters(here, here.compr);
 }
 
-impl CFGBuildPass.exit_gen_compr(nd: GenCompr) -> None {
-    self._wire_compr_filters(nd, nd.compr);
+impl CFGBuildPass.exit_set_compr with SetCompr exit {
+    self._wire_compr_filters(here, here.compr);
 }
 
-impl CFGBuildPass.exit_dict_compr(nd: DictCompr) -> None {
-    self._wire_compr_filters(nd, nd.compr);
+impl CFGBuildPass.exit_gen_compr with GenCompr exit {
+    self._wire_compr_filters(here, here.compr);
+}
+
+impl CFGBuildPass.exit_dict_compr with DictCompr exit {
+    self._wire_compr_filters(here, here.compr);
 }
 
 impl CFGBuildPass._wire_compr_filters(
@@ -828,9 +842,7 @@ impl CFGBuildPass._wire_compr_filters(
                 cfg_pred = cond;
             } else {
                 cfg_pred = CfgExpr(expr=cond, kid=[cond]);
-                cfg_pred.parent = compr;
-                idx = compr.kid.index(cond);
-                compr.kid[idx] = cfg_pred;
+                compr.replace_kid(cond, cfg_pred);
             }
             cfg_pred.affected_symbols.update(collect_narrowing_symbols(cfg_pred.expr));
             if prev_node is not None {
@@ -840,7 +852,6 @@ impl CFGBuildPass._wire_compr_filters(
             prev_node = cfg_pred;
             new_conditional.append(cfg_pred);
         }
-        compr.conditional = new_conditional;
     }
 
     if prev_node is not None and prev_node is not target_node {
@@ -848,124 +859,126 @@ impl CFGBuildPass._wire_compr_filters(
     }
 }
 
-impl CFGBuildPass.exit_ctrl_stmt(nd: CtrlStmt) -> None {
+impl CFGBuildPass.exit_ctrl_stmt with CtrlStmt exit {
     loop = self._find_parent_of_types(
-        nd, (WhileStmt, ForeverStmt, InForStmt, IterForStmt)
+        here, (WhileStmt, ForeverStmt, InForStmt, IterForStmt)
     );
     if not loop {
         return;
     }
     import from jaclang.compiler.frontend.constant { Tokens as Tok }
-    if nd.ctrl.name == Tok.KW_CONTINUE {
-        self.link_bbs(nd, loop);
-    } elif nd.ctrl.name == Tok.KW_BREAK {
+    if here.ctrl.name == Tok.KW_CONTINUE {
+        self.link_bbs(here, loop);
+    } elif here.ctrl.name == Tok.KW_BREAK {
         if loop.parent {
             next_node = self._find_next_cfg_stmt_after(loop.parent, loop);
             if next_node {
-                self.link_bbs(nd, next_node);
+                self.link_bbs(here, next_node);
             }
         }
     }
 }
 
-impl CFGBuildPass.exit_try_stmt(nd: TryStmt) -> None {
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
-        self._link_sequential(nd.body);
+impl CFGBuildPass.exit_try_stmt with TryStmt exit {
+    if here.body {
+        self.link_bbs(here, here.body[0]);
+        self._link_sequential(here.body);
     }
 
-    for exc in nd.excepts {
-        self.link_bbs(nd, exc);
+    for exc in here.excepts {
+        self.link_bbs(here, exc);
     }
 
-    if nd.else_body and isinstance(nd.else_body, ElseStmt) and nd.else_body.body {
-        if nd.body and not self._is_terminal(nd.body[-1]) {
-            self.link_bbs(nd.body[-1], nd.else_body.body[0]);
+    if here.else_body
+        and isinstance(here.else_body, ElseStmt)
+        and here.else_body.body {
+        if here.body and not self._is_terminal(here.body[-1]) {
+            self.link_bbs(here.body[-1], here.else_body.body[0]);
         }
     }
 
-    if nd.finally_body {
-        if nd.body {
-            self.link_bbs(nd.body[-1], nd.finally_body);
+    if here.finally_body {
+        if here.body {
+            self.link_bbs(here.body[-1], here.finally_body);
         }
-        for exc in nd.excepts {
+        for exc in here.excepts {
             if exc.body {
-                self.link_bbs(exc.body[-1], nd.finally_body);
+                self.link_bbs(exc.body[-1], here.finally_body);
             }
         }
     }
 }
 
-impl CFGBuildPass.exit_except(nd: Except) -> None {
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
-        self._link_sequential(nd.body);
+impl CFGBuildPass.exit_except with Except exit {
+    if here.body {
+        self.link_bbs(here, here.body[0]);
+        self._link_sequential(here.body);
     }
 }
 
-impl CFGBuildPass.exit_finally_stmt(nd: FinallyStmt) -> None {
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
-        self._link_sequential(nd.body);
+impl CFGBuildPass.exit_finally_stmt with FinallyStmt exit {
+    if here.body {
+        self.link_bbs(here, here.body[0]);
+        self._link_sequential(here.body);
     }
 }
 
-impl CFGBuildPass.exit_match_stmt(nd: MatchStmt) -> None {
-    for `case in nd.cases {
-        self.link_bbs(nd, `case);
+impl CFGBuildPass.exit_match_stmt with MatchStmt exit {
+    for `case in here.cases {
+        self.link_bbs(here, `case);
     }
 }
 
-impl CFGBuildPass.exit_match_case(nd: MatchCase) -> None {
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
-        self._link_sequential(nd.body);
+impl CFGBuildPass.exit_match_case with MatchCase exit {
+    if here.body {
+        self.link_bbs(here, here.body[0]);
+        self._link_sequential(here.body);
     }
 }
 
-impl CFGBuildPass.exit_switch_stmt(nd: SwitchStmt) -> None {
-    for `case in nd.cases {
-        self.link_bbs(nd, `case);
+impl CFGBuildPass.exit_switch_stmt with SwitchStmt exit {
+    for `case in here.cases {
+        self.link_bbs(here, `case);
     }
 }
 
-impl CFGBuildPass.exit_switch_case(nd: SwitchCase) -> None {
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
-        self._link_sequential(nd.body);
+impl CFGBuildPass.exit_switch_case with SwitchCase exit {
+    if here.body {
+        self.link_bbs(here, here.body[0]);
+        self._link_sequential(here.body);
     }
 }
 
-impl CFGBuildPass.exit_with_stmt(nd: WithStmt) -> None {
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
-        self._link_sequential(nd.body);
+impl CFGBuildPass.exit_with_stmt with WithStmt exit {
+    if here.body {
+        self.link_bbs(here, here.body[0]);
+        self._link_sequential(here.body);
     }
 }
 
-impl CFGBuildPass.exit_typed_ctx_block(nd: TypedCtxBlock) -> None {
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
-        self._link_sequential(nd.body);
+impl CFGBuildPass.exit_typed_ctx_block with TypedCtxBlock exit {
+    if here.body {
+        self.link_bbs(here, here.body[0]);
+        self._link_sequential(here.body);
     }
 }
 
-impl CFGBuildPass.exit_open_stmt(nd: OpenStmt) -> None {
-    if nd.body {
-        self.link_bbs(nd, nd.body[0]);
-        self._link_sequential(nd.body);
+impl CFGBuildPass.exit_open_stmt with OpenStmt exit {
+    if here.body {
+        self.link_bbs(here, here.body[0]);
+        self._link_sequential(here.body);
     }
 }
 
-impl CFGBuildPass.exit_jsx_slot(nd: JsxSlot) -> None {
-    if nd.body and isinstance(nd.body, Sequence) {
+impl CFGBuildPass.exit_jsx_slot with JsxSlot exit {
+    if here.body and isinstance(here.body, Sequence) {
         body = [
             s
-            for s in nd.body
+            for s in here.body
             if isinstance(s, CodeBlockStmt)
         ];
         if body {
-            enclosing = nd.find_parent_of_type(CodeBlockStmt);
+            enclosing = here.find_parent_of_type(CodeBlockStmt);
             if enclosing is not None {
                 self.link_bbs(enclosing, body[0]);
             }
@@ -974,59 +987,59 @@ impl CFGBuildPass.exit_jsx_slot(nd: JsxSlot) -> None {
     }
 }
 
-impl CFGBuildPass.exit_ability(nd: Ability) -> None {
-    if nd.body and isinstance(nd.body, Sequence) {
+impl CFGBuildPass.exit_ability with Ability exit {
+    if here.body and isinstance(here.body, Sequence) {
         body = [
             s
-            for s in nd.body
+            for s in here.body
             if isinstance(s, CodeBlockStmt)
         ];
         if body {
-            self.link_bbs(nd, body[0]);
+            self.link_bbs(here, body[0]);
             self._link_sequential(body);
         }
     }
 }
 
-impl CFGBuildPass.exit_archetype(nd: Archetype) -> None {
-    if nd.body and isinstance(nd.body, Sequence) {
-        for s in nd.body {
+impl CFGBuildPass.exit_archetype with Archetype exit {
+    if here.body and isinstance(here.body, Sequence) {
+        for s in here.body {
             if isinstance(s, CodeBlockStmt) {
-                self.link_bbs(nd, s);
+                self.link_bbs(here, s);
             }
         }
     }
 }
 
-impl CFGBuildPass.exit_impl_def(nd: ImplDef) -> None {
-    if nd.body and isinstance(nd.body, Sequence) {
+impl CFGBuildPass.exit_impl_def with ImplDef exit {
+    if here.body and isinstance(here.body, Sequence) {
         body = [
             s
-            for s in nd.body
+            for s in here.body
             if isinstance(s, CodeBlockStmt)
         ];
         if body {
-            self.link_bbs(nd, body[0]);
+            self.link_bbs(here, body[0]);
             self._link_sequential(body);
         }
     }
 }
 
-impl CFGBuildPass.exit_module_code(nd: ModuleCode) -> None {
-    if nd.body {
-        self._link_sequential(nd.body);
+impl CFGBuildPass.exit_module_code with ModuleCode exit {
+    if here.body {
+        self._link_sequential(here.body);
     }
 }
 
-impl CFGBuildPass.exit_test(nd: Test) -> None {
-    if nd.body and isinstance(nd.body, Sequence) {
+impl CFGBuildPass.exit_test with Test exit {
+    if here.body and isinstance(here.body, Sequence) {
         body = [
             s
-            for s in nd.body
+            for s in here.body
             if isinstance(s, CodeBlockStmt)
         ];
         if body {
-            self.link_bbs(nd, body[0]);
+            self.link_bbs(here, body[0]);
             self._link_sequential(body);
         }
     }

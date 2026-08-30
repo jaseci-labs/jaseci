@@ -266,8 +266,10 @@ impl TypeEvaluator._ts_synth_class_types(
             continue;
         }
         shells[name] = ClassType(
-            _shared=ClassDetailsShared(
-                class_name=name, symbol_table=Module.make_stub(inject_name=name),
+            _shared=self._intern_shared(
+                ClassDetailsShared(
+                    class_name=name, symbol_table=Module.make_stub(inject_name=name),
+                )
             ),
             flags=TypeFlags.Instantiable,
         );
@@ -405,9 +407,8 @@ impl TypeEvaluator._install_synth_member(
         pos_end=0,
     );
     field_node.type = member_type;
-    scope.names_in_scope[mname] = Symbol(
-        defn=field_node, access=SymbolAccess.PUBLIC, parent_tab=scope
-    );
+    _field_sym = Symbol(defn=field_node, access=SymbolAccess.PUBLIC, parent_tab=scope);
+    scope.adopt_primary(_field_sym, mname);
 }
 
 impl TypeEvaluator._synthesize_ts_decl_class(

@@ -58,6 +58,8 @@ impl mk_payload(pbs_py_dir: str, repo_root: str, out: str, opts: MkPayloadOpts) 
 
     run_precompile_stage(py, pbs_py_dir, site, opts);
 
+    run_stubcat_stage(py, pbs_py_dir, site, opts);
+
     log("==> bundling watchdog (jac run --dev) + tomlkit");
     delete_tree(os.path.join(site, "__pycache__"));
     run_child(
@@ -195,6 +197,41 @@ impl run_precompile_stage(py: str, pbs_py_dir: str, site: str, opts: MkPayloadOp
     }
 }
 
+impl run_stubcat_stage(py: str, pbs_py_dir: str, site: str, opts: MkPayloadOpts) {
+    out_copy = opts.stubcat_out;
+    if opts.skip_stubcat or opts.skip_precompile or opts.link_source is not None {
+        log("==> skipping the stub catalog; the type checker builds it on first use");
+        if out_copy is not None {
+            write_bytes(out_copy, b"");
+        }
+        return;
+    }
+    site_pre = os.path.join(site, "jaclang", "_precompiled");
+    make_dirs(site_pre);
+    out = os.path.join(site_pre, "stubcat.bin");
+    if not run_stubcat(py, pbs_py_dir, site, out) {
+        die("mkpayload: stub catalog build failed (see log above).");
+    }
+    if out_copy is not None {
+        copy_file(out, out_copy);
+    }
+}
+
+impl run_stubcat(py: str, pbs_py_dir: str, site: str, out: str) -> bool {
+    log("==> building the stub catalog (pre-resolved typeshed types)");
+    boot = os.path.join(site, "stubcat_boot.py");
+    write_text(boot, STUBCAT_BOOT_SRC);
+    env = precompile_env(pbs_py_dir, site);
+    env["JAC_STUBCAT_BUILDING"] = "1";
+    ok = run_child([py, "-S", boot, out], env, True);
+    delete_file(boot);
+    if not ok or not file_exists(out) {
+        return False;
+    }
+    log(f"   stub catalog: {os.path.getsize(out)} bytes");
+    return True;
+}
+
 impl precompile_env(pbs_py_dir: str, site: str) -> dict[str, str] {
     env = clone_env();
     env["PYTHONHOME"] = os.path.join(pbs_py_dir, "install");
@@ -206,6 +243,7 @@ impl precompile_env(pbs_py_dir: str, site: str) -> dict[str, str] {
     env["HOME"] = scratch_home;
     env["PATH"] = "/usr/bin:/bin";
     env["JAC_NO_DEV_SOURCE"] = "1";
+    env["JAC_STUBCAT_BUILDING"] = "1";
     return env;
 }
 

@@ -8,6 +8,44 @@ impl JacCompiler.selfhost.getter -> SelfHostCache {
     return cache;
 }
 
+impl JacCompiler.stub_catalog -> any {
+    if self.stub_catalog_disabled {
+        return None;
+    }
+    found = self._stub_catalog;
+    if found is not None {
+        return found;
+    }
+    import from jaclang.jac0core.stubcat_hook { active }
+    found = active();
+    self._stub_catalog = found;
+    return found;
+}
+
+impl JacCompiler.ensure_stub_catalog -> any {
+    if self.stub_catalog_disabled {
+        return None;
+    }
+    found = self.stub_catalog();
+    if found is not None {
+        return found;
+    }
+    import from jaclang.jac0core.stubcat_hook { env_disabled }
+    if env_disabled() {
+        return None;
+    }
+    if self._stub_catalog_tried {
+        return None;
+    }
+    self._stub_catalog_tried = True;
+    import jaclang.compiler.types.stubcat.format;
+    import jaclang.compiler.types.stubcat.reader;
+    import from jaclang.compiler.types.stubcat.locate { ensure_catalog }
+    found = ensure_catalog();
+    self._stub_catalog = found;
+    return found;
+}
+
 impl JacCompiler.get_native_interop_setup(
     full_target: str, target_program: JacProgram
 ) -> tuple[((object | None), (dict[(str, object)] | None))] {
@@ -21,6 +59,11 @@ impl JacCompiler.get_native_interop_setup(
         native_engine = mod.gen.native_engine;
         interop_py_funcs = mod.gen.interop_py_funcs;
         return (native_engine, interop_py_funcs);
+    }
+
+    keyed = actual_program.find_module(full_target);
+    if keyed is not None {
+        return (keyed.gen.native_engine, keyed.gen.interop_py_funcs);
     }
     return (None, None);
 }
@@ -210,7 +253,9 @@ impl JacCompiler.get_bytecode(
     } finally {
         if is_internal {
             if self.selfhost.at_outermost_bytecode() {
-                self.selfhost.evict_unit(full_target, result);
+                self.selfhost.evict_unit(
+                    full_target, result, collect=self.unit_collect
+                );
             }
             self.selfhost.exit_bytecode();
         }
@@ -1077,6 +1122,15 @@ impl JacCompiler.compile(
     use_str: (str | None) = None,
     options: CompileOptions = CompileOptions()
 ) -> uni.Module {
+    if self._reentrant_depth == 0 and not self.stub_catalog_disabled {
+        import from jaclang.compiler.driver.jir { is_compiler_tree_path }
+        if (
+            not self.selfhost.is_selfhost(target_program)
+            and not is_compiler_tree_path(str(file_path))
+        ) {
+            self.ensure_stub_catalog();
+        }
+    }
     import from pathlib { Path as _WrapPath }
     import from jaclang.compiler.frontend.codeinfo {
         get_effective_default_codespace_override,
@@ -1085,6 +1139,16 @@ impl JacCompiler.compile(
     _prev_cs = get_effective_default_codespace_override();
     _depth_prev = self._reentrant_depth;
     self._reentrant_depth = _depth_prev + 1;
+    _gc_prev: (tuple | None) = None;
+    if _depth_prev == 0 and not os.environ.get('JAC_GC_NO_COMPILE_BOOST') {
+        import gc;
+        _gc_prev = gc.get_threshold();
+        if _gc_prev[0] >= COMPILE_GC_THRESHOLDS[0] {
+            _gc_prev = None;
+        } else {
+            gc.set_threshold(*COMPILE_GC_THRESHOLDS);
+        }
+    }
     _outer_opts: (CompileOptions | None) = None;
     _outer_prog: (JacProgram | None) = None;
     _scratch_prog: (JacProgram | None) = None;
@@ -1221,6 +1285,10 @@ impl JacCompiler.compile(
                 _scratch_prog.scratch.compile_depth = 0;
                 self._release_compile_scratch(_scratch_prog);
             }
+        }
+        if _gc_prev is not None {
+            import gc;
+            gc.set_threshold(*_gc_prev);
         }
     }
 }
@@ -1370,7 +1438,7 @@ impl JacCompiler._compile_once(
         );
     }
 
-    _full_head = 'cfg' in providers_of(_head_sched);
+    _full_head = 'CfgSucc' in providers_of(_head_sched);
     self.run_schedule(
         mod=mod_targ,
         target_program=actual_program,
@@ -1414,7 +1482,7 @@ impl JacCompiler._compile_once(
         );
 
     if _analyze {
-        if 'inference'
+        if 'TypeOf'
             not in actual_program.analysis.analyses_run.get(id(mod_targ), set()) {
             self.run_schedule(
                 mod=mod_targ,
@@ -1447,7 +1515,7 @@ impl JacCompiler._compile_once(
         and not options.symtab_ir_only
         and not had_parse_errors
         and not had_blocking_errors
-        and 'inference' in actual_program.analysis.analyses_run.get(id(mod_targ), set())
+        and 'TypeOf' in actual_program.analysis.analyses_run.get(id(mod_targ), set())
     ) {
         import from jaclang.compiler.backends.py.module_codegen_pass {
             ModuleCodegenPass as _PtyMcp
@@ -1559,7 +1627,7 @@ impl JacCompiler._compile_once(
             or ModuleCodegenPass.has_native_context_stmts(mod_targ);
 
         if needs_native
-            and 'inference'
+            and 'TypeOf'
                 not in actual_program.analysis.analyses_run.get(id(mod_targ), set()) {
             self.run_schedule(
                 mod=mod_targ,

@@ -25,12 +25,12 @@ def _mem_or_ctx(mem: any) -> any {
     if mem is not None {
         return mem;
     }
-    import from jaclang.runtime.runtime { JacRuntimeInterface }
-    try {
-        return JacRuntimeInterface.get_context().mem;
-    } except Exception {
-        return None;
+    import from jaclang.runtime.runtime { JacRuntime, _request_context }
+    ctx = _request_context.get();
+    if ctx is None {
+        ctx = JacRuntime.exec_ctx;
     }
+    return ctx.mem if ctx is not None else None;
 }
 
 def _store_for(m: any) -> _SvStore {

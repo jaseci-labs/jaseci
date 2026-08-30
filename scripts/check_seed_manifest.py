@@ -31,6 +31,7 @@ PY_BOOT_MODULES = {
     "jaclang.jac0core.sealed",
     "jaclang.jac0core.cache_paths",
     "jaclang.jac0core.ext_registry",
+    "jaclang.jac0core.osp0",
     "jaclang.bootstrap_manifest",
     "jaclang.jac0",
 }

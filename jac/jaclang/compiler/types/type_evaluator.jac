@@ -323,10 +323,12 @@ obj ConditionInfo {
         attr_name: str | None = None;
 }
 
-glob _stub_module_memo: dict[str, tuple[float, Module]] = {};
+walker TypeEvaluator {
+    can eval_expr with Expr entry;
+    def _intern_shared(shared: ClassDetailsShared) -> ClassDetailsShared;
 
-obj TypeEvaluator {
     has program: JacProgram,
+        _shared_intern: dict[tuple, ClassDetailsShared] = {},
         _BUILTINS_STUB_FILE_PATH: str postinit,
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
@@ -379,6 +381,8 @@ obj TypeEvaluator {
     def _read_dunder_all(path: str) -> (set[str] | None);
     def _read_ambient_imports_by_module(path: str) -> dict[str, set[str]];
     def _load_stub_module(path: str) -> Module;
+    def _init_prelude_from_catalog(catalog: any) -> list[Module];
+    def _init_prelude_from_sources -> list[Module];
     def _get_type_from_module(module: Module, name: str) -> TypeBase;
     def _prefetch_types;
     def get_none_type -> TypeBase;

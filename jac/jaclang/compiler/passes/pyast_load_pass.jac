@@ -99,6 +99,12 @@ import from jaclang.compiler.frontend.unitree {
 import from jaclang.compiler.frontend.constant { Tokens as Tok, RESERVED_IDENT_NAMES }
 import from jaclang.compiler.frontend.diagnostics { E5041, E5042 }
 import from jaclang.compiler.passes.transform { Transform }
+import from jaclang.compiler.frontend.roles {
+    NameRefRole,
+    ReturnTypeRole,
+    UnpackRole,
+    ValueRole
+}
 
 glob T = TypeVar('T', bound=UniNode),
      _reserved_keywords = RESERVED_IDENT_NAMES;
@@ -114,7 +120,7 @@ glob PyPositioned: TypeAlias = py_ast.stmt
          | py_ast.SetComp
          | py_ast.GeneratorExp;
 
-obj PyastBuildPass(Transform) {
+walker PyastBuildPass(Transform) {
     has ir_in: PythonModuleAst,
         cancel_token: Event | None = None,
         mod_path: str postinit,
@@ -141,6 +147,8 @@ obj PyastBuildPass(Transform) {
     def is_canceled -> bool;
     def convert(nd: py_ast.AST) -> UniNode;
     def transform(ir_in: PythonModuleAst) -> Module;
+    def _run_impl(ir_in: PythonModuleAst) -> Module;
+    can run_walk with PythonModuleAst entry;
     def extract_with_entry(
         body: list[UniNode], exclude_types: (type[T] | tuple[type[T], ...])
     ) -> list[(T | ModuleCode)];
