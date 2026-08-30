@@ -22,6 +22,11 @@ node GTITweet {
     def root_profiles -> list[GTIProfile] {
         return [root-->[?:GTIProfile]];
     }
+
+    def local_origin_profiles -> list[GTIProfile] {
+        msg = self;
+        return [msg-->[?:GTIProfile]];
+    }
 }
 
 edge GTIFollow {}
@@ -53,6 +58,7 @@ walker GTIRootSourceMethodTraverse {
 
     can step_tweet with GTITweet entry {
         here.root_profiles();
+        here.local_origin_profiles();
     }
 }
 
@@ -361,6 +367,8 @@ test "TTG extractor skips explicit non-current edge-ref origins" {
             alice = _owned_node(ctx1, alice_root, GTIProfile(name="alice"));
             bob = _owned_node(ctx1, bob_root, GTIProfile(name="bob"));
             tweet = _owned_node(ctx1, alice_root, GTITweet(text="hi"));
+            _connect(ctx1, alice_root, alice, _as_any(GTIPost()));
+            _connect(ctx1, bob_root, bob, _as_any(GTIPost()));
             _connect(ctx1, alice, tweet, _as_any(GTIPost()));
             _connect(ctx1, tweet, bob, _as_any(GTIFollow()));
             ids = (
@@ -380,14 +388,15 @@ test "TTG extractor skips explicit non-current edge-ref origins" {
         JacRuntime.exec_ctx = ctx2;
         try {
             (alice_root_id, bob_root_id, alice_id, bob_id, tweet_id) = ids;
-            loaded = ctx2.mem.get(alice_id);
+            ctx2.set_user_root(str(alice_root_id));
+            loaded = ctx2.mem.get(tweet_id);
             assert isinstance(loaded, NodeAnchor);
             plan = JacTTGGenerator.get_ttg_prefetch_list(
                 GTIRootSourceMethodTraverse(), loaded, ctx2.mem, max_length=10
             );
+            assert tweet_id in plan , plan;
             assert alice_id in plan , plan;
             assert alice_root_id in plan , plan;
-            assert tweet_id in plan , plan;
             assert bob_id not in plan , plan;
             assert bob_root_id not in plan , plan;
         } finally {

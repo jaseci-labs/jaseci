@@ -185,7 +185,8 @@ class VisitType {
     has from_node_type: (type | str | None) = None,
         edge_type: (type | str | None) = None,
         edge_chain: (list[tuple[str | None, str | None, int]] | None) = None,
-        is_visit: bool = True;
+        is_visit: bool = True,
+        origin_name: str = "";
 }
 
 class WalkerArchetype(Archetype) {

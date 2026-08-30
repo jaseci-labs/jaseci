@@ -226,8 +226,11 @@ impl JacTTGGenerator._extract_chains_from_trailer(
 ) -> list[tuple[str | None, str | None, int]] {
     import from typing { cast }
     edge_chain: list[tuple[str | None, str | None, int]] = [];
-    if not cls._edge_ref_origin_is_current(trailer) {
-        origin_name = cls._edge_ref_explicit_origin_name(trailer);
+    origin_name = cls._edge_ref_explicit_origin_name(trailer);
+    if (
+        not cls._edge_ref_origin_is_current(trailer)
+        and origin_name != "root"
+    ) {
         logger.debug(
             f"TTG skips edge ref with non-current origin {origin_name!r}"
         );
@@ -255,6 +258,18 @@ impl JacTTGGenerator._extract_chains_from_trailer(
     }
     return edge_chain;
 }
+
+def _ttg_origin_name_for_visit(origin_name: (str | None)) -> str {
+    return "root" if origin_name == "root" else "";
+}
+
+
+def _ttg_from_type_for_visit(
+    origin_name: (str | None), default_type: (str | None)
+) -> (str | None) {
+    return "Root" if origin_name == "root" else default_type;
+}
+
 
 @classmethod
 impl JacTTGGenerator._extract_refs_from_body(
@@ -443,13 +458,17 @@ impl JacTTGGenerator._trace_method_calls(
         for trailer in trailers {
             chain = cls._extract_chains_from_trailer(callee, trailer);
             if len(chain) > 0 {
+                origin_name = cls._edge_ref_explicit_origin_name(trailer);
                 first_edge = chain[0][0] if len(chain) > 0 else None;
                 result.append(
                     VisitType(
-                        from_node_type=owner_type,
+                        from_node_type=_ttg_from_type_for_visit(
+                            origin_name, owner_type
+                        ),
                         edge_type=first_edge,
                         edge_chain=chain if len(chain) > 0 else None,
-                        is_visit=False
+                        is_visit=False,
+                        origin_name=_ttg_origin_name_for_visit(origin_name)
                     )
                 );
             }
@@ -496,14 +515,22 @@ impl JacTTGGenerator._extract_visits_from_ast(
         }
         visit_stmts = cls._ability_sub_nodes(ability, uni.VisitStmt);
         for visit_stmt in visit_stmts {
-            chains = cls._extract_refs_from_body(visit_stmt);
-            for chain in chains {
+            trailers = visit_stmt.get_all_sub_nodes(uni.EdgeRefTrailer);
+            for trailer in trailers {
+                chain = cls._extract_chains_from_trailer(visit_stmt, trailer);
+                if len(chain) == 0 {
+                    continue;
+                }
+                origin_name = cls._edge_ref_explicit_origin_name(trailer);
                 first_edge = chain[0][0] if len(chain) > 0 else None;
                 result.append(
                     VisitType(
-                        from_node_type=node_type_name,
+                        from_node_type=_ttg_from_type_for_visit(
+                            origin_name, node_type_name
+                        ),
                         edge_type=first_edge,
-                        edge_chain=chain if len(chain) > 0 else None
+                        edge_chain=chain if len(chain) > 0 else None,
+                        origin_name=_ttg_origin_name_for_visit(origin_name)
                     )
                 );
             }
@@ -521,13 +548,17 @@ impl JacTTGGenerator._extract_visits_from_ast(
             }
             chain = cls._extract_chains_from_trailer(ability, trailer);
             if len(chain) > 0 {
+                origin_name = cls._edge_ref_explicit_origin_name(trailer);
                 first_edge = chain[0][0] if len(chain) > 0 else None;
                 result.append(
                     VisitType(
-                        from_node_type=node_type_name,
+                        from_node_type=_ttg_from_type_for_visit(
+                            origin_name, node_type_name
+                        ),
                         edge_type=first_edge,
                         edge_chain=chain if len(chain) > 0 else None,
-                        is_visit=False
+                        is_visit=False,
+                        origin_name=_ttg_origin_name_for_visit(origin_name)
                     )
                 );
             }
@@ -607,7 +638,8 @@ def _sql_visit_specs(
             "idx": len(specs),
             "from_type": cls._resolve_type_name(v.from_node_type),
             "chain": normalized_chain,
-            "is_visit": bool(v.is_visit)
+            "is_visit": bool(v.is_visit),
+            "origin_name": str(getattr(v, "origin_name", "") or "")
         });
     }
     return specs if specs else None;
@@ -2041,7 +2073,8 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
                     f"from={cls._resolve_type_name(v.from_node_type)}",
                     f"edge={cls._resolve_type_name(v.edge_type)}",
                     f"chain={v.edge_chain}",
-                    f"is_visit={v.is_visit}"
+                    f"is_visit={v.is_visit}",
+                    f"origin={getattr(v, 'origin_name', '')}"
                 )
                 for v in visits
             ]
@@ -2052,9 +2085,33 @@ impl JacTTGGenerator.get_ttg_prefetch_list(
     if start_anchor.archetype is not None {
         type_cache[start_id] = type(start_anchor.archetype).__name__;
     }
+    origins: list[UUID] = [start_id];
+    if any(
+        str(getattr(v, "origin_name", "") or "") == "root"
+        for v in visits
+    ) {
+        try {
+            import from jaclang.runtime.runtime { JacRuntimeInterface }
+            ctx = JacRuntimeInterface.get_context();
+            root_anchor = ctx?.user_root;
+            root_id = root_anchor?.id;
+            if root_id is not None and root_id not in origins {
+                origins.append(root_id);
+            }
+            if (
+                root_id is not None
+                and root_anchor is not None
+                and root_anchor.archetype is not None
+            ) {
+                type_cache[root_id] = type(root_anchor.archetype).__name__;
+            }
+        } except Exception as e {
+            logger.debug(f"TTG could not add root origin: {e}");
+        }
+    }
     sql_start = _time.perf_counter();
     sql_prefetch = _resolve_sql_visit_bfs(
-        cls, mem, [start_id], visits, max_length, type_cache
+        cls, mem, origins, visits, max_length, type_cache
     );
     sql_ms = (_time.perf_counter() - sql_start) * 1000;
     return _finalize_ttg_prefetch(

@@ -742,7 +742,16 @@ impl Session.invalidate_query_cache -> None {
 }
 
 
+def _query_cache_enabled -> bool {
+    value = os.environ.get("JAC_QUERY_CACHE", "1").strip().lower();
+    return value not in ("0", "false", "no", "off");
+}
+
+
 impl Session.query_cache_get(key: any) -> any {
+    if not _query_cache_enabled() {
+        return None;
+    }
     lock = getattr(self, "_query_cache_lock", None);
     if lock is not None {
         lock.acquire();
@@ -758,6 +767,9 @@ impl Session.query_cache_get(key: any) -> any {
 
 
 impl Session.query_cache_put(key: any, value: any) -> None {
+    if not _query_cache_enabled() {
+        return;
+    }
     lock = getattr(self, "_query_cache_lock", None);
     if lock is not None {
         lock.acquire();
