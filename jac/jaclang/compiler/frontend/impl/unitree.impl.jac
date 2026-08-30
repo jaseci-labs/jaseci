@@ -33,10 +33,7 @@ impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
         }
         return;
     }
-    # One child may fill several roles (the JSX `{name}` attribute shorthand
-    # is both the attribute's name and its value): role_of holds the first
-    # role a node fills and extra_roles the rare additional ones, so the
-    # common one-role case allocates nothing beyond the original map.
+
     role_of: dict[int, type] = {};
     extra_roles: dict[int, list[type]] = {};
     if roles {
@@ -369,18 +366,13 @@ impl UniNode.replace_kid(old: UniNode, new: UniNode) -> UniNode {
 
 impl UniNode.detached_copy -> UniNode {
     import copy;
-    # __deepcopy__ rebuilds the clone's Kid and Role edges through _attach,
-    # so its in-links are already consistent; nothing to relink afterwards.
+
     return copy.deepcopy(self);
 }
 
 impl UniNode.__deepcopy__(memo: dict) -> UniNode {
     import copy;
-    # Clone the subtree by hand.  The generic deepcopy would walk the runtime
-    # anchor, whose in-link weakrefs cannot be pickled, and would drag the
-    # parent chain in through `_ctx_parent`.  Only Kid and Role edges are
-    # structure; symbol, impl and cfg relations are not copied, so the clone
-    # comes back detached and thawed with fresh derived caches.
+
     dup = object.__new__(type(self));
     memo[id(self)] = dup;
     for (key, val) in self.__dict__.items() {
@@ -392,8 +384,6 @@ impl UniNode.__deepcopy__(memo: dict) -> UniNode {
         } elif key == "_struct_frozen" {
             dup.__dict__[key] = False;
         } elif key == "orig_src" {
-            # The Source node is file identity shared by every token, not
-            # part of the subtree being cloned.
             dup.__dict__[key] = val;
         } else {
             dup.__dict__[key] = copy.deepcopy(val, memo);

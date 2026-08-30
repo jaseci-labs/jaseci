@@ -92,13 +92,6 @@ impl NaIRGenCalls._linked_callee_decl(
 impl NaIRGenCalls._callee_sig_of(
     nd: uni.FuncCall, func: (ir.Function | None) = None
 ) -> (uni.FuncSignature | None) {
-    # When the call links against an imported native module's own `def`
-    # (na_stdlib or a user module), that declaration is what `func` was lowered
-    # from, so its signature -- not whatever the checker bound as
-    # `callee_decl` -- decides how omitted parameters are filled. The stub
-    # catalog binds bundled stdlib names to a bare symbol with no signature
-    # at all, and a typeshed stub carries `...` defaults; either would
-    # zero-fill an omitted `value: int = 1`.
     linked = self._linked_callee_decl(func);
     if linked is not None and isinstance(linked.signature, uni.FuncSignature) {
         return linked.signature;

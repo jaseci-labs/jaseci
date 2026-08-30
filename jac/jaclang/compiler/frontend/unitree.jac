@@ -288,12 +288,6 @@ node Symbol {
 }
 
 obj StructureThaw {
-    """Scoped thaw for tools that legitimately restructure a frozen tree.
-
-    Entering thaws the target's subtree when it is frozen; leaving re-freezes
-    it (also on error) so the post-codegen mutation guard is restored.  An
-    unfrozen target is left untouched on both sides.
-    """
     has target: UniNode,
         refreeze: bool = False;
 

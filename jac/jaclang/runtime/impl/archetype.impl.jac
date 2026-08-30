@@ -102,8 +102,6 @@ impl Anchor.__getstate__ -> dict[(str, any)] {
 }
 
 impl Anchor.__setstate__(state: dict[(str, any)]) -> None {
-    # persistent is a property (its setter arms write tracking), so it must
-    # not ride into __dict__ with the rest of the state
     persistent = bool(state.pop('persistent', False));
     self.__dict__.update(state);
     self.persistent = persistent;
@@ -420,12 +418,8 @@ impl Anchor.persistent.getter -> bool {
 }
 
 impl Anchor.persistent.setter(persistent: bool) -> None {
-    # The one seam that arms write tracking: whichever path makes an anchor
-    # persistent (save, hydration, a direct flip by session code) its
-    # archetype's field writes must reach the session's dirty set.
     self._persistent = persistent;
-    # keyed on the archetype alone: a NodeAnchor mid-hydration is not yet
-    # populated (no edges list) but its archetype is already the live object
+
     if persistent and 'archetype' in self.__dict__ {
         track_writes(self.archetype);
     }

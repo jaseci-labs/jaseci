@@ -53,7 +53,6 @@ walker DeclImplMatchPass(Transform) {
     ) -> None;
 
     def _share_scope_names(impl_node: ImplDef, valid_decl: AstImplNeedingNode) -> None;
-
     def _report_bare_redecls(sym_tab: UniScopeNode) -> None;
     def validate_params_match(
         impl_node: ImplDef, sym_name: str, valid_decl: AstSymbolNode

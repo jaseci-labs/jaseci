@@ -82,6 +82,7 @@ obj Anchor {
         access: (Permission | None) = field(`init=False, `default=None),
         _persistent: bool = field(`init=False, `default=False),
         hash: int = field(`init=False, `default=0);
+
     has persistent: bool { getter; setter(persistent: bool); }
 
     def ensure_id -> UUID;
@@ -649,15 +650,10 @@ def _untracked_new(cls: type[Archetype]) -> Archetype {
 }
 
 def _tracked_reduce_ex(self: any, protocol: int) -> tuple {
-    # pickle and copy rebuild the declared class, never the tracked twin
-    # (which shares its name, so pickle would reject it as a different object)
     return (_untracked_new, (untracked_class(`type(self)), ), self.__dict__);
 }
 
 def track_writes(arch: Archetype) -> None {
-    # Armed by Anchor.persistent's setter: a persistent archetype's field
-    # writes must land in the session's dirty set, so its class is swapped
-    # for a same-named twin whose __setattr__ marks the anchor dirty.
     cls = `type(arch);
     if cls.__dict__.get('__jac_tracked__', False) {
         return;

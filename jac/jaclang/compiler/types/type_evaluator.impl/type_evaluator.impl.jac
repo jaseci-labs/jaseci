@@ -6225,11 +6225,7 @@ impl TypeEvaluator._intern_shared(shared: ClassDetailsShared) -> ClassDetailsSha
     if site is None {
         return shared;
     }
-    # The intern names a declaration in one version of its file: the site key
-    # plus the source's content hash. A rewritten module (LSP did_change, a
-    # disk edit) therefore interns fresh identities by construction, while a
-    # module released and re-imported unchanged keeps the ClassDetailsShared
-    # that every retained ClassType already points at.
+
     src = shared.symbol_table?.loc?.orig_src;
     key = (site, src.hash if src is not None else "");
     found = self._shared_intern.get(key);

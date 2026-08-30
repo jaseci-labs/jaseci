@@ -187,10 +187,7 @@ impl DeclImplMatchPass._connect_one_impl(
     ) {
         self._populate_self_member_symbols(impl_node, name_of_links[0].name_of);
     }
-    # Binding the impl body's assignments and `self.x` members above inserts
-    # into one scope only; share again so the declaration sees them as well
-    # (the members of an `impl Enum { ... }` block are bound here, not in
-    # SymTabBuildPass).
+
     self._share_scope_names(impl_node, valid_decl);
 }
 

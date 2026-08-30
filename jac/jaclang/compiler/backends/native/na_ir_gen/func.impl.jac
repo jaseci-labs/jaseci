@@ -392,9 +392,6 @@ impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
     }
     func = self.func_symtab.get(name);
     if func is None {
-        # The declaration already demoted this callable (a signature no native
-        # type answers), so the seam it owns absorbs the violations inside its
-        # body as well; leaving them unclaimed would refuse the whole module.
         if id(nd) in self._capability_demotions {
             self._claimed_capability_demotions.add(id(nd));
         }

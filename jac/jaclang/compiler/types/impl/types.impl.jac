@@ -97,8 +97,7 @@ impl ClassDetailsShared.symbol_table.getter -> SymbolTable {
 
 impl ClassDetailsShared.symbol_table.setter(symbol_table: SymbolTable) -> None {
     del [edge self->:DeclScopeOf:->];
-    # A class built without a scope (synthetic MRO fixtures pass None through
-    # `any`) records no DeclScopeOf edge, as the plain field on main tolerated.
+
     if symbol_table is not None {
         self +>:DeclScopeOf:+> symbol_table;
     }
@@ -1242,10 +1241,7 @@ impl ClassDetailsShared.same_class(other: ClassDetailsShared) -> bool {
     if key == other_key {
         return True;
     }
-    # A bundled stdlib class is declared twice: by its typeshed stub (the
-    # server codespace's view) and by its na_stdlib implementation (what a
-    # native codespace links). Both name one class, so a value typed through
-    # either declaration is assignable to the other.
+
     if other_key is None or self.class_name != other.class_name {
         return False;
     }

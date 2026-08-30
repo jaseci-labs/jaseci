@@ -252,9 +252,8 @@ def module_of(scope: (UniScopeNode | None)) -> (Module | None) {
 
 obj CatalogWriter {
     has evaluator: any,
-        pkg_dir: str;
-
-    has strings: dict[str, int] postinit,
+        pkg_dir: str,
+        strings: dict[str, int] postinit,
         str_list: list[str] postinit,
         module_names: dict[int, str] postinit,
         module_ids: dict[int, int] postinit,
@@ -279,9 +278,8 @@ obj CatalogWriter {
         sym_types: dict[int, (TypeBase | None)] postinit,
         sym_props: dict[int, tuple[int, int, (TypeBase | None)]] postinit,
         forced_scopes: set[int] postinit,
-        base_dir: str postinit;
-
-    has failures: int = 0,
+        base_dir: str postinit,
+        failures: int = 0,
         evaluated: int = 0,
         failure_log: list[str] = [];
 

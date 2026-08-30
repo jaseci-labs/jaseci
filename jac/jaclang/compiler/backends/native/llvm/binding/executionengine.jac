@@ -127,7 +127,7 @@ class ExecutionEngine(ffi.ObjectRef) {
     }
 
     """Keep this engine alive for the rest of the process."""
-    def _pin(self: ExecutionEngine) -> None {
+    def _pin(self: ExecutionEngine) {
         if not self._pinned {
             self._pinned = True;
             _PINNED_ENGINES.append(self);

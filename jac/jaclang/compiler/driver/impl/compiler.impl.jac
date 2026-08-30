@@ -60,9 +60,7 @@ impl JacCompiler.get_native_interop_setup(
         interop_py_funcs = mod.gen.interop_py_funcs;
         return (native_engine, interop_py_funcs);
     }
-    # The hub keys modules by their resolved path; a caller handing in the
-    # spelling it compiled with (a symlinked tmpdir, a relative form) still
-    # owns the engine that compile produced.
+
     keyed = actual_program.find_module(full_target);
     if keyed is not None {
         return (keyed.gen.native_engine, keyed.gen.interop_py_funcs);

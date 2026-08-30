@@ -87,10 +87,6 @@ impl JacLangServer._fanout_dependents(file_uri: str) -> None {
         return;
     }
     with self._state_lock.write_lock() {
-        # The dependency graph holds resolved paths while open documents are
-        # keyed by the URI the client sent, whose path may be a symlinked
-        # spelling (/var vs /private/var on macOS); map back through the
-        # resolved form so a consumer is found under either spelling.
         open_by_real: dict[str, str] = {};
         for open_uri in self.workspace._text_documents {
             open_fs = uris.to_fs_path(open_uri);

@@ -865,9 +865,6 @@ impl NaIRGenExpr._codegen_compare_link(
         and self?.jacval_type
         and left.type == self.jacval_type
         and right.type == self.jacval_type {
-        # Two dynamic values are the same object when tag and payload agree.
-        # The pointer path below cannot see inside a JacVal, and its fallback
-        # would answer the truthiness of the left operand instead.
         _jv_tag_eq = self.builder.icmp_unsigned(
             "==",
             self.builder.extract_value(left, 0, name="is.jv.l.tag"),

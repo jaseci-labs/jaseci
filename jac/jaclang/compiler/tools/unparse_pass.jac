@@ -153,10 +153,7 @@ def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
         if (not k.loc.mod_path) or (k.loc.mod_path == own_path)
     ];
     filtered = len(head_kid) != len(saved_kid);
-    # A compiled module arrives structurally frozen (FreezeStructurePass closes
-    # every compile).  The head filter, NormalizePass and the restore below all
-    # rewrite the tree, so the whole cycle runs under a scoped thaw that
-    # re-freezes the module on the way out; a never-frozen module is untouched.
+
     with mod.structure_thawed() {
         if filtered {
             mod._role_set(

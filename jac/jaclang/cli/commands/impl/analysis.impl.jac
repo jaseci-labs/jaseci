@@ -857,9 +857,7 @@ impl format(
     );
 
     results_by_idx: dict[(int, dict)] = {};
-    # Progress is the only observable difference between the two paths: the
-    # pool reports completions as `Formatting [N/M] completed...`, the serial
-    # path names each file as it starts.
+
     progress: dict[(str, any)] = {"pooled": use_pool, "done": 0};
 
     def fmt_job(request: dict[(str, any)]) -> dict {

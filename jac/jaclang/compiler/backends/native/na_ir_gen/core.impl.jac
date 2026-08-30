@@ -1204,11 +1204,6 @@ impl NaIRGenCore._forward_declare_imported_ability(
 impl NaIRGenCore._record_linked_decl(
     func: (ir.Function | None), decl: uni.Ability
 ) -> None {
-    # `decl` is the imported module's own `def` -- the declaration `func` was
-    # actually lowered from -- so it is the ground truth for the native calling
-    # convention (parameter order, defaults, ownership) at every call site.
-    # The checker-bound `callee_decl` may instead be a stub-catalog symbol with
-    # no signature, or a typeshed stub whose defaults are `...` placeholders.
     if func is None or id(func) in self._linked_fn_decls {
         return;
     }

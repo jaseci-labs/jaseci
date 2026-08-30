@@ -299,15 +299,14 @@ enum FunctionTypeFlags(IntEnum) {
 }
 
 node Parameter {
-    has _acc_cache: (dict[str, any] | None) = None;
-    has name: str = "",
+    has _acc_cache: (dict[str, any] | None) = None,
+        name: str = "",
         category: (ParameterCategory | None) = None,
         is_self: bool = False,
         is_cls: bool = False,
         param_kind: ParamKind = ParamKind.NORMAL,
         has_default: bool = False,
         is_comptime: bool = False;
-
     has param_type: (TypeBase | None) {
         getter;
         setter(param_type: (TypeBase | None));
@@ -443,10 +442,9 @@ node UnionType(TypeBase) {
 }
 
 node EnumMemberInfo {
-    has _acc_cache: (dict[str, any] | None) = None;
-    has member_name: str = "",
+    has _acc_cache: (dict[str, any] | None) = None,
+        member_name: str = "",
         literal_value: (int | str | None) = None;
-
     has value_type: (TypeBase | None) {
         getter;
         setter(value_type: (TypeBase | None));

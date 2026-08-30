@@ -85,9 +85,8 @@ obj CatProvider {
         alias_name: str,
         prop_kind: int,
         write_kind: int,
-        write_type_id: int;
-
-    has memo: (TypeBase | None) = None,
+        write_type_id: int,
+        memo: (TypeBase | None) = None,
         memo_set: bool = False;
 
     def resolve_type(evaluator: any, symbol: Symbol) -> TypeBase {
@@ -273,9 +272,8 @@ obj SymbolRec {
 obj StubCatalog {
     has buf: any,
         pkg_dir: str,
-        keepalive: any = None;
-
-    has hdr: Header postinit,
+        keepalive: any = None,
+        hdr: Header postinit,
         _str_memo: dict[int, str] postinit,
         _mod_memo: dict[int, Module] postinit,
         _scope_memo: dict[int, UniScopeNode] postinit,
