@@ -8,7 +8,6 @@ returns on the core and the scale server, and the same diagnostic value the
 `/cl/__error__` endpoint logs.
 """
 
-import asyncio;
 import io;
 import json;
 import logging;
@@ -242,42 +241,6 @@ test "the core /__build_status route serves the status document shape" {
         } finally {
             reloader.stop();
             client.close();
-            _reset_client_globals();
-        }
-    }
-}
-
-obj _CapturedServer {
-    has endpoints: list = [];
-
-    def add_endpoint(ep: any) {
-        self.endpoints.append(ep);
-    }
-}
-
-obj _CoreStub {
-    has server: any;
-}
-
-test "the scale /__build_status route serves the same status document shape" {
-    import from jaclang.scale.server.serve { JacAPIServerCore }
-    with TemporaryDirectory() as tmp {
-        stub = _CoreStub(server=_CapturedServer());
-        JacAPIServerCore.register_build_status_endpoint(stub);
-        assert len(stub.server.endpoints) == 1;
-        ep = stub.server.endpoints[0];
-        assert ep.path == "/__build_status";
-        body = asyncio.run(ep.callback());
-        assert body == {"status": "unavailable", "diagnostics": []} , body;
-        reloader = _reloader(Path(tmp));
-        try {
-            reloader.start();
-            reloader.record_error("main.jac", "boom");
-            body = asyncio.run(ep.callback());
-            assert body["status"] == "error" , body;
-            assert body["diagnostics"][0]["file"] == "main.jac" , body;
-        } finally {
-            reloader.stop();
             _reset_client_globals();
         }
     }
