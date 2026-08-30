@@ -21,8 +21,12 @@ def _resolve_call_target(module_name: str) -> tuple[str, str | None] {
         if route is not None and route.url {
             return (route.url, route.host_header);
         }
-    } except Exception {
-        ;
+    } except Exception as e {
+        import logging;
+        logging.getLogger(__name__).warning(
+            f"Dynamic route lookup failed for '{module_name}'; falling back "
+            f"to the static registry, which may not be interceptor-aware: {e}"
+        );
     }
     return (
         sv_client.resolve_url(module_name),

@@ -32,13 +32,16 @@ No mocking, no manually-set `Host` header anywhere in the script. The flow:
    once more to confirm the `InterceptorRoute`/`ScaledObject` reconcile is
    idempotent.
 2. Poll both resources' `status.conditions[type=Ready]` until Ready.
-3. Port-forward the **gateway's own Service** (not the interceptor).
-4. **External wake**: `POST /worker/walker/ping` straight at the gateway,
+3. Wait for `worker` to reach 0 replicas. A fresh deploy starts it at 1
+   replica; without this wait, the first wake test below could pass even
+   with broken interceptor routing, simply because the pod was still warm.
+4. Port-forward the **gateway's own Service** (not the interceptor).
+5. **External wake**: `POST /worker/walker/ping` straight at the gateway,
    with no `Host` header set by the script. The gateway must resolve
    `worker`'s interceptor route and set that header itself for the request
    to succeed. Confirms `worker` scales 0 -> 1, then waits out the cooldown
    and confirms it scales back to 0.
-5. **Internal RPC wake**: `POST /walker/trigger_ping` at the gateway (the
+6. **Internal RPC wake**: `POST /walker/trigger_ping` at the gateway (the
    `app` service, always warm). `app`'s handler calls `worker.ping()` over
    sv-to-sv RPC -- exercising the separate code path in `rpc.jac`, not the
    gateway's HTTP-forward path. Confirms `worker` scales 0 -> 1 again purely

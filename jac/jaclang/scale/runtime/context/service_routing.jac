@@ -1,6 +1,6 @@
 import from jaclang.scale.runtime.context.util {
-    K8S_CLUSTER_DNS_SUFFIX,
     k8s_safe_service_name,
+    k8s_service_dns_host,
     in_cluster_namespace
 }
 
@@ -10,14 +10,6 @@ glob KEDA_INTERCEPTOR_SERVICE_ADDRESS: str = "keda-add-ons-http-interceptor-prox
 obj ServiceRoute {
     has url: str,
         host_header: (str | None) = None;
-}
-
-
-def k8s_service_dns_host(service_name: str, namespace: str) -> str {
-    """The real, existing per-Service DNS name -- reused (not invented) as
-    the interceptor Host-header disambiguator, per KEDA HTTP Add-on's own
-    documented pattern.""";
-    return f"{service_name}.{namespace}.{K8S_CLUSTER_DNS_SUFFIX}";
 }
 
 

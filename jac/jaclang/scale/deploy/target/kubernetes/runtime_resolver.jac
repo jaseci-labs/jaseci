@@ -39,7 +39,7 @@ def resolve_peer_route(svc_name: str, namespace: str, port: int) -> ServiceRoute
         kubernetes_cfg = scale_cfg.get_kubernetes_config();
         microservices_cfg = scale_cfg.get_microservices_config();
     } except Exception as e {
-        logger.debug(
+        logger.warning(
             f"Could not load scale config while resolving '{svc_name}'; "
             f"treating it as not HTTP-activated: {e}"
         );

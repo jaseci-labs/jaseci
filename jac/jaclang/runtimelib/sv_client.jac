@@ -20,6 +20,7 @@ def peer_url_from_env(module_name: str) -> str {
 
 def register(module_name: str, url: str) {
     _registry[module_name] = url;
+    _host_overrides.pop(module_name, None);
 }
 
 def unregister(module_name: str) {
