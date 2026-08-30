@@ -754,12 +754,9 @@ obj JacLocator {
 
     def fallback_owner -> str {
         for key in sorted(self.sources.keys()) {
-            if not _basename(key).startswith("_") {
+            if _basename(key) in ("_entry.js", "main.js", "index.js") {
                 return self.sources[key];
             }
-        }
-        for key in sorted(self.sources.keys()) {
-            return self.sources[key];
         }
         if self.toml_path is not None {
             return str(self.toml_path);

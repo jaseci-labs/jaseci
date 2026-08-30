@@ -7,7 +7,7 @@ The Jac compiler uses a structured diagnostic code system. Every error, warning,
 Diagnostic codes follow the pattern `{severity}{category}{sequence}`:
 
 - **Severity**: `E` (error) or `W` (warning)
-- **Category digit**: `0` = syntax, `1` = type, `2` = semantic, `3` = lint, `4` = import, `5` = codegen, `9` = internal
+- **Category digit**: `0` = syntax, `1` = type, `2` = semantic, `3` = lint, `4` = import, `5` = codegen, `7` = dev loop / client runtime, `9` = internal
 - **Sequence**: Three-digit number within the category
 
 For example, `E1030` is a **type error** about attribute access, and `W3005` is a **lint warning** about empty parentheses.
@@ -619,6 +619,55 @@ A `def:pub` function in a server-placed module is an HTTP endpoint whose argumen
 `W6007`: the value-flow generalization of `W6005`. A function reference that flows into client-side data (stored in a container, returned, or passed along as an argument) needs client presence. A `def:pub` endpoint gets that presence automatically, through a generated client-side forwarder, so this fires only where no forwarder is possible -- a function with no endpoint access, or one pinned server. Drop the pin, or restructure so the client stores data instead of the function. The build-time form of the same fact is `E5086`. See [Placement](placement.md) for the full model.
 
 `W6009`: the forwarder that gives a `def:pub` endpoint its client-side presence calls the endpoint over HTTP, so it is necessarily `async` and its result is a `Promise<T>` where the server function's is `T`. That is transparent where the result is awaited or ignored (a command handler, an event listener) and wrong where a plain value is required (a sort comparator, a reducer). Await the call, or drop `:pub` so the function is placed client-side and stays synchronous.
+
+---
+
+## Dev Loop and Client Runtime Errors (E7xxx)
+
+Emitted at run time, not by `jac check`. The dev loop (`jac run --dev`) and the
+`/cl/__error__` endpoint classify every failure the browser, the Vite dev server
+or the client build reports, resolve it back to a Jac location through the
+client source maps, and render it in the shape above. The 7-series is grouped by
+*channel* rather than by compiler phase, so `E7005` carries the `codegen`
+category while the rest carry `runtime`.
+
+| Code | Message |
+|------|---------|
+| `E7001` | The module '{module}' has no export named '{name}' |
+| `E7002` | Failed to resolve import '{name}' from '{importer}' |
+| `E7003` | Uncaught {kind} in client code: {message} |
+| `E7004` | Vite dev-server error: {message} |
+| `E7005` | Client build failed: {message} |
+| `E7006` | Client error could not be traced to Jac source: {message} |
+
+`E7001` is the link error the browser raises when a module loads and the name a
+value import asked for is not among its runtime exports. The usual cause is a
+type-only export -- a TypeScript interface or type alias that lives in the
+package's `.d.ts` and is erased before the module runs. Import it with
+`import type`, or check the package's exports for the name's real spelling. The
+location is the `.jac` import item itself, found through the compiled module's
+column map.
+
+`E7002` is a resolve failure the dev server raises before the browser ever runs
+the module. The primary location is the importing `.jac` line; when the missing
+name is a bare npm package, the diagnostic also carries a related location on
+the `jac.toml` `[dependencies.npm]` table -- the package's own line when it is
+declared, the table header when it is not, and the file itself when the table is
+absent. The build-time sibling for the same fact is `W1106`.
+
+`E7003` is any error the browser threw with a stack. The topmost frame that maps
+into a `.jac` file is the reported location; the raw JavaScript stack is kept on
+the diagnostic so frames outside your sources are not lost.
+
+`E7005` covers the client build failures that reach the dev loop as a bare
+exception. Whenever the compiler emitted diagnostics of its own, those are
+reported instead, with their real codes and locations.
+
+`E7006` is the honest answer when nothing on disk claims the location the
+browser reported -- a browser extension, a dependency with no source map, or an
+artifact from a build that has since been replaced. The `file` field still names
+the best-known Jac owner and the diagnostic carries an explicit
+`unmapped_reason`; it is never silently empty.
 
 ---
 

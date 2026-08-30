@@ -77,8 +77,12 @@ impl ClientDiagnostic.render(colors: bool = False) -> str {
         note_line = _number(note.get("line"));
         note_source = "";
         if note_file and note_line > 0 {
+            note_abs = note_file;
+            if not os.path.isabs(note_abs) and self.base_path {
+                note_abs = os.path.join(self.base_path, note_abs);
+            }
             try {
-                note_source = read_file_with_encoding(note_file);
+                note_source = read_file_with_encoding(note_abs);
             } except Exception {
                 note_source = "";
             }
@@ -102,9 +106,11 @@ impl ClientDiagnostic.render(colors: bool = False) -> str {
         colors=colors
     );
     if span is None and self.file {
-        parts = text.split("\n");
-        parts.insert(1, f"  --> {self.file}");
-        text = "\n".join(parts);
+        arrow = f"\n  --> {self.file}";
+        head_end = text.find("\n");
+        text = (text + arrow)
+            if (head_end < 0)
+            else (text[:head_end] + arrow + text[head_end:]);
     }
     if self.unmapped_reason {
         text += f"\nnote: {self.unmapped_reason}";
@@ -359,7 +365,10 @@ impl classify_client_payload(
                     );
                 diag.related = [
                     related_location(
-                        label, toml_loc.file, toml_loc.line, toml_loc.column
+                        label,
+                        _relative(diag.base_path, toml_loc.file),
+                        toml_loc.line,
+                        toml_loc.column
                     )
                 ];
             }

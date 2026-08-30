@@ -2287,6 +2287,71 @@ To see raw error output alongside formatted diagnostics, set `debug = true` unde
 
 > **Note:** Debug mode is enabled by default for a better development experience. For production deployments, set `debug = false` in `jac.toml`.
 
+### Dev Loop Diagnostics
+
+Once the dev server is up, every failure the loop can see -- a Jac compile
+error, a Vite resolve failure, a module-link error in the browser, an uncaught
+exception with a stack -- is resolved back to a Jac location and reported as one
+diagnostic value. The terminal line uses the same renderer as `jac check`:
+
+```text
+error[E7001]: The module 'mermaid' has no export named 'Mermaid'
+  --> docs/MermaidDiagram.jac:1:44
+    1 | import from "mermaid" { default as mermaid, Mermaid }
+      |                                             ^
+help: ... import it with 'import type' ...
+```
+
+The Vite plugins forward raw payloads only. Resolution, classification,
+rendering and storage all happen in the Jac process, which owns two files under
+`.jac/client/`:
+
+| File | Written by | Contents |
+|------|-----------|----------|
+| `.jac-client-events.json` | the dev Vite plugin | the raw Vite `err` payload and the raw browser payload, verbatim |
+| `.jac-status.json` | the jac dev server | the status document (below); absent when the build is healthy |
+
+The status document is also what `GET /__build_status` returns, on both the core
+server and the scale gateway:
+
+```json
+{
+  "status": "ok" | "compiling" | "error" | "unavailable",
+  "diagnostics": [
+    {
+      "code": "E7001",
+      "severity": "error",
+      "category": "runtime",
+      "message": "The module 'mermaid' has no export named 'Mermaid'",
+      "help": "...",
+      "file": "docs/MermaidDiagram.jac",
+      "line": 1,
+      "column": 44,
+      "channel": "browser",
+      "raw_location": "/.vite/deps/mermaid.js?v=0926aa4f",
+      "unmapped_reason": "",
+      "related": [{"label": "...", "file": "jac.toml", "line": 6, "column": 1}],
+      "stack": "",
+      "rendered": "error[E7001]: ...\n  --> docs/MermaidDiagram.jac:1:44\n..."
+    }
+  ]
+}
+```
+
+`file` is relative to the project root and is never empty: when nothing on disk
+claims the reported location, it names the best-known Jac owner and
+`unmapped_reason` says why the mapping failed. `channel` is `jac`, `vite`,
+`browser` or `server`, and `raw_location` keeps the compiled/Vite/browser
+location the diagnostic was mapped from. The browser overlay renders the same
+value, and the `/cl/__error__` endpoint logs it through the same renderer in
+production. See [Errors and Warnings](../diagnostics.md#dev-loop-and-client-runtime-errors-e7xxx)
+for the code catalog.
+
+Locations come from the per-file source maps the client compiler writes beside
+each `compiled/*.js`. They are segment-level -- generated line *and* column,
+with a `names` array -- so a stack frame or an import specifier resolves to an
+exact `.jac` column, not merely to a line.
+
 ---
 
 ## Build-Time Constants
