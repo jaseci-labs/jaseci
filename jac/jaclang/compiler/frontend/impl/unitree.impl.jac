@@ -575,13 +575,7 @@ impl Symbol.symbol_table.getter -> (UniScopeNode | None) {
 }
 
 impl Symbol.binding_kind.getter -> BindingKind {
-    seen: set[int] = set();
-    cur: Symbol = self;
-    while True {
-        if id(cur) in seen or not cur.defn {
-            return BindingKind.VALUE;
-        }
-        seen.add(id(cur));
+    for cur in import_chain_of(self) {
         decl = cur.decl;
         item = decl.parent if isinstance(decl.parent, ModuleItem) else None;
         if item is not None and item.from_parent.is_typed {
@@ -593,12 +587,8 @@ impl Symbol.binding_kind.getter -> BindingKind {
         if item is None {
             return binding_kind_of_decl(decl);
         }
-        nxt = decl.sym;
-        if nxt is None or nxt is cur {
-            return BindingKind.VALUE;
-        }
-        cur = nxt;
     }
+    return BindingKind.VALUE;
 }
 
 impl Symbol.binding_kind.setter(binding_kind: BindingKind) -> None {
@@ -3266,24 +3256,36 @@ impl binding_kind_of_decl(decl: NameAtom) -> BindingKind {
     return BindingKind.VALUE;
 }
 
-impl resolved_decl_of(sym: Symbol) -> (NameAtom | None) {
+impl import_chain_of(sym: Symbol) -> list[Symbol] {
     seen: set[int] = set();
+    chain: list[Symbol] = [];
     cur: Symbol = sym;
     while True {
         if id(cur) in seen or not cur.defn {
-            return None;
+            return chain;
         }
         seen.add(id(cur));
+        chain.append(cur);
+        decl = cur.decl;
+        if not isinstance(decl.parent, ModuleItem) {
+            return chain;
+        }
+        nxt = decl.sym;
+        if nxt is None or nxt is cur {
+            return chain;
+        }
+        cur = nxt;
+    }
+}
+
+impl resolved_decl_of(sym: Symbol) -> (NameAtom | None) {
+    for cur in import_chain_of(sym) {
         decl = cur.decl;
         if not isinstance(decl.parent, ModuleItem) {
             return decl;
         }
-        nxt = decl.sym;
-        if nxt is None or nxt is cur {
-            return None;
-        }
-        cur = nxt;
     }
+    return None;
 }
 
 impl kind_has_runtime_binding(
