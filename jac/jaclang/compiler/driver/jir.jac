@@ -132,6 +132,25 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
 
 glob _client_kind_probe: dict = {"active": False};
 
+def is_compiler_tree_path(source_path: str) -> bool {
+    try {
+        resolved = str(Path(source_path).resolve());
+    } except OSError {
+        return False;
+    }
+    base = _jaclang_pkg_dir + os.sep;
+    if not resolved.startswith(base) {
+        return False;
+    }
+    rel = resolved[len(base):].replace(os.sep, "/");
+    for digest_root in COMPILER_DIGEST_ROOTS {
+        if rel == digest_root or rel.startswith(digest_root + "/") {
+            return True;
+        }
+    }
+    return False;
+}
+
 def is_compiler_source_path(source_path: str) -> bool {
     try {
         resolved = str(Path(source_path).resolve());
@@ -239,7 +258,10 @@ glob _COMPILER_DIGEST_CACHE: list = [];
 
 def running_compiler_digest -> str {
     if not _COMPILER_DIGEST_CACHE {
-        _COMPILER_DIGEST_CACHE.append(compiler_source_digest(_jaclang_pkg_dir));
+        pinned = os.environ.get("JAC_COMPILER_DIGEST_PIN", "").strip();
+        _COMPILER_DIGEST_CACHE.append(
+            f"pin:{pinned}" if pinned else compiler_source_digest(_jaclang_pkg_dir)
+        );
     }
     return _COMPILER_DIGEST_CACHE[0];
 }

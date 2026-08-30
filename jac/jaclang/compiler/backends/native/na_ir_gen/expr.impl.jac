@@ -557,7 +557,10 @@ impl NaIRGenExpr._codegen_pipe_fwd(nd: uni.BinaryExpr) -> (ir.Value | None) {
         genai_call=None,
         kid=[nd.right, *call_params]
     );
-    call.parent = nd.parent;
+    _owner = nd.parent;
+    if _owner is not None {
+        call.set_parent(_owner);
+    }
     return self._codegen_expr(call);
 }
 
@@ -869,6 +872,29 @@ impl NaIRGenExpr._codegen_compare_link(
             );
             return self.builder.zext(_ocmp, ir.IntType(64), name="opt.cmp.i64");
         }
+    }
+
+    if op in (Tok.KW_IS, Tok.KW_ISN)
+        and self?.jacval_type
+        and left.type == self.jacval_type
+        and right.type == self.jacval_type {
+        _jv_tag_eq = self.builder.icmp_unsigned(
+            "==",
+            self.builder.extract_value(left, 0, name="is.jv.l.tag"),
+            self.builder.extract_value(right, 0, name="is.jv.r.tag"),
+            name="is.jv.tag.eq"
+        );
+        _jv_pv_eq = self.builder.icmp_unsigned(
+            "==",
+            self.builder.extract_value(left, 1, name="is.jv.l.pv"),
+            self.builder.extract_value(right, 1, name="is.jv.r.pv"),
+            name="is.jv.pv.eq"
+        );
+        _jv_same = self.builder.and_(_jv_tag_eq, _jv_pv_eq, name="is.jv.same");
+        if op == Tok.KW_ISN {
+            return self.builder.not_(_jv_same, name="is.jv.diff");
+        }
+        return _jv_same;
     }
 
     if op == Tok.KW_IN or op == Tok.KW_NIN {

@@ -3523,7 +3523,8 @@ test "del es lowering" {
     # removes the slot.
     holder_del = body.find("_jac.poly.delitem(holder, 0)");
     assert holder_del >= 0 , body;
-    assert "_jac.poly.destroy(_jac.poly.getitem(holder, 0))" in body[:holder_del] , body;
+    assert "_jac.poly.destroy(_jac.poly.getitem(holder, 0))"
+        in body[:holder_del] , body;
     # A name holding an edge destroys through the poly helper, non-strictly,
     # and is then cleared.
     assert "_jac.poly.destroy(edg)" in body , body;
@@ -3562,7 +3563,7 @@ test "del es runtime" {
     assert got["holder"] == 0 , got;
     assert got["named"] == 0 , got;
     assert "x" not in got , got;
-    assert got["picked"] == 1 , got;
+    assert got["picked"] == 0 , got;
     assert got["calls"] == 1 , got;
 }
 

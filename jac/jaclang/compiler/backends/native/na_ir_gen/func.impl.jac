@@ -392,6 +392,9 @@ impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
     }
     func = self.func_symtab.get(name);
     if func is None {
+        if id(nd) in self._capability_demotions {
+            self._claimed_capability_demotions.add(id(nd));
+        }
         return;
     }
 

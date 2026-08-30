@@ -395,8 +395,16 @@ impl TypeEvaluator._import_module_from_path(
 }
 
 impl TypeEvaluator.forget_module(resolved_path: str) -> None {
-    if resolved_path in self._module_type_cache {
-        del self._module_type_cache[resolved_path];
+    import os;
+    canon = os.path.realpath(resolved_path);
+
+    stale_paths = [
+        key
+        for key in self._module_type_cache
+        if key == resolved_path or os.path.realpath(key) == canon
+    ];
+    for key in stale_paths {
+        self._module_type_cache.pop(key);
     }
 }
 
@@ -406,6 +414,10 @@ impl TypeEvaluator._resolve_importer_path(ast_node: UniNode) -> (str | None) {
 }
 
 impl TypeEvaluator.get_type_of_symbol(symbol: Symbol) -> TypeBase {
+    provider = symbol.provider;
+    if provider is not None {
+        return provider.resolve_type(self, symbol);
+    }
     if self.push_symbol_resolution(symbol) {
         try {
             result = self._get_type_of_symbol(symbol);
@@ -422,6 +434,15 @@ impl TypeEvaluator.resolve_to_definition_symbol(symbol: Symbol) -> Symbol {
     cur = symbol;
     while id(cur) not in visited {
         visited.add(id(cur));
+        provider = cur.provider;
+        if provider is not None {
+            target = provider.definition();
+            if target is None or target is cur {
+                break;
+            }
+            cur = target;
+            continue;
+        }
         if not (cur.imported and cur.decl) {
             break;
         }

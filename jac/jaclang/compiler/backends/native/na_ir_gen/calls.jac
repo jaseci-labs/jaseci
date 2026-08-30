@@ -79,7 +79,11 @@ obj NaIRGenCalls(NaIRGenState) {
 
     def _jacval_tags_for_type(name: str) -> list[int];
     def _erased_generic_ctor(nd: uni.FuncCall) -> (str | None);
-    def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
+    def _linked_callee_decl(func: (ir.Function | None)) -> (uni.Ability | None);
+    def _callee_sig_of(
+        nd: uni.FuncCall, func: (ir.Function | None) = None
+    ) -> (uni.FuncSignature | None);
+
     def _arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None);
     def _codegen_call_args(nd: uni.FuncCall) -> list;
     def _coerce_narrowed_arg(

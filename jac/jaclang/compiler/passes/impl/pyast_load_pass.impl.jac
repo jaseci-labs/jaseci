@@ -252,7 +252,7 @@ impl PyastBuildPass.proc_arguments(nd: py_ast.arguments) -> FuncSignature {
     if (vararg_node and isinstance(vararg_node, ParamVar)) {
         vararg = vararg_node;
         vararg.param_kind = ParamKind.VARARG;
-        vararg.unpack = Token(
+        _unpack = Token(
             orig_src=self.orig_src,
             name=Tok.STAR_MUL,
             value='*',
@@ -263,7 +263,7 @@ impl PyastBuildPass.proc_arguments(nd: py_ast.arguments) -> FuncSignature {
             pos_start=0,
             pos_end=0
         );
-        vararg.add_kids_left([vararg.unpack]);
+        vararg.add_kids_left([_unpack], role=UnpackRole);
     }
     kwonlyargs = _apply_kind(
         [self.convert(arg) for arg in nd.kwonlyargs], ParamKind.KWONLY
@@ -274,8 +274,7 @@ impl PyastBuildPass.proc_arguments(nd: py_ast.arguments) -> FuncSignature {
         kwdefault = self.convert(kwd) if kwd else None;
 
         if (kwdefault and isinstance(kwa, ParamVar) and isinstance(kwdefault, Expr)) {
-            kwa.value = kwdefault;
-            kwa.add_kids_right([kwa.value]);
+            kwa.add_kids_right([kwdefault], role=ValueRole);
         }
     }
     kwarg_node = self.convert(nd.kwarg) if nd.kwarg else None;
@@ -283,7 +282,7 @@ impl PyastBuildPass.proc_arguments(nd: py_ast.arguments) -> FuncSignature {
     if (kwarg_node and isinstance(kwarg_node, ParamVar)) {
         kwarg = kwarg_node;
         kwarg.param_kind = ParamKind.KWARG;
-        kwarg.unpack = Token(
+        _unpack = Token(
             orig_src=self.orig_src,
             name=Tok.STAR_POW,
             value='**',
@@ -294,7 +293,7 @@ impl PyastBuildPass.proc_arguments(nd: py_ast.arguments) -> FuncSignature {
             pos_start=0,
             pos_end=0
         );
-        kwarg.add_kids_left([kwarg.unpack]);
+        kwarg.add_kids_left([_unpack], role=UnpackRole);
     }
     defaults = [self.convert(expr) for expr in nd.defaults];
     for para in [*posonlyargs, *args][::-1] {
@@ -304,8 +303,7 @@ impl PyastBuildPass.proc_arguments(nd: py_ast.arguments) -> FuncSignature {
         `default = defaults.pop();
 
         if (`default and isinstance(para, ParamVar) and isinstance(`default, Expr)) {
-            para.value = `default;
-            para.add_kids_right([para.value]);
+            para.add_kids_right([`default], role=ValueRole);
         }
     }
     if (kwonlyargs or args or posonlyargs or vararg or kwarg) {
@@ -1844,7 +1842,7 @@ impl PyastBuildPass.proc_class_def(nd: py_ast.ClassDef) -> (Archetype | Enum) {
             and (body_stmt.name_ref.value == '__init__')
         ) {
             tok = self.name_node(nd, 'init', name_tok=Tok.KW_INIT);
-            body_stmt.name_ref = SpecialVarRef(var=tok);
+            body_stmt._role_set(NameRefRole, SpecialVarRef(var=tok));
         }
 
         if (
@@ -1988,8 +1986,7 @@ impl PyastBuildPass.proc_function_def(
                 kid=[ret_sig]
             );
         } else {
-            sig.return_type = ret_sig;
-            sig.add_kids_right([sig.return_type]);
+            sig.add_kids_right([ret_sig], role=ReturnTypeRole);
         }
     }
     if not sig {
@@ -2094,7 +2091,7 @@ impl PyastBuildPass.extract_with_entry(
     return extracted;
 }
 
-impl PyastBuildPass.transform(ir_in: PythonModuleAst) -> Module {
+impl PyastBuildPass._run_impl(ir_in: PythonModuleAst) -> Module {
     py_mod = ir_in.ast;
     if not isinstance(py_mod, py_ast.Module) {
         raise RuntimeError(self.ice('Expected a Python module AST root'));
@@ -2244,4 +2241,15 @@ impl PyastBuildPass._strip_string_continuations(seg: str) -> str {
         i += 1;
     }
     return ''.join(out);
+}
+
+impl PyastBuildPass.transform(ir_in: PythonModuleAst) -> Module {
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, Module);
+    return out;
+}
+
+impl PyastBuildPass.run_walk with PythonModuleAst entry {
+    self.ir_out = self._run_impl(here);
 }

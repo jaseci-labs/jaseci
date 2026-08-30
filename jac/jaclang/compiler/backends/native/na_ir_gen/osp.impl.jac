@@ -167,7 +167,24 @@ impl NaIRGenOsp._osp_rc_new(struct_name: str) -> (ir.Value | None) {
     assert _alloc_fn is not None , "rc helpers are emitted before osp allocation";
     _raw = self._rc_call_with_ctx(_alloc_fn, [_sz], op="osp", loc="", name="osp.raw");
     self._osp_make_immortal(_raw);
-    return self.builder.bitcast(_raw, sptr, name=f"osp.{struct_name}");
+    struct_ptr = self.builder.bitcast(_raw, sptr, name=f"osp.{struct_name}");
+
+    _ftypes = self.struct_field_types.get(struct_name, {});
+    for (_fname, _fidx) in self.struct_field_indices.get(struct_name, {}).items() {
+        _ftype = _ftypes.get(_fname);
+        if _ftype is None {
+            continue;
+        }
+        self.builder.store(
+            ir.Constant(_ftype, None),
+            self.builder.gep(
+                struct_ptr,
+                [ir.Constant(i32, 0), ir.Constant(i32, _fidx)],
+                name=f"osp.zero.{_fname}"
+            )
+        );
+    }
+    return struct_ptr;
 }
 
 impl NaIRGenOsp._osp_make_immortal(ptr: ir.Value) -> None {

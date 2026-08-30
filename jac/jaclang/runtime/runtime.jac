@@ -22,7 +22,18 @@ import from jaclang.runtime.archetype {
     ObjectSpatialFunction,
     Root,
     anchor_key,
-    same_anchor
+    same_anchor,
+    _deref,
+    _edge_subtypes,
+    _light_edge_types,
+    edge_subtypes,
+    is_light_edge_type,
+    light_clear_hop,
+    light_connect,
+    light_disconnect,
+    light_edge_view,
+    light_hop,
+    light_hop_answers
 }
 import from jaclang.compiler.frontend.constant { EdgeDir, colors }
 import from jaclang.runtime.graph_query { GraphQuery, QHop }
@@ -95,6 +106,33 @@ def _scale_provider -> any {
 def _all_grant(anchor: Anchor) -> AccessLevel {
     perm = anchor.access;
     return AccessLevel.NO_ACCESS if perm is None else perm.all;
+}
+
+def _light_disconnect_between(
+    a: NodeAnchor, b: NodeAnchor, dirv: int, filter: (Callable | None)
+) -> bool {
+    occurred = False;
+    if dirv != 1 and a.out_light {
+        for cls in `list(a.out_light.keys()) {
+            if filter and not filter(light_edge_view(cls, a, b)) {
+                continue;
+            }
+            while light_disconnect(a, cls, b) {
+                occurred = True;
+            }
+        }
+    }
+    if dirv != 2 and a.in_light {
+        for cls in `list(a.in_light.keys()) {
+            if filter and not filter(light_edge_view(cls, b, a)) {
+                continue;
+            }
+            while light_disconnect(b, cls, a) {
+                occurred = True;
+            }
+        }
+    }
+    return occurred;
 }
 
 def resolve_ref(
@@ -274,6 +312,22 @@ class JacGraph {
         conn_type: type[EdgeArchetype] | EdgeArchetype | None,
         conn_assign: (tuple[(tuple, tuple)] | None)
     ) -> Callable[([NodeAnchor, NodeAnchor], EdgeArchetype)];
+
+    static def heavy_edge(
+        source: NodeAnchor,
+        target: NodeAnchor,
+        conn_type: type[EdgeArchetype] | EdgeArchetype | None,
+        is_undirected: bool,
+        conn_assign: (tuple[(tuple, tuple)] | None)
+    ) -> EdgeArchetype;
+
+    static def hop(
+        origin: any, dir: int, edge_type: (type | None) = None, edges_only: bool = False
+    ) -> list;
+
+    static def clear_edges(
+        origin: any, dir: int, edge_type: (type | None) = None
+    ) -> bool;
 }
 
 class JacWalker {

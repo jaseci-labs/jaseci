@@ -149,6 +149,54 @@ The bootstrap compiler (`jac0.py`) and the full compiler share this front end
 verbatim -- see [Abstractions Inventory](abstractions.md) for the full keyword
 table.
 
+### The tree is a graph
+
+Since #8744 every AST class is an object-spatial `node`, and the tree's
+structure is edges rather than fields. A node holds only scalars (token text,
+positions, flags); each child slot the parser fills (`condition`, `body`,
+`target`, ...) is a role-typed edge from
+[`compiler/frontend/roles.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/roles.jac)
+(`ConditionRole`, `BodyRole`, ... all subclasses of `Role`), and the ordered
+token stream is a separate `Kid` edge per child. The spelling passes use is
+unchanged: `nd.condition`, `nd.body`, `nd.kid` and `nd.parent` are accessors
+over those edges (`unitree.impl/roles.impl.jac`: each `{ getter; }` slot
+declared in `unitree.jac` reads its edge type there, and the `init` for each
+class links its children through `_link`). `kid` is the Kid edges in
+connection order, so the formatter and `unparse` see the same token stream as
+before; `parent` is the source of the newest incoming Kid edge (or Role edge,
+for a node reachable only through a slot).
+
+Construction connects: a class's generated `init` assigns its scalars and calls
+`_link(kid, roles)`, which records each child in the node's adjacency. After
+that a node is data. The rewriting tools (`normalize`, the lint fixer,
+`unparse`, `eject`) and the decl/impl merge do not assign fields: they
+`_role_set`, `set_kids`, `replace_kid` or `link_impl`, which are connects and
+disconnects. `Ability.body` after `DeclImplMatchPass` is an `ImplOf` edge to
+the `ImplDef`; `ImplDef.decl_link` reads it backwards.
+
+Compiler graphs are transient, and their edges are light. A field-less,
+directed edge between unpersisted nodes is not an object: `NodeAnchor` keeps
+`out_light` / `in_light`, dicts from edge class to the list of neighbour nodes
+in connection order, and every `Role`, `Kid` and relation edge (`SymOf`,
+`TypeOf`, `CfgSucc`, ...) lives there. Ownership follows connect direction:
+out-links hold their targets, in-links are weak references, so a tree owns
+its children, an interned type or codespace singleton never keeps its users
+alive, and a dropped subtree is collectable with no severing. Only an edge
+that carries fields (`ScopePrimary.alias`, `TypeMemberOf.name`) is an
+`EdgeAnchor` in `edges`; a node that acquires persistence materializes its
+light edges into rows (`NodeAnchor.all_edges`).
+
+The compiler's source uses the language for all of it. Both lowerings
+recognize the simple hop (one origin, one direction, one edge class, no
+predicate, no node filter, no chain) and emit a direct adjacency read:
+jac0 emits `hop0`, the py backend emits `hop`, so `[self->:Kid:->]` is one
+dict lookup plus a copy, and `[self<-:Kid:<-][-1]` is `parent`. Anything
+richer goes through `refs0` / `refs` as before. `del` accepts an edge set:
+`del [edge self->:Kid:->];` lowers to `clear0` / `clear_edges`, which drops
+the set by class without materializing it (`set_kids`, `_role_set` and every
+slot setter are written that way). A `[edge ...]` query or `del` on a single
+light edge works on a view (`light_edge_view`).
+
 ### The front end
 
 Every module parses through the staged front end: the lexer and parser in
@@ -590,6 +638,13 @@ apps stitch several boundaries together -- see
 
 ## Caching
 
+Every cached JIR carries an environment key that folds in a content digest of
+the whole compiler source tree, so any compiler edit recompiles every module.
+While iterating on the compiler itself, `JAC_COMPILER_DIGEST_PIN=<label>`
+freezes that digest to the label: only modules whose own source changed
+recompile. It is a developer knob that trusts codegen did not change; leave it
+unset for anything that must be correct.
+
 The compiler keeps two on-disk caches so the front end and back end can be
 skipped when nothing has changed.
 
@@ -651,7 +706,9 @@ A short index, organised by the role each file plays in the pipeline.
 - [`compiler/passes/transform.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/transform.jac)
   -- `Transform[I, O]` base class for every pass
 - [`compiler/passes/uni_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/uni_pass.jac)
-  -- `UniPass`, the AST-visitor base class
+  -- `UniPass`, the walker base class every tree pass extends; passes declare
+  typed abilities (`can enter_x with IfStmt entry`) and the OSP kernel
+  dispatches them during a subtree-fenced `visit:0:` walk
 
 **Shared front end**
 
