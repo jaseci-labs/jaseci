@@ -424,8 +424,9 @@ impl JacAPIServerCore.register_build_status_endpoint -> None {
             summary='Dev build health',
             description=(
                 'Hot-reload build status: "ok", "compiling", or "error" '
-                '(with the failing file and message); "unavailable" when '
-                'not running in dev mode.'
+                '(with a "diagnostics" list, each entry carrying a Jac '
+                'file/line/column, code, message, help and rendered text); '
+                '"unavailable" when not running in dev mode.'
             )
         )
     );
@@ -447,11 +448,8 @@ impl JacAPIServerCore._register_client_error_endpoint -> None {
             );
         }
 
-        import from jaclang.client.source_mapping {
-            _error_rate_limiter,
-            resolve_client_error_stacks,
-            format_client_error_log
-        }
+        import from jaclang.client.source_mapping { _error_rate_limiter }
+        import from jaclang.client.client_diagnostics { log_client_error }
         import from jaclang.project.config { get_config }
 
         if not _error_rate_limiter.should_log(message) {
@@ -461,29 +459,16 @@ impl JacAPIServerCore._register_client_error_endpoint -> None {
         }
         cfg = get_config();
         verbose = cfg.client_errors.verbose if cfg else False;
-        (stack, component_stack) = resolve_client_error_stacks(
-            self.base_path,
-            data.get('stack', ''),
-            data.get('componentStack', ''),
-            verbose=verbose
-        );
-        log_parts = format_client_error_log(
-            message,
-            stack=stack,
-            component_stack=component_stack,
-            url=data.get('url', ''),
-            source=data.get('source', '')
-        );
-        logger.error('\n'.join(log_parts));
-        console.error(f"[Client] {message}");
-        if stack {
-            for line in stack.split('\n') {
+        diag = log_client_error(self.base_path or '', data, verbose);
+        console.error(diag.render());
+        if diag.resolved_stack {
+            for line in diag.resolved_stack.split('\n') {
                 console.print(f"    {line}");
             }
         }
-        if component_stack {
+        if diag.resolved_component_stack {
             console.print(f"  Component stack:");
-            for line in component_stack.split('\n') {
+            for line in diag.resolved_component_stack.split('\n') {
                 console.print(f"    {line}");
             }
         }

@@ -1110,6 +1110,16 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
             bundler.create_package_json();
         }
 
+        try {
+            import from jaclang.server.hmr { HotReloader }
+            reloader = HotReloader._active;
+            if reloader is not None {
+                reloader.attach_client_bundler(bundler);
+            }
+        } except Exception as e {
+            console.warning(f"Client error events will not reach the terminal: {e}");
+        }
+
         process = bundler.start_dev_server(vite_port, suppress_initial_output=True);
         return (process, bundler.dev_server_port or vite_port);
     } except ImportError as e {
