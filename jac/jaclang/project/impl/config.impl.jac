@@ -1134,7 +1134,16 @@ impl _parse_toml_data(
             session=run_data.get("session", ""),
             main=run_data.get("main", True),
             cache=run_data.get("cache", True),
-            diagnostics=run_data.get("diagnostics", "error")
+            diagnostics=run_data.get("diagnostics", "error"),
+            access_log=run_data.get("access_log", ""),
+            sql_log=run_data.get("sql_log", ""),
+            prefetching=run_data.get("prefetching", ""),
+            prefetch_oracle_file=run_data.get("prefetch_oracle_file", ""),
+            prefetch_markov_file=run_data.get("prefetch_markov_file", ""),
+            prefetch_coaccess_file=run_data.get("prefetch_coaccess_file", ""),
+            prefetch_limit=run_data.get("prefetch_limit", 200),
+            async_prefetch=run_data.get("async_prefetch", ""),
+            prefetch_workers=run_data.get("prefetch_workers", 1)
         );
     }
     if "build" in data {
@@ -1250,6 +1259,7 @@ impl _parse_toml_data(
             main=serve_data.get("main", True),
             cl_route_prefix=serve_data.get("cl_route_prefix", "cl"),
             base_route_app=serve_data.get("base_route_app", ""),
+            profile=serve_data.get("profile", False),
             on_conflict=on_conflict,
             conflict_max_attempts=serve_data.get("conflict_max_attempts", 5),
             conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0)

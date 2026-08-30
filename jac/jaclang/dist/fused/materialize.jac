@@ -52,19 +52,28 @@ def:pub overlay_for_path(exe_path: str) -> Overlay | None {
 }
 
 def dir_writable(path: str) -> bool {
-    os.makedirs(path, exist_ok=True);
-    if not os.path.isdir(path) {
-        return False;
-    }
     probe = path + "/.jac-write-probe";
-    with open(probe, "wb") as f {
-        f.write(b"");
-    }
-    if not os.path.isfile(probe) {
+    try {
+        os.makedirs(path, exist_ok=True);
+        if not os.path.isdir(path) {
+            return False;
+        }
+        with open(probe, "wb") as f {
+            f.write(b"");
+        }
+        if not os.path.isfile(probe) {
+            return False;
+        }
+        os.remove(probe);
+        return True;
+    } except Exception {
+        try {
+            if os.path.isfile(probe) {
+                os.remove(probe);
+            }
+        } except Exception { }
         return False;
     }
-    os.remove(probe);
-    return True;
 }
 
 def:pub cache_root -> str {
@@ -85,7 +94,7 @@ def:pub cache_root -> str {
     if tmp == "" {
         tmp = "/tmp";
     }
-    fallback: str = f"{tmp}/jac-cache-{getuid()}";
+    fallback: str = f"{tmp}/jac-cache-{int(getuid())}";
     if not dir_writable(fallback) {
         die("no writable cache directory (set XDG_CACHE_HOME or TMPDIR)");
         return "";

@@ -1,3 +1,5 @@
+import threading;
+
 def _toml_section(base_path: (str | None), section: str) -> dict {
     if not base_path {
         return {};
@@ -62,6 +64,106 @@ impl project_db_name(base_path: str, target_path: (str | None)) -> str {
 
 glob _scratch_bases: set[str] = set(),
      _scratch: list[ScratchState] = [];
+
+
+glob _access_log_state: list = [None],
+     _access_log_lock: threading.Lock = threading.Lock(),
+     _hit_stats: dict[str, int] = {"L1": 0, "L2": 0, "L3": 0, "MISS": 0},
+     _hit_stats_lock: threading.Lock = threading.Lock(),
+     _hit_stats_snapshots: list[tuple[str, dict[str, int]]] = [];
+
+
+impl hit_stats_snapshot -> dict[str, int] {
+    with _hit_stats_lock {
+        return dict(_hit_stats);
+    }
+}
+
+
+impl hit_stats_reset -> None {
+    with _hit_stats_lock {
+        for k in _hit_stats {
+            _hit_stats[k] = 0;
+        }
+        _hit_stats_snapshots.clear();
+    }
+}
+
+
+impl hit_stats_add_checkpoint(label: str) -> None {
+    with _hit_stats_lock {
+        _hit_stats_snapshots.append((label, dict(_hit_stats)));
+    }
+}
+
+
+impl hit_stats_read_checkpoints -> list[tuple[str, dict[str, int]]] {
+    with _hit_stats_lock {
+        return list(_hit_stats_snapshots);
+    }
+}
+
+
+impl _access_log_reset_for_tests -> None {
+    with _access_log_lock {
+        state = _access_log_state[0];
+        if state is not None and state is not False {
+            try {
+                state.close();
+            } except Exception {
+                ;
+            }
+        }
+        _access_log_state[0] = None;
+    }
+}
+
+
+impl _tiered_access_log(id: UUID, tier: str, anchor: any = None) -> None {
+    with _hit_stats_lock {
+        if tier in _hit_stats {
+            _hit_stats[tier] += 1;
+        }
+    }
+    with _access_log_lock {
+        fh = _access_log_state[0];
+        if fh is None {
+            try {
+                import pathlib;
+                import from jaclang.project.config { get_config }
+                cfg = get_config();
+                if cfg is None or not cfg.run.access_log {
+                    _access_log_state[0] = False;
+                    return;
+                }
+                p = pathlib.Path(cfg.run.access_log);
+                p.parent.mkdir(parents=True, exist_ok=True);
+                fh = p.open('w');
+                fh.write("id,tier,type\n");
+                _access_log_state[0] = fh;
+            } except Exception {
+                _access_log_state[0] = False;
+                return;
+            }
+        }
+        if fh is False {
+            return;
+        }
+        type_name = "";
+        if anchor is not None {
+            try {
+                type_name = `type(anchor).__name__;
+                if anchor?.archetype and anchor.archetype is not None {
+                    type_name = `type(anchor.archetype).__name__;
+                }
+            } except Exception {
+                ;
+            }
+        }
+        fh.write(f"{id},{tier},{type_name}\n");
+        fh.flush();
+    }
+}
 
 
 impl mark_scratch_base(base_path: str) -> None {
@@ -234,11 +336,28 @@ def _persist_hash(anchor: Anchor) -> int {
 }
 
 
+def _observe_session_access(id: UUID) -> None {
+    try {
+        import from jaclang.runtime.prefetch { observe_anchor_access }
+        observe_anchor_access(id);
+    } except Exception { }
+}
+
+
 impl Session.postinit -> None {
     import threading;
     self._lock = threading.RLock();
+    self._raw_lock = threading.Lock();
+    self._query_cache_lock = threading.Lock();
+    self._topology_lock = threading.Lock();
     self._fetch_count = 0;
     self.__mem__ = {};
+    self.__raw_mem__ = {};
+    self._query_cache = {};
+    self._topology_index = None;
+    self.__topology_index__ = None;
+    self._prefetch_ids = set();
+    self._prefetch_done = threading.Event();
     self._dirty = {};
     self._deleted = set();
     self._flushed_hash = {};
@@ -301,12 +420,21 @@ impl Session.is_available -> bool {
 
 impl Session.get(id: UUID) -> (Anchor | None) {
     if id in self._deleted {
+        _tiered_access_log(id, "MISS");
         return None;
     }
     if (hit := self.__mem__.get(id)) is not None {
+        _tiered_access_log(id, "L1", hit);
+        _observe_session_access(id);
         return hit;
     }
+    if (raw_hit := self.promote_raw(id)) is not None {
+        _tiered_access_log(id, "L1", raw_hit);
+        _observe_session_access(id);
+        return raw_hit;
+    }
     if self.store is None {
+        _tiered_access_log(id, "MISS");
         return None;
     }
     return self.batch_get([id]).get(id);
@@ -316,15 +444,23 @@ impl Session.get(id: UUID) -> (Anchor | None) {
 impl Session.put(anchor: Anchor) -> None {
     aid = anchor.ensure_id();
     with self._lock {
+        self.invalidate_query_cache();
+        if isinstance(anchor, (NodeAnchor, EdgeAnchor)) {
+            self.invalidate_topology_index();
+        }
         self.__mem__[aid] = anchor;
         self._dirty[aid] = None;
         self._deleted.discard(aid);
+        with self._raw_lock {
+            self.__raw_mem__.pop(aid, None);
+        }
     }
 }
 
 
 impl Session.mark_dirty(anchor: Anchor) -> None {
     if anchor.id in self.__mem__ {
+        self.invalidate_query_cache();
         self._dirty[anchor.id] = None;
     }
 }
@@ -332,9 +468,14 @@ impl Session.mark_dirty(anchor: Anchor) -> None {
 
 impl Session.delete(id: UUID) -> None {
     with self._lock {
+        self.invalidate_query_cache();
+        self.invalidate_topology_index();
         self.__mem__.pop(id, None);
         self._dirty.pop(id, None);
         self._flushed_hash.pop(id, None);
+        with self._raw_lock {
+            self.__raw_mem__.pop(id, None);
+        }
         self._deleted.add(id);
     }
 }
@@ -346,6 +487,11 @@ impl Session.`has(id: UUID) -> bool {
     }
     if id in self.__mem__ {
         return True;
+    }
+    with self._raw_lock {
+        if id in self.__raw_mem__ {
+            return True;
+        }
     }
     if self.store is None {
         return False;
@@ -425,15 +571,56 @@ impl Session.find_one(
 impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
     out: dict[UUID, Anchor] = {};
     missing: list[UUID] = [];
+    seen_missing: set[UUID] = set();
     for i in ids {
         if i in self._deleted {
+            _tiered_access_log(i, "MISS");
             continue;
         }
         if (hit := self.__mem__.get(i)) is not None {
             out[i] = hit;
-        } else {
+            _tiered_access_log(i, "L1", hit);
+            _observe_session_access(i);
+        } elif (raw_hit := self.promote_raw(i)) is not None {
+            out[i] = raw_hit;
+            _tiered_access_log(i, "L1", raw_hit);
+            _observe_session_access(i);
+        } elif i not in seen_missing {
+            seen_missing.add(i);
             missing.append(i);
         }
+    }
+    if missing and self._prefetch_ids {
+        in_plan: list[UUID] = [];
+        not_in_plan: list[UUID] = [];
+        for i in missing {
+            if i in self._prefetch_ids {
+                in_plan.append(i);
+            } else {
+                not_in_plan.append(i);
+            }
+        }
+        if in_plan and not self._prefetch_done.is_set() {
+            try {
+                wait_ms = int(os.environ.get('JAC_PREFETCH_WAIT_MS', '50'));
+            } except (TypeError, ValueError) {
+                wait_ms = 50;
+            }
+            if wait_ms > 0 {
+                self._prefetch_done.`wait(timeout=wait_ms / 1000.0);
+            }
+        }
+        still_missing: list[UUID] = [];
+        for i in in_plan {
+            if (raw_hit := self.promote_raw(i)) is not None {
+                out[i] = raw_hit;
+                _tiered_access_log(i, "L1", raw_hit);
+                _observe_session_access(i);
+            } else {
+                still_missing.append(i);
+            }
+        }
+        missing = still_missing + not_in_plan;
     }
     if missing and self.store is not None {
         for attempt in range(2) {
@@ -445,6 +632,8 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
                     if anchor is not None {
                         self._fetch_count += 1;
                         out[rid] = anchor;
+                        _tiered_access_log(rid, "L3", anchor);
+                        _observe_session_access(rid);
                     }
                 }
                 break;
@@ -454,6 +643,11 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
                 }
                 self._recover_conflict();
             }
+        }
+    }
+    for i in missing {
+        if i not in out {
+            _tiered_access_log(i, "MISS");
         }
     }
     return out;
@@ -482,12 +676,14 @@ impl Session.commit(anchor: (Anchor | None) = None) -> None {
             self._dirty.clear();
             self._deleted.clear();
         }
+        self.invalidate_query_cache();
     }
     self._fire_on_commit();
 }
 
 
 impl Session.abort -> None {
+    self.invalidate_query_cache();
     if self.store is not None {
         self.store.rollback();
     }
@@ -528,6 +724,175 @@ impl Session._evict_uncommitted -> None {
 
 impl Session.get_mem -> dict[UUID, Anchor] {
     return self.__mem__;
+}
+
+
+impl Session.invalidate_query_cache -> None {
+    lock = getattr(self, "_query_cache_lock", None);
+    if lock is not None {
+        lock.acquire();
+    }
+    try {
+        self._query_cache = {};
+    } finally {
+        if lock is not None {
+            lock.release();
+        }
+    }
+}
+
+
+impl Session.query_cache_get(key: any) -> any {
+    lock = getattr(self, "_query_cache_lock", None);
+    if lock is not None {
+        lock.acquire();
+    }
+    try {
+        return self._query_cache.get(key);
+    } finally {
+        if lock is not None {
+            lock.release();
+        }
+    }
+}
+
+
+impl Session.query_cache_put(key: any, value: any) -> None {
+    lock = getattr(self, "_query_cache_lock", None);
+    if lock is not None {
+        lock.acquire();
+    }
+    try {
+        if len(self._query_cache) >= 4096 {
+            self._query_cache.clear();
+        }
+        self._query_cache[key] = value;
+    } finally {
+        if lock is not None {
+            lock.release();
+        }
+    }
+}
+
+
+impl Session.invalidate_topology_index -> None {
+    lock = getattr(self, "_topology_lock", None);
+    if lock is not None {
+        lock.acquire();
+    }
+    try {
+        self._topology_index = None;
+        self.__topology_index__ = None;
+    } finally {
+        if lock is not None {
+            lock.release();
+        }
+    }
+}
+
+
+impl Session.warm_topology_for_nodes(ids: Iterable[UUID]) -> any {
+    import from jaclang.runtime.topology_index { warm_topology_for_nodes }
+    idx = warm_topology_for_nodes(self, list(ids));
+    self._topology_index = idx;
+    self.__topology_index__ = idx;
+    return idx;
+}
+
+
+impl Session.warm_topology_for_hop(
+    ids: Iterable[UUID],
+    edge_type: (str | None),
+    node_type: (str | None),
+    direction: int
+) -> any {
+    import from jaclang.runtime.topology_index { warm_topology_for_hop }
+    idx = warm_topology_for_hop(self, list(ids), edge_type, node_type, direction);
+    self._topology_index = idx;
+    self.__topology_index__ = idx;
+    return idx;
+}
+
+
+impl Session.store_raw(uid: UUID, row: AnchorRow) -> None {
+    if uid in self._deleted {
+        return;
+    }
+    with self._raw_lock {
+        if uid not in self.__mem__ {
+            self.__raw_mem__[uid] = row;
+        }
+    }
+}
+
+
+impl Session.promote_raw(uid: UUID) -> (Anchor | None) {
+    with self._raw_lock {
+        row = self.__raw_mem__.pop(uid, None);
+    }
+    if row is None {
+        return None;
+    }
+    try {
+        return self._materialize(row, edge_ids=row.adjacency);
+    } except Exception as e {
+        logger.warning(f"raw prefetch promotion failed for {uid}: {e}");
+        return None;
+    }
+}
+
+
+impl Session.prefetch(ids: Iterable[UUID]) -> None {
+    if self.store is None {
+        return;
+    }
+    id_list = list(ids);
+    if not id_list {
+        return;
+    }
+    pending: list[UUID] = [];
+    seen: set[UUID] = set();
+    with self._raw_lock {
+        raw_ids = set(self.__raw_mem__.keys());
+    }
+    for id in id_list {
+        if id in seen or id in self._deleted {
+            continue;
+        }
+        seen.add(id);
+        if id not in self.__mem__ and id not in raw_ids {
+            pending.append(id);
+        }
+    }
+    if not pending {
+        return;
+    }
+    import time as _time;
+    _pf_start = _time.perf_counter();
+    try {
+        for attempt in range(2) {
+            try {
+                self.read_barrier();
+                loaded = self.store.load_full(pending);
+                for (rid, row) in loaded.items() {
+                    self.store_raw(rid, row);
+                }
+                break;
+            } except Exception as e {
+                if attempt == 1 or not _is_serialization_conflict(e) {
+                    raise;
+                }
+                self._recover_conflict();
+            }
+        }
+    } finally {
+        try {
+            import from jaclang.runtime.prefetch { prefetch_worker_times_append }
+            prefetch_worker_times_append(
+                (_time.perf_counter() - _pf_start) * 1000
+            );
+        } except Exception { }
+    }
 }
 
 
@@ -638,6 +1003,9 @@ impl Session._raise_ro_retry -> None {
 
 impl Session._drop_snapshot_reads -> None {
     import from jaclang.runtime.osp_graph_sv { sv_forget_edge }
+    if self._snapshot_reads {
+        self.invalidate_query_cache();
+    }
     for id in self._snapshot_reads {
         if id in self._dirty or id in self._deleted {
             continue;
@@ -659,6 +1027,7 @@ impl Session._ensure_txn -> None {
         }
         wanted = self._txn_isolation();
         if not self.store.in_txn() {
+            self.invalidate_query_cache();
             self.store.begin(wanted);
             return;
         }
@@ -667,6 +1036,7 @@ impl Session._ensure_txn -> None {
             if self._ro_units > 0 {
                 self._raise_ro_retry();
             }
+            self.invalidate_query_cache();
             self.store.commit();
             self._drop_snapshot_reads();
             self.store.begin(TxnIsolation.SERIALIZABLE);
@@ -707,6 +1077,7 @@ impl Session.read_scope_exit -> None {
             return;
         }
         try {
+            self.invalidate_query_cache();
             self.store.commit();
         } except Exception as e {
             logger.warning(
@@ -774,6 +1145,7 @@ impl Session.get_fetch_count -> int {
 
 
 impl Session._recover_conflict -> None {
+    self.invalidate_query_cache();
     if self.store is not None {
         try {
             self.store.rollback();
@@ -856,6 +1228,7 @@ impl Session._flush_locked(full: bool) -> None {
             pending.append((anchor, h));
         }
         if rows or self._deleted {
+            self.invalidate_query_cache();
             if self.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
                 if self._ro_units > 0 {
                     self._raise_ro_retry();
@@ -1024,9 +1397,11 @@ impl Session.close -> None {
         self.store.close();
     }
     self.__mem__.clear();
+    self.__raw_mem__.clear();
     self._dirty.clear();
     self._deleted.clear();
     self._flushed_hash.clear();
+    self.invalidate_query_cache();
     import from jaclang.runtime.osp_graph_sv { sv_store_closed }
     sv_store_closed(self);
 }

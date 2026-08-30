@@ -8,7 +8,12 @@ import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor, Root }
 import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.runtime.context { ExecutionContext }
-import from jaclang.data.query_planner { resolve_query }
+import from jaclang.data.store { PgStore }
+import from jaclang.data.query_planner {
+    resolve_query,
+    resolve_query_count,
+    resolve_query_prefix
+}
 
 def _as_any(v: any) -> any {
     return v;
@@ -24,6 +29,16 @@ node PB {
 
 edge PRel {
     has w: int = 0;
+}
+
+
+obj _QueryCountingStore(PgStore) {
+    has rows_calls: int = 0;
+
+    def rows(sql: str, params: dict) -> list[tuple] {
+        self.rows_calls += 1;
+        return super.rows(sql, params);
+    }
 }
 
 
@@ -249,6 +264,215 @@ test "overlay: uncommitted writes are visible, both directions" {
                 )
             );
             assert len(gone) == 0 , "detached edge must suppress its engine row";
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx2.close();
+        }
+    }
+}
+
+
+test "session memoizes repeated pushdown query results and invalidates on write" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx1 = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx1;
+        root_id: UUID;
+        try {
+            root_id = _seed(ctx1);
+            ctx1.mem.commit();
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx1.close();
+        }
+        ctx2 = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx2;
+        try {
+            ranch = ctx2.mem.get(root_id);
+            assert isinstance(ranch, NodeAnchor) and ranch.archetype is not None;
+            base = ctx2.mem.store;
+            assert isinstance(base, PgStore);
+            counting = _QueryCountingStore(
+                conninfo=base.conninfo,
+                promotions=base.promotions,
+                auto_schema=True
+            );
+            base.close();
+            ctx2.mem.store = counting;
+
+            q = GraphQuery(ranch.archetype, hops=[QHop(dir=2, nd=PA)]);
+            first = resolve_query(ctx2.mem, q);
+            assert len(first) == 3;
+            rows_after_first = counting.rows_calls;
+            assert rows_after_first == 1 , (
+                f"expected first graph query to issue one SQL statement, got "
+                f"{rows_after_first}"
+            );
+
+            second = resolve_query(ctx2.mem, q);
+            assert len(second) == 3;
+            assert counting.rows_calls == rows_after_first , (
+                "repeating the same pushdown query in one session should hit "
+                "the query-result memo"
+            );
+
+            fresh = PA(val=99).__jac__;
+            fresh.persistent = True;
+            fe = EdgeAnchor(
+                archetype=_as_any(PRel(w=0)),
+                source=ranch,
+                target=fresh,
+                is_undirected=False
+            );
+            fe.persistent = True;
+            ranch.edges.append(fe);
+            fresh.edges.append(fe);
+            ctx2.mem.put(fresh);
+            ctx2.mem.put(fe);
+
+            before_invalidated_query = counting.rows_calls;
+            third = resolve_query(ctx2.mem, q);
+            assert len(third) == 4;
+            assert counting.rows_calls == before_invalidated_query + 1 , (
+                "query-result memo must be invalidated after graph writes"
+            );
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx2.close();
+        }
+    }
+}
+
+
+test "runtime uses warmed topology index for simple graph resolves" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx1 = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx1;
+        root_id: UUID;
+        try {
+            root_id = _seed(ctx1);
+            ctx1.mem.commit();
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx1.close();
+        }
+        ctx2 = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx2;
+        try {
+            ranch = ctx2.mem.get(root_id);
+            assert isinstance(ranch, NodeAnchor) and ranch.archetype is not None;
+            base = ctx2.mem.store;
+            assert isinstance(base, PgStore);
+            counting = _QueryCountingStore(
+                conninfo=base.conninfo,
+                promotions=base.promotions,
+                auto_schema=True
+            );
+            base.close();
+            ctx2.mem.store = counting;
+
+            assert ctx2.user_root is not None;
+            idx = ctx2.mem.warm_topology_for_nodes([root_id]);
+            assert idx.node_type(root_id) == "Root";
+            assert idx.owner_root_for(root_id) == root_id;
+            assert idx.has_root(root_id);
+            assert ctx2.mem._topology_index is not None;
+            after_warm = counting.rows_calls;
+            assert after_warm == 1;
+
+            q = GraphQuery(ranch.archetype, hops=[QHop(dir=2, nd=PA)]);
+            hits = resolve_query(ctx2.mem, q);
+            assert len(hits) == 3;
+            assert counting.rows_calls == after_warm , (
+                f"warmed topology should answer simple graph resolves without SQL "
+                f"(after_warm={after_warm}, rows={counting.rows_calls})"
+            );
+
+            assert resolve_query_count(ctx2.mem, q) == 3;
+            assert counting.rows_calls == after_warm , (
+                "warmed topology should answer simple graph counts without SQL"
+            );
+
+            visit_q = GraphQuery(ranch.archetype, hops=[QHop(dir=2, nd=PA)]);
+            visit_q.`visit();
+            visit_hits = resolve_query(ctx2.mem, visit_q);
+            assert len(visit_hits) == 3;
+            assert counting.rows_calls == after_warm , (
+                "warmed topology should answer node visit queries without SQL"
+            );
+
+            pred_q = GraphQuery(
+                ranch.archetype,
+                hops=[QHop(dir=2, nd=PA, preds=[QPred(field="val", op="==", value=2)])]
+            );
+            pred_hits = resolve_query(ctx2.mem, pred_q);
+            assert len(pred_hits) == 1;
+            assert counting.rows_calls == after_warm , (
+                "warmed topology should evaluate node predicates without SQL"
+            );
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx2.close();
+        }
+    }
+}
+
+
+test "runtime uses filtered hop topology without root completeness" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx1 = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx1;
+        root_id: UUID;
+        try {
+            root_id = _seed(ctx1);
+            ctx1.mem.commit();
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx1.close();
+        }
+        ctx2 = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx2;
+        try {
+            ranch = ctx2.mem.get(root_id);
+            assert isinstance(ranch, NodeAnchor) and ranch.archetype is not None;
+            base = ctx2.mem.store;
+            assert isinstance(base, PgStore);
+            counting = _QueryCountingStore(
+                conninfo=base.conninfo,
+                promotions=base.promotions,
+                auto_schema=True
+            );
+            base.close();
+            ctx2.mem.store = counting;
+
+            idx = ctx2.mem.warm_topology_for_hop([root_id], "PRel", "PA", 2);
+            assert idx.node_type(root_id) == "Root";
+            assert not idx.has_root(root_id);
+            assert idx.has_hop(root_id, "PRel", "PA", 2);
+            after_warm = counting.rows_calls;
+            assert after_warm == 1;
+
+            q = GraphQuery(ranch.archetype, hops=[QHop(dir=2, `edge=PRel, nd=PA)]);
+            ids = resolve_query_prefix(ctx2.mem, q, 1);
+            assert len(ids) == 3;
+            assert counting.rows_calls == after_warm , (
+                "filtered hop topology should answer matching graph prefixes without SQL"
+            );
+
+            hits = resolve_query(ctx2.mem, q);
+            assert len(hits) == 3;
+            after_narrow = counting.rows_calls;
+            assert after_narrow <= after_warm + 1 , (
+                "matching graph resolve should only fetch winner anchors after topology"
+            );
+
+            wider = GraphQuery(ranch.archetype, hops=[QHop(dir=2, nd=PA)]);
+            assert len(resolve_query(ctx2.mem, wider)) == 3;
+            assert counting.rows_calls == after_narrow + 1 , (
+                "untyped graph query must not reuse a narrower filtered hop mark"
+            );
         } finally {
             JacRuntime.exec_ctx = old;
             ctx2.close();

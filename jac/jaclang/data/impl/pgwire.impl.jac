@@ -1,5 +1,123 @@
+import threading;
+
 glob _INT32 = '!i',
-     _INT16 = '!h';
+     _INT16 = '!h',
+     _sql_log_state: list = [None],
+     _sql_log_lock: threading.Lock = threading.Lock();
+
+
+def _compact_sql(sql: str) -> str {
+    return ' '.join(str(sql).split());
+}
+
+
+def _sql_log_path -> str {
+    import os;
+    env_path = os.environ.get('JAC_SQL_LOG', '').strip();
+    if env_path {
+        return env_path;
+    }
+    try {
+        import from jaclang.project.config { get_config }
+        cfg = get_config();
+        if cfg is not None {
+            return str(getattr(cfg.run, 'sql_log', '') or '').strip();
+        }
+    } except Exception {
+        ;
+    }
+    return '';
+}
+
+
+impl sql_log_reset_for_tests -> None {
+    with _sql_log_lock {
+        state = _sql_log_state[0];
+        if state is not None and state is not False {
+            try {
+                state[0].close();
+            } except Exception {
+                ;
+            }
+        }
+        _sql_log_state[0] = None;
+    }
+}
+
+
+def _write_sql_log(
+    conn: any,
+    sql: str,
+    params: dict,
+    elapsed_ms: float,
+    row_count: int,
+    error: str = ''
+) -> None {
+    if _sql_log_state[0] is False {
+        return;
+    }
+    with _sql_log_lock {
+        state = _sql_log_state[0];
+        if state is None {
+            try {
+                import csv;
+                import pathlib;
+                path = _sql_log_path();
+                if not path {
+                    _sql_log_state[0] = False;
+                    return;
+                }
+                p = pathlib.Path(path);
+                p.parent.mkdir(parents=True, exist_ok=True);
+                fh = p.open('w', newline='');
+                writer = csv.writer(fh);
+                writer.writerow([
+                    'ts_ns',
+                    'thread_id',
+                    'database',
+                    'application_name',
+                    'elapsed_ms',
+                    'row_count',
+                    'param_count',
+                    'param_keys',
+                    'status',
+                    'error',
+                    'sql'
+                ]);
+                state = (fh, writer);
+                _sql_log_state[0] = state;
+            } except Exception {
+                _sql_log_state[0] = False;
+                return;
+            }
+        }
+        if state is False {
+            return;
+        }
+        try {
+            import time;
+            fh = state[0];
+            writer = state[1];
+            keys = sorted([str(k) for k in params.keys()]);
+            writer.writerow([
+                time.time_ns(),
+                threading.get_ident(),
+                str(getattr(conn, 'database', '') or ''),
+                str(getattr(conn, 'application_name', '') or ''),
+                f"{elapsed_ms:.3f}",
+                row_count,
+                len(params),
+                ' '.join(keys),
+                'error' if error else 'ok',
+                error,
+                _compact_sql(sql)
+            ]);
+            fh.flush();
+        } except Exception {
+            ;
+        }
+    }
+}
 
 
 impl _encode_param(v: any) -> (bytes | None) {
@@ -368,80 +486,119 @@ impl PgWireConnection._handle_async(msg_type: str, payload: bytes) -> bool {
 
 impl PgWireConnection.run(sql: str, **params: any) -> list {
     assert not self._closed , 'connection is closed';
-    (pos_sql, args) = _named_to_positional(sql, params);
-    bind = b'\x00\x00' + struct.pack(_INT16, 0) + struct.pack(_INT16, len(args));
-    for a in args {
-        enc = _encode_param(a);
-        if enc is None {
-            bind += struct.pack(_INT32, -1);
-        } else {
-            bind += struct.pack(_INT32, len(enc)) + enc;
-        }
+    log_sql = _sql_log_state[0] is not False;
+    start = 0.0;
+    if log_sql {
+        import time as _time;
+        start = _time.perf_counter();
     }
-    bind += struct.pack(_INT16, 0);
-    sock: any = self._sock;
-    sock.sendall(
-        _frame(
-            'P', b'\x00' + pos_sql.encode('utf-8') + b'\x00' + struct.pack(_INT16, 0)
-        )
-            + _frame('B', bind)
-            + _frame('D', b'P\x00')
-            + _frame('E', b'\x00' + struct.pack(_INT32, 0))
-            + _frame('S', b'')
-    );
-
     rows: list = [];
-    oids: list[int] = [];
-    err: (dict | None) = None;
-    while True {
-        (mtype, payload) = self._read_message();
-        if self._handle_async(mtype, payload) {
-            continue;
-        }
-        if mtype in ('1', '2', '3', 'C', 'n', 's') {
-            continue;
-        }
-        if mtype == 'T' {
-            oids = [];
-            nfields = struct.unpack(_INT16, payload[:2])[0];
-            pos = 2;
-            for _i in range(nfields) {
-                end = payload.index(b'\x00', pos);
-                pos = end + 1 + 6;
-                oids.append(struct.unpack(_INT32, payload[pos:pos + 4])[0]);
-                pos += 4 + 8;
+    try {
+        (pos_sql, args) = _named_to_positional(sql, params);
+        bind = (
+            b'\x00\x00'
+            + struct.pack(_INT16, 0)
+            + struct.pack(_INT16, len(args))
+        );
+        for a in args {
+            enc = _encode_param(a);
+            if enc is None {
+                bind += struct.pack(_INT32, -1);
+            } else {
+                bind += struct.pack(_INT32, len(enc)) + enc;
             }
-            continue;
         }
-        if mtype == 'D' {
-            ncols = struct.unpack(_INT16, payload[:2])[0];
-            pos = 2;
-            row: list = [];
-            for ci in range(ncols) {
-                vlen = struct.unpack(_INT32, payload[pos:pos + 4])[0];
-                pos += 4;
-                if vlen == -1 {
-                    row.append(None);
-                } else {
-                    raw = payload[pos:pos + vlen];
-                    pos += vlen;
-                    oid = oids[ci] if ci < len(oids) else 25;
-                    row.append(_decode_value(oid, raw));
+        bind += struct.pack(_INT16, 0);
+        sock: any = self._sock;
+        sock.sendall(
+            _frame(
+                'P',
+                b'\x00'
+                    + pos_sql.encode('utf-8')
+                    + b'\x00'
+                    + struct.pack(_INT16, 0)
+            )
+                + _frame('B', bind)
+                + _frame('D', b'P\x00')
+                + _frame('E', b'\x00' + struct.pack(_INT32, 0))
+                + _frame('S', b'')
+        );
+
+        oids: list[int] = [];
+        err: (dict | None) = None;
+        while True {
+            (mtype, payload) = self._read_message();
+            if self._handle_async(mtype, payload) {
+                continue;
+            }
+            if mtype in ('1', '2', '3', 'C', 'n', 's') {
+                continue;
+            }
+            if mtype == 'T' {
+                oids = [];
+                nfields = struct.unpack(_INT16, payload[:2])[0];
+                pos = 2;
+                for _i in range(nfields) {
+                    end = payload.index(b'\x00', pos);
+                    pos = end + 1 + 6;
+                    oids.append(struct.unpack(_INT32, payload[pos:pos + 4])[0]);
+                    pos += 4 + 8;
                 }
+                continue;
             }
-            rows.append(tuple(row));
-            continue;
-        }
-        if mtype == 'E' {
-            err = _parse_error_fields(payload);
-            continue;
-        }
-        if mtype == 'Z' {
-            if err is not None {
-                raise PgWireError(err);
+            if mtype == 'D' {
+                ncols = struct.unpack(_INT16, payload[:2])[0];
+                pos = 2;
+                row: list = [];
+                for ci in range(ncols) {
+                    vlen = struct.unpack(_INT32, payload[pos:pos + 4])[0];
+                    pos += 4;
+                    if vlen == -1 {
+                        row.append(None);
+                    } else {
+                        raw = payload[pos:pos + vlen];
+                        pos += vlen;
+                        oid = oids[ci] if ci < len(oids) else 25;
+                        row.append(_decode_value(oid, raw));
+                    }
+                }
+                rows.append(tuple(row));
+                continue;
             }
-            return rows;
+            if mtype == 'E' {
+                err = _parse_error_fields(payload);
+                continue;
+            }
+            if mtype == 'Z' {
+                if err is not None {
+                    raise PgWireError(err);
+                }
+                if log_sql {
+                    import time as _time;
+                    _write_sql_log(
+                        self,
+                        sql,
+                        params,
+                        (_time.perf_counter() - start) * 1000,
+                        len(rows)
+                    );
+                }
+                return rows;
+            }
         }
+    } except Exception as e {
+        if log_sql {
+            import time as _time;
+            _write_sql_log(
+                self,
+                sql,
+                params,
+                (_time.perf_counter() - start) * 1000,
+                len(rows),
+                f"{type(e).__name__}: {e}"
+            );
+        }
+        raise;
     }
 }
 

@@ -12,6 +12,7 @@ import from jaclang.runtime.archetype {
     ObjectSpatialFunction,
     PermissionDenied,
     Root,
+    VisitType,
     WalkerAnchor,
     WalkerArchetype
 }
@@ -31,6 +32,7 @@ glob __all__ = [
          'JsxElement',
          'PermissionDenied',
          'Root',
+         'VisitType',
          'MTIR',
          'MTRuntime',
          'ObjectSpatialFunction'

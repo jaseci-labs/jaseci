@@ -29,6 +29,10 @@ glob logger = logging.getLogger(__name__),
          'shared_pg_data_dir',
          'project_db_name',
          'takeover_project',
+         'hit_stats_snapshot',
+         'hit_stats_reset',
+         'hit_stats_add_checkpoint',
+         'hit_stats_read_checkpoints',
          'mark_scratch_base',
          'scratch_requested',
          'scratch_lease',
@@ -102,6 +106,12 @@ def shared_pg_data_dir -> str;
 def project_db_name(base_path: str, target_path: (str | None)) -> str;
 def conninfo_from_url(url: str) -> ConnInfo;
 def takeover_project(base_path: str, target_path: (str | None) = None) -> int;
+def hit_stats_snapshot -> dict[str, int];
+def hit_stats_reset -> None;
+def hit_stats_add_checkpoint(label: str) -> None;
+def hit_stats_read_checkpoints -> list[tuple[str, dict[str, int]]];
+def _tiered_access_log(id: UUID, tier: str, anchor: any = None) -> None;
+def _access_log_reset_for_tests -> None;
 def mark_scratch_base(base_path: str) -> None;
 def scratch_requested(base_path: (str | None)) -> bool;
 def scratch_lease(base_path: str) -> ScratchLease;
@@ -115,6 +125,7 @@ obj Session {
         base_path: (str | None) = None,
         target_path: (str | None) = None,
         __mem__: dict[UUID, Anchor] postinit,
+        __raw_mem__: dict[UUID, AnchorRow] postinit,
         _dirty: dict[UUID, None] postinit,
         _deleted: set[UUID] postinit,
         _flushed_hash: dict[UUID, int] postinit,
@@ -122,6 +133,14 @@ obj Session {
         _txn_changed: set[UUID] postinit,
         _runtime: (any | None) postinit,
         _lock: threading.RLock postinit,
+        _raw_lock: threading.Lock postinit,
+        _query_cache_lock: threading.Lock postinit,
+        _query_cache: dict postinit,
+        _topology_lock: threading.Lock postinit,
+        _topology_index: any postinit,
+        __topology_index__: any postinit,
+        _prefetch_ids: set[UUID] postinit,
+        _prefetch_done: threading.Event postinit,
         _fetch_count: int postinit,
         _active_units: int postinit,
         _flushing: (int | None) postinit,
@@ -156,7 +175,21 @@ obj Session {
     def commit(anchor: (Anchor | None) = None) -> None;
     def abort -> None;
     def get_mem -> dict[UUID, Anchor];
+    def store_raw(uid: UUID, row: AnchorRow) -> None;
+    def promote_raw(uid: UUID) -> (Anchor | None);
+    def prefetch(ids: Iterable[UUID]) -> None;
     def batch_get(ids: list[UUID]) -> dict[UUID, Anchor];
+    def invalidate_query_cache -> None;
+    def query_cache_get(key: any) -> any;
+    def query_cache_put(key: any, value: any) -> None;
+    def invalidate_topology_index -> None;
+    def warm_topology_for_nodes(ids: Iterable[UUID]) -> any;
+    def warm_topology_for_hop(
+        ids: Iterable[UUID],
+        edge_type: (str | None),
+        node_type: (str | None),
+        direction: int
+    ) -> any;
     def quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None;
     def is_recoverable_quarantine(id: UUID) -> bool;
     async def aget(id: UUID) -> (Anchor | None);

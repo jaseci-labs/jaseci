@@ -251,9 +251,124 @@ impl JacWalker.spawn_call(
 ) -> WalkerArchetype {
     import from jaclang.runtime.osp_kernel { osp_spawn }
     import from jaclang.runtime.osp_kernel_sv { desc_for, make_sv_runtime }
+    import from time { perf_counter as _perf_counter }
+    import from csv { writer as _csv_writer }
     warch = `walker.archetype;
     starts: list = `list(`walker.next);
-    osp_spawn(make_sv_runtime(), warch, desc_for(`type(warch)), starts);
+    topo_idx_time_ms = 0.0;
+    ttg_time_ms = 0.0;
+    prefetch_time_ms = 0.0;
+    ttg_total_time_ms = 0.0;
+    resolve_total_ms = 0.0;
+    cfg: any = None;
+    ctx_observe = None;
+    history_observe_enabled = False;
+    try {
+        import from jaclang.runtime.prefetch { prefetch_worker_times_reset }
+        prefetch_worker_times_reset();
+    } except Exception { }
+    ttg_block_start = _perf_counter();
+    if isinstance(nd, NodeAnchor) {
+        try {
+            import from jaclang.project.config { get_config }
+            import from jaclang.runtime.prefetch { run_prefetch_policy }
+            cfg = get_config();
+            ctx_prefetch = JacRuntimeInterface.get_context();
+            (
+                topo_idx_time_ms,
+                ttg_time_ms,
+                prefetch_time_ms,
+                resolve_total_ms
+            ) = run_prefetch_policy(ctx_prefetch, cfg, warch, nd);
+        } except Exception as e {
+            logger.debug(f"prefetch policy failed: {e}");
+        }
+    }
+    ttg_block_end = _perf_counter();
+    ttg_total_time_ms = (ttg_block_end - ttg_block_start) * 1000;
+    try {
+        import from jaclang.runtime.prefetch_policy { start_history_observation }
+        run_cfg = cfg?.run if cfg is not None else None;
+        policy_name = str(getattr(run_cfg, "prefetching", "")).strip().lower();
+        if policy_name == "history" {
+            ctx_observe = JacRuntimeInterface.get_context();
+            history_observe_enabled = start_history_observation(ctx_observe);
+        }
+    } except Exception {
+        ;
+    }
+    walker_start = _perf_counter();
+    try {
+        osp_spawn(make_sv_runtime(), warch, desc_for(`type(warch)), starts);
+    } finally {
+        walker_end = _perf_counter();
+        if history_observe_enabled {
+            try {
+                import from jaclang.runtime.prefetch_policy {
+                    finish_history_observation
+                }
+                run_cfg = cfg?.run if cfg is not None else None;
+                hist_limit: int = int(getattr(run_cfg, "prefetch_limit", 200) or 200);
+                finish_history_observation(ctx_observe, warch, hist_limit);
+            } except Exception {
+                ;
+            }
+        }
+    }
+    walker_time_ms = (walker_end - walker_start) * 1000;
+    profile_csv_path = os.environ.get("JAC_PROFILE_CSV");
+    if profile_csv_path {
+        os.makedirs(os.path.dirname(profile_csv_path) or ".", exist_ok=True);
+        file_exists = os.path.exists(profile_csv_path);
+        with open(profile_csv_path, "a", newline="") as f {
+            writer = _csv_writer(f);
+            if not file_exists {
+                writer.writerow(
+                    [
+                        "node_num",
+                        "edge_num",
+                        "tweet_num",
+                        "ttg_enabled",
+                        "ttg_total_ms",
+                        "topo_idx_ms",
+                        "ttg_ms",
+                        "prefetch_ms",
+                        "walker_ms",
+                        "resolve_total_ms"
+                    ]
+                );
+            }
+            node_num = os.environ.get("JAC_NODE_NUM", "");
+            edge_num = os.environ.get("JAC_EDGE_NUM", "");
+            tweet_num = os.environ.get("JAC_TWEET_NUM", "");
+            ttg_enabled = "enabled" if ttg_time_ms > 0 else "disabled";
+            try {
+                import from jaclang.runtime.prefetch {
+                    prefetch_worker_times_snapshot,
+                    prefetch_worker_times_reset
+                }
+                pf_worker_ms = prefetch_worker_times_snapshot();
+                prefetch_wall_ms = max(pf_worker_ms) if pf_worker_ms else 0.0;
+                prefetch_worker_times_reset();
+            } except Exception {
+                prefetch_wall_ms = 0.0;
+            }
+            writer.writerow(
+                [
+                    node_num,
+                    edge_num,
+                    tweet_num,
+                    ttg_enabled,
+                    f"{ttg_total_time_ms:.3f}",
+                    f"{topo_idx_time_ms:.3f}",
+                    f"{ttg_time_ms:.3f}",
+                    f"{prefetch_wall_ms:.3f}",
+                    f"{walker_time_ms:.3f}",
+                    f"{resolve_total_ms:.3f}"
+                ]
+            );
+        }
+    }
     return warch;
 }
 
@@ -266,9 +381,53 @@ impl JacWalker.async_spawn_call(
         make_sv_runtime
     }
     warch = `walker.archetype;
-    await osp_spawn_async(
-        make_sv_runtime(), warch, desc_for(`type(warch)), `list(`walker.next)
-    );
+    cfg: any = None;
+    ctx_observe = None;
+    history_observe_enabled = False;
+    try {
+        import from jaclang.runtime.prefetch { prefetch_worker_times_reset }
+        prefetch_worker_times_reset();
+    } except Exception { }
+    if isinstance(nd, NodeAnchor) {
+        try {
+            import from jaclang.project.config { get_config }
+            import from jaclang.runtime.prefetch { run_prefetch_policy }
+            cfg = get_config();
+            ctx_prefetch = JacRuntimeInterface.get_context();
+            run_prefetch_policy(ctx_prefetch, cfg, warch, nd);
+        } except Exception as e {
+            logger.debug(f"prefetch policy failed: {e}");
+        }
+    }
+    try {
+        import from jaclang.runtime.prefetch_policy { start_history_observation }
+        run_cfg = cfg?.run if cfg is not None else None;
+        policy_name = str(getattr(run_cfg, "prefetching", "")).strip().lower();
+        if policy_name == "history" {
+            ctx_observe = JacRuntimeInterface.get_context();
+            history_observe_enabled = start_history_observation(ctx_observe);
+        }
+    } except Exception {
+        ;
+    }
+    try {
+        await osp_spawn_async(
+            make_sv_runtime(), warch, desc_for(`type(warch)), `list(`walker.next)
+        );
+    } finally {
+        if history_observe_enabled {
+            try {
+                import from jaclang.runtime.prefetch_policy {
+                    finish_history_observation
+                }
+                run_cfg = cfg?.run if cfg is not None else None;
+                hist_limit: int = int(getattr(run_cfg, "prefetch_limit", 200) or 200);
+                finish_history_observation(ctx_observe, warch, hist_limit);
+            } except Exception {
+                ;
+            }
+        }
+    }
     return warch;
 }
 
