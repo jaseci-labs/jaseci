@@ -64,6 +64,24 @@ obj OspRuntime {
         on_complete: Callable[([WalkScope, bool], None)];
 }
 
+glob _descs: dict[int, NodeDesc] = {};
+
+def osp_register_desc(tag: int, desc: NodeDesc) {
+    _descs[tag] = desc;
+}
+
+def osp_has_desc(tag: int) -> bool {
+    return tag in _descs;
+}
+
+def osp_node_desc(tag: int) -> NodeDesc {
+    if tag in _descs {
+        found: NodeDesc = _descs[tag];
+        return found;
+    }
+    return NodeDesc(type_tag=tag, `entry=[], `exit=[]);
+}
+
 def _new_plans -> dict[int, Plan] {
     out: dict[int, Plan] = {};
     return out;

@@ -1,3 +1,45 @@
+glob _isa: dict[int, set[int]] = {};
+
+def osp_register_type(tag: int, bases: list[int]) -> int {
+    anc: set[int] = set();
+    anc.add(tag);
+    for b in bases {
+        if b in _isa {
+            banc: set[int] = _isa[b];
+            for t in banc {
+                anc.add(t);
+            }
+        } else {
+            anc.add(b);
+        }
+    }
+    if tag in _isa {
+        old: set[int] = _isa[tag];
+        same = len(old) == len(anc);
+        if same {
+            for t in anc {
+                if t not in old {
+                    same = False;
+                }
+            }
+        }
+        return 1 if same else 0;
+    }
+    _isa[tag] = anc;
+    return 1;
+}
+
+def osp_is_a(tag: int, base: int) -> bool {
+    if tag == base {
+        return True;
+    }
+    if tag in _isa {
+        anc: set[int] = _isa[tag];
+        return base in anc;
+    }
+    return False;
+}
+
 obj EdgeRow {
     has src: int,
         tgt: int,
@@ -119,7 +161,10 @@ obj OspGraph {
     }
 
     def _tag_matches(tag: int, want: int) -> bool {
-        return want < 0 or tag == want;
+        if want < 0 or tag == want {
+            return True;
+        }
+        return osp_is_a(tag, want);
     }
 
     def refs_into(

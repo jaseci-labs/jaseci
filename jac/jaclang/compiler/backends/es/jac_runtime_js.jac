@@ -1901,6 +1901,7 @@ if (!globalThis.__jacOspCore) {
     osp_conn, osp_refs, osp_refs_many, osp_wrap1, osp_destroy, osp_is_dead,
     osp_disconn_between, osp_edge_peer,
     osp_spawn, osp_visit, osp_report, osp_disengage, osp_forget,
+    osp_register_type, osp_register_desc, osp_node_desc, osp_is_a,
     WalkerDesc, NodeDesc, Slot, OspRuntime
   };
 }
@@ -1993,10 +1994,6 @@ function __ospLiveStarts(starts) {
 }
 function __ospDiscBetweenW(a, b, dir, tag = -1) {
   return __ospC.osp_disconn_between(__ospId(a), __ospId(b), dir, tag);
-}
-function __ospIsA(t, b) {
-  const s = (typeof __ospISA !== 'undefined') && __ospISA[t];
-  return s ? s.has(b) : t === b;
 }
 """;
 }

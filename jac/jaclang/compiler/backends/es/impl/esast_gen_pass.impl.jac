@@ -5806,17 +5806,22 @@ impl EsastGenPass._build_local_osp_spawn(
     self.needs_osp_kernel = True;
     self.needs_jac_runtime = True;
     tag_lookup = self.sync_loc(
-        es.MemberExpression(
-            object=self.sync_loc(es.Identifier(name="__ospDESC"), jac_node=nd),
-            property=self.sync_loc(
-                es.MemberExpression(
-                    object=walker_es,
-                    property=self.sync_loc(es.Identifier(name="__tag"), jac_node=nd),
-                    computed=False
-                ),
-                jac_node=nd
+        es.CallExpression(
+            callee=self.sync_loc(
+                es.Identifier(name="__ospC.osp_node_desc"), jac_node=nd
             ),
-            computed=True
+            arguments=[
+                self.sync_loc(
+                    es.MemberExpression(
+                        object=walker_es,
+                        property=self.sync_loc(
+                            es.Identifier(name="__tag"), jac_node=nd
+                        ),
+                        computed=False
+                    ),
+                    jac_node=nd
+                )
+            ]
         ),
         jac_node=nd
     );
@@ -5847,7 +5852,6 @@ impl EsastGenPass._build_osp_tags_js -> str {
     _model = self._osp_model();
     tags = _model.tags;
     lines: list[str] = [];
-    isa_parts: list[str] = [];
     for name in _model.arch_kind.keys() {
         tag = tags.get(name);
         if tag is None {
@@ -5863,13 +5867,8 @@ impl EsastGenPass._build_osp_tags_js -> str {
                 if a in tags
             ]
         );
-        isa_parts.append(f"{tag}: new Set([{isa_members}])");
+        lines.append(f"__ospC.osp_register_type({tag}, [{isa_members}]);");
     }
-    lines.append(
-        "var __ospISA = Object.assign(globalThis.__jacOspIsa ??= {}, {"
-            + ", ".join(isa_parts)
-            + "});"
-    );
     return "\n".join(lines);
 }
 
@@ -5890,7 +5889,6 @@ impl EsastGenPass._build_osp_setup_js -> str {
     }
 
     lines: list[str] = [];
-    desc_parts: list[str] = [];
     for name in arch_kinds.keys() {
         tag = tags.get(name);
         if tag is None {
@@ -5901,21 +5899,16 @@ impl EsastGenPass._build_osp_setup_js -> str {
             else "__ospC.NodeDesc";
         entry_js = self._osp_slots_js(entry_by_owner.get(name, []), tags);
         exit_js = self._osp_slots_js(exit_by_owner.get(name, []), tags);
-        desc_parts.append(
-            f"{tag}: new {desc_cls}({{type_tag: {tag}, entry: {entry_js}, exit: {exit_js}}})"
+        lines.append(
+            f"__ospC.osp_register_desc({tag}, new {desc_cls}"
+            + f"({{type_tag: {tag}, entry: {entry_js}, exit: {exit_js}}}));"
         );
     }
     lines.append(
-        "var __ospDESC = Object.assign(globalThis.__jacOspDesc ??= {}, {"
-            + ", ".join(desc_parts)
-            + "});"
-    );
-    lines.append(
         "var __ospRT = globalThis.__jacOspRT ??= new __ospC.OspRuntime({"
             + "tag_of: (h) => h.__tag, "
-            + "is_a: (t, b) => __ospIsA(t, b), "
-            + "node_desc: (t) => (globalThis.__jacOspDesc || {})[t] "
-            + "?? new __ospC.NodeDesc({type_tag: t, entry: [], exit: []}), "
+            + "is_a: (t, b) => __ospC.osp_is_a(t, b), "
+            + "node_desc: (t) => __ospC.osp_node_desc(t), "
             + "on_complete: (s, ok) => { if (s.wlk && !s.nested) s.wlk.reports = s.reports; }"
             + "});"
     );
@@ -6187,7 +6180,9 @@ impl EsastGenPass._build_osp_filter_pred(
         parts.append(
             self.sync_loc(
                 es.CallExpression(
-                    callee=self.sync_loc(es.Identifier(name='__ospIsA'), jac_node=nd),
+                    callee=self.sync_loc(
+                        es.Identifier(name='__ospC.osp_is_a'), jac_node=nd
+                    ),
                     arguments=[
                         self.sync_loc(
                             es.LogicalExpression(

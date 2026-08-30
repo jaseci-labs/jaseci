@@ -22,13 +22,8 @@ obj NaIRGenOsp(NaIRGenState) {
 
     def _osp_build_slot_list(pairs: list) -> ir.Value;
     def _osp_collect_slots(arch_name: str, is_entry: bool) -> list;
-    def _osp_emit_h2i_fn(hash_global: ir.GlobalVariable, n: int) -> ir.Function;
-    def _osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> dict;
-    def _osp_emit_filter_fn(
-        isa_global: ir.GlobalVariable, n: int
-    ) -> (ir.Function | None);
-
-    def _osp_isa_bases(arch_name: str) -> list[int];
+    def _osp_emit_callbacks -> dict;
+    def _osp_emit_filter_fn -> (ir.Function | None);
     def _codegen_visit(nd: uni.VisitStmt) -> None;
     def _codegen_disengage(nd: uni.DisengageStmt) -> None;
     def _codegen_report(nd: uni.ReportStmt) -> None;

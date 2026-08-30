@@ -203,21 +203,6 @@ impl NaIRGenOsp._osp_make_immortal(ptr: ir.Value) -> None {
     );
 }
 
-impl NaIRGenOsp._osp_isa_bases(arch_name: str) -> list[int] {
-    _model = self.ir_in.gen.osp_model;
-    if _model is None {
-        return [];
-    }
-    bases: list[int] = [];
-    for _anc in _model.isa.get(arch_name, []) {
-        _idx = _model.local_index(_anc);
-        if _idx >= 0 {
-            bases.append(_idx);
-        }
-    }
-    return bases;
-}
-
 impl NaIRGenOsp._osp_collect_slots(arch_name: str, is_entry: bool) -> list {
     slots: list = [];
     _model = self.ir_in.gen.osp_model;
@@ -321,49 +306,7 @@ impl NaIRGenOsp._osp_build_descriptor(
     return desc;
 }
 
-impl NaIRGenOsp._osp_emit_h2i_fn(
-    hash_global: ir.GlobalVariable, n: int
-) -> ir.Function {
-    i32 = ir.IntType(32);
-    i64 = ir.IntType(64);
-    fn = self._define_function("__osp_h2i", ir.FunctionType(i64, [i64]));
-    fn.linkage = "internal";
-    fn.args[0].name = "tag";
-    _saved = self._builder;
-    _entry = fn.append_basic_block("entry");
-    _loop = fn.append_basic_block("loop");
-    _chk = fn.append_basic_block("chk");
-    _found = fn.append_basic_block("found");
-    _nf = fn.append_basic_block("nf");
-    self._builder = ir.IRBuilder(_entry);
-    self.builder.branch(_loop);
-    self._builder = ir.IRBuilder(_loop);
-    _i = self.builder.phi(i64, name="h2i.i");
-    _i.add_incoming(ir.Constant(i64, 0), _entry);
-    self.builder.cbranch(
-        self.builder.icmp_unsigned(">=", _i, ir.Constant(i64, n), name="h2i.atend"),
-        _nf,
-        _chk
-    );
-    self._builder = ir.IRBuilder(_chk);
-    _hv = self.builder.load(
-        self.builder.gep(hash_global, [ir.Constant(i32, 0), _i], name="h2i.slot"),
-        name="h2i.hv"
-    );
-    _i1 = self.builder.add(_i, ir.Constant(i64, 1), name="h2i.i1");
-    _i.add_incoming(_i1, _chk);
-    self.builder.cbranch(
-        self.builder.icmp_unsigned("==", _hv, fn.args[0], name="h2i.eq"), _found, _loop
-    );
-    self._builder = ir.IRBuilder(_found);
-    self.builder.ret(_i);
-    self._builder = ir.IRBuilder(_nf);
-    self.builder.ret(ir.Constant(i64, -1));
-    self._builder = _saved;
-    return fn;
-}
-
-impl NaIRGenOsp._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> dict {
+impl NaIRGenOsp._osp_emit_callbacks -> dict {
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
@@ -385,62 +328,9 @@ impl NaIRGenOsp._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> di
     self.builder.ret(self.builder.load(_tp, name="h.tag"));
     out["tag_of"] = _tf;
 
-    _iaf = self._define_function("__osp_is_a", _fields["is_a"].pointee);
-    _iaf.linkage = "internal";
-    _ia_entry = _iaf.append_basic_block("entry");
-    _ia_ok = _iaf.append_basic_block("ok");
-    _ia_no = _iaf.append_basic_block("no");
-    self._builder = ir.IRBuilder(_ia_entry);
-    _ti = self.builder.call(self._osp_h2i_fn, [_iaf.args[0]], name="isa.ti");
-    _bi = self.builder.call(self._osp_h2i_fn, [_iaf.args[1]], name="isa.bi");
-    _ia_bad = self.builder.or_(
-        self.builder.icmp_signed("<", _ti, ir.Constant(i64, 0), name="isa.tbad"),
-        self.builder.icmp_signed("<", _bi, ir.Constant(i64, 0), name="isa.bbad"),
-        name="isa.bad"
-    );
-    self.builder.cbranch(_ia_bad, _ia_no, _ia_ok);
-    self._builder = ir.IRBuilder(_ia_ok);
-    _ix = self.builder.add(
-        self.builder.mul(_ti, ir.Constant(i64, n), name="isa.row"), _bi, name="isa.idx"
-    );
-    _v = self.builder.load(
-        self.builder.gep(isa_global, [ir.Constant(i32, 0), _ix], name="isa.slot"),
-        name="isa.v"
-    );
-    self.builder.ret(
-        self.builder.icmp_unsigned("!=", _v, ir.Constant(i8, 0), name="isa.r")
-    );
-    self._builder = ir.IRBuilder(_ia_no);
-    self.builder.ret(ir.Constant(ir.IntType(1), 0));
-    out["is_a"] = _iaf;
-    self._osp_is_a_fn = _iaf;
-
-    _ndf = ir.Function(
-        self.llvm_module, _fields["node_desc"].pointee, name="__osp_node_desc"
-    );
-    _ndf.linkage = "internal";
-    _nd_entry = _ndf.append_basic_block("entry");
-    _nd_ok = _ndf.append_basic_block("ok");
-    _nd_no = _ndf.append_basic_block("no");
-    _nd_ty = self.struct_types["NodeDesc"].as_pointer();
-    self._builder = ir.IRBuilder(_nd_entry);
-    _nd_idx = self.builder.call(self._osp_h2i_fn, [_ndf.args[0]], name="nd.idx");
-    self.builder.cbranch(
-        self.builder.icmp_signed("<", _nd_idx, ir.Constant(i64, 0), name="nd.bad"),
-        _nd_no,
-        _nd_ok
-    );
-    self._builder = ir.IRBuilder(_nd_ok);
-    _dp = self.builder.load(
-        self.builder.gep(
-            self._osp_desc_global, [ir.Constant(i32, 0), _nd_idx], name="nd.slot"
-        ),
-        name="nd.i8"
-    );
-    self.builder.ret(self.builder.bitcast(_dp, _nd_ty, name="nd"));
-    self._builder = ir.IRBuilder(_nd_no);
-    self.builder.ret(ir.Constant(_nd_ty, None));
-    out["node_desc"] = _ndf;
+    out["is_a"] = self.func_symtab.get("osp_is_a");
+    self._osp_is_a_fn = out["is_a"];
+    out["node_desc"] = self.func_symtab.get("osp_node_desc");
 
     _ocf = ir.Function(
         self.llvm_module, _fields["on_complete"].pointee, name="__osp_on_complete"
@@ -509,9 +399,7 @@ impl NaIRGenOsp._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> di
     return out;
 }
 
-impl NaIRGenOsp._osp_emit_filter_fn(
-    isa_global: ir.GlobalVariable, n: int
-) -> (ir.Function | None) {
+impl NaIRGenOsp._osp_emit_filter_fn -> (ir.Function | None) {
     self._emit_list_helpers("i64", ir.IntType(64));
     _h = self.list_helpers.get("i64");
     _li64 = self.list_types.get("i64");
@@ -557,9 +445,12 @@ impl NaIRGenOsp._osp_emit_filter_fn(
         ),
         name="filt.tag"
     );
-    _keepc = self.builder.call(self._osp_is_a_fn, [_tag, fn.args[1]], name="filt.isa")
+    _keepr = self.builder.call(self._osp_is_a_fn, [_tag, fn.args[1]], name="filt.isa")
         if (self._osp_is_a_fn is not None)
         else ir.Constant(ir.IntType(1), 0);
+    _keepc = self.builder.icmp_unsigned(
+        "!=", _keepr, ir.Constant(_keepr.type, 0), name="filt.keep"
+    );
     self.builder.cbranch(_keepc, _keep, _next);
     self._builder = ir.IRBuilder(_keep);
     self._rc_call_with_ctx(_h["append"], [_out, _hv], op="append", loc="");
@@ -585,60 +476,24 @@ impl NaIRGenOsp._emit_osp_setup -> None {
             return;
         }
     }
-    n = len(_model.order);
+    for _rfn in ["osp_is_a", "osp_node_desc", "osp_register_type", "osp_register_desc"] {
+        if _rfn not in self.func_symtab {
+            return;
+        }
+    }
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     i8p = i8.as_pointer();
-
-    _desc_ty = ir.ArrayType(i8p, n);
-    self._osp_desc_global = ir.GlobalVariable(
-        self.llvm_module, _desc_ty, name="__ospDESC"
-    );
-    self._osp_desc_global.linkage = "internal";
-    self._osp_desc_global.initializer = ir.Constant(_desc_ty, None);
-
-    _isa_vals: list = [];
-    for _i in range(n * n) {
-        _isa_vals.append(0);
-    }
-    for (_li, _name) in enumerate(_model.order) {
-        for _b in self._osp_isa_bases(_name) {
-            _isa_vals[_li * n + _b] = 1;
-        }
-    }
-    _isa_ty = ir.ArrayType(i8, n * n);
-    _isa_global = ir.GlobalVariable(self.llvm_module, _isa_ty, name="__ospISA");
-    _isa_global.linkage = "internal";
-    _isa_global.global_constant = True;
-    _isa_global.initializer = ir.Constant(
-        _isa_ty, [ir.Constant(i8, _v) for _v in _isa_vals]
-    );
-
-    _hash_vals: list = [];
-    for _i in range(n) {
-        _hash_vals.append(0);
-    }
-    for (_li, _name) in enumerate(_model.order) {
-        _hash_vals[_li] = _model.tags.get(_name, 0);
-    }
-    _hash_ty = ir.ArrayType(i64, n);
-    _hash_global = ir.GlobalVariable(self.llvm_module, _hash_ty, name="__ospHASH");
-    _hash_global.linkage = "internal";
-    _hash_global.global_constant = True;
-    _hash_global.initializer = ir.Constant(
-        _hash_ty, [ir.Constant(i64, _v) for _v in _hash_vals]
-    );
 
     _rt_ty = self.struct_types["OspRuntime"].as_pointer();
     self._osp_rt_global = ir.GlobalVariable(self.llvm_module, _rt_ty, name="__ospRT");
     self._osp_rt_global.linkage = "internal";
     self._osp_rt_global.initializer = ir.Constant(_rt_ty, None);
 
-    self._osp_h2i_fn = self._osp_emit_h2i_fn(_hash_global, n);
-    _cbs = self._osp_emit_callbacks(_isa_global, n);
+    _cbs = self._osp_emit_callbacks();
 
-    self._osp_filter_fn = self._osp_emit_filter_fn(_isa_global, n);
+    self._osp_filter_fn = self._osp_emit_filter_fn();
 
     _setup = ir.Function(
         self.llvm_module, ir.FunctionType(ir.VoidType(), []), name="__osp_setup"
@@ -647,23 +502,52 @@ impl NaIRGenOsp._emit_osp_setup -> None {
     self._osp_setup_fn = _setup;
     _saved = self._builder;
     self._builder = ir.IRBuilder(_setup.append_basic_block("entry"));
-    for (_lidx, _name) in enumerate(_model.order) {
+    _reg_ty_fn = self.func_symtab.get("osp_register_type");
+    _reg_desc_fn = self.func_symtab.get("osp_register_desc");
+    self._emit_list_helpers("i64", i64);
+    _lh = self.list_helpers.get("i64");
+    for _name in _model.order {
+        _tag = _model.tags.get(_name, 0);
+        if (_reg_ty_fn is not None) and (_lh is not None) {
+            _bases = self._rc_call_with_ctx(
+                _lh["new"], [], op="new", loc="", name="osp.bases"
+            );
+            for _anc in _model.isa.get(_name, []) {
+                if (_anc != _name) and (_anc in _model.tags) {
+                    self._rc_call_with_ctx(
+                        _lh["append"],
+                        [_bases, ir.Constant(i64, _model.tags[_anc])],
+                        op="append",
+                        loc=""
+                    );
+                }
+            }
+            _rt_args = _reg_ty_fn.function_type.args;
+            self.builder.call(
+                _reg_ty_fn,
+                [
+                    self._coerce_type(ir.Constant(i64, _tag), _rt_args[0]),
+                    self._coerce_type(_bases, _rt_args[1])
+                ]
+            );
+            self._emit_rc_release_simple(_bases, op="osp_reg_type", loc="");
+        }
         _sn = "WalkerDesc" if (_model.arch_kind.get(_name) == "walker") else "NodeDesc";
 
         _desc = self._osp_build_descriptor(
             _sn,
-            _model.tags.get(_name, 0),
+            _tag,
             self._osp_collect_slots(_name, True),
             self._osp_collect_slots(_name, False)
         );
-        if _desc is not None {
-            self.builder.store(
-                self.builder.bitcast(_desc, i8p, name="osp.desc.i8"),
-                self.builder.gep(
-                    self._osp_desc_global,
-                    [ir.Constant(i32, 0), ir.Constant(i32, _lidx)],
-                    name="osp.descslot"
-                )
+        if (_desc is not None) and (_reg_desc_fn is not None) {
+            _rd_args = _reg_desc_fn.function_type.args;
+            self.builder.call(
+                _reg_desc_fn,
+                [
+                    self._coerce_type(ir.Constant(i64, _tag), _rd_args[0]),
+                    self._coerce_type(_desc, _rd_args[1])
+                ]
             );
         }
     }

@@ -1,5 +1,6 @@
 import inspect;
 import jaclang.runtime.osp_kernel as _kernel;
+import jaclang.runtime.osp_graph as _graph;
 import from contextvars { ContextVar }
 import from types { UnionType }
 import from typing { cast }
@@ -133,27 +134,18 @@ def _sv_tag_of(handle: any) -> int {
     return tag_of_cls(`type(handle));
 }
 
-def _sv_is_a(tag: int, base: int) -> bool {
-    tc = cls_of_tag(tag);
-    bc = cls_of_tag(base);
-    return tc is not None and bc is not None and issubclass(tc, bc);
-}
-
-glob _ndesc_of_cls: dict[type, NodeDesc] = {};
-
 def _sv_node_desc(tag: int) -> NodeDesc {
     cls = cls_of_tag(tag);
     if cls is None {
         return NodeDesc(type_tag=tag, `entry=[], `exit=[]);
     }
-    cached = _ndesc_of_cls.get(cls);
-    if cached is not None {
-        return cached;
+    if not _kernel.osp_has_desc(tag) {
+        d = desc_for(cls);
+        _kernel.osp_register_desc(
+            tag, NodeDesc(type_tag=d.type_tag, `entry=d.`entry, `exit=d.`exit)
+        );
     }
-    d = desc_for(cls);
-    nd = NodeDesc(type_tag=d.type_tag, `entry=d.`entry, `exit=d.`exit);
-    _ndesc_of_cls[cls] = nd;
-    return nd;
+    return _kernel.osp_node_desc(tag);
 }
 
 def _sv_on_complete(scope: WalkScope, ok: bool) {
@@ -206,7 +198,7 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
 def make_sv_runtime -> OspRuntime {
     return OspRuntime(
         tag_of=_sv_tag_of,
-        is_a=_sv_is_a,
+        is_a=_graph.osp_is_a,
         node_desc=_sv_node_desc,
         on_complete=_sv_on_complete
     );
