@@ -1651,6 +1651,9 @@ impl TypeCheckPass._check_comptime_only_use(nd: Name) -> None {
 }
 
 impl TypeCheckPass._check_type_only_value_use(nd: Name) -> None {
+    if isinstance(nd.parent, AtomTrailer) and nd.parent.right is nd {
+        return;
+    }
     if type_only_import_of(nd) is None or in_type_position(nd) {
         return;
     }

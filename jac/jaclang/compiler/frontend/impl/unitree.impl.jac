@@ -3268,7 +3268,7 @@ impl binding_kind_of_decl(decl: NameAtom) -> BindingKind {
 
 impl type_only_import_of(nd: NameAtom) -> (ModuleItem | None) {
     sym = nd.sym;
-    if sym is None or not sym.defn {
+    if sym is None or not sym.imported or not sym.defn {
         return None;
     }
     found: (ModuleItem | None) = None;

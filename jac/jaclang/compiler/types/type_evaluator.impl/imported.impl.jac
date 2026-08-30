@@ -174,6 +174,26 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
     return UnknownType();
 }
 
+impl TypeEvaluator._apply_import_binding_kind(
+    node_: ModuleItem, binding: Name, kind: BindingKind, module: str
+) -> None {
+    for cand in (binding, node_.alias) {
+        if cand is None {
+            continue;
+        }
+        sym = cand.sym;
+        if sym is None or not sym.defn or sym.decl is not cand {
+            continue;
+        }
+        sym.binding_kind = kind;
+    }
+    if not kind.is_type_only() or node_.from_parent.is_typed {
+        return;
+    }
+    anchor = node_.name if isinstance(node_.name, Name) else binding;
+    self.emit_diag(E1131, anchor, name=node_.name.value, module=module);
+}
+
 impl TypeEvaluator._resolve_star_import_symbol(
     mod: Module, name: str, visited: set[int] | None = None
 ) -> Symbol | None {
