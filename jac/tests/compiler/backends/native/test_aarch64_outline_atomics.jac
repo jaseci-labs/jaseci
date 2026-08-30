@@ -318,7 +318,7 @@ test "the emitter itself is gated on the target, not the host" {
 }
 
 
-test "the aarch64 executable path assembles to a real object (issue #8788)" {
+test "the aarch64 executable path assembles to a real object (#8788)" {
     # The whole point of this one is that it does NOT stop at parse_assembly.
     # Emitting the object is where the missing asm parser aborts, and abort is
     # not catchable, so the emit runs in its own process. On an x86_64 host this
