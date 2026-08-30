@@ -21,6 +21,26 @@ impl _line_starts(code: str) -> list[int] {
     return starts;
 }
 
+impl _segment_name(nd: es.Node) -> str {
+    if nd.type not in ('Identifier', 'PrivateIdentifier', 'JsxIdentifier') {
+        return '';
+    }
+    text = str(getattr(nd, 'name', '') or '');
+    if (text == '') or (len(text) > 128) {
+        return '';
+    }
+    first = text[0];
+    if not (first.isalpha() or (first == '_') or (first == '$')) {
+        return '';
+    }
+    for ch in text {
+        if not (ch.isalnum() or (ch == '_') or (ch == '$')) {
+            return '';
+        }
+    }
+    return text;
+}
+
 impl _offset_to_pos(line_starts: list[int], offset: int) -> tuple[int, int] {
     import bisect;
     row = bisect.bisect_right(line_starts, offset) - 1;
@@ -670,11 +690,7 @@ impl JSCodeGenerator.build_segments(code: str) -> list[tuple[int, int, int, int,
         start = loc.start if loc is not None else None;
         if start is not None {
             (gen_line, gen_col) = _offset_to_pos(line_starts, offset);
-            found[(gen_line, gen_col)] = (
-                start.line,
-                start.column,
-                str(getattr(nd, 'name', '') or '')
-            );
+            found[(gen_line, gen_col)] = (start.line, start.column, _segment_name(nd));
         }
         cursor = 0;
         for kid in kids {

@@ -85,5 +85,6 @@ def es_to_js_with_map(
 
 def _line_starts(code: str) -> list[int];
 def _offset_to_pos(line_starts: list[int], offset: int) -> tuple[int, int];
+def _segment_name(nd: es.Node) -> str;
 
 def template_element_raw(text: str) -> str;
