@@ -241,7 +241,7 @@ impl JacWalker.`visit(
         if not isinstance(anchor, (NodeAnchor, EdgeAnchor)) {
             raise ValueError('Anchor should be NodeAnchor or EdgeAnchor.');
         }
-        if anchor.destroyed {
+        if anchor.destroyed is True {
             continue;
         }
         targets.append(arch);
@@ -339,7 +339,7 @@ impl JacWalker.`spawn(
     `walker: WalkerAnchor = warch.__jac__;
     loc: (NodeAnchor | EdgeAnchor) = assign(`walker, targ);
     for start in `walker.next {
-        if start.destroyed {
+        if start.destroyed is True {
             raise RuntimeError(
                 f"cannot spawn on a destroyed graph object: {start.archetype!r}"
             );
@@ -1111,8 +1111,8 @@ impl JacGraph.connect(
         if light {
             src = left.__jac__;
             tgt = right.__jac__;
-            if src.destroyed or tgt.destroyed {
-                dead = left if src.destroyed else right;
+            if src.destroyed is True or tgt.destroyed is True {
+                dead = left if src.destroyed is True else right;
                 raise RuntimeError(f"cannot connect a destroyed node: {dead!r}");
             }
             if not (src.persistent or tgt.persistent) {
@@ -1127,13 +1127,13 @@ impl JacGraph.connect(
     edges = [];
     for i in left {
         _left = i.__jac__;
-        if _left.destroyed {
+        if _left.destroyed is True {
             raise RuntimeError(f"cannot connect a destroyed node: {i!r}");
         }
         if JacRuntimeInterface.check_connect_access(_left, op_hint="edge_write") {
             for j in right {
                 _right = j.__jac__;
-                if _right.destroyed {
+                if _right.destroyed is True {
                     raise RuntimeError(f"cannot connect a destroyed node: {j!r}");
                 }
                 if JacRuntimeInterface.check_connect_access(
@@ -1235,7 +1235,8 @@ impl JacGraph.clear_edges(
             } else {
                 ea.detach();
                 ea.destroyed = True;
-                osp_forget(ea.archetype);
+                _ea_handle: any = ea.archetype;
+                osp_forget(_ea_handle);
             }
             hit = True;
         }
@@ -1459,7 +1460,8 @@ impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
                         eid = `edge.id;
                         `edge.detach();
                         `edge.destroyed = True;
-                        osp_forget(`edge.archetype);
+                        _edge_handle: any = `edge.archetype;
+                        osp_forget(_edge_handle);
                         if eid is not None {
                             JacRuntimeInterface.get_context().mem.delete(eid);
                         }
@@ -1477,7 +1479,8 @@ impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
                 JacRuntimeInterface.get_context().mem.delete(aid);
             }
             anchor.destroyed = True;
-            osp_forget(anchor.archetype);
+            _handle: any = anchor.archetype;
+            osp_forget(_handle);
         }
     }
 }
