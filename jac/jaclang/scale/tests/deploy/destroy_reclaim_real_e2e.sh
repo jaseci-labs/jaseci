@@ -7,7 +7,8 @@
 #   B  adopted namespace   a namespace it did not create survives, foreign
 #                          workloads untouched, the app's own resources go
 #   C  co-tenant           destroying one app never deletes a namespace another
-#                          app is still deployed into
+#                          app is still deployed into, in either direction:
+#                          the app that created it and the app that adopted it
 #   D  shared volume       a PVC named from user config, with no app prefix,
 #                          is still reclaimed
 #   E  sibling app         a PVC belonging to an app sharing a name prefix is
@@ -366,6 +367,25 @@ require_present "${COTENANT_NS}" statefulset "${APP}-postgres"
 require_present "${COTENANT_NS}" pvc "${APP}-bundles"
 require_absent "${COTENANT_NS}" statefulset "${COTENANT}-postgres"
 echo "  '${APP}' database and volumes survived the co-tenant's destroy"
+_t "C adopted-app destroy PASSED"
+
+# The other direction: the owner label names the app that created the
+# namespace, never the number of apps still in it, so destroying the owner
+# while a co-tenant is deployed must take the shared path too.
+deploy_app "${COTENANT}" "${COTENANT_NS}"
+OWNER_BEFORE="$(ns_owner "${COTENANT_NS}")"
+[ "${OWNER_BEFORE}" = "${APP}" ] \
+    || fail "${COTENANT_NS}" "expected namespace still owned by '${APP}', got '${OWNER_BEFORE}'"
+
+destroy_app "${APP}" "${COTENANT_NS}"
+
+kubectl get namespace "${COTENANT_NS}" >/dev/null 2>&1 \
+    || { echo "FAIL: destroying owner '${APP}' deleted namespace '${COTENANT_NS}', taking co-tenant '${COTENANT}' and its database with it" >&2; exit 1; }
+require_present "${COTENANT_NS}" statefulset "${COTENANT}-postgres"
+require_present "${COTENANT_NS}" pvc "${COTENANT}-bundles"
+require_absent "${COTENANT_NS}" statefulset "${APP}-postgres"
+require_absent "${COTENANT_NS}" pvc "${APP}-bundles"
+echo "  '${COTENANT}' database and volumes survived the owner's destroy"
 _t "C PASSED"
 
 print_timing_report
