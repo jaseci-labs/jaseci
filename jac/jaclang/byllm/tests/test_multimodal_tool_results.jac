@@ -11,7 +11,7 @@ import from jaclang.byllm.types {
     Image,
     normalize_tool_result,
     content_preview,
-    reroute_tool_images_to_user_message
+    reroute_tool_media_to_user_message
 }
 
 
@@ -59,7 +59,7 @@ test "reroute: tool image moves into a labelled user message before the next non
         },
         {"role": "assistant", "content": "ok"}
     ];
-    out = reroute_tool_images_to_user_message(msgs);
+    out = reroute_tool_media_to_user_message(msgs);
     assert out[1]["role"] == "tool" and out[1]["tool_call_id"] == "call_1";
     assert out[1]["content"] == "PASS";
     assert out[2]["role"] == "user";
@@ -94,10 +94,10 @@ test "reroute: consecutive tool messages flush ONE trailing user msg with all im
             "content": [{"type": "image_url", "image_url": {"url": "u3"}}]
         }
     ];
-    out = reroute_tool_images_to_user_message(msgs);
+    out = reroute_tool_media_to_user_message(msgs);
     assert out[1]["role"] == "tool" and out[1]["content"] == "A";
     assert out[2]["role"] == "tool" and out[2]["content"] == "text-only result";
-    assert out[3]["role"] == "tool" and "image attached" in out[3]["content"];
+    assert out[3]["role"] == "tool" and "media attached" in out[3]["content"];
     assert out[4]["role"] == "user";
     img_urls = [
         b["image_url"]["url"]

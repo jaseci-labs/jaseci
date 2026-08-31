@@ -569,8 +569,134 @@ impl BaseLLM._compact_messages(
 }
 
 
+def _msg_field(holder: object, name: str) -> object {
+    if holder is None {
+        return None;
+    }
+    if isinstance(holder, dict) {
+        return holder.get(name);
+    }
+    return getattr(holder, name, None);
+}
+
+
+def _media_from_message(
+    message: object, kind: str, call_params: dict
+) -> object | None {
+    if kind == KIND_IMAGE {
+        for item in (_msg_field(message, "images") or []) {
+            block = _msg_field(item, "image_url");
+            url = _msg_field(block, "url") if not isinstance(block, str) else block;
+            if url {
+                return Image(url=str(url));
+            }
+        }
+        return None;
+    }
+    if kind == KIND_AUDIO {
+        audio = _msg_field(message, "audio");
+        data = _msg_field(audio, "data");
+        if not data {
+            return None;
+        }
+        return Audio.from_b64(
+            str(data),
+            str(call_params.get("audio_format") or ""),
+            str(_msg_field(audio, "transcript") or "")
+        );
+    }
+    return None;
+}
+
+
+def _parse_output(mt_run: MTRuntime, message: object, output_content: str) -> any {
+    kind = media_kind(mt_run.resp_type);
+    if not kind {
+        return mt_run.parse_response(output_content);
+    }
+    return _media_from_message(message, kind, mt_run.call_params);
+}
+
+
+def _input_kinds(mt_run: MTRuntime) -> list {
+    return [media_kind(type(m)) for m in mt_run.media_args];
+}
+
+
+def _media_route(model_name: str, mt_run: MTRuntime) -> str {
+    route = resolve_route(mt_run.resp_type, model_name, _input_kinds(mt_run));
+    if route == ROUTE_UNSUPPORTED {
+        raise ConfigurationError(route_error(route, mt_run.resp_type, model_name));
+    }
+    return route;
+}
+
+
+def _first_audio_arg(mt_run: MTRuntime) -> Audio {
+    for arg in mt_run.media_args {
+        if isinstance(arg, Audio) {
+            return arg;
+        }
+    }
+    raise ConfigurationError(
+        "A transcription model needs an Audio argument to transcribe."
+    );
+}
+
+
+def _media_opts(config: dict, mt_run: MTRuntime) -> dict {
+    cp = mt_run.call_params;
+    inline = cp.get("config");
+    return {** config, ** (inline if isinstance(inline, dict) else {}), ** cp};
+}
+
+
+def _run_media_endpoint(
+    route: str, model_name: str, api_key: str, config: dict, mt_run: MTRuntime
+) -> object {
+    cp = _media_opts(config, mt_run);
+    if route == ROUTE_IMAGE_ENDPOINT {
+        return generate_image(mt_run.media_prompt, model_name, api_key, cp);
+    }
+    if route == ROUTE_SPEECH_ENDPOINT {
+        return synthesize_speech(
+            mt_run.media_text or mt_run.media_prompt, model_name, api_key, cp
+        );
+    }
+    if route == ROUTE_VIDEO_ENDPOINT {
+        return generate_video(mt_run.media_prompt, model_name, api_key, cp);
+    }
+    return transcribe(_first_audio_arg(mt_run), model_name, api_key, cp);
+}
+
+
+async def _arun_media_endpoint(
+    route: str, model_name: str, api_key: str, config: dict, mt_run: MTRuntime
+) -> object {
+    cp = _media_opts(config, mt_run);
+    if route == ROUTE_IMAGE_ENDPOINT {
+        return await agenerate_image(mt_run.media_prompt, model_name, api_key, cp);
+    }
+    if route == ROUTE_SPEECH_ENDPOINT {
+        return await asynthesize_speech(
+            mt_run.media_text or mt_run.media_prompt, model_name, api_key, cp
+        );
+    }
+    if route == ROUTE_VIDEO_ENDPOINT {
+        return await agenerate_video(mt_run.media_prompt, model_name, api_key, cp);
+    }
+    return await atranscribe(_first_audio_arg(mt_run), model_name, api_key, cp);
+}
+
+
 impl BaseLLM.ainvoke(mt_run: MTRuntime) -> any {
     import asyncio;
+    route = _media_route(self.model_name, mt_run);
+    if route != ROUTE_CHAT {
+        return await _arun_media_endpoint(
+            route, self.model_name, self.api_key, self.config, mt_run
+        );
+    }
     logging_stream = mt_run.stream and mt_run.call_params.get("logging", False);
     no_tools = len(mt_run.tools) == 0;
     if not mt_run.stream and no_tools and not logging_stream {
@@ -589,6 +715,12 @@ impl BaseLLM.__call__(**kwargs: object) -> BaseLLM {
 }
 
 impl BaseLLM.invoke(mt_run: MTRuntime) -> any {
+    route = _media_route(self.model_name, mt_run);
+    if route != ROUTE_CHAT {
+        return _run_media_endpoint(
+            route, self.model_name, self.api_key, self.config, mt_run
+        );
+    }
     handler = mt_run.call_params.get("stream_handler");
     if mt_run.stream and handler is not None and callable(handler) {
         return self._invoke_with_handler(mt_run, handler);
@@ -1086,7 +1218,7 @@ impl BaseLLM.make_model_params(mt_run: MTRuntime) -> dict {
 
     messages = mt_run.get_msg_list();
 
-    messages = reroute_tool_images_to_user_message(messages);
+    messages = reroute_tool_media_to_user_message(messages);
     tools = mt_run.get_tool_list() or None;
 
     if _should_parallelize(mt_run)
@@ -1179,6 +1311,9 @@ impl BaseLLM.make_model_params(mt_run: MTRuntime) -> dict {
 
     if "tool_choice" in mt_run.call_params {
         params["tool_choice"] = mt_run.call_params["tool_choice"];
+    }
+    if media_kind(mt_run.resp_type) == KIND_AUDIO {
+        params.update(audio_output_params(_media_opts(self.config, mt_run)));
     }
 
     params = inject_schema_hint(params);
@@ -1420,7 +1555,7 @@ impl BaseLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     tool_calls_list: list = _tc_raw if isinstance(_tc_raw, list) else [];
     tool_calls = _parse_tool_calls(mt_run, tool_calls_list, truncated_ids, damaged_ids);
 
-    output_value = mt_run.parse_response(output_content)
+    output_value = _parse_output(mt_run, message, output_content)
         if not tool_calls_list
         else output_content;
     usage_data = response.get("usage", {});
@@ -1599,7 +1734,7 @@ impl BaseLLM.dispatch_streaming_with_tools(
     _tc_raw = (message or {}).get("tool_calls") or [];
     tool_calls_list: list = _tc_raw if isinstance(_tc_raw, list) else [];
     tool_calls = _parse_tool_calls(mt_run, tool_calls_list, truncated_ids, damaged_ids);
-    output_value = mt_run.parse_response(output_content)
+    output_value = _parse_output(mt_run, message, output_content)
         if not tool_calls_list
         else output_content;
     out.append(
@@ -1652,7 +1787,7 @@ impl BaseLLM.adispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     _tc_raw = (message or {}).get("tool_calls") or [];
     tool_calls_list: list = _tc_raw if isinstance(_tc_raw, list) else [];
     tool_calls = _parse_tool_calls(mt_run, tool_calls_list, truncated_ids, damaged_ids);
-    output_value = mt_run.parse_response(output_content)
+    output_value = _parse_output(mt_run, message, output_content)
         if not tool_calls_list
         else output_content;
     usage_data = response.get("usage", {});
