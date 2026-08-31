@@ -18,8 +18,9 @@ keep refusing `Any`, now for a reason that cannot change back.
 `codeinfo` spells its four annotations `any` and imports nothing from
 `typing`, so the import-shaped blocker is gone. The hold that replaced the
 accident is lane-scoped now: B4 (#8323) answered what it priced for the
-compiler's own roots -- `test_codeinfo_baseline.jac` carries the closure and
-its arriving seams -- so `PLACEMENT_HOLD_EXEMPT_ROOTS` exempts
+compiler's own roots -- `test_codeinfo_baseline.jac` carried the closure and
+its arriving seams until #8746 retired it with the rest of the seal's
+coverage baselines -- so `PLACEMENT_HOLD_EXEMPT_ROOTS` exempts
 `jac0core/` and `compiler/` from the hold, while user-facing inference keeps
 it (admitting codeinfo there flipped byllm/scale module codespaces). The
 third test below pins that contract: exactly codeinfo is held, its reason
@@ -48,7 +49,8 @@ single named hold that replaced it is spent too, and its prediction held
 exactly: with the entry empty, four of `capability_check_pass`'s five seams
 cleared -- three because it reads `codeinfo`'s tables in-unit, and
 `ClientCapabilityCheckPass.transform` because `module_codegen_pass` joined
-alongside. `test_pass_seal_wave6_baseline.jac` carries the measurement.
+alongside. That measurement lived in `test_pass_seal_wave6_baseline.jac`,
+deleted with the native seal (#8735).
 
 The last test keeps the half of the old reasoning that outlived the rest.
 `ModuleCodegenPass.is_erased_type_decl` reads the *marker* set

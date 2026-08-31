@@ -92,6 +92,28 @@ impl is_generator_family_type(return_type: TypeBase) -> bool {
 
 glob _proto_checks_in_progress: set = set();
 
+def _method_entry_of(sym: Symbol) -> any {
+    if sym.provider is not None {
+        import from jaclang.compiler.frontend.constant { SymbolType }
+        if sym.sym_type
+            in (SymbolType.ABILITY, SymbolType.METHOD, SymbolType.CONSTRUCTOR) {
+            return sym;
+        }
+        return None;
+    }
+    if sym.decl and isinstance(sym.decl.name_of, Ability) {
+        return sym.decl.name_of;
+    }
+    return None;
+}
+
+def _method_entry_type(evaluator: any, member: any) -> TypeBase {
+    if isinstance(member, Symbol) {
+        return evaluator.get_type_of_symbol(member);
+    }
+    return evaluator.get_type_of_ability(member);
+}
+
 impl class_implements_protocol(
     cls: ClassType, proto: ClassType, evaluator: any = None
 ) -> bool {
@@ -99,8 +121,9 @@ impl class_implements_protocol(
     proto_symtab = proto.shared.symbol_table;
     if isinstance(proto_symtab, UniScopeNode) {
         for (name, sym) in proto_symtab.names_in_scope.items() {
-            if sym.decl and isinstance(sym.decl.name_of, Ability) {
-                proto_methods[name] = sym.decl.name_of;
+            member = _method_entry_of(sym);
+            if member is not None {
+                proto_methods[name] = member;
             }
         }
     }
@@ -114,10 +137,9 @@ impl class_implements_protocol(
         mro_symtab = mro_cls.shared.symbol_table;
         if isinstance(mro_symtab, UniScopeNode) {
             for (name, sym) in mro_symtab.names_in_scope.items() {
-                if sym.decl and isinstance(sym.decl.name_of, Ability) {
-                    if name not in cls_methods {
-                        cls_methods[name] = sym.decl.name_of;
-                    }
+                member = _method_entry_of(sym);
+                if member is not None and name not in cls_methods {
+                    cls_methods[name] = member;
                 }
             }
         }
@@ -136,8 +158,8 @@ impl class_implements_protocol(
             cls_method = cls_methods[name];
 
             if evaluator is not None {
-                proto_func_type = evaluator.get_type_of_ability(proto_method);
-                cls_func_type = evaluator.get_type_of_ability(cls_method);
+                proto_func_type = _method_entry_type(evaluator, proto_method);
+                cls_func_type = _method_entry_type(evaluator, cls_method);
                 if isinstance(proto_func_type, FunctionType)
                     and isinstance(cls_func_type, FunctionType) {
                     if not evaluator._assign_callable(cls_func_type, proto_func_type) {

@@ -1,3 +1,4 @@
+import from jaclang.runtime.osp_kernel { osp_skip_rest }
 import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.frontend.unitree {
@@ -70,17 +71,20 @@ def comptime_reach(top: UniNode) -> set[int] {
     return keep;
 }
 
-class ComptimeResolvePass(TypeCheckPass) {
+walker ComptimeResolvePass(TypeCheckPass) {
+    has _armed: bool = False,
+        _keep: set[int] = set();
+
     static has PROVIDES: tuple = ('comptime', ),
         HOST_PASS: bool = True;
 
-    def init(self: ComptimeResolvePass, prog: JacProgram, **kwargs: any) {
+    def init(prog: JacProgram, **kwargs: any) {
         self._keep = set();
         self._armed = False;
         super.init(prog, **kwargs);
     }
 
-    override def before_pass(self: ComptimeResolvePass) {
+    override def before_pass {
         self._keep = comptime_reach(self.ir_in);
         self._armed = bool(self._keep) and not self.ir_in.ct_resolved;
         if self._armed {
@@ -88,7 +92,7 @@ class ComptimeResolvePass(TypeCheckPass) {
         }
     }
 
-    override def after_pass(self: ComptimeResolvePass) -> None {
+    override def after_pass -> None {
         if not self._armed {
             return;
         }
@@ -99,18 +103,25 @@ class ComptimeResolvePass(TypeCheckPass) {
         }
     }
 
-    override def enter_node(self: ComptimeResolvePass, nd: UniNode) -> None {
-        if not self._armed or id(nd) not in self._keep {
-            self.prune();
+    can enter_walk with UniNode entry {
+        if self.is_canceled() or here.ct_pruned {
+            osp_skip_rest();
             return;
         }
-        super.enter_node(nd);
+        self.cur_node = here;
+        if not self._armed or id(here) not in self._keep {
+            osp_skip_rest();
+        }
     }
 
-    override def exit_node(self: ComptimeResolvePass, nd: UniNode) -> None {
-        if not self._armed or id(nd) not in self._keep {
+    can exit_walk with UniNode exit {
+        if here.ct_pruned {
+            osp_skip_rest();
             return;
         }
-        super.exit_node(nd);
+        self.cur_node = here;
+        if self.is_canceled() or not self._armed or id(here) not in self._keep {
+            osp_skip_rest();
+        }
     }
 }

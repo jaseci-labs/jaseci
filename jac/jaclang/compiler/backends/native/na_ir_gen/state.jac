@@ -221,6 +221,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _di_current_sp: object = None,
         _func_loc: dict[str, int] = {},
         _func_def_mod: dict[str, str] = {},
+        _linked_fn_decls: dict[int, tuple] = {},
         _pyb_base_memo: dict[str, tuple | None] = {},
         _pyb_helper_fns: dict[str, ir.Function] = {},
         lambda_captures: dict[str, list[tuple]] = {},

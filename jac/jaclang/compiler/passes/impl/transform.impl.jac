@@ -21,59 +21,27 @@ impl Alert.__repr__ -> str {
 }
 
 impl Alert.as_log(*, colors: bool = False) -> str {
-    import from jaclang.compiler.frontend.helpers { ANSIColors }
-    import from jaclang.compiler.frontend.diagnostics { Severity }
-    file_path: str = self.loc.mod_path;
-    if self.code {
-        sev_label = self.code.severity.value;
-        code_str = self.code.code;
-        if colors {
-            color = ANSIColors.RED
-                if (self.code.severity == Severity.ERROR)
-                else ANSIColors.YELLOW;
-            header = f"{color}{sev_label}[{code_str}]{ANSIColors.END}: {self.msg}";
-        } else {
-            header = f"{sev_label}[{code_str}]: {self.msg}";
-        }
-        if (file_path == '') {
-            return header;
-        }
-        return f"{header}\n  --> {file_path}:{self.loc.first_line}:{self.loc.col_start}";
-    }
-
-    if (file_path == '') {
-        return self.msg;
-    }
-    line: int = self.loc.first_line;
-    column: int = self.loc.col_start;
-    msg = self.msg if not colors else f"{ANSIColors.RED}{self.msg}{ANSIColors.END}";
-    return f"{file_path}:{line}:{column} {msg}";
+    import from jaclang.compiler.frontend.helpers { render_diagnostic_header }
+    return render_diagnostic_header(
+        self.msg,
+        self.code.code if self.code else '',
+        self.code.severity.value if self.code else 'error',
+        self.loc,
+        colors=colors
+    );
 }
 
 impl Alert.pretty_print(*, colors: bool = False) -> str {
-    import from jaclang.compiler.frontend.helpers {
-        pretty_print_span,
-        format_related_spans
-    }
-    pretty_dump = pretty_print_span(self.loc, colors=colors);
-    if (pretty_dump != '') {
-        pretty_dump = '\n' + pretty_dump;
-    }
-    result = self.as_log(colors=colors) + pretty_dump;
-
-    if self.related {
-        result += format_related_spans(self.related, colors=colors);
-    }
-
-    if self.help_text {
-        import from jaclang.compiler.frontend.helpers { ANSIColors }
-        if colors {
-            result += f"\n{ANSIColors.CYAN}help{ANSIColors.END}: {self.help_text}";
-        } else {
-            result += f"\nhelp: {self.help_text}";
-        }
-    }
-    return result;
+    import from jaclang.compiler.frontend.helpers { render_diagnostic }
+    return render_diagnostic(
+        self.msg,
+        self.code.code if self.code else '',
+        self.code.severity.value if self.code else 'error',
+        self.loc,
+        self.related,
+        self.help_text,
+        colors=colors
+    );
 }
 
 impl DiagnosticPolicy.is_suppressed(

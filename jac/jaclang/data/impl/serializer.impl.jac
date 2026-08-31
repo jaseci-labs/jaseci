@@ -876,7 +876,6 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
         anchor.`root = UUID(raw_root)
             if isinstance(raw_root, str) and raw_root
             else None;
-        anchor.persistent = bool(data.get('persistent', False));
         anchor.access = Serializer._deserialize_permission(data.get('access'));
 
         if (arch_data := data.get('archetype')) {
@@ -915,6 +914,8 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
             }
             anchor.archetype = archetype;
         }
+
+        anchor.persistent = bool(data.get('persistent', False));
         if isinstance(anchor, NodeAnchor) {
             raw_edges = data.get('edges');
             edge_ids: list[str] = [];

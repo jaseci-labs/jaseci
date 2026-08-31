@@ -54,7 +54,6 @@ SEED_PATHS: tuple[str, ...] = (
     "runtime/traceback_render.jac",
     "runtime/debugger.jac",
     "runtime/portability.jac",
-    "runtime/native_dylib.jac",
     "runtime/scalars.jac",
     "runtime/osp_kernel.jac",
     "runtime/osp_kernel_sv.jac",
