@@ -123,7 +123,7 @@ Runtime values like `cast`, `overload`, `runtime_checkable`, `TYPE_CHECKING`, `g
 
 ### Type-Only Imports (`import type`)
 
-Use `import type` to bring a name into scope **only for type annotations**. The import is registered with the type checker but elided from runtime by lowering to a `typing.TYPE_CHECKING` guard in the generated Python.
+Use `import type` to bring a name into scope **only for type annotations**. The import is registered with the type checker but elided from runtime: the Python backend lowers it to a `typing.TYPE_CHECKING` guard, and the client backend emits nothing for it at all.
 
 ```jac
 import type from billing { Invoice }
@@ -143,12 +143,75 @@ if TYPE_CHECKING:
 
 This is the supported way to break circular imports between Jac modules whose types reference each other. Combined with `from __future__ import annotations` (always emitted), the annotation stays valid at type-check time without forcing the import to run at module load.
 
-When **not** to use `import type`:
+#### Type-only exports have to be imported this way
 
-- The name is constructed at runtime (e.g. `Invoice(...)`), used in `isinstance`, or referenced by any decorator that resolves annotations through `typing.get_type_hints` (dataclass, Pydantic, attrs, FastAPI route signatures, SQLAlchemy declarative, msgspec). These libraries call into the module's globals at class-definition time and a `TYPE_CHECKING`-guarded import will not be there. Use a regular `import` for those.
-- The name is used inside an `obj`/`node`/`edge`/`walker` `has` field type. Jac archetypes are dataclass-derived, so the same rule applies: keep them on a regular `import`.
+Every import binding carries a *kind*, inherited from whatever it resolves to. The question the checker asks at an import is not "is this a type?" but **"does the backend that lowers *this* module leave a runtime binding for it?"** Where the answer is no, `import type` is not a style choice but the only correct spelling, and [`E1131`](../diagnostics.md#type-only-import-bindings) says so.
 
-`import type` is opt-in -- a regular `import` still binds the name at runtime exactly as before.
+| Declaration | Runtime binding on the server | Runtime binding in the client |
+|-------------|-------------------------------|-------------------------------|
+| TypeScript `interface` in a `.d.ts` | -- | no |
+| TypeScript `type` alias in a `.d.ts` | -- | no |
+| TypeScript `declare class`, `declare enum` | -- | yes |
+| TypeScript `declare const`, `declare function` | -- | yes |
+| Jac `type` alias (`type Row = dict[str, int];`) | **yes** | **no** |
+| Jac type parameters | no | no |
+| Jac `obj`, `class`, `node`, `edge`, `walker`, `enum` | yes | yes |
+| Jac `def`, `glob`, `has`, parameters | yes | yes |
+
+A `.d.ts` `interface` or `type` alias declares no runtime export in any codespace, so a plain import of one is always E1131.
+
+A Jac `type` alias is different, and the difference matters. The Python backend lowers `type Row = dict[str, int];` to a real module-level `TypeAliasType` object, and lowers a distinct alias `type UserId := int;` to a plain `UserId = int`, which is why `UserId(raw)` is the supported way to build a brand. Only the client backend erases aliases. So:
+
+```jac
+# server module -- fine, and `import type` here would break UserId(raw)
+import from brands { UserId }
+def mk(raw: int) -> UserId { return UserId(raw); }
+```
+
+```jac
+# client module -- E1131 on UserId
+import from brands { UserId }
+```
+
+An external module that ships no declarations at all is a value import exactly as before (`W1102`, or `E1120` under `[check] untyped-external = "error"`).
+
+The failure this prevents is a link-time one, not a type mismatch. `mermaid` exports `Mermaid` as an interface and `mermaid` as its default value:
+
+```jac
+import from mermaid { default as mermaid, Mermaid }   # E1131 on Mermaid
+```
+
+Written that way the client backend emits `import mermaid, { Mermaid } from "mermaid";`, and the browser refuses the module with `does not provide an export named 'Mermaid'`, which takes the whole module graph down. Split the type off its own statement:
+
+```jac
+import from mermaid { default as mermaid }
+import type from mermaid { Mermaid }
+```
+
+The value import survives into the bundle; the type import emits nothing.
+
+#### A type-only binding is not a value
+
+Because nothing binds the name at runtime, an `import type` binding is legal only in **type position**: annotations, `has` field types, return types, generic arguments, `as` casts, and `type` alias right-hand sides. Using it in **value position** -- calling it, reading an attribute off it, passing it to `isinstance` or `issubclass`, decorating with it, listing it as a base class, or assigning it -- is [`E1132`](../diagnostics.md#type-only-import-bindings).
+
+```jac
+import type from geometry { Point }
+
+def ok(p: Point) -> Point {
+    return p as Point;
+}
+
+def bad -> Point {
+    return Point(1, 2);
+}
+```
+
+`Point(1, 2)` is `E1132`: the annotation and the cast above it are fine, the constructor call is not. This holds on the server as well as in the client -- `import type` erases the name on both backends, so a guarded `UserId(raw)` would be a `NameError` at runtime rather than a brand. If a name is genuinely needed at runtime, import it with a plain `import from`, which requires that it actually has a runtime binding in the codespace doing the importing.
+
+!!! note "`has` field types under Python's dataclass machinery"
+    Jac archetypes are dataclass-derived on the Python backend, and libraries that resolve annotations through `typing.get_type_hints` at class-definition time (dataclass, Pydantic, attrs, FastAPI route signatures, SQLAlchemy declarative, msgspec) read the module's real globals, where a `TYPE_CHECKING`-guarded import is not present. That is a Python-runtime limitation rather than a checker rule, so it is not diagnosed: if an archetype's `has` field type or a decorator-resolved annotation has to survive to runtime, keep that name on a regular `import`.
+
+For a name that does have a runtime export, `import type` stays opt-in -- a regular `import` binds it at runtime exactly as before.
 
 ### The `any` Type and Gradual Typing
 

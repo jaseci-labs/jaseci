@@ -23,6 +23,12 @@ INIT(AllTargetInfos)
 INIT(AllTargets)
 INIT(AllTargetMCs)
 INIT(AllAsmPrinters)
+// AllAsmParsers, not just NativeAsmParser: the aarch64 outline-atomics helpers
+// are emitted as `module asm`, and assembling module asm needs an asm parser
+// for the TARGET. A cross build (x86_64 host, `--target aarch64-...`) has no
+// use for the host's parser, and LLVM answers a missing one with
+// report_fatal_error -- an abort, not a catchable failure.
+INIT(AllAsmParsers)
 INIT(NativeTarget)
 INIT(NativeAsmParser)
 INIT(NativeAsmPrinter)

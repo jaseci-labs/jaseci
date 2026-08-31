@@ -87,16 +87,32 @@ impl JacLangServer._fanout_dependents(file_uri: str) -> None {
         return;
     }
     with self._state_lock.write_lock() {
+        open_by_real: dict[str, str] = {};
+        for open_uri in self.workspace._text_documents {
+            open_fs = uris.to_fs_path(open_uri);
+            if open_fs is None {
+                continue;
+            }
+            try {
+                open_by_real[str(Path(open_fs).resolve())] = open_uri;
+            } except OSError {
+                continue;
+            }
+        }
         for dep_path in dependents {
-            dep_uri = uris.from_fs_path(dep_path);
+            dep_uri = open_by_real.get(dep_path);
+            if dep_uri is None {
+                try {
+                    dep_uri = open_by_real.get(str(Path(dep_path).resolve()));
+                } except OSError {
+                    dep_uri = None;
+                }
+            }
             if dep_uri is None or dep_uri == file_uri {
                 continue;
             }
-
-            if dep_uri in self.workspace._text_documents {
-                self.dirty_files[dep_uri] = True;
-                self._idle_event.clear();
-            }
+            self.dirty_files[dep_uri] = True;
+            self._idle_event.clear();
         }
         if self.dirty_files {
             self._work_event.set();
@@ -324,6 +340,20 @@ impl JacLangServer.get_references(
     return [];
 }
 
+def _definition_symbol(sym: any) -> any {
+    cur = sym;
+    seen: set[int] = set();
+    while cur is not None and cur.provider is not None and id(cur) not in seen {
+        seen.add(id(cur));
+        target = cur.provider.definition();
+        if target is None or target is cur {
+            break;
+        }
+        cur = target;
+    }
+    return cur;
+}
+
 impl JacLangServer.get_definition(
     file_path: str, position: lspt.Position
 ) -> Optional[lspt.Location] {
@@ -447,10 +477,10 @@ impl JacLangServer.get_definition(
         if isinstance(node_type, ModuleType) {
             return make_location(node_selected, is_module=True);
         } elif isinstance(node_type, ClassType) and node_selected.sym {
-            return make_location(node_selected.sym.decl);
+            return make_location(_definition_symbol(node_selected.sym).decl);
         } elif isinstance(node_type, (FunctionType, OverloadedType))
             and node_selected.sym {
-            return make_location(node_selected.sym.decl);
+            return make_location(_definition_symbol(node_selected.sym).decl);
         }
     }
 
@@ -465,7 +495,7 @@ impl JacLangServer.get_definition(
     }
 
     if node_selected.sym and node_selected.sym.defn {
-        defn0 = node_selected.sym.defn[0];
+        defn0 = _definition_symbol(node_selected.sym).defn[0];
 
         if defn0 is node_selected
             or (
@@ -700,7 +730,7 @@ impl JacLangServer.close_module(uri: str) -> None {
     fs_path = uris.to_fs_path(uri);
     with self._state_lock.write_lock() {
         if fs_path in self.sem_managers {
-            del (self.sem_managers[fs_path], );
+            del self.sem_managers[fs_path];
         }
     }
 }
@@ -708,10 +738,10 @@ impl JacLangServer.close_module(uri: str) -> None {
 impl JacLangServer.delete_module(uri: str) -> None {
     with self._state_lock.write_lock() {
         if uri in self.program.mod.hub {
-            del (self.program.mod.hub[uri], );
+            self.program.mod.hub.pop(uri);
         }
         if uri in self.sem_managers {
-            del (self.sem_managers[uri], );
+            del self.sem_managers[uri];
         }
     }
 }
@@ -721,8 +751,9 @@ impl JacLangServer.rename_module(old_path: str, new_path: str) -> None {
         if old_path in self.program.mod.hub and new_path != old_path {
             self.program.mod.hub[new_path] = self.program.mod.hub[old_path];
             self.sem_managers[new_path] = self.sem_managers[old_path];
-            del (self.program.mod.hub[old_path], );
-            del (self.sem_managers[old_path], );
+
+            self.program.mod.hub.pop(old_path);
+            del self.sem_managers[old_path];
         }
     }
 }

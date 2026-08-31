@@ -1,12 +1,12 @@
 """Stub symbols must not anchor dead programs.
 
-The type evaluator shares parsed `.pyi` stub modules across every JacProgram
-in the process (`_stub_module_memo`). A use-site recorded on a stub symbol is
-therefore a process-lifetime reference into the using program's AST: one such
-edge keeps that program's whole module graph -- inference results, and for
-native compiles the LLVM artifacts hanging off `mod.gen` -- reachable forever.
-Long-lived `jac test` fork workers and the full-sweep `jac check .` then grow
-monotonically until the box dies (the CI "lost communication" failures).
+The type evaluator serves every stdlib stub from the process-wide stub
+catalog, so a use-site recorded on a stub symbol would be a process-lifetime
+reference into the using program's AST: one such edge keeps that program's
+whole module graph -- inference results, and for native compiles the LLVM
+artifacts hanging off `mod.gen` -- reachable forever. Long-lived `jac test`
+fork workers and the full-sweep `jac check .` then grow monotonically until
+the box dies (the CI "lost communication" failures).
 
 These tests pin the two halves of the fix: `Symbol.add_use` refuses to record
 use-sites on stub-owned symbols while still binding `nd.sym` (resolution and
@@ -17,7 +17,6 @@ pattern in the pass tests -- becomes garbage-collectable.
 import gc;
 import os;
 import tempfile;
-import jaclang.compiler.types.type_evaluator as te;
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.driver.program { JacProgram }
 
@@ -40,14 +39,12 @@ def _write_fixture -> str {
 }
 
 def _memoized_builtins_module -> (uni.Module | None) {
-    out: (uni.Module | None) = None;
-    for (path, pair) in te._stub_module_memo.items() {
-        mod = pair[1];
-        if path.endswith("builtins.pyi") and isinstance(mod, uni.Module) {
-            out = mod;
-        }
+    import from jaclang.jac0core.stubcat_hook { active }
+    catalog: any = active();
+    if catalog is None {
+        return None;
     }
-    return out;
+    return catalog.module("builtins");
 }
 
 def _live_module_count -> int {
@@ -68,7 +65,7 @@ test "stub symbols record no use-sites from checked programs" {
         assert mod is not None;
         prog = None;
         builtins_mod = _memoized_builtins_module();
-        assert builtins_mod is not None , "builtins.pyi should be memoized after a compile";
+        assert builtins_mod is not None , "the stub catalog should be open after a compile";
         for name in ("len", "sorted", "print") {
             sym = builtins_mod.names_in_scope.get(name);
             if sym is not None {

@@ -953,7 +953,10 @@ def demote_client_pulled_elements(
     return True;
 }
 
-obj PlacementApplyPass(Transform) {
+walker PlacementApplyPass(Transform) {
+    static has PROVIDES: tuple = ('PlacedIn', 'DecidedCodespace'),
+        REQUIRES: tuple = ('SymOf', );
+
     has prog: JacProgram,
         ir_in: uni.Module,
         cancel_token: any = None;
@@ -963,15 +966,29 @@ obj PlacementApplyPass(Transform) {
 
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
+    def _run_impl(ir_in: uni.Module) -> uni.Module;
+    can run_walk with uni.Module entry;
 }
 
 impl PlacementApplyPass.postinit -> None {
     super.postinit();
 }
 
-impl PlacementApplyPass.transform(ir_in: uni.Module) -> uni.Module {
+impl PlacementApplyPass._run_impl(ir_in: uni.Module) -> uni.Module {
     import from jaclang.compiler.symbol_utils { report_serverless_kind_errors }
     solve_module_placement(ir_in, self.prog);
     report_serverless_kind_errors(self, ir_in);
     return ir_in;
+}
+
+impl PlacementApplyPass.transform(ir_in: uni.Module) -> uni.Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, uni.Module);
+    return out;
+}
+
+impl PlacementApplyPass.run_walk with uni.Module entry {
+    self.ir_out = self._run_impl(here);
 }

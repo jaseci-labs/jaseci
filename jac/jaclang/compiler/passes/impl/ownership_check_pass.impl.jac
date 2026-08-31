@@ -60,7 +60,7 @@ impl OwnershipCheckPass.postinit -> None {
     super.postinit();
 }
 
-impl OwnershipCheckPass.transform(ir_in: Module) -> Module {
+impl OwnershipCheckPass._run_impl(ir_in: Module) -> Module {
     self.owned_decl = {};
     self.consumed_syms = set();
     self.borrow_meta = {};
@@ -1375,4 +1375,16 @@ impl OwnershipCheckPass._emit_escape_diagnostics -> None {
             }
         }
     }
+}
+
+impl OwnershipCheckPass.transform(ir_in: Module) -> Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, Module);
+    return out;
+}
+
+impl OwnershipCheckPass.run_walk with Module entry {
+    self.ir_out = self._run_impl(here);
 }

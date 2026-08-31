@@ -327,6 +327,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="Component body statements run on every render, and state writes are immediately visible, so this assignment would re-render forever. Move it into a `can` ability, an event handler, or a method.",
          blocks_codegen=True
      ),
+     E0083 = _err(
+         "E0083",
+         Category.SYNTAX,
+         "Cannot delete {what}",
+         help="`del` takes either a location to unbind -- a name, an attribute, or a subscript -- or an expression yielding graph objects to destroy. This target is neither."
+     ),
      W0060 = _warn(
          "W0060",
          Category.SYNTAX,
@@ -809,6 +815,44 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="The literal is past what the target float can represent, so it"
          " would arrive as `inf`. Use a wider float type, or write the value the"
          " type can actually hold."
+     ),
+     E1131 = _err(
+         "E1131",
+         Category.TYPE,
+         "'{name}' is a type-only export of '{module}'{scope} and must be"
+         " imported with `import type`",
+         help="{why} With no runtime binding to import, a plain `import from`"
+         " emits a named specifier the loader cannot satisfy -- in the browser"
+         " that is an ESM link error that takes the whole module graph down."
+         " Move '{name}' to its own `import type from {module} {{ {name} }}`"
+         " statement, which the client backend erases and the server backend"
+         " lowers to a `typing.TYPE_CHECKING` guard; the value imports from"
+         " '{module}' stay where they are.",
+         blocks_codegen=True
+     ),
+     E1132 = _err(
+         "E1132",
+         Category.TYPE,
+         "'{name}' was imported with `import type` and cannot be used as a value",
+         help="An `import type` binding exists only for the checker: no"
+         " runtime import is emitted for it, so calling it, reading an"
+         " attribute off it, passing it to `isinstance`/`issubclass`,"
+         " decorating with it, inheriting from it, or assigning it all reach"
+         " a name nothing binds. Annotations, `as` casts, `has` field types,"
+         " generic arguments and `type` alias right-hand sides are type"
+         " position and stay legal. If '{name}' is genuinely needed as a"
+         " value, import it with a plain `import from` instead -- which"
+         " requires that it actually has a runtime export.",
+         blocks_codegen=True
+     ),
+     E1133 = _err(
+         "E1133",
+         Category.TYPE,
+         "`del` target of type '{type}' can never yield a graph object",
+         help="A `del` target that is not a name, an attribute or a subscript is a"
+         " destroy request, so it must yield nodes, edges or archetypes. Assign"
+         " `None` to the location that holds this value if you meant to drop a"
+         " reference."
      ),
      E1301 = _err(
          "E1301",
@@ -1888,4 +1932,40 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.ICE,
          "ICE: missing semantic annotation -- {details}",
          help="Codegen required a fact the central analysis pipeline never recorded on the unitree. This is a compiler bug, not an error in your program."
+     ),
+     E7001 = _err(
+         "E7001",
+         Category.RUNTIME,
+         "The module '{module}' has no export named '{name}'",
+         help="The browser refused to link the module: it loaded '{module}' and found no runtime binding called '{name}'. The usual cause is a type-only export -- a TypeScript interface or type alias that lives in the package's .d.ts and is erased before the module runs -- so a value import of it always fails at link time. Import it with 'import type' if that is the case; otherwise check the package's exports for the name's real spelling, since a value import can only bind a name the package actually exports at runtime."
+     ),
+     E7002 = _err(
+         "E7002",
+         Category.RUNTIME,
+         "Failed to resolve import '{name}' from '{importer}'",
+         help="The dev server resolves every import in the compiled module graph before the browser runs it, and this one resolved to nothing. The location above is the Jac import the compiled module was lowered from, so check the path it names. When '{name}' is a bare npm package rather than a path, this diagnostic instead carries W1106's guidance and points at the jac.toml table that has to declare it."
+     ),
+     E7003 = _err(
+         "E7003",
+         Category.RUNTIME,
+         "Uncaught {kind} in client code: {message}",
+         help="The stack was resolved through the client source maps to the Jac line above. The raw JavaScript stack is kept on the diagnostic for frames that do not belong to your Jac sources."
+     ),
+     E7004 = _err(
+         "E7004",
+         Category.RUNTIME,
+         "Vite dev-server error: {message}",
+         help="The dev server rejected a module before the browser ever ran it. The location above is the Jac source of the compiled module Vite named."
+     ),
+     E7005 = _err(
+         "E7005",
+         Category.CODEGEN,
+         "Client build failed: {message}",
+         help="The client build could not produce a loadable module for this file. The compiler's own diagnostics are reported in place of this one whenever it emitted any; this code carries the failures that reach the dev loop as a bare exception."
+     ),
+     E7006 = _err(
+         "E7006",
+         Category.RUNTIME,
+         "Client error could not be traced to Jac source: {message}",
+         help="The dev loop kept the raw location it was given, but nothing under .jac/client/compiled claims it -- a browser extension, a dependency with no source map, or an artifact from a build that has since been replaced. Reload after a clean build if the location should be yours."
      );

@@ -7,6 +7,7 @@ import from jaclang.compiler.frontend.unitree {
 }
 import from jaclang.compiler.frontend.diagnostics { E1105 }
 import from jaclang.compiler.passes.uni_pass { UniPass }
+import from jaclang.runtime.osp_kernel { osp_skip_rest }
 import from jaclang.project.client_kind_paths { mobui_module_exempt }
 
 glob _GENERIC_SUGGESTION: str = "an @jac/mobui component",
@@ -26,29 +27,29 @@ def _suggestion_for(tag: str) -> str {
     return _tag_suggestions.get(tag, _GENERIC_SUGGESTION);
 }
 
-class JsxIntrinsicGuardPass(UniPass) {
+walker JsxIntrinsicGuardPass(UniPass) {
     has _enforced_root: (str | None) = None,
         _exempt_paths: dict[str, bool] = {};
 
-    def before_pass(self: JsxIntrinsicGuardPass) {
+    def before_pass {
         self._enforced_root = self.ir_in.mobui_enforced_root;
         self._exempt_paths.clear();
     }
 
-    def enter_module(self: JsxIntrinsicGuardPass, nd: Module) {
+    can enter_module with Module entry {
         if self._enforced_root is None {
-            self.prune();
+            osp_skip_rest();
         }
     }
 
-    def enter_jsx_element(self: JsxIntrinsicGuardPass, nd: JsxElement) -> None {
-        if isinstance(nd.parent, JsxElement) {
+    can enter_jsx_element with JsxElement entry {
+        if isinstance(here.parent, JsxElement) {
             return;
         }
-        self._check_element(nd);
+        self._check_element(here);
     }
 
-    def _check_element(self: JsxIntrinsicGuardPass, el: JsxElement) {
+    def _check_element(el: JsxElement) {
         if (
             self._enforced_root is not None
             and not self._is_exempt(el.loc.mod_path)
@@ -70,9 +71,7 @@ class JsxIntrinsicGuardPass(UniPass) {
         }
     }
 
-    def _resolves_in_scope(
-        self: JsxIntrinsicGuardPass, el: JsxElement, first: UniNode
-    ) -> bool {
+    def _resolves_in_scope(el: JsxElement, first: UniNode) -> bool {
         if not isinstance(first, Name) or not el.sym_tab or el.name is None {
             return False;
         }
@@ -85,7 +84,7 @@ class JsxIntrinsicGuardPass(UniPass) {
         return first.sym is not None;
     }
 
-    def _is_exempt(self: JsxIntrinsicGuardPass, mod_path: str) -> bool {
+    def _is_exempt(mod_path: str) -> bool {
         if mod_path not in self._exempt_paths {
             self._exempt_paths[mod_path] = mobui_module_exempt(
                 mod_path, self._enforced_root
