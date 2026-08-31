@@ -236,6 +236,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 "under [scale.kubernetes] in jac.toml."
             );
         }
+        import from jaclang.scale.injector.binary { deploy_generation_refusal }
+        refusal = deploy_generation_refusal(app_config.code_folder);
+        if refusal {
+            return DeploymentResult(success=False, message=refusal);
+        }
         if self.logger {
             self.logger.info(
                 f"Deploying app '{app_name}' to Kubernetes",

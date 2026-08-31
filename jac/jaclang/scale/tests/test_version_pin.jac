@@ -1,8 +1,23 @@
+import os;
 import json;
 import tempfile;
 import unittest.mock;
 import jaclang.scale.injector.binary as binary_mod;
 import from jaclang.scale.injector.binary { _exact_of, _resolve_target_version }
+import from jaclang.cli.manifest_route { resolve_cli_version }
+import from jaclang.scale.config.app_config { AppConfig }
+import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+    KubernetesConfig
+}
+import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
+import inspect;
+import io;
+import from contextlib { redirect_stderr }
+import from jaclang.scale.runtime.realizer.kubernetes_realizer {
+    DELEGATED_ENV,
+    KubernetesRealizer,
+    pinned_deploy_argv
+}
 import from jaclang.project.config { JacConfig }
 import from pathlib { Path }
 
@@ -342,4 +357,162 @@ test "the preflight needs the pod binary and the host sealing binary" {
     ) {
         assert binary_mod.preflight_pod_runtime(d, "stable", pod_arch) == "0.34.3";
     }
+}
+
+
+def _pin_offset(delta: int) -> str {
+    (major, minor, _) = binary_mod._ver_key(resolve_cli_version().strip());
+    return _project(
+        f'[project]\nname = "x"\njac-version = "=={major}.{minor + delta}.0"\n'
+    );
+}
+
+
+test "a deploy is refused when the pin is a minor line off the deployer" {
+    # The pin picks the pod image and the seal; the deploying jac renders the
+    # manifests and provisions the database. #8766: nothing compared the two,
+    # so a 0.34 deployer stood up Mongo for an app pinned to a Postgres
+    # runtime and said so to nobody. Patch drift is fine, a minor line is not.
+    running = resolve_cli_version().strip();
+    assert binary_mod.deploy_generation_refusal(_pin_offset(0), "stable") == "" , (
+        "an app on the deployer's own minor line must always deploy"
+    );
+
+    refusal = binary_mod.deploy_generation_refusal(_pin_offset(1), "stable");
+    assert running in refusal , f"{refusal!a} must name the deployer";
+    assert "mongo" not in refusal.lower() and "postgres" not in refusal.lower() , (
+        f"{refusal!a} names a backend; a deployer only knows its own generation"
+    );
+    # Both directions: a newer deployer cannot serve an older pin either.
+    assert binary_mod.deploy_generation_refusal(_pin_offset(-1), "stable") != "";
+
+    # No pin, and a channel that ships its own binary, are unconstrained.
+    assert binary_mod.deploy_generation_refusal(
+        _project('[project]\nname = "x"\n'), "stable"
+    )
+        == "";
+    assert binary_mod.deploy_generation_refusal(_pin_offset(1), "dev") == "";
+
+    # A pin naming no published release is the preflight's error to raise,
+    # with the message that lists what does exist.
+    unmatched = _project('[project]\nname = "x"\njac-version = ">=99.0"\n');
+    with unittest.mock.patch.object(
+        binary_mod, "_list_release_versions", return_value=["0.34.3"]
+    ) {
+        assert binary_mod.deploy_generation_refusal(unmatched, "stable") == "";
+    }
+}
+
+
+test "a cross-generation deploy is refused before the cluster is contacted" {
+    # The refusal has to land before _load_cluster_config, so it reaches an
+    # operator with no kubeconfig and costs nothing to discover.
+    cfg = KubernetesConfig.from_dict(
+        KubernetesConfig, {"app_name": "x", "namespace": "default"}
+    );
+    result = KubernetesTarget(config=cfg, microservices_config={}).deploy(
+        AppConfig(code_folder=_pin_offset(1), file_name="main.jac")
+    );
+    assert result.success is False , "a cross-generation deploy must not proceed";
+    assert resolve_cli_version().strip() in result.message;
+}
+
+
+test "the pinned jac is handed the same deploy, and cannot delegate again" {
+    # A dropped flag silently changes what the child does, and a child that
+    # delegates again forks forever, so both are pinned here.
+    assert pinned_deploy_argv("/jac", "app.jac", "kubernetes")
+        == ["/jac", "scale", "deploy", "app.jac", "--target", "kubernetes"];
+    assert pinned_deploy_argv("/jac", "a.jac", "aws", True)[-1] == "--enable-tls";
+
+    app = _project('[project]\nname = "x"\njac-version = "==0.1.0"\n') + "/main.jac";
+    r = KubernetesRealizer(ms_config={});
+    prior = os.environ.get(DELEGATED_ENV);
+    os.environ[DELEGATED_ENV] = "1";
+    try {
+        with unittest.mock.patch.object(binary_mod, "_http_get_bytes") as mock_http {
+            assert r._deploy_on_pinned_jac(app, "kubernetes", False, False) is None;
+            mock_http.assert_not_called();
+        }
+    } finally {
+        if prior is None {
+            os.environ.pop(DELEGATED_ENV, None);
+        } else {
+            os.environ[DELEGATED_ENV] = prior;
+        }
+    }
+}
+
+
+test "delegating runs the pinned binary with this deploy, and forwards its result" {
+    # The handoff itself: the child really is executed, with the deploy it was
+    # asked for, an env that cannot send it back through the parent's dev
+    # source, and its exit code returned unchanged.
+    d = tempfile.mkdtemp();
+    stub = Path(d) / "jac";
+    stub.write_text(
+        "#!/bin/sh\n" f'printf "%s\\n" "$@" > {d}/argv\n' f"env > {d}/env\n" "exit 7\n"
+    );
+    stub.chmod(0o755);
+    os.environ["JAC_DEV_SOURCE"] = d;
+    err = io.StringIO();
+    with unittest.mock.patch.object(
+        binary_mod, "host_toolchain_path", return_value=str(stub)
+    ), redirect_stderr(err) {
+        rc = KubernetesRealizer(ms_config={})._deploy_on_pinned_jac(
+            f"{d}/main.jac", "kubernetes", False, False
+        );
+    }
+    os.environ.pop("JAC_DEV_SOURCE", None);
+
+    assert rc == 7 , f"the child exited 7; the deploy reported {rc}";
+    # A child that fails quietly would otherwise leave a bare non-zero exit.
+    assert "7" in err.getvalue() , (
+        f"a failed delegated deploy said nothing: {err.getvalue()!a}"
+    );
+    argv = (Path(d) / "argv").read_text().split();
+    assert argv
+        == ["scale", "deploy", f"{d}/main.jac", "--target", "kubernetes"] , argv;
+    env = (Path(d) / "env").read_text();
+    assert f"{DELEGATED_ENV}=1" in env , "the child can delegate again and fork forever";
+    assert "JAC_DEV_SOURCE" not in env , (
+        "the child inherited the parent's dev source and would run its code, "
+        "not the release it was fetched for"
+    );
+}
+
+
+test "the child is handed every deploy parameter that can reach it" {
+    # A reconstructed command line that silently drops a flag is a class of
+    # bug, not one bug, so the omissions are asserted rather than assumed.
+    # dry_run never delegates, and show_yaml is read only inside that branch,
+    # so neither can change a delegated deploy. Anything else added to
+    # realize() has to be forwarded, and this fails until it is.
+    accepted = set(inspect.signature(KubernetesRealizer.realize).parameters)
+        - {"self", "filename"};
+    forwarded = set(inspect.signature(pinned_deploy_argv).parameters)
+        - {"jac_bin", "filename"};
+    assert accepted - forwarded == {"dry_run", "show_yaml"} , (
+        f"realize() takes {sorted(accepted)} but the child is handed "
+        f"{sorted(forwarded)}; forward the new one or justify dropping it"
+    );
+}
+
+
+test "a jac.toml it cannot read refuses the deploy instead of allowing it" {
+    # Returning "" means "no refusal", so a blanket except would let the exact
+    # cross-generation deploy this exists to stop proceed on a config nobody
+    # could parse. Only an unresolvable pin is swallowed, because the preflight
+    # reports that one with the releases that do exist.
+    broken = _project('[project\nname = "x"\n');
+    raised = False;
+    try {
+        binary_mod.deploy_generation_refusal(broken, "stable");
+    } except Exception {
+        raised = True;
+    }
+    assert raised , (
+        "an unreadable jac.toml was treated as no pin, so the deploy runs "
+        "without either generation ever being compared"
+    );
 }
