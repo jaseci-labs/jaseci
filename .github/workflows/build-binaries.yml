@@ -16,6 +16,18 @@ on:
         description: "Release tag to upload assets to: canonical v<version>, or `dev` for the rolling prerelease."
         required: true
         type: string
+      commit:
+        # A tag is a mutable ref, and checking one out is how a release ends up
+        # building a tree nobody approved: re-cutting a version whose tag
+        # already existed rebuilt whatever that tag still pointed at, five days
+        # stale (#8793). The release resolves the commit under review and names
+        # it here, so the artifact is pinned to an immutable object while `tag`
+        # stays what it always was -- the upload target. Empty (the release
+        # event, workflow_dispatch) keeps the tag checkout.
+        description: "Immutable commit SHA to build. Empty = check out `tag`."
+        required: false
+        default: ""
+        type: string
       channel:
         description: "release: cold + glibc-pinned; dev: cached + host-native."
         required: false
@@ -32,6 +44,17 @@ on:
         required: false
         default: ""
         type: string
+    outputs:
+      required_platforms:
+        # The one place a caller can learn what this run was obliged to
+        # produce. release.yml's `publish` used to carry its own copy of the
+        # platform list under a comment asking whoever edited one to remember
+        # the other; a leg dropped from the matrix would still have been
+        # demanded there, hanging the release on an asset nothing was
+        # building. `plan` derives this from the same array the matrix comes
+        # from, so the two can no longer disagree.
+        description: "Space-separated platforms whose assets a release must carry to publish; non-blocking legs are excluded."
+        value: ${{ jobs.plan.outputs.required }}
     # Called workflows do not see the caller's repo secrets unless passed
     # explicitly; without these the docker-image job skips its push steps.
     secrets:
@@ -92,12 +115,20 @@ jobs:
   # floor for versioned releases, and on the dev channel it was the
   # critical path (~24 min/merge on the slow Intel runners) for a
   # rolling prerelease Intel users don't consume. Versioned releases
-  # still ship macos-x86_64: inputs.channel is empty on the release event and
+  # still build macos-x86_64: inputs.channel is empty on the release event and
   # defaults to `release` on dispatch, so those keep the full list.
+  #
+  # `optional` marks a leg that still builds but no longer gates: the matrix
+  # runs it under continue-on-error and it is left out of `required`, the list
+  # `publish` verifies before revealing a release. One flag decides both, so a
+  # platform can never be non-blocking in the matrix and mandatory at publish
+  # time. Everything here is one array: adding or dropping a platform is an
+  # edit to LEGS and nowhere else.
   plan:
     runs-on: ubuntu-latest
     outputs:
       include: ${{ steps.legs.outputs.include }}
+      required: ${{ steps.legs.outputs.required }}
     steps:
       - name: Select build legs for the channel
         id: legs
@@ -107,11 +138,19 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
+          # macos-x86_64 is optional because it is currently broken: it builds
+          # and then dies with abort() on `jac --version` (#8805). Keeping it
+          # in the matrix keeps the signal -- this is a release-only leg, and
+          # eighteen days with no signal at all is how it collected two bugs
+          # unnoticed -- while `optional` stops that one platform vetoing
+          # everyone else's release. Delete the flag when the abort is fixed
+          # and the leg goes green again; that restores it as a blocking leg
+          # and as a required asset in one edit.
           LEGS='[
             {"os": "ubuntu-latest",    "platform": "linux-x86_64",  "zig_target": "x86_64-linux-gnu.2.17"},
             {"os": "ubuntu-24.04-arm", "platform": "linux-aarch64", "zig_target": "aarch64-linux-gnu.2.17"},
             {"os": "macos-14",         "platform": "macos-aarch64"},
-            {"os": "macos-15-intel",   "platform": "macos-x86_64",  "zig_target": "x86_64-macos.12.0"}
+            {"os": "macos-15-intel",   "platform": "macos-x86_64",  "zig_target": "x86_64-macos.12.0", "optional": true}
           ]'
           if [ "$CHANNEL" = "dev" ]; then
             LEGS="$(jq -c 'map(select(.platform != "macos-x86_64"))' <<<"$LEGS")"
@@ -136,6 +175,22 @@ jobs:
           fi
           echo "include=$(jq -c . <<<"$LEGS")" >> "$GITHUB_OUTPUT"
 
+          # The platforms a release is obliged to ship, read off the same array
+          # the matrix was. Absence of the key means blocking, so a new leg is
+          # required until someone says otherwise.
+          REQUIRED="$(jq -r 'map(select(.optional != true)) | map(.platform) | join(" ")' <<<"$LEGS")"
+          # A release whose every leg is optional has nothing to verify, and
+          # publishing it would reveal whatever the draft happened to hold. The
+          # `only` lane has no tag and is allowed to narrow to a single optional
+          # leg -- that is how the broken one gets iterated on.
+          if [ -z "$REQUIRED" ] && [ -n "${TAG:-}" ]; then
+            echo "::error::no blocking platform left for tag '$TAG': every leg is marked optional, so a release would publish without checking anything."
+            exit 1
+          fi
+          echo "required=$REQUIRED" >> "$GITHUB_OUTPUT"
+          echo "Building: $(jq -r 'map(.platform) | join(" ")' <<<"$LEGS")"
+          echo "Required to publish: ${REQUIRED:-(none)}"
+
   build:
     needs: plan
     strategy:
@@ -143,19 +198,43 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.include) }}
     runs-on: ${{ matrix.os }}
+    # A leg `plan` marked optional builds, smoke-tests and uploads exactly as
+    # before and still goes red when it breaks; it just does not fail the job.
+    # That is what lets `admin-dist`, `docker-image` and release.yml's `publish`
+    # -- all of them `needs: build` -- run while one platform is down. Legs
+    # without the key resolve to false and keep vetoing as they always have.
+    continue-on-error: ${{ matrix.optional || false }}
     env:
       # -Dtarget flag for zig build: set on release-channel Linux legs, empty
       # (host-native) on the dev channel and macOS.
       DTARGET: ${{ inputs.channel != 'dev' && matrix.zig_target && format('-Dtarget={0}', matrix.zig_target) || '' }}
     steps:
-      # Check out the release tag (release channel) or the pushed commit (dev
+      # Check out the commit the release resolved (release channel, when the
+      # caller names one), else the release tag, else the pushed commit (dev
       # channel), so a recovery run after main advanced still builds the
       # release's own source. SHA-pinned: this job holds contents:write and
       # ships user-downloaded binaries, so a re-pointed tag on the action must
       # not reach it.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.tag || github.event.release.tag_name }}
+          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.commit || inputs.tag || github.event.release.tag_name }}
+
+      # The provenance line the v0.37.0 post-mortem had to reconstruct from a
+      # cache key. It is also the assertion: if the checkout ever resolves
+      # something other than the commit the release named, this leg stops
+      # instead of shipping it.
+      - name: Record the commit being built
+        shell: bash
+        env:
+          WANT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          echo "Building ${HEAD_SHA}"
+          if [ -n "$WANT" ] && [ "$HEAD_SHA" != "$WANT" ]; then
+            echo "::error::checkout resolved ${HEAD_SHA}, but this release is cutting ${WANT}"
+            exit 1
+          fi
 
       # Dev channel only: reuse the read-mostly caches main seeds. The release
       # channel builds cold on purpose (a cached payload could ship stale
@@ -640,6 +719,29 @@ jobs:
           name: ${{ steps.pkg.outputs.asset }}
           path: jac/dist/*
 
+      # Non-blocking must not shade into unnoticed. continue-on-error reports
+      # the leg as a success to `needs:`, so without this the only trace of a
+      # dead platform is a red step somebody has to go looking for -- the exact
+      # inattention that let this one rot for eighteen days. Say it in the run
+      # summary and as an annotation instead.
+      - name: Say plainly that a non-blocking leg failed
+        if: failure() && matrix.optional
+        run: |
+          {
+            echo "### ${{ matrix.platform }} failed (non-blocking)"
+            echo ""
+            echo "This leg does not gate the release, so the run continues and"
+            echo "the release will ship **without a \`${{ matrix.platform }}\`"
+            echo "binary**. Users on that platform get nothing new until it is"
+            echo "fixed; \`scripts/install.sh\` tells them so and points at the"
+            echo "last release that had one."
+            echo ""
+            echo "Once the leg is green again, drop \`\"optional\": true\` from"
+            echo "its entry in the \`plan\` job of this workflow. That restores"
+            echo "it as a blocking leg and as a required release asset."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning title=${{ matrix.platform }} did not build::The release will ship without a ${{ matrix.platform }} binary. See the job summary."
+
   # The admin console is platform-independent, so build it once with the
   # linux-x86_64 binary this run produced (same-commit compiler) and attach
   # it to the release as its own asset for the deploy driver to download.
@@ -650,7 +752,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.tag || github.event.release.tag_name }}
+          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.commit || inputs.tag || github.event.release.tag_name }}
 
       - name: Read version (from jac.toml)
         id: ver
@@ -726,7 +828,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.tag || github.event.release.tag_name }}
+          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.commit || inputs.tag || github.event.release.tag_name }}
 
       - name: Read version (from jac.toml)
         id: ver
