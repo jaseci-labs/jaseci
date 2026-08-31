@@ -12,7 +12,8 @@ glob _nt_cnt: list[int] = [0],
      _nt_ho: list[int] = [],
      _nt_to: list[int] = [],
      _nt_hi: list[int] = [],
-     _nt_ti: list[int] = [];
+     _nt_ti: list[int] = [],
+     _nt_dead: list[int] = [];
 
 glob _rt_cnt: list[int] = [0],
      _rt_key: list[int] = [],
@@ -37,6 +38,7 @@ def _nt_grow {
     oto: list[int] = [];
     ohi: list[int] = [];
     oti: list[int] = [];
+    odead: list[int] = [];
     live = 0;
     i = 0;
     while i < ocap {
@@ -46,6 +48,7 @@ def _nt_grow {
         oto.append(_nt_to[i]);
         ohi.append(_nt_hi[i]);
         oti.append(_nt_ti[i]);
+        odead.append(_nt_dead[i]);
         if k != 0 {
             live += 1;
         }
@@ -54,6 +57,7 @@ def _nt_grow {
         _nt_to[i] = -1;
         _nt_hi[i] = -1;
         _nt_ti[i] = -1;
+        _nt_dead[i] = 0;
         i += 1;
     }
     ncap = ocap * 2;
@@ -67,6 +71,7 @@ def _nt_grow {
         _nt_to.append(-1);
         _nt_hi.append(-1);
         _nt_ti.append(-1);
+        _nt_dead.append(0);
         i += 1;
     }
     m = ncap - 1;
@@ -83,6 +88,7 @@ def _nt_grow {
             _nt_to[h] = oto[i];
             _nt_hi[h] = ohi[i];
             _nt_ti[h] = oti[i];
+            _nt_dead[h] = odead[i];
         }
         i += 1;
     }
@@ -102,6 +108,7 @@ def _nt_slot(addr: int) -> int {
         }
         if k == 0 {
             _nt_key[h] = addr;
+            _nt_dead[h] = 0;
             _nt_cnt[0] += 1;
             return h;
         }
@@ -156,10 +163,12 @@ def _nt_del(s: int) {
             _nt_to[i] = _nt_to[j];
             _nt_hi[i] = _nt_hi[j];
             _nt_ti[i] = _nt_ti[j];
+            _nt_dead[i] = _nt_dead[j];
             i = j;
         }
     }
     _nt_key[i] = 0;
+    _nt_dead[i] = 0;
     _nt_ho[i] = -1;
     _nt_to[i] = -1;
     _nt_hi[i] = -1;
@@ -420,6 +429,9 @@ def osp_conn(
 ) -> int {
     ss = _nt_slot(src);
     ts = _nt_slot(tgt);
+    if _nt_dead[ss] != 0 or _nt_dead[ts] != 0 {
+        return -1;
+    }
     if rgn_src != 0 and _nt_ho[ss] < 0 and _nt_hi[ss] < 0 {
         _rk_reg(src, rgn_src);
     }
@@ -482,7 +494,7 @@ def _rk_reg(addr: int, rgn: int) {
 def osp_refs(origin: int, dir: int, edge_tag: int, edges_only: int) -> list[int] {
     out: list[int] = [];
     s = _nt_find(origin);
-    if s < 0 {
+    if s < 0 or _nt_dead[s] != 0 {
         return out;
     }
     r = _nt_ho[s];
@@ -658,6 +670,71 @@ def osp_disconnect(edge_handle: int) -> int {
     _unlink_in(_r_tgt[r], r);
     _row_retire(r);
     return 1;
+}
+
+def osp_is_dead(addr: int) -> int {
+    s = _nt_find(addr);
+    if s < 0 {
+        return 0;
+    }
+    return _nt_dead[s];
+}
+
+def osp_node_destroy(addr: int) -> int {
+    s = _nt_slot(addr);
+    if _nt_dead[s] != 0 {
+        return 0;
+    }
+    ho = _nt_ho[s];
+    hi = _nt_hi[s];
+    _nt_ho[s] = -1;
+    _nt_to[s] = -1;
+    _nt_hi[s] = -1;
+    _nt_ti[s] = -1;
+    _nt_dead[s] = 1;
+    n = 0;
+    r = ho;
+    while r >= 0 {
+        nx = _r_nsrc[r];
+        if _r_src[r] != -1 {
+            if _nt_find(_r_tgt[r]) >= 0 {
+                _unlink_in(_r_tgt[r], r);
+            }
+            _row_retire(r);
+            n += 1;
+        }
+        r = nx;
+    }
+    r = hi;
+    while r >= 0 {
+        nx = _r_ntgt[r];
+        if _r_src[r] != -1 {
+            if _nt_find(_r_src[r]) >= 0 {
+                _unlink_out(_r_src[r], r);
+            }
+            _row_retire(r);
+            n += 1;
+        }
+        r = nx;
+    }
+    return n;
+}
+
+def osp_destroy(h: int) -> int {
+    if _et_find(h) >= 0 {
+        return osp_disconnect(h);
+    }
+    return osp_node_destroy(h);
+}
+
+def osp_destroy_all(hs: list[int]) -> int {
+    n = 0;
+    i = 0;
+    while i < len(hs) {
+        n += osp_destroy(hs[i]);
+        i += 1;
+    }
+    return n;
 }
 
 def osp_region_died(rgn: int) -> int {

@@ -3055,7 +3055,16 @@ impl TypeEvaluator._solve_protocol_type_args(
 
     solved = False;
     for (name, sym) in proto_symtab.names_in_scope.items() {
-        if not (sym.decl and isinstance(sym.decl.name_of, Ability)) {
+        proto_func: TypeBase | None = None;
+        if sym.provider is not None {
+            cat_func = self.get_type_of_symbol(sym);
+            if isinstance(cat_func, FunctionType) {
+                proto_func = cat_func;
+            }
+        } elif sym.decl and isinstance(sym.decl.name_of, Ability) {
+            proto_func = self.get_type_of_ability(sym.decl.name_of);
+        }
+        if proto_func is None {
             continue;
         }
 
@@ -3064,7 +3073,6 @@ impl TypeEvaluator._solve_protocol_type_args(
             continue;
         }
 
-        proto_func = self.get_type_of_ability(sym.decl.name_of);
         impl_func = self.get_type_of_symbol(member.symbol);
         if isinstance(impl_func, FunctionType) {
             impl_func = impl_func.specialize(src_type);
@@ -4044,6 +4052,16 @@ impl TypeEvaluator._prefetch_types{
 }
 
 impl TypeEvaluator._load_stub_module(path: str) -> Module {
+    catalog = self.program.stub_catalog();
+    if catalog is not None {
+        cat_mod = catalog.module_for_path(path);
+        if cat_mod is not None {
+            if cat_mod.parent_scope is None and cat_mod is not self.builtins_module {
+                cat_mod.parent_scope = self.builtins_module;
+            }
+            return cat_mod;
+        }
+    }
     if not os.path.exists(path) {
         raise FileNotFoundError(f"Stub file not found at {path}");
     }
@@ -4062,17 +4080,6 @@ impl TypeEvaluator._load_stub_module(path: str) -> Module {
     }
     if resolved_path in target_hub {
         mod = target_hub[resolved_path];
-        if mod.parent_scope is None and mod is not self.builtins_module {
-            mod.parent_scope = self.builtins_module;
-        }
-        return mod;
-    }
-
-    memoized = _stub_module_memo.get(resolved_path);
-    if memoized is not None and memoized[0] == os.path.getmtime(path) {
-        mod = memoized[1];
-        target_hub[resolved_path] = mod;
-        target_program.hub_cache_stamp(resolved_path);
         if mod.parent_scope is None and mod is not self.builtins_module {
             mod.parent_scope = self.builtins_module;
         }
@@ -4102,7 +4109,6 @@ impl TypeEvaluator._load_stub_module(path: str) -> Module {
     if mod.parent_scope is None and mod is not self.builtins_module {
         mod.parent_scope = self.builtins_module;
     }
-    _stub_module_memo[resolved_path] = (os.path.getmtime(path), mod);
     return mod;
 }
 
@@ -4202,38 +4208,81 @@ impl TypeEvaluator.postinit -> None {
     self._flow_pending_keys = set();
     self._modules_in_compile = set();
 
-    self.typing_module = self._load_stub_module(self._TYPING_STUB_FILE_PATH);
-    self.types_module = self._load_stub_module(self._TYPES_STUB_FILE_PATH);
-    self.enum_module = self._load_stub_module(self._ENUM_STUB_FILE_PATH);
-
-    self.prefetch.type_var_class = self._get_type_from_module(
-        self.typing_module, "TypeVar"
+    catalog = self.program.stub_catalog();
+    prelude = (
+        self._init_prelude_from_catalog(catalog)
+            if catalog is not None
+            else self._init_prelude_from_sources()
     );
+    self.typing_module = prelude[0];
+    self.types_module = prelude[1];
+    self.enum_module = prelude[2];
+    self.jac_builtins_module = prelude[3];
+    self.dom_types_module = prelude[4];
+    self.na_builtins_module = prelude[5];
+    self.js_globals_module = prelude[6];
+    self._prefetch_types();
+}
+
+impl TypeEvaluator._init_prelude_from_catalog(catalog: any) -> list[Module] {
+    names = (
+        "builtins",
+        "typing",
+        "types",
+        "enum",
+        "jac_builtins",
+        "dom_types",
+        "na_builtins",
+        "js_globals"
+    );
+    loaded: list[Module] = [];
+    for name in names {
+        mod = catalog.module(name);
+        if mod is None {
+            raise RuntimeError(f"stub catalog is missing the '{name}' module");
+        }
+        loaded.append(mod);
+    }
+    self.builtins_module = loaded[0];
+    typing_mod = loaded[1];
+    self.prefetch.type_var_class = self._get_type_from_module(typing_mod, "TypeVar");
     self.prefetch.param_spec_class = self._get_type_from_module(
-        self.typing_module, "ParamSpec"
+        typing_mod, "ParamSpec"
     );
     self.prefetch.type_var_tuple_class = self._get_type_from_module(
-        self.typing_module, "TypeVarTuple"
+        typing_mod, "TypeVarTuple"
     );
-    self.builtins_module = self._load_stub_module(self._BUILTINS_STUB_FILE_PATH);
-    self.jac_builtins_module = self._load_stub_module(
-        self._JAC_BUILTINS_STUB_FILE_PATH
+    self.ambient_typing_names_by_module = catalog.ambient_typing_names();
+    return loaded[1:];
+}
+
+impl TypeEvaluator._init_prelude_from_sources -> list[Module] {
+    typing_mod = self._load_stub_module(self._TYPING_STUB_FILE_PATH);
+    types_mod = self._load_stub_module(self._TYPES_STUB_FILE_PATH);
+    enum_mod = self._load_stub_module(self._ENUM_STUB_FILE_PATH);
+
+    self.prefetch.type_var_class = self._get_type_from_module(typing_mod, "TypeVar");
+    self.prefetch.param_spec_class = self._get_type_from_module(
+        typing_mod, "ParamSpec"
     );
-    self.dom_types_module = self._load_stub_module(self._DOM_TYPES_STUB_FILE_PATH);
-
-    self.na_builtins_module = self._load_stub_module(self._NA_BUILTINS_STUB_FILE_PATH);
-
-    self.js_globals_module = self._load_stub_module(self._JS_GLOBALS_STUB_FILE_PATH);
+    self.prefetch.type_var_tuple_class = self._get_type_from_module(
+        typing_mod, "TypeVarTuple"
+    );
+    builtins_mod = self._load_stub_module(self._BUILTINS_STUB_FILE_PATH);
+    self.builtins_module = builtins_mod;
+    jac_builtins_mod = self._load_stub_module(self._JAC_BUILTINS_STUB_FILE_PATH);
+    dom_types_mod = self._load_stub_module(self._DOM_TYPES_STUB_FILE_PATH);
+    na_builtins_mod = self._load_stub_module(self._NA_BUILTINS_STUB_FILE_PATH);
+    js_globals_mod = self._load_stub_module(self._JS_GLOBALS_STUB_FILE_PATH);
 
     jac_allowed = self._read_dunder_all(self._JAC_BUILTINS_STUB_FILE_PATH);
-
-    for (name, sym) in self.jac_builtins_module.names_in_scope.items() {
+    for (name, sym) in jac_builtins_mod.names_in_scope.items() {
         if jac_allowed is not None and name not in jac_allowed {
             continue;
         }
-        existing = self.builtins_module.names_in_scope.get(name);
+        existing = builtins_mod.names_in_scope.get(name);
         if existing is None or existing.imported {
-            self.builtins_module.names_in_scope[name] = sym;
+            builtins_mod.adopt_primary(sym, name);
         }
     }
 
@@ -4245,13 +4294,13 @@ impl TypeEvaluator.postinit -> None {
         if overrides_allowed is not None and name not in overrides_allowed {
             continue;
         }
-        self.builtins_module.names_in_scope[name] = sym;
+        builtins_mod.adopt_primary(sym, name);
     }
 
-    for (name, sym) in self.dom_types_module.names_in_scope.items() {
-        existing = self.builtins_module.names_in_scope.get(name);
+    for (name, sym) in dom_types_mod.names_in_scope.items() {
+        existing = builtins_mod.names_in_scope.get(name);
         if existing is None or existing.imported {
-            self.builtins_module.names_in_scope[name] = sym;
+            builtins_mod.adopt_primary(sym, name);
         }
     }
 
@@ -4266,16 +4315,24 @@ impl TypeEvaluator.postinit -> None {
     self.ambient_typing_names_by_module = raw_groups;
     self.ambient_typing_names_by_module["typing"] = typing_ambient_flat;
     for typing_name in typing_ambient_flat {
-        typing_sym = self.typing_module.names_in_scope.get(typing_name);
+        typing_sym = typing_mod.names_in_scope.get(typing_name);
         if typing_sym is None {
             continue;
         }
-        existing_typing = self.builtins_module.names_in_scope.get(typing_name);
+        existing_typing = builtins_mod.names_in_scope.get(typing_name);
         if existing_typing is None or existing_typing.imported {
-            self.builtins_module.names_in_scope[typing_name] = typing_sym;
+            builtins_mod.adopt_primary(typing_sym, typing_name);
         }
     }
-    self._prefetch_types();
+    return [
+        typing_mod,
+        types_mod,
+        enum_mod,
+        jac_builtins_mod,
+        dom_types_mod,
+        na_builtins_mod,
+        js_globals_mod
+    ];
 }
 
 def _find_cfg_node_for(at_node: UniNode) -> UniCFGNode | None {
@@ -6157,4 +6214,24 @@ impl TypeEvaluator._enum_member_attr_type(
         return self.get_type_of_symbol(member.symbol);
     }
     return None;
+}
+
+impl TypeEvaluator.eval_expr with Expr entry {
+    self.get_type_of_expression(here);
+}
+
+impl TypeEvaluator._intern_shared(shared: ClassDetailsShared) -> ClassDetailsShared {
+    site = shared.canonical_key();
+    if site is None {
+        return shared;
+    }
+
+    src = shared.symbol_table?.loc?.orig_src;
+    key = (site, src.hash if src is not None else "");
+    found = self._shared_intern.get(key);
+    if found is not None {
+        return found;
+    }
+    self._shared_intern[key] = shared;
+    return shared;
 }

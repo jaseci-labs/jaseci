@@ -311,7 +311,7 @@ impl NativeCompilePass.postinit -> None {
     super.postinit();
 }
 
-impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
+impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
     module = ir_in;
     if module.gen.llvm_ir is None {
         return ir_in;
@@ -1332,4 +1332,16 @@ impl NativeCompilePass._link_fmt_kernel(main_mod: ModuleRef) -> None {
     } except Exception as _e {
         ;
     }
+}
+
+impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, uni.Module);
+    return out;
+}
+
+impl NativeCompilePass.run_walk with uni.Module entry {
+    self.ir_out = self._run_impl(here);
 }

@@ -215,7 +215,7 @@ Every generated file that is tracked in git must carry the standard marker as it
 # DO NOT EDIT MANUALLY - regenerate with `<command>`.
 ```
 
-Generated artifacts that are not meant to be tracked must be written to a cache or build-output directory (or be reliably cleaned up), never left in the source tree. If CI can cheaply verify the file is in sync (like `jac gen-uni-dispatch --verify`), wire that up; otherwise guard it with a snapshot test. Better still, derive the table at compile time with `comptime` so there is no generated file to keep in sync at all, as the CLI manifest does.
+Generated artifacts that are not meant to be tracked must be written to a cache or build-output directory (or be reliably cleaned up), never left in the source tree. If CI can cheaply verify the file is in sync, wire that up; otherwise guard it with a snapshot test. Better still, derive the table at compile time with `comptime` so there is no generated file to keep in sync at all, as the CLI manifest does.
 
 **Issue Assignment**
 

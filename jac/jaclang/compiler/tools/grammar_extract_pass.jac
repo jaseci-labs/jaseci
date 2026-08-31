@@ -1,6 +1,7 @@
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes { UniPass }
 import from jaclang.compiler.frontend.parser.tokens { TokenKind }
+import from jaclang.runtime.osp_kernel { osp_skip_rest }
 
 def is_nil_expr(nd: object) -> bool {
     if isinstance(nd, uni.CfgExpr) {
@@ -139,7 +140,7 @@ obj ConditionResult {
         tokens: list;
 }
 
-obj GrammarExtractPass(UniPass) {
+walker GrammarExtractPass(UniPass) {
     has rules: list = [],
         target_class: str = "Parser",
         diagnostics: list = [],
@@ -150,7 +151,7 @@ obj GrammarExtractPass(UniPass) {
         _helper_bodies: dict = {};
 
     def before_pass -> None;
-    def enter_impl_def(nd: uni.ImplDef) -> None;
+    can enter_impl_def with uni.ImplDef entry;
     def after_pass -> None;
     def _interpret_all -> list;
     def _compute_rule_firsts(rules: list) -> dict;

@@ -257,21 +257,29 @@ def _emit_unit_diagnostics(jac_path: str, programs: list) {
     }
 }
 
+glob _unit_program: list = [];
+
 def precompile_unit(
-    jac_path: str, pkg_root: str, embed_src: bool = False
+    jac_path: str, pkg_root: str, embed_src: bool = False, collect: bool = True
 ) -> bytes | None {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.cli.workpool { maybe_malloc_trim }
 
     compiler = Jac.get_compiler();
 
-    program = JacProgram();
+    if not _unit_program {
+        _unit_program.append(JacProgram());
+    }
+    program = _unit_program[0];
+    compiler.unit_collect = collect;
     code = compiler.get_bytecode(full_target=jac_path, target_program=program);
     if code is None {
         _emit_unit_diagnostics(jac_path, [program, compiler.selfhost.program]);
     }
-    compiler.selfhost.program.release_compile_closure();
-    program.release_compile_closure();
+    program.release_compile_closure(collect=collect);
+    compiler.selfhost.program.release_compile_closure(collect=collect);
+    maybe_malloc_trim();
     if code is None {
         return None;
     }
@@ -622,6 +630,16 @@ def write_manifest(
     );
 }
 
+def _precompile_retire(served: int, rss_mb: int) -> bool {
+    import from jaclang.cli.workpool { env_int, should_retire }
+    return should_retire(
+        served,
+        env_int("JAC_PRECOMPILE_RECYCLE", 0),
+        rss_mb,
+        env_int("JAC_PRECOMPILE_RECYCLE_MB", 4096)
+    );
+}
+
 def precompile_exit(code: int) {
     sys.stdout.flush();
     sys.stderr.flush();
@@ -635,6 +653,12 @@ def main {
     finalize_only = "--seal-finalize" in args;
     embed_src = "--debug-src" in args;
     exclude_seed = seal or seal_compile;
+    jobs_arg = "";
+    for a in args {
+        if a.startswith("--jobs=") {
+            jobs_arg = a[len("--jobs="):];
+        }
+    }
     args = [
         a
         for a in args
@@ -667,6 +691,10 @@ def main {
         );
         console.print(
             "--debug-src: embed zlib source text in each .jir (dev tracebacks)."
+        );
+        console.print(
+            "--jobs=N: precompile units across N forked workers (also "
+            "JAC_PRECOMPILE_JOBS / JAC_JOBS; 0 = serial, default auto)."
         );
         sys.`exit(1);
     }
@@ -732,48 +760,116 @@ def main {
     }
 
     import from jaclang.compiler.driver.jir { read_debug_source }
+    import from jaclang.cli.workpool {
+        WorkPool,
+        forced_serial,
+        jobs_setting,
+        pool_available,
+        resolve_jobs
+    }
 
-    compiled = 0;
-    reused = 0;
-    failed = 0;
+    raw_jobs = jobs_setting("precompile", jobs_arg);
+    workers = resolve_jobs(raw_jobs, env_var="JAC_PRECOMPILE_JOBS");
+    use_pool = (
+        pool_available()
+        and not forced_serial(raw_jobs)
+        and workers > 1
+        and len(jac_files) > 1
+    );
+    counts: dict[str, int] = {"compiled": 0, "reused": 0, "failed": 0};
 
-    for jac_path in jac_files {
+    import gc;
+    import from jaclang.compiler.driver.compiler { COMPILE_GC_THRESHOLDS }
+    if (
+        not os.environ.get("JAC_GC_NO_COMPILE_BOOST")
+        and gc.get_threshold()[0] < COMPILE_GC_THRESHOLDS[0]
+    ) {
+        gc.set_threshold(*COMPILE_GC_THRESHOLDS);
+    }
+
+    def unit_job(request: dict[(str, any)]) -> dict[(str, any)] {
+        jac_path = str(request["path"]);
         rel = Path(jac_path).relative_to(pkg_path);
-        jir_rel = rel.with_suffix(".jir");
-        jir_path = out_dir / jir_rel;
-
-        done = compiled + reused + failed;
-        label = str(rel)[:60].ljust(60);
-        sys.stderr.write(f"\r  [{done + 1}/{len(jac_files)}] {label}");
-        sys.stderr.flush();
-
+        jir_path = out_dir / rel.with_suffix(".jir");
         try {
             if jir_path.is_file() {
                 existing = jir_path.read_bytes();
                 if precompiled_jir_matches_source(existing, jac_path)
                     and embed_src == (read_debug_source(existing) is not None) {
-                    reused += 1;
-                    continue;
+                    return {"status": "reused", "rel": str(rel)};
                 }
             }
-
-            jir_bytes = precompile_unit(jac_path, package_dir, embed_src);
+            jir_bytes = precompile_unit(
+                jac_path, package_dir, embed_src, collect=not use_pool
+            );
             if jir_bytes is None {
-                console.print(f"  SKIP (no bytecode): {rel}");
                 jir_path.unlink(missing_ok=True);
-                failed += 1;
-                continue;
+                return {
+                    "status": "failed",
+                    "rel": str(rel),
+                    "message": f"  SKIP (no bytecode): {rel}"
+                };
             }
-
             jir_path.parent.mkdir(parents=True, exist_ok=True);
             jir_path.write_bytes(jir_bytes);
-            compiled += 1;
+            return {"status": "compiled", "rel": str(rel)};
         } except Exception as e {
-            console.error(f"FAIL: {rel} - {e}");
             jir_path.unlink(missing_ok=True);
-            failed += 1;
+            return {
+                "status": "failed",
+                "rel": str(rel),
+                "message": f"FAIL: {rel} - {e}"
+            };
         }
     }
+
+    def on_dispatch(idx: int, path: str) {
+        done = counts["compiled"] + counts["reused"] + counts["failed"];
+        label = str(Path(path).relative_to(pkg_path))[:60].ljust(60);
+        sys.stderr.write(f"\r  [{done + 1}/{len(jac_files)}] {label}");
+        sys.stderr.flush();
+    }
+
+    def on_record(idx: int, record: dict[(str, any)]) -> None {
+        rel = str(Path(jac_files[idx]).relative_to(pkg_path));
+        result = record.get("result");
+        if not isinstance(result, dict) {
+            detail = record.get("crash") or record.get("error") or "no result";
+            console.error(f"FAIL: {rel} - {detail}");
+            (out_dir / Path(rel).with_suffix(".jir")).unlink(missing_ok=True);
+            counts["failed"] += 1;
+            return;
+        }
+        status = str(result.get("status") or "failed");
+        message = str(result.get("message") or "");
+        if status == "failed" and message {
+            if message.lstrip().startswith("SKIP") {
+                console.print(message);
+            } else {
+                console.error(message);
+            }
+        }
+        counts[status] = counts.get(status, 0) + 1;
+    }
+
+    pool = WorkPool(
+        items=list(jac_files),
+        job=unit_job,
+        on_record=on_record,
+        jobs=min(workers, len(jac_files)),
+        retire=_precompile_retire,
+        on_dispatch=on_dispatch,
+        rss_log_env="JAC_PRECOMPILE_RSS_LOG",
+        crash_prefix="jac-precompile-crash-"
+    );
+    if use_pool {
+        pool.run();
+    } else {
+        pool.run_inline();
+    }
+    compiled = counts["compiled"];
+    reused = counts["reused"];
+    failed = counts["failed"];
 
     sys.stderr.write("\n");
     sys.stderr.flush();
