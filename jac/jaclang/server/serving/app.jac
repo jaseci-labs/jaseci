@@ -11,6 +11,7 @@ import from jaclang.server.serving.coerce {
     filter_kwargs_for_callback
 }
 import from jaclang.server.serving.datatypes {
+    ClientDisconnected,
     HTTPError,
     JSONResponse,
     RedirectResponse,
@@ -202,6 +203,8 @@ obj ServingApp {
             return JSONResponse(
                 content={'detail': he.detail}, status_code=he.status_code
             );
+        } except ClientDisconnected {
+            raise;
         } except Exception as exc {
             _logger.error(
                 f"Unhandled error for {request.method} {request.url.path}\n"
@@ -226,6 +229,7 @@ obj ServingApp {
     }
 
     async def _route_and_call(request: Request) -> Response {
+        await request.load_body();
         (ep, path_params, allowed) = self.router.resolve(
             request.method, request.url.path
         );

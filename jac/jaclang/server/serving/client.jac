@@ -123,14 +123,19 @@ obj ClientResponse {
 
     async def aclose {
         if self.writer is not None {
-            try {
-                self.writer.close();
-            } except Exception {
-                ;
-            }
+            _close_quietly(self.writer);
         }
     }
 }
+
+def _close_quietly(writer: any) {
+    try {
+        writer.close();
+    } except Exception {
+        ;
+    }
+}
+
 
 def _split_url(url: str) -> tuple[str, str, int, str] {
     split = urlsplit(url);
@@ -169,6 +174,15 @@ async def _open_stream(
 }
 
 async def _read_response_head(reader: any, timeout: float) -> tuple[int, str, Headers] {
+    while True {
+        (status, reason, headers) = await _read_one_head(reader, timeout);
+        if not (100 <= status < 200) or status == 101 {
+            return (status, reason, headers);
+        }
+    }
+}
+
+async def _read_one_head(reader: any, timeout: float) -> tuple[int, str, Headers] {
     try {
         status_line: bytes = await asyncio.wait_for(reader.readline(), timeout=timeout);
     } except asyncio.TimeoutError {
@@ -202,12 +216,50 @@ async def _read_response_head(reader: any, timeout: float) -> tuple[int, str, He
     return (status, reason, headers);
 }
 
+def _as_length(declared: (str | None)) -> (int | None) {
+    if declared is None {
+        return None;
+    }
+    try {
+        return int(declared);
+    } except ValueError {
+        return None;
+    }
+}
+
+
+async def _pump_body(
+    writer: any, body_stream: any, chunked: bool, declared: (int | None) = None
+) {
+    sent = 0;
+    async for chunk in body_stream {
+        if not chunk {
+            continue;
+        }
+        if chunked {
+            writer.write(f"{len(chunk):x}\r\n".encode('latin-1') + chunk + b'\r\n');
+        } else {
+            writer.write(chunk);
+        }
+        sent += len(chunk);
+        await writer.drain();
+    }
+    if chunked {
+        writer.write(b'0\r\n\r\n');
+    } elif declared is not None and sent != declared {
+        raise ClientRequestSent(
+            detail=f"body was framed as {declared} bytes but {sent} were sent"
+        );
+    }
+}
+
+
 async def arequest(
     method: str,
     url: str,
     headers: (dict | None) = None,
     json_body: any = None,
-    data: (bytes | str | None) = None,
+    data: (bytes | str | AsyncIterator[bytes] | None) = None,
     timeout: float = DEFAULT_TIMEOUT,
     stream: bool = False,
     params: (dict | None) = None
@@ -221,19 +273,31 @@ async def arequest(
         raise ClientRequestNotSent(detail=f"unsupported scheme: {scheme}");
     }
     body = b'';
+    body_stream: any = None;
+    declared_length: (str | None) = None;
     header_list: list[tuple[str, str]] = [];
     seen: set[str] = set();
     for (k, v) in (headers or {}).items() {
+        low = str(k).lower();
+        if low == 'content-length' {
+            declared_length = str(v);
+            continue;
+        }
+        if low == 'transfer-encoding' {
+            continue;
+        }
         header_list.append((str(k), str(v)));
-        seen.add(str(k).lower());
+        seen.add(low);
     }
     if json_body is not None {
         body = dumps(json_body, `default=_client_json_default).encode('utf-8');
         if 'content-type' not in seen {
             header_list.append(('Content-Type', 'application/json'));
         }
-    } elif data is not None {
+    } elif isinstance(data, (bytes, str)) {
         body = data if isinstance(data, bytes) else str(data).encode('utf-8');
+    } elif data is not None {
+        body_stream = data;
     }
     (reader, writer) = await _open_stream(scheme, host, port, timeout);
     lines = [f"{method.upper()} {path} HTTP/1.1"];
@@ -242,30 +306,36 @@ async def arequest(
         host_value = host if port == default_port else f"{host}:{port}";
         lines.append(f"Host: {host_value}");
     }
-    lines.append(f"Content-Length: {len(body)}");
+    chunked_upload = body_stream is not None and declared_length is None;
+    if body_stream is None {
+        lines.append(f"Content-Length: {len(body)}");
+    } elif chunked_upload {
+        lines.append('Transfer-Encoding: chunked');
+    } else {
+        lines.append(f"Content-Length: {declared_length}");
+    }
     lines.append('Connection: close');
     for (name, value) in header_list {
         lines.append(f"{name}: {value}");
     }
     blob = ('\r\n'.join(lines) + '\r\n\r\n').encode('latin-1');
     try {
-        writer.write(blob + body);
+        if body_stream is None {
+            writer.write(blob + body);
+        } else {
+            writer.write(blob);
+            await _pump_body(
+                writer, body_stream, chunked_upload, _as_length(declared_length)
+            );
+        }
         await writer.drain();
         (status, reason, resp_headers) = await _read_response_head(reader, timeout);
-    } except ClientRequestSent {
-        try {
-            writer.close();
-        } except Exception {
-            ;
-        }
-        raise;
     } except (ConnectionError, OSError, asyncio.IncompleteReadError) as e {
-        try {
-            writer.close();
-        } except Exception {
-            ;
-        }
+        _close_quietly(writer);
         raise ClientRequestSent(detail=f"connection lost during or after send: {e!r}");
+    } except Exception {
+        _close_quietly(writer);
+        raise;
     }
     transfer = (resp_headers.get('Transfer-Encoding') or '').lower();
     chunked = 'chunked' in transfer;
@@ -284,20 +354,12 @@ async def arequest(
             collected.append(block);
         }
     } except (ConnectionError, OSError, asyncio.IncompleteReadError) as e {
-        try {
-            writer.close();
-        } except Exception {
-            ;
-        }
+        _close_quietly(writer);
         raise ClientRequestSent(detail=f"connection lost mid-body: {e!r}");
     }
     response.reader = None;
     response.body = b''.join(collected);
-    try {
-        writer.close();
-    } except Exception {
-        ;
-    }
+    _close_quietly(writer);
     return response;
 }
 
@@ -329,22 +391,14 @@ async def aws_connect(
     await writer.drain();
     (status, reason, resp_headers) = await _read_response_head(reader, timeout);
     if status != 101 {
-        try {
-            writer.close();
-        } except Exception {
-            ;
-        }
+        _close_quietly(writer);
         raise ClientConnectionError(
             detail=f"websocket upgrade failed: {status} {reason}", status_code=status
         );
     }
     accept = resp_headers.get('Sec-WebSocket-Accept') or '';
     if accept != compute_accept_key(key) {
-        try {
-            writer.close();
-        } except Exception {
-            ;
-        }
+        _close_quietly(writer);
         raise ClientConnectionError(detail='Sec-WebSocket-Accept mismatch');
     }
     return WebSocket(reader=reader, writer=writer, is_client_side=True, accepted=True);

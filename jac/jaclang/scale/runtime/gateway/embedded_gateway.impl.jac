@@ -101,14 +101,14 @@ impl EmbeddedGateway.dispatch(request: Request) -> Response {
         service: str = self._service_for_prefix(decision.service);
         remainder: str = path[len(decision.service):];
         payload: dict[str, any] = {};
-        try {
-            body: bytes = request.body;
-            if body {
-                import json;
+        body: bytes = await request.load_body();
+        if body {
+            import json;
+            try {
                 payload = json.loads(body.decode("utf-8"));
+            } except Exception {
+                payload = {};
             }
-        } except Exception {
-            payload = {};
         }
         resp = await self._call_member(service, remainder, payload);
         if resp is not None {

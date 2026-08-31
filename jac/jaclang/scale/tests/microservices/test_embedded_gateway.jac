@@ -1,3 +1,5 @@
+import asyncio;
+import from jaclang.server.serving.datatypes { HTTPError, Request, URL }
 import from jaclang.testing.testkit { ServingTestClient as TestClient }
 import from jaclang.scale.runtime.gateway.embedded_gateway { EmbeddedGateway }
 import from jaclang.scale.runtime.gateway.service_registry {
@@ -87,4 +89,32 @@ test "the shared middleware chain runs in front of the dispatcher" {
     client = TestClient(getattr(gw, "app"));
     client.post("/orders/function/create", json={"n": 1});
     assert "seen" in hits;
+}
+
+
+async def _refused_body -> any {
+    yield b"partial";
+    raise HTTPError(status_code=413, detail="Payload Too Large");
+}
+
+
+test "a body the gateway could not read is refused, not treated as empty" {
+    async def scenario -> int {
+        gw = _make_gateway();
+        request = Request(method="POST", url=URL(path="/orders/function/create"));
+        request.stream = _refused_body();
+        try {
+            await gw.dispatch(request);
+        } except HTTPError as he {
+            return he.status_code;
+        }
+        return 0;
+    }
+    loop = asyncio.new_event_loop();
+    try {
+        status = loop.run_until_complete(scenario());
+    } finally {
+        loop.close();
+    }
+    assert status == 413 , f"a cap violation became status {status}";
 }
