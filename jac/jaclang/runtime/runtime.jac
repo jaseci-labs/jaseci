@@ -22,7 +22,10 @@ import from jaclang.runtime.archetype {
     Root,
     anchor_key,
     same_anchor,
-    _light_pairs_of,
+    _deref,
+    _edge_subtypes,
+    _light_edge_types,
+    edge_subtypes,
     is_light_edge_type,
     light_clear_hop,
     light_connect,
@@ -107,24 +110,10 @@ def _all_grant(anchor: Anchor) -> AccessLevel {
 def _light_disconnect_between(
     a: NodeAnchor, b: NodeAnchor, dirv: int, filter: (Callable | None)
 ) -> bool {
-    if filter is None {
-        import from jaclang.runtime.osp_graph { osp_light_disconn_between }
-        ah: any = a.archetype;
-        bh: any = b.archetype;
-        return osp_light_disconn_between(ah, bh, dirv, -1) > 0;
-    }
     occurred = False;
-    if dirv != 1 {
-        pairs = _light_pairs_of(a, True);
-        i = 0;
-        while i < len(pairs) {
-            cls = pairs[i];
-            other = pairs[i + 1];
-            i += 2;
-            if other is not b.archetype {
-                continue;
-            }
-            if not filter(light_edge_view(cls, a, b)) {
+    if dirv != 1 and a.out_light {
+        for cls in `list(a.out_light.keys()) {
+            if filter and not filter(light_edge_view(cls, a, b)) {
                 continue;
             }
             while light_disconnect(a, cls, b) {
@@ -132,17 +121,9 @@ def _light_disconnect_between(
             }
         }
     }
-    if dirv != 2 {
-        pairs = _light_pairs_of(a, False);
-        i = 0;
-        while i < len(pairs) {
-            cls = pairs[i];
-            other = pairs[i + 1];
-            i += 2;
-            if other is not b.archetype {
-                continue;
-            }
-            if not filter(light_edge_view(cls, b, a)) {
+    if dirv != 2 and a.in_light {
+        for cls in `list(a.in_light.keys()) {
+            if filter and not filter(light_edge_view(cls, b, a)) {
                 continue;
             }
             while light_disconnect(b, cls, a) {

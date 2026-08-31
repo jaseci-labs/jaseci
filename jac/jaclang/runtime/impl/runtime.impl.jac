@@ -1104,7 +1104,11 @@ impl JacGraph.connect(
         and isinstance(left, NodeArchetype)
         and isinstance(right, NodeArchetype)
     ) {
-        if is_light_edge_type(`edge) {
+        light = _light_edge_types.get(`edge);
+        if light is None {
+            light = is_light_edge_type(`edge);
+        }
+        if light {
             src = left.__jac__;
             tgt = right.__jac__;
             if src.destroyed is True or tgt.destroyed is True {
@@ -1160,6 +1164,26 @@ impl JacGraph.hop(
 ) -> list {
     if not isinstance(origin, `list) {
         anchor = origin.__jac__;
+        if (
+            edge_type is not None
+            and dir != 3
+            and not edges_only
+            and not anchor.persistent
+            and (
+                not anchor.has_heavy_edges()
+                or (not anchor.mixed and _light_edge_types.get(edge_type))
+            )
+            and len(_edge_subtypes.get(edge_type) or edge_subtypes(edge_type)) == 1
+        ) {
+            if dir == 2 {
+                d = anchor.out_light;
+                lst = d.get(edge_type) if d else None;
+                return `list(lst) if lst else [];
+            }
+            d = anchor.in_light;
+            lst = d.get(edge_type) if d else None;
+            return _deref(lst) if lst else [];
+        }
         if light_hop_answers(anchor, edge_type) {
             return light_hop(anchor, dir, edge_type, edges_only);
         }
@@ -1175,10 +1199,16 @@ impl JacGraph.clear_edges(
     import from jaclang.runtime.osp_kernel { osp_forget }
     if edge_type is not None and not isinstance(origin, `list) {
         anchor = origin.__jac__;
-        if not anchor.has_heavy_edges() {
-            import from jaclang.runtime.osp_graph { osp_has_light }
-            oh: any = origin;
-            if osp_has_light(oh) == 0 {
+        if (
+            not anchor.has_heavy_edges()
+            and len(_edge_subtypes.get(edge_type) or edge_subtypes(edge_type)) == 1
+        ) {
+            d_out = anchor.out_light;
+            d_in = anchor.in_light;
+            if (
+                (dir == 1 or not d_out or edge_type not in d_out)
+                and (dir == 2 or not d_in or edge_type not in d_in)
+            ) {
                 return False;
             }
         }

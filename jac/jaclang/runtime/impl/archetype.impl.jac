@@ -175,24 +175,11 @@ impl NodeAnchor.__getstate__ -> dict[(str, object)] {
             state['edges'] = [`edge.make_stub() for `edge in self.all_edges()];
         } else {
             state['edges'] = `list(self.edges);
-            state['light_out'] = _light_pairs_of(self, True);
+            state['out_light'] = self.out_light;
+            state['in_light'] = self.in_light;
         }
     }
     return state;
-}
-
-impl NodeAnchor.__setstate__(state: dict[(str, object)]) -> None {
-    lp = state.pop('light_out', None);
-    super.__setstate__(state);
-    if lp {
-        import from jaclang.runtime.osp_graph { osp_conn_light }
-        me: any = self.archetype;
-        i = 0;
-        while i < len(lp) {
-            osp_conn_light(me, lp[i + 1], lp[i], 0);
-            i += 2;
-        }
-    }
 }
 
 impl NodeAnchor.edge_delta -> (tuple[(set[UUID], set[UUID])] | None) {
@@ -253,6 +240,7 @@ impl Archetype.__jac__ -> Anchor {
 
 impl Archetype.__init_subclass__(cls: any, **kwargs: object) -> None {
     super.__init_subclass__(**kwargs);
+    _edge_subtypes.clear();
     if not cls.__dict__.get('__jac_base__', False) {
         import from jaclang { JacRuntimeInterface as _ }
         _.make_archetype(cls);
@@ -378,34 +366,52 @@ impl ObjectSpatialFunction.trigger -> (
 }
 
 impl NodeAnchor.all_edges -> list[EdgeAnchor] {
-    import from jaclang.runtime.osp_graph { osp_light_remove }
-    import from jaclang.runtime.runtime { JacRuntimeInterface }
-    me: any = self.archetype;
-    outp = _light_pairs_of(self, True);
-    i = 0;
-    while i < len(outp) {
-        cls = outp[i];
-        other = outp[i + 1];
-        i += 2;
-        osp_light_remove(me, other, cls);
-        JacRuntimeInterface.heavy_edge(self, other.__jac__, cls, False, None);
+    out = self.out_light;
+    inn = self.in_light;
+    if out is None and inn is None {
+        return self.edges;
     }
-    inp = _light_pairs_of(self, False);
-    i = 0;
-    while i < len(inp) {
-        cls = inp[i];
-        other = inp[i + 1];
-        i += 2;
-        osp_light_remove(other, me, cls);
-        JacRuntimeInterface.heavy_edge(other.__jac__, self, cls, False, None);
+    import from jaclang.runtime.runtime { JacRuntimeInterface }
+    me = self.archetype;
+    if out is not None {
+        self.out_light = None;
+        back = weakref.ref(me);
+        for (cls, lst) in out.items() {
+            for other in lst {
+                oa = other.__jac__;
+                _drop_entry(oa.in_light, cls, back);
+                JacRuntimeInterface.heavy_edge(self, oa, cls, False, None);
+            }
+        }
+    }
+    if inn is not None {
+        self.in_light = None;
+        for (cls, lst) in inn.items() {
+            for other in _deref(lst) {
+                oa = other.__jac__;
+                _drop_entry(oa.out_light, cls, me);
+                JacRuntimeInterface.heavy_edge(oa, self, cls, False, None);
+            }
+        }
     }
     return self.edges;
 }
 
 impl NodeAnchor.detach_light -> None {
-    import from jaclang.runtime.osp_graph { osp_light_detach }
-    me: any = self.archetype;
-    osp_light_detach(me);
+    out = self.out_light;
+    if out is not None {
+        for cls in `list(out.keys()) {
+            light_clear(self, cls, True);
+        }
+        self.out_light = None;
+    }
+    inn = self.in_light;
+    if inn is not None {
+        for cls in `list(inn.keys()) {
+            light_clear(self, cls, False);
+        }
+        self.in_light = None;
+    }
 }
 
 impl Anchor.persistent.getter -> bool {

@@ -9,11 +9,10 @@ the seed tier's own modules (the unitree, the parser) define archetypes at
 import time, before the runtime package is importable without cycles.
 
 Seed-tier graphs are transient compiler graphs. A field-less directed edge is
-a light edge: a tag-keyed entry in the shared OSP kernel's light adjacency
-(archetypes as handles, edge classes as tags), no edge object, no heavy row,
-no context. The archetype light_* helpers this module calls read and write
-that kernel adjacency; only edges that carry fields (or attribute assignment
-at connect time) become EdgeAnchors in `edges`.
+a light edge: an entry in the anchors' per-type adjacency (`out_light` /
+`in_light`), no edge object, no kernel row, no context. `refs0` reads that
+adjacency directly; only edges that carry fields (or attribute assignment at
+connect time) become EdgeAnchors in `edges`.
 """
 
 from __future__ import annotations
@@ -26,6 +25,9 @@ from jaclang.runtime.archetype import (
     GenericEdge,
     NodeArchetype as Node,
     WalkerArchetype as Walker,
+    _edge_subtypes,
+    _light_edge_types,
+    edge_subtypes,
     is_light_edge_type,
     light_clear_hop,
     light_connect,
@@ -83,7 +85,10 @@ def connect0(
         and not isinstance(right, list)
     ):
         # One node to one node over a light class: the adjacency write alone.
-        if is_light_edge_type(edge):
+        light = _light_edge_types.get(edge)
+        if light is None:
+            light = is_light_edge_type(edge)
+        if light:
             src = left.__jac__
             tgt = right.__jac__
             if not (src.persistent or tgt.persistent):
@@ -198,9 +203,9 @@ def refs0(
     for o in origins:
         me = o.__jac__
         if not preds:
-            if dir != 1:
+            if dir != 1 and me.out_light:
                 _light_hits(me, edge, True, edges_only, tgt_anchor, out, seen)
-            if dir != 2:
+            if dir != 2 and me.in_light:
                 _light_hits(me, edge, False, edges_only, tgt_anchor, out, seen)
         for ea in me.edges:
             arch = ea.archetype
@@ -238,9 +243,32 @@ def hop0(origin: Any, dir: int, edge: Any = None, edges_only: bool = False) -> l
     origin takes `refs0`.
 
     The one-node, one-direction, single-class read (every `kid` and `parent`
-    of the compiler's tree) is answered by the kernel's light adjacency in
-    one call, connection order kept, one entry per edge.
+    of the compiler's tree) is answered here in one frame: a copy of the
+    adjacency list, connection order kept, one entry per edge.
     """
+    if edge is not None and dir != 3 and not edges_only and not isinstance(origin, list):
+        me = origin.__jac__
+        if not me.persistent and (
+            not me.edges or (not me.mixed and _light_edge_types.get(edge))
+        ):
+            subs = _edge_subtypes.get(edge)
+            if subs is None:
+                subs = edge_subtypes(edge)
+            if len(subs) == 1:
+                if dir == 2:
+                    d = me.out_light
+                    lst = d.get(edge) if d else None
+                    return list(lst) if lst else []
+                d = me.in_light
+                lst = d.get(edge) if d else None
+                if not lst:
+                    return []
+                out: list = []
+                for ref in lst:
+                    arch = ref()
+                    if arch is not None:
+                        out.append(arch)
+                return out
     if isinstance(origin, list):
         return refs0(origin, dir, edge, edges_only)
     me = origin.__jac__
@@ -258,11 +286,17 @@ def clear0(origin: Any, dir: int, edge: Any = None) -> bool:
     if edge is not None and not isinstance(origin, list):
         me = origin.__jac__
         if not me.edges:
-            from jaclang.runtime.osp_graph import osp_has_light
-
-            # Nothing on this node at all: no set to clear.
-            if not osp_has_light(origin):
-                return False
+            subs = _edge_subtypes.get(edge)
+            if subs is None:
+                subs = edge_subtypes(edge)
+            if len(subs) == 1:
+                # Nothing of that class on this node: no set to clear.
+                d_out = me.out_light
+                d_in = me.in_light
+                if (dir == 1 or not d_out or edge not in d_out) and (
+                    dir == 2 or not d_in or edge not in d_in
+                ):
+                    return False
     origins = origin if isinstance(origin, list) else [origin]
     hit = False
     for o in origins:
