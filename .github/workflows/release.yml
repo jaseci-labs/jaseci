@@ -117,10 +117,43 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
       summary: ${{ steps.ver.outputs.summary }}
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
+      # Every later job anchors on this sha, so it has to be the commit that
+      # was actually approved -- and on the PR path the obvious answer is the
+      # wrong one. GITHUB_SHA there is the base branch resolved when the RUN
+      # was created, not the commit this PR produced: any merge landing in
+      # between silently retargets the release onto someone else's work. The
+      # pull_request payload's merge_commit_sha is this PR's own landed commit
+      # (the merge, squash or rebase commit on main, since we only run on
+      # merged == true), and it cannot drift. On workflow_dispatch there is no
+      # PR and GITHUB_SHA is the dispatched ref's commit, which is exactly the
+      # tree being released.
+      - name: Resolve the commit being released
+        id: commit
+        env:
+          EVENT: ${{ github.event_name }}
+          MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            SHA="$MERGE_COMMIT_SHA"
+          else
+            SHA="$GITHUB_SHA"
+          fi
+          if ! printf '%s' "$SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::Could not resolve the commit being released (event=${EVENT}, got '${SHA}'); refusing to tag or build an unidentified tree."
+            exit 1
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Releasing commit: $SHA"
+
+      # Pinned to the resolved commit, not to whatever the trigger's ref points
+      # at now: the version below has to be the one that commit declares.
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          ref: ${{ steps.commit.outputs.sha }}
           persist-credentials: false
 
       # The root jac.toml is the source of truth for the jaclang version.
@@ -175,6 +208,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
+          ref: ${{ needs.resolve.outputs.sha }}
           fetch-depth: 0
           persist-credentials: true
 
@@ -184,20 +218,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       # Never move an existing tag: a published release's assets and notes
-      # describe the commit it was cut from.
+      # describe the commit it was cut from. So a version whose tag already
+      # names another commit is refused outright rather than quietly released
+      # from the old one (#8793). See scripts/release_tag_guard.sh.
       - name: Create and push tag
         env:
           VERSION: ${{ needs.resolve.outputs.version }}
-        run: |
-          set -euo pipefail
-          VTAG="v${VERSION}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${VTAG}" >/dev/null 2>&1; then
-            echo "Tag ${VTAG} already exists; leaving it in place."
-          else
-            echo "Tagging ${VTAG} at ${GITHUB_SHA}"
-            git tag --annotate --message="jac ${VERSION}" "$VTAG" "$GITHUB_SHA"
-            git push origin "refs/tags/${VTAG}"
-          fi
+          COMMIT: ${{ needs.resolve.outputs.sha }}
+        run: bash scripts/release_tag_guard.sh "$VERSION" "$COMMIT"
 
       # Draft: hidden from /releases/latest with no downloadable assets, so
       # install.sh can't resolve it until `publish` reveals it complete. NOT
@@ -243,6 +271,10 @@ jobs:
     uses: ./.github/workflows/build-binaries.yml
     with:
       tag: v${{ needs.resolve.outputs.version }}
+      # The tag is only the upload target. What gets BUILT is named by sha, so
+      # the artifacts provably correspond to the approved commit even if the
+      # tag is ever repointed or predates this release (#8793).
+      commit: ${{ needs.resolve.outputs.sha }}
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
