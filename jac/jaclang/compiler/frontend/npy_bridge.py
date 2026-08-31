@@ -185,6 +185,8 @@ class NpyBridge:
         L.npy_list_get.restype = c_void_p
         L.npy_list_append.argtypes = [ctypes.c_int64] * 2
         L.npy_list_append.restype = ctypes.c_int64
+        L.npy_list_new.argtypes = []
+        L.npy_list_new.restype = c_void_p
 
     def _call_str2(self, name: str, a: str, b: str):
         """Call an export taking two jac-str args (each a {p, p, len} triple)."""
@@ -311,6 +313,7 @@ class NpyBridge:
         self._flatten_twin(t, twin)
         self._install_field_props(t, name, fields)
         self._install_natlist_props(t, fields)
+        self._install_overlay_props(t, name, fields)
         self._install_role_props(t, name)
         self._install_parent(t)
         self._install_new(t, name)
@@ -383,7 +386,53 @@ class NpyBridge:
                 ptr = cast(_addr(self) + _off, POINTER(c_void_p))[0]
                 return NativeList(lib, ptr)
 
-            setattr(t, fname, property(lget))
+            def lset(self, value, _off=f["offset"]):
+                if isinstance(value, NativeList):
+                    cast(_addr(self) + _off, POINTER(c_void_p))[0] = value._ptr
+                    return
+                ptr = lib.npy_list_new()
+                for v in value or ():
+                    lib.npy_list_append(ptr, _addr(v))
+                cast(_addr(self) + _off, POINTER(c_void_p))[0] = ptr
+
+            setattr(t, fname, property(lget, lset))
+
+    def _install_overlay_props(self, t: type, name: str, fields: dict) -> None:
+        """Fields whose native storage Python has no view over (native
+        dicts, foreign pointers) live in the instance __dict__ on the
+        Python side, seeded from the twin dataclass default on first read.
+        Native code never shares these with Python by design; the overlay
+        keeps the twins' bytecode running unchanged."""
+        import dataclasses
+
+        twin = t.__npy_twin__
+        try:
+            dc_fields = {f.name: f for f in dataclasses.fields(twin)}
+        except TypeError:
+            dc_fields = {}
+        for fname, f in fields.items():
+            if f["code"] not in ("ptr", "opaque"):
+                continue
+
+            dcf = dc_fields.get(fname)
+
+            def oget(self, _n=fname, _dcf=dcf):
+                d = self.__dict__
+                if _n in d:
+                    return d[_n]
+                if _dcf is not None:
+                    if _dcf.default_factory is not dataclasses.MISSING:
+                        d[_n] = _dcf.default_factory()
+                        return d[_n]
+                    if _dcf.default is not dataclasses.MISSING:
+                        d[_n] = _dcf.default
+                        return d[_n]
+                raise AttributeError(_n)
+
+            def oset(self, value, _n=fname):
+                self.__dict__[_n] = value
+
+            setattr(t, fname, property(oget, oset))
 
     def _install_parent(self, t: type) -> None:
         """parent is the one hand-written adjacency getter: last Kid-in

@@ -144,3 +144,8 @@ def:pub npy_list_append(l: list[UniNode], v: UniNode) -> int {
     l.append(v);
     return len(l);
 }
+
+def:pub npy_list_new -> list[UniNode] {
+    out: list[UniNode] = [];
+    return out;
+}
