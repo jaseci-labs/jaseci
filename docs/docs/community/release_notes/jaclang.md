@@ -2,7 +2,15 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.17 (Latest Release)
+## jaclang 0.34.18 (Latest Release)
+
+### Bug Fixes
+
+- **Fix: a cached release binary can no longer be overwritten by another pin downloading at the same time**: every asset the deploy caches was written through a temp file named with `Path.with_suffix`, which replaces a name's last dotted segment rather than appending to it. For a versioned cache entry that erases the version: `jac-stable-0.34.3-linux-x86_64` and `jac-stable-0.34.4-linux-x86_64` both produced the temp name `jac-stable-0.34.<pid>.tmp`, so two deploys on one host with different `[project] jac-version` pins raced on a single file and one pin's cache entry could end up holding the other's binary, or none at all. The temp name is now derived from the full target name, which is what the version-keyed cache always assumed. The identical write in `host_toolchain_path` that already did this correctly is now the one implementation both paths share.
+- **Fix: `JAC_EXECUTABLE` no longer reaches a pinned release binary**: the environment handed to the release jac a pinned app builds with stripped `JAC_DEV_SOURCE`, `JAC_NO_PRECOMPILE` and the `PYTHON*` redirects, but not `JAC_EXECUTABLE`, so a child step resolving "the jac to run" could still be pointed back at the toolchain running the deploy. It is the quietest of that family, because every reader falls back to `shutil.which("jac")` when the path does not exist, and so resolves to some other jac instead of failing where it would be noticed.
+- **A deploy pinned to another jac minor now runs on that release instead of guessing, and a pod in a cluster no longer falls back to a database inside itself**: `[project] jac-version` selected the pod image and the seal, but the jac running the deploy is what renders the manifests and provisions the database, and nothing lined the two up. A 0.34 deployer would stand up the store its own generation knows for an app pinned to another line, report success, and leave the pod with no reachable database, at which point it quietly fell back to a SQLite store on the pod filesystem, per replica, where it was lost on the next restart. `jac start --scale` now hands the whole deploy to the release the app pins, the same way the seal and the client build already do, so manifests and database match the pod. A deploy that still reaches a target on another minor line is refused up front, naming both versions, before the cluster is touched. And in a cluster a pod with no reachable database runs without persistence and says so at error level instead of embedding a store.
+
+## jaclang 0.34.17
 
 ### New Features
 
