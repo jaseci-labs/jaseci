@@ -50,7 +50,7 @@ Expect the dev-mode banner naming your checkout:
 
 ```
 jac dev mode - using compiler source at /home/you/jaseci/jac
-jac 0.36.1  (Linux x86_64)
+jac 0.37.0  (Linux x86_64)
 ```
 
 A bare version line with no banner means you are running baked jaclang and
@@ -155,11 +155,15 @@ not receive the CI autofix push, so a miss here is a red build.
 one process per file, the way CI does:
 
 ```bash
-JAC_TEST_JOBS=0 jac test jac/jaclang/scale/tests/<group>/test_<name>.jac
+jac test --jobs 0 jac/jaclang/scale/tests/<group>/test_<name>.jac
 ```
 
-`JAC_TEST_JOBS=0` forces serial execution; `[dev] test_jobs = "0"` in `jac.toml`
-does the same thing persistently, and the environment variable overrides it.
+`--jobs 0` forces serial execution. Since 0.37 every command resolves its
+worker count through one precedence chain -- `--jobs` beats `JAC_TEST_JOBS`,
+which beats `JAC_JOBS`, which beats `[dev] test_jobs` in `jac.toml`, which
+beats `[dev] jobs`, which falls back to one worker per core. Prefer the flag:
+it is the only form that cannot be overridden by something already in the
+environment. `JAC_TEST_JOBS=0` still works and is what CI sets.
 
 CI runs five groups under `jac/jaclang/scale/tests/`, and they map to
 surfaces: `microservices/` for the gateway, registry, routing and local fleet,
