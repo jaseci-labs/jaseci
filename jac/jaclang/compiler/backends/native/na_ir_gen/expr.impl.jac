@@ -557,7 +557,10 @@ impl NaIRGenExpr._codegen_pipe_fwd(nd: uni.BinaryExpr) -> (ir.Value | None) {
         genai_call=None,
         kid=[nd.right, *call_params]
     );
-    call.parent = nd.parent;
+    _owner = nd.parent;
+    if _owner is not None {
+        call.set_parent(_owner);
+    }
     return self._codegen_expr(call);
 }
 
@@ -746,18 +749,30 @@ impl NaIRGenExpr._codegen_kernel_spawn(
     );
 
     _ks_model = self.ir_in.gen.osp_model;
-    _wtag = _ks_model.local_index(walker_name) if (_ks_model is not None) else -1;
-    if _wtag < 0 {
-        _wtag = 0;
+    _wtag = _ks_model.tags.get(walker_name, 0) if (_ks_model is not None) else 0;
+    _nd_fn = self.func_symtab.get("osp_node_desc");
+    if _nd_fn is None {
+        return walker_val;
     }
-    _descp = self.builder.load(
-        self.builder.gep(
-            self._osp_desc_global,
-            [ir.Constant(i32, 0), ir.Constant(i32, _wtag)],
-            name="spawn.descp"
-        ),
-        name="spawn.desc.i8"
+    _nd_args = _nd_fn.function_type.args;
+    _descp = self.builder.call(
+        _nd_fn,
+        [self._coerce_type(ir.Constant(i64, _wtag), _nd_args[0])],
+        name="spawn.descp"
     );
+    _dead_fn = self.func_symtab.get("osp_is_dead");
+    if _dead_fn is not None {
+        _d_argtys = _dead_fn.function_type.args;
+        _dead = self.builder.call(
+            _dead_fn, [self._coerce_type(loc_val, _d_argtys[0])], name="spawn.dead"
+        );
+        _is_dead = self.builder.icmp_signed(
+            "!=", _dead, ir.Constant(_dead.type, 0), name="spawn.isdead"
+        );
+        self._emit_runtime_raise(
+            _is_dead, "RuntimeError", "cannot spawn on a destroyed graph object"
+        );
+    }
     _rt = self.builder.load(self._osp_rt_global, name="spawn.rt");
     self.builder.call(
         osp_spawn_fn,
@@ -856,6 +871,29 @@ impl NaIRGenExpr._codegen_compare_link(
             );
             return self.builder.zext(_ocmp, ir.IntType(64), name="opt.cmp.i64");
         }
+    }
+
+    if op in (Tok.KW_IS, Tok.KW_ISN)
+        and self?.jacval_type
+        and left.type == self.jacval_type
+        and right.type == self.jacval_type {
+        _jv_tag_eq = self.builder.icmp_unsigned(
+            "==",
+            self.builder.extract_value(left, 0, name="is.jv.l.tag"),
+            self.builder.extract_value(right, 0, name="is.jv.r.tag"),
+            name="is.jv.tag.eq"
+        );
+        _jv_pv_eq = self.builder.icmp_unsigned(
+            "==",
+            self.builder.extract_value(left, 1, name="is.jv.l.pv"),
+            self.builder.extract_value(right, 1, name="is.jv.r.pv"),
+            name="is.jv.pv.eq"
+        );
+        _jv_same = self.builder.and_(_jv_tag_eq, _jv_pv_eq, name="is.jv.same");
+        if op == Tok.KW_ISN {
+            return self.builder.not_(_jv_same, name="is.jv.diff");
+        }
+        return _jv_same;
     }
 
     if op == Tok.KW_IN or op == Tok.KW_NIN {

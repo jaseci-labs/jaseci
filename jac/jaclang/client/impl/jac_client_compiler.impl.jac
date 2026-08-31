@@ -506,8 +506,8 @@ impl JacClientCompiler._write_source_map(
     try {
         import from jaclang.compiler.backends.es.es_unparse { es_to_js_with_map }
         import from jaclang.client.source_mapping { generate_source_map_json }
-        (_, line_map) = es_to_js_with_map(mod.gen.es_ast);
-        if not line_map {
+        (_, segments) = es_to_js_with_map(mod.gen.es_ast);
+        if not segments {
             return;
         }
 
@@ -518,12 +518,13 @@ impl JacClientCompiler._write_source_map(
         }
         header_lines = full_output[:raw_start].count('\n');
         if header_lines > 0 {
-            line_map = [
-                (out + header_lines, src_l, src_c) for (out, src_l, src_c) in line_map
+            segments = [
+                (gen_l + header_lines, gen_c, src_l, src_c, name)
+                for (gen_l, gen_c, src_l, src_c, name) in segments
             ];
         }
         map_json = generate_source_map_json(
-            source_file=source_file, output_file=output_path.name, line_map=line_map
+            source_file=source_file, output_file=output_path.name, segments=segments
         );
         map_path = output_path.parent / f"{output_path.name}.map";
         map_path.write_text(map_json, encoding='utf-8');

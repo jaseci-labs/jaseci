@@ -60,12 +60,12 @@ obj _ContextStack {
 }
 
 with entry {
-    _kernel._walk_stack = cast(list[WalkScope], _ContextStack());
+    _kernel.DEFAULT.stack = cast(list[WalkScope], _ContextStack());
 }
 
 def isolate_request_walk_stack {
-    if isinstance(_kernel._walk_stack, _ContextStack) {
-        _kernel._walk_stack._var.set([]);
+    if isinstance(_kernel.DEFAULT.stack, _ContextStack) {
+        _kernel.DEFAULT.stack._var.set([]);
     }
 }
 
@@ -84,34 +84,32 @@ def _trigger_members(trig: any) -> list[any] {
     return [trig];
 }
 
-def _unwrap(x: any) -> any {
-    if isinstance(x, (NodeAnchor, EdgeAnchor)) {
-        return x.archetype;
-    }
-    return x;
-}
-
-def _wrap_ability(f: any) -> any {
-    def call(a: any, b: any, fn: any = f) -> any {
-        return fn(_unwrap(a), _unwrap(b));
-    }
-    return call;
-}
-
 def _slots_from(funcs: list[ObjectSpatialFunction]) -> list[Slot] {
     slots: list[Slot] = [];
     for f in funcs {
         members = _trigger_members(f.trigger);
-        wrapped = _wrap_ability(f.func);
         if not members {
-            slots.append(Slot(trig_tag=UNTYPED, fn=wrapped));
+            slots.append(Slot(trig_tag=UNTYPED, fn=f.func));
         } else {
             for m in members {
-                slots.append(Slot(trig_tag=tag_of_cls(m), fn=wrapped));
+                slots.append(Slot(trig_tag=tag_of_cls(m), fn=f.func));
             }
         }
     }
     return slots;
+}
+
+def _mro_funcs(cls: any, attr: str) -> list {
+    merged: dict = {};
+    for c in reversed(cls.__mro__) {
+        clsfns = c.__dict__.get(attr);
+        if clsfns {
+            for fn in clsfns {
+                merged[fn.name] = fn;
+            }
+        }
+    }
+    return `list(merged.values());
 }
 
 def desc_for(cls: any) -> WalkerDesc {
@@ -120,15 +118,19 @@ def desc_for(cls: any) -> WalkerDesc {
     }
     desc = WalkerDesc(
         type_tag=tag_of_cls(cls),
-        `entry=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_entry_funcs_)),
-        `exit=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_exit_funcs_))
+        `entry=_slots_from(
+            cast(list[ObjectSpatialFunction], _mro_funcs(cls, '_jac_entry_funcs_'))
+        ),
+        `exit=_slots_from(
+            cast(list[ObjectSpatialFunction], _mro_funcs(cls, '_jac_exit_funcs_'))
+        )
     );
     _desc_of_cls[cls] = desc;
     return desc;
 }
 
 def _sv_tag_of(handle: any) -> int {
-    return tag_of_cls(`type(_unwrap(handle)));
+    return tag_of_cls(`type(handle));
 }
 
 def _sv_is_a(tag: int, base: int) -> bool {
@@ -137,13 +139,21 @@ def _sv_is_a(tag: int, base: int) -> bool {
     return tc is not None and bc is not None and issubclass(tc, bc);
 }
 
+glob _ndesc_of_cls: dict[type, NodeDesc] = {};
+
 def _sv_node_desc(tag: int) -> NodeDesc {
     cls = cls_of_tag(tag);
     if cls is None {
         return NodeDesc(type_tag=tag, `entry=[], `exit=[]);
     }
+    cached = _ndesc_of_cls.get(cls);
+    if cached is not None {
+        return cached;
+    }
     d = desc_for(cls);
-    return NodeDesc(type_tag=d.type_tag, `entry=d.`entry, `exit=d.`exit);
+    nd = NodeDesc(type_tag=d.type_tag, `entry=d.`entry, `exit=d.`exit);
+    _ndesc_of_cls[cls] = nd;
+    return nd;
 }
 
 def _sv_on_complete(scope: WalkScope, ok: bool) {
@@ -151,8 +161,9 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
         anch = scope.wlk.__jac__;
         walked: list[(NodeAnchor | EdgeAnchor)] = [];
         for step in scope.path {
-            if isinstance(step, (NodeAnchor, EdgeAnchor)) {
-                walked.append(step);
+            step_anchor = step?.__jac__;
+            if isinstance(step_anchor, (NodeAnchor, EdgeAnchor)) {
+                walked.append(step_anchor);
             }
         }
         anch.path = walked;
@@ -167,9 +178,13 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
         scope.wlk.reports = scope.reports;
     }
 
-    import from jaclang.runtime.runtime { JacRuntimeInterface }
+    import from jaclang.runtime.runtime { JacRuntime, _request_context }
+    ctx = None;
     try {
-        ctx = JacRuntimeInterface.get_context();
+        ctx = _request_context.get() or JacRuntime.exec_ctx;
+        if ctx is None {
+            return;
+        }
         cs = ctx.call_state.get(None);
         if cs is not None {
             for r in scope.reports {
@@ -179,9 +194,9 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
     } except Exception {
         ;
     }
-    if ok {
+    if ok and (ctx is not None) {
         try {
-            JacRuntimeInterface.get_context().mem.commit();
+            ctx.mem.commit();
         } except Exception {
             ;
         }
@@ -197,135 +212,26 @@ def make_sv_runtime -> OspRuntime {
     );
 }
 
-async def _run_typed_async(rt: OspRuntime, slots: list[Slot], a: any, b: any) -> None {
-    btag: int = rt.tag_of(b);
-    for s in slots {
-        if (s.trig_tag != UNTYPED) and rt.is_a(btag, s.trig_tag) {
-            result = s.fn(a, b);
-            if inspect.iscoroutine(result) {
-                await result;
-            }
-            if _kernel._walk_stack and _kernel._walk_stack[-1].disengaged {
-                return;
-            }
-        }
-    }
-}
-
-async def _run_untyped_async(slots: list[Slot], a: any, b: any) -> None {
-    for s in slots {
-        if s.trig_tag == UNTYPED {
-            result = s.fn(a, b);
-            if inspect.iscoroutine(result) {
-                await result;
-            }
-            if _kernel._walk_stack and _kernel._walk_stack[-1].disengaged {
-                return;
-            }
-        }
-    }
-}
-
-async def _visit_recursive_async(
-    rt: OspRuntime, scope: WalkScope, wdesc: WalkerDesc, loc: any
-) -> bool {
-    stack: list = [(loc, 0)];
-    while stack {
-        (cur, phase) = stack.pop();
-        if scope.disengaged {
-            return False;
-        }
-        if phase == 0 {
-            scope.path.append(cur);
-            loc_tag: int = rt.tag_of(cur);
-            ndesc = rt.node_desc(loc_tag);
-            await _run_typed_async(rt, wdesc.`entry, scope.wlk, cur);
-            if scope.disengaged {
-                return False;
-            }
-            await _run_untyped_async(ndesc.`entry, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
-            }
-            await _run_typed_async(rt, ndesc.`entry, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
-            }
-            stack.append((cur, 1));
-        } elif phase == 1 {
-            child = None;
-            while scope.next {
-                candidate = scope.next.pop(0);
-                if candidate not in scope.ignores {
-                    child = candidate;
-                    break;
-                }
-            }
-            if child is not None {
-                stack.append((cur, 1));
-                stack.append((child, 0));
-            } else {
-                stack.append((cur, 2));
-            }
-        } else {
-            loc_tag: int = rt.tag_of(cur);
-            ndesc = rt.node_desc(loc_tag);
-            await _run_typed_async(rt, ndesc.`exit, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
-            }
-            await _run_untyped_async(ndesc.`exit, cur, scope.wlk);
-            if scope.disengaged {
-                return False;
-            }
-            await _run_typed_async(rt, wdesc.`exit, scope.wlk, cur);
-            if scope.disengaged {
-                return False;
-            }
-        }
-    }
-    return not scope.disengaged;
-}
-
 async def osp_spawn_async(
     rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list
 ) -> any {
-    scope = WalkScope(
-        wlk=wlk,
-        path=[],
-        next=`list(starts),
-        ignores=[],
-        reports=[],
-        nested=(len(_kernel._walk_stack) > 0)
-    );
-    _kernel._walk_stack.append(scope);
+    eng = _kernel.DEFAULT;
+    scope = eng.begin(wlk, starts);
     ok = False;
     try {
-        if scope.next {
-            anchor = scope.next[0];
-            await _run_untyped_async(wdesc.`entry, wlk, anchor);
-        }
-        while scope.next and (not scope.disengaged) {
-            nxt = scope.next.pop(0);
-            if nxt not in scope.ignores {
-                if not await _visit_recursive_async(rt, scope, wdesc, nxt) {
-                    break;
-                }
+        while True {
+            s = eng.next_slot(rt, scope, wdesc);
+            if s is None {
+                break;
             }
-        }
-        if scope.path and (not scope.disengaged) {
-            await _run_untyped_async(wdesc.`exit, wlk, scope.path[-1]);
+            result = s.fn(scope.cur_a, scope.cur_b);
+            if inspect.iscoroutine(result) {
+                await result;
+            }
         }
         ok = True;
     } finally {
-        _kernel._walk_stack.pop();
-        if scope.nested and _kernel._walk_stack {
-            outer = _kernel._walk_stack[-1];
-            for r in scope.reports {
-                outer.reports.append(r);
-            }
-        }
-        rt.on_complete(scope, ok);
+        eng.finish(scope, ok, rt);
     }
     return wlk;
 }

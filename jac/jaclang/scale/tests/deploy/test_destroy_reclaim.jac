@@ -95,6 +95,7 @@ test "a failed monitoring teardown keeps the namespace" {
         client=fake_client,
         namespace_is_owned=unittest.mock.MagicMock(return_value=True),
         delete_namespace=_note_namespace,
+        KEDAAutoscaler=unittest.mock.MagicMock(),
         MonitoringDeployer=unittest.mock.MagicMock(return_value=monitoring)
     ) {
         with unittest.mock.patch.object(

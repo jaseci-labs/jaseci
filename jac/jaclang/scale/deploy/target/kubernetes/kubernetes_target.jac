@@ -5,12 +5,9 @@ import from jaclang.scale.observability.logger { Logger }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-import from jaclang.scale.injector.pvc_injector { bundle_pvc_name }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     COMPANION_DEFS,
     create_k8s_secret,
-    delete_k8s_secret,
-    delete_if_exists,
     get_cluster_provider,
     resize_pvc_if_needed
 }
@@ -25,8 +22,6 @@ import from jaclang.scale.deploy.database.kubernetes_postgres {
     KubernetesPostgresProvider
 }
 import from jaclang.scale.deploy.target.kubernetes.ingress { IngressDeployer }
-import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
-import time;
 
 obj KubernetesTargetBase(DeploymentTarget) {
     has config: KubernetesConfig,

@@ -396,7 +396,7 @@ raise_stmt ::= "raise" expression? ("from" expression)? ";"
 
 assert_stmt ::= "comptime"? "assert" expression ("," expression)? ";"
 
-delete_stmt ::= "del" expression ";"
+delete_stmt ::= "del" expression ("," expression)* ";"
 
 ownership_prefix ::= ("own" | "imm" | "&" "mut"?)?
 

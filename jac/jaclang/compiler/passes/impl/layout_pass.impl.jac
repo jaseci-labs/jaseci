@@ -7,7 +7,7 @@ impl LayoutPass.postinit -> None {
     super.postinit();
 }
 
-impl LayoutPass.transform(ir_in: Module) -> Module {
+impl LayoutPass._run_impl(ir_in: Module) -> Module {
     module = self.ir_in;
 
     self._build_enum_layouts(module);
@@ -894,4 +894,16 @@ impl LayoutPass._is_layout_compatible_type(
         }
     }
     return False;
+}
+
+impl LayoutPass.transform(ir_in: Module) -> Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, Module);
+    return out;
+}
+
+impl LayoutPass.run_walk with Module entry {
+    self.ir_out = self._run_impl(here);
 }
