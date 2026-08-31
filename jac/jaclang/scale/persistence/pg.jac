@@ -8,6 +8,11 @@ glob logger = logging.getLogger(__name__),
          'no [scale.database] url / JAC_DB_URL resolved, and no project '
          'directory to provision an embedded server for'
      ),
+     NO_DATABASE_IN_CLUSTER = (
+         'no [scale.database] url / JAC_DB_URL resolved in a cluster, where an '
+         'embedded server would be per-replica and lost on restart. point the '
+         'deploy at a database'
+     ),
      _DOCS_DDL = (
          'CREATE TABLE IF NOT EXISTS jac_docs ('
          'collection text NOT NULL, '
@@ -20,7 +25,8 @@ glob logger = logging.getLogger(__name__),
          'shared_store',
          'shared_store_failure',
          'open_docs_store',
-         'NO_DATABASE_RESOLVED'
+         'NO_DATABASE_RESOLVED',
+         'NO_DATABASE_IN_CLUSTER'
      ];
 
 
@@ -64,6 +70,11 @@ def _store_target(store: any) -> str {
     } except Exception {
         return 'the resolved database';
     }
+}
+
+
+def _in_cluster -> bool {
+    return bool(os.environ.get('KUBERNETES_SERVICE_HOST', '').strip());
 }
 
 
@@ -113,6 +124,9 @@ def shared_store -> (any | None) {
             promotions = promotions_for(JacRuntime.get_base_path_dir());
             if url {
                 store = PgStore(conninfo=conninfo_from_url(url), promotions=promotions);
+            } elif _in_cluster() {
+                _fail(NO_DATABASE_IN_CLUSTER);
+                return None;
             } else {
                 import from jaclang.server.session { runtime_for_base }
                 base = JacRuntime.get_base_path_dir();

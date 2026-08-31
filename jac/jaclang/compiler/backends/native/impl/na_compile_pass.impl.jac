@@ -1234,6 +1234,12 @@ impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
         or bool(getattr(self.ir_in.gen, "nogc_enforced", False));
     ir_str = _compile_osp_kernel_ir(_gc, _enf and _gc == "none");
     if ir_str is None {
+        self.emit(
+            E5025,
+            path=f"osp_core kernel unit (gc={_gc})",
+            error="the kernel unit failed to compile to LLVM IR; every OSP "
+            "operation in this module would be an unresolved symbol at link"
+        );
         return;
     }
 
@@ -1247,7 +1253,7 @@ impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
         kmod.verify();
         main_mod.link_in(kmod);
     } except Exception as _e {
-        ;
+        self.emit(E5025, path=f"osp_core kernel unit (gc={_gc})", error=str(_e));
     }
 }
 
