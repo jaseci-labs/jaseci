@@ -321,3 +321,24 @@ test "--dry-run never hands the deploy to the pinned jac" {
         }
     }
 }
+
+
+test "--dry-run refuses a cross-generation pin instead of planning it" {
+    # An exact pin resolves with no network, so a plan that the real deploy
+    # would never use can be refused rather than printed.
+    with tempfile.TemporaryDirectory() as tmpdir {
+        app = _write_app(tmpdir);
+        with open(os.path.join(tmpdir, "jac.toml"), "w") as f {
+            f.write('[project]\nname = "x"\njac-version = "==0.1.0"\n');
+        }
+        with unittest.mock.patch(
+            "jaclang.scale.injector.binary._http_get_bytes"
+        ) as mock_http {
+            rc = KubernetesRealizer(ms_config={"enabled": True}).realize(
+                app, target="kubernetes-microservice", dry_run=True
+            );
+            assert rc == 2 , f"a plan for the wrong generation was printed (rc={rc})";
+            mock_http.assert_not_called();
+        }
+    }
+}

@@ -439,3 +439,36 @@ test "the pinned jac is handed the same deploy, and cannot delegate again" {
         }
     }
 }
+
+
+test "delegating runs the pinned binary with this deploy, and forwards its result" {
+    # The handoff itself: the child really is executed, with the deploy it was
+    # asked for, an env that cannot send it back through the parent's dev
+    # source, and its exit code returned unchanged.
+    d = tempfile.mkdtemp();
+    stub = Path(d) / "jac";
+    stub.write_text(
+        "#!/bin/sh\n" f'printf "%s\\n" "$@" > {d}/argv\n' f"env > {d}/env\n" "exit 7\n"
+    );
+    stub.chmod(0o755);
+    os.environ["JAC_DEV_SOURCE"] = d;
+    with unittest.mock.patch.object(
+        binary_mod, "host_toolchain_path", return_value=str(stub)
+    ) {
+        rc = KubernetesRealizer(ms_config={})._deploy_on_pinned_jac(
+            f"{d}/main.jac", "kubernetes", False, False
+        );
+    }
+    os.environ.pop("JAC_DEV_SOURCE", None);
+
+    assert rc == 7 , f"the child exited 7; the deploy reported {rc}";
+    argv = (Path(d) / "argv").read_text().split();
+    assert argv
+        == ["scale", "deploy", f"{d}/main.jac", "--target", "kubernetes"] , argv;
+    env = (Path(d) / "env").read_text();
+    assert f"{DELEGATED_ENV}=1" in env , "the child can delegate again and fork forever";
+    assert "JAC_DEV_SOURCE" not in env , (
+        "the child inherited the parent's dev source and would run its code, "
+        "not the release it was fetched for"
+    );
+}
