@@ -2,7 +2,7 @@
 
 Validates that cross-user write attempts (edge create, field mutation,
 delete) emit a typed PermissionDenied diagnostic on the request-scoped
-ExecutionContext.diagnostics list — replacing the prior silent no-op
+ExecutionContext.diagnostics list - replacing the prior silent no-op
 that returned 200 OK with no signal.
 
 Also covers the strict-mode escape hatch: when JacRuntime.strict_permissions
