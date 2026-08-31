@@ -28,10 +28,6 @@ def error_response(
     return JSONResponse(status_code=status, content=body, headers=headers);
 }
 
-def unauthorized(message: str) -> JSONResponse {
-    return error_response(code="UNAUTHORIZED", message=message, status=401);
-}
-
 def service_unavailable(service: str, reason: str) -> JSONResponse {
     return error_response(
         code="SERVICE_UNAVAILABLE",
@@ -41,6 +37,15 @@ def service_unavailable(service: str, reason: str) -> JSONResponse {
         retry_after_seconds=2
     );
 }
+
+def identity_unresolvable(detail: str) -> JSONResponse {
+    return error_response(
+        code="IDENTITY_UNRESOLVABLE",
+        message=f"The caller's identity could not be resolved: {detail}",
+        status=401
+    );
+}
+
 
 def gateway_timeout(service: str) -> JSONResponse {
     return error_response(

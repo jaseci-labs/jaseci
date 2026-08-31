@@ -145,6 +145,12 @@ def module_own_native_anchor(module: (uni.Module | None)) -> bool {
     return False;
 }
 
+def module_demoted_native(path: str) -> bool {
+    import from jaclang.compiler.placement.placement_pins { _is_demoted_native }
+    return _is_demoted_native(os.path.realpath(path));
+}
+
+
 def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
     import from jaclang.compiler.placement.placement_pins {
         _is_demoted_native,

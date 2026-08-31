@@ -142,32 +142,32 @@ obj NativeJServer {
                 {"http.method": request.method, "http.target": request.url.path}
             );
             user_id = request.state?.user_root_id if request?.state else None;
-            root_bind_error: (str | None) = None;
+            root_bind_error: any = None;
             if user_id {
                 root_ref: any = user_id;
                 ctx.mem.read_scope_enter();
                 try {
                     await ctx.aset_user_root(root_ref);
-                } except ValueError as bind_err {
-                    logger.error(
-                        f"failed to bind user_root_id {user_id}: "
-                        f"{type(bind_err).__name__}: {bind_err}"
-                    );
-                    root_bind_error = str(bind_err);
+                } except (ValueError, RuntimeError) as bind_err {
+                    root_bind_error = bind_err;
                 } finally {
                     ctx.mem.read_scope_exit();
                 }
             }
             try {
                 if root_bind_error is not None {
-                    import from jaclang.scale.runtime.context.errors { unauthorized }
-                    return unauthorized(
-                        'asserted caller identity could not be resolved; '
-                        're-register or contact the operator'
+                    import from jaclang.scale.runtime.context.errors {
+                        identity_unresolvable
+                    }
+                    logger.error(
+                        f"refusing request for user_root_id {user_id}: "
+                        f"{type(root_bind_error).__name__}: {root_bind_error}"
                     );
+                    response = identity_unresolvable(str(root_bind_error));
+                } else {
+                    next_fn: any = call_next;
+                    response = await next_fn(request);
                 }
-                next_fn: any = call_next;
-                response = await next_fn(request);
                 if trace_id {
                     response.headers["X-Trace-Id"] = trace_id;
                 }
