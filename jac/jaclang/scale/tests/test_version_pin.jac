@@ -10,6 +10,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
+import inspect;
 import from jaclang.scale.runtime.realizer.kubernetes_realizer {
     DELEGATED_ENV,
     KubernetesRealizer,
@@ -470,5 +471,41 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
     assert "JAC_DEV_SOURCE" not in env , (
         "the child inherited the parent's dev source and would run its code, "
         "not the release it was fetched for"
+    );
+}
+
+
+test "the child is handed every deploy parameter that can reach it" {
+    # A reconstructed command line that silently drops a flag is a class of
+    # bug, not one bug, so the omissions are asserted rather than assumed.
+    # dry_run never delegates, and show_yaml is read only inside that branch,
+    # so neither can change a delegated deploy. Anything else added to
+    # realize() has to be forwarded, and this fails until it is.
+    accepted = set(inspect.signature(KubernetesRealizer.realize).parameters)
+        - {"self", "filename"};
+    forwarded = set(inspect.signature(pinned_deploy_argv).parameters)
+        - {"jac_bin", "filename"};
+    assert accepted - forwarded == {"dry_run", "show_yaml"} , (
+        f"realize() takes {sorted(accepted)} but the child is handed "
+        f"{sorted(forwarded)}; forward the new one or justify dropping it"
+    );
+}
+
+
+test "a jac.toml it cannot read refuses the deploy instead of allowing it" {
+    # Returning "" means "no refusal", so a blanket except would let the exact
+    # cross-generation deploy this exists to stop proceed on a config nobody
+    # could parse. Only an unresolvable pin is swallowed, because the preflight
+    # reports that one with the releases that do exist.
+    broken = _project('[project\nname = "x"\n');
+    raised = False;
+    try {
+        binary_mod.deploy_generation_refusal(broken, "stable");
+    } except Exception {
+        raised = True;
+    }
+    assert raised , (
+        "an unreadable jac.toml was treated as no pin, so the deploy runs "
+        "without either generation ever being compared"
     );
 }

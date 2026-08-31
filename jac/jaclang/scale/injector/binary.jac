@@ -246,13 +246,13 @@ def resolve_deploy_version(project_dir: str, channel: str) -> str {
 
 
 def deploy_generation_refusal(project_dir: str, channel: str) -> str {
+    import from jaclang.cli.manifest_route { resolve_cli_version }
     try {
-        import from jaclang.cli.manifest_route { resolve_cli_version }
         pinned = resolve_deploy_version(project_dir, channel);
-        running = resolve_cli_version().strip();
-    } except Exception {
+    } except RuntimeError {
         return "";
     }
+    running = resolve_cli_version().strip();
     if not pinned or not running {
         return "";
     }
