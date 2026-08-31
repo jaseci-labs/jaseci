@@ -348,7 +348,10 @@ obj ManifestBuilder {
         }
     }
 
-    def _solo_entry_file -> str {
+    def _solo_entry_file(app_config: (AppConfig | None) = None) -> str {
+        if app_config is not None and app_config.file_name {
+            return app_config.file_name;
+        }
         if not self.project_dir {
             return "";
         }
@@ -618,7 +621,7 @@ obj ManifestBuilder {
             services = dict(ms_cfg.get("services", {}));
             solo_name = list(routes.keys())[0];
             solo_cfg = dict(services.get(solo_name, {}));
-            solo_cfg["file"] = app_config.file_name;
+            solo_cfg["file"] = self._solo_entry_file(app_config);
             services[solo_name] = solo_cfg;
             ms_cfg["services"] = services;
             ms_cfg["routes"] = routes;
@@ -672,15 +675,16 @@ obj ManifestBuilder {
             return self._ms_cfg();
         }
         routes = self._solo_route(app_config);
+        entry_file = self._solo_entry_file(app_config);
         services = dict(ms_cfg.get("services", {}));
         solo_name = list(routes.keys())[0];
         solo_cfg = dict(services.get(solo_name, {}));
-        solo_cfg["file"] = app_config.file_name;
+        solo_cfg["file"] = entry_file;
         services[solo_name] = solo_cfg;
 
         main_cfg = dict(services.get("main", {}));
         if not main_cfg.get("file") {
-            main_cfg["file"] = app_config.file_name;
+            main_cfg["file"] = entry_file;
             services["main"] = main_cfg;
         }
         ms_cfg["services"] = services;
