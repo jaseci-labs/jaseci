@@ -463,16 +463,6 @@ impl Lexer.scan_kwesc_name -> LexToken {
             code_str="E0014"
         );
     }
-    if not self.at_end() and self.current() == "`" {
-        self.advance();
-        self.error(
-            f"'{bare}' has a closing backtick; the keyword escape is a prefix",
-            start_line,
-            start_col,
-            start_pos,
-            code_str="E0015"
-        );
-    }
     return self.make_token(
         TokenKind.KWESC_NAME, value, start_line, start_col, start_pos
     );

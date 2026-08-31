@@ -164,20 +164,8 @@ test "E0013: message no longer advertises a closing backtick" {
 }
 
 test "E0014: a backtick on a non-keyword still errors" {
-    (prog, _) = parse_with_prog("obj X { has `sandeepa: int = 1; }");
+    (prog, _) = parse_with_prog("obj X { has `total: int = 1; }");
     assert has_diagnostic_code(prog, "E0014");
-}
-
-test "E0015: a closing backtick is named, not an unexpected character" {
-    (prog, _) = parse_with_prog("obj X { has `match`: int = 1; }");
-    assert has_diagnostic_code(prog, "E0015");
-    assert count_diagnostic_code(prog, "E0015") == 1;
-    assert not has_diagnostic_code(prog, "E0105");
-}
-
-test "E0015: the closing backtick does not cascade" {
-    (prog, _) = parse_with_prog("obj X { has `match`: int = 1; }");
-    assert len(prog.errors_had) == 1;
 }
 
 test "kwesc: the prefix form parses clean" {
