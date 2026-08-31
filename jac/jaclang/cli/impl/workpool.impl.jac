@@ -333,7 +333,7 @@ impl WorkPool._pump -> None {
         busy = [
             k
             for k in live
-            if k["inflight"] is not None
+            if (k["inflight"] is not None) or k.get("retired")
         ];
         if not busy {
             break;

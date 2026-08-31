@@ -60,6 +60,7 @@ SEED_PATHS: tuple[str, ...] = (
     "runtime/osp_graph.jac",
     "runtime/osp_graph_sv.jac",
     "runtime/osp_model.jac",
+    "runtime/osp_tag.jac",
     "lib/jaclib.jac",
     "compiler/driver/mtp.jac",
     "cli/cli_boot.jac",

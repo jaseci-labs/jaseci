@@ -350,6 +350,25 @@ jobs:
         working-directory: jac
         run: zig build fetch-llvm $DTARGET --summary all
 
+      # The shipped macOS binary's launcher stub is linked by Jac's own Mach-O
+      # linker, so a mislinked image dies in native code with nothing but a
+      # signal number (#8302, #8307, #8313, #8800 -- four release cycles spent
+      # on a bare exit 139). ReportCrash turns that into a symbolicated .ips,
+      # which the on-failure step below prints -- but only if the agent is
+      # loaded, and the hosted image does not guarantee that. Best-effort and
+      # before the build, because a report is only written for a crash that
+      # happens after the agent is up.
+      - name: Arm macOS crash reporting (so a native fault names itself)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          set +e
+          launchctl load -w /System/Library/LaunchAgents/com.apple.ReportCrash.plist
+          sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.ReportCrash.Root.plist
+          defaults write com.apple.CrashReporter DialogType none
+          launchctl list | grep -i reportcrash
+          exit 0
+
       - name: Build the jac binary (one command)
         working-directory: jac
         # On a dev-channel shim-cache hit, stage the shim outside its in-tree
@@ -408,6 +427,88 @@ jobs:
           env -i HOME="$WORK" PATH=/usr/bin:/bin "$BIN" run "$WORK/leak.jac" | grep -qx 'child None'
           # User-supplied PYTHONPATH: passes through to children untouched.
           env -i HOME="$WORK" PATH=/usr/bin:/bin PYTHONPATH=/user/own "$BIN" run "$WORK/leak.jac" | grep -qx 'child /user/own'
+
+      # A macOS leg that dies in native code must say WHERE. On any failure
+      # above this: (1) print every crash report the OS wrote -- the .ips
+      # carries the faulting thread's frames plus dyld's own message, neither
+      # of which reaches the process's stderr on modern macOS; (2) dump the
+      # shipped binary's Mach-O header and load commands, which is what names a
+      # mislinked image; (3) replay `jac --version` under lldb for a
+      # symbolicated backtrace. Gated on failure(), so a green leg pays
+      # nothing.
+      - name: Name the macOS crash (crash reports + header dump + lldb replay)
+        if: failure() && runner.os == 'macOS'
+        continue-on-error: true
+        working-directory: jac
+        run: |
+          set +e
+          REPORTS="$HOME/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports"
+
+          # ReportCrash writes asynchronously; poll rather than sleep blind.
+          for _ in $(seq 1 30); do
+            ls $REPORTS 2>/dev/null | grep -qE '\.(ips|crash)$' && break
+            sleep 1
+          done
+
+          echo "::group::macOS crash reports"
+          FOUND=0
+          for d in $REPORTS; do
+            [ -d "$d" ] || continue
+            for f in "$d"/*.ips "$d"/*.crash; do
+              [ -f "$f" ] || continue
+              FOUND=1
+              echo "===== $f"
+              cat "$f"
+              echo
+            done
+          done
+          [ "$FOUND" = 1 ] || echo "(no crash report -- ReportCrash is not loaded on this image)"
+          echo "::endgroup::"
+
+          BIN="$PWD/zig-out/bin/jac"
+          if [ -f "$BIN" ]; then
+            echo "::group::Mach-O header + load commands of the shipped binary"
+            otool -hv "$BIN"
+            otool -l "$BIN" | head -200
+            echo "::endgroup::"
+
+            echo "::group::lldb replay of jac --version"
+            WORK="$(mktemp -d)"
+            perl -e 'alarm 240; exec @ARGV' \
+              lldb --batch -o run -k "thread backtrace all" -k "image list -o -f" \
+                   -k quit -- "$BIN" --version 2>&1 | tail -80
+            echo "::endgroup::"
+          else
+            echo "(no zig-out/bin/jac: the build itself did not get that far)"
+          fi
+          exit 0
+
+      - name: Collect the macOS crash evidence
+        if: failure() && runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          set +e
+          OUT="$RUNNER_TEMP/jac-crash-evidence"
+          mkdir -p "$OUT"
+          for d in "$HOME/Library/Logs/DiagnosticReports" /Library/Logs/DiagnosticReports; do
+            [ -d "$d" ] && cp -f "$d"/*.ips "$d"/*.crash "$OUT"/ 2>/dev/null
+          done
+          BIN="$GITHUB_WORKSPACE/jac/zig-out/bin/jac"
+          if [ -f "$BIN" ]; then
+            otool -l "$BIN" > "$OUT/jac.otool" 2>/dev/null
+            nm -n "$BIN" > "$OUT/jac.nm" 2>/dev/null
+          fi
+          ls -la "$OUT"
+          exit 0
+
+      - name: Upload the macOS crash evidence
+        if: failure() && runner.os == 'macOS'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-crash-evidence-${{ matrix.platform }}
+          path: ${{ runner.temp }}/jac-crash-evidence
+          if-no-files-found: ignore
 
       # Guards #7082: neither the launcher nor the LLVMPY_* shim may reference
       # a glibc symbol newer than the zig_target floor. Release channel only:

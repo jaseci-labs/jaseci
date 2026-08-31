@@ -4,7 +4,12 @@ glob _NOGC_OSP_ENGINE_STRUCTS: tuple = (
          "WalkerDesc",
          "NodeDesc",
          "WalkScope",
-         "OspRuntime"
+         "OspRuntime",
+         "Frame",
+         "OspEngine",
+         "OspGraph",
+         "Adj",
+         "EdgeRow"
      ),
      _NOGC_CONTAINER_DROP_OPS: tuple = (
          "scope_exit",
@@ -1975,6 +1980,10 @@ impl NaIRGenRefcount._nogc_free_scratch(val: ir.Value, op: str) -> None {
 impl NaIRGenRefcount._nogc_osp_skip(val: ir.Value) -> bool {
     if not getattr(self.ir_in.gen, "nogc_enforced", False) {
         return False;
+    }
+    import os;
+    if os.path.basename(self.ir_in.loc.mod_path or "").startswith("osp_core_") {
+        return True;
     }
     _tn = self._struct_ptr_pointee_name(val);
     if _tn is None {
