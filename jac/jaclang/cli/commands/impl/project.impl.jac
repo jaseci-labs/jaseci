@@ -672,7 +672,11 @@ impl install(
         if enabled
     ];
     python = get_python_provider();
-    ctx = InstallContext(verbose=verbose, install_flags=install_flags);
+    ctx = InstallContext(
+        verbose=verbose,
+        install_flags=install_flags,
+        image_identity=os.environ.get("JAC_VENV_CACHE_IMAGE_ID", "")
+    );
     global_ctx = InstallContext(
         verbose=verbose, install_flags=install_flags, target="global"
     );

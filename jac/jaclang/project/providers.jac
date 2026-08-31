@@ -13,11 +13,17 @@ import from jaclang.project.pyvenv {
 
 glob VENV_DEPS_MARKER: str = ".jac-deps-hash";
 
-def _venv_deps_hash(specs: list[str]) -> str {
-    return hashlib.sha256("\n".join(sorted(specs)).encode()).hexdigest();
+def _venv_deps_hash(specs: list[str], image_identity: str = "") -> str {
+    payload = "\n".join(sorted(specs));
+    if image_identity {
+        payload = image_identity + "\n" + payload;
+    }
+    return hashlib.sha256(payload.encode()).hexdigest();
 }
 
-def _venv_deps_stale(venv_dir: Path, specs: list[str]) -> bool {
+def _venv_deps_stale(
+    venv_dir: Path, specs: list[str], image_identity: str = ""
+) -> bool {
     if not venv_dir.exists() {
         return True;
     }
@@ -25,12 +31,19 @@ def _venv_deps_stale(venv_dir: Path, specs: list[str]) -> bool {
     if not marker.exists() {
         return True;
     }
-    return marker.read_text(encoding="utf-8").strip() != _venv_deps_hash(specs);
+    return (
+        marker.read_text(encoding="utf-8").strip()
+        != _venv_deps_hash(specs, image_identity)
+    );
 }
 
-def _write_venv_deps_marker(venv_dir: Path, specs: list[str]) {
+def _write_venv_deps_marker(
+    venv_dir: Path, specs: list[str], image_identity: str = ""
+) {
     venv_dir.mkdir(parents=True, exist_ok=True);
-    (venv_dir / VENV_DEPS_MARKER).write_text(_venv_deps_hash(specs), encoding="utf-8");
+    (venv_dir / VENV_DEPS_MARKER).write_text(
+        _venv_deps_hash(specs, image_identity), encoding="utf-8"
+    );
 }
 
 glob EMIT_EJECT: str = "eject",
@@ -75,7 +88,8 @@ obj DependencyPlan {
 obj InstallContext {
     has verbose: bool = False,
         install_flags: list[str] = [],
-        target: str = "project";
+        target: str = "project",
+        image_identity: str = "";
 
     def is_dry_run -> bool {
         return "--dry-run" in self.install_flags;
@@ -332,7 +346,9 @@ obj PythonProvider(EcosystemProvider) {
         }
         venv_dir = self._project_venv(config);
         is_dry_run = ctx.is_dry_run();
-        if not is_dry_run and not _venv_deps_stale(venv_dir, specs) {
+        if (
+            not is_dry_run and not _venv_deps_stale(venv_dir, specs, ctx.image_identity)
+        ) {
             return True;
         }
         ensure_venv(venv_dir, ctx.verbose);
@@ -350,7 +366,7 @@ obj PythonProvider(EcosystemProvider) {
                 }
                 return True;
             }
-            _write_venv_deps_marker(venv_dir, specs);
+            _write_venv_deps_marker(venv_dir, specs, ctx.image_identity);
             newly_installed: list[tuple[str, str]] = [];
             (after_ok, after_set) = self._snapshot_installed(config);
             if after_ok and before_snapshot_ok {
