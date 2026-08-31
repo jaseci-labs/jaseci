@@ -14,10 +14,12 @@ impl traverse_graph(
     edge_limit: int
 ) -> None {
     import from jaclang.runtime.archetype { EdgeAnchor }
-    import from jaclang.runtime.osp_graph_sv { sv_live_edges, sv_register_hydrated }
+    import from jaclang.runtime.osp_graph_sv { sv_register_hydrated }
+    import from jaclang.runtime.runtime { JacRuntimeInterface }
     nd_anchor = nd.__jac__;
     sv_register_hydrated(nd_anchor, fetch_stubs=True);
-    for `edge in sv_live_edges(nd_anchor, 3, None, True) {
+    for edge_arch in JacRuntimeInterface.hop(nd, 3, None, True) {
+        `edge = edge_arch.__jac__;
         if not isinstance(`edge, EdgeAnchor) {
             continue;
         }

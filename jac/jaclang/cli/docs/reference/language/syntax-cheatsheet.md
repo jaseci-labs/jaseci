@@ -869,10 +869,15 @@ with entry {
     root ++> a ++> b ++> c;
 
     # --- Delete edge ---
-    a del --> b;
+    a del --> b;                            # untyped disconnect
+    del [edge a ->: Friendship :-> b];      # destroy the edges a query yields
 
     # --- Delete node ---
-    del c;
+    del c;                                  # destroys the node and unbinds c
+    del index["c"];                         # destroys the node, then removes the entry
+
+    # --- Drop a reference without destroying ---
+    index["c"] = None;                      # rebind to drop, del to destroy
 }
 
 

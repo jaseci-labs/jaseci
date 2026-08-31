@@ -774,10 +774,8 @@ with entry {
     alice del --> bob;
 
     # Delete a specific TYPED edge: pin it by both endpoints with an
-    # [edge ...] reference, then del the edge objects
-    for e in [edge alice ->:Friend:-> bob] {
-        del e;
-    }
+    # [edge ...] reference and del the query itself
+    del [edge alice ->:Friend:-> bob];
 
     # Delete node
     del bob;
@@ -794,6 +792,52 @@ walker Cleanup {
     }
 }
 ```
+
+#### What `del` Means
+
+One rule: `del` destroys every graph object its target holds, then, when the
+target is a location, releases that location exactly as Python would. The
+shape of the target decides only whether there is something to release; what
+dies is decided by what the target holds.
+
+| Target | Destroys | Then releases |
+| --- | --- | --- |
+| a name, `del n` | what `n` holds | unbinds the name |
+| an attribute, `del o.x` | what `o.x` holds | `__delattr__` |
+| a subscript, `del d["k"]`, `del L[i]`, `del L[i:j]` | what the entry or slice holds | `__delitem__` |
+| a target list, `del (a, b)`, `del [a, b]`, `del a, b` | each target in turn | each target in turn |
+| any other expression: a call, an `[edge ...]` query, a traversal, a comprehension, a set literal | every graph object it yields | nothing, there is no location |
+
+A node held in a name, a slot, a dict entry or a list slice meets the same
+fate at each, and binding a query to a local does not change what `del` means:
+
+```jac
+with entry {
+    index = {"alice": alice};
+    del index["alice"];             # destroys alice, then removes the key
+    del [edge a ->:Friend:-> b];    # destroys those edges
+    del [a -->];                    # destroys every successor node
+    es = [edge a ->:Friend:->];
+    del es;                         # destroys the same edges, then unbinds es
+    del stale_edges(a);             # destroys whatever the call returned
+}
+```
+
+To drop a reference without destroying what it points at, rebind it:
+`index = {}` or `holder.slot = None`. **Rebind to drop, `del` to destroy.**
+
+On every target Python accepts, Jac does what Python does, in Python's order,
+with Python's exceptions. Jac adds three things: graph objects are destroyed;
+the forms Python rejects ("cannot delete function call") are accepted as
+destroy requests, and they are strict, so a value target that yields anything
+other than graph objects raises `TypeError` before destroying anything; and a
+location is read once before it is released, which only a side-effecting
+`__getitem__` or property could notice.
+
+A destroyed object is dead, not gone. Its fields still read, but it has no
+edges, it is not in the store, and it does not come back: connecting to it,
+spawning on it, or visiting it raises, and a walker whose queue already holds
+it skips it. `del root` is rejected.
 
 #### Cascade Deletion Pattern
 
