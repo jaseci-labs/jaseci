@@ -44,10 +44,8 @@ obj KubernetesRealizer {
             return None;
         }
         console.print(
-            "This app pins a jac release other than the one running here. "
-            f"Running the whole deploy on it, so the manifests and the "
-            f"database match the pod ({pinned}).",
-            style="cyan"
+            "Deploying with the jac release this app pins, not the one "
+            f"running this deploy ({pinned})."
         );
         env = release_binary_env();
         env[DELEGATED_ENV] = "1";
