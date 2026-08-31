@@ -7,10 +7,11 @@ pins one of them shut:
 
   A. `osp_graph`'s node table hashed its keys as `(k >> 4) ^ (k >> 16)`, which
      is a fine hash for 16-byte-aligned native addresses and a catastrophic one
-     for the dense integer handles the bytecode and JS drivers mint: it
-     discards the low four bits, so sixteen consecutive handles share a bucket,
-     the resulting home buckets are contiguous, and linear probing merges them
-     into one run. Insert cost was ~n/2 probes -- quadratic graph build.
+     for the dense integer handles the bytecode and JS drivers mint. The
+     open-addressed tables that made this a tunable hazard are gone -- the
+     kernel stores adjacency and the edge-handle index in dict/set containers
+     (#8775) -- so flatness is pinned by the wall-clock ratio tests and by a
+     bookkeeping invariant over the row store, not by replaying a probe loop.
 
   B. Every anchor eagerly minted a `uuid4()` and a `Permission` with two
      `Access` objects, and the sv driver keyed its registries by `str(id)`.
@@ -86,143 +87,6 @@ def _ratio(small: float, big: float) -> float {
     return big / small if small > 0.0 else 1000000.0;
 }
 
-"""Average probes per insert for `keys`, replaying the kernel's own insert loop
-against its own hash and its own capacity schedule.
-
-This is the deterministic form of "connect is flat in the size of the graph":
-the wall-clock tests below can only ever be a smoke check, because a CI runner
-under memory pressure adds allocation cost that has nothing to do with the
-kernel, but probe count is exact and is what the hash actually decides.
-"""
-def _probes_per_insert(keys: list[int]) -> float {
-    slots: list[int] = [];
-    cap = 0;
-    live = 0;
-    total = 0;
-    for k in keys {
-        if cap == 0 or live * 4 >= cap * 3 {
-            old = slots;
-            ncap = cap * 2 if cap > 0 else 1024;
-            slots = [];
-            i = 0;
-            while i < ncap {
-                slots.append(0);
-                i += 1;
-            }
-            cap = ncap;
-            m = cap - 1;
-            for ok in old {
-                if ok != 0 {
-                    h = _g._hslot(ok, m);
-                    while slots[h] != 0 {
-                        h = (h + 1) & m;
-                    }
-                    slots[h] = ok;
-                }
-            }
-        }
-        m = cap - 1;
-        h = _g._hslot(k, m);
-        probes = 1;
-        while True {
-            cur = slots[h];
-            if cur == k {
-                break;
-            }
-            if cur == 0 {
-                slots[h] = k;
-                live += 1;
-                break;
-            }
-            h = (h + 1) & m;
-            probes += 1;
-        }
-        total += probes;
-    }
-    return float(total) / float(len(keys));
-}
-
-"""Node-table keys in the order `sv_conn` mints them: one handle per edge, then
-one per endpoint the first time it is seen, with only the endpoints reaching
-the node table."""
-def _sv_handles(edges: int) -> list[int] {
-    out: list[int] = [];
-    of_node: dict[int, int] = {};
-    h = 0;
-    for i in range(edges) {
-        h += 1;
-        for nd in [i, i + 1] {
-            if nd not in of_node {
-                h += 1;
-                of_node[nd] = h;
-            }
-        }
-        out.append(of_node[i]);
-        out.append(of_node[i + 1]);
-    }
-    return out;
-}
-
-# ---------------------------------------------------------------------------
-# A. The node table hashes dense handles as well as it hashes pointers.
-# ---------------------------------------------------------------------------
-test "the node-table hash scatters dense handles instead of clustering them" {
-    for cap in [1024, 4096, 65536] {
-        m = cap - 1;
-        load = (cap * 3) // 4;
-        seen: set[int] = set();
-        k = 1;
-        while k <= load {
-            seen.add(_g._hslot(k, m));
-            k += 1;
-        }
-        assert len(seen) == load , (
-            f"cap={cap}: {load} consecutive handles landed in only "
-            f"{len(seen)} buckets; the sv and JS drivers mint handles densely, "
-            "so a hash that drops their low bits turns every insert into a "
-            "walk down one merged probe run"
-        );
-    }
-}
-
-test "aligned addresses still scatter after the dense-handle fix" {
-    # The native driver keys the same table by 16-byte-aligned struct
-    # addresses. Whatever fixes dense handles must not regress those.
-    m = 65535;
-    base = 0x7f0000000000;
-    seen: set[int] = set();
-    i = 0;
-    while i < 24576 {
-        seen.add(_g._hslot(base + i * 48, m));
-        i += 1;
-    }
-    assert len(seen) > 20000 , (
-        f"24576 aligned addresses collapsed into {len(seen)} buckets"
-    );
-}
-
-test "the node table costs a constant number of probes per insert" {
-    for n in [2000, 16000, 64000] {
-        dense: list[int] = [];
-        k = 1;
-        while k <= n {
-            dense.append(k);
-            k += 1;
-        }
-        p = _probes_per_insert(dense);
-        assert p < 1.05 , (
-            f"{n} dense handles cost {p:.2f} probes per insert; the fold is "
-            "injective below the table capacity, so they must not collide "
-            "at all (the shipped hash cost ~n/2)"
-        );
-        q = _probes_per_insert(_sv_handles(n));
-        assert q < 4.0 , (
-            f"the handle pattern sv_conn actually mints cost {q:.2f} probes "
-            f"per insert at {n} edges (the shipped hash cost ~n/2)"
-        );
-    }
-}
-
 test "connecting a transient chain stays flat as the graph grows" {
     # Wall-clock, so: warm past both sizes first, so no table growth lands in a
     # timed window, and take the best of three runs, so a scheduler or
@@ -244,20 +108,28 @@ test "connecting a transient chain stays flat as the graph grows" {
     );
 }
 
-test "the node table counts occupancy instead of storing one zero per key" {
-    _connect(_chain(2000));
-    assert len(_g._nt_cnt) == 1 , (
-        f"_nt_cnt holds {len(_g._nt_cnt)} cells; occupancy is a count, not a "
-        "list whose length happens to be the count"
+test "edge rows and the handle index agree after connect and detach" {
+    g = _g.DEFAULT_GRAPH;
+    rows0 = len(g.rows) - len(g.free_rows);
+    handles0 = len(g.row_of);
+    nodes = _chain(2000);
+    _connect(nodes);
+    assert (len(g.rows) - len(g.free_rows)) - rows0 == 1999 , (
+        f"connecting 1999 edges left {len(g.rows) - len(g.free_rows) - rows0} "
+        "live rows; every heavy edge is exactly one live row"
     );
-    live = 0;
-    for k in _g._nt_key {
-        if k != 0 {
-            live += 1;
-        }
-    }
-    assert _g._nt_cnt[0] == live , (
-        f"occupancy counter says {_g._nt_cnt[0]}, table holds {live} keys"
+    assert len(g.row_of) - handles0 == 1999 , (
+        f"the edge-handle index grew by {len(g.row_of) - handles0} for 1999 "
+        "edges; disconnect resolves an edge through this index, so it must "
+        "hold exactly the live handles"
+    );
+    _detach(nodes);
+    assert len(g.rows) - len(g.free_rows) == rows0 , (
+        "detaching every edge left live rows behind; retired rows must return "
+        "to the free list"
+    );
+    assert len(g.row_of) == handles0 , (
+        "detaching every edge left entries in the edge-handle index"
     );
 }
 
