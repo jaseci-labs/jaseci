@@ -15,6 +15,9 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 import from jaclang.scale.deploy.autoscale.http_activation_config {
     build_http_activation_spec
 }
+import from jaclang.scale.runtime.context.service_routing {
+    resolve_http_activation_config
+}
 import from enum { StrEnum }
 
 
@@ -1340,14 +1343,9 @@ obj ManifestBuilder {
     }
 
     def _get_http_activation_config(svc_name: str) -> dict[str, any] | None {
-        svc: dict[str, any] = self._service_config(svc_name);
-        per_service: dict[str, any] = svc.get("http_activation", {});
-        merged: dict[str, any] = dict(self.k8s_config.http_activation);
-        merged.update(per_service);
-        if not merged.get("enabled", False) {
-            return None;
-        }
-        return merged;
+        return resolve_http_activation_config(
+            dict(self.k8s_config.http_activation), self._ms_cfg(), svc_name
+        );
     }
 
     def _build_ingress_manifest(ingress_cfg: dict[str, any]) -> dict[str, any] | None {

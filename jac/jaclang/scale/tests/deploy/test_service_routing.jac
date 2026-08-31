@@ -8,6 +8,7 @@ import from jaclang.scale.runtime.context.service_routing {
     ServiceRoute,
     KEDA_INTERCEPTOR_SERVICE_ADDRESS,
     k8s_service_dns_host,
+    resolve_interceptor_service_address,
     resolve_http_activation_config,
     resolve_service_route,
     build_k8s_service_routes
@@ -16,6 +17,8 @@ import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBu
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
+import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
+import from jaclang.scale.deploy.autoscale.keda_autoscaler { KEDAAutoscaler }
 
 
 # --- resolve_http_activation_config: precedence and enabled-gating ----------
@@ -70,6 +73,47 @@ test "activated: URL is the interceptor's address, host header is the real Servi
     );
     assert route.url == f"http://{KEDA_INTERCEPTOR_SERVICE_ADDRESS}";
     assert route.host_header == "orders-app-service.shop.svc.cluster.local";
+}
+
+test "a configured interceptor address matches what AutoscalerFactory hands the KEDA autoscaler" {
+    # A cluster running the HTTP Add-on under a non-default Helm release or
+    # namespace sets [scale.kubernetes.http_activation].interceptor_service_address.
+    # If the runtime resolver and the deploy-time autoscaler each derived
+    # that address independently, one could point at a service the other
+    # never created -- exactly the drift class this PR exists to remove.
+    custom_address = "keda-add-ons-http-interceptor-proxy.custom-ns:8080";
+    config = {"http_activation": {"interceptor_service_address": custom_address}};
+
+    autoscaler = AutoscalerFactory.create("keda", config);
+    assert isinstance(autoscaler, KEDAAutoscaler);
+    assert autoscaler.interceptor_service_address == custom_address , (
+        "AutoscalerFactory must thread the configured address into the "
+        "autoscaler it builds, not silently fall back to the default"
+    );
+    assert autoscaler.interceptor_service_address != KEDA_INTERCEPTOR_SERVICE_ADDRESS;
+
+    route = resolve_service_route(
+        "orders_app",
+        "shop",
+        8000,
+        {
+            "http_activation": {
+                "enabled": True,
+                "interceptor_service_address": custom_address
+            }
+        },
+        {}
+    );
+    assert route.url == f"http://{custom_address}";
+    assert route.url == f"http://{autoscaler.interceptor_service_address}";
+}
+
+test "resolve_interceptor_service_address falls back to the default when unset" {
+    assert resolve_interceptor_service_address({}) == KEDA_INTERCEPTOR_SERVICE_ADDRESS;
+    default_via_empty_activation = resolve_interceptor_service_address(
+        {"http_activation": {}}
+    );
+    assert default_via_empty_activation == KEDA_INTERCEPTOR_SERVICE_ADDRESS;
 }
 
 test "an underscore-bearing jac.toml name is RFC1123-sanitized the same way on both sides" {
@@ -146,4 +190,46 @@ test "known gap: deploy-time env-var baking stays ClusterIP-direct even for an a
         "if this ever changes, the known-gap note above (and the doc update "
         "in jac-scale-kubernetes.md) needs to change with it"
     );
+}
+
+
+# --- Parity with ManifestBuilder._get_http_activation_config: both now go --
+# through the same resolve_http_activation_config merge. This exercises the
+# delegation directly, so a future edit to one side without the other would
+# fail here instead of only showing up as silent drift in production.
+
+test "ManifestBuilder._get_http_activation_config agrees with resolve_http_activation_config for a per-service override" {
+    cfg = KubernetesConfig(
+        app_name="jac-shop",
+        namespace="shop",
+        container_port=8000,
+        http_activation={"enabled": True, "target_port": 8080, "concurrency_target": 10}
+    );
+    ms_cfg = {"services": {"orders_app": {"http_activation": {"target_port": 9090}}}};
+    builder = ManifestBuilder(k8s_config=cfg, microservices_config=ms_cfg);
+
+    via_builder = builder._get_http_activation_config("orders_app");
+    via_resolver = resolve_http_activation_config(
+        dict(cfg.http_activation), builder._ms_cfg(), "orders_app"
+    );
+    assert via_builder == via_resolver;
+    assert via_builder["target_port"] == 9090 , "per-service override must win on both paths";
+}
+
+test "ManifestBuilder._get_http_activation_config agrees with resolve_http_activation_config for a per-service opt-out" {
+    cfg = KubernetesConfig(
+        app_name="jac-shop",
+        namespace="shop",
+        container_port=8000,
+        http_activation={"enabled": True, "target_port": 8080, "concurrency_target": 10}
+    );
+    ms_cfg = {"services": {"orders_app": {"http_activation": {"enabled": False}}}};
+    builder = ManifestBuilder(k8s_config=cfg, microservices_config=ms_cfg);
+
+    via_builder = builder._get_http_activation_config("orders_app");
+    via_resolver = resolve_http_activation_config(
+        dict(cfg.http_activation), builder._ms_cfg(), "orders_app"
+    );
+    assert via_builder is None;
+    assert via_builder == via_resolver;
 }
