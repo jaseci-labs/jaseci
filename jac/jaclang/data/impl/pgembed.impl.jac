@@ -685,6 +685,35 @@ impl PgRuntime._wait_ready(timeout: float = 60.0) -> None {
 }
 
 
+glob _SQLSTATE_DUPLICATE_DATABASE = "42P04",
+     _SQLSTATE_UNIQUE_VIOLATION = "23505";
+
+
+def _error_fields(err: object) -> dict {
+    for arg in getattr(err, "args", ()) {
+        if isinstance(arg, dict) {
+            return arg;
+        }
+    }
+    return {};
+}
+
+
+def _is_duplicate_database(err: object, name: str) -> bool {
+    fields = _error_fields(err);
+    code = str(fields.get("C") or "");
+    if code == _SQLSTATE_DUPLICATE_DATABASE {
+        return True;
+    }
+
+    if code == _SQLSTATE_UNIQUE_VIOLATION {
+        return "pg_database" in str(fields.get("t") or "")
+            or "pg_database" in str(fields.get("n") or "");
+    }
+    return False;
+}
+
+
 impl PgRuntime._ensure_database -> None {
     import from jaclang.data.dbcatalog {
         connect_admin,
@@ -698,7 +727,14 @@ impl PgRuntime._ensure_database -> None {
         );
         created = not rows;
         if created {
-            conn.run(f'CREATE DATABASE "{self.database}"');
+            try {
+                conn.run(f'CREATE DATABASE "{self.database}"');
+            } except Exception as e {
+                if not _is_duplicate_database(e, self.database) {
+                    raise;
+                }
+                created = False;
+            }
         }
         record_database(conn, self.database, self.kind, self.owner_path);
         if self.kind == DbKind.SCRATCH {
