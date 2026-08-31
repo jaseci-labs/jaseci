@@ -21,7 +21,9 @@ import from jaclang.byllm.exceptions {
     CompactionNotEffectiveError
 }
 import from jaclang.byllm.types {
+    Audio,
     CompletionResult,
+    Image,
     LiteLLMMessage,
     MockToolCall,
     MockRawResponse,
@@ -34,7 +36,7 @@ import from jaclang.byllm.types {
     IterationAction,
     IterationContext,
     content_preview,
-    reroute_tool_images_to_user_message
+    reroute_tool_media_to_user_message
 }
 import from jaclang.byllm.config_loader { get_byllm_config }
 import from jaclang.byllm.telemetry { _emit_agent_telemetry, _current_invocation_id }
@@ -44,6 +46,29 @@ import from jaclang.byllm.parallel {
     _PARALLEL_TOOL_HINT
 }
 import from jaclang.byllm.schema { inject_schema_hint }
+import from jaclang.byllm.media_routing {
+    KIND_AUDIO,
+    KIND_IMAGE,
+    ROUTE_CHAT,
+    ROUTE_IMAGE_ENDPOINT,
+    ROUTE_SPEECH_ENDPOINT,
+    ROUTE_UNSUPPORTED,
+    ROUTE_VIDEO_ENDPOINT,
+    audio_output_params,
+    media_kind,
+    resolve_route,
+    route_error
+}
+import from jaclang.byllm.media_gen {
+    agenerate_image,
+    agenerate_video,
+    asynthesize_speech,
+    atranscribe,
+    generate_image,
+    generate_video,
+    synthesize_speech,
+    transcribe
+}
 import from jaclang.byllm.tool_protocol { inject_tool_hint, recover_tool_calls }
 
 glob _byllm_config = get_byllm_config(),

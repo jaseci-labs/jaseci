@@ -470,6 +470,9 @@ obj _MockMTRun {
         tools: list = [],
         stream: bool = False,
         mtir: any = None,
+        # make_model_params consults the declared return type to decide whether
+        # to ask the model for audio output; None is the "plain text" case.
+        resp_type: any = None,
         messages: list = [];
 
     def get_msg_list -> list {

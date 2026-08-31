@@ -2,6 +2,7 @@ import from jaclang.byllm.llm { MockLLM, Model, ModelPool }
 import from jaclang.byllm.mtir { MTIR, MTRuntime }
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.byllm.types {
+    Audio,
     Image,
     IterationAction,
     IterationContext,
@@ -42,6 +43,7 @@ glob `by = JacRuntime.`by,
          'McpError',
          'McpClient',
          'McpTool',
+         'Audio',
          'Image',
          'IterationAction',
          'IterationContext',
