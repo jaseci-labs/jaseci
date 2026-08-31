@@ -1,3 +1,4 @@
+import from jaclang.compiler.frontend.relations { Codespace }
 import from jaclang.compiler.frontend.unitree {
     Ability,
     ArchHas,
@@ -6,7 +7,6 @@ import from jaclang.compiler.frontend.unitree {
     AstAsyncNode,
     AstSymbolNode,
     AtomTrailer,
-    Codespace,
     ConnectOp,
     ContextAwareNode,
     EdgeOpRef,

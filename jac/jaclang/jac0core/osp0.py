@@ -67,13 +67,37 @@ def _rt() -> Any:
 
 
 _NP_TAG = 1 << 62
+_OV_HS = None
+
+
+def _overlay_hs():
+    """The provider's set of record handles that carry overlay edges (edges
+    with a native peer). Loaded lazily; empty until the provider installs."""
+    global _OV_HS
+    if _OV_HS is None:
+        try:
+            import jaclang.compiler.store.provider as _prov_mod
+
+            _OV_HS = _prov_mod.OV_HS
+        except Exception:
+            return None
+    return _OV_HS
 
 
 def _native_provider(origin: Any):
     """Native-backed IR views (bit-62-tagged handles) route to the store
-    adjacency provider; every other node keeps osp0's light-tier fast paths
-    (#8789 Phase 4)."""
-    if getattr(origin, "_ts", 0) & _NP_TAG:
+    adjacency provider, and so do record nodes whose edges touch a native
+    peer (those live in the provider overlay, invisible to the light tier);
+    every other node keeps osp0's light-tier fast paths (#8789 Phase 4)."""
+    ts = getattr(origin, "_ts", None)
+    if ts is None:
+        return None
+    if ts & _NP_TAG:
+        from jaclang.runtime.adj_provider import SLOT
+
+        return SLOT.provider
+    hs = _overlay_hs()
+    if hs and ts in hs:
         from jaclang.runtime.adj_provider import SLOT
 
         return SLOT.provider

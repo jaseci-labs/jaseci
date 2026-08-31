@@ -173,6 +173,7 @@ node UniNode {
     def detached_copy -> UniNode;
     def __deepcopy__(memo: dict) -> UniNode;
     def _attach(child: UniNode, role: type[Role]) -> None;
+    def _role_clear(role: type[Role]) -> None;
     def _children -> list[UniNode];
     def _role_shaped(role: type[Role], found: list[UniNode]) -> any;
     def _role_set(role: type[Role], value: any) -> None;

@@ -337,7 +337,12 @@ def install_schema() -> None:
                 per[f.name] = ("value", f.default)
             else:
                 ann = str(f.type).lstrip("(").strip()
-                if ann.startswith("list"):
+                # A nullable annotation means None is the meaningful unset
+                # state (lazy caches test `is None` to build on demand); only
+                # non-nullable collections get fresh-empty factories.
+                if "None" in (p.strip(" ()") for p in ann.split("|")):
+                    per[f.name] = ("value", None)
+                elif ann.startswith("list"):
                     per[f.name] = ("factory", list)
                 elif ann.startswith("dict"):
                     per[f.name] = ("factory", dict)
@@ -462,7 +467,6 @@ def install_schema() -> None:
         "SymOf", "Defines", "Uses", "InScope", "ScopePrimary", "ScopeOverload",
         "ScopeChild", "ScopeParent", "CfgSucc", "CfgTrue", "CfgFalse",
         "PlacedIn", "DecidedCodespace", "CalleeDecl", "Absorbs",
-        "AttachedComment",
     ]
     for ename in annotation_edges:
         ecls = getattr(relations, ename, None)

@@ -7,6 +7,7 @@ glob EKIND_OF: dict = {},
      EXPAND: dict = {},
      OV_OUT: dict = {},
      OV_IN: dict = {},
+     OV_HS: set = set(),
      NP_TAG: int = 4611686018427387904;
 
 def register_edge(cls: type, ekind: int, is_struct: bool) -> None {
@@ -87,6 +88,12 @@ def connect(
             if ((lts & NP_TAG) != 0) or ((rts & NP_TAG) != 0) {
                 OV_OUT.setdefault((lts, ekind, ), []).append(rts);
                 OV_IN.setdefault((rts, ekind, ), []).append(lts);
+                if (lts & NP_TAG) == 0 {
+                    OV_HS.add(lts);
+                }
+                if (rts & NP_TAG) == 0 {
+                    OV_HS.add(rts);
+                }
             } else {
                 _host.edge_add(lts, rts, ekind);
             }
@@ -159,7 +166,7 @@ def hop(origin: any, dir: int, edge_type: any, edges_only: bool) -> any {
             }
         }
     }
-    if edge_type is None or (h & NP_TAG) != 0 {
+    if edge_type is None or (h & NP_TAG) != 0 or (h in OV_HS) {
         import from jaclang.runtime.archetype { light_hop, light_hop_answers }
         anchor = origin.__jac__;
         if light_hop_answers(anchor, edge_type) {
@@ -199,6 +206,10 @@ def clear_edges(origin: any, dir: int, edge_type: any) -> any {
                 _host.adj_clear(h, ek, 1);
             }
         }
+    }
+    if (h & NP_TAG) == 0 and h in OV_HS {
+        import from jaclang.runtime.archetype { light_clear_hop }
+        light_clear_hop(origin.__jac__, dir, edge_type);
     }
     return True;
 }

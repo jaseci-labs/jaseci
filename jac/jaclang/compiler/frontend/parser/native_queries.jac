@@ -121,7 +121,6 @@ import from jaclang.compiler.frontend.relations {
     DecidedCodespace,
     CalleeDecl,
     Absorbs,
-    AttachedComment,
     TypeParamOf,
     TypeArgOf,
     ParamOf,
@@ -1089,14 +1088,6 @@ def:pub qo_Absorbs(n: UniNode) -> list[UniNode] {
 
 def:pub qi_Absorbs(n: UniNode) -> list[UniNode] {
     return [n <-:Absorbs:<-];
-}
-
-def:pub qo_AttachedComment(n: UniNode) -> list[UniNode] {
-    return [n ->:AttachedComment:->];
-}
-
-def:pub qi_AttachedComment(n: UniNode) -> list[UniNode] {
-    return [n <-:AttachedComment:<-];
 }
 
 def:pub qo_TypeParamOf(n: UniNode) -> list[UniNode] {
