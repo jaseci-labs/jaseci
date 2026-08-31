@@ -140,6 +140,52 @@ test "W0100: each invalid escape warns once" {
 # ══════════════════════════════════════════════════════════════════
 
 # ── E0025: JS arrow function syntax (=>) ───────────────────────────
+test "E0013: keyword as a field name carries prefix help" {
+    (prog, _) = parse_with_prog("obj X { has match: int = 1; }");
+    assert has_diagnostic_code(prog, "E0013");
+    hlp = [
+        a.help_text
+        for a in prog.errors_had
+        if a.code is not None and a.code.code == "E0013"
+    ];
+    assert hlp[0] is not None;
+    assert "prefix" in hlp[0];
+    assert "{" not in hlp[0];
+}
+
+test "E0013: message no longer advertises a closing backtick" {
+    (prog, _) = parse_with_prog("obj X { has match: int = 1; }");
+    msgs = [
+        a.msg
+        for a in prog.errors_had
+        if a.code is not None and a.code.code == "E0013"
+    ];
+    assert "`match)" not in msgs[0];
+}
+
+test "E0014: a backtick on a non-keyword still errors" {
+    (prog, _) = parse_with_prog("obj X { has `sandeepa: int = 1; }");
+    assert has_diagnostic_code(prog, "E0014");
+}
+
+test "E0015: a closing backtick is named, not an unexpected character" {
+    (prog, _) = parse_with_prog("obj X { has `match`: int = 1; }");
+    assert has_diagnostic_code(prog, "E0015");
+    assert count_diagnostic_code(prog, "E0015") == 1;
+    assert not has_diagnostic_code(prog, "E0105");
+}
+
+test "E0015: the closing backtick does not cascade" {
+    (prog, _) = parse_with_prog("obj X { has `match`: int = 1; }");
+    assert len(prog.errors_had) == 1;
+}
+
+test "kwesc: the prefix form parses clean" {
+    (prog, had_error) = parse_with_prog("obj X { has `match: int = 1; }");
+    assert not had_error;
+    assert len(prog.errors_had) == 0;
+}
+
 test "E0025: js arrow in jsx attribute slot" {
     src = 'cl { def:pub Foo() -> JsxElement {'
         + ' return <button onClick={e => doThing(e)}>Click</button>; } }';
