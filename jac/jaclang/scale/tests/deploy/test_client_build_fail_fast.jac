@@ -366,18 +366,30 @@ test "no pin, and a pin naming the running jac, download nothing" {
 
 
 test "a pinned release runs without the deploying jac's compiler redirects" {
-    saved = os.environ.get("JAC_DEV_SOURCE");
+    saved_dev = os.environ.get("JAC_DEV_SOURCE");
+    saved_exec = os.environ.get("JAC_EXECUTABLE");
     os.environ["JAC_DEV_SOURCE"] = "/the/checkout/that/ran/this/deploy";
+    os.environ["JAC_EXECUTABLE"] = "/the/jac/that/ran/this/deploy";
     try {
         env = release_binary_env();
     } finally {
-        _restore("JAC_DEV_SOURCE", saved);
+        _restore("JAC_DEV_SOURCE", saved_dev);
+        _restore("JAC_EXECUTABLE", saved_exec);
     }
 
     assert env.get("PATH") == os.environ.get("PATH") , "not a real environment";
-    # Inherited, these point a release binary at the deploying jac's compiler
-    # and interpreter, which is the pin defeated by the back door.
-    for leaked in ["JAC_DEV_SOURCE", "JAC_NO_PRECOMPILE", "PYTHONPATH", "PYTHONHOME"] {
+    # Inherited, these point a release binary at the deploying jac's compiler,
+    # interpreter or binary, which is the pin defeated by the back door.
+    # JAC_EXECUTABLE is the quietest of them: every reader falls back to
+    # `shutil.which("jac")` when the path is absent, so a leak through it
+    # resolves to some other jac instead of failing where a test would see it.
+    for leaked in [
+        "JAC_DEV_SOURCE",
+        "JAC_EXECUTABLE",
+        "JAC_NO_PRECOMPILE",
+        "PYTHONPATH",
+        "PYTHONHOME"
+    ] {
         assert leaked not in env , f"{leaked} reaches the pinned release";
     }
 }
