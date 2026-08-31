@@ -65,6 +65,16 @@ def _rt() -> Any:
     return JacRuntimeInterface
 
 
+def _npy_bridge_for(origin: Any):
+    """PyObject-unitree nodes (#8789): their adjacency lives in the native
+    kernel, so every jac0-tier graph op on one routes through the bridge."""
+    if getattr(type(origin), "__npy_native__", False):
+        from jaclang.compiler.frontend import npy_bridge
+
+        return npy_bridge.bridge()
+    return None
+
+
 def connect0(
     left: Any,
     right: Any,
@@ -78,6 +88,11 @@ def connect0(
     anchors' edge lists. Nothing here pins an anchor in a registry, so a
     released module is collectable.
     """
+    _l0 = left[0] if (isinstance(left, list) and left) else left
+    if not isinstance(_l0, list) and conn_assign is None and isinstance(edge, type):
+        _b = _npy_bridge_for(_l0)
+        if _b is not None:
+            return _b.connect(left, right, edge)
     if (
         conn_assign is None
         and isinstance(edge, type)
@@ -246,6 +261,10 @@ def hop0(origin: Any, dir: int, edge: Any = None, edges_only: bool = False) -> l
     of the compiler's tree) is answered here in one frame: a copy of the
     adjacency list, connection order kept, one entry per edge.
     """
+    if not isinstance(origin, list) and edge is not None and not edges_only:
+        _b = _npy_bridge_for(origin)
+        if _b is not None:
+            return _b.hop(origin, dir, edge)
     if edge is not None and dir != 3 and not edges_only and not isinstance(origin, list):
         me = origin.__jac__
         if not me.persistent and (
@@ -284,6 +303,9 @@ def clear0(origin: Any, dir: int, edge: Any = None) -> bool:
     set are detached one by one (destroyed, if persistent).
     """
     if edge is not None and not isinstance(origin, list):
+        _b = _npy_bridge_for(origin)
+        if _b is not None:
+            return _b.clear_edges(origin, dir, edge)
         me = origin.__jac__
         if not me.edges:
             subs = _edge_subtypes.get(edge)

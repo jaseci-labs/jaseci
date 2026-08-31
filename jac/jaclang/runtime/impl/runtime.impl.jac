@@ -1096,6 +1096,16 @@ impl JacGraph.connect(
     conn_assign: (tuple[(tuple, tuple)] | None) = None,
     edges_only: bool = False
 ) -> (NodeArchetype | list[NodeArchetype] | list[EdgeArchetype]) {
+    _npy_l = left[0] if (isinstance(left, `list) and left) else left;
+    if not isinstance(_npy_l, `list) and getattr(
+        `type(_npy_l), "__npy_native__", False
+    ) and isinstance(`edge, `type) and conn_assign is None and not undir {
+        import from jaclang.compiler.frontend.npy_bridge { bridge as _npy_bridge }
+        _npy_b = _npy_bridge();
+        if _npy_b is not None {
+            return _npy_b.connect(left, right, `edge);
+        }
+    }
     if (
         not undir
         and conn_assign is None
@@ -1162,6 +1172,15 @@ impl JacGraph.connect(
 impl JacGraph.hop(
     origin: any, dir: int, edge_type: (type | None) = None, edges_only: bool = False
 ) -> list {
+    if not isinstance(origin, `list) and getattr(
+        `type(origin), "__npy_native__", False
+    ) and edge_type is not None and not edges_only {
+        import from jaclang.compiler.frontend.npy_bridge { bridge as _npy_bridge }
+        _npy_b = _npy_bridge();
+        if _npy_b is not None {
+            return _npy_b.hop(origin, dir, edge_type);
+        }
+    }
     if not isinstance(origin, `list) {
         anchor = origin.__jac__;
         if (
@@ -1196,6 +1215,15 @@ impl JacGraph.hop(
 impl JacGraph.clear_edges(
     origin: any, dir: int, edge_type: (type | None) = None
 ) -> bool {
+    if not isinstance(origin, `list) and getattr(
+        `type(origin), "__npy_native__", False
+    ) and edge_type is not None {
+        import from jaclang.compiler.frontend.npy_bridge { bridge as _npy_bridge }
+        _npy_b = _npy_bridge();
+        if _npy_b is not None {
+            return _npy_b.clear_edges(origin, dir, edge_type);
+        }
+    }
     import from jaclang.runtime.osp_kernel { osp_forget }
     if edge_type is not None and not isinstance(origin, `list) {
         anchor = origin.__jac__;

@@ -325,6 +325,7 @@ class JacMetaImporter(MetaPathFinder, Loader):
 
         code = _bootstrap_compile(file_path, jac_source, impl_sources or None)
         exec(code, module.__dict__)
+        _npy_post_exec(module)
 
     def exec_module(self, module: ModuleType) -> None:
         """Execute the module by loading and executing its bytecode.
@@ -420,6 +421,7 @@ class JacMetaImporter(MetaPathFinder, Loader):
 
         # Execute the bytecode directly in the module's namespace
         exec(codeobj, module.__dict__)
+        _npy_post_exec(module)
 
         # An inferred-native module keeps its plain python side for python
         # callers (the preference must not route sv-side calls through the
@@ -486,3 +488,17 @@ class JacMetaImporter(MetaPathFinder, Loader):
                     )
 
         return None
+
+
+def _npy_post_exec(module: ModuleType) -> None:
+    """Rebind a native-scope module's unitree classes to their PyObject
+    types the moment the module finishes executing, before any importer
+    binds names out of it (#8789 PyObject-unitree)."""
+    name = getattr(module, "__name__", "")
+    if not name.startswith("jaclang.compiler.frontend"):
+        return
+    try:
+        from jaclang.compiler.frontend import npy_bridge
+    except ImportError:
+        return
+    npy_bridge.on_module_exec(module)

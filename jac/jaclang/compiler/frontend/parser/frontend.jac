@@ -108,9 +108,46 @@ def _finish_parse(
     return p_errs > 0 or lex_errs > 0;
 }
 
+def _native_parse_woven(
+    source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
+) -> (tuple | None) {
+    """Parse through the PyObject-unitree lib when it is loaded: the
+    returned Module and every diagnostic are Python objects built in native
+    memory, so the replay below is ordinary attribute access (#8789)."""
+    import jaclang.compiler.frontend.npy_bridge as _npy;
+    br = _npy.ensure_loaded();
+    if br is None {
+        return None;
+    }
+    module = br.parse(source_str, file_path);
+    if module is None {
+        return None;
+    }
+    p_errs = br.lib.np_err_count();
+    lex_errs = br.lib.np_lex_errs();
+    p_diags = br.lib.np_diags();
+    lex_diags = br.lib.np_lexdiags();
+    comments = br.lib.np_comments();
+    if p_errs == 0 and lex_errs == 0 {
+        for (a_src, a_path) in annexes {
+            if br.weave(module, a_src, a_path) != 0 {
+                return None;
+            }
+        }
+    }
+    had_error = _finish_parse(
+        module, p_errs, p_diags, comments, lex_diags, lex_errs, prog
+    );
+    return (module, had_error);
+}
+
 def parse_woven(
     source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
 ) -> tuple {
+    nat = _native_parse_woven(source_str, file_path, prog, annexes);
+    if nat is not None {
+        return nat;
+    }
     (module, had_error) = parse(source_str, file_path, prog=prog);
     if had_error or not annexes {
         return (module, had_error);
