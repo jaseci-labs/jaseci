@@ -294,8 +294,10 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
     _pyo_mod = arch.find_parent_of_type(Module);
     _pyo_path = _pyo_mod.loc.mod_path if _pyo_mod is not None else "";
     if _pyo_armed() and _pyo_in_scope(_pyo_path or "") {
-        pyobj_header_slots = 2;
-        current_idx = 2;
+        # {ob_refcnt, ob_type, instance __dict__} -- the dict slot gives
+        # Python-side passes their scratch attributes via tp_dictoffset.
+        pyobj_header_slots = 3;
+        current_idx = 3;
     }
     if needs_vtable or is_osp {
         vtable_ptr_slot = current_idx;

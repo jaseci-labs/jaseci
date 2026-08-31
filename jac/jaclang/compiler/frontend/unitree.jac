@@ -677,6 +677,7 @@ node Module(AstDocNode, UniScopeNode) {
     has annexable_by: (str | None) { getter; }
 
     def declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool;
+    def absorb_annex_body(stmts: Sequence[UniNode]) -> None;
     static def make_stub(
         inject_name: (str | None) = None, inject_src: (Source | None) = None
     ) -> Module {
@@ -2742,3 +2743,30 @@ def is_client_destined(nd: UniNode) -> bool;
 def type_only_import_of(nd: NameAtom) -> (ModuleItem | None);
 
 def in_type_position(nd: UniNode) -> bool;
+
+def _shape_code(s: str) -> int {
+    if s == "many" {
+        return 2;
+    }
+    if s == "one" {
+        return 1;
+    }
+    return 0;
+}
+
+def nu_role_shape(nd: UniNode, role_name: str) -> int {
+    shapes = nd._role_shapes;
+    if shapes is None {
+        return 0;
+    }
+    if role_name == "BodyRole" {
+        return _shape_code(shapes.get(BodyRole, ""));
+    }
+    if role_name == "SpecRole" {
+        return _shape_code(shapes.get(SpecRole, ""));
+    }
+    if role_name == "AccessorsRole" {
+        return _shape_code(shapes.get(AccessorsRole, ""));
+    }
+    return 0;
+}

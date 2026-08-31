@@ -470,6 +470,7 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
     if layout.pyobj_header_slots > 0 {
         field_types.append(ir.IntType(64));
         field_types.append(ir.IntType(8).as_pointer());
+        field_types.append(ir.IntType(8).as_pointer());
         if arch_name not in self.pyobj_kind {
             self.pyobj_kind[arch_name] = len(self.pyobj_kind);
         }
@@ -4324,6 +4325,14 @@ impl NaIRGenObjects._emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> Non
             name="npy.hdr.type"
         )
     );
+    b.store(
+        ir.Constant(ir.IntType(8).as_pointer(), None),
+        b.gep(
+            obj_ptr,
+            [ir.Constant(i32, 0), ir.Constant(i32, 2)],
+            name="npy.hdr.dict"
+        )
+    );
 }
 
 impl NaIRGenObjects._npy_abi_offsets(field_types: list) -> tuple {
@@ -4423,6 +4432,6 @@ impl NaIRGenObjects._build_npy_layout -> str {
 
 impl NaIRGenObjects._npy_vt_slot(arch_name: str) -> int {
     """The vtable pointer's field index: PyObject-headed classes carry
-    {ob_refcnt, ob_type} ahead of it."""
-    return 2 if arch_name in self.pyobj_kind else 0;
+    {ob_refcnt, ob_type, __dict__} ahead of it."""
+    return 3 if arch_name in self.pyobj_kind else 0;
 }
