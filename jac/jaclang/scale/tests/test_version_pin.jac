@@ -385,8 +385,7 @@ test "a deploy is refused when the pin is a minor line off the deployer" {
     # No pin, and a channel that ships its own binary, are unconstrained.
     assert binary_mod.deploy_generation_refusal(
         _project('[project]\nname = "x"\n'), "stable"
-    )
-        == "";
+    ) == "";
     assert binary_mod.deploy_generation_refusal(_pin_offset(1), "dev") == "";
 
     # A pin naming no published release is the preflight's error to raise,
@@ -419,12 +418,23 @@ test "the pinned jac is handed the same deploy, and cannot delegate again" {
     # delegates again forks forever, so both are pinned here.
     # A 0.36-or-older child has no `jac scale deploy`; deploys ride
     # `jac start --scale` there. 0.37+ dropped --scale for `jac scale deploy`.
-    assert pinned_deploy_argv("/jac", "app.jac", "kubernetes", "0.34.3")
-        == ["/jac", "start", "app.jac", "--scale", "--target", "kubernetes"];
-    assert pinned_deploy_argv("/jac", "app.jac", "kubernetes", "0.37.0")
-        == ["/jac", "scale", "deploy", "app.jac", "--target", "kubernetes"];
-    assert pinned_deploy_argv("/jac", "a.jac", "aws", "0.34.3", True)[-1]
-        == "--enable-tls";
+    assert pinned_deploy_argv("/jac", "app.jac", "kubernetes", "0.34.3") == [
+        "/jac",
+        "start",
+        "app.jac",
+        "--scale",
+        "--target",
+        "kubernetes"
+    ];
+    assert pinned_deploy_argv("/jac", "app.jac", "kubernetes", "0.37.0") == [
+        "/jac",
+        "scale",
+        "deploy",
+        "app.jac",
+        "--target",
+        "kubernetes"
+    ];
+    assert pinned_deploy_argv("/jac", "a.jac", "aws", "0.34.3", True)[-1] == "--enable-tls";
 
     app = _project('[project]\nname = "x"\njac-version = "==0.1.0"\n') + "/main.jac";
     r = KubernetesRealizer(ms_config={});
@@ -474,8 +484,13 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
         f"a failed delegated deploy said nothing: {err.getvalue()!a}"
     );
     argv = (Path(d) / "argv").read_text().split();
-    assert argv
-        == ["start", f"{d}/main.jac", "--scale", "--target", "kubernetes"] , argv;
+    assert argv == [
+        "start",
+        f"{d}/main.jac",
+        "--scale",
+        "--target",
+        "kubernetes"
+    ] , argv;
     env = (Path(d) / "env").read_text();
     assert f"{DELEGATED_ENV}=1" in env , "the child can delegate again and fork forever";
     assert "JAC_DEV_SOURCE" not in env , (
@@ -491,10 +506,14 @@ test "the child is handed every deploy parameter that can reach it" {
     # dry_run never delegates, and show_yaml is read only inside that branch,
     # so neither can change a delegated deploy. Anything else added to
     # realize() has to be forwarded, and this fails until it is.
-    accepted = set(inspect.signature(KubernetesRealizer.realize).parameters)
-        - {"self", "filename"};
-    forwarded = set(inspect.signature(pinned_deploy_argv).parameters)
-        - {"jac_bin", "filename"};
+    accepted = set(inspect.signature(KubernetesRealizer.realize).parameters) - {
+        "self",
+        "filename"
+    };
+    forwarded = set(inspect.signature(pinned_deploy_argv).parameters) - {
+        "jac_bin",
+        "filename"
+    };
     assert accepted - forwarded == {"dry_run", "show_yaml"} , (
         f"realize() takes {sorted(accepted)} but the child is handed "
         f"{sorted(forwarded)}; forward the new one or justify dropping it"

@@ -40,7 +40,8 @@ obj KubernetesRealizer {
     ) -> (int | None) {
         import subprocess;
         import from jaclang.scale.injector.binary {
-            host_toolchain_path, resolve_deploy_version
+            host_toolchain_path,
+            resolve_deploy_version
         }
         import from jaclang.scale.injector.bundle { release_binary_env }
         import from jaclang.scale.config.dev_config { resolve_dev_channel }

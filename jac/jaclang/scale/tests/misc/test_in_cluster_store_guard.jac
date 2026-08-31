@@ -9,9 +9,7 @@ import os;
 import tempfile;
 import unittest.mock;
 import jaclang.scale.memory.memory_hierarchy as mh;
-import from jaclang.scale.memory.memory_hierarchy {
-    PersistenceType, ScaleTieredMemory
-}
+import from jaclang.scale.memory.memory_hierarchy { PersistenceType, ScaleTieredMemory }
 
 
 def _offline_memory(shelf_dir: str) -> ScaleTieredMemory {
@@ -21,13 +19,9 @@ def _offline_memory(shelf_dir: str) -> ScaleTieredMemory {
     cfg.get_database_config.return_value = {
         "shelf_db_path": os.path.join(shelf_dir, "anchor_store.db")
     };
-    with unittest.mock.patch.object(
-        mh, "RedisBackend", return_value=unavailable
-    ), unittest.mock.patch.object(
+    with unittest.mock.patch.object(mh, "RedisBackend", return_value=unavailable), unittest.mock.patch.object(
         mh, "MongoBackend", return_value=unavailable
-    ), unittest.mock.patch.object(
-        mh, "get_scale_config", return_value=cfg
-    ), unittest.mock.patch(
+    ), unittest.mock.patch.object(mh, "get_scale_config", return_value=cfg), unittest.mock.patch(
         "jaclang.JacRuntimeInterface.get_persistent_memory", return_value=None
     ) {
         return ScaleTieredMemory(use_cache=False);
