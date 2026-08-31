@@ -1362,10 +1362,21 @@ impl JcirGenPass.exit_sub_tag with SubTag exit {
 }
 
 impl JcirGenPass.exit_module with Module exit {
-    import from jaclang.runtime.osp_model { get_osp_model }
-    _osp = get_osp_model(here);
-    for (_cname, _cother) in _osp.collisions {
-        self.emit(E5102, node_override=here, name=_cname, other=_cother);
+    import from jaclang.runtime.osp_tag { stable_osp_tag }
+    _tag_names: dict[int, str] = {};
+    for _stmt in (here.body or []) {
+        if isinstance(_stmt, Archetype)
+            and (_stmt.name is not None)
+            and (_stmt.arch_kind is not None) {
+            _an = _stmt.name.value;
+            _t = stable_osp_tag(_an);
+            _prior = _tag_names.get(_t);
+            if (_prior is not None) and (_prior != _an) {
+                self.emit(E5102, node_override=_stmt, name=_an, other=_prior);
+            } else {
+                _tag_names[_t] = _an;
+            }
+        }
     }
     mod_path = here.loc.mod_path;
     is_builtin_module = (

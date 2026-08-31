@@ -4,7 +4,12 @@ glob _NOGC_OSP_ENGINE_STRUCTS: tuple = (
          "WalkerDesc",
          "NodeDesc",
          "WalkScope",
-         "OspRuntime"
+         "OspRuntime",
+         "Frame",
+         "OspEngine",
+         "OspGraph",
+         "Adj",
+         "EdgeRow"
      ),
      _NOGC_CONTAINER_DROP_OPS: tuple = (
          "scope_exit",
