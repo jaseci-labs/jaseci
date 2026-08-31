@@ -236,11 +236,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 "under [scale.kubernetes] in jac.toml."
             );
         }
-        import from jaclang.scale.config.dev_config { resolve_dev_channel }
         import from jaclang.scale.injector.binary { deploy_generation_refusal }
-        refusal = deploy_generation_refusal(
-            app_config.code_folder, resolve_dev_channel(app_config.code_folder).value
-        );
+        refusal = deploy_generation_refusal(app_config.code_folder);
         if refusal {
             return DeploymentResult(success=False, message=refusal);
         }

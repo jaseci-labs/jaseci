@@ -102,11 +102,8 @@ obj KubernetesRealizer {
         code_folder = os.path.dirname(filename) or '.';
         load_project_env(code_folder);
         if dry_run {
-            import from jaclang.scale.config.dev_config { resolve_dev_channel }
             import from jaclang.scale.injector.binary { deploy_generation_refusal }
-            refusal = deploy_generation_refusal(
-                code_folder, resolve_dev_channel(code_folder).value, offline=True
-            );
+            refusal = deploy_generation_refusal(code_folder, offline=True);
             if refusal {
                 console.error(refusal, emoji=False);
                 return 2;

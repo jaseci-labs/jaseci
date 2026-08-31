@@ -246,11 +246,12 @@ def resolve_deploy_version(project_dir: str, channel: str) -> str {
 
 
 def deploy_generation_refusal(
-    project_dir: str, channel: str, offline: bool = False
+    project_dir: str, channel: str = "", offline: bool = False
 ) -> str {
     import from jaclang.cli.manifest_route { resolve_cli_version }
     import from jaclang.project.config { JacConfig, find_project_root }
-    import from jaclang.scale.config.dev_config { Channel }
+    import from jaclang.scale.config.dev_config { Channel, resolve_dev_channel }
+    channel = channel or resolve_dev_channel(project_dir).value;
     if offline {
         found = find_project_root(Path(project_dir));
         pinned = (
