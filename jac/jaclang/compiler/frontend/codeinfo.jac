@@ -659,6 +659,7 @@ obj NodeComments {
 
 obj CodeGenTarget {
     has py: str = '',
+        npy_layout: (str | None) = None,
         jac: str = '',
         _doc_ir: (Doc | None) = None,
         js: str = '',

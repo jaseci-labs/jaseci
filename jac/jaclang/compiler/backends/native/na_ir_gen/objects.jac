@@ -51,6 +51,11 @@ obj NaIRGenObjects(NaIRGenState) {
     def _native_archetypes(module: uni.Module) -> list[uni.Archetype];
     def _register_archetypes(module: uni.Module) -> None;
     def _codegen_archetype(nd: uni.Archetype) -> None;
+    def _npy_abi_offsets(field_types: list) -> tuple;
+    def _emit_npy_helpers -> None;
+    def _emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> None;
+    def _npy_vt_slot(arch_name: str) -> int;
+    def _build_npy_layout -> str;
     def _register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None;
     def _register_class_consts(
         nd: uni.Archetype, arch_name: str, block: uni.ModuleCode

@@ -752,6 +752,13 @@ impl nacompile(
     file_size = os.path.getsize(output);
     if shared {
         console.print(f"  Shared library written to {output} ({file_size} bytes).");
+        if ir_module.gen.npy_layout is not None {
+            _lay_path = f"{output}.layout.json";
+            with open(_lay_path, "w") as _lf {
+                _lf.write(ir_module.gen.npy_layout);
+            }
+            console.print(f"  PyObject layout written to {_lay_path}.");
+        }
         console.print(
             "  Load it from C/ctypes (dlopen + dlsym); the C ABI surface is the "
             "exported `:pub` symbols plus jac_retain/jac_release."

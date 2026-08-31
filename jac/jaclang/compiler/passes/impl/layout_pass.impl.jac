@@ -281,6 +281,22 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
     vtable_ptr_slot: (int | None) = None;
     type_tag_slot: (int | None) = None;
     reports_slot: (int | None) = None;
+    # Classes in the armed native-frontend scope carry a CPython object
+    # header ahead of every other slot: {ob_refcnt, ob_type}. The native
+    # allocator stamps both, so an instance IS a PyObject and the Python
+    # side reads fields through generated type slots at interpreter speed
+    # (#8789 PyObject-unitree design).
+    pyobj_header_slots = 0;
+    import from jaclang.compiler.native_scope {
+        in_native_scope_path as _pyo_in_scope,
+        scope_lowering_active as _pyo_armed
+    }
+    _pyo_mod = arch.find_parent_of_type(Module);
+    _pyo_path = _pyo_mod.loc.mod_path if _pyo_mod is not None else "";
+    if _pyo_armed() and _pyo_in_scope(_pyo_path or "") {
+        pyobj_header_slots = 2;
+        current_idx = 2;
+    }
     if needs_vtable or is_osp {
         vtable_ptr_slot = current_idx;
         current_idx += 1;
@@ -406,7 +422,8 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
         is_osp=is_osp,
         vtable_ptr_slot=vtable_ptr_slot,
         type_tag_slot=type_tag_slot,
-        reports_slot=reports_slot
+        reports_slot=reports_slot,
+        pyobj_header_slots=pyobj_header_slots
     );
 }
 

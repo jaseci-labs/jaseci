@@ -230,6 +230,9 @@ impl NaIRGenObjects._register_archetypes(module: uni.Module) -> None {
 
     self._register_osp_kernel_module();
     self._emit_osp_setup();
+    if self.pyobj_kind {
+        self.ir_in.gen.npy_layout = self._build_npy_layout();
+    }
 
     self._predemote_capability_constructors();
     self._codegen_constructors_first(archetypes);
@@ -464,6 +467,13 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
     foreign_fields: set = set();
     erased_tv_fields: dict[(str, list)] = {};
 
+    if layout.pyobj_header_slots > 0 {
+        field_types.append(ir.IntType(64));
+        field_types.append(ir.IntType(8).as_pointer());
+        if arch_name not in self.pyobj_kind {
+            self.pyobj_kind[arch_name] = len(self.pyobj_kind);
+        }
+    }
     if layout.vtable_ptr_slot is not None {
         field_types.append(ir.IntType(8).as_pointer().as_pointer());
     }
@@ -2003,11 +2013,15 @@ impl NaIRGenObjects._codegen_instantiation(
         );
         vtable_slot = self.builder.gep(
             obj_ptr,
-            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
+            [
+                ir.Constant(ir.IntType(32), 0),
+                ir.Constant(ir.IntType(32), self._npy_vt_slot(type_name))
+            ],
             name="vtable.slot"
         );
         self.builder.store(vtable_base, vtable_slot);
     }
+    self._emit_pyobj_header(obj_ptr, type_name);
 
     _tt_idx = self.osp_type_tag_field.get(type_name);
     if _tt_idx is not None {
@@ -4165,4 +4179,250 @@ impl NaIRGenObjects._emit_class_routed_call(
         return None;
     }
     return _sr;
+}
+
+
+impl NaIRGenObjects._emit_npy_helpers -> None {
+    if self.npy_type_table is not None {
+        return;
+    }
+    if self.rc_alloc_fn is None {
+        self._emit_rc_helpers();
+    }
+    i8 = ir.IntType(8);
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    i8p = i8.as_pointer();
+    cap = 1024;
+
+    tt = ir.GlobalVariable(
+        self.llvm_module, ir.ArrayType(i8p, cap), name="__npy_type_table"
+    );
+    tt.linkage = "internal";
+    tt.initializer = ir.Constant(ir.ArrayType(i8p, cap), None);
+    self.npy_type_table = tt;
+    st = ir.GlobalVariable(
+        self.llvm_module, ir.ArrayType(i64, cap), name="__npy_size_table"
+    );
+    st.linkage = "internal";
+    st.initializer = ir.Constant(ir.ArrayType(i64, cap), None);
+    self.npy_size_table = st;
+    gt = ir.GlobalVariable(
+        self.llvm_module, ir.ArrayType(i64, cap), name="__npy_tag_table"
+    );
+    gt.linkage = "internal";
+    gt.initializer = ir.Constant(ir.ArrayType(i64, cap), None);
+    self.npy_tag_table = gt;
+    ot = ir.GlobalVariable(
+        self.llvm_module, ir.ArrayType(i64, cap), name="__npy_tagoff_table"
+    );
+    ot.linkage = "internal";
+    ot.initializer = ir.Constant(
+        ir.ArrayType(i64, cap), [ir.Constant(i64, -1) for _ in range(cap)]
+    );
+    self.npy_tagoff_table = ot;
+
+    _saved = self._builder;
+
+    # npy_register_kind(kind, type_ptr, size, tag, tag_off): the installer
+    # feeds every per-kind table from the emitted layout sidecar, so no
+    # module-init ordering is involved anywhere.
+    reg = ir.Function(
+        self.llvm_module,
+        ir.FunctionType(i64, [i64, i8p, i64, i64, i64]),
+        name="npy_register_kind"
+    );
+    self._builder = ir.IRBuilder(reg.append_basic_block("entry"));
+    b = self.builder;
+    (_kind, _tp, _sz, _tag, _toff) = (
+        reg.args[0], reg.args[1], reg.args[2], reg.args[3], reg.args[4]
+    );
+    b.store(_tp, b.gep(tt, [ir.Constant(i32, 0), _kind], name="npy.tt"));
+    b.store(_sz, b.gep(st, [ir.Constant(i32, 0), _kind], name="npy.st"));
+    b.store(_tag, b.gep(gt, [ir.Constant(i32, 0), _kind], name="npy.gt"));
+    b.store(_toff, b.gep(ot, [ir.Constant(i32, 0), _kind], name="npy.ot"));
+    b.ret(ir.Constant(i64, 0));
+
+    # npy_alloc(kind): arena allocation for Python-side construction
+    # (tp_new). Zeroed payload, immortal RC header, PyObject header, OSP
+    # tag stamped at its registered byte offset. No vtable: Python-created
+    # nodes are only ever dispatched from Python.
+    al = ir.Function(
+        self.llvm_module, ir.FunctionType(i8p, [i64]), name="npy_alloc"
+    );
+    self._builder = ir.IRBuilder(al.append_basic_block("entry"));
+    b = self.builder;
+    _k = al.args[0];
+    _size = b.load(b.gep(st, [ir.Constant(i32, 0), _k]), name="npy.sz");
+    _raw = self._rc_call_with_ctx(
+        self.rc_alloc_fn, [_size], op="npy", loc="", name="npy.raw"
+    );
+    memset_fn = self._get_or_declare_extern("memset", i8p, [i8p, i32, i64]);
+    b.call(memset_fn, [_raw, ir.Constant(i32, 0), _size]);
+    self._osp_make_immortal(_raw);
+    _rc_slot = b.bitcast(_raw, i64.as_pointer(), name="npy.ob_refcnt");
+    b.store(ir.Constant(i64, 4294967295), _rc_slot);
+    _tp_slot = b.bitcast(
+        b.gep(_raw, [ir.Constant(i64, 8)], name="npy.ob_type.raw"),
+        i8p.as_pointer(),
+        name="npy.ob_type"
+    );
+    b.store(b.load(b.gep(tt, [ir.Constant(i32, 0), _k]), name="npy.tp"), _tp_slot);
+    _toff_v = b.load(b.gep(ot, [ir.Constant(i32, 0), _k]), name="npy.toff");
+    _has_tag = b.icmp_signed(">=", _toff_v, ir.Constant(i64, 0), name="npy.hastag");
+    _bb_tag = al.append_basic_block("stamp_tag");
+    _bb_done = al.append_basic_block("done");
+    b.cbranch(_has_tag, _bb_tag, _bb_done);
+    self._builder = ir.IRBuilder(_bb_tag);
+    b = self.builder;
+    _tag_v = b.load(b.gep(gt, [ir.Constant(i32, 0), _k]), name="npy.tag");
+    _tag_slot = b.bitcast(
+        b.gep(_raw, [_toff_v], name="npy.tag.raw"), i64.as_pointer(), name="npy.tag.p"
+    );
+    b.store(_tag_v, _tag_slot);
+    b.branch(_bb_done);
+    self._builder = ir.IRBuilder(_bb_done);
+    self.builder.ret(_raw);
+
+    self._builder = _saved;
+    for _sym in ["npy_register_kind", "npy_alloc"] {
+        if _sym not in self.ir_in.gen._exported_symbols {
+            self.ir_in.gen._exported_symbols.append(_sym);
+        }
+    }
+}
+
+impl NaIRGenObjects._emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> None {
+    kind = self.pyobj_kind.get(arch_name);
+    if kind is None {
+        return;
+    }
+    self._emit_npy_helpers();
+    b = self.builder;
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    # ob_refcnt: CPython's 64-bit immortal pattern (lower 32 bits all-ones);
+    # incref/decref saturate and the object is never freed by Python.
+    b.store(
+        ir.Constant(i64, 4294967295),
+        b.gep(
+            obj_ptr,
+            [ir.Constant(i32, 0), ir.Constant(i32, 0)],
+            name="npy.hdr.refcnt"
+        )
+    );
+    tt = self.npy_type_table;
+    assert tt is not None , "npy helpers are emitted before header stamping";
+    _tp = b.load(
+        b.gep(tt, [ir.Constant(i32, 0), ir.Constant(i64, kind)]), name="npy.hdr.tp"
+    );
+    b.store(
+        _tp,
+        b.gep(
+            obj_ptr,
+            [ir.Constant(i32, 0), ir.Constant(i32, 1)],
+            name="npy.hdr.type"
+        )
+    );
+}
+
+impl NaIRGenObjects._npy_abi_offsets(field_types: list) -> tuple {
+    """x86-64/AArch64 ABI offsets for the struct's fields: every scalar is
+    size-aligned, aggregates recurse; returns (offsets, total_size)."""
+    offsets: list[int] = [];
+    off = 0;
+    for ft in field_types {
+        sz = 8;
+        if isinstance(ft, ir.IntType) {
+            sz = 1 if ft.width <= 8 else (ft.width // 8);
+        } elif isinstance(ft, ir.DoubleType) {
+            sz = 8;
+        } elif isinstance(ft, ir.PointerType) {
+            sz = 8;
+        } elif hasattr(ft, "elements") and ft.elements is not None {
+            (_sub, _ssz) = self._npy_abi_offsets(list(ft.elements));
+            _align = 8;
+            if off % _align != 0 {
+                off += _align - (off % _align);
+            }
+            offsets.append(off);
+            off += _ssz;
+            continue;
+        }
+        if off % sz != 0 {
+            off += sz - (off % sz);
+        }
+        offsets.append(off);
+        off += sz;
+    }
+    if off % 8 != 0 {
+        off += 8 - (off % 8);
+    }
+    return (offsets, off);
+}
+
+impl NaIRGenObjects._build_npy_layout -> str {
+    import json;
+    out: dict = {"classes": {}};
+    _model = self.ir_in.gen.osp_model;
+    _tags = _model.tags if _model is not None else {};
+    for (arch_name, kind) in self.pyobj_kind.items() {
+        st = self.struct_types.get(arch_name);
+        if st is None or st?.elements is None {
+            continue;
+        }
+        (offsets, total) = self._npy_abi_offsets(list(st.elements));
+        idx_map = self.struct_field_indices.get(arch_name, {});
+        ftypes = self.struct_field_types.get(arch_name, {});
+        enum_map = self.struct_field_enum_type.get(arch_name, {});
+        fields: dict = {};
+        for (fname, fidx) in idx_map.items() {
+            if fidx >= len(offsets) {
+                continue;
+            }
+            ft = ftypes.get(fname);
+            code = "opaque";
+            aux = "";
+            if fname in enum_map {
+                code = "enum";
+                aux = enum_map[fname];
+            } elif self?._str_desc_ty is not None and ft == self._str_desc_ty {
+                code = "str";
+            } elif isinstance(ft, ir.IntType) {
+                code = "bool" if ft.width == 1 else "int";
+            } elif isinstance(ft, ir.DoubleType) {
+                code = "float";
+            } elif isinstance(ft, ir.PointerType) {
+                _pn = getattr(ft.pointee, "name", "") or "";
+                if _pn in self.pyobj_kind {
+                    code = "obj";
+                    aux = _pn;
+                } elif _pn == "jac.str" or _pn.endswith(".str") or _pn == "str" {
+                    code = "str";
+                } else {
+                    code = "ptr";
+                    aux = _pn;
+                }
+            }
+            fields[fname] = {"index": fidx, "offset": offsets[fidx], "code": code, "aux": aux};
+        }
+        _lay_tag_idx = self.osp_type_tag_field.get(arch_name);
+        out["classes"][arch_name] = {
+            "kind": kind,
+            "size": total,
+            "tag": _tags.get(arch_name, 0),
+            "tag_offset": offsets[_lay_tag_idx]
+                if (_lay_tag_idx is not None and _lay_tag_idx < len(offsets))
+                else -1,
+            "fields": fields
+        };
+    }
+    return json.dumps(out);
+}
+
+
+impl NaIRGenObjects._npy_vt_slot(arch_name: str) -> int {
+    """The vtable pointer's field index: PyObject-headed classes carry
+    {ob_refcnt, ob_type} ahead of it."""
+    return 2 if arch_name in self.pyobj_kind else 0;
 }

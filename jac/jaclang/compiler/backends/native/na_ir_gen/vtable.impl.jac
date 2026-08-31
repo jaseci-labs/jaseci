@@ -311,7 +311,9 @@ impl NaIRGenVtable._codegen_virtual_call(
     }
     if (_vc_force_variants or not _vd_uniform) and _vd_variants {
         vtable_ptr_ptr = self.builder.gep(
-            obj_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="vt.id.pp"
+            obj_val,
+            [ir.Constant(i32, 0), ir.Constant(i32, self._npy_vt_slot(obj_type_name))],
+            name="vt.id.pp"
         );
         _vd_vtp = self.builder.load(vtable_ptr_ptr, name="vt.id");
         _vd_fnc = self.builder.function;
@@ -366,7 +368,9 @@ impl NaIRGenVtable._codegen_virtual_call(
     }
 
     vtable_ptr_ptr = self.builder.gep(
-        obj_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="vtable.ptr.ptr"
+        obj_val,
+        [ir.Constant(i32, 0), ir.Constant(i32, self._npy_vt_slot(obj_type_name))],
+        name="vtable.ptr.ptr"
     );
     vtable_ptr = self.builder.load(vtable_ptr_ptr, name="vtable.ptr");
 
@@ -579,7 +583,9 @@ impl NaIRGenVtable._class_id_of_value(arch_name: str, obj_val: ir.Value) -> ir.V
     }
     i32 = ir.IntType(32);
     vtable_ptr_ptr = self.builder.gep(
-        obj_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="clsname.vt.ptr.ptr"
+        obj_val,
+        [ir.Constant(i32, 0), ir.Constant(i32, self._npy_vt_slot(arch_name))],
+        name="clsname.vt.ptr.ptr"
     );
     vtable_ptr = self.builder.load(vtable_ptr_ptr, name="clsname.vt.ptr");
     name_slot = self.builder.gep(

@@ -89,6 +89,11 @@ obj NaIRGenState(ModuleCodegenPass) {
         _vtable_less_reach: (set[str] | None) = None,
         _short_mro_reach: (dict[str, list[str]] | None) = None,
         osp_type_tag_field: dict[str, int] = {},
+        pyobj_kind: dict[str, int] = {},
+        npy_type_table: (ir.GlobalVariable | None) = None,
+        npy_size_table: (ir.GlobalVariable | None) = None,
+        npy_tag_table: (ir.GlobalVariable | None) = None,
+        npy_tagoff_table: (ir.GlobalVariable | None) = None,
         osp_reports_field: dict[str, int] = {},
         osp_thunk_funcs: dict[str, ir.Function] = {},
         _osp_thunk_uid: int = 0,
@@ -864,6 +869,9 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _emit_osp_thunk(arch_name: str, method: uni.Ability) -> None abst;
     def _emit_osp_setup -> None abst;
     def _osp_make_immortal(ptr: ir.Value) -> None abst;
+    def _emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> None abst;
+    def _npy_vt_slot(arch_name: str) -> int abst;
+    def _emit_npy_helpers -> None abst;
     def _codegen_visit(nd: uni.VisitStmt) -> None abst;
     def _codegen_disengage(nd: uni.DisengageStmt) -> None abst;
     def _codegen_report(nd: uni.ReportStmt) -> None abst;

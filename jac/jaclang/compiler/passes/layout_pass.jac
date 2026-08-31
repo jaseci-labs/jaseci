@@ -73,7 +73,8 @@ obj ArchetypeLayout {
         is_acyclic: bool = False,
         vtable_ptr_slot: (int | None) = None,
         type_tag_slot: (int | None) = None,
-        reports_slot: (int | None) = None;
+        reports_slot: (int | None) = None,
+        pyobj_header_slots: int = 0;
 }
 
 obj EnumMemberLayout {
@@ -132,7 +133,7 @@ def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
 }
 
 def layout_slot_count(lay: ArchetypeLayout) -> int {
-    top = 0;
+    top = lay.pyobj_header_slots;
     for slot in [lay.vtable_ptr_slot, lay.type_tag_slot, lay.reports_slot] {
         if slot is not None and (slot + 1) > top {
             top = slot + 1;
@@ -171,7 +172,8 @@ def declaring_module_path(base_expr: UniNode) -> str {
 def headers_agree(child: ArchetypeLayout, base: ArchetypeLayout) -> bool {
     return child.vtable_ptr_slot == base.vtable_ptr_slot
         and child.type_tag_slot == base.type_tag_slot
-        and child.reports_slot == base.reports_slot;
+        and child.reports_slot == base.reports_slot
+        and child.pyobj_header_slots == base.pyobj_header_slots;
 }
 
 def relax_vtable_header(
