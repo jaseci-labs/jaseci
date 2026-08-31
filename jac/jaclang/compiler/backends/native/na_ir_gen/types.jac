@@ -62,6 +62,7 @@ obj NaIRGenTypes(NaIRGenState) {
     def _struct_name_for_key(tk: (str | None)) -> (str | None);
     def _erased_arch_base(tk: str) -> (str | None);
     def _split_union_key(tk: str) -> list[str];
+    def _ptr_box_kind(rt: any) -> int;
     def _struct_ptr_pointee_name(val: ir.Value) -> (str | None);
     def _struct_array_elem_ptr(ptr: ir.Value, idx_val: ir.Value) -> ir.Value;
     def _list_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | None);

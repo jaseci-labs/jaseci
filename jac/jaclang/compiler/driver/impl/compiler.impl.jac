@@ -664,6 +664,15 @@ impl JacCompiler.parse_str(
             }
         }
         if not codespace {
+            import from jaclang.compiler.native_scope {
+                in_native_scope_path as _in_scope,
+                scope_lowering_active as _scope_on
+            }
+            if _scope_on() and _in_scope(file_path) {
+                codespace = 'native';
+            }
+        }
+        if not codespace {
             _p_opts = target_program.options;
             _forced_pre = _p_opts.force_codespace if _p_opts is not None else '';
             if (
@@ -719,10 +728,23 @@ impl JacCompiler.parse_str(
     if run_codespace_infer {
         _opts = target_program.options;
         _analysis_only = _opts is not None and _opts.no_cgen;
+        import from jaclang.compiler.native_scope {
+            in_native_scope_path,
+            scope_lowering_active
+        }
+        _scope_native = (
+            scope_lowering_active()
+            and in_native_scope_path(mod.loc.mod_path or '')
+        );
         _native_eligible = (
             not _analysis_only
-            and not self.selfhost.is_selfhost(target_program)
-            and _default_codespace_for(target_program) == 'native'
+            and (
+                _scope_native
+                or (
+                    not self.selfhost.is_selfhost(target_program)
+                    and _default_codespace_for(target_program) == 'native'
+                )
+            )
         );
         if _native_eligible {
             import from jaclang.compiler.placement.placement_solver {
@@ -1122,6 +1144,10 @@ impl JacCompiler.compile(
     use_str: (str | None) = None,
     options: CompileOptions = CompileOptions()
 ) -> uni.Module {
+    if options.aot_mode and options.default_codespace == 'native' {
+        import from jaclang.compiler.native_scope { activate_scope_lowering }
+        activate_scope_lowering();
+    }
     if self._reentrant_depth == 0 and not self.stub_catalog_disabled {
         import from jaclang.compiler.driver.jir { is_compiler_tree_path }
         if (
@@ -1851,7 +1877,9 @@ impl JacCompiler._prepare_tool_program(
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.frontend.parser { parse as rd_parse }
     prog = JacProgram();
-    (current_mod, had_error) = rd_parse(source_str, file_path, prog=prog);
+    (current_mod, had_error) = rd_parse(
+        source_str, file_path, prog=prog, freeze=False
+    );
     if had_error {
         prog.reset_module_root(uni.ProgramModule(main_mod=current_mod));
         return (prog, None);
