@@ -263,3 +263,44 @@ test "redis dashboard htpasswd entry is a bcrypt 2y hash" {
     # nginx's auth-file reader wants the $2y$ prefix, not bcrypt's native $2b$.
     assert hashed.startswith("$2y$") , f"expected a $2y$ htpasswd hash, got {hashed!r}";
 }
+
+
+test "--dry-run never hands the deploy to the pinned jac" {
+    # Delegating fetches the pinned release before it can run it, and --dry-run
+    # promises no downloads, so the plan stays on the local jac even when the
+    # app pins another line.
+    with tempfile.TemporaryDirectory() as tmpdir {
+        app = _write_app(tmpdir);
+        with open(os.path.join(tmpdir, "jac.toml"), "w") as f {
+            f.write('[project]\nname = "x"\njac-version = "==0.1.0"\n');
+        }
+        with unittest.mock.patch(
+            "jaclang.scale.injector.binary._http_get_bytes"
+        ) as mock_http {
+            r = KubernetesRealizer(ms_config={"enabled": True});
+            assert r._deploy_on_pinned_jac(app, "kubernetes", False, True) is None;
+            mock_http.assert_not_called();
+        }
+    }
+}
+
+
+test "--dry-run refuses a cross-generation pin instead of planning it" {
+    # An exact pin resolves with no network, so a plan the real deploy would
+    # never use is refused rather than printed.
+    with tempfile.TemporaryDirectory() as tmpdir {
+        app = _write_app(tmpdir);
+        with open(os.path.join(tmpdir, "jac.toml"), "w") as f {
+            f.write('[project]\nname = "x"\njac-version = "==0.1.0"\n');
+        }
+        with unittest.mock.patch(
+            "jaclang.scale.injector.binary._http_get_bytes"
+        ) as mock_http {
+            rc = KubernetesRealizer(ms_config={"enabled": True}).realize(
+                app, target="kubernetes-microservice", dry_run=True
+            );
+            assert rc == 2 , f"a plan for the wrong generation was printed (rc={rc})";
+            mock_http.assert_not_called();
+        }
+    }
+}

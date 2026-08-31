@@ -68,15 +68,31 @@ impl ScaleTieredMemory.postinit -> None {
             logger.debug("  ✔ Using MongoDB for persistence", style="muted");
         } except Exception { }
     } else {
-        self.l3 = SqliteMemory(
-            path=get_scale_config().get_database_config()['shelf_db_path']
-        );
-        self._persistence_type = PersistenceType.SQLITE;
-        logger.debug("MongoDB not available, using SqliteMemory for persistence");
-        try {
-            import from jaclang.cli.console { console }
-            logger.debug("  ✔ Using SQLite for persistence", style="muted");
-        } except Exception { }
+        import os;
+        if os.environ.get('KUBERNETES_SERVICE_HOST', '').strip() {
+            # In a cluster the sqlite file lives on the pod filesystem: one
+            # store per replica, gone on the next restart. Running without
+            # persistence is what no database means; a store that pretends
+            # to persist is what loses the data.
+            self.l3 = None;
+            self._persistence_type = PersistenceType.NONE;
+            logger.error(
+                "MongoDB is not reachable and this process is in a cluster, "
+                "where an embedded SQLite store would be per-replica and lost "
+                "on restart. Running without persistence; point the deploy at "
+                "a database."
+            );
+        } else {
+            self.l3 = SqliteMemory(
+                path=get_scale_config().get_database_config()['shelf_db_path']
+            );
+            self._persistence_type = PersistenceType.SQLITE;
+            logger.debug("MongoDB not available, using SqliteMemory for persistence");
+            try {
+                import from jaclang.cli.console { console }
+                logger.debug("  ✔ Using SQLite for persistence", style="muted");
+            } except Exception { }
+        }
     }
 }
 
