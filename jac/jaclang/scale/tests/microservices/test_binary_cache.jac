@@ -118,6 +118,9 @@ test "two pins downloading at once keep their own cache entries" {
     # and isolation rests on every write going to a temp file named after its
     # own target. Share one temp name and the threads write over each other,
     # so a version's cache entry ends up holding another version's binary.
+    # Only the download is stubbed, because a test cannot pull release binaries
+    # from GitHub. Everything the fix touches is real here: real threads, a
+    # real shared cache directory, and the real temp-file naming and rename.
     import jaclang.scale.injector.binary as binmod;
     import threading;
     import from pathlib { Path }
