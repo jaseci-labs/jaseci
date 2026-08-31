@@ -188,16 +188,7 @@ jobs:
       - name: Create and push tag
         env:
           VERSION: ${{ needs.resolve.outputs.version }}
-        run: |
-          set -euo pipefail
-          VTAG="v${VERSION}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${VTAG}" >/dev/null 2>&1; then
-            echo "Tag ${VTAG} already exists; leaving it in place."
-          else
-            echo "Tagging ${VTAG} at ${GITHUB_SHA}"
-            git tag --annotate --message="jac ${VERSION}" "$VTAG" "$GITHUB_SHA"
-            git push origin "refs/tags/${VTAG}"
-          fi
+        run: bash scripts/release_tag_guard.sh "$VERSION" "$GITHUB_SHA"
 
       # Draft: hidden from /releases/latest with no downloadable assets, so
       # install.sh can't resolve it until `publish` reveals it complete. NOT
