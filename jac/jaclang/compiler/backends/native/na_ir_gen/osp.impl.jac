@@ -974,9 +974,7 @@ impl NaIRGenOsp._codegen_edge_ref_trailer(nd: uni.EdgeRefTrailer) -> (ir.Value |
             _wrap_fn = self.func_symtab.get("osp_wrap1");
             _eph_fn = self.func_symtab.get("osp_refs_edge_pred");
             _pred_pair = self._osp_pred_pair(_etname or "", _ec_compares, nd);
-            if (_eph_fn is None)
-                or (_pred_pair is None)
-                or ((_cur is None) and (_wrap_fn is None)) {
+            if (_eph_fn is None) or (_pred_pair is None) {
                 self.emit(
                     E5092, node_override=nd, kind="expression", name="EdgeRefTrailer"
                 );
@@ -984,12 +982,17 @@ impl NaIRGenOsp._codegen_edge_ref_trailer(nd: uni.EdgeRefTrailer) -> (ir.Value |
             }
             if _cur is not None {
                 _origins = _cur;
-            } else {
+            } elif _wrap_fn is not None {
                 _origins = self.builder.call(
                     _wrap_fn,
                     [self._coerce_type(origin_val, _wrap_fn.function_type.args[0])],
                     name="osp.eph.org1"
                 );
+            } else {
+                self.emit(
+                    E5092, node_override=nd, kind="expression", name="EdgeRefTrailer"
+                );
+                return None;
             }
             _eargs = _eph_fn.function_type.args;
             _result = self.builder.call(
