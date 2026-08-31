@@ -92,6 +92,9 @@ impl WorkPool._spawn(slot: int) -> dict[(str, any)] {
             os.close(dispatch_w);
             os.close(result_r);
             for other in self.kids {
+                if not other["alive"] {
+                    continue;
+                }
                 try {
                     os.close(other["dispatch_fd"]);
                 } except OSError {
@@ -322,17 +325,17 @@ impl WorkPool._reap(kid: dict[(str, any)]) -> None {
 impl WorkPool._pump -> None {
     import select;
     while True {
-        live = [
+        self.kids = [
             k
             for k in self.kids
             if k["alive"]
         ];
-        if not live {
+        if not self.kids {
             break;
         }
         busy = [
             k
-            for k in live
+            for k in self.kids
             if (k["inflight"] is not None) or k.get("retired")
         ];
         if not busy {
